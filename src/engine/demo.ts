@@ -28,13 +28,13 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
   const trades: Trade[] = [];
   const now = Date.now();
   let price = 21_900;
-  let edge = 0.04;
+  let edge = 0.015;
 
   for (let di = 0; di < days.length; di++) {
     const date = days[di];
     price += gaussian(rand) * 120 + 9;
-    edge += gaussian(rand) * 0.01;
-    edge = Math.max(-0.05, Math.min(0.12, edge));
+    edge += gaussian(rand) * 0.008;
+    edge = Math.max(-0.06, Math.min(0.06, edge));
     const tilt = rand() < 0.12;
     const nTrades = tilt ? 6 + Math.floor(rand() * 6) : 1 + Math.floor(rand() * 5);
     const sessionId = uid('s');
@@ -51,10 +51,10 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
       const entryTime = cursorMs;
       const exitTime = entryTime + durationMin * 60_000;
       cursorMs = exitTime + (3 + rand() * 25) * 60_000;
-      const win = rand() < 0.5 + edge - (tilt ? 0.12 : 0);
+      const win = rand() < 0.515 + edge - (tilt ? 0.14 : 0);
       const riskPts = 8 + rand() * 14;
-      const rewardPts = riskPts * (1.1 + rand() * 1.4);
-      const movePts = win ? rewardPts * (0.6 + rand() * 0.5) : -riskPts * (0.7 + rand() * 0.45);
+      const rewardPts = riskPts * (1.0 + rand() * 1.2);
+      const movePts = win ? rewardPts * (0.5 + rand() * 0.6) : -riskPts * (0.8 + Math.pow(rand(), 2) * 1.1);
       const entryPrice = Math.round((price + gaussian(rand) * 40) / 0.25) * 0.25;
       const exitPrice = Math.round((entryPrice + (direction === 'long' ? movePts : -movePts)) / 0.25) * 0.25;
       const commission = qty * (instrument === 'MNQ' ? 0.74 : 2.5) * 2;

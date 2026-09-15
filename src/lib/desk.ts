@@ -1,0 +1,83 @@
+/** API exposée par le shell Electron (preload). Absente lorsque CΛNTO tourne dans un navigateur. */
+export interface OrchestratorRequest {
+  id: string;
+  clientId: string;
+  method: string;
+  params: unknown;
+}
+
+export interface OrchestratorStatus {
+  running: boolean;
+  port: number;
+  clients: number;
+  error?: string;
+}
+
+export interface DeskApi {
+  isDesk: true;
+  platform: string;
+  version: string;
+  window: {
+    minimize: () => void;
+    toggleMaximize: () => void;
+    close: () => void;
+    onMaximized: (cb: (max: boolean) => void) => () => void;
+  };
+  files: {
+    saveText: (defaultName: string, text: string) => Promise<boolean>;
+    openText: (filters: { name: string; extensions: string[] }[]) => Promise<{ name: string; text: string } | null>;
+  };
+  orchestrator: {
+    start: (port: number) => Promise<OrchestratorStatus>;
+    stop: () => Promise<OrchestratorStatus>;
+    status: () => Promise<OrchestratorStatus>;
+    respond: (id: string, clientId: string, result: unknown, error?: string) => void;
+    broadcast: (event: string, payload: unknown) => void;
+    onRequest: (cb: (req: OrchestratorRequest) => void) => () => void;
+    onStatus: (cb: (status: OrchestratorStatus) => void) => () => void;
+  };
+}
+
+declare global {
+  interface Window {
+    canto?: DeskApi;
+  }
+}
+
+export const desk: DeskApi | undefined = typeof window !== 'undefined' ? window.canto : undefined;
+export const isDesk = !!desk;
+
+/** Enregistre un texte : dialogue natif sous Electron, téléchargement dans le navigateur. */
+export async function saveTextFile(defaultName: string, text: string, mime = 'text/plain'): Promise<boolean> {
+  if (desk) return desk.files.saveText(defaultName, text);
+  const blob = new Blob([text], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = defaultName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return true;
+}
+
+/** Ouvre un fichier texte : dialogue natif sous Electron, `<input type=file>` sinon. */
+export function openTextFile(accept = '.csv,.txt,.json'): Promise<{ name: string; text: string } | null> {
+  if (desk) {
+    const ext = accept.split(',').map((e) => e.trim().replace(/^\./, ''));
+    return desk.files.openText([{ name: 'Fichiers', extensions: ext }]);
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      if (!f) return resolve(null);
+      resolve({ name: f.name, text: await f.text() });
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
