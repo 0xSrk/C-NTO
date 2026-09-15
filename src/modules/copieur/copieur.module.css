@@ -1,0 +1,162 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.topology {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.colTitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.acc {
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.015);
+  margin-bottom: 8px;
+}
+.acc.master {
+  border-color: var(--gold-line);
+}
+.accHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.accHead b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-0);
+  flex: 1;
+}
+.accHead button {
+  color: var(--text-3);
+}
+.accHead button:hover {
+  color: var(--ember);
+}
+.accGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.accGrid input,
+.accGrid select {
+  height: 26px;
+  padding: 0 7px;
+  font-size: 11.5px;
+}
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 18px;
+}
+.preview {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  border-top: 1px dashed var(--line-0);
+  padding-top: 6px;
+}
+.preview b {
+  color: var(--ice);
+  font-weight: 500;
+}
+.addRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+}
+.hint {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.55;
+}
+.hint code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+}
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.change {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line-0);
+}
+.change b {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold);
+  font-weight: 500;
+}
+.change ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.bridgeRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--line-0);
+}
+.bridgeRow b {
+  font-family: var(--font-mono);
+  color: var(--text-1);
+  font-weight: 500;
+  font-size: 11px;
+}
+.banner {
+  border: 1px solid rgba(245, 184, 75, 0.35);
+  background: var(--amber-soft);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text-1);
+  line-height: 1.55;
+}
+.banner b {
+  color: var(--amber);
+  font-weight: 500;
+}

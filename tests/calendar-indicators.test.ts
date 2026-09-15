@@ -49,7 +49,8 @@ describe('barres et indicateurs', () => {
       expect(out.lines.length).toBeGreaterThan(0);
       for (const l of out.lines) {
         expect(l.data.length).toBeGreaterThan(0);
-        expect(l.data.every((p) => Number.isFinite(p.value))).toBe(true);
+        expect(l.data.some((p) => p.value !== undefined)).toBe(true);
+        expect(l.data.every((p) => p.value === undefined || Number.isFinite(p.value))).toBe(true);
       }
     }
   });

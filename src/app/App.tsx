@@ -28,6 +28,52 @@ const INITIAL_STEPS: BootStep[] = [
   { id: 'bridge', label: 'Pont NinjaTrader', status: 'pending' },
 ];
 
+type Mark = (id: string, status: BootStep['status'], detail?: string) => void;
+
+/** Séquence d'initialisation, exécutée une seule fois par chargement de page. */
+let bootPromise: Promise<void> | null = null;
+const listeners = new Set<Mark>();
+const marks: { id: string; status: BootStep['status']; detail?: string }[] = [];
+
+function mark(id: string, status: BootStep['status'], detail?: string) {
+  marks.push({ id, status, detail });
+  for (const l of listeners) l(id, status, detail);
+}
+
+function boot(): Promise<void> {
+  if (bootPromise) return bootPromise;
+  bootPromise = (async () => {
+    mark('core', 'ok', isDesk ? 'shell Electron' : 'navigateur');
+    try {
+      await useSettings.getState().load();
+      await useJournal.getState().load();
+      const j = useJournal.getState();
+      mark('vault', 'ok', `${j.sessions.length} séance(s) · ${j.trades.length} trade(s)`);
+    } catch (e) {
+      mark('vault', 'warn', e instanceof Error ? e.message : 'indisponible');
+    }
+    mark('engine', 'ok', 'ratios · Monte Carlo · prop firm');
+    const year = new Date().getFullYear();
+    mark('calendar', 'ok', `${generateNasdaqEvents(year).length} repères ${year}`);
+    try {
+      await useNotes.getState().load();
+      await useCalendar.getState().load();
+      mark('notes', 'ok', `${useNotes.getState().notes.length} note(s)`);
+    } catch {
+      mark('notes', 'warn', 'indisponible');
+    }
+    try {
+      await useAgent.getState().load();
+      const o = useAgent.getState().orchestrator;
+      mark('agent', o.running ? 'ok' : 'off', o.running ? `port ${o.port}` : 'en veille');
+    } catch {
+      mark('agent', 'warn', 'erreur');
+    }
+    mark('bridge', 'off', 'hors ligne');
+  })();
+  return bootPromise;
+}
+
 export function App() {
   const [steps, setSteps] = useState<BootStep[]>(INITIAL_STEPS);
   const [ready, setReady] = useState(false);
@@ -35,43 +81,14 @@ export function App() {
   const tab = useUi((u) => u.tab);
 
   useEffect(() => {
+    const apply: Mark = (id, status, detail) => setSteps((prev) => prev.map((st) => (st.id === id ? { ...st, status, detail } : st)));
+    for (const m of marks) apply(m.id, m.status, m.detail);
+    listeners.add(apply);
     let cancelled = false;
-    const mark = (id: string, status: BootStep['status'], detail?: string) => {
-      if (cancelled) return;
-      setSteps((prev) => prev.map((st) => (st.id === id ? { ...st, status, detail } : st)));
-    };
-    (async () => {
-      mark('core', 'ok', isDesk ? 'shell Electron' : 'navigateur');
-      try {
-        await useSettings.getState().load();
-        await useJournal.getState().load();
-        const j = useJournal.getState();
-        mark('vault', 'ok', `${j.sessions.length} séance(s) · ${j.trades.length} trade(s)`);
-      } catch (e) {
-        mark('vault', 'warn', e instanceof Error ? e.message : 'indisponible');
-      }
-      mark('engine', 'ok', 'ratios · Monte Carlo · prop firm');
-      const year = new Date().getFullYear();
-      mark('calendar', 'ok', `${generateNasdaqEvents(year).length} repères ${year}`);
-      try {
-        await useNotes.getState().load();
-        await useCalendar.getState().load();
-        mark('notes', 'ok', `${useNotes.getState().notes.length} note(s)`);
-      } catch {
-        mark('notes', 'warn', 'indisponible');
-      }
-      try {
-        await useAgent.getState().load();
-        const o = useAgent.getState().orchestrator;
-        mark('agent', o.running ? 'ok' : 'off', o.running ? `port ${o.port}` : 'en veille');
-      } catch {
-        mark('agent', 'warn', 'erreur');
-      }
-      mark('bridge', 'off', 'hors ligne');
-      if (!cancelled) setReady(true);
-    })();
+    boot().then(() => !cancelled && setReady(true));
     return () => {
       cancelled = true;
+      listeners.delete(apply);
     };
   }, []);
 

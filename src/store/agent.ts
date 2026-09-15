@@ -85,6 +85,11 @@ export const useAgent = create<AgentState>((set, get) => ({
           log(true);
           return;
         }
+        if (req.method.startsWith('bridge.')) {
+          api.orchestrator.respond(req.id, req.clientId, null, 'Pont NinjaTrader non disponible dans ce prototype (voir docs/PONT-NINJATRADER.md)');
+          log(false, 'pont non disponible');
+          return;
+        }
         const name = req.method.replace(/^tool\./, '');
         const result = await runTool(name, (req.params as Record<string, unknown>) ?? {});
         const failed = typeof result === 'object' && result !== null && 'error' in (result as Record<string, unknown>);

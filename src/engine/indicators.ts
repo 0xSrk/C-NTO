@@ -20,7 +20,8 @@ export interface IndicatorLine {
   lineStyle?: 'solid' | 'dashed' | 'dotted';
   /** 'price' = superposé au graphique ; 'pane' = panneau séparé */
   pane: 'price' | 'pane';
-  data: { time: number; value: number }[];
+  /** Un point sans `value` est un blanc (rupture de ligne entre deux séances). */
+  data: { time: number; value?: number }[];
 }
 
 export interface IndicatorOutput {
@@ -95,11 +96,17 @@ function ema(values: number[], period: number): (number | null)[] {
   return out;
 }
 
-function toLine(bars: Bar[], values: (number | null)[]): { time: number; value: number }[] {
-  const data: { time: number; value: number }[] = [];
+function toLine(bars: Bar[], values: (number | null)[]): { time: number; value?: number }[] {
+  const data: { time: number; value?: number }[] = [];
+  let started = false;
   for (let i = 0; i < bars.length; i++) {
     const v = values[i];
-    if (v !== null && Number.isFinite(v)) data.push({ time: bars[i].time, value: v });
+    if (v !== null && Number.isFinite(v)) {
+      data.push({ time: bars[i].time, value: v });
+      started = true;
+    } else if (started) {
+      data.push({ time: bars[i].time });
+    }
   }
   return data;
 }

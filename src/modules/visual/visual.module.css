@@ -1,0 +1,193 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  height: 100%;
+  min-height: 0;
+}
+.chartWrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chart {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.legend {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.legendMain {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  color: var(--text-2);
+}
+.legendMain b {
+  color: var(--text-0);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.legendRow {
+  display: flex;
+  gap: 10px;
+  color: var(--text-3);
+}
+.legendRow i {
+  display: inline-block;
+  width: 8px;
+  height: 2px;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+.legendRow span b {
+  color: var(--text-1);
+  font-weight: 500;
+}
+.side {
+  border-left: 1px solid var(--line-1);
+  background: rgba(10, 12, 18, 0.7);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+.sideSection {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-0);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sideTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.indicator {
+  border: 1px solid var(--line-0);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.indicator.off {
+  opacity: 0.5;
+}
+.indicatorHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.indicatorHead b {
+  font-size: 12px;
+  color: var(--text-0);
+  font-weight: 500;
+  flex: 1;
+}
+.indicatorHead button {
+  color: var(--text-3);
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.indicatorHead button:hover {
+  color: var(--text-0);
+}
+.params {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.params label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+}
+.params input,
+.params select {
+  width: 72px;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.catalogItem {
+  text-align: left;
+  padding: 6px 8px;
+  border: 1px solid var(--line-0);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.catalogItem:hover {
+  border-color: var(--gold-line);
+  color: var(--text-0);
+}
+.catalogItem small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: 0.08em;
+}
+.catalogItem span {
+  font-size: 11.5px;
+}
+.desc {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+.session {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tradeRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--line-0);
+}
+.stamp {
+  position: absolute;
+  right: 72px;
+  top: 10px;
+  z-index: 2;
+  pointer-events: none;
+}
