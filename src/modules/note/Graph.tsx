@@ -75,15 +75,15 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
               dy = Math.random() - 0.5;
               d2 = 1;
             }
-            const f = 2600 / d2;
+            const f = 6000 / d2;
             const d = Math.sqrt(d2);
             a.vx += (dx / d) * f;
             a.vy += (dy / d) * f;
             b.vx -= (dx / d) * f;
             b.vy -= (dy / d) * f;
           }
-          a.vx -= a.x * 0.012;
-          a.vy -= a.y * 0.012;
+          a.vx -= a.x * 0.004;
+          a.vy -= a.y * 0.004;
         }
         for (const [i, j] of edges) {
           const a = nodes[i];
@@ -91,7 +91,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
           const dx = b.x - a.x;
           const dy = b.y - a.y;
           const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          const f = (d - 90) * 0.02;
+          const f = (d - 130) * 0.02;
           a.vx += (dx / d) * f;
           a.vy += (dy / d) * f;
           b.vx -= (dx / d) * f;

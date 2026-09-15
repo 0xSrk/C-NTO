@@ -411,3 +411,6 @@
   vertical-align: middle;
   background: var(--cat);
 }
+.side > * {
+  flex: none;
+}

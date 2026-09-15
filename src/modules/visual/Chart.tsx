@@ -29,6 +29,23 @@ function toTs(sec: number): UTCTimestamp {
   return sec as UTCTimestamp;
 }
 
+/**
+ * lightweight-charts relie les points de part et d'autre d'un blanc : pour obtenir une vraie
+ * rupture (niveaux de séance), chaque segment contigu devient une série distincte.
+ */
+function splitSegments(data: IndicatorLine['data'], maxSegments = 80): { time: number; value: number }[][] {
+  const segments: { time: number; value: number }[][] = [];
+  let current: { time: number; value: number }[] = [];
+  for (const p of data) {
+    if (p.value === undefined) {
+      if (current.length) segments.push(current);
+      current = [];
+    } else current.push({ time: p.time, value: p.value });
+  }
+  if (current.length) segments.push(current);
+  return segments.length > maxSegments ? segments.slice(-maxSegments) : segments;
+}
+
 export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -104,9 +121,16 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       const t = param.time as number;
       const bar = barsRef.current.find((b) => b.time === t) ?? null;
       const values = linesRef.current.map((l) => {
-        const series = lineRefs.current.get(l.key);
-        const d = series ? (param.seriesData.get(series) as { value?: number } | undefined) : undefined;
-        return { key: l.key, label: l.label, color: l.color, value: d && typeof d.value === 'number' ? d.value : null };
+        let value: number | null = null;
+        for (const [key, series] of lineRefs.current) {
+          if (!key.startsWith(`${l.key}#`)) continue;
+          const d = param.seriesData.get(series) as { value?: number } | undefined;
+          if (d && typeof d.value === 'number') {
+            value = d.value;
+            break;
+          }
+        }
+        return { key: l.key, label: l.label, color: l.color, value };
       });
       onHover({ time: t, bar, values });
     });
@@ -134,26 +158,32 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   useEffect(() => {
     const chart = chartRef.current;
     if (!ready || !chart) return;
-    const wanted = new Set(lines.map((l) => l.key));
-    for (const [key, series] of lineRefs.current) {
-      if (!wanted.has(key)) {
-        chart.removeSeries(series);
-        lineRefs.current.delete(key);
-      }
-    }
+    const wanted = new Set<string>();
     let paneCursor = 2;
     const paneByKey = new Map<string, number>();
     for (const l of lines) {
       const paneIndex = l.pane === 'pane' ? paneByKey.get(l.key.split(':')[0]) ?? paneCursor++ : 0;
       if (l.pane === 'pane') paneByKey.set(l.key.split(':')[0], paneIndex);
-      let series = lineRefs.current.get(l.key);
-      if (!series) {
-        series = chart.addSeries(LineSeries, { color: l.color, lineWidth: l.lineWidth ?? 1, lineStyle: LINE_STYLE[l.lineStyle ?? 'solid'], priceLineVisible: false, lastValueVisible: l.pane === 'pane', crosshairMarkerVisible: false, title: l.pane === 'pane' ? l.label : '' }, paneIndex);
-        lineRefs.current.set(l.key, series);
-      } else {
-        series.applyOptions({ color: l.color, lineWidth: l.lineWidth ?? 1, lineStyle: LINE_STYLE[l.lineStyle ?? 'solid'] });
+      const segments = splitSegments(l.data);
+      segments.forEach((segment, i) => {
+        const segKey = `${l.key}#${i}`;
+        wanted.add(segKey);
+        let series = lineRefs.current.get(segKey);
+        const options = { color: l.color, lineWidth: l.lineWidth ?? 1, lineStyle: LINE_STYLE[l.lineStyle ?? 'solid'] } as const;
+        if (!series) {
+          series = chart.addSeries(LineSeries, { ...options, priceLineVisible: false, lastValueVisible: l.pane === 'pane' && i === segments.length - 1, crosshairMarkerVisible: false, title: l.pane === 'pane' && i === segments.length - 1 ? l.label : '' }, paneIndex);
+          lineRefs.current.set(segKey, series);
+        } else {
+          series.applyOptions(options);
+        }
+        series.setData(segment.map((p) => ({ time: toTs(p.time), value: p.value })));
+      });
+    }
+    for (const [key, series] of lineRefs.current) {
+      if (!wanted.has(key)) {
+        chart.removeSeries(series);
+        lineRefs.current.delete(key);
       }
-      series.setData(l.data.map((p) => (p.value === undefined ? { time: toTs(p.time) } : { time: toTs(p.time), value: p.value })));
     }
     chart.panes().forEach((pane, i) => {
       if (i >= 2) pane.setHeight(90);

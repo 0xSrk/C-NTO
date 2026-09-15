@@ -86,7 +86,7 @@
   min-height: 0;
 }
 .splitWide {
-  grid-template-columns: minmax(0, 1fr) 460px;
+  grid-template-columns: minmax(0, 1fr) 520px;
 }
 .tableWrap {
   overflow: auto;
@@ -231,4 +231,7 @@
   border-color: var(--gold);
   background: var(--gold-soft);
   color: var(--text-0);
+}
+.rows > * {
+  flex: none;
 }

@@ -263,7 +263,6 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
                   <th className="num">Prix</th>
                   <th className="num">PnL</th>
                   <th className="num">MAE / MFE</th>
-                  <th>Stratégie</th>
                 </tr>
               </thead>
               <tbody>
@@ -277,13 +276,14 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
                     </td>
                     <td className="num">{t.qty}</td>
                     <td className="num muted">
-                      {fmtPrice(t.entryPrice)} → {fmtPrice(t.exitPrice)}
+                      {fmtPrice(t.entryPrice)}
+                      <span className="dim"> → </span>
+                      {fmtPrice(t.exitPrice)}
                     </td>
                     <td className={cx('num', signClass(t.pnl))}>{fmtUsd(t.pnl, { sign: true, cents: true })}</td>
-                    <td className="num muted">
+                    <td className="num muted" title={t.strategy ?? ''}>
                       {t.mae !== undefined ? fmtUsd(-t.mae) : '—'} / {t.mfe !== undefined ? fmtUsd(t.mfe) : '—'}
                     </td>
-                    <td className="muted">{t.strategy ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

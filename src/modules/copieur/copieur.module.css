@@ -160,3 +160,6 @@
   color: var(--amber);
   font-weight: 500;
 }
+.col > * {
+  flex: none;
+}
