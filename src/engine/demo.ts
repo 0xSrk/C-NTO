@@ -13,7 +13,7 @@ const TAGS = ['A+', 'discipline', 'FOMO', 'revenge', 'news', 'plan respecté', '
  */
 export function generateDemoJournal(opts: { sessions?: number; seed?: number; endDate?: Date } = {}): { sessions: Session[]; trades: Trade[] } {
   const target = opts.sessions ?? 140;
-  const rand = mulberry32(opts.seed ?? 2026);
+  const rand = mulberry32(opts.seed ?? 2052);
   const end = opts.endDate ?? new Date();
   const days: string[] = [];
   const cursor = new Date(end);
@@ -33,10 +33,10 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
   for (let di = 0; di < days.length; di++) {
     const date = days[di];
     price += gaussian(rand) * 120 + 9;
-    edge += gaussian(rand) * 0.008;
+    edge += (0.03 - edge) * 0.1 + gaussian(rand) * 0.008;
     edge = Math.max(-0.06, Math.min(0.06, edge));
     const tilt = rand() < 0.12;
-    const nTrades = tilt ? 6 + Math.floor(rand() * 6) : 1 + Math.floor(rand() * 5);
+    const nTrades = tilt ? 5 + Math.floor(rand() * 4) : 1 + Math.floor(rand() * 5);
     const sessionId = uid('s');
     const dayTrades: Trade[] = [];
     const rthOpen = zonedToUtc(date, '09:30', ET_ZONE);
@@ -45,13 +45,13 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
     const spec = INSTRUMENTS[instrument];
 
     for (let i = 0; i < nTrades; i++) {
-      const qty = instrument === 'MNQ' ? 2 + Math.floor(rand() * 6) : 1 + Math.floor(rand() * 2);
+      const qty = instrument === 'MNQ' ? 2 + Math.floor(rand() * 4) : 1;
       const direction = rand() < 0.55 ? 'long' : 'short';
       const durationMin = 2 + Math.floor(Math.pow(rand(), 1.6) * 55);
       const entryTime = cursorMs;
       const exitTime = entryTime + durationMin * 60_000;
       cursorMs = exitTime + (3 + rand() * 25) * 60_000;
-      const win = rand() < 0.515 + edge - (tilt ? 0.14 : 0);
+      const win = rand() < 0.515 + edge - (tilt ? 0.1 : 0);
       const riskPts = 8 + rand() * 14;
       const rewardPts = riskPts * (1.0 + rand() * 1.2);
       const movePts = win ? rewardPts * (0.5 + rand() * 0.6) : -riskPts * (0.8 + Math.pow(rand(), 2) * 1.1);
