@@ -128,6 +128,18 @@ export function stddev(xs: number[], sample = true): number {
   return Math.sqrt(s / (sample ? n - 1 : n));
 }
 
+export function minOf(xs: number[]): number {
+  let m = Infinity;
+  for (const x of xs) if (x < m) m = x;
+  return m;
+}
+
+export function maxOf(xs: number[]): number {
+  let m = -Infinity;
+  for (const x of xs) if (x > m) m = x;
+  return m;
+}
+
 export function median(xs: number[]): number {
   if (xs.length === 0) return 0;
   const a = [...xs].sort((x, y) => x - y);
@@ -168,9 +180,13 @@ export function drawdownSeries(points: { t: number; pnl: number }[], startingBal
   let sumSqDdPct = 0;
   for (const p of points) {
     eq += p.pnl;
-    if (eq > peak) {
-      peak = eq;
-      peakT = p.t;
+    if (eq >= peak) {
+      // Retour au plus haut : la durée du drawdown court jusqu'à la récupération incluse.
+      if (periods > 0 && p.t - peakT > maxDur) maxDur = p.t - peakT;
+      if (eq > peak) {
+        peak = eq;
+        peakT = p.t;
+      }
       periods = 0;
     } else {
       periods++;
@@ -263,7 +279,7 @@ function directionStats(trades: Trade[]): DirectionStats {
 export const WEEKDAY_KEYS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
 
 export function computeTradeStats(input: Trade[]): TradeStats {
-  const trades = [...input].sort((a, b) => a.exitTime - b.exitTime);
+  const trades = input.filter((t) => Number.isFinite(t.pnl)).sort((a, b) => a.exitTime - b.exitTime);
   const pnls = trades.map((t) => t.pnl);
   const count = trades.length;
   const winsArr = pnls.filter((p) => p > 0);
@@ -283,7 +299,8 @@ export function computeTradeStats(input: Trade[]): TradeStats {
   const expectancy = count ? netPnl / count : 0;
   const std = stddev(pnls);
   const sqn = count > 1 && std > EPS ? (Math.sqrt(count) * mean(pnls)) / std : 0;
-  const kelly = Number.isFinite(payoffRatio) && payoffRatio > 0 ? winRate - (1 - winRate) / payoffRatio : 0;
+  const lossRate = count ? losses / count : 0;
+  const kelly = Number.isFinite(payoffRatio) && payoffRatio > 0 ? winRate - lossRate / payoffRatio : winRate;
 
   const signs = pnls.map((p) => (p > 0 ? 1 : p < 0 ? -1 : 0));
   const st = streaks(signs);
@@ -323,8 +340,8 @@ export function computeTradeStats(input: Trade[]): TradeStats {
     payoffRatio,
     avgWin,
     avgLoss,
-    largestWin: winsArr.length ? Math.max(...winsArr) : 0,
-    largestLoss: lossArr.length ? Math.min(...lossArr) : 0,
+    largestWin: winsArr.length ? maxOf(winsArr) : 0,
+    largestLoss: lossArr.length ? minOf(lossArr) : 0,
     medianPnl: median(pnls),
     stdPnl: std,
     sqn,
@@ -361,8 +378,22 @@ export function computeTradeStats(input: Trade[]): TradeStats {
 
 const ANNUALIZATION = Math.sqrt(252);
 
+/** Agrège les séances par journée civile (plusieurs comptes le même jour = une journée). */
+export function aggregateByDate(sessionsInput: Session[]): { date: string; pnl: number; tradeCount: number }[] {
+  const byDate = new Map<string, { date: string; pnl: number; tradeCount: number }>();
+  for (const s of sessionsInput) {
+    if (!Number.isFinite(s.pnl)) continue;
+    const cur = byDate.get(s.date);
+    if (cur) {
+      cur.pnl += s.pnl;
+      cur.tradeCount += s.tradeCount;
+    } else byDate.set(s.date, { date: s.date, pnl: s.pnl, tradeCount: s.tradeCount });
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export function computeDailyStats(sessionsInput: Session[], startingBalance = 50_000, rollingWindow = 20): DailyStats {
-  const sessions = [...sessionsInput].sort((a, b) => a.date.localeCompare(b.date));
+  const sessions = aggregateByDate(sessionsInput);
   const pnls = sessions.map((s) => s.pnl);
   const days = sessions.length;
   const winDaysArr = pnls.filter((p) => p > 0);
@@ -386,8 +417,9 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
   const calmar = dd.maxDrawdownPct > EPS ? annualizedReturn / dd.maxDrawdownPct : 0;
 
   const totalProfitDays = winDaysArr.reduce((s, p) => s + p, 0);
-  const bestDay = winDaysArr.length ? Math.max(...winDaysArr) : 0;
-  const consistency = totalProfitDays > EPS ? bestDay / totalProfitDays : 0;
+  const bestDay = winDaysArr.length ? maxOf(winDaysArr) : 0;
+  // Règle de consistance des firmes : part du meilleur jour dans le profit net.
+  const consistency = netPnl > EPS ? bestDay / netPnl : 0;
   const sumLoss = Math.abs(lossDaysArr.reduce((s, p) => s + p, 0));
   const gainToPain = sumLoss > EPS ? netPnl / sumLoss : netPnl > 0 ? Infinity : 0;
 
@@ -421,7 +453,7 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
     avgWinDay: winDaysArr.length ? totalProfitDays / winDaysArr.length : 0,
     avgLossDay: lossDaysArr.length ? -sumLoss / lossDaysArr.length : 0,
     bestDay,
-    worstDay: lossDaysArr.length ? Math.min(...lossDaysArr) : 0,
+    worstDay: lossDaysArr.length ? minOf(lossDaysArr) : 0,
     stdDay,
     sharpe,
     sortino,
@@ -441,10 +473,11 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
 }
 
 /** Histogramme de valeurs en `bins` classes de largeur égale. */
-export function histogram(values: number[], bins = 24): { x0: number; x1: number; count: number }[] {
+export function histogram(input: number[], bins = 24): { x0: number; x1: number; count: number }[] {
+  const values = input.filter(Number.isFinite);
   if (values.length === 0) return [];
-  let min = Math.min(...values);
-  let max = Math.max(...values);
+  let min = minOf(values);
+  let max = maxOf(values);
   if (max - min < EPS) {
     min -= 1;
     max += 1;

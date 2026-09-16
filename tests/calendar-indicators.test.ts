@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateDemoBars } from '@/engine/bars';
+import { generateDemoBars, importBarsCsv } from '@/engine/bars';
 import { generateNasdaqEvents } from '@/engine/calendar';
 import { INDICATORS, indicatorById, defaultParams, sessionKeyOf } from '@/engine/indicators';
 import { monteCarlo } from '@/engine/montecarlo';
@@ -77,8 +77,14 @@ describe('Monte Carlo & démo', () => {
     expect(a!.ruinProbability).toBeGreaterThanOrEqual(0);
     expect(a!.ruinProbability).toBeLessThanOrEqual(1);
     expect(a!.envelope.p50.length).toBe(60);
+    expect(a!.envelope.steps.length).toBe(60);
     expect(a!.finalPnl.p50).toBe(b!.finalPnl.p50);
     expect(monteCarlo([1, 2, 3])).toBeNull();
+    const big = monteCarlo(pnls, { runs: 20_000, horizon: 5_000, seed: 1 });
+    expect(big!.runs * big!.horizon).toBeLessThanOrEqual(5_000_000);
+    expect(big!.envelope.steps.length).toBeLessThanOrEqual(240);
+    expect(big!.samples.length).toBeLessThanOrEqual(40);
+    expect(monteCarlo(pnls, { runs: NaN, horizon: NaN })).not.toBeNull();
   });
 
   it('le jeu de démo est cohérent (séances ↔ trades)', () => {
@@ -89,5 +95,23 @@ describe('Monte Carlo & démo', () => {
       expect(own.length).toBe(s.tradeCount);
       expect(own.reduce((sum, t) => sum + t.pnl, 0)).toBeCloseTo(s.pnl, 6);
     }
+  });
+});
+
+describe('barres NinjaTrader sans en-tête', () => {
+  it('lit le volume et le format journalier', () => {
+    const { bars } = importBarsCsv('20260915 093000;24180.25;24190.5;24175;24188.75;1523\n20260915 093500;24188.75;24195;24180;24182.25;1200\n');
+    expect(bars.length).toBe(2);
+    expect(bars[0].open).toBeCloseTo(24180.25);
+    expect(bars.map((b) => b.volume)).toEqual([1523, 1200]);
+    const daily = importBarsCsv('20260915;24180.25;24390.5;24075;24288.75;523000\n');
+    expect(daily.bars.length).toBe(1);
+    expect(daily.bars[0].volume).toBe(523000);
+  });
+
+  it('n’observe pas le Nouvel An du samedi la veille', () => {
+    const ev = generateNasdaqEvents(2028).filter((e) => e.title.includes('Nouvel An'));
+    expect(ev.length).toBe(0);
+    expect(generateNasdaqEvents(2027).filter((e) => e.title.includes('Nouvel An'))[0].date).toBe('2027-01-01');
   });
 });

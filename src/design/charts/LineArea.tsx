@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import s from './charts.module.css';
 import { niceTicks, useMeasure } from './useMeasure';
 
@@ -31,19 +31,40 @@ interface Props {
   padding?: { top: number; right: number; bottom: number; left: number };
 }
 
-export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), formatX = (v) => new Date(v).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }), baseline = 0, yDomain, legend, padding = { top: 12, right: 14, bottom: 22, left: 56 } }: Props) {
+const DEFAULT_PADDING = { top: 12, right: 14, bottom: 22, left: 56 };
+const fmtDefaultX = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short' });
+
+export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), formatX = (v) => fmtDefaultX.format(v), baseline = 0, yDomain, legend, padding = DEFAULT_PADDING, endValue }: Props & { endValue?: boolean }) {
   const [ref, { width }] = useMeasure<HTMLDivElement>();
   const [hover, setHover] = useState<{ x: number; idx: number } | null>(null);
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
 
   const model = useMemo(() => {
-    const all = series.flatMap((sr) => sr.points);
-    if (all.length === 0 || width === 0) return null;
-    const xs = all.map((p) => p.x);
-    const ys = all.map((p) => p.y);
-    const xMin = Math.min(...xs);
-    const xMax = Math.max(...xs);
-    let yMin = yDomain ? yDomain[0] : Math.min(...ys, baseline ?? Infinity);
-    let yMax = yDomain ? yDomain[1] : Math.max(...ys, baseline ?? -Infinity);
+    if (width === 0) return null;
+    let xMin = Infinity;
+    let xMax = -Infinity;
+    let yMin = Infinity;
+    let yMax = -Infinity;
+    let count = 0;
+    for (const sr of series) {
+      for (const p of sr.points) {
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+        count++;
+        if (p.x < xMin) xMin = p.x;
+        if (p.x > xMax) xMax = p.x;
+        if (p.y < yMin) yMin = p.y;
+        if (p.y > yMax) yMax = p.y;
+      }
+    }
+    if (count === 0) return null;
+    if (baseline !== null) {
+      if (baseline < yMin) yMin = baseline;
+      if (baseline > yMax) yMax = baseline;
+    }
+    if (yDomain) {
+      yMin = yDomain[0];
+      yMax = yDomain[1];
+    }
     if (yMax - yMin < 1e-9) {
       yMin -= 1;
       yMax += 1;
@@ -51,12 +72,12 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
     const pad = (yMax - yMin) * 0.06;
     yMin -= pad;
     yMax += pad;
-    const w = width - padding.left - padding.right;
+    const w = width - padding.left - (endValue ? padding.right + 56 : padding.right);
     const h = height - padding.top - padding.bottom;
     const sx = (x: number) => padding.left + (xMax === xMin ? w / 2 : ((x - xMin) / (xMax - xMin)) * w);
     const sy = (y: number) => padding.top + h - ((y - yMin) / (yMax - yMin)) * h;
     return { xMin, xMax, yMin, yMax, w, h, sx, sy, ticksY: niceTicks(yMin, yMax, 5), ticksX: niceTicks(xMin, xMax, Math.max(2, Math.floor(w / 110))) };
-  }, [series, width, height, padding, baseline, yDomain]);
+  }, [series, width, height, padding, baseline, yDomain, endValue]);
 
   const primary = series[0];
 
@@ -93,16 +114,16 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
         <svg width={width} height={height} className={s.svg} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
           <defs>
             {series.map((sr) => (
-              <linearGradient key={sr.id} id={`g-${sr.id}`} x1="0" x2="0" y1="0" y2="1">
+              <linearGradient key={sr.id} id={`g-${uid}-${sr.id}`} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor={sr.color} stopOpacity={0.35} />
                 <stop offset="100%" stopColor={sr.color} stopOpacity={0.02} />
               </linearGradient>
             ))}
-            <clipPath id="clip-pos">
-              <rect x={0} y={0} width={width} height={model.sy(baseline ?? 0)} />
+            <clipPath id={`clip-pos-${uid}`}>
+              <rect x={0} y={0} width={width} height={Math.max(0, model.sy(baseline ?? 0))} />
             </clipPath>
-            <clipPath id="clip-neg">
-              <rect x={0} y={model.sy(baseline ?? 0)} width={width} height={height} />
+            <clipPath id={`clip-neg-${uid}`}>
+              <rect x={0} y={model.sy(baseline ?? 0)} width={width} height={Math.max(0, height - model.sy(baseline ?? 0))} />
             </clipPath>
           </defs>
           {model.ticksY.map((t) => (
@@ -128,17 +149,17 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
             const area = `${d} L${model.sx(sr.points[sr.points.length - 1].x).toFixed(1)} ${baseY} L${model.sx(sr.points[0].x).toFixed(1)} ${baseY} Z`;
             return (
               <g key={sr.id}>
-                {sr.area && !sr.signed && <path d={area} fill={`url(#g-${sr.id})`} />}
+                {sr.area && !sr.signed && <path d={area} fill={`url(#g-${uid}-${sr.id})`} />}
                 {sr.area && sr.signed && (
                   <>
-                    <path d={area} fill="var(--mint)" opacity={0.18} clipPath="url(#clip-pos)" />
-                    <path d={area} fill="var(--ember)" opacity={0.22} clipPath="url(#clip-neg)" />
+                    <path d={area} fill="var(--mint)" opacity={0.18} clipPath={`url(#clip-pos-${uid})`} />
+                    <path d={area} fill="var(--ember)" opacity={0.22} clipPath={`url(#clip-neg-${uid})`} />
                   </>
                 )}
                 {sr.signed ? (
                   <>
-                    <path d={d} fill="none" stroke="var(--mint)" strokeWidth={sr.width ?? 1.5} clipPath="url(#clip-pos)" />
-                    <path d={d} fill="none" stroke="var(--ember)" strokeWidth={sr.width ?? 1.5} clipPath="url(#clip-neg)" />
+                    <path d={d} fill="none" stroke="var(--mint)" strokeWidth={sr.width ?? 1.5} clipPath={`url(#clip-pos-${uid})`} />
+                    <path d={d} fill="none" stroke="var(--ember)" strokeWidth={sr.width ?? 1.5} clipPath={`url(#clip-neg-${uid})`} />
                   </>
                 ) : (
                   <path d={d} fill="none" stroke={sr.color} strokeWidth={sr.width ?? 1.5} strokeDasharray={sr.dashed ? '3 3' : undefined} strokeLinejoin="round" />
@@ -146,6 +167,18 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
               </g>
             );
           })}
+          {endValue && primary && primary.points.length > 0 && (() => {
+            const last = primary.points[primary.points.length - 1];
+            const color = primary.signed ? (last.y >= (baseline ?? 0) ? 'var(--mint)' : 'var(--ember)') : primary.color;
+            return (
+              <g>
+                <circle cx={model.sx(last.x)} cy={model.sy(last.y)} r={2.5} fill={color} />
+                <text x={model.sx(last.x) + 7} y={model.sy(last.y) + 3.5} className={s.axis} fill={color} style={{ fill: color }}>
+                  {formatY(last.y)}
+                </text>
+              </g>
+            );
+          })()}
           {hover && primary && primary.points[hover.idx] && (
             <g>
               <line x1={model.sx(primary.points[hover.idx].x)} x2={model.sx(primary.points[hover.idx].x)} y1={padding.top} y2={height - padding.bottom} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 2" />

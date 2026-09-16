@@ -58,10 +58,23 @@ export function sessionKeyOf(timeSec: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+const etTimeFormatter = new Intl.DateTimeFormat('en-US', { timeZone: ET_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
 function etTimeOf(timeSec: number): { hour: number; minute: number } {
-  const f = new Intl.DateTimeFormat('en-US', { timeZone: ET_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  const parts = f.formatToParts(new Date(timeSec * 1000));
-  return { hour: Number(parts.find((p) => p.type === 'hour')?.value ?? 0), minute: Number(parts.find((p) => p.type === 'minute')?.value ?? 0) };
+  const parts = etTimeFormatter.formatToParts(new Date(timeSec * 1000));
+  return { hour: Number(parts.find((p) => p.type === 'hour')?.value ?? 0) % 24, minute: Number(parts.find((p) => p.type === 'minute')?.value ?? 0) };
+}
+
+const sessionKeyCache = new WeakMap<Bar[], string[]>();
+
+/** Clés de séance de chaque barre, calculées une fois par tableau (partagées entre indicateurs). */
+export function sessionKeys(bars: Bar[]): string[] {
+  let keys = sessionKeyCache.get(bars);
+  if (!keys) {
+    keys = bars.map((b) => sessionKeyOf(b.time));
+    sessionKeyCache.set(bars, keys);
+  }
+  return keys;
 }
 
 function sma(values: number[], period: number): (number | null)[] {
@@ -162,8 +175,10 @@ export const INDICATORS: IndicatorDefinition[] = [
       let pv = 0;
       let vol = 0;
       let pv2 = 0;
-      for (const b of bars) {
-        const k = sessionKeyOf(b.time);
+      const keys = sessionKeys(bars);
+      for (let i = 0; i < bars.length; i++) {
+        const b = bars[i];
+        const k = keys[i];
         if (k !== key) {
           key = k;
           pv = 0;
@@ -212,8 +227,10 @@ export const INDICATORS: IndicatorDefinition[] = [
       let orHigh = -Infinity;
       let orLow = Infinity;
       let orDone = false;
-      for (const b of bars) {
-        const k = sessionKeyOf(b.time);
+      const keys = sessionKeys(bars);
+      for (let i = 0; i < bars.length; i++) {
+        const b = bars[i];
+        const k = keys[i];
         if (k !== key) {
           key = k;
           orHigh = -Infinity;
@@ -263,8 +280,10 @@ export const INDICATORS: IndicatorDefinition[] = [
       let curLow = Infinity;
       let curClose = NaN;
       let prev: { h: number; l: number; c: number } | null = null;
-      for (const b of bars) {
-        const k = sessionKeyOf(b.time);
+      const keys = sessionKeys(bars);
+      for (let i = 0; i < bars.length; i++) {
+        const b = bars[i];
+        const k = keys[i];
         if (k !== key) {
           if (key) prev = { h: curHigh, l: curLow, c: curClose };
           key = k;

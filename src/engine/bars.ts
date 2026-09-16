@@ -96,16 +96,17 @@ export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] }
   let iHigh = find('high', 'haut');
   let iLow = find('low', 'bas');
   let iClose = find('close', 'last', 'clôture', 'cloture');
-  const iVol = find('volume', 'vol');
+  let iVol = find('volume', 'vol');
   let rows = table.rows;
-  // Export NinjaTrader sans en-tête : yyyyMMdd HHmmss;open;high;low;close;volume
-  if (iTime === -1 && /^\d{8}\s\d{6}$/.test(table.headers[0] ?? '')) {
+  // Export NinjaTrader sans en-tête : yyyyMMdd HHmmss;open;high;low;close;volume (ou yyyyMMdd;… en journalier)
+  if (iTime === -1 && /^\d{8}(\s\d{6})?$/.test(table.headers[0] ?? '')) {
     rows = [table.headers, ...table.rows];
     iTime = 0;
     iOpen = 1;
     iHigh = 2;
     iLow = 3;
     iClose = 4;
+    iVol = 5;
   }
   if (iTime === -1 || iOpen === -1 || iHigh === -1 || iLow === -1 || iClose === -1) {
     return { bars: [], warnings: ['Colonnes attendues : Time/Date, Open, High, Low, Close, (Volume).'] };
@@ -117,8 +118,8 @@ export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] }
   for (const r of rows) {
     const raw = (r[iTime] ?? '').trim();
     let ms: number;
-    const nt = /^(\d{4})(\d{2})(\d{2})\s(\d{2})(\d{2})(\d{2})$/.exec(raw);
-    if (nt) ms = new Date(+nt[1], +nt[2] - 1, +nt[3], +nt[4], +nt[5], +nt[6]).getTime();
+    const nt = /^(\d{4})(\d{2})(\d{2})(?:\s(\d{2})(\d{2})(\d{2}))?$/.exec(raw);
+    if (nt) ms = new Date(+nt[1], +nt[2] - 1, +nt[3], +(nt[4] ?? '0'), +(nt[5] ?? '0'), +(nt[6] ?? '0')).getTime();
     else ms = parseFlexibleDateTime(raw, dayFirst);
     const o = parseLocaleNumber(r[iOpen] ?? '', dec);
     const h = parseLocaleNumber(r[iHigh] ?? '', dec);

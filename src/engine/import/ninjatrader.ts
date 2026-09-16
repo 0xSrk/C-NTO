@@ -1,6 +1,6 @@
 import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { uid } from '@/lib/id';
-import { detectDayFirst, parseFlexibleDateTime, tradingDayKey } from '@/lib/time';
+import { detectDayFirst, ET_ZONE, parseFlexibleDateTime, tradingDayKey } from '@/lib/time';
 import { summarizeTrades } from '../metrics';
 import { INSTRUMENTS, type Direction, type Instrument, type Session, type SessionSource, type Trade } from '../types';
 
@@ -60,10 +60,11 @@ function buildColumnIndex(headers: string[]): Record<string, number> {
   return idx;
 }
 
+/** Reconnaît « NQ 12-26 », « MNQ SEP26 », « NQZ6 », « MNQZ26 » (symbologies NinjaTrader, Rithmic, Tradovate). */
 export function detectInstrument(raw: string): Instrument | null {
   const s = raw.trim().toUpperCase();
-  if (/^MNQ\b/.test(s)) return 'MNQ';
-  if (/^NQ\b/.test(s)) return 'NQ';
+  const m = /^(M?NQ)(?=$|[\s\-_/]|[FGHJKMNQUVXZ]\d{1,2}$)/.exec(s);
+  if (m) return m[1] === 'MNQ' ? 'MNQ' : 'NQ';
   if (/\bMNQ\b/.test(s)) return 'MNQ';
   if (/\bNQ\b/.test(s)) return 'NQ';
   return null;
@@ -138,19 +139,28 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
     const gross = (exitPrice - entryPrice) * qty * spec.pointValue * (direction === 'long' ? 1 : -1);
     let pnl = Math.round((gross - commission) * 100) / 100;
 
+    // NinjaTrader exporte Profit / MAE / MFE dans l'unité d'affichage choisie : devise, points, ticks ou %.
+    // L'unité est déduite de la colonne Profit (comparée au brut recalculé) et réutilisée pour MAE/MFE.
     const profitRaw = get('profit');
+    const grossPoints = gross / (spec.pointValue * qty);
+    let excursionFactor = spec.pointValue * qty;
     if (profitRaw && /[$€£]/.test(profitRaw)) {
       const declared = parseLocaleNumber(profitRaw, decimalSep);
       if (Number.isFinite(declared)) {
         const diff = Math.abs(declared - pnl);
         const diffGross = Math.abs(declared - gross);
-        if (diff > 0.51 && diffGross > 0.51) profitMismatch++;
-        if (diffGross <= 0.51 && commission > 0) pnl = Math.round((declared - commission) * 100) / 100;
-        else if (diff <= 0.51) pnl = declared;
+        if (diff <= 0.51 && diff <= diffGross) pnl = declared;
+        else if (diffGross <= 0.51 && commission > 0) pnl = Math.round((declared - commission) * 100) / 100;
+        else profitMismatch++;
       }
-    } else if (profitRaw && format === 'canto-csv') {
+    } else if (profitRaw) {
       const declared = parseLocaleNumber(profitRaw, decimalSep);
-      if (Number.isFinite(declared)) pnl = declared;
+      if (/%/.test(profitRaw)) excursionFactor = NaN;
+      else if (Number.isFinite(declared)) {
+        if (Math.abs(declared - grossPoints / spec.tickSize) < 0.51 && Math.abs(grossPoints) > 0) excursionFactor = spec.tickValue * qty;
+        else if (Math.abs(declared - grossPoints) < 0.51) excursionFactor = spec.pointValue * qty;
+        else if (format === 'canto-csv') pnl = declared;
+      }
     }
 
     const maeRaw = get('mae');
@@ -159,8 +169,8 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
       if (!raw) return undefined;
       const v = Math.abs(parseLocaleNumber(raw, decimalSep));
       if (!Number.isFinite(v)) return undefined;
-      // NinjaTrader exporte MAE/MFE dans l'unité d'affichage ; sans symbole monétaire on suppose des points
-      return /[$€£]/.test(raw) ? v : v * spec.pointValue * qty;
+      if (/[$€£]/.test(raw)) return v;
+      return Number.isFinite(excursionFactor) ? Math.round(v * excursionFactor * 100) / 100 : undefined;
     };
     const riskRaw = get('risk');
     const risk = riskRaw ? Math.abs(parseLocaleNumber(riskRaw, decimalSep)) || undefined : opts.riskPerContract ? opts.riskPerContract * qty : undefined;
@@ -197,9 +207,11 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
 
 /** Regroupe des trades en séances (journée de trading × compte) et leur affecte un sessionId. */
 export function groupIntoSessions(trades: Trade[], boundaryHour: number, source: SessionSource): Session[] {
+  // La convention Globex (bascule à 18:00) s'exprime en heure de New York quel que soit le poste.
+  const zone = boundaryHour === 18 ? ET_ZONE : undefined;
   const byDay = new Map<string, Trade[]>();
   for (const t of trades) {
-    const key = `${tradingDayKey(t.exitTime, boundaryHour)}|${t.account ?? ''}`;
+    const key = `${tradingDayKey(t.exitTime, boundaryHour, zone)}|${t.account ?? ''}`;
     const arr = byDay.get(key);
     if (arr) arr.push(t);
     else byDay.set(key, [t]);

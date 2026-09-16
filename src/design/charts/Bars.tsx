@@ -20,15 +20,22 @@ interface Props {
 }
 
 /** Barres verticales (par heure, par jour, par instrument…) colorées selon le signe. */
-export function Bars({ data, height = 180, formatY = (v) => v.toFixed(0), signed = true, padding = { top: 10, right: 8, bottom: 22, left: 48 }, labelEvery = 1 }: Props) {
+const DEFAULT_PADDING = { top: 10, right: 8, bottom: 22, left: 48 };
+const HISTO_PADDING = { top: 8, right: 8, bottom: 22, left: 34 };
+
+export function Bars({ data, height = 180, formatY = (v) => v.toFixed(0), signed = true, padding = DEFAULT_PADDING, labelEvery = 1 }: Props) {
   const [ref, { width }] = useMeasure<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
 
   const model = useMemo(() => {
     if (width === 0 || data.length === 0) return null;
-    const values = data.map((d) => d.value);
-    let yMin = Math.min(0, ...values);
-    let yMax = Math.max(0, ...values);
+    let yMin = 0;
+    let yMax = 0;
+    for (const d of data) {
+      if (!Number.isFinite(d.value)) continue;
+      if (d.value < yMin) yMin = d.value;
+      if (d.value > yMax) yMax = d.value;
+    }
     if (yMax - yMin < 1e-9) {
       yMin -= 1;
       yMax += 1;
@@ -94,5 +101,5 @@ interface HistoProps {
 
 export function Histogram({ bins, height = 160, formatX = (v) => v.toFixed(0) }: HistoProps) {
   const data: BarDatum[] = bins.map((b, i) => ({ key: String(i), value: b.count, label: i % Math.max(1, Math.floor(bins.length / 6)) === 0 ? formatX(b.x0) : '', hint: `${formatX(b.x0)} → ${formatX(b.x1)}`, color: b.x1 <= 0 ? 'var(--ember)' : b.x0 >= 0 ? 'var(--mint)' : 'var(--text-2)' }));
-  return <Bars data={data} height={height} signed={false} formatY={(v) => String(Math.round(v))} padding={{ top: 8, right: 8, bottom: 22, left: 34 }} />;
+  return <Bars data={data} height={height} signed={false} formatY={(v) => String(Math.round(v))} padding={HISTO_PADDING} />;
 }

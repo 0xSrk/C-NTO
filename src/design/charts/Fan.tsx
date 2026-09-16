@@ -11,16 +11,26 @@ interface Props {
   target?: number;
 }
 
+const PADDING = { top: 12, right: 14, bottom: 22, left: 56 };
+
 /** Éventail Monte Carlo : trajectoires échantillon + enveloppe p5 / p50 / p95. */
 export function Fan({ result, height = 240, formatY = (v) => v.toFixed(0), ruin, target }: Props) {
   const [ref, { width }] = useMeasure<HTMLDivElement>();
-  const padding = { top: 12, right: 14, bottom: 22, left: 56 };
+  const padding = PADDING;
 
   const model = useMemo(() => {
     if (width === 0) return null;
-    const all = [...result.envelope.p5, ...result.envelope.p95, ...result.samples.flat()];
-    let yMin = Math.min(...all, ruin !== undefined ? -ruin : Infinity, 0);
-    let yMax = Math.max(...all, target ?? -Infinity, 0);
+    let yMin = Math.min(0, ruin !== undefined ? -ruin : 0);
+    let yMax = Math.max(0, target ?? 0);
+    const scan = (arr: number[]) => {
+      for (const v of arr) {
+        if (v < yMin) yMin = v;
+        if (v > yMax) yMax = v;
+      }
+    };
+    scan(result.envelope.p5);
+    scan(result.envelope.p95);
+    for (const p of result.samples) scan(p);
     const pad = (yMax - yMin) * 0.06 || 1;
     yMin -= pad;
     yMax += pad;
@@ -29,10 +39,12 @@ export function Fan({ result, height = 240, formatY = (v) => v.toFixed(0), ruin,
     const n = result.horizon;
     const sx = (i: number) => padding.left + (n <= 1 ? w : (i / (n - 1)) * w);
     const sy = (y: number) => padding.top + h - ((y - yMin) / (yMax - yMin)) * h;
-    const line = (arr: number[]) => arr.map((v, i) => `${i === 0 ? 'M' : 'L'}${sx(i).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
-    const band = `${line(result.envelope.p95)} ${[...result.envelope.p5].reverse().map((v, j) => `L${sx(n - 1 - j).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ')} Z`;
+    const steps = result.envelope.steps;
+    const line = (arr: number[]) => arr.map((v, k) => `${k === 0 ? 'M' : 'L'}${sx(steps[k]).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
+    const back = [...result.envelope.p5].reverse().map((v, j) => `L${sx(steps[steps.length - 1 - j]).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
+    const band = `${line(result.envelope.p95)} ${back} Z`;
     return { yMin, yMax, sx, sy, line, band, ticks: niceTicks(yMin, yMax, 5), ticksX: niceTicks(0, n - 1, Math.max(2, Math.floor(w / 90))) };
-  }, [result, width, height, ruin, target, padding.left, padding.right, padding.top, padding.bottom]);
+  }, [result, width, height, ruin, target, padding]);
 
   return (
     <div className={s.wrap} ref={ref} style={{ height }}>

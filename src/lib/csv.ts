@@ -44,7 +44,7 @@ export function parseCsv(text: string, delimiter?: string): CsvTable {
       }
       continue;
     }
-    if (c === '"') {
+    if (c === '"' && field.length === 0) {
       inQuotes = true;
     } else if (c === delim) {
       row.push(field);
@@ -101,9 +101,8 @@ export function parseLocaleNumber(raw: string, decimalSeparator?: ',' | '.'): nu
     negative = true;
     s = s.slice(1, -1);
   }
-  if (/^-/.test(s) || /^\u2212/.test(s)) {
-    negative = true;
-  }
+  // Signe en tête, après le symbole monétaire ($-125.00) ou en fin (125.00-)
+  if (/^[^\d(]*[-\u2212]/.test(s) || /[-\u2212]\s*[^\d]*$/.test(s)) negative = true;
   s = s.replace(/[^\d.,]/g, '');
   if (!s) return NaN;
 

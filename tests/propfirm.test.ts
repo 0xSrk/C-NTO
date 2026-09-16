@@ -60,6 +60,23 @@ describe('evaluatePlan · trailing fin de journée', () => {
     expect(r.reason).toMatch(/journalière/);
   });
 
+  it('valide l’objectif le jour où il est atteint, même si le compte rechute ensuite', () => {
+    const r = evaluatePlan(plan, [session('a', '2026-01-05', 2000), session('b', '2026-01-06', 1500), session('c', '2026-01-07', -1500), session('d', '2026-01-08', -1500)]);
+    expect(r.status).toBe('objectif');
+    expect(r.passedOn).toBe('2026-01-06');
+    expect(r.timeline.length).toBe(2);
+  });
+
+  it('filtre par compte et agrège les séances d’une même journée', () => {
+    const all = [{ ...session('a', '2026-01-05', 1000), account: 'X' }, { ...session('b', '2026-01-05', 500), account: 'Y' }, { ...session('c', '2026-01-06', 200), account: 'X' }];
+    const merged = evaluatePlan(plan, all);
+    expect(merged.timeline.length).toBe(2);
+    expect(merged.timeline[0].dayPnl).toBe(1500);
+    const onlyX = evaluatePlan(plan, all, [], 'X');
+    expect(onlyX.balance).toBe(51_200);
+    expect(onlyX.daysTraded).toBe(2);
+  });
+
   it('bloque l’objectif si la règle de consistance n’est pas respectée', () => {
     const r = evaluatePlan({ ...plan, consistencyPct: 0.3 }, [session('a', '2026-01-05', 2500), session('b', '2026-01-06', 600)]);
     expect(r.status).toBe('en-cours');

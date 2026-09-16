@@ -90,7 +90,10 @@ describe('drawdownSeries', () => {
     expect(dd.maxDrawdown).toBe(250);
     expect(dd.maxDrawdownPct).toBeCloseTo(250 / 1200);
     expect(dd.maxDrawdownPeriods).toBe(3);
+    // durée mesurée du pic (t=1000) jusqu'à la récupération (t=5000)
+    expect(dd.maxDrawdownDurationMs).toBe(4000);
     expect(dd.currentDrawdown).toBe(0);
+    expect(drawdownSeries([0, 0, 0].map((pnl, i) => ({ t: i, pnl })), 100).maxDrawdownPeriods).toBe(0);
     expect(dd.equity[dd.equity.length - 1].equity).toBe(1300);
   });
 });
@@ -124,12 +127,35 @@ describe('computeDailyStats', () => {
     expect(d.winDays).toBe(3);
     expect(d.netPnl).toBe(1700);
     expect(d.bestDay).toBe(1500);
-    expect(d.consistency).toBeCloseTo(1500 / 2300);
+    expect(d.consistency).toBeCloseTo(1500 / 1700);
     expect(d.sharpe).toBeGreaterThan(0);
     expect(d.sortino).toBeGreaterThan(d.sharpe);
     expect(d.maxDrawdown).toBe(400);
     expect(d.rolling.length).toBe(5);
     expect(d.rolling[4].pnl).toBe(1700);
+  });
+
+  it('agrège plusieurs comptes le même jour en une seule journée', () => {
+    const d = computeDailyStats([{ ...session('2026-01-05', 500), account: 'A' }, { ...session('2026-01-05', -100), id: 'b', account: 'B' }, session('2026-01-06', 200)], 50_000);
+    expect(d.days).toBe(2);
+    expect(d.netPnl).toBe(600);
+    expect(d.bestDay).toBe(400);
+  });
+});
+
+describe('robustesse numérique', () => {
+  it('ignore les valeurs non finies dans les histogrammes et les stats', () => {
+    const h = histogram([1, NaN, 2, Infinity], 4);
+    expect(h.reduce((s, b) => s + b.count, 0)).toBe(2);
+    const s = computeTradeStats([trade(100, 0), trade(NaN, 1), trade(-50, 2)]);
+    expect(s.count).toBe(2);
+    expect(s.netPnl).toBe(50);
+    expect(Number.isFinite(s.stdPnl)).toBe(true);
+  });
+
+  it('supporte 200 000 valeurs sans dépassement de pile', () => {
+    const values = Array.from({ length: 200_000 }, (_, i) => (i % 7) - 3);
+    expect(histogram(values, 10).length).toBe(10);
   });
 });
 

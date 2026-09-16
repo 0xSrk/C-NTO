@@ -138,6 +138,10 @@ export interface PropEvaluation {
   status: 'en-cours' | 'objectif' | 'echec';
   reason?: string;
   failedOn?: string;
+  /** Date à laquelle l'objectif a été validé (le rejeu s'arrête là) */
+  passedOn?: string;
+  /** Compte filtré (undefined = toutes les séances agrégées par date) */
+  account?: string;
   startBalance: number;
   balance: number;
   highWater: number;
@@ -157,10 +161,23 @@ export interface PropEvaluation {
  * - Le trailing intrajournalier utilise le chemin intraday reconstruit à partir des trades
  *   (cumul après chaque trade, élargi par MFE/MAE si disponibles).
  */
-export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: Trade[] = []): PropEvaluation {
-  const sessions = [...sessionsInput].sort((a, b) => a.date.localeCompare(b.date));
+export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: Trade[] = [], account?: string): PropEvaluation {
+  // Un plan s'applique à un compte : on filtre si demandé, puis on agrège par journée civile
+  // (deux séances le même jour — comptes différents ou saisies séparées — forment une journée).
+  const filtered = account ? sessionsInput.filter((s) => (s.account ?? '') === account) : sessionsInput;
+  const byDate = new Map<string, { date: string; ids: string[]; pnl: number; tradeCount: number }>();
+  for (const s of filtered) {
+    const cur = byDate.get(s.date);
+    if (cur) {
+      cur.ids.push(s.id);
+      cur.pnl += s.pnl;
+      cur.tradeCount += s.tradeCount;
+    } else byDate.set(s.date, { date: s.date, ids: [s.id], pnl: s.pnl, tradeCount: s.tradeCount });
+  }
+  const sessions = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
   const tradesBySession = new Map<string, Trade[]>();
   for (const t of trades) {
+    if (!Number.isFinite(t.pnl)) continue;
     const arr = tradesBySession.get(t.sessionId);
     if (arr) arr.push(t);
     else tradesBySession.set(t.sessionId, [t]);
@@ -174,13 +191,17 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
   let status: PropEvaluation['status'] = 'en-cours';
   let reason: string | undefined;
   let failedOn: string | undefined;
+  let passedOn: string | undefined;
   const dailyLossBreaches: string[] = [];
   const timeline: PropTimelinePoint[] = [];
   let daysTraded = 0;
+  let bestDay = 0;
+  const limit = plan.consistencyPct ?? null;
+  const minDays = plan.minTradingDays ?? 0;
 
   for (const s of sessions) {
-    if (status === 'echec') break;
-    const dayTrades = (tradesBySession.get(s.id) ?? []).sort((a, b) => a.exitTime - b.exitTime);
+    if (status !== 'en-cours') break;
+    const dayTrades = s.ids.flatMap((id) => tradesBySession.get(id) ?? []).sort((a, b) => a.exitTime - b.exitTime);
     if (s.tradeCount > 0 || dayTrades.length > 0) daysTraded++;
 
     let cum = 0;
@@ -228,6 +249,8 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
 
     timeline.push({ date: s.date, dayPnl: cum, balance, floor, intradayLow, intradayHigh, breached, dailyLossBreached });
 
+    if (cum > bestDay) bestDay = cum;
+
     if (breached) {
       status = 'echec';
       reason = `Drawdown maximal touché (${DRAWDOWN_LABEL[plan.drawdownType].toLowerCase()})`;
@@ -236,25 +259,28 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
       status = 'echec';
       reason = 'Limite de perte journalière dépassée';
       failedOn = s.date;
+    } else {
+      // L'objectif se valide le jour où toutes les conditions sont réunies : le rejeu s'arrête là.
+      const profitSoFar = balance - start;
+      const shareSoFar = profitSoFar > 0 ? bestDay / profitSoFar : 0;
+      const consistentSoFar = limit === null || profitSoFar <= 0 || shareSoFar <= limit;
+      if (profitSoFar >= plan.profitTarget && consistentSoFar && daysTraded >= minDays) {
+        status = 'objectif';
+        passedOn = s.date;
+      }
     }
   }
 
   const profit = balance - start;
-  const positives = timeline.filter((p) => p.dayPnl > 0).map((p) => p.dayPnl);
-  const bestDay = positives.length ? Math.max(...positives) : 0;
   const share = profit > 0 ? bestDay / profit : 0;
-  const limit = plan.consistencyPct ?? null;
   const consistencyOk = limit === null || profit <= 0 || share <= limit;
-
-  if (status !== 'echec') {
-    const minDays = plan.minTradingDays ?? 0;
-    if (profit >= plan.profitTarget && consistencyOk && daysTraded >= minDays) status = 'objectif';
-  }
 
   return {
     status,
     reason,
     failedOn,
+    passedOn,
+    account,
     startBalance: start,
     balance,
     highWater,

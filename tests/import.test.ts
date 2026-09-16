@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { detectFormat, exportTradesCsv, importTradesCsv } from '@/engine/import/ninjatrader';
-import { parseCsv, parseLocaleNumber } from '@/lib/csv';
-import { parseFlexibleDateTime } from '@/lib/time';
+import { detectFormat, detectInstrument, exportTradesCsv, importTradesCsv } from '@/engine/import/ninjatrader';
+import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
+import { ET_ZONE, nthWeekdayOfMonth, parseFlexibleDateTime, tradingDayKey, zonedToUtc } from '@/lib/time';
 
 describe('parseLocaleNumber', () => {
   it('lit les formats US et FR', () => {
@@ -13,7 +13,16 @@ describe('parseLocaleNumber', () => {
     expect(parseLocaleNumber('1.250,50')).toBeCloseTo(1250.5);
     expect(parseLocaleNumber('20125.25')).toBeCloseTo(20125.25);
     expect(parseLocaleNumber('20125,25')).toBeCloseTo(20125.25);
+    expect(parseLocaleNumber('$-125.00')).toBeCloseTo(-125);
+    expect(parseLocaleNumber('125.00-')).toBeCloseTo(-125);
     expect(parseLocaleNumber('')).toBeNaN();
+  });
+
+  it('déduit le séparateur décimal des prix', () => {
+    expect(detectDecimalSeparator(['20000.25', '20010.50'])).toBe('.');
+    expect(detectDecimalSeparator(['20 000,25', '20 010,50'])).toBe(',');
+    expect(detectDecimalSeparator(['1.250,50'])).toBe(',');
+    expect(detectDecimalSeparator(['20000', '20010'])).toBeUndefined();
   });
 });
 
@@ -30,6 +39,20 @@ describe('parseFlexibleDateTime', () => {
     expect(new Date(iso).getHours()).toBe(9);
     const auto = parseFlexibleDateTime('25/03/2026 10:00:00');
     expect(new Date(auto).getMonth()).toBe(2);
+    expect(new Date(parseFlexibleDateTime('2026-09-15 3:31:02 PM')).getHours()).toBe(15);
+    expect(new Date(parseFlexibleDateTime('9/15/2026 3:31:02 p.m.', false)).getHours()).toBe(15);
+    expect(new Date(parseFlexibleDateTime('9/15/2026 12:05:00 a.m.', false)).getHours()).toBe(0);
+    expect(parseFlexibleDateTime('2026-09-15T13:31:02Z')).toBe(Date.UTC(2026, 8, 15, 13, 31, 2));
+    expect(parseFlexibleDateTime('2026-09-15T15:31:02+02:00')).toBe(Date.UTC(2026, 8, 15, 13, 31, 2));
+    expect(parseFlexibleDateTime('31/13/2026 10:00')).toBeNaN();
+  });
+
+  it('bascule la journée de trading à 18:00 heure de New York quand un fuseau est fourni', () => {
+    const afternoonEt = zonedToUtc('2026-09-14', '13:00', ET_ZONE);
+    const eveningEt = zonedToUtc('2026-09-14', '18:30', ET_ZONE);
+    expect(tradingDayKey(afternoonEt, 18, ET_ZONE)).toBe('2026-09-14');
+    expect(tradingDayKey(eveningEt, 18, ET_ZONE)).toBe('2026-09-15');
+    expect(nthWeekdayOfMonth(2026, 2, 5, 5)).toBe('2026-02-27');
   });
 });
 
@@ -39,6 +62,9 @@ describe('parseCsv', () => {
     expect(t.delimiter).toBe(';');
     expect(t.headers).toEqual(['a', 'b', 'c']);
     expect(t.rows[0]).toEqual(['1', 'x;y', '3']);
+    const stray = parseCsv('a,b\n1,5" pouces\n2,x\n');
+    expect(stray.rows.length).toBe(2);
+    expect(stray.rows[0][1]).toBe('5" pouces');
   });
 });
 
@@ -105,5 +131,38 @@ describe('importTradesCsv', () => {
     expect(again.trades.length).toBe(3);
     expect(again.trades.map((t) => t.pnl)).toEqual(r.trades.map((t) => t.pnl));
     expect(again.sessions[0].source).toBe('csv');
+  });
+});
+
+describe('unités et réconciliation', () => {
+  it('ne déduit pas deux fois une petite commission quand Profit est net', () => {
+    const csv = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
+1,MNQ 12-26,Sim101,,Long,1,20000.00,20010.00,9/15/2026 9:35:00 AM,9/15/2026 9:42:00 AM,Entry,Exit,$19.50,$19.50,$0.50,$5.00,$22.00,$2.50,7
+`;
+    const r = importTradesCsv(csv);
+    expect(r.trades[0].pnl).toBeCloseTo(19.5);
+    const again = importTradesCsv(exportTradesCsv(r.trades));
+    expect(again.trades[0].pnl).toBeCloseTo(19.5);
+  });
+
+  it('convertit MAE/MFE exprimés en ticks ou en points selon la colonne Profit', () => {
+    const ticks = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
+1,NQ 12-26,Sim101,,Long,1,20000.00,20010.00,9/15/2026 9:35:00 AM,9/15/2026 9:42:00 AM,Entry,Exit,40,40,4.50,9,44,4,7
+`;
+    const t = importTradesCsv(ticks).trades[0];
+    expect(t.mae).toBeCloseTo(45);
+    expect(t.mfe).toBeCloseTo(220);
+    const points = ticks.replace(',40,40,4.50,9,44,4,7', ',10,10,4.50,2.25,11,1,7');
+    const p = importTradesCsv(points).trades[0];
+    expect(p.mae).toBeCloseTo(45);
+    expect(p.mfe).toBeCloseTo(220);
+  });
+
+  it('reconnaît les symbologies NQZ6 / MNQZ26 et ignore les autres racines', () => {
+    expect(detectInstrument('NQZ6')).toBe('NQ');
+    expect(detectInstrument('MNQZ26')).toBe('MNQ');
+    expect(detectInstrument('NQ 12-26')).toBe('NQ');
+    expect(detectInstrument('ES 12-26')).toBeNull();
+    expect(detectInstrument('NQD')).toBeNull();
   });
 });

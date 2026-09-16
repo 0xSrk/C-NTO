@@ -161,7 +161,7 @@ async function streamAnthropic({ config, messages, tools, onDelta, signal }: Str
     model: config.model,
     max_tokens: 4096,
     stream: true,
-    temperature: config.temperature,
+    temperature: Math.max(0, Math.min(1, config.temperature)),
     messages: toAnthropicMessages(messages),
   };
   if (system) body.system = system;
@@ -189,6 +189,10 @@ async function streamAnthropic({ config, messages, tools, onDelta, signal }: Str
       ev = JSON.parse(data);
     } catch {
       continue;
+    }
+    if (ev.type === 'error') {
+      const err = (ev as unknown as { error?: { message?: string } }).error;
+      throw new Error(err?.message ?? 'Erreur du fournisseur pendant le flux');
     }
     if (ev.type === 'content_block_start' && ev.content_block?.type === 'tool_use' && ev.index !== undefined) {
       blocks.set(ev.index, { id: ev.content_block.id ?? `toolu_${ev.index}`, name: ev.content_block.name ?? '', args: '' });

@@ -84,8 +84,12 @@ function usHolidays(year: number): { date: string; title: string; closed: boolea
     if (w === 0) return addDays(date, 1);
     return date;
   };
+  const newYear = `${year}-01-01`;
+  const list: { date: string; title: string; closed: boolean }[] = [];
+  // Un 1er janvier tombant un samedi n'est pas observé le 31 décembre par les marchés US.
+  if (weekday(newYear) !== 6) list.push({ date: observed(newYear), title: 'Nouvel An', closed: true });
   return [
-    { date: observed(`${year}-01-01`), title: 'Nouvel An', closed: true },
+    ...list,
     { date: nthWeekdayOfMonth(year, 1, 1, 3), title: 'Martin Luther King Jr. Day', closed: false },
     { date: nthWeekdayOfMonth(year, 2, 1, 3), title: 'Presidents’ Day', closed: false },
     { date: addDays(easterSunday(year), -2), title: 'Good Friday', closed: true },

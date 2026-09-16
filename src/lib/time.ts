@@ -9,16 +9,39 @@ export function dateKeyLocal(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-/**
- * Journée de trading à partir d'un timestamp local : la journée bascule à `boundaryHour`
- * (0 = date civile locale ; 18 = bascule à 18h, convention Globex pour un poste en heure ET).
- */
-export function tradingDayKey(ms: number, boundaryHour = 0): string {
-  const d = new Date(ms);
-  if (boundaryHour > 0 && d.getHours() >= boundaryHour) {
-    d.setDate(d.getDate() + 1);
+const partsFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** Formateur (mis en cache) donnant année/mois/jour/heure/minute/seconde dans un fuseau. */
+function partsFormatter(timeZone: string): Intl.DateTimeFormat {
+  let f = partsFormatters.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    partsFormatters.set(timeZone, f);
   }
-  return dateKeyLocal(d);
+  return f;
+}
+
+function zonedParts(ms: number, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
+  const parts = partsFormatter(timeZone).formatToParts(new Date(ms));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0');
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') % 24, minute: get('minute'), second: get('second') };
+}
+
+/**
+ * Journée de trading à partir d'un timestamp : la journée bascule à `boundaryHour`
+ * (0 = date civile). Sans `zone`, l'heure locale du poste est utilisée ; avec `zone`
+ * (ex. America/New_York pour la convention Globex 18:00 ET), l'heure murale de ce fuseau.
+ */
+export function tradingDayKey(ms: number, boundaryHour = 0, zone?: string): string {
+  if (!zone) {
+    const d = new Date(ms);
+    if (boundaryHour > 0 && d.getHours() >= boundaryHour) d.setDate(d.getDate() + 1);
+    return dateKeyLocal(d);
+  }
+  const p = zonedParts(ms, zone);
+  const d = new Date(Date.UTC(p.year, p.month - 1, p.day));
+  if (boundaryHour > 0 && p.hour >= boundaryHour) d.setUTCDate(d.getUTCDate() + 1);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
 
 export function parseDateKey(key: string): Date {
@@ -41,12 +64,14 @@ export function daysInMonth(year: number, month1: number): number {
   return new Date(year, month1, 0).getDate();
 }
 
-/** n-ième (1-based) jour de semaine `dow` du mois ; n = -1 pour le dernier. */
+/** n-ième (1-based) jour de semaine `dow` du mois ; n = -1 pour le dernier. Rabattu sur la dernière occurrence si le mois est trop court. */
 export function nthWeekdayOfMonth(year: number, month1: number, dow: number, n: number): string {
   if (n > 0) {
     const first = new Date(year, month1 - 1, 1);
     const offset = (dow - first.getDay() + 7) % 7;
-    const day = 1 + offset + (n - 1) * 7;
+    let day = 1 + offset + (n - 1) * 7;
+    const max = daysInMonth(year, month1);
+    while (day > max) day -= 7;
     return `${year}-${pad2(month1)}-${pad2(day)}`;
   }
   const lastDay = daysInMonth(year, month1);
@@ -75,19 +100,8 @@ export function easterSunday(year: number): string {
 }
 
 function tzOffsetMinutes(utcMs: number, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const parts = dtf.formatToParts(new Date(utcMs));
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0');
-  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  const p = zonedParts(utcMs, timeZone);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
   return (asUtc - utcMs) / 60000;
 }
 
@@ -135,18 +149,31 @@ export function formatDuration(ms: number): string {
 
 /**
  * Parse une date/heure telle qu'exportée par NinjaTrader (culture du poste) :
- * "15/09/2026 15:31:02", "9/15/2026 3:31:02 PM", "2026-09-15 15:31:02", "15.09.2026 15:31".
+ * "15/09/2026 15:31:02", "9/15/2026 3:31:02 PM", "2026-09-15 15:31:02", "15.09.2026 15:31",
+ * "9/15/2026 3:31:02 p.m." (en-CA), "2026-09-15T13:31:02Z" (ISO avec fuseau).
  * `dayFirst` force l'ordre jour/mois si connu ; sinon détection heuristique.
  */
+function applyAmPm(hour: number, marker?: string): number {
+  if (!marker) return hour;
+  const pm = /^p/i.test(marker);
+  if (pm && hour < 12) return hour + 12;
+  if (!pm && hour === 12) return 0;
+  return hour;
+}
+
 export function parseFlexibleDateTime(raw: string, dayFirst?: boolean): number {
   const s = raw.trim();
   if (!s) return NaN;
-  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s);
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*([AaPp]\.?[Mm]\.?)?\s*(Z|[+-]\d{2}:?\d{2})?)?$/.exec(s);
   if (iso) {
-    const [, y, m, d, hh = '0', mm = '0', ss = '0'] = iso;
-    return new Date(+y, +m - 1, +d, +hh, +mm, +ss).getTime();
+    const [, y, m, d, hh = '0', mm = '0', ss = '0', ampm, tz] = iso;
+    if (tz) {
+      const t = Date.parse(`${y}-${pad2(+m)}-${pad2(+d)}T${pad2(applyAmPm(+hh, ampm))}:${mm}:${ss}${tz === 'Z' ? 'Z' : tz.includes(':') ? tz : `${tz.slice(0, 3)}:${tz.slice(3)}`}`);
+      return Number.isNaN(t) ? NaN : t;
+    }
+    return new Date(+y, +m - 1, +d, applyAmPm(+hh, ampm), +mm, +ss).getTime();
   }
-  const m = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})(?:[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?)?/.exec(s);
+  const m = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})(?:[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]\.?)?)?$/.exec(s);
   if (!m) {
     const t = Date.parse(s);
     return Number.isNaN(t) ? NaN : t;
@@ -155,15 +182,13 @@ export function parseFlexibleDateTime(raw: string, dayFirst?: boolean): number {
   const b = +m[2];
   let year = +m[3];
   if (year < 100) year += 2000;
-  let hour = +(m[4] ?? '0');
+  const hour = applyAmPm(+(m[4] ?? '0'), m[7]);
   const minute = +(m[5] ?? '0');
   const second = +(m[6] ?? '0');
-  const ampm = m[7]?.toUpperCase();
-  if (ampm === 'PM' && hour < 12) hour += 12;
-  if (ampm === 'AM' && hour === 12) hour = 0;
-  const useDayFirst = dayFirst ?? (a > 12 ? true : b > 12 ? false : !ampm);
+  const useDayFirst = dayFirst ?? (a > 12 ? true : b > 12 ? false : !m[7]);
   const day = useDayFirst ? a : b;
   const month = useDayFirst ? b : a;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return NaN;
   return new Date(year, month - 1, day, hour, minute, second).getTime();
 }
 
@@ -175,6 +200,6 @@ export function detectDayFirst(samples: string[]): boolean | undefined {
     if (+m[1] > 12) return true;
     if (+m[2] > 12) return false;
   }
-  if (samples.some((s) => /\b(AM|PM)\b/i.test(s))) return false;
+  if (samples.some((s) => /\b[ap]\.?m\.?\b/i.test(s))) return false;
   return undefined;
 }
