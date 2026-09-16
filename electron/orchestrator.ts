@@ -108,7 +108,7 @@ export class Orchestrator {
         const authenticated = tokensMatch(q, this.token);
         this.clients.set(id, { id, socket, authenticated, window: { start: Date.now(), count: 0 }, inflight: 0 });
         this.emitStatus();
-        safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: '0.1.0', clientId: id, authenticated } });
+        safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: '1.1.0', clientId: id, authenticated } });
         socket.on('message', (raw) => this.onMessage(id, raw.toString()));
         socket.on('close', () => {
           this.clients.delete(id);

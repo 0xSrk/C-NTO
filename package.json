@@ -1,8 +1,8 @@
 {
   "name": "canto",
   "productName": "CΛNTO",
-  "version": "1.0.0",
-  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v1.0",
+  "version": "1.1.0",
+  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v1.1",
   "private": true,
   "author": "SIΞRRΛSKΛ",
   "license": "UNLICENSED",
@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p electron/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "electron:compile": "tsc -p electron/tsconfig.json",
+    "electron:compile": "tsc -p electron/tsconfig.json && node scripts/copy-electron-assets.mjs",
+    "launch": "node scripts/launch.mjs",
     "desk:dev": "npm run electron:compile && concurrently -k -n vite,desk -c cyan,white \"vite --strictPort\" \"cross-env CANTO_DEV_URL=http://localhost:5173 electron .\"",
     "desk:build": "npm run build && npm run electron:compile",
     "dist": "npm run desk:build && electron-builder",
@@ -50,12 +51,14 @@
     "appId": "lab.sierraska.canto",
     "productName": "CΛNTO",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**",
       "dist-electron/**",
-      "package.json"
+      "package.json",
+      "build/icon.png"
     ],
     "electronFuses": {
       "runAsNode": false,
@@ -66,6 +69,7 @@
       "onlyLoadAppFromAsar": true
     },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         "nsis",
         "portable"

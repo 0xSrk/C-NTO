@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'" />
+    <title>CΛNTO</title>
+    <style>
+      :root {
+        color-scheme: dark only;
+        --bg: #000000;
+        --text-0: #ffffff;
+        --text-1: #c4c4c4;
+        --text-2: #7a7a7a;
+        --line: rgba(255, 255, 255, 0.12);
+        --led: #c41e3a;
+        --amber: #d8b45a;
+        --font: 'Segoe UI', 'Helvetica Neue', sans-serif;
+        --mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text-1);
+        font-family: var(--font);
+        overflow: hidden;
+        user-select: none;
+        -webkit-app-region: drag;
+      }
+      .frame {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 28px 32px 24px;
+        position: relative;
+      }
+      .frame::before,
+      .frame::after {
+        content: '+';
+        position: absolute;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-2);
+        -webkit-app-region: no-drag;
+      }
+      .frame::before {
+        top: 10px;
+        left: 10px;
+      }
+      .frame::after {
+        top: 10px;
+        right: 10px;
+      }
+      .chrome {
+        display: flex;
+        justify-content: flex-end;
+        -webkit-app-region: no-drag;
+        margin: -8px -12px 8px 0;
+      }
+      .chrome button {
+        width: 40px;
+        height: 32px;
+        border: 0;
+        background: transparent;
+        color: var(--text-2);
+        cursor: pointer;
+      }
+      .chrome button:hover {
+        color: var(--text-0);
+        background: #111;
+      }
+      .chrome button.x:hover {
+        background: var(--led);
+        color: #000;
+      }
+      .brand {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+        flex: 1;
+        justify-content: center;
+      }
+      .mark {
+        width: 72px;
+        height: 72px;
+      }
+      .word {
+        width: 220px;
+        height: auto;
+      }
+      .lab {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-2);
+      }
+      .lab b {
+        color: var(--led);
+        font-weight: 600;
+      }
+      .actions {
+        -webkit-app-region: no-drag;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: auto;
+      }
+      .btn {
+        height: 44px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--text-0);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: background 120ms linear, border-color 120ms linear, color 120ms linear;
+      }
+      .btn:hover:not(:disabled) {
+        background: #0a0a0a;
+        border-color: rgba(255, 255, 255, 0.28);
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .btn.primary {
+        background: var(--text-0);
+        color: #000;
+        border-color: var(--text-0);
+      }
+      .btn.primary:hover:not(:disabled) {
+        background: #e8e8e8;
+      }
+      .btn.update {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .btn.update:hover:not(:disabled) {
+        background: rgba(216, 180, 90, 0.08);
+      }
+      .btn.update.busy {
+        opacity: 0.7;
+      }
+      .meta {
+        margin-top: 14px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        color: var(--text-2);
+        text-align: center;
+        min-height: 28px;
+        line-height: 1.4;
+        -webkit-app-region: no-drag;
+      }
+      .meta.warn {
+        color: var(--amber);
+      }
+      .meta.err {
+        color: #e07070;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="chrome">
+        <button type="button" class="x" id="btn-close" aria-label="Fermer" title="Fermer">✕</button>
+      </div>
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 72 72" fill="none" aria-hidden="true">
+          <rect width="72" height="72" fill="#000" />
+          <path d="M18 18h9v36H18zm25 0H54v36H43V33L33.5 54h-7L37 33.5 26.5 18H34l6 12.5z" fill="#c41e3a" />
+        </svg>
+        <svg class="word" viewBox="0 0 640 160" fill="none" aria-label="CΛNTO">
+          <g stroke="#ffffff" stroke-width="1.25" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
+            <path d="M136 40 A48 48 0 1 0 136 120" />
+            <path d="M176 128 L224 32 L272 128" />
+            <path d="M304 128 L304 32 L384 128 L384 32" />
+            <path d="M416 32 L512 32 M464 32 L464 128" />
+            <path d="M560 32 A48 48 0 1 1 560 128 A48 48 0 1 1 560 32" />
+          </g>
+        </svg>
+        <div class="lab">SIΞRRΛSKΛ—LAB · <b>Artefact 002</b></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="btn-launch">Lancer le desk</button>
+        <button type="button" class="btn" id="btn-update" hidden>Mettre à jour</button>
+      </div>
+      <p class="meta" id="meta">Contrôle de version…</p>
+    </div>
+    <script src="./launcher-ui.js"></script>
+  </body>
+</html>

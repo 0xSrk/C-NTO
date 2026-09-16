@@ -9,7 +9,7 @@ function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
 contextBridge.exposeInMainWorld('canto', {
   isDesk: true,
   platform: process.platform,
-  version: '0.1.0',
+  version: () => ipcRenderer.invoke('app:version') as Promise<string>,
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
@@ -19,6 +19,12 @@ contextBridge.exposeInMainWorld('canto', {
   files: {
     saveText: (defaultName: string, text: string) => ipcRenderer.invoke('files:save-text', defaultName, text),
     openText: (filters: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('files:open-text', filters),
+  },
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    apply: () => ipcRenderer.invoke('update:apply'),
+    relaunch: () => ipcRenderer.invoke('update:relaunch'),
+    startDesk: () => ipcRenderer.invoke('update:start-desk'),
   },
   orchestrator: {
     start: (port: number) => ipcRenderer.invoke('orch:start', port),
