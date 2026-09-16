@@ -1,6 +1,6 @@
 .layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 280px;
+  grid-template-columns: 260px minmax(0, 1fr) 260px;
   height: 100%;
   min-height: 0;
 }
@@ -42,7 +42,7 @@
 .group {
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-4);
   padding: 8px 8px 4px;
@@ -77,7 +77,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-3);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-11);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -159,7 +159,7 @@
 }
 .preview {
   overflow: auto;
-  padding: 20px 28px 40px;
+  padding: 20px 24px 40px;
   border-left: 1px solid var(--line-0);
   font-size: 13px;
   line-height: 1.7;
@@ -187,7 +187,7 @@
 .preview h3 {
   font-size: 14px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-11);
   font-size: 12px;
   color: var(--gold);
 }
@@ -275,9 +275,10 @@
   gap: 6px;
 }
 .metaTitle {
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-1);
   display: flex;
@@ -304,7 +305,7 @@
   color: var(--text-3);
 }
 .linkCtx {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
@@ -330,7 +331,7 @@
   bottom: 12px;
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
 }
@@ -340,7 +341,7 @@
   text-align: center;
 }
 .meta small {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text-3);
   line-height: 1.5;
 }

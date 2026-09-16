@@ -148,7 +148,7 @@ export default function Copieur() {
               title="Mises à jour"
               sub="journal des versions"
               actions={
-                <select value={config.channel} onChange={(e) => updateConfig({ channel: e.target.value as 'stable' | 'beta' })} style={{ height: 24, fontSize: 11, padding: '0 6px' }}>
+                <select value={config.channel} onChange={(e) => updateConfig({ channel: e.target.value as 'stable' | 'beta' })} style={{ height: 28, fontSize: 11, padding: '0 6px' }}>
                   <option value="stable">canal stable</option>
                   <option value="beta">canal beta</option>
                 </select>

@@ -14,7 +14,7 @@
   background: var(--bg-2);
   border: 1px solid var(--line-2);
   border-radius: 0;
-  box-shadow: 0 0 0 1px #000, 0 30px 80px -30px rgba(0, 0, 0, 1);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   animation: rise-in var(--t-med) var(--ease-out) both;

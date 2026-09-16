@@ -324,7 +324,6 @@
   border-left-color: var(--gold);
   background: var(--bg-3);
   background-image: linear-gradient(90deg, var(--gold-soft), transparent 96px);
-  box-shadow: inset 1px 0 0 var(--gold-line);
 }
 .navItem svg {
   opacity: 0.8;
@@ -427,7 +426,7 @@
 .moduleHead {
   position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--s-5);
   padding: 20px 24px 16px;
   border-bottom: 1px solid var(--line-1);
@@ -559,7 +558,6 @@
 }
 .statusDot.gold {
   background: var(--gold);
-  box-shadow: var(--glow-accent-soft);
 }
 .statusDot.live {
   animation: pulse-dot 2.4s var(--ease-in-out) infinite;

@@ -31,13 +31,13 @@
   margin-left: auto;
 }
 .filterBtn {
-  height: 24px;
+  height: var(--chip-h);
   padding: 0 8px;
   border: 1px solid var(--line-1);
   border-radius: var(--radius);
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
   display: inline-flex;
@@ -76,7 +76,7 @@
   padding: 6px 8px;
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
   background: var(--bg-2);
@@ -128,7 +128,7 @@
 .day.today .dayNum::after {
   content: ' · auj.';
   font-size: 11px;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track-11);
 }
 .dayPnl {
   font-family: var(--font-mono);
@@ -152,7 +152,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
@@ -229,7 +229,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-3);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-11);
 }
 .fluxEvents {
   display: flex;
@@ -272,7 +272,7 @@
 .fluxEmpty {
   padding: 8px 12px;
   color: var(--text-4);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 /* ─── Panneau latéral ────────────────────────── */
@@ -399,7 +399,7 @@
   gap: 6px 12px;
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
 }

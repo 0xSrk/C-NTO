@@ -126,7 +126,7 @@ function toLine(bars: Bar[], values: (number | null)[]): { time: number; value?:
 
 const PALETTE = {
   ice: '#8fc7e8',
-  gold: '#ffffff',
+  ink: '#ffffff',
   mint: '#7fcf9a',
   ember: '#e0776c',
   violet: '#a996e0',
@@ -155,7 +155,7 @@ export const INDICATORS: IndicatorDefinition[] = [
     params: [{ key: 'period', label: 'Période', type: 'number', default: 50, min: 2, max: 500, step: 1 }],
     compute: (bars, p) => ({
       id: 'sma',
-      lines: [{ key: 'sma', label: `SMA ${p.period}`, color: PALETTE.gold, pane: 'price', data: toLine(bars, sma(bars.map((b) => b.close), Number(p.period))) }],
+      lines: [{ key: 'sma', label: `SMA ${p.period}`, color: PALETTE.ink, pane: 'price', data: toLine(bars, sma(bars.map((b) => b.close), Number(p.period))) }],
     }),
   },
   {
@@ -200,7 +200,7 @@ export const INDICATORS: IndicatorDefinition[] = [
         dn2.push(m - 2 * sd);
       }
       const bands = Number(p.bands);
-      const lines: IndicatorLine[] = [{ key: 'vwap', label: 'VWAP', color: PALETTE.gold, lineWidth: 2, pane: 'price', data: toLine(bars, vwap) }];
+      const lines: IndicatorLine[] = [{ key: 'vwap', label: 'VWAP', color: PALETTE.ink, lineWidth: 2, pane: 'price', data: toLine(bars, vwap) }];
       if (bands >= 1) {
         lines.push({ key: 'up1', label: '+1σ', color: PALETTE.steel, lineStyle: 'dotted', pane: 'price', data: toLine(bars, up1) });
         lines.push({ key: 'dn1', label: '−1σ', color: PALETTE.steel, lineStyle: 'dotted', pane: 'price', data: toLine(bars, dn1) });

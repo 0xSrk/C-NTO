@@ -235,7 +235,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
               onKeyDown={(e) => e.key === 'Enter' && addTag()}
               onBlur={addTag}
               placeholder="+ tag"
-              style={{ height: 20, padding: '0 6px', fontSize: 11, width: 90 }}
+              style={{ height: 28, padding: '0 6px', fontSize: 11, width: 90 }}
             />
           </div>
         </div>

@@ -87,7 +87,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
         panes: { separatorColor: '#232323', separatorHoverColor: 'rgba(196,30,58,0.28)', enableResize: true },
         attributionLogo: false,
       },
-      grid: { vertLines: { color: '#161616' }, horzLines: { color: '#161616' } },
+      grid: { vertLines: { color: '#171717' }, horzLines: { color: '#171717' } },
       crosshair: { mode: CrosshairMode.Normal, vertLine: { color: '#8a8a8a', labelBackgroundColor: '#0b0b0b', width: 1, style: LineStyle.Dotted }, horzLine: { color: '#8a8a8a', labelBackgroundColor: '#0b0b0b', width: 1, style: LineStyle.Dotted } },
       rightPriceScale: { borderColor: '#232323', scaleMargins: { top: 0.06, bottom: 0.05 } },
       timeScale: {

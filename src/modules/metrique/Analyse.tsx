@@ -158,11 +158,11 @@ export function Analyse() {
           <svg viewBox="0 0 320 220" className={s.scatter} preserveAspectRatio="xMidYMid meet">
             <line x1={36} x2={310} y1={190} y2={190} stroke="rgba(255,255,255,0.2)" />
             <line x1={36} x2={36} y1={10} y2={190} stroke="rgba(255,255,255,0.2)" />
-            <line x1={36} y1={190} x2={310} y2={10} stroke="rgba(201,162,77,0.35)" strokeDasharray="3 3" />
-            <text x={310} y={206} textAnchor="end" fontSize={9} fill="var(--text-3)" fontFamily="var(--font-mono)">
+            <line x1={36} y1={190} x2={310} y2={10} stroke="var(--gold-line)" strokeDasharray="3 3" />
+            <text x={310} y={206} textAnchor="end" fontSize={11} fill="var(--text-3)" fontFamily="var(--font-mono)">
               MAE → {fmtUsd(scatter.max)}
             </text>
-            <text x={12} y={14} fontSize={9} fill="var(--text-3)" fontFamily="var(--font-mono)">
+            <text x={12} y={14} fontSize={11} fill="var(--text-3)" fontFamily="var(--font-mono)">
               MFE
             </text>
             {scatter.pts.map((p, i) => (

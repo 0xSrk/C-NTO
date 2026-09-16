@@ -88,7 +88,7 @@ export function PropFirmView() {
               actions={
                 <>
                   {accounts.length > 1 && (
-                    <select value={planAccount} onChange={(e) => update({ planAccount: e.target.value })} style={{ height: 24, fontSize: 11, padding: '0 6px' }} title="Compte rejoué contre le plan">
+                    <select value={planAccount} onChange={(e) => update({ planAccount: e.target.value })} style={{ height: 28, fontSize: 11, padding: '0 6px' }} title="Compte rejoué contre le plan">
                       <option value="">Tous les comptes (agrégés par jour)</option>
                       {accounts.map((a) => (
                         <option key={a} value={a}>

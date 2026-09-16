@@ -56,7 +56,7 @@ export function Heatmap({ rows, cols, cells, height, formatValue = (v) => v.toFi
               y={top + c.row * ch + gap / 2}
               width={Math.max(1, cw - gap)}
               height={Math.max(1, ch - gap)}
-              rx={1}
+              rx={0}
               fill={c.value === null ? 'rgba(255,255,255,0.03)' : colorFor(c.value, max, signed)}
               className={s.cell}
               onMouseEnter={() => setHover(c)}

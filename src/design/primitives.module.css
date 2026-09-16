@@ -139,7 +139,7 @@
   flex: 0 0 auto;
 }
 .panelBody {
-  padding: 16px 20px 20px;
+  padding: 20px;
   min-height: 0;
   flex: 1;
 }
@@ -196,7 +196,6 @@
 }
 .btn.gold:hover {
   border-color: var(--gold);
-  box-shadow: var(--glow-accent-soft);
 }
 .btn.solid {
   border-color: var(--text-0);
@@ -431,7 +430,6 @@
 .toggle.on .toggleTrack::after {
   transform: translateX(16px);
   background: var(--gold);
-  box-shadow: var(--glow-accent-soft);
 }
 .toggle.on {
   color: var(--text-0);
@@ -511,7 +509,6 @@
 }
 .progress.gold > span {
   background: var(--gold);
-  box-shadow: var(--glow-accent-soft);
 }
 .progress.mint > span {
   background: var(--mint);

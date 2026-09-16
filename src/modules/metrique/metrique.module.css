@@ -129,8 +129,10 @@
 }
 .detailPnl {
   font-family: var(--font-mono);
-  font-size: 22px;
-  font-weight: 500;
+  font-family: var(--font-ui);
+  font-size: var(--fs-value);
+  font-weight: 700;
+  font-weight: 700;
 }
 .formGrid {
   display: grid;
@@ -175,7 +177,7 @@
 .planItem small {
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
 }
@@ -199,7 +201,7 @@
 .statusBanner h4 {
   font-size: 13px;
   color: var(--text-0);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
 }
 .statusBanner p {

@@ -158,11 +158,11 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
                 )}
                 {sr.signed ? (
                   <>
-                    <path d={d} fill="none" stroke="var(--mint)" strokeWidth={sr.width ?? 1.5} clipPath={`url(#clip-pos-${uid})`} />
-                    <path d={d} fill="none" stroke="var(--ember)" strokeWidth={sr.width ?? 1.5} clipPath={`url(#clip-neg-${uid})`} />
+                    <path d={d} fill="none" stroke="var(--mint)" strokeWidth={sr.width ?? 1} clipPath={`url(#clip-pos-${uid})`} />
+                    <path d={d} fill="none" stroke="var(--ember)" strokeWidth={sr.width ?? 1} clipPath={`url(#clip-neg-${uid})`} />
                   </>
                 ) : (
-                  <path d={d} fill="none" stroke={sr.color} strokeWidth={sr.width ?? 1.5} strokeDasharray={sr.dashed ? '3 3' : undefined} strokeLinejoin="round" />
+                  <path d={d} fill="none" stroke={sr.color} strokeWidth={sr.width ?? 1} strokeDasharray={sr.dashed ? '3 3' : undefined} strokeLinejoin="miter" />
                 )}
               </g>
             );
