@@ -149,7 +149,7 @@ function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string
     const rec = item as Record<string, unknown>;
     if (typeof rec[key] !== 'string' || (rec[key] as string).length === 0 || (rec[key] as string).length > 200) continue;
     if ('__proto__' in rec || 'constructor' in rec) continue;
-    out.push({ ...rec } as T);
+    out.push(Object.assign({}, rec) as unknown as T);
   }
   return out;
 }
