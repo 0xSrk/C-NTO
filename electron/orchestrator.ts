@@ -1,7 +1,8 @@
 import type { BrowserWindow } from 'electron';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { WebSocket, WebSocketServer } from 'ws';
+import { tokensMatch } from './secure-token';
 
 export interface OrchestratorStatus {
   running: boolean;
@@ -104,7 +105,7 @@ export class Orchestrator {
         const id = `c${++this.seq}`;
         const url = new URL(req.url ?? '/', 'ws://127.0.0.1');
         const q = url.searchParams.get('token') ?? '';
-        const authenticated = q.length === this.token.length && timingSafeEqual(Buffer.from(q), Buffer.from(this.token));
+        const authenticated = tokensMatch(q, this.token);
         this.clients.set(id, { id, socket, authenticated, window: { start: Date.now(), count: 0 }, inflight: 0 });
         this.emitStatus();
         safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: '0.1.0', clientId: id, authenticated } });
@@ -178,7 +179,7 @@ export class Orchestrator {
 
     if (msg.method === 'desk.auth') {
       const token = msg.params && typeof msg.params === 'object' ? (msg.params as { token?: unknown }).token : undefined;
-      client.authenticated = typeof token === 'string' && token.length === this.token.length && timingSafeEqual(Buffer.from(token), Buffer.from(this.token));
+      client.authenticated = typeof token === 'string' && tokensMatch(token, this.token);
       safeSend(client.socket, client.authenticated ? { jsonrpc: '2.0', id: rpcId, result: { authenticated: true } } : { jsonrpc: '2.0', id: rpcId, error: { code: -32001, message: 'Jeton invalide' } });
       if (!client.authenticated) client.socket.close(1008, 'Jeton invalide');
       return;

@@ -166,3 +166,40 @@ describe('unités et réconciliation', () => {
     expect(detectInstrument('NQD')).toBeNull();
   });
 });
+
+describe('intégrité import (audit F-02 / F-03 / F-04)', () => {
+  it('F-02 : CSV fr-FR avec délimiteur « , » et décimales non quotées → 0 trade + warning', () => {
+    const csv = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
+1,NQ 12-26,Sim101,,Long,1,20000,00,19975,50,15/09/2026 15:35:00,15/09/2026 15:42:00,Entry,Exit,-482245,00,-482245,00,4,50,45,00,220,00,20,00,7
+`;
+    const r = importTradesCsv(csv);
+    expect(r.trades.length).toBe(0);
+    expect(r.skipped).toBeGreaterThanOrEqual(1);
+    expect(r.warnings.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('F-03 : prix entiers + montants quotés en virgule → MAE/MFE/commission corrects (pas ×100)', () => {
+    const csv = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
+1,MNQ 12-26,Sim101,,Long,1,24100,24112,15/09/2026 15:35:00,15/09/2026 15:42:00,Entry,Exit,"245,50 $","245,50 $","0,74 $","60,00 $","280,00 $","20,00 $",7
+`;
+    const r = importTradesCsv(csv);
+    expect(r.trades.length).toBe(1);
+    // PnL = prix × point MNQ − commission (la colonne Profit divergente est signalée, pas avalée).
+    expect(r.trades[0].pnl).toBeCloseTo(12 * 2 - 0.74, 1);
+    expect(r.trades[0].commission).toBeCloseTo(0.74, 2);
+    expect(r.trades[0].mae).toBeCloseTo(60, 1);
+    expect(r.trades[0].mfe).toBeCloseTo(280, 1);
+  });
+
+  it('F-04 : date ambiguë en-US sans AM/PM → mois/jour (2 janvier)', () => {
+    const csv = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
+1,NQ 12-26,Sim101,,Long,1,20000.00,20010.00,01/02/2026 00:00:00,01/02/2026 00:05:00,Entry,Exit,$200.00,$200.00,$4.50,$45.00,$220.00,$20.00,7
+`;
+    const r = importTradesCsv(csv);
+    expect(r.trades.length).toBe(1);
+    expect(r.sessions[0].date).toBe('2026-01-02');
+    const d = new Date(r.trades[0].entryTime);
+    expect(d.getMonth()).toBe(0);
+    expect(d.getDate()).toBe(2);
+  });
+});

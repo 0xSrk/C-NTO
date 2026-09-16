@@ -127,7 +127,7 @@ Capacité : **1 000 séances**. Chaque séance porte un compte, une date de trad
 <img src="docs/media/montecarlo.png" alt="CΛNTO — Monte Carlo : enveloppe bootstrap, risque de ruine" width="920"/>
 </div>
 
-Export / restauration complète du coffre en JSON ; export CSV réimportable. La clé API de l'agent n'est **jamais** exportée.
+Export / restauration complète du coffre en JSON ; export CSV réimportable. La clé API de l'agent (clair **et** blob chiffré) n'est **jamais** exportée. Sous le shell, une clé restaurée depuis un coffre navigateur est re-chiffrée immédiatement.
 
 ---
 

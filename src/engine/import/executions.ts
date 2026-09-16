@@ -1,4 +1,4 @@
-import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
+import { detectDecimalSeparator, inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { detectDayFirst, parseFlexibleDateTime } from '@/lib/time';
 import { INSTRUMENTS, type Instrument, type SessionSource, type Trade } from '../types';
 import { detectInstrument, groupIntoSessions, type ImportOptions, type ImportResult } from './ninjatrader';
@@ -90,11 +90,22 @@ function stableId(parts: (string | number)[]): string {
 export function parseExecutionsCsv(text: string): { executions: Execution[]; skipped: number; warnings: string[] } {
   const table = parseCsv(text);
   const idx = indexColumns(table.headers);
-  const dec = detectDecimalSeparator(table.rows.slice(0, 80).map((r) => r[idx.price] ?? '')) ?? (table.delimiter === ';' ? ',' : undefined);
-  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[idx.time] ?? ''));
+  const sample = table.rows.slice(0, 80);
+  const dec =
+    inferDecimalSeparator(
+      sample.map((r) => r[idx.price] ?? ''),
+      sample.map((r) => r[idx.commission] ?? ''),
+      table.delimiter,
+    ) ?? detectDecimalSeparator(sample.map((r) => r[idx.price] ?? ''));
+  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[idx.time] ?? '')) ?? table.delimiter === ';';
   const executions: Execution[] = [];
   let skipped = 0;
+  const expectedCols = table.headers.length;
   table.rows.forEach((row, i) => {
+    if (expectedCols > 0 && row.length !== expectedCols) {
+      skipped++;
+      return;
+    }
     const get = (k: string) => (idx[k] !== undefined ? (row[idx[k]] ?? '').trim() : '');
     const instrumentName = get('instrument');
     const instrument = detectInstrument(instrumentName);

@@ -89,6 +89,36 @@ export function detectDecimalSeparator(samples: string[]): ',' | '.' | undefined
   return undefined;
 }
 
+/** Compte les champs (souvent quotés) qui portent une virgule décimale claire (ex. `"245,50"`). */
+export function countCommaDecimals(samples: string[]): number {
+  let n = 0;
+  for (const raw of samples) {
+    const s = raw.trim();
+    if (!s) continue;
+    // Virgule suivie de 1–2 décimales, sans point : montant fr-FR typique.
+    if (/^\(?-?\s*[$€£]?\s*\d{1,3}(?:[ .]\d{3})*,\d{1,2}\s*[$€£]?\s*\)?$/.test(s) || /^\(?-?\d+,\d{1,2}\)?$/.test(s.replace(/\s/g, ''))) n++;
+  }
+  return n;
+}
+
+/**
+ * Infère le séparateur décimal en croisant prix et montants (Profit/MAE/MFE/Commission).
+ * Si les prix sont entiers mais ≥2 montants quotés portent une virgule, on tranche vers `,`.
+ */
+export function inferDecimalSeparator(prices: string[], amounts: string[], delimiter: string): ',' | '.' | undefined {
+  const fromPrices = detectDecimalSeparator(prices);
+  const fromAmounts = detectDecimalSeparator(amounts);
+  if (fromPrices === ',' || fromAmounts === ',') {
+    if (fromPrices === '.' && fromAmounts === ',' && countCommaDecimals(amounts) >= 2) return ',';
+    if (fromPrices === '.') return fromPrices;
+    return fromAmounts ?? fromPrices ?? (delimiter === ';' ? ',' : undefined);
+  }
+  if (fromPrices) return fromPrices;
+  if (fromAmounts) return fromAmounts;
+  if (countCommaDecimals(amounts) >= 2) return ',';
+  return delimiter === ';' ? ',' : undefined;
+}
+
 /**
  * Convertit une chaîne numérique localisée en nombre.
  * Gère : "$1,250.50", "1 250,50 $", "(125,00)", "-125.00", "€ 12,5", "1.250,50".

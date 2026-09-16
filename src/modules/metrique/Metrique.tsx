@@ -47,16 +47,25 @@ export default function Metrique() {
   };
   const onExportVault = async () => {
     const saved = await saveTextFile(`canto-coffre-${new Date().toISOString().slice(0, 10)}.json`, await exportVault(), 'application/json');
-    if (saved) toast('Sauvegarde complète du coffre exportée (clé API exclue).', 'ok');
+    if (saved) toast('Sauvegarde complète du coffre exportée (clé API et blob chiffré exclus).', 'ok');
   };
   const onRestore = async () => {
     const f = await openTextFile('.json');
     if (!f) return;
-    if (!(await confirmDialog('Restaurer cette sauvegarde ?', 'Les séances, trades, notes, calendrier, automates et comptes du copieur présents dans le fichier remplacent ceux du coffre.'))) return;
+    if (
+      !(await confirmDialog(
+        'Restaurer cette sauvegarde ?',
+        'Les séances, trades, notes, calendrier, automates et comptes du copieur présents dans le fichier remplacent ceux du coffre. Une clé API en clair (coffre navigateur) est reprise puis chiffrée immédiatement sous le shell.',
+      ))
+    )
+      return;
     try {
       const r = await restoreVault(f.text);
       await Promise.all([reload(), reloadSettings(), useNotes.getState().load(), useCalendar.getState().load(), useBots.getState().load(), useCopier.getState().load()]);
-      toast(`Coffre restauré : ${plural(r.sessions, 'séance')}, ${plural(r.trades, 'trade')}, ${plural(r.notes, 'note')}.`, 'ok');
+      toast(
+        `Coffre restauré : ${plural(r.sessions, 'séance')}, ${plural(r.trades, 'trade')}, ${plural(r.notes, 'note')}.${r.apiKeyReencrypted ? ' Clé API re-chiffrée.' : ''}`,
+        'ok',
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Restauration impossible.', 'error');
     }
