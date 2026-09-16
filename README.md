@@ -69,10 +69,47 @@ CΛNTO est le **desk local** du Lab pour travailler le **Nasdaq-100 futures** au
 
 **Prérequis** : Node.js ≥ 22.12 et npm. Windows 10 / 11 recommandé pour NinjaTrader — le shell tourne aussi sous macOS et Linux.
 
+### Première installation
+
 ```bash
 git clone https://github.com/0xSrk/C-NTO.git
 cd C-NTO
 npm install
+npm run desk:dev
+```
+
+### Mettre à jour (si le desk est gris / bleuté ou affiche 0.1.0)
+
+Le design Lab **v1.0** (noir absolu, onglet `CΛNTO · Artefact 002`, LED `#c41e3a`, rail `Rev. A · 1.0.0`) est sur `main`.  
+Si tu vois encore **« PROTOTYPE 0.1.0 »**, un fond bleu-gris, ou `canto@0.1.0` dans le terminal — **ton dossier local n’est pas à jour**.
+
+Dans PowerShell, depuis le dossier du projet (ex. `Documents\c-nto`) :
+
+```powershell
+# Arrêter le desk (Ctrl+C dans le terminal qui tourne), puis :
+git fetch origin
+git checkout main
+git pull origin main
+npm install
+npm run desk:dev
+```
+
+**Contrôle immédiat** après relance :
+
+| Tu dois voir | Ancien prototype (à jeter) |
+|---|---|
+| Terminal : `canto@1.0.0` | `canto@0.1.0` |
+| Onglet blanc `CΛNTO · Artefact 002` | Pas d’onglet / « PROTOTYPE 0.1.0 » |
+| Fond **noir absolu**, accent rouge Lab | Fond gris-bleu, accent or |
+| Rail : `Rev. A · 1.0.0` | `ARTEFACT - PROTOTYPE 0.1.0` |
+
+Si `git pull` refuse (modifs locales) :
+
+```powershell
+git stash -u
+git pull origin main
+npm install
+npm run desk:dev
 ```
 
 | Commande | Effet |
