@@ -1,5 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import '@fontsource-variable/inter/index.css';
+import '@fontsource-variable/jetbrains-mono/index.css';
 import '@/design/tokens.css';
 import { App, bootTimings } from '@/app/App';
 import { useAgent } from '@/store/agent';

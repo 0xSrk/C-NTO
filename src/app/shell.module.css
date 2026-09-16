@@ -1,6 +1,9 @@
 .shell {
   position: relative;
   height: 100%;
+  background: #000000;
+  background-color: var(--bg-0, #000000);
+  color: var(--text-1, #c4c4c4);
   display: grid;
   grid-template-rows: var(--titlebar-h) 1fr var(--statusbar-h);
   grid-template-columns: var(--rail-w) 1fr;
@@ -132,6 +135,7 @@
   gap: var(--s-3);
   padding: 0 0 0 var(--s-6);
   /* left inset matches status; right handled by titleRight */
+  background: var(--bg-0, #000000);
   border-bottom: 1px solid var(--line-1);
   -webkit-app-region: drag;
   user-select: none;
@@ -199,7 +203,7 @@
   transition: color var(--t-med) linear, border-color 160ms linear;
 }
 .livePill.on {
-  background-image: radial-gradient(circle 48px at 12px 50%, rgba(196, 30, 58, 0.06), transparent);
+  /* LED = pastille seule ; pas de halo local (ambiance .lightWarm) */
 }
 .livePill.on::after {
   content: '';
@@ -252,6 +256,7 @@
   grid-area: rail;
   position: relative;
   z-index: 1;
+  background: var(--bg-0, #000000);
   border-right: 1px solid var(--line-1);
   display: flex;
   flex-direction: column;
@@ -410,6 +415,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  background-color: var(--bg-0, #000000);
   background-image:
     repeating-linear-gradient(to right, color-mix(in srgb, var(--line-1) 35%, transparent) 0 1px, transparent 1px 96px),
     repeating-linear-gradient(to bottom, color-mix(in srgb, var(--line-1) 35%, transparent) 0 1px, transparent 1px 96px);
@@ -511,6 +517,7 @@
   grid-area: status;
   position: relative;
   z-index: 1;
+  background: var(--bg-0, #000000);
   border-top: 1px solid var(--line-1);
   display: flex;
   align-items: center;

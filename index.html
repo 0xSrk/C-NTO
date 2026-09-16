@@ -3,15 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark only" />
+    <meta name="theme-color" content="#000000" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none';" />
     <title>CΛNTO</title>
+    <!-- Fond critique avant le bundle : noir absolu Lab — jamais le bleu-gris prototype -->
     <style>
+      :root {
+        color-scheme: dark only;
+        --bg-void: #000000;
+        --bg-0: #000000;
+        --bg-1: #030303;
+        --bg-2: #050505;
+        --bg-3: #0b0b0b;
+        --text-0: #ffffff;
+        --text-1: #c4c4c4;
+        --gold: #c41e3a;
+      }
       html,
-      body {
-        background: #04050a;
+      body,
+      #root {
+        background: #000000 !important;
+        background-color: #000000 !important;
         margin: 0;
         height: 100%;
+        color: #c4c4c4;
       }
     </style>
   </head>

@@ -1,12 +1,10 @@
-@import '@fontsource-variable/inter/index.css';
-@import '@fontsource-variable/jetbrains-mono/index.css';
-
 /* ------------------------------------------------------------------
    CΛNTO — artefact 002 · SIΞRRΛSKΛ Lab · v1.0
    Grammaire lithographique : noir absolu, hairlines 1 px, grille 4 px,
    une seule LED d'accent, aucun arrondi, aucune ombre hors halo LED,
    aucun dégradé décoratif. Précision de circuit — chaque mesure
    multiple de 4 px (filets 1–2 px exclus).
+   Polices chargées depuis src/main.tsx (ne jamais bloquer ce fichier).
    ------------------------------------------------------------------ */
 
 :root {
@@ -134,13 +132,15 @@ body,
 }
 
 body {
-  background: var(--bg-void);
-  color: var(--text-1);
+  background: #000000;
+  background-color: var(--bg-void, #000000);
+  color: var(--text-1, #c4c4c4);
   font-family: var(--font-ui);
   font-size: var(--fs-body);
   line-height: 1.5;
   overflow: hidden;
   font-variant-numeric: tabular-nums;
+  color-scheme: dark only;
 }
 
 ::selection {
