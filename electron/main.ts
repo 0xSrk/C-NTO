@@ -4,15 +4,53 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
 import { Orchestrator } from './orchestrator';
+import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
+const LAUNCHER_MODE = process.argv.includes('--launcher');
 let win: BrowserWindow | null = null;
+let launcherWin: BrowserWindow | null = null;
 const orchestrator = new Orchestrator();
 let bridge: NinjaBridge | null = null;
+let updateBusy = false;
 
 const isString = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
 const isPort = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1024 && v <= 65535;
-const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean => !!win && e.sender === win.webContents;
+const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean => {
+  const s = e.sender;
+  return (!!win && s === win.webContents) || (!!launcherWin && s === launcherWin.webContents);
+};
+
+const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
+
+function createLauncherWindow(): void {
+  launcherWin = new BrowserWindow({
+    width: 420,
+    height: 560,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#000000',
+    show: false,
+    title: 'CΛNTO',
+    icon: iconPath,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+  launcherWin.once('ready-to-show', () => launcherWin?.show());
+  launcherWin.on('closed', () => {
+    launcherWin = null;
+    if (!win) app.quit();
+  });
+  void launcherWin.loadFile(path.join(__dirname, 'launcher.html'));
+}
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -25,6 +63,7 @@ function createWindow(): void {
     backgroundColor: '#000000',
     show: false,
     title: 'CΛNTO',
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -72,15 +111,17 @@ function createWindow(): void {
 }
 
 app.setName('CΛNTO');
-// Interface et widgets natifs (champs heure/date) en français, sans menu applicatif.
 app.commandLine.appendSwitch('lang', 'fr-FR');
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 app.whenReady().then(() => {
-  // Aucune permission navigateur (caméra, notifications, géolocalisation…) n'est nécessaire au desk.
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
-  createWindow();
+  if (LAUNCHER_MODE) createLauncherWindow();
+  else createWindow();
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      if (LAUNCHER_MODE) createLauncherWindow();
+      else createWindow();
+    }
   });
 });
 
@@ -91,9 +132,68 @@ app.on('window-all-closed', () => {
 });
 
 /* ─── Fenêtre ─── */
-ipcMain.on('window:minimize', (e) => trusted(e) && win?.minimize());
-ipcMain.on('window:toggle-maximize', (e) => trusted(e) && (win?.isMaximized() ? win.unmaximize() : win?.maximize()));
-ipcMain.on('window:close', (e) => trusted(e) && win?.close());
+ipcMain.on('window:minimize', (e) => {
+  if (!trusted(e)) return;
+  (BrowserWindow.fromWebContents(e.sender) ?? win)?.minimize();
+});
+ipcMain.on('window:toggle-maximize', (e) => {
+  if (!trusted(e)) return;
+  const w = BrowserWindow.fromWebContents(e.sender) ?? win;
+  if (!w) return;
+  if (w.isMaximized()) w.unmaximize();
+  else w.maximize();
+});
+ipcMain.on('window:close', (e) => {
+  if (!trusted(e)) return;
+  (BrowserWindow.fromWebContents(e.sender) ?? win)?.close();
+});
+
+ipcMain.handle('app:version', (e) => (trusted(e) ? app.getVersion() : ''));
+
+/* ─── Mise à jour ─── */
+ipcMain.handle('update:check', async (e): Promise<UpdateStatus | null> => {
+  if (!trusted(e)) return null;
+  try {
+    return await checkForUpdate();
+  } catch (err) {
+    return {
+      current: app.getVersion(),
+      latest: null,
+      available: false,
+      busy: false,
+      error: err instanceof Error ? err.message : 'Contrôle impossible',
+      source: 'none',
+    };
+  }
+});
+ipcMain.handle('update:apply', async (e): Promise<UpdateStatus | null> => {
+  if (!trusted(e) || updateBusy) return null;
+  updateBusy = true;
+  try {
+    return await applyUpdate();
+  } finally {
+    updateBusy = false;
+  }
+});
+ipcMain.handle('update:relaunch', (e) => {
+  if (!trusted(e)) return false;
+  relaunchDesk();
+  return true;
+});
+ipcMain.handle('update:start-desk', (e) => {
+  if (!trusted(e)) return false;
+  if (!win) createWindow();
+  else {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+  if (launcherWin && !launcherWin.isDestroyed()) {
+    const l = launcherWin;
+    launcherWin = null;
+    l.close();
+  }
+  return true;
+});
 
 /* ─── Fichiers (toujours derrière un dialogue système) ─── */
 ipcMain.handle('files:save-text', async (e, defaultName: unknown, text: unknown) => {

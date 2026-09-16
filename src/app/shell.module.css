@@ -230,6 +230,50 @@
 .livePill.off {
   color: var(--text-2);
 }
+.updateBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 28px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-1);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 160ms linear, border-color 160ms linear, background 160ms linear;
+}
+.updateBtn:hover:not(:disabled) {
+  color: var(--text-0);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.updateBtn.updateAvail {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+.updateBtn.updateAvail:hover:not(:disabled) {
+  background: rgba(216, 180, 90, 0.08);
+  color: var(--amber);
+}
+.updateBtn.updateBusy {
+  opacity: 0.7;
+  cursor: default;
+}
+.updateDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-4);
+  flex-shrink: 0;
+}
+.updateAvail .updateDot {
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(216, 180, 90, 0.45);
+  animation: breathe 2.4s var(--ease-in-out) infinite;
+}
 .winControls {
   display: flex;
   margin-left: var(--s-2);

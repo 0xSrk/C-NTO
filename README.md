@@ -15,9 +15,9 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-49%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-58%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
-[![Version](https://img.shields.io/badge/version-1.0.0-c41e3a?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-1.1.0-c41e3a?style=flat-square)](package.json)
 
 <br/>
 
@@ -33,19 +33,20 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 
 1. [En bref](#en-bref)
 2. [Démarrer](#démarrer)
-3. [Les sept modules](#les-sept-modules)
-4. [Métrique — journal & moteur](#métrique--journal--moteur)
-5. [Visual — bougies & indicateurs](#visual--bougies--indicateurs)
-6. [Calendrier — catalyseurs Nasdaq](#calendrier--catalyseurs-nasdaq)
-7. [Note — coffre Markdown](#note--coffre-markdown)
-8. [Agent IA & orchestrateur](#agent-ia--orchestrateur)
-9. [Bot & Copieur](#bot--copieur)
-10. [Pont NinjaTrader 8](#pont-ninjatrader-8)
-11. [Architecture](#architecture)
-12. [Développement](#développement)
-13. [Système visuel](#système-visuel)
-14. [Suite](#suite)
-15. [Avertissement](#avertissement)
+3. [Mettre à jour](#mettre-à-jour)
+4. [Les sept modules](#les-sept-modules)
+5. [Métrique — journal & moteur](#métrique--journal--moteur)
+6. [Visual — bougies & indicateurs](#visual--bougies--indicateurs)
+7. [Calendrier — catalyseurs Nasdaq](#calendrier--catalyseurs-nasdaq)
+8. [Note — coffre Markdown](#note--coffre-markdown)
+9. [Agent IA & orchestrateur](#agent-ia--orchestrateur)
+10. [Bot & Copieur](#bot--copieur)
+11. [Pont NinjaTrader 8](#pont-ninjatrader-8)
+12. [Architecture](#architecture)
+13. [Développement](#développement)
+14. [Système visuel](#système-visuel)
+15. [Suite](#suite)
+16. [Avertissement](#avertissement)
 
 ---
 
@@ -67,7 +68,9 @@ CΛNTO est le **desk local** du Lab pour travailler le **Nasdaq-100 futures** au
 
 ## Démarrer
 
-**Prérequis** : Node.js ≥ 22.12 et npm. Windows 10 / 11 recommandé pour NinjaTrader — le shell tourne aussi sous macOS et Linux.
+**Prérequis** : [Node.js](https://nodejs.org) ≥ 22.12 (LTS) et npm. Windows 10 / 11 recommandé pour NinjaTrader — le shell tourne aussi sous macOS et Linux.
+
+### Voie simple (recommandée)
 
 ```bash
 git clone https://github.com/0xSrk/C-NTO.git
@@ -75,14 +78,42 @@ cd C-NTO
 npm install
 ```
 
+Puis **double-cliquez `CANTO.cmd`** (Windows) — ou lancez :
+
+```bash
+npm run launch
+```
+
+Le **lanceur** s'ouvre : logotype CΛNTO, bouton **Lancer le desk**, et contrôle automatique de version. Un clic ouvre le desk complet.
+
+Astuce Windows : clic droit sur `CANTO.cmd` › *Envoyer vers › Bureau (créer un raccourci)* pour un accès permanent.
+
+### Autres commandes
+
 | Commande | Effet |
 |---|---|
-| `npm run desk:dev` | Fenêtre Electron + serveur Vite (desk complet) |
-| `npm run dev` | Navigateur seul (toutes les fonctions sauf la passerelle orchestrateur) |
+| `npm run launch` / `CANTO.cmd` | **Lanceur** → desk (voie principale) |
+| `npm run desk:dev` | Desk Electron + Vite (sans écran lanceur) |
+| `npm run dev` | Navigateur seul (hors passerelle orchestrateur) |
 | `npm run dist:win` | Installeur NSIS + portable → `release/` |
 | `npm run typecheck && npm test && npm run build` | Vérification moteur + UI |
 
-Au premier lancement : écran de chargement (logotype tracé au trait, marque gravée `SIΞRRΛSKΛ—LAB`), puis le desk. Un **jeu de démonstration** (140 séances) se charge depuis Métrique › *Charger un jeu de démonstration*.
+Au premier lancement : écran lanceur, puis boot lithographique, puis le desk. Un **jeu de démonstration** (140 séances) se charge depuis Métrique › *Charger un jeu de démonstration*.
+
+---
+
+## Mettre à jour
+
+CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre du desk).
+
+| État | Comportement |
+|---|---|
+| À jour | Le bouton affiche `v1.1.0` (discret) |
+| Mise à jour dispo | Le bouton passe **ambre / jaune** — un clic télécharge (`git pull` + `npm install`) et **relance** automatiquement |
+
+Même action depuis le lanceur : le bouton **Mettre à jour et relancer** apparaît uniquement lorsqu'une version plus récente (ou des commits sur `main`) est détectée.
+
+Pas besoin de terminal pour rester à jour. Si des modifications locales bloquent le pull, CΛNTO tente un `git stash` puis réessaie ; en cas d'échec, un message explicite s'affiche.
 
 ---
 
@@ -232,16 +263,19 @@ Guide complet : **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**.
 ## Architecture
 
 ```
-electron/         shell (fenêtre sans cadre, dialogues, pont dossier,
-                  WebSocket JSON-RPC authentifié, secrets chiffrés)
+electron/         shell (fenêtre sans cadre, lanceur, mise à jour git,
+                  dialogues, pont dossier, WebSocket JSON-RPC, secrets)
 ninjatrader/      AddOn CΛNTO Bridge (exécutions → CSV)
+scripts/          launch.mjs · copy-electron-assets
+CANTO.cmd         double-clic Windows → lanceur
+build/            icône Lab (LED)
 src/app/          boot, coque (titlebar 56 · rail 232 · status 28), onglets
 src/design/       jetons, primitives, logotype CΛNTO, graphiques SVG
 src/engine/       métriques, Monte Carlo, import NT, prop firm,
                   indicateurs, calendrier Nasdaq, outils agent, clients LLM
 src/store/        Dexie (IndexedDB) + Zustand
 src/modules/      un dossier par onglet (01…07)
-tests/            Vitest — 49 tests moteur
+tests/            Vitest — moteur + import + auth
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
 
@@ -253,11 +287,12 @@ Le moteur (`src/engine`) est indépendant de l'interface : indicateurs, outils a
 
 ```bash
 npm install
-npm run desk:dev      # Electron + Vite
-npm run typecheck     # tsc app + electron
-npm test              # 49 tests Vitest
-npm run build         # bundle production
-npm run dist:win      # NSIS + portable
+npm run launch         # voie utilisateur (lanceur + desk)
+npm run desk:dev       # Electron + Vite sans lanceur
+npm run typecheck      # tsc app + electron
+npm test               # Vitest
+npm run build          # bundle production
+npm run dist:win       # NSIS + portable
 ```
 
 ---
@@ -288,5 +323,5 @@ Le registre des prop firms est **indicatif** : les règles changent fréquemment
 
 <div align="center">
 <br/>
-<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.0.0</sub>
+<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.0</sub>
 </div>

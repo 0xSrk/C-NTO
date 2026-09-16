@@ -12,6 +12,7 @@ import { useSettings } from '@/store/settings';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
 import { useBridge } from '@/store/bridge';
+import { UpdateButton } from './UpdateButton';
 import { TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -54,10 +55,16 @@ export function Shell({ children }: { children: ReactNode }) {
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
   const [maximized, setMaximized] = useState(false);
+  const [appVersion, setAppVersion] = useState('1.1.0');
 
   useEffect(() => {
     if (!desk) return;
     return desk.window.onMaximized(setMaximized);
+  }, []);
+
+  useEffect(() => {
+    if (!desk?.version) return;
+    void desk.version().then(setAppVersion);
   }, []);
 
   useEffect(() => {
@@ -101,6 +108,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </span>
         </div>
         <div className={s.titleRight}>
+          <UpdateButton />
           <span className={cx(s.livePill, live ? s.on : s.off)} title={bridgeStatus?.folder ?? undefined}>
             <i className={s.liveDot} />
             {liveLabel}
@@ -168,7 +176,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className={s.railMeta}>
             <span>Design Unit</span>
             <span>SIΞRRΛSKΛ Lab</span>
-            <span className={s.dimmer}>Rev. A · 1.0.0</span>
+            <span className={s.dimmer}>Rev. A · v{appVersion}</span>
           </div>
         </div>
       </aside>

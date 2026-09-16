@@ -48,10 +48,26 @@ export interface BridgeApi {
   onStatus: (cb: (status: BridgeStatus) => void) => () => void;
 }
 
+export interface UpdateStatus {
+  current: string;
+  latest: string | null;
+  available: boolean;
+  busy: boolean;
+  error?: string;
+  source: 'git' | 'github' | 'none';
+}
+
 export interface DeskApi {
   isDesk: true;
   platform: string;
-  version: string;
+  /** Version locale (package.json / app.getVersion) */
+  version: () => Promise<string>;
+  update: {
+    check: () => Promise<UpdateStatus | null>;
+    apply: () => Promise<UpdateStatus | null>;
+    relaunch: () => Promise<boolean>;
+    startDesk: () => Promise<boolean>;
+  };
   bridge: BridgeApi;
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
