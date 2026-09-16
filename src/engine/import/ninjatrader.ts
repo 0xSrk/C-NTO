@@ -1,4 +1,4 @@
-import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
+import { inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { uid } from '@/lib/id';
 import { detectDayFirst, ET_ZONE, parseFlexibleDateTime, tradingDayKey } from '@/lib/time';
 import { summarizeTrades } from '../metrics';
@@ -107,16 +107,33 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
     return { sessions: [], trades: [], warnings: ['Colonnes non reconnues : export NinjaTrader « Trades » attendu (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).'], format, skipped: table.rows.length };
   }
   const col = buildColumnIndex(table.headers);
-  const decimalSep = detectDecimalSeparator(table.rows.slice(0, 80).flatMap((r) => [r[col.entryPrice] ?? '', r[col.exitPrice] ?? ''])) ?? (table.delimiter === ';' ? ',' : undefined);
-  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[col.entryTime] ?? ''));
+  const sample = table.rows.slice(0, 80);
+  const decimalSep = inferDecimalSeparator(
+    sample.flatMap((r) => [r[col.entryPrice] ?? '', r[col.exitPrice] ?? '']),
+    sample.flatMap((r) => [r[col.profit] ?? '', r[col.mae] ?? '', r[col.mfe] ?? '', r[col.commission] ?? '']),
+    table.delimiter,
+  );
+  // Culture fichier : AM/PM ou jour>12 tranche ; sinon le délimiteur `;` implique fr-FR (J/M), `,` implique en-US (M/J).
+  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[col.entryTime] ?? '')) ?? table.delimiter === ';';
   const boundary = opts.sessionBoundaryHour ?? 0;
   const source = opts.source ?? 'ninjatrader';
+  const expectedCols = table.headers.length;
+
+  if (table.delimiter === ',' && decimalSep === ',') {
+    warnings.push('Délimiteur « , » et décimale « , » : les champs décimaux doivent être quotés ; les lignes au mauvais nombre de colonnes seront rejetées.');
+  }
 
   const trades: Trade[] = [];
   let skipped = 0;
   let profitMismatch = 0;
+  let widthMismatch = 0;
 
   for (const row of table.rows) {
+    if (expectedCols > 0 && row.length !== expectedCols) {
+      skipped++;
+      widthMismatch++;
+      continue;
+    }
     const get = (k: string) => (col[k] !== undefined ? (row[col[k]] ?? '').trim() : '');
     const instrument = detectInstrument(get('instrument'));
     if (!instrument) {
@@ -200,7 +217,8 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   }
 
   if (profitMismatch > 0) warnings.push(`${profitMismatch} trade(s) : la colonne Profit diffère du PnL recalculé (prix × valeur du point). Le PnL recalculé est conservé.`);
-  if (skipped > 0) warnings.push(`${skipped} ligne(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`);
+  if (widthMismatch > 0) warnings.push(`${widthMismatch} ligne(s) rejetée(s) : nombre de colonnes incohérent ou décimale/délimiteur conflictuels (intégrité du journal).`);
+  else if (skipped > 0) warnings.push(`${skipped} ligne(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`);
 
   return { sessions: groupIntoSessions(trades, boundary, source), trades, warnings, format, skipped };
 }

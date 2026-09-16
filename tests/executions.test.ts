@@ -84,4 +84,16 @@ MNQ 12-26;Sell;3;21012.75;2026-09-16 15:39:40;x2;Exit;-;o2;Exit;2.22;1;APEX-50K;
     expect(r.trades[0].pnl).toBeCloseTo(12.5 * 2 * 3 - 4.44);
     expect(r.trades[0].account).toBe('APEX-50K');
   });
+
+  it('importe une fixture au format exact de l’AddOn CantoBridge (virgule, point décimal, ISO)', () => {
+    const csv = `Instrument,Action,Quantity,Price,Time,ID,E/X,Position,Order ID,Name,Commission,Rate,Account,Connection
+MNQ 12-26,Buy,3,21000.25,2026-09-16 15:31:02,3f2a1111,Entry,3 L,7c1aaaaa,Entry,2.22,1,APEX-50K,Rithmic
+MNQ 12-26,Sell,3,21012.75,2026-09-16 15:39:40,3f2a2222,Exit,-,7c1bbbbb,Exit,2.22,1,APEX-50K,Rithmic
+`;
+    const r = importExecutionsCsv(csv);
+    expect(r.format).toBe('ninjatrader-executions');
+    expect(r.warnings.filter((w) => !w.includes('ouverte')).length).toBe(0);
+    expect(r.trades.length).toBe(1);
+    expect(r.trades[0].pnl).toBeCloseTo(12.5 * 2 * 3 - 4.44);
+  });
 });

@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { BarSeries } from '@/engine/bars';
 import type { IndicatorInstance } from '@/engine/indicators';
 import type { Session, Trade } from '@/engine/types';
+import { desk } from '@/lib/desk';
 
 export interface Note {
   id: string;
@@ -137,11 +138,14 @@ export async function exportVault(): Promise<string> {
     db.copierAccounts.toArray(),
     db.bots.toArray(),
   ]);
-  // La clé API ne quitte jamais le coffre local.
+  // La clé API (clair ou blob chiffré) ne quitte jamais le coffre local.
   const safeSettings = settings.map((row) => {
     if (row.key !== 'settings') return row;
-    const value = row.value as { agent?: { apiKey?: string } };
-    return { key: row.key, value: { ...value, agent: value.agent ? { ...value.agent, apiKey: '' } : undefined } };
+    const value = row.value as { agent?: { apiKey?: string; apiKeyEncrypted?: string } };
+    if (!value.agent) return row;
+    const agent = { ...value.agent, apiKey: '' };
+    delete agent.apiKeyEncrypted;
+    return { key: row.key, value: { ...value, agent } };
   });
   return JSON.stringify({ artefact: 'CΛNTO', version: 1, exportedAt: new Date().toISOString(), sessions, trades, notes, calendar, settings: safeSettings, copierAccounts, bots });
 }
@@ -192,7 +196,7 @@ const CHECKS: Record<string, Check> = {
   bots: (r) => isStr(r.name) && Array.isArray(r.rules) && isNum(r.updatedAt),
 };
 
-export async function restoreVault(json: string): Promise<{ sessions: number; trades: number; notes: number }> {
+export async function restoreVault(json: string): Promise<{ sessions: number; trades: number; notes: number; apiKeyReencrypted: boolean }> {
   if (json.length > 400 * 1024 * 1024) throw new Error('Sauvegarde trop volumineuse.');
   let data: VaultFile;
   try {
@@ -205,10 +209,16 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
   const trades = rows<Trade>(data.trades, 'id', 'trades', CHECKS.trades);
   const notes = rows<Note>(data.notes, 'id', 'notes', CHECKS.notes);
   const calendar = rows<CalendarEntry>(data.calendar, 'id', 'calendar', CHECKS.calendar);
-  // Les réglages restaurés ne touchent jamais à la configuration de l'agent (URL, consigne, clé).
+  // Agent : on n'écrase pas URL/modèle/consigne, mais une clé en clair issue d'un coffre navigateur
+  // est reprise puis re-chiffrée immédiatement sous le shell (safeStorage).
+  let pendingApiKey: string | null = null;
   const settings = rows<Setting>(data.settings, 'key', 'settings', CHECKS.settings).map((row) => {
     if (row.key !== 'settings') return row;
     const value = { ...(row.value as Record<string, unknown>) };
+    const agent = value.agent as { apiKey?: unknown } | undefined;
+    if (agent && typeof agent.apiKey === 'string' && agent.apiKey.length > 0 && agent.apiKey.length <= 4096) {
+      pendingApiKey = agent.apiKey;
+    }
     delete value.agent;
     return { key: row.key, value };
   });
@@ -216,6 +226,7 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
   const bots = rows<BotBlueprint>(data.bots, 'id', 'bots', CHECKS.bots);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
+  let apiKeyReencrypted = false;
   await db.transaction('rw', [db.sessions, db.trades, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots], async () => {
     if (sessions.length) {
       await db.sessions.clear();
@@ -237,6 +248,21 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
         await db.settings.put({ key: 'settings', value: { ...(current ?? {}), ...(row.value as Record<string, unknown>), agent: current?.agent } });
       } else await db.settings.put(row);
     }
+    if (pendingApiKey) {
+      const current = ((await db.settings.get('settings'))?.value as Record<string, unknown> | undefined) ?? {};
+      const prevAgent = (current.agent as Record<string, unknown> | undefined) ?? {};
+      const agentRest = { ...prevAgent };
+      delete agentRest.apiKeyEncrypted;
+      let agent: Record<string, unknown> = { ...agentRest, apiKey: pendingApiKey };
+      if (desk?.secrets) {
+        const payload = await desk.secrets.encrypt(pendingApiKey);
+        if (payload) {
+          agent = { ...agentRest, apiKey: '', apiKeyEncrypted: payload };
+          apiKeyReencrypted = true;
+        }
+      }
+      await db.settings.put({ key: 'settings', value: { ...current, agent } });
+    }
     if (copierAccounts.length) {
       await db.copierAccounts.clear();
       await db.copierAccounts.bulkPut(copierAccounts);
@@ -246,5 +272,5 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
       await db.bots.bulkPut(bots);
     }
   });
-  return { sessions: sessions.length, trades: consistentTrades.length, notes: notes.length };
+  return { sessions: sessions.length, trades: consistentTrades.length, notes: notes.length, apiKeyReencrypted };
 }

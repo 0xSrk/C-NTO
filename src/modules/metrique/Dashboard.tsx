@@ -71,6 +71,11 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
   const hourBars = useMemo(() => t.byHour.filter((b) => b.count > 0).map((b) => ({ key: b.key, value: b.pnl, label: `${b.key}h`, hint: `${b.count} trade(s) · ${fmtPct(b.winRate, 0)} réussite` })), [t.byHour]);
   const weekdayBars = useMemo(() => [1, 2, 3, 4, 5].map((i) => t.byWeekday[i]).map((b) => ({ key: b.key, value: b.pnl, label: b.key, hint: `${b.count} trade(s) · ${fmtPct(b.winRate, 0)} réussite` })), [t.byWeekday]);
   const hist = useMemo(() => histogram(t.pnls, 28), [t.pnls]);
+  const thinSample = t.count < 30 || sessions.length < 5;
+  const sqnHint = thinSample ? 'Échantillon insuffisant' : t.sqn >= 2.5 ? 'Système solide' : t.sqn >= 1.6 ? 'Correct' : 'Faible';
+  const pfHint = thinSample
+    ? `Échantillon insuffisant${Number.isFinite(t.profitFactor) ? '' : ` · brut ${t.profitFactor === Infinity ? '∞' : String(t.profitFactor)}`}`
+    : `Payoff ${fmtRatio(t.payoffRatio)}${Number.isFinite(t.profitFactor) ? '' : ' · aucune perte'}`;
 
   if (sessions.length === 0) {
     return (
@@ -94,11 +99,11 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
       <div className={s.kpis}>
         <Stat label="PnL net" value={fmtUsd(t.netPnl, { sign: true })} num={t.netPnl} format={(v) => fmtUsd(v, { sign: true })} hint={`${plural(t.count, 'trade')} · ${plural(sessions.length, 'séance')}`} tone={tone(t.netPnl)} />
         <Stat label="Réussite" value={fmtPct(t.winRate)} num={t.winRate} format={(v) => fmtPct(v)} hint={`${t.wins} G · ${t.losses} P · ${t.breakeven} N`} tone={t.winRate >= 0.5 ? 'pos' : 'flat'} />
-        <Stat label="Profit factor" value={fmtRatio(t.profitFactor)} num={Number.isFinite(t.profitFactor) ? t.profitFactor : undefined} format={(v) => fmtRatio(v)} hint={`Payoff ${fmtRatio(t.payoffRatio)}`} tone={t.profitFactor >= 1.3 ? 'pos' : t.profitFactor < 1 ? 'neg' : 'flat'} />
+        <Stat label="Profit factor" value={fmtRatio(t.profitFactor)} num={Number.isFinite(t.profitFactor) ? t.profitFactor : undefined} format={(v) => fmtRatio(v)} hint={pfHint} tone={thinSample ? 'flat' : t.profitFactor >= 1.3 ? 'pos' : t.profitFactor < 1 ? 'neg' : 'flat'} />
         <Stat label="Espérance / trade" value={fmtUsd(t.expectancy, { cents: true, sign: true })} num={t.expectancy} format={(v) => fmtUsd(v, { cents: true, sign: true })} hint={t.expectancyR !== null ? `${fmtRatio(t.expectancyR)} R` : `Médiane ${fmtUsd(t.medianPnl, { cents: true })}`} tone={tone(t.expectancy)} />
-        <Stat label="Sharpe · séances" value={fmtRatio(d.sharpe)} num={d.sharpe} format={(v) => fmtRatio(v)} hint={`Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)}`} tone={d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'} />
+        <Stat label="Sharpe · séances" value={fmtRatio(d.sharpe)} num={d.sharpe} format={(v) => fmtRatio(v)} hint={thinSample ? 'Échantillon insuffisant' : `Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)}`} tone={thinSample ? 'flat' : d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'} />
         <Stat label="Drawdown max" value={fmtUsd(-d.maxDrawdown)} num={-d.maxDrawdown} format={(v) => fmtUsd(v)} hint={`${plural(d.maxDrawdownDays, 'journée')} · actuel ${fmtUsd(-d.currentDrawdown)}`} tone={d.currentDrawdown > 0 ? 'neg' : 'flat'} />
-        <Stat label="SQN" value={fmtRatio(t.sqn)} num={t.sqn} format={(v) => fmtRatio(v)} hint={t.sqn >= 2.5 ? 'Système solide' : t.sqn >= 1.6 ? 'Correct' : 'Faible'} tone={t.sqn >= 2 ? 'pos' : 'flat'} />
+        <Stat label="SQN" value={fmtRatio(t.sqn)} num={thinSample ? undefined : t.sqn} format={(v) => fmtRatio(v)} hint={sqnHint} tone={thinSample ? 'flat' : t.sqn >= 2 ? 'pos' : 'flat'} />
         <Stat label="Séances gagnantes" value={fmtPct(d.winDayRate)} num={d.winDayRate} format={(v) => fmtPct(v)} hint={`${d.winDays} G · ${d.lossDays} P · meilleur ${fmtUsd(d.bestDay)}`} tone={d.winDayRate >= 0.5 ? 'pos' : 'flat'} />
       </div>
 

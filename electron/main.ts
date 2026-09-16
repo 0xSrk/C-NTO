@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, session, shell } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
 import { Orchestrator } from './orchestrator';
 
@@ -45,8 +46,12 @@ function createWindow(): void {
     if (/^https?:/i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
+  const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
+  const indexUrl = pathToFileURL(indexFile).href;
   win.webContents.on('will-navigate', (event, url) => {
-    const allowed = DEV_URL ? url.startsWith(DEV_URL) : url.startsWith('file://');
+    const allowed = DEV_URL
+      ? url.startsWith(DEV_URL)
+      : url === indexUrl || url.startsWith(`${indexUrl}#`) || url.startsWith(`${indexUrl}?`);
     if (!allowed) event.preventDefault();
   });
 
@@ -58,7 +63,7 @@ function createWindow(): void {
     };
     tryLoad(0);
   } else {
-    void win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    void win.loadFile(indexFile);
   }
 
   orchestrator.attach(win);
@@ -113,7 +118,7 @@ const MAX_TEXT = 50 * 1024 * 1024;
 /* ─── Orchestrateur ─── */
 ipcMain.handle('orch:start', (e, port: unknown) => (trusted(e) && isPort(port) ? orchestrator.start(port) : orchestrator.status()));
 ipcMain.handle('orch:stop', (e) => (trusted(e) ? orchestrator.stop() : orchestrator.status()));
-ipcMain.handle('orch:status', () => orchestrator.status());
+ipcMain.handle('orch:status', (e) => (trusted(e) ? orchestrator.status() : { running: false, port: 0, clients: 0, token: '' }));
 ipcMain.handle('orch:rotate-token', (e) => (trusted(e) ? orchestrator.rotateToken() : orchestrator.status()));
 ipcMain.on('orch:respond', (e, id: unknown, clientId: unknown, result: unknown, error?: unknown) => {
   if (!trusted(e) || !isString(id, 64) || !isString(clientId, 32)) return;
@@ -140,7 +145,7 @@ ipcMain.handle('secrets:decrypt', (e, payload: unknown) => {
 });
 
 /* ─── Pont NinjaTrader ─── */
-ipcMain.handle('bridge:status', () => bridge?.status() ?? null);
+ipcMain.handle('bridge:status', (e) => (trusted(e) ? bridge?.status() ?? null : null));
 ipcMain.handle('bridge:configure', (e, cfg: unknown) => {
   if (!trusted(e) || !bridge || !cfg || typeof cfg !== 'object') return bridge?.status() ?? null;
   const c = cfg as { folder?: unknown; enabled?: unknown };

@@ -40,8 +40,7 @@ export function fmtPct(v: number | undefined | null, digits = 1): string {
 }
 
 export function fmtRatio(v: number | undefined | null, digits = 2): string {
-  if (v === undefined || v === null || Number.isNaN(v)) return '—';
-  if (!Number.isFinite(v)) return '∞';
+  if (v === undefined || v === null || Number.isNaN(v) || !Number.isFinite(v)) return '—';
   return v.toFixed(digits).replace('.', ',');
 }
 

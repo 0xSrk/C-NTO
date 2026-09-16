@@ -24,6 +24,7 @@ Il existe en deux étages :
 ### Côté NinjaTrader : l'AddOn `ninjatrader/CantoBridge.cs`
 
 - Copier le fichier dans `Documents\NinjaTrader 8\bin\Custom\AddOns\`, ouvrir le NinjaScript Editor et compiler (F5). L'AddOn démarre avec la plateforme, sans interface.
+- **Validation** : le parseur CΛNTO est couvert par une fixture au format exact de l'AddOn (culture invariante). La compilation sur une session sim NT8 réelle reste à confirmer sur le poste trader.
 - Il s'abonne à `Account.ExecutionUpdate` pour tous les comptes (y compris ceux connectés plus tard) et rattrape les exécutions déjà présentes dans `Account.Executions` au démarrage.
 - Chaque exécution est ajoutée à `export\CANTO\executions-AAAA-MM-JJ.csv` avec **exactement les colonnes de l'export « Executions »** de NinjaTrader, en culture invariante :
 
