@@ -6,11 +6,11 @@ CΛNTO s'installe sur le poste du trader, s'ouvre sur un écran de chargement (l
 
 | # | Module | Contenu |
 | --- | --- | --- |
-| 01 | **Métrique** | Journal jusqu'à 1 000 séances. Import des exports NinjaTrader (« Trade Performance › Trades »), moteur quantitatif (profit factor, espérance, Sharpe/Sortino/Calmar, SQN, Kelly, z-score des séries, MAE/MFE, drawdown, régularité glissante), rejeu des règles prop firm (trailing EOD / intraday / statique, perte journalière, consistance), Monte Carlo bootstrap, visuels interactifs. |
+| 01 | **Métrique** | Journal jusqu'à 1 000 séances. **Pont NinjaTrader** (dossier surveillé, import automatique des exports « Trades » / « Executions » et du journal temps réel de l'AddOn), appariement FIFO des exécutions, moteur quantitatif (profit factor, espérance, Sharpe/Sortino/Calmar, SQN, Kelly, z-score des séries, MAE/MFE, drawdown, régularité glissante), rejeu des règles prop firm (trailing EOD / intraday / statique, perte journalière, consistance, filtre par compte), Monte Carlo bootstrap borné, visuels interactifs. |
 | 02 | **Visual** | Graphique en bougies (lightweight-charts) avec volume, catalogue d'indicateurs extensible (EMA, SMA, VWAP + bandes, Opening Range, niveaux de séance précédente, ATR, volume relatif), projection des trades d'une séance, import de barres OHLCV. |
 | 03 | **Calendrier** | Deux vues (grille mensuelle, flux chronologique). Catalyseurs Nasdaq : FOMC (dates officielles 2024–2026), NFP, CPI/PPI/PCE, ISM, PIB, résultats mégacaps, expirations/rollovers CME, fériés et séances écourtées, bascules horaires US/EU. Heures locales + ET, repères de séance, conseils débutant, notes et rappels personnels, PnL du journal par jour. |
 | 04 | **Note** | Coffre de notes façon Obsidian : Markdown, liens `[[wiki]]`, liens entrants, `#tags`, recherche, note du jour, graphe de force. |
-| 05 | **Agent IA** | Passerelle native : fournisseur OpenAI-compatible (Ollama, LM Studio, OpenAI, OpenRouter…) ou Anthropic, streaming, appels d'outils sur le desk (métriques, séances, notes, calendrier, plan prop firm). Dans le shell Electron : serveur JSON-RPC 2.0 sur WebSocket (`127.0.0.1`) pour un orchestrateur externe. |
+| 05 | **Agent IA** | Passerelle native : fournisseur OpenAI-compatible (Ollama, LM Studio, OpenAI, OpenRouter…) ou Anthropic, streaming, appels d'outils sur le desk (métriques, séances, notes, calendrier, plan prop firm) avec confirmation des écritures. Dans le shell Electron : serveur JSON-RPC 2.0 sur WebSocket (`127.0.0.1`, jeton de session, origines navigateur refusées) pour un orchestrateur externe ; clé API chiffrée par le trousseau du système. |
 | 06 | **Bot** | Atelier d'automates : gabarits, grammaire conditions / actions / garde-fous, cycle de vie (brouillon → backtest → papier → réel verrouillé), garde-fous dérivés du plan prop firm et du calendrier. Phase 1 (conception). |
 | 07 | **Copieur** | Topologie maître → suiveurs, dimensionnement (fixe, ratio, risque), correspondance NQ ↔ MNQ, filtres (fenêtre horaire, blackout catalyseurs, marge plancher, latence), journal des versions. La réplication effective attend l'AddOn NinjaTrader spécifié dans `docs/PONT-NINJATRADER.md`. |
 
@@ -52,18 +52,20 @@ npm test
 npm run build
 ```
 
-## Importer depuis NinjaTrader 8
+## Pont NinjaTrader 8
 
-1. Control Center › **Trade Performance** › onglet **Trades**.
-2. Filtrer la période, clic droit › **Export** › CSV.
-3. Dans CΛNTO › Métrique › **Importer NinjaTrader** (glisser-déposer accepté). Les cultures en-US et fr-FR sont détectées ; le PnL est recalculé depuis les prix et la valeur du point puis contrôlé avec la colonne Profit ; les doublons sont écartés et les exports successifs s'empilent par séance.
+**Automatique** — Métrique › **Pont NinjaTrader** › choisir le dossier (par défaut `Documents\NinjaTrader 8\export\CANTO`). Tout CSV déposé ou modifié dans ce dossier est importé dès que son écriture est terminée ; l'état du pont est visible dans la barre d'état. Pour le temps réel, installer l'AddOn `ninjatrader/CantoBridge.cs` (`Documents\NinjaTrader 8\bin\Custom\AddOns\`, puis NinjaScript Editor › Compile) : chaque exécution est écrite dans `executions-AAAA-MM-JJ.csv` et appariée en trades (FIFO) par CΛNTO. Détails : `docs/PONT-NINJATRADER.md`.
+
+**Manuel** — Control Center › **Trade Performance › Trades** (ou onglet **Executions**) › clic droit › **Export** › CSV, puis Métrique › **Importer un CSV** (glisser-déposer accepté). Les cultures en-US et fr-FR sont détectées ; le PnL est recalculé depuis les prix et la valeur du point puis contrôlé avec la colonne Profit ; les doublons sont écartés et les exports successifs s'empilent par séance.
 
 Pour les barres du module Visual : Tools › **Historical Data** › Export (ou tout CSV OHLCV).
 
 ## Architecture
 
 ```
-electron/            shell (fenêtre sans cadre, dialogues fichiers, passerelle WebSocket JSON-RPC)
+electron/            shell (fenêtre sans cadre, dialogues fichiers, pont NinjaTrader par dossier surveillé,
+                     passerelle WebSocket JSON-RPC authentifiée, secrets chiffrés)
+ninjatrader/         AddOn NinjaScript CΛNTO Bridge (exécutions → CSV)
 src/app/             boot, coque (barre de titre, rail, barre d'état), onglets
 src/design/          jetons de style, primitives, logotype, graphiques SVG
 src/engine/          moteur pur TypeScript : métriques, Monte Carlo, import NinjaTrader,
@@ -71,14 +73,14 @@ src/engine/          moteur pur TypeScript : métriques, Monte Carlo, import Nin
 src/store/           persistance Dexie (IndexedDB) et états Zustand
 src/modules/         un dossier par onglet
 tests/               tests Vitest du moteur
-docs/                spécification du pont NinjaTrader
+docs/                spécification du pont NinjaTrader, compte rendu d'audit (docs/AUDIT.md)
 ```
 
 Le moteur (`src/engine`) est indépendant de l'interface : les indicateurs, les outils exposés à l'agent et les plans prop firm sont des registres que le Lab enrichit sans toucher aux modules.
 
 ## Feuille de route
 
-- Pont NinjaTrader (AddOn NinjaScript) : import temps réel des exécutions, copieur actif, exécution papier des automates.
+- Pont NinjaTrader, transport WebSocket : copieur actif, exécution papier des automates.
 - Backtest des automates sur les barres importées.
 - Agent : mémoire longue par trader, profils d'évolution du desk.
 

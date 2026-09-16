@@ -262,8 +262,10 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
               <tbody>
                 {sorted.map((t) => (
                   <tr key={t.id}>
-                    <td className="mono">
-                      {formatTimeLocal(t.entryTime)} <span className="dim">→ {formatTimeLocal(t.exitTime)}</span>
+                    <td className="mono" style={{ lineHeight: 1.25 }}>
+                      {formatTimeLocal(t.entryTime)}
+                      <br />
+                      <span className="dim">→ {formatTimeLocal(t.exitTime)}</span>
                     </td>
                     <td>
                       <Tag tone={t.direction === 'long' ? 'mint' : 'ember'}>
@@ -271,10 +273,10 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
                       </Tag>{' '}
                       <span className="dim">{t.instrument}</span>
                     </td>
-                    <td className="num muted">
+                    <td className="num muted" style={{ lineHeight: 1.25 }}>
                       {fmtPrice(t.entryPrice)}
-                      <span className="dim"> → </span>
-                      {fmtPrice(t.exitPrice)}
+                      <br />
+                      <span className="dim">→ {fmtPrice(t.exitPrice)}</span>
                     </td>
                     <td className={cx('num', signClass(t.pnl))}>{fmtUsd(t.pnl, { sign: true, cents: true })}</td>
                     <td className="num muted" title={t.strategy ?? ''}>
