@@ -99,7 +99,8 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
           const dx = b.x - a.x;
           const dy = b.y - a.y;
           const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          const f = (d - 130) * 0.02;
+          const rest = 110 + 3.5 * Math.max(a.title.length, b.title.length);
+          const f = (d - rest) * 0.02;
           a.vx += (dx / d) * f;
           a.vy += (dy / d) * f;
           b.vx -= (dx / d) * f;

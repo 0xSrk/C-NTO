@@ -4,6 +4,8 @@ import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Empty, Field, Panel, Tag, cx } from '@/design/primitives';
 import { generateNasdaqEvents } from '@/engine/calendar';
 import { findPlan } from '@/engine/propfirm';
+import { plural } from '@/lib/format';
+import { dateKeyLocal, formatDateFr } from '@/lib/time';
 import type { BotBlueprint } from '@/store/db';
 import { BOT_TEMPLATES, deriveGuards, useBots, type BotRule } from '@/store/bots';
 import { useSettings } from '@/store/settings';
@@ -57,13 +59,13 @@ export default function Bot() {
       <ModuleContent>
         <div className={s.layout}>
           <div className={s.col}>
-            <Panel title="Automates" sub={`${bots.length} plan(s)`}>
+            <Panel title="Automates" sub={plural(bots.length, 'plan')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {bots.map((b) => (
                   <button key={b.id} className={cx(s.botItem, b.id === activeId && s.on)} onClick={() => setActive(b.id)}>
                     <b>{b.name}</b>
                     <small>
-                      {b.instrument} · {STAGES.find((st) => st.id === b.status)?.label} · {b.rules.length} règle(s)
+                      {b.instrument} · {STAGES.find((st) => st.id === b.status)?.label} · {plural(b.rules.length, 'règle')}
                     </small>
                   </button>
                 ))}
@@ -87,16 +89,17 @@ export default function Bot() {
               <>
                 <Panel
                   title={bot.name}
-                  sub={`créé le ${new Date(bot.createdAt).toLocaleDateString('fr-FR')}`}
+                  sub={`créé le ${formatDateFr(dateKeyLocal(new Date(bot.createdAt)), { short: true })}`}
                   accent
                   actions={
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={async () => {
-                        if (await confirmDialog(`Supprimer l’automate « ${bot.name} » ?`, `${bot.rules.length} règle(s) seront perdues.`)) await remove(bot.id);
+                        if (await confirmDialog(`Supprimer l’automate « ${bot.name} » ?`, `${plural(bot.rules.length, 'règle sera perdue', 'règles seront perdues')}.`)) await remove(bot.id);
                       }}
-                      aria-label="Supprimer"
+                      aria-label="Supprimer l’automate"
+                      title="Supprimer l’automate"
                     >
                       <IconTrash size={13} />
                     </Button>
@@ -217,7 +220,7 @@ export default function Bot() {
                 <div className={s.phase}>
                   <i>P3</i>
                   <span>
-                    <b>Papier</b> Exécution simulée par le pont NinjaTrader (AddOn CΛNTO Bridge, protocole dans <code>docs/PONT-NINJATRADER.md</code>).
+                    <b>Papier</b> Exécution simulée par le pont NinjaTrader (transport WebSocket de l’AddOn CΛNTO Bridge).
                   </span>
                 </div>
                 <div className={s.phase}>

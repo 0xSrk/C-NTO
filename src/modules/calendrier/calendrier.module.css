@@ -59,7 +59,7 @@
 /* ─── Grille ─────────────────────────────────── */
 .grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, 0.45fr));
   grid-auto-rows: minmax(104px, 1fr);
   gap: 1px;
   background: var(--line-0);
@@ -218,7 +218,9 @@
   font-size: 13px;
   color: var(--text-0);
   font-weight: 500;
-  text-transform: capitalize;
+}
+.fluxDayHead b::first-letter {
+  text-transform: uppercase;
 }
 .fluxDayHead.today b {
   color: var(--gold);
@@ -285,7 +287,6 @@
   font-size: 15px;
   color: var(--text-0);
   font-weight: 600;
-  text-transform: capitalize;
 }
 .evCard {
   border: 1px solid var(--line-0);

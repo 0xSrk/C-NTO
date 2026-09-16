@@ -3,6 +3,7 @@ import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, Crossha
 import type { Bar } from '@/engine/bars';
 import type { IndicatorLine } from '@/engine/indicators';
 import type { Trade } from '@/engine/types';
+import { fmtPrice, fmtUsd } from '@/lib/format';
 import s from './visual.module.css';
 
 export interface HoverInfo {
@@ -27,6 +28,20 @@ const fmtDay = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short'
 
 function toTs(sec: number): UTCTimestamp {
   return sec as UTCTimestamp;
+}
+
+/** Recherche dichotomique d'une barre par horodatage (les barres sont triées). */
+function findBar(bars: Bar[], time: number): Bar | null {
+  let lo = 0;
+  let hi = bars.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const t = bars[mid].time;
+    if (t === time) return bars[mid];
+    if (t < time) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return null;
 }
 
 /**
@@ -89,7 +104,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       localization: {
         locale: 'fr-FR',
         timeFormatter: (time: Time) => fmtDateTime.format(new Date((time as number) * 1000)),
-        priceFormatter: (p: number) => p.toFixed(2),
+        priceFormatter: (p: number) => fmtPrice(p),
       },
       handleScroll: { vertTouchDrag: false },
     });
@@ -119,7 +134,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
         return;
       }
       const t = param.time as number;
-      const bar = barsRef.current.find((b) => b.time === t) ?? null;
+      const bar = findBar(barsRef.current, t);
       const values = linesRef.current.map((l) => {
         let value: number | null = null;
         for (const [key, series] of lineRefs.current) {
@@ -202,8 +217,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       const exit = snap(t.exitTime);
       if (entry < first || entry > last) continue;
       const long = t.direction === 'long';
-      markers.push({ time: toTs(entry), position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: long ? '#3ddc97' : '#ff3b4e', text: `${long ? 'L' : 'S'} ${t.qty} @ ${t.entryPrice.toFixed(2)}`, size: 1 });
-      if (exit >= first && exit <= last) markers.push({ time: toTs(exit), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl >= 0 ? '#c9a24d' : '#8b91a3', text: `${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(0)} $`, size: 0.8 });
+      markers.push({ time: toTs(entry), position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: long ? '#3ddc97' : '#ff3b4e', text: `${long ? 'L' : 'S'} ${t.qty} @ ${fmtPrice(t.entryPrice)}`, size: 1 });
+      if (exit >= first && exit <= last) markers.push({ time: toTs(exit), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl >= 0 ? '#c9a24d' : '#8b91a3', text: fmtUsd(t.pnl, { sign: true }), size: 0.8 });
     }
     markers.sort((a, b) => (a.time as number) - (b.time as number));
     markersRef.current.setMarkers(markers);

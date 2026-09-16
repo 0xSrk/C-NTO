@@ -2,14 +2,14 @@ import { useMemo } from 'react';
 import { LineArea } from '@/design/charts/LineArea';
 import { Panel, Progress, Stat, Tag, cx } from '@/design/primitives';
 import { DRAWDOWN_LABEL, PROP_FIRMS } from '@/engine/propfirm';
-import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
+import { fmtInt, fmtPct, fmtUsd, plural } from '@/lib/format';
 import { formatDateFr } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
 
 export function PropFirmView() {
-  const { plan, planEval, sessions } = useStats();
+  const { plan, planEval, sessions, accounts, planAccount } = useStats();
   const planId = useSettings((st) => st.settings.planId);
   const update = useSettings((st) => st.update);
 
@@ -23,7 +23,7 @@ export function PropFirmView() {
   }, [planEval, plan]);
 
   return (
-    <div className={s.grid}>
+    <div className={cx(s.grid, s.gridTop)}>
       <Panel className={s.c4} title="Registre" sub="firmes & plans indicatifs">
         <div className={s.planList}>
           {PROP_FIRMS.map((f) => (
@@ -55,9 +55,14 @@ export function PropFirmView() {
               <div>
                 <h4>
                   {plan.firm} · {plan.label} — {planEval.status === 'objectif' ? 'Objectif atteint' : planEval.status === 'echec' ? 'Compte invalidé' : 'Évaluation en cours'}
+                  {planAccount ? ` · ${planAccount}` : ''}
                 </h4>
                 <p>
-                  {planEval.status === 'echec' && planEval.reason ? `${planEval.reason} le ${formatDateFr(planEval.failedOn ?? '')}.` : `${DRAWDOWN_LABEL[plan.drawdownType]} · DD max ${fmtUsd(plan.maxDrawdown)}${plan.dailyLossLimit ? ` · perte/jour ${fmtUsd(plan.dailyLossLimit)}` : ''}${plan.consistencyPct ? ` · consistance ${fmtPct(plan.consistencyPct, 0)}` : ''}${plan.minTradingDays ? ` · ${plan.minTradingDays} jour(s) min` : ''}`}
+                  {planEval.status === 'echec' && planEval.reason
+                    ? `${planEval.reason} le ${formatDateFr(planEval.failedOn ?? '')}.`
+                    : planEval.status === 'objectif' && planEval.passedOn
+                      ? `Objectif validé le ${formatDateFr(planEval.passedOn)} · ${DRAWDOWN_LABEL[plan.drawdownType]} · DD max ${fmtUsd(plan.maxDrawdown)}`
+                      : `${DRAWDOWN_LABEL[plan.drawdownType]} · DD max ${fmtUsd(plan.maxDrawdown)}${plan.dailyLossLimit ? ` · perte/jour ${fmtUsd(plan.dailyLossLimit)}` : ''}${plan.consistencyPct ? ` · consistance ${fmtPct(plan.consistencyPct, 0)}` : ''}${plan.minTradingDays ? ` · ${plural(plan.minTradingDays, 'jour')} min` : ''}`}
                 </p>
               </div>
               <div style={{ marginLeft: 'auto', minWidth: 220 }}>
@@ -74,17 +79,34 @@ export function PropFirmView() {
               <Stat small label="Plancher" value={fmtUsd(planEval.floor)} hint={plan.trailingLockAt !== undefined ? `verrou à ${fmtUsd(plan.accountSize + plan.trailingLockAt)}` : DRAWDOWN_LABEL[plan.drawdownType]} tone="ice" />
               <Stat small label="Marge restante" value={fmtUsd(planEval.buffer)} hint={`${fmtPct(planEval.buffer / plan.maxDrawdown, 0)} du DD max`} tone={planEval.buffer < plan.maxDrawdown * 0.3 ? 'neg' : 'pos'} />
               <Stat small label="Reste à gagner" value={fmtUsd(planEval.remainingToTarget)} hint={`objectif ${fmtUsd(plan.profitTarget)}`} tone="gold" />
-              <Stat small label="Jours tradés" value={fmtInt(planEval.daysTraded)} hint={plan.minTradingDays ? `min ${plan.minTradingDays}` : 'pas de minimum'} />
+              <Stat small label="Jours tradés" value={fmtInt(planEval.daysTraded)} hint={plan.minTradingDays ? `minimum ${plan.minTradingDays}` : 'pas de minimum'} />
               <Stat small label="Consistance" value={planEval.consistency.limit ? fmtPct(planEval.consistency.share, 0) : '—'} hint={planEval.consistency.limit ? `limite ${fmtPct(planEval.consistency.limit, 0)} · meilleur jour ${fmtUsd(planEval.consistency.bestDay)}` : 'aucune règle'} tone={planEval.consistency.ok ? 'pos' : 'neg'} />
             </div>
 
-            <Panel title="Rejeu du compte" sub="solde · plancher · objectif" actions={planEval.dailyLossBreaches.length ? <Tag tone="ember">{planEval.dailyLossBreaches.length} dépassement(s) perte/jour</Tag> : undefined}>
+            <Panel
+              title="Rejeu du compte"
+              actions={
+                <>
+                  {accounts.length > 1 && (
+                    <select value={planAccount} onChange={(e) => update({ planAccount: e.target.value })} style={{ height: 24, fontSize: 11, padding: '0 6px' }} title="Compte rejoué contre le plan">
+                      <option value="">Tous les comptes (agrégés par jour)</option>
+                      {accounts.map((a) => (
+                        <option key={a} value={a}>
+                          {a || 'Sans compte'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {planEval.dailyLossBreaches.length > 0 && <Tag tone="ember">{plural(planEval.dailyLossBreaches.length, 'dépassement')} perte/jour</Tag>}
+                </>
+              }
+            >
               {timelineSeries[0]?.points.length ? <LineArea series={timelineSeries} height={260} formatY={(v) => fmtUsd(v)} baseline={null} legend /> : <p className={s.note}>Aucune séance à rejouer.</p>}
             </Panel>
 
             <Panel title="Lecture" sub="ce que le moteur vérifie">
               <p className={s.note}>
-                Le rejeu applique séance après séance : mise à jour du plus haut (fin de journée ou pic intrajournalier reconstruit via la MFE selon le type de trailing), calcul du plancher (avec verrou le cas échéant), détection d’un franchissement du plancher par la clôture ou l’excursion adverse (MAE), limite de perte journalière, règle de consistance (part du meilleur jour dans le profit total) et nombre minimum de jours tradés. {sessions.length} séance(s) rejouée(s).
+                Le rejeu applique journée après journée : mise à jour du plus haut (fin de journée ou pic intrajournalier reconstruit via la MFE selon le type de trailing), calcul du plancher (avec verrou le cas échéant), détection d’un franchissement du plancher par la clôture ou l’excursion adverse (MAE), limite de perte journalière, règle de consistance (part du meilleur jour dans le profit net) et nombre minimum de jours tradés. L’objectif est validé le jour où toutes les conditions sont réunies ; le rejeu s’arrête alors. {plural(planEval.timeline.length, 'journée rejouée', 'journées rejouées')} sur {plural(sessions.length, 'séance')}.
               </p>
             </Panel>
           </>

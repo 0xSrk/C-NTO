@@ -101,6 +101,22 @@ class CantoDb extends Dexie {
 
 export const db = new CantoDb();
 
+// Une autre fenêtre met le schéma à niveau : on relâche la connexion pour ne pas bloquer.
+db.on('versionchange', () => {
+  db.close();
+  window.location.reload();
+});
+
+/** Demande au navigateur de ne pas purger le coffre sous pression de stockage. */
+export async function requestPersistence(): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage?.persist) return await navigator.storage.persist();
+  } catch {
+    /* non supporté */
+  }
+  return false;
+}
+
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   const row = await db.settings.get(key);
   return row ? (row.value as T) : fallback;
@@ -121,7 +137,13 @@ export async function exportVault(): Promise<string> {
     db.copierAccounts.toArray(),
     db.bots.toArray(),
   ]);
-  return JSON.stringify({ artefact: 'CΛNTO', version: 1, exportedAt: new Date().toISOString(), sessions, trades, notes, calendar, settings, copierAccounts, bots });
+  // La clé API ne quitte jamais le coffre local.
+  const safeSettings = settings.map((row) => {
+    if (row.key !== 'settings') return row;
+    const value = row.value as { agent?: { apiKey?: string } };
+    return { key: row.key, value: { ...value, agent: value.agent ? { ...value.agent, apiKey: '' } : undefined } };
+  });
+  return JSON.stringify({ artefact: 'CΛNTO', version: 1, exportedAt: new Date().toISOString(), sessions, trades, notes, calendar, settings: safeSettings, copierAccounts, bots });
 }
 
 interface VaultFile {
@@ -138,8 +160,13 @@ interface VaultFile {
 
 const MAX_ROWS = 200_000;
 
-/** Ne conserve que des objets simples porteurs d'une clé chaîne : écarte prototypes et valeurs parasites. */
-function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string): T[] {
+type Check = (rec: Record<string, unknown>) => boolean;
+const isStr = (v: unknown) => typeof v === 'string';
+const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+const isStrArray = (v: unknown) => Array.isArray(v) && v.every(isStr);
+
+/** Ne conserve que des objets simples, porteurs d'une clé chaîne et conformes à leur table. */
+function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string, check: Check = () => true): T[] {
   if (input === undefined) return [];
   if (!Array.isArray(input)) throw new Error(`Sauvegarde invalide : « ${label} » doit être une liste.`);
   if (input.length > MAX_ROWS) throw new Error(`Sauvegarde invalide : « ${label} » dépasse ${MAX_ROWS} lignes.`);
@@ -148,11 +175,22 @@ function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
     const rec = item as Record<string, unknown>;
     if (typeof rec[key] !== 'string' || (rec[key] as string).length === 0 || (rec[key] as string).length > 200) continue;
-    if ('__proto__' in rec || 'constructor' in rec) continue;
+    if (Object.prototype.hasOwnProperty.call(rec, '__proto__') || Object.prototype.hasOwnProperty.call(rec, 'constructor')) continue;
+    if (!check(rec)) continue;
     out.push(Object.assign({}, rec) as unknown as T);
   }
   return out;
 }
+
+const CHECKS: Record<string, Check> = {
+  sessions: (r) => isStr(r.date) && /^\d{4}-\d{2}-\d{2}$/.test(r.date as string) && isNum(r.pnl) && isNum(r.tradeCount) && isStrArray(r.tags) && Array.isArray(r.instruments),
+  trades: (r) => isStr(r.sessionId) && isNum(r.pnl) && isNum(r.entryTime) && isNum(r.exitTime) && isNum(r.qty) && (r.direction === 'long' || r.direction === 'short') && (r.instrument === 'NQ' || r.instrument === 'MNQ'),
+  notes: (r) => isStr(r.title) && isStr(r.body) && isStrArray(r.tags) && isNum(r.updatedAt),
+  calendar: (r) => isStr(r.date) && isStr(r.title) && (r.kind === 'note' || r.kind === 'event'),
+  settings: (r) => r.key !== 'settings' || (typeof r.value === 'object' && r.value !== null),
+  copierAccounts: (r) => isStr(r.name) && (r.role === 'maitre' || r.role === 'suiveur') && typeof r.sizing === 'object' && r.sizing !== null,
+  bots: (r) => isStr(r.name) && Array.isArray(r.rules) && isNum(r.updatedAt),
+};
 
 export async function restoreVault(json: string): Promise<{ sessions: number; trades: number; notes: number }> {
   if (json.length > 400 * 1024 * 1024) throw new Error('Sauvegarde trop volumineuse.');
@@ -163,21 +201,50 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
     throw new Error('Fichier illisible : JSON invalide.');
   }
   if (!data || typeof data !== 'object' || data.artefact !== 'CΛNTO') throw new Error('Fichier non reconnu : sauvegarde CΛNTO attendue.');
-  const sessions = rows<Session>(data.sessions, 'id', 'sessions');
-  const trades = rows<Trade>(data.trades, 'id', 'trades');
-  const notes = rows<Note>(data.notes, 'id', 'notes');
-  const calendar = rows<CalendarEntry>(data.calendar, 'id', 'calendar');
-  const settings = rows<Setting>(data.settings, 'key', 'settings');
-  const copierAccounts = rows<CopierAccount>(data.copierAccounts, 'id', 'copierAccounts');
-  const bots = rows<BotBlueprint>(data.bots, 'id', 'bots');
-  await db.transaction('rw', [db.sessions, db.trades, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots], async () => {
-    if (sessions.length) await db.sessions.bulkPut(sessions);
-    if (trades.length) await db.trades.bulkPut(trades);
-    if (notes.length) await db.notes.bulkPut(notes);
-    if (calendar.length) await db.calendar.bulkPut(calendar);
-    if (settings.length) await db.settings.bulkPut(settings);
-    if (copierAccounts.length) await db.copierAccounts.bulkPut(copierAccounts);
-    if (bots.length) await db.bots.bulkPut(bots);
+  const sessions = rows<Session>(data.sessions, 'id', 'sessions', CHECKS.sessions);
+  const trades = rows<Trade>(data.trades, 'id', 'trades', CHECKS.trades);
+  const notes = rows<Note>(data.notes, 'id', 'notes', CHECKS.notes);
+  const calendar = rows<CalendarEntry>(data.calendar, 'id', 'calendar', CHECKS.calendar);
+  // Les réglages restaurés ne touchent jamais à la configuration de l'agent (URL, consigne, clé).
+  const settings = rows<Setting>(data.settings, 'key', 'settings', CHECKS.settings).map((row) => {
+    if (row.key !== 'settings') return row;
+    const value = { ...(row.value as Record<string, unknown>) };
+    delete value.agent;
+    return { key: row.key, value };
   });
-  return { sessions: sessions.length, trades: trades.length, notes: notes.length };
+  const copierAccounts = rows<CopierAccount>(data.copierAccounts, 'id', 'copierAccounts', CHECKS.copierAccounts);
+  const bots = rows<BotBlueprint>(data.bots, 'id', 'bots', CHECKS.bots);
+  const sessionIds = new Set(sessions.map((s) => s.id));
+  const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
+  await db.transaction('rw', [db.sessions, db.trades, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots], async () => {
+    if (sessions.length) {
+      await db.sessions.clear();
+      await db.trades.clear();
+      await db.sessions.bulkPut(sessions);
+      await db.trades.bulkPut(consistentTrades);
+    }
+    if (notes.length) {
+      await db.notes.clear();
+      await db.notes.bulkPut(notes);
+    }
+    if (calendar.length) {
+      await db.calendar.clear();
+      await db.calendar.bulkPut(calendar);
+    }
+    for (const row of settings) {
+      if (row.key === 'settings') {
+        const current = (await db.settings.get('settings'))?.value as Record<string, unknown> | undefined;
+        await db.settings.put({ key: 'settings', value: { ...(current ?? {}), ...(row.value as Record<string, unknown>), agent: current?.agent } });
+      } else await db.settings.put(row);
+    }
+    if (copierAccounts.length) {
+      await db.copierAccounts.clear();
+      await db.copierAccounts.bulkPut(copierAccounts);
+    }
+    if (bots.length) {
+      await db.bots.clear();
+      await db.bots.bulkPut(bots);
+    }
+  });
+  return { sessions: sessions.length, trades: consistentTrades.length, notes: notes.length };
 }

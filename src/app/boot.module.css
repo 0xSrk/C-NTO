@@ -30,7 +30,6 @@
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 30%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.22) 70%, transparent 100%);
   opacity: 0;
-  filter: blur(0.2px);
   animation: sweep 2.4s cubic-bezier(0.55, 0, 0.1, 1) infinite;
 }
 .beams i:nth-child(1) {

@@ -20,7 +20,7 @@ interface PanelProps {
   style?: CSSProperties;
 }
 
-export function Panel({ title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, corners = true, style }: PanelProps) {
+export function Panel({ title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, corners = raised || accent, style }: PanelProps) {
   return (
     <section className={cx(s.panel, raised && s.raised, flush && s.flush, accent && s.accent, className)} style={style}>
       {corners && (
@@ -86,12 +86,12 @@ export function Field({ label, hint, children, className, style }: { label: Reac
   );
 }
 
-export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label?: ReactNode }) {
+export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label?: ReactNode; disabled?: boolean }) {
   return (
-    <span className={cx(s.toggle, on && s.on)} onClick={() => onChange(!on)} role="switch" aria-checked={on}>
+    <button type="button" className={cx(s.toggle, on && s.on)} onClick={() => onChange(!on)} role="switch" aria-checked={on} disabled={disabled}>
       <span className={s.toggleTrack} />
       {label && <span>{label}</span>}
-    </span>
+    </button>
   );
 }
 
@@ -99,7 +99,7 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
   return (
     <div className={s.segmented}>
       {options.map((o) => (
-        <button key={o.value} className={cx(o.value === value && s.on)} onClick={() => onChange(o.value)} type="button">
+        <button key={o.value} className={cx(o.value === value && s.on)} onClick={() => onChange(o.value)} type="button" aria-pressed={o.value === value}>
           {o.label}
         </button>
       ))}
@@ -115,14 +115,6 @@ export function Empty({ title, text, action }: { title: ReactNode; text?: ReactN
       {action}
     </div>
   );
-}
-
-export function Divider() {
-  return <div className={s.divider} />;
-}
-
-export function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className={s.kbd}>{children}</kbd>;
 }
 
 export function Progress({ value, tone, className }: { value: number; tone?: 'gold' | 'mint' | 'ember' | 'ice'; className?: string }) {

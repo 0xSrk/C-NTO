@@ -34,22 +34,31 @@ function seedFromDate(date?: string): number {
   return h;
 }
 
+let loading: Promise<void> | null = null;
+
 export const useBars = create<BarsState>((set, get) => ({
   ready: false,
   series: [],
   activeId: null,
   indicators: DEFAULT_INDICATORS,
 
-  async load() {
-    let series = await db.barSeries.toArray();
-    if (series.length === 0) {
-      const demo: BarSeries = { id: uid('b'), instrument: 'NQ', timeframe: 5, label: 'NQ · 5 min · démo synthétique', source: 'demo', bars: generateDemoBars({ days: 12, timeframe: 5, seed: 42 }), createdAt: Date.now() };
-      await db.barSeries.add(demo);
-      series = [demo];
-    }
-    const activeId = (await getSetting<string | null>('chart.active', null)) ?? series[0]?.id ?? null;
-    const indicators = await getSetting<IndicatorInstance[]>('chart.indicators', DEFAULT_INDICATORS);
-    set({ series, activeId: series.some((sr) => sr.id === activeId) ? activeId : series[0]?.id ?? null, indicators, ready: true });
+  load() {
+    if (loading) return loading;
+    loading = (async () => {
+      const series = await db.transaction('rw', db.barSeries, async () => {
+        const existing = await db.barSeries.toArray();
+        if (existing.length > 0) return existing;
+        const demo: BarSeries = { id: uid('b'), instrument: 'NQ', timeframe: 5, label: 'NQ · 5 min · démo synthétique', source: 'demo', bars: generateDemoBars({ days: 12, timeframe: 5, seed: 42 }), createdAt: Date.now() };
+        await db.barSeries.add(demo);
+        return [demo];
+      });
+      const activeId = (await getSetting<string | null>('chart.active', null)) ?? series[0]?.id ?? null;
+      const indicators = await getSetting<IndicatorInstance[]>('chart.indicators', DEFAULT_INDICATORS);
+      set({ series, activeId: series.some((sr) => sr.id === activeId) ? activeId : series[0]?.id ?? null, indicators, ready: true });
+    })().finally(() => {
+      loading = null;
+    });
+    return loading;
   },
 
   async setActive(id) {

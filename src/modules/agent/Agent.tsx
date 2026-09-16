@@ -4,6 +4,7 @@ import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { DESK_TOOLS } from '@/engine/agent/tools';
 import { isDesk } from '@/lib/desk';
+import { fmtNum } from '@/lib/format';
 import type { AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
 import { useSettings, type AgentProvider } from '@/store/settings';
@@ -31,6 +32,8 @@ export default function Agent() {
   const { messages, streaming, streamText, pendingTool, error, send, stop, newConversation, probe, orchestrator, startOrchestrator, stopOrchestrator, rotateToken, linkLog } = useAgent();
   const agent = useSettings((st) => st.settings.agent);
   const port = useSettings((st) => st.settings.orchestratorPort);
+  const allowWrite = useSettings((st) => st.settings.orchestratorAllowWrite);
+  const keyEncrypted = useSettings((st) => st.keyEncrypted);
   const updateAgent = useSettings((st) => st.updateAgent);
   const update = useSettings((st) => st.update);
   const toast = useUi((u) => u.toast);
@@ -129,7 +132,7 @@ export default function Agent() {
                 />
                 {streaming ? (
                   <Button variant="danger" onClick={stop}>
-                    Stop
+                    Arrêter
                   </Button>
                 ) : (
                   <Button variant="gold" onClick={submit} disabled={!draft.trim()}>
@@ -178,14 +181,14 @@ export default function Agent() {
                   )}
                 </Field>
               </div>
-              <Field label="URL de base">
+              <Field label="URL de base" hint={/^http:\/\/(?!localhost|127\.0\.0\.1|\[::1\])/i.test(agent.baseUrl) ? 'Connexion non chiffrée vers un hôte distant : la clé API transiterait en clair.' : undefined}>
                 <input value={agent.baseUrl} onChange={(e) => updateAgent({ baseUrl: e.target.value })} spellCheck={false} />
               </Field>
-              <Field label="Clé API" hint="stockée localement dans le coffre, jamais envoyée ailleurs qu’au fournisseur">
+              <Field label="Clé API" hint={keyEncrypted ? 'chiffrée au repos par le trousseau du système · jamais exportée' : isDesk ? 'stockée dans le coffre local · jamais exportée' : 'mode navigateur : stockée en clair dans le coffre local, jamais exportée'}>
                 <input type="password" value={agent.apiKey} onChange={(e) => updateAgent({ apiKey: e.target.value })} placeholder="optionnelle pour un modèle local" />
               </Field>
               <div className={s.row2}>
-                <Field label={`Température · ${agent.temperature.toFixed(1)}`}>
+                <Field label={`Température · ${fmtNum(agent.temperature, 1)}`}>
                   <input type="range" min={0} max={1} step={0.1} value={agent.temperature} onChange={(e) => updateAgent({ temperature: Number(e.target.value) })} />
                 </Field>
                 <Field label="Outils du desk">
@@ -239,6 +242,7 @@ export default function Agent() {
                     </Field>
                   </div>
                   {orchestrator.error && <div className={s.error}>{orchestrator.error}</div>}
+                  <Toggle on={allowWrite} onChange={(v) => update({ orchestratorAllowWrite: v })} label={allowWrite ? 'écriture autorisée (notes, annotations)' : 'lecture seule'} />
                 </>
               ) : (
                 <div className={s.hint}>Disponible dans le shell local (Electron) : CΛNTO ouvre un serveur WebSocket sur 127.0.0.1 auquel un orchestrateur IA se connecte pour piloter le desk.</div>
@@ -288,7 +292,7 @@ export default function Agent() {
                   <span>{t.description}</span>
                 </div>
               ))}
-              <div className={s.hint}>Architecture ouverte : les outils sont déclarés dans <code>src/engine/agent/tools.ts</code> et exposés à la fois au modèle conversationnel et à l’orchestrateur externe. Le desk évolue au rythme du trader.</div>
+              <div className={s.hint}>Architecture ouverte : les mêmes outils servent le modèle conversationnel et l’orchestrateur externe ; les outils d’écriture demandent confirmation à l’opérateur. Le desk évolue au rythme du trader.</div>
             </div>
           </aside>
         </div>

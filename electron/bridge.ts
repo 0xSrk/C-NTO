@@ -49,6 +49,7 @@ const MAX_BYTES = 50 * 1024 * 1024;
 const DEBOUNCE_MS = 700;
 const STABILITY_MS = 350;
 const POLL_MS = 4000;
+const POLL_WATCHED_MS = 15000;
 
 /**
  * Pont NinjaTrader par fichiers : surveille un dossier dans lequel NinjaTrader (export manuel)
@@ -183,7 +184,8 @@ export class NinjaBridge {
     } catch (e) {
       this.error = `Surveillance impossible : ${(e as Error).message}`;
     }
-    this.poll = setInterval(() => void this.scan(), POLL_MS);
+    // fs.watch réagit instantanément ; le balayage périodique n'est qu'un filet de sécurité.
+    this.poll = setInterval(() => void this.scan(), this.watcher ? POLL_WATCHED_MS : POLL_MS);
     await this.scan();
   }
 

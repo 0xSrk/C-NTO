@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, session, shell } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { NinjaBridge } from './bridge';
@@ -67,7 +67,12 @@ function createWindow(): void {
 }
 
 app.setName('CΛNTO');
+// Interface et widgets natifs (champs heure/date) en français, sans menu applicatif.
+app.commandLine.appendSwitch('lang', 'fr-FR');
+if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 app.whenReady().then(() => {
+  // Aucune permission navigateur (caméra, notifications, géolocalisation…) n'est nécessaire au desk.
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -116,6 +121,22 @@ ipcMain.on('orch:respond', (e, id: unknown, clientId: unknown, result: unknown, 
 });
 ipcMain.on('orch:broadcast', (e, event: unknown, payload: unknown) => {
   if (trusted(e) && isString(event, 64)) orchestrator.broadcast(event, payload);
+});
+
+/* ─── Secrets (clé API chiffrée par le trousseau du système) ─── */
+ipcMain.handle('secrets:encrypt', (e, text: unknown) => {
+  if (!trusted(e) || !isString(text, 4096)) return null;
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  return safeStorage.encryptString(text).toString('base64');
+});
+ipcMain.handle('secrets:decrypt', (e, payload: unknown) => {
+  if (!trusted(e) || !isString(payload, 16384)) return null;
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  try {
+    return safeStorage.decryptString(Buffer.from(payload, 'base64'));
+  } catch {
+    return null;
+  }
 });
 
 /* ─── Pont NinjaTrader ─── */

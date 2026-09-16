@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconImport, IconPlus, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Modal } from '@/design/Modal';
-import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
+import { Button, Empty, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { INDICATORS, indicatorById, type IndicatorLine } from '@/engine/indicators';
 import type { Instrument } from '@/engine/types';
 import { openTextFile } from '@/lib/desk';
-import { fmtInt, fmtPrice, fmtUsd, signClass } from '@/lib/format';
-import { formatDateFr, formatTimeLocal } from '@/lib/time';
+import { fmtInt, fmtPrice, fmtUsd, plural, signClass } from '@/lib/format';
+import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { useBars } from '@/store/bars';
 import { useJournal } from '@/store/journal';
 import { useUi } from '@/store/ui';
@@ -32,16 +32,19 @@ export default function Visual() {
 
   const active = series.find((sr) => sr.id === activeId) ?? null;
   const session = sessions.find((x) => x.id === (focusSessionId ?? sessionPick)) ?? null;
-  const sessionTrades = useMemo(() => (session ? trades.filter((t) => t.sessionId === session.id) : []), [session, trades]);
+  const sessionTrades = useMemo(() => (session ? trades.filter((t) => t.sessionId === session.id).sort((a, b) => a.entryTime - b.entryTime) : []), [session, trades]);
+  const recentSessions = useMemo(() => [...sessions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 200), [sessions]);
+  const regeneratedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (!session || !active || active.source !== 'demo' || active.bars.length === 0) return;
-    const first = new Date(active.bars[0].time * 1000);
-    const last = new Date(active.bars[active.bars.length - 1].time * 1000);
-    const day = new Date(`${session.date}T12:00:00`);
-    if (day < first || day > last) {
-      regenerateDemo({ endDate: session.date, days: 6, timeframe: active.timeframe }).then(() => toast(`Barres de démonstration régénérées autour du ${formatDateFr(session.date, { short: true })}.`, 'info'));
-    }
+    // Comparaison sur les clés de date : une séance datée d'un week-end ne relance pas la génération en boucle.
+    const firstKey = dateKeyLocal(new Date(active.bars[0].time * 1000));
+    const lastKey = dateKeyLocal(new Date(active.bars[active.bars.length - 1].time * 1000));
+    if (session.date >= firstKey && session.date <= lastKey) return;
+    if (regeneratedFor.current === session.date) return;
+    regeneratedFor.current = session.date;
+    regenerateDemo({ endDate: session.date, days: 6, timeframe: active.timeframe }).then(() => toast(`Barres de démonstration régénérées autour du ${formatDateFr(session.date, { short: true })}.`, 'info'));
   }, [session, active, regenerateDemo, toast]);
 
   const lines: IndicatorLine[] = useMemo(() => {
@@ -77,11 +80,11 @@ export default function Visual() {
             <Button variant="gold" onClick={() => setImportOpen(true)}>
               <IconImport size={14} /> Importer des barres
             </Button>
-            <Button variant="ghost" onClick={() => regenerateDemo({ days: 12, timeframe: 5 }).then(() => toast('Démo régénérée.', 'ok'))}>
+            <Button variant="ghost" onClick={() => regenerateDemo({ days: 12, timeframe: 5 }).then(() => toast('Démo régénérée.', 'ok'))} title="Régénérer des barres synthétiques">
               Démo
             </Button>
             {active && active.source !== 'demo' && (
-              <Button variant="ghost" onClick={() => remove(active.id)} aria-label="Supprimer la série">
+              <Button variant="ghost" onClick={() => remove(active.id)} aria-label="Supprimer la série" title="Supprimer la série">
                 <IconTrash size={13} />
               </Button>
             )}
@@ -91,6 +94,19 @@ export default function Visual() {
       <ModuleContent noPad>
         <div className={s.layout}>
           <div className={s.chartWrap}>
+            {ready && !active && (
+              <div style={{ padding: 24 }}>
+                <Empty
+                  title="Aucune série de barres"
+                  text="Importez un export OHLCV NinjaTrader ou régénérez le jeu synthétique pour afficher le graphique."
+                  action={
+                    <Button variant="gold" onClick={() => regenerateDemo({ days: 12, timeframe: 5 })}>
+                      Générer la démo
+                    </Button>
+                  }
+                />
+              </div>
+            )}
             {active && (
               <>
                 <div className={s.legend}>
@@ -187,9 +203,7 @@ export default function Visual() {
                   </div>
                 );
               })}
-              <p className={s.desc}>
-                Les indicateurs sont des modules du moteur (<code>src/engine/indicators.ts</code>) : chaque nouvel indicateur créé par le Lab s’ajoute au catalogue avec ses paramètres.
-              </p>
+              <p className={s.desc}>Chaque nouvel indicateur forgé par le Lab rejoint ce catalogue avec ses paramètres : le graphique évolue avec la méthode du trader.</p>
             </div>
 
             <div className={s.sideSection}>
@@ -216,23 +230,18 @@ export default function Visual() {
                 }}
               >
                 <option value="">— choisir une séance du journal —</option>
-                {[...sessions]
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 200)
-                  .map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.date} · {x.tradeCount} trade(s) · {fmtUsd(x.pnl, { sign: true })}
-                    </option>
-                  ))}
+                {recentSessions.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {formatDateFr(x.date, { weekday: true, short: true })} · {plural(x.tradeCount, 'trade')} · {fmtUsd(x.pnl, { sign: true })}
+                  </option>
+                ))}
               </select>
               {session ? (
                 <div className={s.session}>
                   <div className={s.desc}>
-                    {sessionTrades.length} trade(s) projetés en marqueurs : flèche = entrée (L/S), cercle = sortie avec PnL. {active?.source === 'demo' && 'Les bougies étant synthétiques, seuls les horaires sont significatifs.'}
+                    {plural(sessionTrades.length, 'trade projeté', 'trades projetés')} en marqueurs : flèche = entrée (L/S), cercle = sortie avec PnL. {active?.source === 'demo' && 'Les bougies étant synthétiques, seuls les horaires sont significatifs.'}
                   </div>
-                  {sessionTrades
-                    .sort((a, b) => a.entryTime - b.entryTime)
-                    .map((t) => (
+                  {sessionTrades.map((t) => (
                       <div key={t.id} className={s.tradeRow}>
                         <span>{formatTimeLocal(t.entryTime)}</span>
                         <span>
@@ -240,7 +249,7 @@ export default function Visual() {
                         </span>
                         <span className={signClass(t.pnl)}>{fmtUsd(t.pnl, { sign: true })}</span>
                       </div>
-                    ))}
+                  ))}
                 </div>
               ) : (
                 <div className={s.desc}>Depuis Métrique › Séances, « Voir dans Visual » projette les trades d’une journée sur le graphique.</div>

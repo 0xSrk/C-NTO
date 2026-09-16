@@ -5,7 +5,7 @@ import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Panel, tableClass, cx } from '@/design/primitives';
 import { computeTradeStats, histogram, WEEKDAY_KEYS } from '@/engine/metrics';
 import type { Trade } from '@/engine/types';
-import { fmtInt, fmtPct, fmtRatio, fmtUsd, signClass } from '@/lib/format';
+import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import { formatDuration } from '@/lib/time';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
@@ -82,37 +82,56 @@ export function Analyse() {
   const durationBuckets = useMemo(() => {
     const edges = [2, 5, 10, 20, 40, 90, Infinity];
     const labels = ['< 2m', '2–5m', '5–10m', '10–20m', '20–40m', '40–90m', '> 90m'];
-    return edges.map((edge, i) => {
-      const lo = i === 0 ? 0 : edges[i - 1];
-      const arr = trades.filter((x) => {
-        const m = (x.exitTime - x.entryTime) / 60000;
-        return m >= lo && m < edge;
-      });
-      const pnl = arr.reduce((sum, x) => sum + x.pnl, 0);
-      return { key: labels[i], value: pnl, label: labels[i], hint: `${arr.length} trade(s) · ${arr.length ? fmtPct(arr.filter((x) => x.pnl > 0).length / arr.length, 0) : '—'} réussite` };
-    });
+    const acc = labels.map(() => ({ n: 0, wins: 0, pnl: 0 }));
+    for (const x of trades) {
+      const m = (x.exitTime - x.entryTime) / 60000;
+      const i = edges.findIndex((edge) => m < edge);
+      const b = acc[i === -1 ? acc.length - 1 : i];
+      b.n++;
+      b.pnl += x.pnl;
+      if (x.pnl > 0) b.wins++;
+    }
+    return labels.map((label, i) => ({ key: label, value: acc[i].pnl, label, hint: `${plural(acc[i].n, 'trade')} · ${acc[i].n ? fmtPct(acc[i].wins / acc[i].n, 0) : '—'} réussite` }));
   }, [trades]);
 
   const heat = useMemo(() => {
-    const hours = Array.from({ length: 24 }, (_, i) => i).filter((h) => trades.some((x) => new Date(x.entryTime).getHours() === h));
+    // Une seule passe : agrégation par (jour de semaine × heure locale d'entrée).
+    const acc = new Map<number, { pnl: number; n: number }>();
+    const hoursSeen = new Set<number>();
+    for (const x of trades) {
+      const d = new Date(x.entryTime);
+      const dow = d.getDay();
+      const h = d.getHours();
+      hoursSeen.add(h);
+      const k = dow * 24 + h;
+      const cur = acc.get(k);
+      if (cur) {
+        cur.pnl += x.pnl;
+        cur.n++;
+      } else acc.set(k, { pnl: x.pnl, n: 1 });
+    }
+    const hours = [...hoursSeen].sort((a, b) => a - b);
     const rows = [1, 2, 3, 4, 5];
     const cells: HeatCell[] = [];
     rows.forEach((dow, ri) => {
       hours.forEach((h, ci) => {
-        const arr = trades.filter((x) => {
-          const d = new Date(x.entryTime);
-          return d.getDay() === dow && d.getHours() === h;
-        });
-        cells.push({ row: ri, col: ci, value: arr.length ? arr.reduce((sum, x) => sum + x.pnl, 0) : null, hint: `${arr.length} trade(s)` });
+        const cur = acc.get(dow * 24 + h);
+        cells.push({ row: ri, col: ci, value: cur ? cur.pnl : null, hint: plural(cur?.n ?? 0, 'trade') });
       });
     });
     return { rows: rows.map((d) => WEEKDAY_KEYS[d]), cols: hours.map((h) => `${h}h`), cells };
   }, [trades]);
 
   const scatter = useMemo(() => {
-    const pts = trades.filter((x) => typeof x.mae === 'number' && typeof x.mfe === 'number').map((x) => ({ mae: x.mae as number, mfe: x.mfe as number, pnl: x.pnl }));
+    const pts: { mae: number; mfe: number; pnl: number }[] = [];
+    let max = 1;
+    for (const x of trades) {
+      if (typeof x.mae !== 'number' || typeof x.mfe !== 'number' || !Number.isFinite(x.mae) || !Number.isFinite(x.mfe)) continue;
+      pts.push({ mae: x.mae, mfe: x.mfe, pnl: x.pnl });
+      if (x.mae > max) max = x.mae;
+      if (x.mfe > max) max = x.mfe;
+    }
     if (pts.length === 0) return null;
-    const max = Math.max(...pts.map((p) => Math.max(p.mae, p.mfe)), 1);
     return { pts, max };
   }, [trades]);
 
@@ -136,7 +155,7 @@ export function Analyse() {
       </Panel>
       <Panel className={s.c4} title="MAE / MFE" sub="excursions par trade ($)">
         {scatter ? (
-          <svg viewBox="0 0 320 220" className={s.scatter} preserveAspectRatio="none">
+          <svg viewBox="0 0 320 220" className={s.scatter} preserveAspectRatio="xMidYMid meet">
             <line x1={36} x2={310} y1={190} y2={190} stroke="rgba(255,255,255,0.2)" />
             <line x1={36} x2={36} y1={10} y2={190} stroke="rgba(255,255,255,0.2)" />
             <line x1={36} y1={190} x2={310} y2={10} stroke="rgba(201,162,77,0.35)" strokeDasharray="3 3" />
@@ -155,8 +174,8 @@ export function Analyse() {
         )}
         <p className={s.note}>Au-dessus de la diagonale, le trade a offert plus qu’il n’a coûté. Les points rouges très à droite signalent des stops trop larges.</p>
       </Panel>
-      <Panel className={s.c4} title="Multiples de R" sub={t.rMultiples.length ? `${fmtInt(t.rMultiples.length)} trades avec risque défini` : 'risque non renseigné'}>
-        {rHist ? <Histogram bins={rHist} height={180} formatX={(v) => `${v.toFixed(1)}R`} /> : <p className={s.note}>Définissez un risque par contrat dans les réglages (ou une colonne Risk dans le CSV) pour obtenir la distribution en R.</p>}
+      <Panel className={s.c4} title="Multiples de R" sub={t.rMultiples.length ? `${plural(t.rMultiples.length, 'trade')} avec risque défini` : 'risque non renseigné'}>
+        {rHist ? <Histogram bins={rHist} height={180} formatX={(v) => `${fmtRatio(v, 1)} R`} /> : <p className={s.note}>Définissez un risque par contrat dans les réglages (ou une colonne Risk dans le CSV) pour obtenir la distribution en R.</p>}
       </Panel>
       <Panel className={s.c6} title="Par instrument" sub="NQ · MNQ">
         <GroupTable rows={byInstrument} label="Instrument" />

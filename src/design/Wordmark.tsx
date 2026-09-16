@@ -46,7 +46,7 @@ export function Wordmark({ width = 320, animated = false, color = '#ffffff', str
       )}
       <g stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" filter={animated ? 'url(#wm-glow)' : undefined}>
         {WORDMARK_PATHS.map((d, i) => (
-          <path key={i} d={d} pathLength={1} className={animated ? s.stroke : undefined} style={animated ? ({ '--i': i } as CSSProperties) : undefined} />
+          <path key={i} d={d} pathLength={1} className={animated ? s.stroke : undefined} style={animated ? ({ '--i': i } as CSSProperties) : undefined} vectorEffect={animated ? undefined : 'non-scaling-stroke'} />
         ))}
       </g>
       {animated && (

@@ -81,8 +81,12 @@
   color: var(--gold);
 }
 .stage.locked {
-  opacity: 0.55;
   cursor: not-allowed;
+  border-style: dashed;
+}
+.stage.locked b,
+.stage.locked small {
+  color: var(--text-4);
 }
 .rules {
   display: flex;

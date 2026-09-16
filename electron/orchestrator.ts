@@ -1,7 +1,7 @@
 import type { BrowserWindow } from 'electron';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import { WebSocket, WebSocketServer } from 'ws';
+import type { WebSocket, WebSocketServer } from 'ws';
 
 export interface OrchestratorStatus {
   running: boolean;
@@ -17,12 +17,24 @@ interface Client {
   socket: WebSocket;
   authenticated: boolean;
   window: { start: number; count: number };
+  inflight: number;
 }
 
 const MAX_PAYLOAD = 1024 * 1024;
 const MAX_CLIENTS = 8;
+const MAX_INFLIGHT = 8;
 const RATE_WINDOW_MS = 1000;
 const RATE_MAX = 40;
+const OPEN = 1;
+
+function safeSend(socket: WebSocket, payload: unknown): void {
+  if (socket.readyState !== OPEN) return;
+  try {
+    socket.send(JSON.stringify(payload));
+  } catch {
+    /* structure non sérialisable ou socket fermée entre-temps */
+  }
+}
 
 /**
  * Passerelle JSON-RPC 2.0 sur WebSocket (127.0.0.1 uniquement).
@@ -58,9 +70,11 @@ export class Orchestrator {
     return this.status();
   }
 
-  start(port: number): Promise<OrchestratorStatus> {
-    if (this.server) return Promise.resolve(this.status());
+  async start(port: number): Promise<OrchestratorStatus> {
+    if (this.server) return this.status();
     this.error = undefined;
+    // `ws` n'est chargé qu'à l'ouverture de la passerelle : le démarrage du shell n'en dépend pas.
+    const { WebSocketServer } = await import('ws');
     return new Promise((resolve) => {
       const server = new WebSocketServer({
         host: '127.0.0.1',
@@ -89,10 +103,11 @@ export class Orchestrator {
       server.on('connection', (socket, req) => {
         const id = `c${++this.seq}`;
         const url = new URL(req.url ?? '/', 'ws://127.0.0.1');
-        const authenticated = url.searchParams.get('token') === this.token;
-        this.clients.set(id, { id, socket, authenticated, window: { start: Date.now(), count: 0 } });
+        const q = url.searchParams.get('token') ?? '';
+        const authenticated = q.length === this.token.length && timingSafeEqual(Buffer.from(q), Buffer.from(this.token));
+        this.clients.set(id, { id, socket, authenticated, window: { start: Date.now(), count: 0 }, inflight: 0 });
         this.emitStatus();
-        socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: '0.1.0', clientId: id, authenticated } }));
+        safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: '0.1.0', clientId: id, authenticated } });
         socket.on('message', (raw) => this.onMessage(id, raw.toString()));
         socket.on('close', () => {
           this.clients.delete(id);
@@ -117,19 +132,19 @@ export class Orchestrator {
 
   respond(id: string, clientId: string, result: unknown, error?: string): void {
     const client = this.clients.get(clientId);
-    if (!client || client.socket.readyState !== WebSocket.OPEN) return;
+    if (!client) return;
+    client.inflight = Math.max(0, client.inflight - 1);
     const rpcId = this.parseId(id);
-    const payload = error ? { jsonrpc: '2.0', id: rpcId, error: { code: -32000, message: error, data: result } } : { jsonrpc: '2.0', id: rpcId, result };
-    client.socket.send(JSON.stringify(payload));
+    safeSend(client.socket, error ? { jsonrpc: '2.0', id: rpcId, error: { code: -32000, message: error, data: result } } : { jsonrpc: '2.0', id: rpcId, result });
   }
 
   broadcast(event: string, payload: unknown): void {
-    const msg = JSON.stringify({ jsonrpc: '2.0', method: 'desk.event', params: { event, payload, at: Date.now() } });
-    for (const c of this.clients.values()) if (c.authenticated && c.socket.readyState === WebSocket.OPEN) c.socket.send(msg);
+    const msg = { jsonrpc: '2.0', method: 'desk.event', params: { event, payload, at: Date.now() } };
+    for (const c of this.clients.values()) if (c.authenticated) safeSend(c.socket, msg);
   }
 
   private reply(client: Client, id: string | number | null, error: { code: number; message: string }): void {
-    if (client.socket.readyState === WebSocket.OPEN) client.socket.send(JSON.stringify({ jsonrpc: '2.0', id, error }));
+    safeSend(client.socket, { jsonrpc: '2.0', id, error });
   }
 
   private onMessage(clientId: string, raw: string): void {
@@ -143,13 +158,18 @@ export class Orchestrator {
       return;
     }
 
-    let msg: { jsonrpc?: string; id?: string | number; method?: string; params?: unknown };
+    let parsed: unknown;
     try {
-      msg = JSON.parse(raw);
+      parsed = JSON.parse(raw);
     } catch {
       this.reply(client, null, { code: -32700, message: 'JSON invalide' });
       return;
     }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      this.reply(client, null, { code: -32600, message: 'Requête invalide : objet attendu' });
+      return;
+    }
+    const msg = parsed as { jsonrpc?: string; id?: string | number; method?: string; params?: unknown };
     const rpcId = typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : null;
     if (!msg.method || typeof msg.method !== 'string' || msg.method.length > 64) {
       this.reply(client, rpcId, { code: -32600, message: 'Requête invalide : method manquant' });
@@ -158,10 +178,8 @@ export class Orchestrator {
 
     if (msg.method === 'desk.auth') {
       const token = msg.params && typeof msg.params === 'object' ? (msg.params as { token?: unknown }).token : undefined;
-      client.authenticated = token === this.token;
-      if (client.socket.readyState === WebSocket.OPEN) {
-        client.socket.send(JSON.stringify(client.authenticated ? { jsonrpc: '2.0', id: rpcId, result: { authenticated: true } } : { jsonrpc: '2.0', id: rpcId, error: { code: -32001, message: 'Jeton invalide' } }));
-      }
+      client.authenticated = typeof token === 'string' && token.length === this.token.length && timingSafeEqual(Buffer.from(token), Buffer.from(this.token));
+      safeSend(client.socket, client.authenticated ? { jsonrpc: '2.0', id: rpcId, result: { authenticated: true } } : { jsonrpc: '2.0', id: rpcId, error: { code: -32001, message: 'Jeton invalide' } });
       if (!client.authenticated) client.socket.close(1008, 'Jeton invalide');
       return;
     }
@@ -173,6 +191,11 @@ export class Orchestrator {
       this.reply(client, rpcId, { code: -32002, message: 'Desk indisponible' });
       return;
     }
+    if (client.inflight >= MAX_INFLIGHT) {
+      this.reply(client, rpcId, { code: -32005, message: 'Trop de requêtes en attente' });
+      return;
+    }
+    client.inflight++;
     const id = msg.id === undefined ? `n${++this.seq}` : `${typeof msg.id}:${msg.id}`;
     this.win.webContents.send('orch:request', { id, clientId, method: msg.method, params: msg.params ?? {} });
   }

@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Fan } from '@/design/charts/Fan';
-import { Empty, Field, Panel, Segmented, Stat } from '@/design/primitives';
-import { monteCarlo } from '@/engine/montecarlo';
+import { Empty, Field, Panel, Segmented, Stat, cx } from '@/design/primitives';
+import { clampMonteCarlo, MAX_HORIZON, MAX_RUNS, monteCarlo } from '@/engine/montecarlo';
 import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
@@ -16,32 +16,35 @@ export function MonteCarloView() {
   const [seed, setSeed] = useState(1337);
 
   const sample = useMemo(() => (level === 'seances' ? sessions.map((x) => x.pnl) : trades.map((x) => x.pnl)), [level, sessions, trades]);
+  // Les paramètres sont différés : la saisie reste fluide, la simulation suit.
+  const params = useDeferredValue({ runs, horizon, seed, ruin, target });
+  const effective = clampMonteCarlo(params.runs, params.horizon === '' ? sample.length : params.horizon);
 
   const result = useMemo(
     () =>
       monteCarlo(sample, {
-        runs,
-        horizon: horizon === '' ? undefined : horizon,
-        seed,
-        ruinDrawdown: ruin === '' ? undefined : ruin,
-        target: target === '' ? undefined : target,
+        runs: params.runs,
+        horizon: params.horizon === '' ? undefined : params.horizon,
+        seed: params.seed,
+        ruinDrawdown: params.ruin === '' ? undefined : params.ruin,
+        target: params.target === '' ? undefined : params.target,
       }),
-    [sample, runs, horizon, seed, ruin, target],
+    [sample, params],
   );
 
   if (sample.length < 5) return <Empty title="Échantillon insuffisant" text="Le bootstrap Monte Carlo nécessite au moins 5 séances (ou trades)." />;
 
   return (
-    <div className={s.grid}>
+    <div className={cx(s.grid, s.gridTop)}>
       <Panel className={s.c4} title="Paramètres" sub="bootstrap avec remise">
         <div className={s.rows}>
           <Segmented value={level} onChange={setLevel} options={[{ value: 'seances', label: `Séances · ${sessions.length}` }, { value: 'trades', label: `Trades · ${trades.length}` }]} />
           <div className={s.formGrid}>
-            <Field label="Simulations">
-              <input type="number" min={100} max={20000} step={100} value={runs} onChange={(e) => setRuns(Number(e.target.value) || 100)} />
+            <Field label="Simulations" hint={effective.runs !== params.runs ? `ramené à ${effective.runs} (budget de calcul)` : `max ${MAX_RUNS}`}>
+              <input type="number" min={100} max={MAX_RUNS} step={100} value={runs} onChange={(e) => setRuns(Number(e.target.value) || 100)} />
             </Field>
-            <Field label="Horizon (périodes)" hint={`vide = ${sample.length}`}>
-              <input type="number" min={1} max={5000} value={horizon} onChange={(e) => setHorizon(e.target.value === '' ? '' : Number(e.target.value))} placeholder={String(sample.length)} />
+            <Field label="Horizon (périodes)" hint={`vide = ${sample.length} · max ${MAX_HORIZON}`}>
+              <input type="number" min={1} max={MAX_HORIZON} value={horizon} onChange={(e) => setHorizon(e.target.value === '' ? '' : Number(e.target.value))} placeholder={String(sample.length)} />
             </Field>
             <Field label="Drawdown de ruine ($)" hint={plan ? `${plan.firm} ${plan.label} : ${fmtUsd(plan.maxDrawdown)}` : undefined}>
               <input type="number" min={0} step={100} value={ruin} onChange={(e) => setRuin(e.target.value === '' ? '' : Number(e.target.value))} />

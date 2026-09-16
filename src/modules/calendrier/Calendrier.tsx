@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { IconChevron } from '@/app/icons';
+import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
 import { CATEGORY_LABEL, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
-import { fmtUsd, signClass } from '@/lib/format';
+import { fmtUsd, plural, signClass } from '@/lib/format';
 import { addDays, dateKeyLocal, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
@@ -190,8 +190,7 @@ export default function Calendrier() {
                         </div>
                         <div className={s.evs}>
                           {evs.slice(0, 3).map((e) => (
-                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3)} style={catStyle(e.category)} title={e.title}>
-                              {e.timeET && <time>{localTime(d, e.timeET)}</time>}
+                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3)} style={catStyle(e.category)} title={`${e.timeET ? `${localTime(d, e.timeET)} · ` : ''}${e.title}`}>
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {e.estimated ? '≈ ' : ''}
                                 {e.title}
@@ -216,7 +215,7 @@ export default function Calendrier() {
                     <div key={d} className={cx(s.fluxDay, d === selected && s.selected)}>
                       <div className={cx(s.fluxDayHead, d === today && s.today)} onClick={() => setSelected(d)}>
                         <b>{formatDateFr(d, { weekday: true, short: true })}</b>
-                        {sess ? <span className={signClass(sess.pnl)}>{fmtUsd(sess.pnl, { sign: true })} · {sess.tradeCount} trades</span> : <span>{evs.length ? `${evs.length} repère(s)` : 'calme'}</span>}
+                        {sess ? <span className={signClass(sess.pnl)}>{fmtUsd(sess.pnl, { sign: true })} · {plural(sess.tradeCount, 'trade')}</span> : <span>{evs.length ? plural(evs.length, 'repère') : 'calme'}</span>}
                       </div>
                       <div className={s.fluxEvents}>
                         {evs.length === 0 && perso.length === 0 && <div className={s.fluxEmpty}>Aucun catalyseur programmé.</div>}
@@ -250,7 +249,7 @@ export default function Calendrier() {
             )}
           </div>
 
-          <DaySide date={selected} events={byDate.get(selected) ?? []} />
+          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} />
         </div>
       </ModuleContent>
     </>
@@ -279,11 +278,6 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
   const dayEntries = entries.filter((e) => e.date === date);
   const noteEntry = dayEntries.find((e) => e.kind === 'note');
   const [note, setNote] = useState(noteEntry?.body ?? '');
-  const [lastDate, setLastDate] = useState(date);
-  if (lastDate !== date) {
-    setLastDate(date);
-    setNote(noteEntry?.body ?? '');
-  }
   const [evTime, setEvTime] = useState('');
   const [evTitle, setEvTitle] = useState('');
 
@@ -291,7 +285,7 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
 
   return (
     <aside className={s.side}>
-      <Panel title={formatDateFr(date, { weekday: true })} sub={`${events.length} repère(s)`} accent>
+      <Panel title={formatDateFr(date, { weekday: true })} sub={plural(events.length, 'repère')} accent>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {sess && (
             <div className={s.evCard} style={catStyle('cme')}>
@@ -300,7 +294,7 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
                 <span className={cx('mono', signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>
               </div>
               <div className={s.evDesc}>
-                {sess.tradeCount} trade(s) · {sess.account ?? 'compte non renseigné'}
+                {plural(sess.tradeCount, 'trade')} · {sess.account ?? 'compte non renseigné'}
                 {sess.tags.length ? ` · ${sess.tags.join(', ')}` : ''}
               </div>
               <div>
@@ -359,6 +353,8 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
             <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder="Rappel personnel (revue, coaching…)" />
             <Button
               size="sm"
+              title="Ajouter le rappel"
+              aria-label="Ajouter le rappel"
               onClick={async () => {
                 if (!evTitle.trim()) return;
                 await add({ date, kind: 'event', title: evTitle.trim(), time: evTime || undefined });
@@ -366,7 +362,7 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
                 setEvTime('');
               }}
             >
-              +
+              <IconPlus size={12} />
             </Button>
           </div>
         </div>

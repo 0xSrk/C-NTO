@@ -17,21 +17,27 @@
   --text-0: #f3f4f8;
   --text-1: #c9cdd8;
   --text-2: #8b91a3;
-  --text-3: #5b6174;
-  --text-4: #3b4050;
+  --text-3: #636a80;
+  --text-4: #454b5e;
 
   --gold: #c9a24d;
   --gold-soft: rgba(201, 162, 77, 0.16);
   --gold-line: rgba(201, 162, 77, 0.45);
   --ember: #ff3b4e;
   --ember-soft: rgba(255, 59, 78, 0.14);
+  --ember-line: rgba(255, 59, 78, 0.4);
   --mint: #3ddc97;
   --mint-soft: rgba(61, 220, 151, 0.14);
+  --mint-line: rgba(61, 220, 151, 0.4);
   --ice: #7fd1ff;
   --ice-soft: rgba(127, 209, 255, 0.14);
+  --ice-line: rgba(127, 209, 255, 0.4);
   --violet: #a78bfa;
+  --violet-soft: rgba(167, 139, 250, 0.14);
+  --violet-line: rgba(167, 139, 250, 0.4);
   --amber: #f5b84b;
   --amber-soft: rgba(245, 184, 75, 0.14);
+  --amber-line: rgba(245, 184, 75, 0.4);
 
   --pos: var(--mint);
   --neg: var(--ember);
@@ -40,7 +46,6 @@
   --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
   --radius: 2px;
-  --radius-lg: 4px;
   --shadow-panel: 0 0 0 1px var(--line-1), 0 18px 40px -20px rgba(0, 0, 0, 0.9);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --t-fast: 120ms;
@@ -122,6 +127,27 @@ h4 {
   font-weight: 500;
 }
 
+:focus-visible {
+  outline: 1px solid var(--gold-line);
+  outline-offset: 2px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+input[type='range'] {
+  accent-color: var(--gold);
+  border: 0;
+  background: none;
+  padding: 0;
+  box-shadow: none;
+}
+
 input,
 select,
 textarea {
@@ -186,8 +212,7 @@ input[type='number'] {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.045;
-  mix-blend-mode: screen;
+  opacity: 0.05;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
   z-index: 9998;
 }
@@ -220,6 +245,12 @@ input[type='number'] {
   }
 }
 
-.rise {
-  animation: rise-in var(--t-med) var(--ease) both;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

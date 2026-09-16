@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconGraph, IconPlus, IconSearch, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
-import { Button, Segmented, Tag, cx } from '@/design/primitives';
+import { Button, Empty, Segmented, Tag, cx } from '@/design/primitives';
 import { saveTextFile } from '@/lib/desk';
-import { dateKeyLocal } from '@/lib/time';
+import { plural } from '@/lib/format';
+import { dateKeyLocal, formatDateFr } from '@/lib/time';
 import type { Note as NoteType } from '@/store/db';
 import { byTitle, extractLinks, useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
@@ -82,7 +83,7 @@ export default function Note() {
                 <input placeholder="Rechercher dans le coffre…" value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
               <span className="micro">
-                {notes.length} note(s) · {allTags.length} tag(s)
+                {plural(notes.length, 'note')} · {plural(allTags.length, 'tag')}
               </span>
             </div>
             <div className={s.listBody}>
@@ -90,7 +91,7 @@ export default function Note() {
               {pinned.map((n) => (
                 <NoteItem key={n.id} note={n} on={n.id === activeId} onClick={() => setActive(n.id)} />
               ))}
-              <div className={s.group}>Récentes</div>
+              {others.length > 0 && <div className={s.group}>Récentes</div>}
               {others.map((n) => (
                 <NoteItem key={n.id} note={n} on={n.id === activeId} onClick={() => setActive(n.id)} />
               ))}
@@ -122,8 +123,16 @@ export default function Note() {
               }
             }} onExport={() => saveTextFile(`${active.title.replace(/[\\/:*?"<>|]/g, '-')}.md`, active.body, 'text/markdown')} />
           ) : (
-            <div className={s.editor}>
-              <div className={s.empty}>Sélectionnez ou créez une note.</div>
+            <div className={s.editor} style={{ padding: 24 }}>
+              <Empty
+                title="Aucune note ouverte"
+                text="Sélectionnez une note dans le coffre ou créez-en une nouvelle (Ctrl+N)."
+                action={
+                  <Button variant="gold" onClick={() => create()}>
+                    Nouvelle note
+                  </Button>
+                }
+              />
             </div>
           )}
 
@@ -153,13 +162,25 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
   const titles = useMemo(() => new Set(notes.map((n) => n.title.toLowerCase())), [notes]);
   const html = useMemo(() => renderNote(body, titles), [body, titles]);
 
-  const schedule = (patch: { title?: string; body?: string }) => {
+  const pending = useRef<{ title?: string; body?: string } | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const flush = () => {
     if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => onChange(patch), 350);
+    timer.current = null;
+    if (pending.current) {
+      const patch = pending.current;
+      pending.current = null;
+      onChangeRef.current(patch);
+    }
   };
-  useEffect(() => () => {
+  const schedule = (patch: { title?: string; body?: string }) => {
+    pending.current = { ...pending.current, ...patch };
     if (timer.current) window.clearTimeout(timer.current);
-  }, []);
+    timer.current = window.setTimeout(flush, 350);
+  };
+  // Au changement de note ou au démontage, les dernières frappes sont écrites immédiatement.
+  useEffect(() => flush, []);
 
   const onPreviewClick = (e: React.MouseEvent) => {
     const el = (e.target as HTMLElement).closest('a.wikilink, .ntag') as HTMLElement | null;
@@ -198,7 +219,7 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
         <Button size="sm" variant="ghost" onClick={onExport}>
           .md
         </Button>
-        <Button size="sm" variant="ghost" onClick={onDelete} aria-label="Supprimer">
+        <Button size="sm" variant="ghost" onClick={onDelete} aria-label="Supprimer la note" title="Supprimer la note">
           <IconTrash size={13} />
         </Button>
       </div>
@@ -279,7 +300,7 @@ function Meta({ note, notes, onOpen, onOpenTitle }: { note: NoteType; notes: Not
           <span>Propriétés</span>
         </div>
         <small>
-          Créée le {new Date(note.createdAt).toLocaleDateString('fr-FR')} · modifiée {fmtUpdated.format(note.updatedAt)}
+          Créée le {formatDateFr(dateKeyLocal(new Date(note.createdAt)), { short: true })} · modifiée {fmtUpdated.format(note.updatedAt)}
           <br />
           {note.body.length} caractères · {note.body.split(/\s+/).filter(Boolean).length} mots
         </small>

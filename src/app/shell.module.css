@@ -270,6 +270,8 @@
   align-items: center;
   gap: 16px;
   padding: 0 14px;
+  overflow: hidden;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.12em;
@@ -282,6 +284,14 @@
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 1280px) {
+  .statusHide {
+    display: none;
+  }
 }
 .statusItem b {
   color: var(--text-2);

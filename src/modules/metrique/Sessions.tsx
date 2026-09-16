@@ -3,7 +3,7 @@ import { IconTrash } from '@/app/icons';
 import { Button, Empty, Panel, Tag, cx, tableClass } from '@/design/primitives';
 import { computeTradeStats } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
-import { fmtInt, fmtPct, fmtPrice, fmtRatio, fmtUsd, signClass } from '@/lib/format';
+import { fmtInt, fmtPct, fmtPrice, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import { formatDuration, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
@@ -45,7 +45,7 @@ export function Sessions() {
     <div className={cx(s.split, s.splitWide)}>
       <Panel
         title="Séances"
-        sub={`${list.length} affichée(s)`}
+        sub={plural(list.length, 'affichée')}
         tight
         actions={
           <>
@@ -79,7 +79,7 @@ export function Sessions() {
                 const own = tradesBySession.get(x.id) ?? [];
                 const wr = own.length ? own.filter((t) => t.pnl > 0).length / own.length : null;
                 return (
-                  <tr key={x.id} className={cx('clickable', selected === x.id && 'selected')} onClick={() => setSelected(x.id)}>
+                  <tr key={x.id} className={cx('clickable', selected === x.id && 'selected')} onClick={() => setSelected(x.id)} tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelected(x.id)}>
                     <td className="mono">{formatDateFr(x.date, { weekday: true, short: true })}</td>
                     <td className="muted">{x.account ?? '—'}</td>
                     <td className="num">{x.tradeCount}</td>
@@ -102,7 +102,7 @@ export function Sessions() {
           </table>
         </div>
       </Panel>
-      {current ? <SessionDetail session={current} trades={tradesBySession.get(current.id) ?? []} onDeleted={() => setSelected(null)} /> : <Panel title="Détail" sub="sélectionnez une séance"><p className={s.note}>Cliquez sur une séance pour afficher ses trades, ses métriques, éditer la note, les tags et l’auto-évaluation.</p></Panel>}
+      {current ? <SessionDetail key={current.id} session={current} trades={tradesBySession.get(current.id) ?? []} onDeleted={() => setSelected(null)} /> : <Panel title="Détail" sub="sélectionnez une séance"><p className={s.note}>Cliquez sur une séance pour afficher ses trades, ses métriques, éditer la note, les tags et l’auto-évaluation.</p></Panel>}
     </div>
   );
 }
@@ -119,13 +119,6 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
   const [tagInput, setTagInput] = useState('');
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
   const sorted = useMemo(() => [...trades].sort((a, b) => a.exitTime - b.exitTime), [trades]);
-
-  const key = session.id;
-  const [lastKey, setLastKey] = useState(key);
-  if (lastKey !== key) {
-    setLastKey(key);
-    setNote(session.note ?? '');
-  }
 
   const saveNote = () => {
     if (note !== (session.note ?? '')) updateSession(session.id, { note });
@@ -191,7 +184,8 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
                 onDeleted();
               }
             }}
-            aria-label="Supprimer"
+            aria-label="Supprimer la séance"
+            title="Supprimer la séance"
           >
             <IconTrash size={13} />
           </Button>
@@ -259,8 +253,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
               <thead>
                 <tr>
                   <th>Entrée</th>
-                  <th>Sens</th>
-                  <th className="num">Qté</th>
+                  <th>Sens · qté</th>
                   <th className="num">Prix</th>
                   <th className="num">PnL</th>
                   <th className="num">MAE / MFE</th>
@@ -273,9 +266,11 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
                       {formatTimeLocal(t.entryTime)} <span className="dim">→ {formatTimeLocal(t.exitTime)}</span>
                     </td>
                     <td>
-                      <Tag tone={t.direction === 'long' ? 'mint' : 'ember'}>{t.direction === 'long' ? 'L' : 'S'}</Tag> <span className="dim">{t.instrument}</span>
+                      <Tag tone={t.direction === 'long' ? 'mint' : 'ember'}>
+                        {t.direction === 'long' ? 'L' : 'S'} {t.qty}
+                      </Tag>{' '}
+                      <span className="dim">{t.instrument}</span>
                     </td>
-                    <td className="num">{t.qty}</td>
                     <td className="num muted">
                       {fmtPrice(t.entryPrice)}
                       <span className="dim"> → </span>

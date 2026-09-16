@@ -8,10 +8,22 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/**
+ * Assainissement commun : pas de formulaires, d'iframes, de styles inline ni de cibles de
+ * fenêtre — dans une fenêtre sans cadre, un contenu ne doit jamais pouvoir se faire passer
+ * pour l'interface. Seuls http(s), mailto et les ancres sont admis comme URL.
+ */
+const SANITIZE: import('dompurify').Config = {
+  ADD_ATTR: ['data-title', 'data-tag'],
+  FORBID_ATTR: ['style', 'target'],
+  FORBID_TAGS: ['style', 'script', 'iframe', 'form', 'input', 'button', 'select', 'textarea', 'svg', 'math', 'object', 'embed'],
+  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|#)/i,
+};
+
 /** Rendu Markdown simple et assaini (messages de l'agent). */
 export function renderMarkdown(md: string): string {
   const html = marked.parse(md, { async: false }) as string;
-  return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'script', 'iframe'] });
+  return DOMPurify.sanitize(html, SANITIZE);
 }
 
 /** Rend le Markdown d'une note : liens [[wiki]], #tags, puis assainissement. */
@@ -30,5 +42,5 @@ export function renderNote(body: string, knownTitles: Set<string>): string {
     )
     .join('');
   const html = marked.parse(pre, { async: false }) as string;
-  return DOMPurify.sanitize(html, { ADD_ATTR: ['data-title', 'data-tag', 'target'], FORBID_TAGS: ['style', 'script', 'iframe'] });
+  return DOMPurify.sanitize(html, SANITIZE);
 }

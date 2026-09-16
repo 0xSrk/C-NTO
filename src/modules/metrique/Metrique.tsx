@@ -5,9 +5,14 @@ import { Button, Segmented, Tag } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
 import { openTextFile, saveTextFile } from '@/lib/desk';
 import { exportVault, restoreVault } from '@/store/db';
+import { plural } from '@/lib/format';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
+import { useBots } from '@/store/bots';
 import { useBridge } from '@/store/bridge';
+import { useCalendar } from '@/store/calendar';
+import { useCopier } from '@/store/copier';
+import { useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
 import { Analyse } from './Analyse';
 import { BridgeModal } from './BridgeModal';
@@ -30,34 +35,35 @@ export default function Metrique() {
   const loadDemo = useJournal((j) => j.loadDemo);
   const reload = useJournal((j) => j.load);
   const toast = useUi((u) => u.toast);
+  const confirmDialog = useUi((u) => u.confirm);
   const reloadSettings = useSettings((st) => st.load);
   const bridgeStatus = useBridge((b) => b.status);
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
 
   const onExportCsv = async () => {
     if (trades.length === 0) return toast('Aucun trade à exporter.', 'warn');
-    await saveTextFile(`canto-trades-${new Date().toISOString().slice(0, 10)}.csv`, exportTradesCsv(trades), 'text/csv');
-    toast(`${trades.length} trades exportés (CSV réimportable).`, 'ok');
+    const saved = await saveTextFile(`canto-trades-${new Date().toISOString().slice(0, 10)}.csv`, exportTradesCsv(trades), 'text/csv');
+    if (saved) toast(`${plural(trades.length, 'trade exporté', 'trades exportés')} (CSV réimportable).`, 'ok');
   };
   const onExportVault = async () => {
-    await saveTextFile(`canto-coffre-${new Date().toISOString().slice(0, 10)}.json`, await exportVault(), 'application/json');
-    toast('Sauvegarde complète du coffre exportée.', 'ok');
+    const saved = await saveTextFile(`canto-coffre-${new Date().toISOString().slice(0, 10)}.json`, await exportVault(), 'application/json');
+    if (saved) toast('Sauvegarde complète du coffre exportée (clé API exclue).', 'ok');
   };
   const onRestore = async () => {
     const f = await openTextFile('.json');
     if (!f) return;
+    if (!(await confirmDialog('Restaurer cette sauvegarde ?', 'Les séances, trades, notes, calendrier, automates et comptes du copieur présents dans le fichier remplacent ceux du coffre.'))) return;
     try {
       const r = await restoreVault(f.text);
-      await reload();
-      await reloadSettings();
-      toast(`Coffre restauré : ${r.sessions} séances, ${r.trades} trades, ${r.notes} notes.`, 'ok');
+      await Promise.all([reload(), reloadSettings(), useNotes.getState().load(), useCalendar.getState().load(), useBots.getState().load(), useCopier.getState().load()]);
+      toast(`Coffre restauré : ${plural(r.sessions, 'séance')}, ${plural(r.trades, 'trade')}, ${plural(r.notes, 'note')}.`, 'ok');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Restauration impossible.', 'error');
     }
   };
   const onDemo = async () => {
     const n = await loadDemo();
-    toast(n > 0 ? `${n} séances de démonstration chargées.` : 'Capacité atteinte.', n > 0 ? 'ok' : 'warn');
+    toast(n > 0 ? `${plural(n, 'séance')} de démonstration chargées.` : 'Capacité atteinte.', n > 0 ? 'ok' : 'warn');
   };
 
   return (
@@ -81,13 +87,13 @@ export default function Metrique() {
             <Button variant="ghost" onClick={onExportCsv} title="Exporter les trades en CSV">
               <IconExport size={14} /> CSV
             </Button>
-            <Button variant="ghost" onClick={onExportVault} title="Sauvegarde complète (JSON)">
+            <Button variant="ghost" onClick={onExportVault} title="Sauvegarde complète du coffre (JSON)">
               <IconExport size={14} /> Coffre
             </Button>
             <Button variant="ghost" onClick={onRestore} title="Restaurer une sauvegarde JSON">
               Restaurer
             </Button>
-            <Button variant="ghost" onClick={() => setModal('reglages')} aria-label="Réglages">
+            <Button variant="ghost" onClick={() => setModal('reglages')} aria-label="Réglages" title="Réglages du desk">
               <IconSettings size={14} />
             </Button>
           </>

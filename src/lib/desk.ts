@@ -53,6 +53,11 @@ export interface DeskApi {
   platform: string;
   version: string;
   bridge: BridgeApi;
+  secrets: {
+    /** Chiffre avec le trousseau du système ; null si indisponible */
+    encrypt: (text: string) => Promise<string | null>;
+    decrypt: (payload: string) => Promise<string | null>;
+  };
   window: {
     minimize: () => void;
     toggleMaximize: () => void;

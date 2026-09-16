@@ -30,6 +30,10 @@ contextBridge.exposeInMainWorld('canto', {
     onRequest: (cb: (req: unknown) => void) => subscribe('orch:request', cb),
     onStatus: (cb: (status: unknown) => void) => subscribe('orch:status', cb),
   },
+  secrets: {
+    encrypt: (text: string) => ipcRenderer.invoke('secrets:encrypt', text),
+    decrypt: (payload: string) => ipcRenderer.invoke('secrets:decrypt', payload),
+  },
   bridge: {
     status: () => ipcRenderer.invoke('bridge:status'),
     configure: (cfg: { folder?: string | null; enabled?: boolean }) => ipcRenderer.invoke('bridge:configure', cfg),

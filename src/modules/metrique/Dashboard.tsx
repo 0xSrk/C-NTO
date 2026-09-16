@@ -5,7 +5,7 @@ import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { LineArea } from '@/design/charts/LineArea';
 import { Button, Empty, Panel, Stat, Tag } from '@/design/primitives';
 import { histogram } from '@/engine/metrics';
-import { fmtInt, fmtPct, fmtRatio, fmtUsd, signClass } from '@/lib/format';
+import { fmtInt, fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import { formatDuration, formatDateFr, parseDateKey } from '@/lib/time';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
@@ -46,6 +46,8 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
     const end = parseDateKey(last);
     const start = new Date(end);
     start.setDate(start.getDate() - 7 * 51 - end.getDay());
+    const first = parseDateKey(sessions[0].date);
+    if (first > start) start.setTime(first.getTime());
     const byDate = new Map(sessions.map((sess) => [sess.date, sess]));
     const cells: HeatCell[] = [];
     const cols: string[] = [];
@@ -90,19 +92,19 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
   return (
     <div className={s.rows}>
       <div className={s.kpis}>
-        <Stat label="PnL net" value={fmtUsd(t.netPnl, { sign: true })} hint={`${fmtInt(t.count)} trades · ${fmtInt(sessions.length)} séances`} tone={tone(t.netPnl)} />
+        <Stat label="PnL net" value={fmtUsd(t.netPnl, { sign: true })} hint={`${plural(t.count, 'trade')} · ${plural(sessions.length, 'séance')}`} tone={tone(t.netPnl)} />
         <Stat label="Taux de réussite" value={fmtPct(t.winRate)} hint={`${t.wins} G · ${t.losses} P · ${t.breakeven} N`} tone={t.winRate >= 0.5 ? 'pos' : 'flat'} />
         <Stat label="Profit factor" value={fmtRatio(t.profitFactor)} hint={`Payoff ${fmtRatio(t.payoffRatio)}`} tone={t.profitFactor >= 1.3 ? 'pos' : t.profitFactor < 1 ? 'neg' : 'flat'} />
         <Stat label="Espérance / trade" value={fmtUsd(t.expectancy, { cents: true, sign: true })} hint={t.expectancyR !== null ? `${fmtRatio(t.expectancyR)} R` : `Médiane ${fmtUsd(t.medianPnl, { cents: true })}`} tone={tone(t.expectancy)} />
         <Stat label="Sharpe (séances)" value={fmtRatio(d.sharpe)} hint={`Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)}`} tone={d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'} />
-        <Stat label="Drawdown max" value={fmtUsd(-d.maxDrawdown)} hint={`${d.maxDrawdownDays} séance(s) · actuel ${fmtUsd(-d.currentDrawdown)}`} tone={d.currentDrawdown > 0 ? 'neg' : 'flat'} />
+        <Stat label="Drawdown max" value={fmtUsd(-d.maxDrawdown)} hint={`${plural(d.maxDrawdownDays, 'journée')} · actuel ${fmtUsd(-d.currentDrawdown)}`} tone={d.currentDrawdown > 0 ? 'neg' : 'flat'} />
         <Stat label="SQN" value={fmtRatio(t.sqn)} hint={t.sqn >= 2.5 ? 'Système solide' : t.sqn >= 1.6 ? 'Correct' : 'Faible'} tone={t.sqn >= 2 ? 'pos' : 'flat'} />
         <Stat label="Séances gagnantes" value={fmtPct(d.winDayRate)} hint={`${d.winDays} G · ${d.lossDays} P · meilleur ${fmtUsd(d.bestDay)}`} tone={d.winDayRate >= 0.5 ? 'pos' : 'flat'} />
       </div>
 
       <div className={s.grid}>
         <Panel className={s.c8} title="Courbe d'équité" sub="PnL cumulé par séance" actions={plan && planEval ? <Tag tone={planEval.status === 'objectif' ? 'mint' : planEval.status === 'echec' ? 'ember' : 'gold'} dot>{plan.firm} · {plan.label} · {planEval.status}</Tag> : undefined}>
-          <LineArea series={cumSeries} height={240} formatY={(v) => fmtUsd(v)} />
+          <LineArea series={cumSeries} height={240} formatY={(v) => fmtUsd(v)} endValue />
         </Panel>
         <Panel className={s.c4} title="Drawdown" sub="depuis le plus haut">
           <LineArea series={ddSeries} height={240} formatY={(v) => fmtUsd(v)} />

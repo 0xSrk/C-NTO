@@ -8,6 +8,7 @@ import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
+import { requestPersistence } from '@/store/db';
 import { Boot, type BootStep } from './Boot';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Shell } from './Shell';
@@ -66,6 +67,7 @@ function boot(): Promise<void> {
     mark('core', 'ok', isDesk ? 'shell Electron' : 'navigateur');
     // Précharge le module d'accueil pendant l'écran de chargement.
     void import('@/modules/metrique/Metrique');
+    void requestPersistence();
     const year = new Date().getFullYear();
     // Les réglages d'abord (pilotent l'import du pont), puis tous les coffres en parallèle.
     await step('vault', async () => {
@@ -122,9 +124,11 @@ export function App() {
     setBooted(true);
   }, []);
 
+  // Le desk se monte sous l'écran de chargement dès que les coffres sont prêts : le premier
+  // rendu lourd se fait masqué et la transition est un fondu, sans écran noir intermédiaire.
   return (
     <>
-      {booted && (
+      {(ready || booted) && (
         <Shell>
           <ErrorBoundary resetKey={tab}>
             <Suspense fallback={<div className="micro" style={{ padding: 24 }}>Chargement du module…</div>}>

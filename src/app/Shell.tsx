@@ -26,8 +26,10 @@ function useClock(everyMs = 1000) {
 const fmtLocal = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 const fmtEt = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: ET_ZONE });
 
+const fmtPhase = new Intl.DateTimeFormat('en-US', { timeZone: ET_ZONE, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
 function marketPhase(now: Date): { label: string; tone: 'ok' | 'warn' | 'off' } {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: ET_ZONE, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  const parts = fmtPhase.formatToParts(now);
   const wd = parts.find((p) => p.type === 'weekday')?.value ?? '';
   const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
   const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
@@ -59,9 +61,11 @@ export function Shell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && /^[1-7]$/.test(e.key)) {
+      // e.code est indépendant de la disposition clavier (AZERTY : Ctrl+& = Digit1).
+      const m = /^Digit([1-7])$/.exec(e.code);
+      if ((e.ctrlKey || e.metaKey) && m && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        setTab(TABS[Number(e.key) - 1].id as TabId);
+        setTab(TABS[Number(m[1]) - 1].id);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -72,7 +76,7 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className={s.shell}>
       <header className={s.title}>
         <div className={s.brand}>
-          <Wordmark width={64} strokeWidth={4} color="#f3f4f8" />
+          <Wordmark width={64} strokeWidth={1.1} color="var(--text-0)" />
           <span className={s.brandSep} />
           <Sigil size={9} className={s.brandSigil} />
         </div>
@@ -115,20 +119,20 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <aside className={s.rail}>
         <div className={s.railHead}>
-          <span className="micro">Opérateur</span>
+          <span className="micro">Indicatif</span>
           <span className={s.railCallsign}>{callsign}</span>
         </div>
         <nav className={s.nav}>
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
-              <button key={t.id} className={cx(s.navItem, tab === t.id && s.on)} onClick={() => setTab(t.id)} title={`${t.label} — Ctrl+${t.index.slice(-1)}`}>
+              <button key={t.id} className={cx(s.navItem, tab === t.id && s.on)} onClick={() => setTab(t.id)} title={`${t.label} — Ctrl+${t.index.slice(-1)}`} aria-current={tab === t.id ? 'page' : undefined}>
                 <span className={s.navIndex}>{t.index}</span>
                 <Icon size={16} />
                 <span className={s.navLabel}>{t.label}</span>
                 <span className={s.navBadge}>
                   {t.id === 'metrique' && sessionsCount > 0 ? sessionsCount : ''}
-                  {t.id === 'agent' && orchestrator.running ? 'LINK' : ''}
+                  {t.id === 'agent' && orchestrator.running ? 'LIEN' : ''}
                 </span>
               </button>
             );
@@ -165,11 +169,11 @@ export function Shell({ children }: { children: ReactNode }) {
         </span>
         <div className={s.statusRight}>
           <Clocks />
-          <span className={s.statusItem}>Coffre local · IndexedDB</span>
+          <span className={cx(s.statusItem, s.statusHide)}>Coffre local · IndexedDB</span>
         </div>
       </footer>
 
-      <div className={s.toasts}>
+      <div className={s.toasts} role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={cx(s.toast, t.tone !== 'info' && s[t.tone])} onClick={() => dismiss(t.id)}>
             {t.text}

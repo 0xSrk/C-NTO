@@ -34,7 +34,6 @@ interface BridgeState {
 }
 
 let unsubscribeFile: (() => void) | null = null;
-let unsubscribeStatus: (() => void) | null = null;
 
 const IDLE: BridgeStatus = { enabled: false, folder: null, watching: false, files: 0, pending: 0, processed: 0 };
 
@@ -71,7 +70,7 @@ export const useBridge = create<BridgeState>((set, get) => ({
         api.result(file.id, { format: entry.format, trades: entry.trades, sessionsAdded: entry.sessionsAdded, sessionsMerged: entry.sessionsMerged, warnings: entry.warnings });
         set({ log: [entry, ...get().log].slice(0, 60) });
       });
-      unsubscribeStatus = api.onStatus((status) => set({ status }));
+      api.onStatus((status) => set({ status }));
     }
     set({ status: (await api.status()) ?? IDLE, ready: true });
   },
@@ -112,10 +111,3 @@ export const useBridge = create<BridgeState>((set, get) => ({
     if (folder && desk?.bridge) await desk.bridge.openFolder(folder);
   },
 }));
-
-export function disposeBridge(): void {
-  unsubscribeFile?.();
-  unsubscribeStatus?.();
-  unsubscribeFile = null;
-  unsubscribeStatus = null;
-}

@@ -25,6 +25,9 @@
   grid-template-columns: repeat(12, minmax(0, 1fr));
   align-items: stretch;
 }
+.gridTop {
+  align-items: start;
+}
 .c12 {
   grid-column: span 12;
 }
