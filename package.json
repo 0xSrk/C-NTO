@@ -1,8 +1,8 @@
 {
   "name": "canto",
   "productName": "CΛNTO",
-  "version": "0.1.0",
-  "description": "CΛNTO — desk de trading local (Nasdaq / CME futures) forgé par SIΞRRΛSKΛ",
+  "version": "1.0.0",
+  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v1.0",
   "private": true,
   "author": "SIΞRRΛSKΛ",
   "license": "UNLICENSED",

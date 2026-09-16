@@ -126,7 +126,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         const a = nodes[i];
         const b = nodes[j];
         const hot = st.hover === i || st.hover === j;
-        ctx.strokeStyle = hot ? 'rgba(211,171,83,0.7)' : 'rgba(255,255,255,0.12)';
+        ctx.strokeStyle = hot ? 'rgba(196,30,58,0.7)' : 'rgba(255,255,255,0.12)';
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -138,12 +138,12 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         const hot = st.hover === i;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = active ? '#d3ab53' : hot ? '#ffffff' : n.title.startsWith('Journal ') ? '#8fc7e8' : '#8a8a8a';
+        ctx.fillStyle = active ? '#c41e3a' : hot ? '#ffffff' : n.title.startsWith('Journal ') ? '#8fc7e8' : '#8a8a8a';
         ctx.fill();
         if (active || hot) {
           ctx.beginPath();
           ctx.arc(n.x, n.y, r + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = active ? 'rgba(211,171,83,0.5)' : 'rgba(255,255,255,0.3)';
+          ctx.strokeStyle = active ? 'rgba(196,30,58,0.5)' : 'rgba(255,255,255,0.3)';
           ctx.stroke();
         }
         if (hot || active || n.degree >= 2 || nodes.length <= 30) {

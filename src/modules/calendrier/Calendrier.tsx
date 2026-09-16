@@ -12,7 +12,7 @@ import { useUi } from '@/store/ui';
 import s from './calendrier.module.css';
 
 const CAT_COLOR: Record<EventCategory, string> = {
-  fed: '#d3ab53',
+  fed: '#c41e3a',
   emploi: '#e0776c',
   inflation: '#d8b45a',
   croissance: '#8fc7e8',

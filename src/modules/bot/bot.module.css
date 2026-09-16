@@ -1,7 +1,7 @@
 .layout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr) 340px;
-  gap: 14px;
+  gap: 16px;
   height: 100%;
   min-height: 0;
 }
@@ -14,7 +14,7 @@
 }
 .botItem {
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 12px;
   border: 1px solid var(--line-0);
   border-radius: var(--radius);
   display: flex;
@@ -48,12 +48,12 @@
   gap: 4px;
 }
 .stage {
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--line-0);
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   text-align: left;
   color: var(--text-3);
   position: relative;
@@ -96,9 +96,9 @@
 .rule {
   display: grid;
   grid-template-columns: 84px 1fr auto;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--line-0);
   border-radius: var(--radius);
   font-size: 13px;
@@ -125,7 +125,7 @@
   gap: 8px;
   font-size: 12px;
   color: var(--text-1);
-  padding: 5px 0;
+  padding: 4px 0;
   border-bottom: 1px dashed var(--line-0);
 }
 .guard::before {
@@ -151,7 +151,7 @@
 .phase {
   display: grid;
   grid-template-columns: 26px 1fr;
-  gap: 10px;
+  gap: 12px;
   font-size: 12px;
   color: var(--text-2);
 }
@@ -174,7 +174,7 @@
 }
 .template {
   text-align: left;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px dashed var(--line-1);
   border-radius: var(--radius);
   color: var(--text-2);
@@ -195,7 +195,7 @@
 .formGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 12px;
 }
 .col > * {
   flex: none;

@@ -2,12 +2,11 @@
 @import '@fontsource-variable/jetbrains-mono/index.css';
 
 /* ------------------------------------------------------------------
-   CΛNTO — artefact 002 de SIΞRRΛSKΛ Lab
-   Lignée du système visuel Crepuscule (noir absolu, hairlines 1 px,
-   mono capitales espacées, une seule source de lumière) — ici la LED
-   est dorée, le cadre porte des équerres, le logotype est tracé au trait.
-   Grille 4 px. Aucun arrondi, aucune ombre hors halo de la LED,
-   aucun dégradé décoratif.
+   CΛNTO — artefact 002 · SIΞRRΛSKΛ Lab · v1.0
+   Grammaire lithographique : noir absolu, hairlines 1 px, grille 4 px,
+   une seule LED d'accent, aucun arrondi, aucune ombre hors halo LED,
+   aucun dégradé décoratif. Précision de circuit — chaque mesure
+   multiple de 4 px (filets 1–2 px exclus).
    ------------------------------------------------------------------ */
 
 :root {
@@ -33,15 +32,15 @@
   --text-3: #6c6c6c;
   --text-4: #4a4a4a;
 
-  /* La LED : une seule source de lumière, dorée. Jamais en aplat large. */
-  --gold: #d3ab53;
-  --gold-soft: rgba(211, 171, 83, 0.12);
-  --gold-line: rgba(211, 171, 83, 0.55);
-  --glow-accent: 0 0 0 1px rgba(211, 171, 83, 0.35), 0 0 8px rgba(211, 171, 83, 0.55), 0 0 18px rgba(211, 171, 83, 0.25);
-  --glow-accent-soft: 0 0 12px rgba(211, 171, 83, 0.18);
-  --leak-accent: linear-gradient(90deg, rgba(211, 171, 83, 0.35), transparent);
+  /* LED Lab : une seule source. Jamais en aplat large. */
+  --gold: #c41e3a;
+  --gold-soft: rgba(196, 30, 58, 0.12);
+  --gold-line: rgba(196, 30, 58, 0.55);
+  --glow-accent: 0 0 0 1px rgba(196, 30, 58, 0.4), 0 0 8px rgba(196, 30, 58, 0.55), 0 0 18px rgba(196, 30, 58, 0.28);
+  --glow-accent-soft: 0 0 12px rgba(196, 30, 58, 0.2);
+  --leak-accent: linear-gradient(90deg, rgba(196, 30, 58, 0.4), transparent);
 
-  /* Couleurs fonctionnelles : elles portent un sens, désaturées */
+  /* Couleurs fonctionnelles : sens uniquement, désaturées */
   --mint: #7fcf9a;
   --mint-soft: rgba(127, 207, 154, 0.1);
   --mint-line: rgba(127, 207, 154, 0.5);
@@ -65,9 +64,9 @@
   --font-ui: 'Inter Variable', 'Neue Haas Grotesk', 'Helvetica Neue', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
   --fs-display: 44px;
-  --fs-h1: 26px;
+  --fs-h1: 28px;
   --fs-h2: 20px;
-  --fs-value: 22px;
+  --fs-value: 24px;
   --fs-body: 13px;
   --fs-small: 12px;
   --fs-label: 11px;
@@ -76,7 +75,7 @@
   --track-13: 0.08em;
   --track-wide: 0.22em;
 
-  /* Espace : multiples de 4 px */
+  /* Espace : multiples de 4 px stricts */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -87,8 +86,19 @@
   --s-8: 40px;
 
   --radius: 0;
-  --hatch: repeating-linear-gradient(45deg, var(--line-1) 0 1px, transparent 1px 5px);
+  --hatch: repeating-linear-gradient(45deg, var(--line-1) 0 1px, transparent 1px 4px);
   --shadow-panel: none;
+
+  /* Chrome */
+  --titlebar-h: 56px;
+  --statusbar-h: 28px;
+  --rail-w: 232px;
+  --ctrl-h: 32px;
+  --chip-h: 28px;
+  --row-h: 36px;
+  --frame-inset: 8px;
+  --hairline: 1px;
+  --active-line: 2px;
 
   /* Mouvement */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -97,10 +107,6 @@
   --t-fast: 120ms;
   --t-med: 220ms;
   --t-slow: 420ms;
-
-  --titlebar-h: 56px;
-  --statusbar-h: 28px;
-  --rail-w: 232px;
 
   scrollbar-color: var(--line-2) var(--bg-0);
   scrollbar-width: thin;
@@ -138,13 +144,13 @@ body {
 }
 
 ::selection {
-  background: rgba(211, 171, 83, 0.35);
+  background: rgba(196, 30, 58, 0.35);
   color: var(--text-0);
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: var(--bg-0);
@@ -200,7 +206,7 @@ samp {
   font-variant-numeric: tabular-nums;
 }
 code {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-1);
 }
 
@@ -233,11 +239,11 @@ textarea {
   border: 1px solid var(--line-1);
   color: var(--text-0);
   padding: 0 var(--s-3);
-  height: 32px;
+  height: var(--ctrl-h);
   border-radius: 0;
   outline: none;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   transition: border-color var(--t-fast) linear;
 }
 textarea {
@@ -313,7 +319,6 @@ input[type='time'] {
   color: var(--text-3);
 }
 
-/* Libellé mono capitales : 11 px / .12em — jamais plus petit */
 .micro {
   font-family: var(--font-mono);
   font-size: var(--fs-label);
@@ -324,7 +329,6 @@ input[type='time'] {
   line-height: 1.3;
 }
 
-/* Grain : texture de bruit très faible, évite le noir « plastique » */
 .grain::after {
   content: '';
   position: fixed;
@@ -346,19 +350,18 @@ input[type='time'] {
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
-/* Respiration de la LED : opacité .55 → 1, halo qui s'élargit */
 @keyframes breathe {
   0%,
   100% {
     opacity: 0.55;
-    box-shadow: 0 0 0 1px rgba(211, 171, 83, 0.25), 0 0 6px rgba(211, 171, 83, 0.4);
+    box-shadow: 0 0 0 1px rgba(196, 30, 58, 0.28), 0 0 6px rgba(196, 30, 58, 0.4);
   }
   50% {
     opacity: 1;
@@ -374,7 +377,6 @@ input[type='time'] {
     opacity: 0.45;
   }
 }
-/* Barres : largeur animée depuis 0 à l'affichage */
 @keyframes grow-x {
   from {
     transform: scaleX(0);

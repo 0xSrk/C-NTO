@@ -1,25 +1,30 @@
 # CΛNTO
 
-Desk de trading local dédié au **Nasdaq (NQ / MNQ, CME Globex)**, pensé pour travailler aux côtés de NinjaTrader 8 et des comptes de prop firms. Prototype forgé par **SIΞRRΛSKΛ**.
+**Desk de trading local — Nasdaq (NQ / MNQ, CME Globex)**  
+Forgé par **SIΞRRΛSKΛ Lab** · version **1.0**
 
-CΛNTO s'installe sur le poste du trader, s'ouvre sur un écran de chargement (logotype en traits fins, marque gravée), puis déploie sept modules :
+CΛNTO s’installe sur le poste du trader. Écran de chargement (logotype tracé au trait, marque gravée), puis sept modules. Données 100 % locales (IndexedDB). Conçu pour travailler aux côtés de NinjaTrader 8 et des comptes prop firm.
 
-| # | Module | Contenu |
+---
+
+## Modules
+
+| # | Module | Rôle |
 | --- | --- | --- |
-| 01 | **Métrique** | Journal jusqu'à 1 000 séances. **Pont NinjaTrader** (dossier surveillé, import automatique des exports « Trades » / « Executions » et du journal temps réel de l'AddOn), appariement FIFO des exécutions, moteur quantitatif (profit factor, espérance, Sharpe/Sortino/Calmar, SQN, Kelly, z-score des séries, MAE/MFE, drawdown, régularité glissante), rejeu des règles prop firm (trailing EOD / intraday / statique, perte journalière, consistance, filtre par compte), Monte Carlo bootstrap borné, visuels interactifs. |
-| 02 | **Visual** | Graphique en bougies (lightweight-charts) avec volume, catalogue d'indicateurs extensible (EMA, SMA, VWAP + bandes, Opening Range, niveaux de séance précédente, ATR, volume relatif), projection des trades d'une séance, import de barres OHLCV. |
-| 03 | **Calendrier** | Deux vues (grille mensuelle, flux chronologique). Catalyseurs Nasdaq : FOMC (dates officielles 2024–2026), NFP, CPI/PPI/PCE, ISM, PIB, résultats mégacaps, expirations/rollovers CME, fériés et séances écourtées, bascules horaires US/EU. Heures locales + ET, repères de séance, conseils débutant, notes et rappels personnels, PnL du journal par jour. |
-| 04 | **Note** | Coffre de notes façon Obsidian : Markdown, liens `[[wiki]]`, liens entrants, `#tags`, recherche, note du jour, graphe de force. |
-| 05 | **Agent IA** | Passerelle native : fournisseur OpenAI-compatible (Ollama, LM Studio, OpenAI, OpenRouter…) ou Anthropic, streaming, appels d'outils sur le desk (métriques, séances, notes, calendrier, plan prop firm) avec confirmation des écritures. Dans le shell Electron : serveur JSON-RPC 2.0 sur WebSocket (`127.0.0.1`, jeton de session, origines navigateur refusées) pour un orchestrateur externe ; clé API chiffrée par le trousseau du système. |
-| 06 | **Bot** | Atelier d'automates : gabarits, grammaire conditions / actions / garde-fous, cycle de vie (brouillon → backtest → papier → réel verrouillé), garde-fous dérivés du plan prop firm et du calendrier. Phase 1 (conception). |
-| 07 | **Copieur** | Topologie maître → suiveurs, dimensionnement (fixe, ratio, risque), correspondance NQ ↔ MNQ, filtres (fenêtre horaire, blackout catalyseurs, marge plancher, latence), journal des versions. La réplication effective attend l'AddOn NinjaTrader spécifié dans `docs/PONT-NINJATRADER.md`. |
+| 01 | **Métrique** | Journal (≤ 1 000 séances). Pont NinjaTrader (dossier surveillé, CSV Trades / Executions, AddOn temps réel). Appariement FIFO. Moteur quantitatif (profit factor, espérance, Sharpe / Sortino / Calmar, SQN, Kelly, z-score, MAE / MFE, drawdown, régularité). Rejeu prop firm. Monte Carlo borné. |
+| 02 | **Visual** | Bougies (lightweight-charts), volume, indicateurs (EMA, SMA, VWAP ± bandes, Opening Range, niveaux séance précédente, ATR, RVOL), projection de trades, import OHLCV. |
+| 03 | **Calendrier** | Grille mensuelle + flux. Catalyseurs Nasdaq (FOMC 2024–2026, NFP, CPI / PPI / PCE, ISM, PIB, résultats, expirations CME, fériés, DST). Heures locales + ET, notes du jour, PnL journal. |
+| 04 | **Note** | Coffre Markdown type Obsidian : `[[wiki]]`, backlinks, `#tags`, recherche, note du jour, graphe. |
+| 05 | **Agent IA** | Fournisseur OpenAI-compatible ou Anthropic, streaming, outils desk (lecture + écritures confirmées). Shell Electron : JSON-RPC 2.0 WebSocket `127.0.0.1` (jeton, origines navigateur refusées). Clé API via trousseau OS. |
+| 06 | **Bot** | Atelier d’automates : gabarits, conditions / actions / garde-fous, cycle brouillon → backtest → papier → réel. Phase conception. |
+| 07 | **Copieur** | Topologie maître → suiveurs, sizing, NQ ↔ MNQ, filtres. Réplication effective : AddOn décrit dans `docs/PONT-NINJATRADER.md`. |
 
-Toutes les données restent sur le poste (IndexedDB) ; export/restauration complète du coffre en JSON, export CSV réimportable.
+---
 
 ## Prérequis
 
-- Node.js ≥ 22.12 et npm
-- Windows 10/11 recommandé (NinjaTrader) — le shell fonctionne aussi sous macOS et Linux
+- Node.js ≥ 22.12 et npm  
+- Windows 10 / 11 recommandé (NinjaTrader) — shell aussi sous macOS et Linux
 
 ## Installation
 
@@ -30,19 +35,11 @@ npm install
 ## Lancer
 
 ```bash
-# Desk complet dans sa fenêtre (Electron + serveur Vite)
-npm run desk:dev
-
-# Ou uniquement dans le navigateur (toutes les fonctions sauf la passerelle orchestrateur)
-npm run dev
+npm run desk:dev   # Electron + Vite
+npm run dist:win   # Installeur NSIS + portable → release/
 ```
 
-## Construire un installeur
-
-```bash
-npm run dist:win     # NSIS + portable dans release/
-npm run dist         # cible de la plateforme courante
-```
+Navigateur seul (sans passerelle orchestrateur) : `npm run dev`
 
 ## Vérifier
 
@@ -52,38 +49,42 @@ npm test
 npm run build
 ```
 
+---
+
 ## Pont NinjaTrader 8
 
-**Automatique** — Métrique › **Pont NinjaTrader** › choisir le dossier (par défaut `Documents\NinjaTrader 8\export\CANTO`). Tout CSV déposé ou modifié dans ce dossier est importé dès que son écriture est terminée ; l'état du pont est visible dans la barre d'état. Pour le temps réel, installer l'AddOn `ninjatrader/CantoBridge.cs` (`Documents\NinjaTrader 8\bin\Custom\AddOns\`, puis NinjaScript Editor › Compile) : chaque exécution est écrite dans `executions-AAAA-MM-JJ.csv` et appariée en trades (FIFO) par CΛNTO. Détails : `docs/PONT-NINJATRADER.md`.
+**Automatique** — Métrique › Pont NinjaTrader › dossier (défaut `Documents\NinjaTrader 8\export\CANTO`). Tout CSV déposé / modifié est importé à écriture terminée. AddOn temps réel : `ninjatrader/CantoBridge.cs` → `Documents\NinjaTrader 8\bin\Custom\AddOns\` puis Compile. Voir `docs/PONT-NINJATRADER.md`.
 
-**Manuel** — Control Center › **Trade Performance › Trades** (ou onglet **Executions**) › clic droit › **Export** › CSV, puis Métrique › **Importer un CSV** (glisser-déposer accepté). Les cultures en-US et fr-FR sont détectées ; le PnL est recalculé depuis les prix et la valeur du point puis contrôlé avec la colonne Profit ; les doublons sont écartés et les exports successifs s'empilent par séance.
+**Manuel** — Trade Performance › Trades (ou Executions) › Export CSV › Métrique › Importer. Cultures en-US / fr-FR détectées ; PnL recalculé depuis prix × point ; doublons écartés.
 
-Pour les barres du module Visual : Tools › **Historical Data** › Export (ou tout CSV OHLCV).
+Barres Visual : Tools › Historical Data › Export (CSV OHLCV).
+
+---
 
 ## Architecture
 
 ```
-electron/            shell (fenêtre sans cadre, dialogues fichiers, pont NinjaTrader par dossier surveillé,
-                     passerelle WebSocket JSON-RPC authentifiée, secrets chiffrés)
-ninjatrader/         AddOn NinjaScript CΛNTO Bridge (exécutions → CSV)
-src/app/             boot, coque (barre de titre, rail, barre d'état), onglets
-src/design/          jetons de style, primitives, logotype, graphiques SVG
-src/engine/          moteur pur TypeScript : métriques, Monte Carlo, import NinjaTrader,
-                     règles prop firm, indicateurs, calendrier Nasdaq, outils agent, clients LLM
-src/store/           persistance Dexie (IndexedDB) et états Zustand
-src/modules/         un dossier par onglet
-tests/               tests Vitest du moteur
-docs/                système visuel (DESIGN.md), pont NinjaTrader, compte rendu d'audit (AUDIT.md)
+electron/       shell, dialogues, pont dossier, WebSocket JSON-RPC, secrets
+ninjatrader/    AddOn CΛNTO Bridge
+src/app/        boot, coque, onglets
+src/design/     jetons, primitives, logotype, graphiques
+src/engine/     métriques, Monte Carlo, import NT, prop firm, indicateurs, calendrier, agent
+src/store/      Dexie + Zustand
+src/modules/    un dossier par onglet
+tests/          Vitest (moteur)
+docs/           DESIGN.md · PONT-NINJATRADER.md · AUDIT.md
 ```
 
-Le moteur (`src/engine`) est indépendant de l'interface : les indicateurs, les outils exposés à l'agent et les plans prop firm sont des registres que le Lab enrichit sans toucher aux modules.
+Le moteur (`src/engine`) est indépendant de l’UI. Grammaire visuelle : `docs/DESIGN.md`.
 
-## Feuille de route
+---
 
-- Pont NinjaTrader, transport WebSocket : copieur actif, exécution papier des automates.
-- Backtest des automates sur les barres importées.
-- Agent : mémoire longue par trader, profils d'évolution du desk.
+## Suite
+
+- Copieur actif + exécution papier des automates (transport WebSocket)  
+- Backtest automates sur barres importées  
+- Agent : mémoire longue, profils d’évolution du desk  
 
 ## Avertissement
 
-Le registre des prop firms est indicatif : les règles changent fréquemment et doivent être validées auprès de chaque firme. CΛNTO n'émet aucun conseil d'investissement.
+Le registre prop firm est indicatif. Validez les règles auprès de chaque firme. CΛNTO n’émet aucun conseil d’investissement.

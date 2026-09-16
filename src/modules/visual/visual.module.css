@@ -18,7 +18,7 @@
 }
 .legend {
   position: absolute;
-  top: 10px;
+  top: 12px;
   left: 12px;
   z-index: 2;
   display: flex;
@@ -43,7 +43,7 @@
 }
 .legendRow {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   color: var(--text-3);
 }
 .legendRow i {
@@ -51,7 +51,7 @@
   width: 8px;
   height: 2px;
   vertical-align: middle;
-  margin-right: 5px;
+  margin-right: 4px;
 }
 .legendRow span b {
   color: var(--text-1);
@@ -66,7 +66,7 @@
   overflow: auto;
 }
 .sideSection {
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line-0);
   display: flex;
   flex-direction: column;
@@ -85,7 +85,7 @@
 .indicator {
   border: 1px solid var(--line-0);
   border-radius: var(--radius);
-  padding: 8px 10px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -131,7 +131,7 @@
 .params input,
 .params select {
   width: 72px;
-  height: 22px;
+  height: 24px;
   padding: 0 6px;
   font-size: 11px;
 }
@@ -187,7 +187,7 @@
 .stamp {
   position: absolute;
   right: 72px;
-  top: 10px;
+  top: 12px;
   z-index: 2;
   pointer-events: none;
 }
