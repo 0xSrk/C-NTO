@@ -3,19 +3,85 @@
   inset: 0;
   z-index: 10000;
   background: #000000;
-  background-image: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.035) 0, transparent 55%);
   display: grid;
   grid-template-rows: 1fr auto;
   align-items: center;
   justify-items: center;
   overflow: hidden;
-  transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1), transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.48s cubic-bezier(0.4, 0, 0.2, 1), transform 0.48s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-app-region: drag;
+}
+.boot.fromLauncher {
+  animation: boot-in 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes boot-in {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .boot.leaving {
   opacity: 0;
-  transform: scale(1.012);
+  transform: scale(1.008);
   pointer-events: none;
+}
+
+.nano {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.9;
+  z-index: 0;
+}
+
+.circuit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+.trace,
+.traceV,
+.traceLed,
+.inset {
+  fill: none;
+  stroke-linecap: square;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.trace {
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 0.1;
+  animation: draw 0.95s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.traceV {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 0.08;
+  animation: draw 1.05s cubic-bezier(0.4, 0, 0.2, 1) 0.08s forwards;
+}
+.traceLed {
+  stroke: rgba(196, 30, 58, 0.4);
+  stroke-width: 0.1;
+  animation: draw 1s cubic-bezier(0.4, 0, 0.2, 1) 0.18s forwards;
+}
+.inset {
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 0.08;
+  animation: draw 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.05s forwards;
+}
+.fromLauncher .trace {
+  animation-duration: 1.05s;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .beams {
@@ -23,15 +89,16 @@
   inset: 0;
   pointer-events: none;
   overflow: hidden;
+  z-index: 2;
 }
 .beams i {
   position: absolute;
   left: -20%;
   right: -20%;
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.03) 30%, rgba(255, 255, 255, 0.035) 50%, rgba(255, 255, 255, 0.03) 70%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.022) 30%, rgba(255, 255, 255, 0.028) 50%, rgba(255, 255, 255, 0.022) 70%, transparent 100%);
   opacity: 0;
-  animation: sweep 2.4s cubic-bezier(0.55, 0, 0.1, 1) infinite;
+  animation: sweep 2.6s cubic-bezier(0.55, 0, 0.1, 1) infinite;
 }
 .beams i:nth-child(1) {
   top: 18%;
@@ -40,12 +107,12 @@
 .beams i:nth-child(2) {
   top: 56%;
   animation-delay: 0.8s;
-  transform: rotate(-0.6deg);
+  transform: rotate(-0.4deg);
 }
 .beams i:nth-child(3) {
   top: 78%;
   animation-delay: 1.5s;
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 @keyframes sweep {
@@ -54,10 +121,10 @@
     opacity: 0;
   }
   15% {
-    opacity: 0.55;
+    opacity: 0.45;
   }
   60% {
-    opacity: 0.25;
+    opacity: 0.18;
   }
   100% {
     transform: translateX(30%);
@@ -66,6 +133,8 @@
 }
 
 .center {
+  position: relative;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -88,6 +157,8 @@
 }
 
 .console {
+  position: relative;
+  z-index: 3;
   width: min(680px, 84vw);
   padding: 0 0 48px;
   display: flex;
@@ -118,7 +189,7 @@
 }
 .lineDots {
   flex: 1;
-  border-bottom: 1px dotted rgba(255, 255, 255, 0.12);
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.1);
   transform: translateY(-4px);
 }
 .lineStatus {
@@ -140,7 +211,7 @@
 
 .bar {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   position: relative;
 }
 .bar span {
@@ -169,5 +240,22 @@
 }
 .granted {
   color: var(--gold);
-  text-shadow: 0 0 8px rgba(196, 30, 58, 0.5);
+  text-shadow: 0 0 6px rgba(196, 30, 58, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trace,
+  .traceV,
+  .traceLed,
+  .inset,
+  .beams i,
+  .boot.fromLauncher {
+    animation: none !important;
+  }
+  .trace,
+  .traceV,
+  .traceLed,
+  .inset {
+    stroke-dashoffset: 0;
+  }
 }

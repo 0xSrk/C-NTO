@@ -52,7 +52,7 @@ function createLauncherWindow(): void {
   void launcherWin.loadFile(path.join(__dirname, 'launcher.html'));
 }
 
-function createWindow(): void {
+function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   win = new BrowserWindow({
     width: 1560,
     height: 980,
@@ -94,15 +94,17 @@ function createWindow(): void {
     if (!allowed) event.preventDefault();
   });
 
+  const hash = opts.fromLauncher ? '#from-launcher' : '';
   if (DEV_URL) {
+    const base = DEV_URL.replace(/\/$/, '');
     const tryLoad = (attempt: number) => {
-      win?.loadURL(DEV_URL).catch(() => {
+      win?.loadURL(`${base}/${hash}`).catch(() => {
         if (attempt < 40) setTimeout(() => tryLoad(attempt + 1), 500);
       });
     };
     tryLoad(0);
   } else {
-    void win.loadFile(indexFile);
+    void win.loadFile(indexFile, { hash: opts.fromLauncher ? 'from-launcher' : '' });
   }
 
   orchestrator.attach(win);
@@ -182,15 +184,18 @@ ipcMain.handle('update:relaunch', (e) => {
 });
 ipcMain.handle('update:start-desk', (e) => {
   if (!trusted(e)) return false;
-  if (!win) createWindow();
+  if (!win) createWindow({ fromLauncher: true });
   else {
     if (win.isMinimized()) win.restore();
     win.focus();
   }
+  // Laisse la transition du lanceur se terminer sous le desk déjà visible.
   if (launcherWin && !launcherWin.isDestroyed()) {
     const l = launcherWin;
     launcherWin = null;
-    l.close();
+    setTimeout(() => {
+      if (!l.isDestroyed()) l.close();
+    }, 220);
   }
   return true;
 });

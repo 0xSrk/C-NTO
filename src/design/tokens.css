@@ -18,10 +18,10 @@
   --watermark: #0f0f0f;
 
   /* Hairlines */
-  --line-0: #171717;
-  --line-1: #232323;
-  --line-2: #363636;
-  --line-3: #4a4a4a;
+  --line-0: #141414;
+  --line-1: #1e1e1e;
+  --line-2: #2e2e2e;
+  --line-3: #424242;
 
   /* Encre : le blanc n'émet pas, il reste imprimé */
   --text-0: #ffffff;
@@ -33,10 +33,10 @@
   /* LED Lab : une seule source. Jamais en aplat large. */
   --gold: #c41e3a;
   --gold-soft: rgba(196, 30, 58, 0.12);
-  --gold-line: rgba(196, 30, 58, 0.55);
-  --glow-accent: 0 0 0 1px rgba(196, 30, 58, 0.4), 0 0 8px rgba(196, 30, 58, 0.55), 0 0 18px rgba(196, 30, 58, 0.28);
-  --glow-accent-soft: 0 0 12px rgba(196, 30, 58, 0.2);
-  --leak-accent: linear-gradient(90deg, rgba(196, 30, 58, 0.4), transparent);
+  --gold-line: rgba(196, 30, 58, 0.45);
+  --glow-accent: 0 0 0 1px rgba(196, 30, 58, 0.35), 0 0 6px rgba(196, 30, 58, 0.4), 0 0 14px rgba(196, 30, 58, 0.2);
+  --glow-accent-soft: 0 0 10px rgba(196, 30, 58, 0.16);
+  --leak-accent: linear-gradient(90deg, rgba(196, 30, 58, 0.32), transparent);
 
   /* Couleurs fonctionnelles : sens uniquement, désaturées */
   --mint: #7fcf9a;
@@ -334,8 +334,8 @@ input[type='time'] {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
   z-index: 9998;
 }
 

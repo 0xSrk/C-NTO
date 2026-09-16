@@ -9,7 +9,7 @@ Précision lithographique. Chaque mesure est un multiple de **4 px** (filets 1�
 | Vide / fond | `--bg-0` | `#000000` |
 | Panneau | `--bg-2` | `#050505` |
 | Survol | `--bg-3` | `#0b0b0b` |
-| Hairlines | `--line-1` / `--line-2` | `#232323` / `#363636` |
+| Hairlines | `--line-0` / `--line-1` / `--line-2` | `#141414` / `#1e1e1e` / `#2e2e2e` |
 | Encre | `--text-0…4` | `#fff` · `#c4c4c4` · `#8a8a8a` · `#6c6c6c` · `#4a4a4a` |
 | Filigrane | `--watermark` | `#0f0f0f` |
 | LED Lab | `--gold` | `#c41e3a` — point, filet, mot-clé ; jamais en aplat |
@@ -20,9 +20,11 @@ Couleurs fonctionnelles (`--mint` / `--ember` / `--ice` / `--violet` / `--amber`
 
 - Espace : `--s-1…8` = 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40
 - Chrome : titlebar **56**, statusbar **28**, rail **232**, contrôles **32**, puces **28**, lignes de table **36**
-- Cadre : repères `+` inset **8** aux quatre angles (symétrie stricte)
-- Filet actif / sélection : **2 px** ; reste : **1 px**
-- Équerres de panneau : **12 × 12**, inset −1 px, filet LED
+- Cadre : repères `+` inset **8** aux quatre angles (symétrie stricte), mono 10 px
+- Zone principale : noir absolu — **pas** de grille décorative ni vignette
+- Filet actif / sélection : **2 px** ; chrome / panneaux : **1 px** (`--line-0` / `--line-1`)
+- Équerres de panneau : **10 × 10**, inset −1 px, filet LED
+- Transition lanceur → boot : traits symétriques, cadres incrustés, nano-pixels 1×1
 
 ## 3. Typographie
 

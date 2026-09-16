@@ -15,7 +15,7 @@
   isolation: isolate;
 }
 
-/* Repères de coin « + » du cadre */
+/* Repères de coin « + » du cadre — filet typographique fin */
 .shell::before,
 .shell::after,
 .frameBottom::before,
@@ -24,10 +24,12 @@
   position: fixed;
   z-index: 60;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 10px;
   line-height: 1;
-  color: var(--text-2);
+  color: var(--text-3);
+  letter-spacing: 0;
   pointer-events: none;
+  opacity: 0.85;
 }
 .shell::before {
   top: var(--frame-inset);
@@ -46,7 +48,7 @@
   right: var(--frame-inset);
 }
 
-/* ─── Ambiance lumineuse : deux sources, faibles ─── */
+/* ─── Ambiance : sources très faibles, filets de lumière ─── */
 .ambience {
   position: fixed;
   inset: 0;
@@ -63,13 +65,14 @@
 /* 1. Lumière de salle : radial haut-gauche, dérive très lente */
 .lightRoom {
   inset: -24px;
-  background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.035) 0, transparent 60%);
-  animation: roomDrift 40s var(--ease-in-out) infinite;
+  background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.02) 0, transparent 55%);
+  animation: roomDrift 48s var(--ease-in-out) infinite;
 }
-/* 2. Deux faisceaux diagonaux ultra-faibles, jamais synchrones */
+/* 2. Deux faisceaux diagonaux ultra-fins, jamais synchrones */
 .lightBeams {
   inset: 0;
   overflow: hidden;
+  opacity: 0.7;
 }
 .lightBeams::before,
 .lightBeams::after {
@@ -77,35 +80,36 @@
   position: absolute;
   top: -50vh;
   left: 0;
-  width: 40vw;
+  width: 28vw;
   height: 200vh;
-  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.018) 50%, transparent 60%);
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.01) 50%, transparent 58%);
   will-change: transform;
-  animation: beamSweep 90s linear infinite;
+  animation: beamSweep 110s linear infinite;
 }
 .lightBeams::after {
-  animation-duration: 140s;
+  animation-duration: 160s;
   animation-delay: -55s;
+  width: 22vw;
 }
-/* 3. Halo chaud autour de la LED du header (pastille, à droite) */
+/* 3. Halo LED discret autour de la pastille header */
 .lightWarm {
-  top: calc(28px - 220px);
-  right: calc(150px - 220px);
-  width: 440px;
-  height: 440px;
-  background: radial-gradient(circle closest-side, rgba(196, 30, 58, 0.05), transparent);
+  top: calc(28px - 160px);
+  right: calc(150px - 160px);
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle closest-side, rgba(196, 30, 58, 0.032), transparent);
   transition: opacity var(--t-med) var(--ease-in-out);
 }
 .lightWarm.off {
   opacity: 0;
 }
-/* 4. Bande rasante sous la hairline du header */
+/* 4. Bande rasante 1 px sous la hairline du header */
 .lightHeader {
   top: calc(var(--titlebar-h) + 1px);
   left: 0;
   right: 0;
-  height: 24px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+  height: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent);
 }
 @keyframes roomDrift {
   0%,
@@ -113,7 +117,7 @@
     transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(8px, 4px, 0);
+    transform: translate3d(4px, 2px, 0);
   }
 }
 @keyframes beamSweep {
@@ -136,7 +140,7 @@
   padding: 0 0 0 var(--s-6);
   /* left inset matches status; right handled by titleRight */
   background: var(--bg-0, #000000);
-  border-bottom: 1px solid var(--line-1);
+  border-bottom: 1px solid var(--line-0);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -301,7 +305,7 @@
   position: relative;
   z-index: 1;
   background: var(--bg-0, #000000);
-  border-right: 1px solid var(--line-1);
+  border-right: 1px solid var(--line-0);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -406,7 +410,7 @@
 .railFoot {
   margin-top: auto;
   padding: var(--s-4);
-  border-top: 1px solid var(--line-1);
+  border-top: 1px solid var(--line-0);
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
@@ -450,7 +454,7 @@
   color: var(--text-4);
 }
 
-/* ─── Zone principale ─── */
+/* ─── Zone principale : noir absolu, sans grille ─── */
 .main {
   grid-area: main;
   position: relative;
@@ -459,19 +463,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  background: #000000;
   background-color: var(--bg-0, #000000);
-  background-image:
-    repeating-linear-gradient(to right, color-mix(in srgb, var(--line-1) 35%, transparent) 0 1px, transparent 1px 96px),
-    repeating-linear-gradient(to bottom, color-mix(in srgb, var(--line-1) 35%, transparent) 0 1px, transparent 1px 96px);
-}
-/* Vignette très faible depuis les angles */
-.main::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.35) 100%);
-  z-index: 0;
 }
 .moduleHead {
   position: relative;
@@ -479,7 +472,7 @@
   align-items: center;
   gap: var(--s-5);
   padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--line-1);
+  border-bottom: 1px solid var(--line-0);
   overflow: hidden;
   z-index: 1;
 }
@@ -562,7 +555,7 @@
   position: relative;
   z-index: 1;
   background: var(--bg-0, #000000);
-  border-top: 1px solid var(--line-1);
+  border-top: 1px solid var(--line-0);
   display: flex;
   align-items: center;
   gap: var(--s-5);
