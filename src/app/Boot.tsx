@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sigil } from '@/design/primitives';
+import { InvertedTab, Sigil } from '@/design/primitives';
 import { Wordmark } from '@/design/Wordmark';
 import s from './boot.module.css';
 
@@ -58,7 +58,7 @@ export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: b
       </div>
       <div className={s.center}>
         <Wordmark width={420} animated />
-        <Sigil size={11} className={s.sigil} />
+        <Sigil size={11} className={s.sigil} engraved />
       </div>
       <div className={s.console}>
         <div className={s.log}>
@@ -77,8 +77,9 @@ export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: b
           <span style={{ width: `${Math.max(4, progress * 100)}%` }} />
         </div>
         <div className={s.footer}>
-          <span>ARTEFACT CΛNTO · PROTOTYPE 0.1</span>
-          <span>{ready ? 'ACCÈS ACCORDÉ' : 'INITIALISATION'}</span>
+          <InvertedTab>CΛNTO · Artefact 002</InvertedTab>
+          <span>Design Unit · SIΞRRΛSKΛ Lab · Rev. A</span>
+          <span className={ready ? s.granted : undefined}>{ready ? 'Accès accordé' : 'Initialisation'}</span>
         </div>
       </div>
     </div>

@@ -92,14 +92,14 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
   return (
     <div className={s.rows}>
       <div className={s.kpis}>
-        <Stat label="PnL net" value={fmtUsd(t.netPnl, { sign: true })} hint={`${plural(t.count, 'trade')} · ${plural(sessions.length, 'séance')}`} tone={tone(t.netPnl)} />
-        <Stat label="Taux de réussite" value={fmtPct(t.winRate)} hint={`${t.wins} G · ${t.losses} P · ${t.breakeven} N`} tone={t.winRate >= 0.5 ? 'pos' : 'flat'} />
-        <Stat label="Profit factor" value={fmtRatio(t.profitFactor)} hint={`Payoff ${fmtRatio(t.payoffRatio)}`} tone={t.profitFactor >= 1.3 ? 'pos' : t.profitFactor < 1 ? 'neg' : 'flat'} />
-        <Stat label="Espérance / trade" value={fmtUsd(t.expectancy, { cents: true, sign: true })} hint={t.expectancyR !== null ? `${fmtRatio(t.expectancyR)} R` : `Médiane ${fmtUsd(t.medianPnl, { cents: true })}`} tone={tone(t.expectancy)} />
-        <Stat label="Sharpe (séances)" value={fmtRatio(d.sharpe)} hint={`Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)}`} tone={d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'} />
-        <Stat label="Drawdown max" value={fmtUsd(-d.maxDrawdown)} hint={`${plural(d.maxDrawdownDays, 'journée')} · actuel ${fmtUsd(-d.currentDrawdown)}`} tone={d.currentDrawdown > 0 ? 'neg' : 'flat'} />
-        <Stat label="SQN" value={fmtRatio(t.sqn)} hint={t.sqn >= 2.5 ? 'Système solide' : t.sqn >= 1.6 ? 'Correct' : 'Faible'} tone={t.sqn >= 2 ? 'pos' : 'flat'} />
-        <Stat label="Séances gagnantes" value={fmtPct(d.winDayRate)} hint={`${d.winDays} G · ${d.lossDays} P · meilleur ${fmtUsd(d.bestDay)}`} tone={d.winDayRate >= 0.5 ? 'pos' : 'flat'} />
+        <Stat label="PnL net" value={fmtUsd(t.netPnl, { sign: true })} num={t.netPnl} format={(v) => fmtUsd(v, { sign: true })} hint={`${plural(t.count, 'trade')} · ${plural(sessions.length, 'séance')}`} tone={tone(t.netPnl)} />
+        <Stat label="Réussite" value={fmtPct(t.winRate)} num={t.winRate} format={(v) => fmtPct(v)} hint={`${t.wins} G · ${t.losses} P · ${t.breakeven} N`} tone={t.winRate >= 0.5 ? 'pos' : 'flat'} />
+        <Stat label="Profit factor" value={fmtRatio(t.profitFactor)} num={Number.isFinite(t.profitFactor) ? t.profitFactor : undefined} format={(v) => fmtRatio(v)} hint={`Payoff ${fmtRatio(t.payoffRatio)}`} tone={t.profitFactor >= 1.3 ? 'pos' : t.profitFactor < 1 ? 'neg' : 'flat'} />
+        <Stat label="Espérance / trade" value={fmtUsd(t.expectancy, { cents: true, sign: true })} num={t.expectancy} format={(v) => fmtUsd(v, { cents: true, sign: true })} hint={t.expectancyR !== null ? `${fmtRatio(t.expectancyR)} R` : `Médiane ${fmtUsd(t.medianPnl, { cents: true })}`} tone={tone(t.expectancy)} />
+        <Stat label="Sharpe · séances" value={fmtRatio(d.sharpe)} num={d.sharpe} format={(v) => fmtRatio(v)} hint={`Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)}`} tone={d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'} />
+        <Stat label="Drawdown max" value={fmtUsd(-d.maxDrawdown)} num={-d.maxDrawdown} format={(v) => fmtUsd(v)} hint={`${plural(d.maxDrawdownDays, 'journée')} · actuel ${fmtUsd(-d.currentDrawdown)}`} tone={d.currentDrawdown > 0 ? 'neg' : 'flat'} />
+        <Stat label="SQN" value={fmtRatio(t.sqn)} num={t.sqn} format={(v) => fmtRatio(v)} hint={t.sqn >= 2.5 ? 'Système solide' : t.sqn >= 1.6 ? 'Correct' : 'Faible'} tone={t.sqn >= 2 ? 'pos' : 'flat'} />
+        <Stat label="Séances gagnantes" value={fmtPct(d.winDayRate)} num={d.winDayRate} format={(v) => fmtPct(v)} hint={`${d.winDays} G · ${d.lossDays} P · meilleur ${fmtUsd(d.bestDay)}`} tone={d.winDayRate >= 0.5 ? 'pos' : 'flat'} />
       </div>
 
       <div className={s.grid}>

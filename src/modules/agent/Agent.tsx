@@ -212,7 +212,7 @@ export default function Agent() {
                 {probeState && <Tag tone={probeState.ok ? 'mint' : 'ember'}>{probeState.ok ? 'joignable' : 'échec'}</Tag>}
               </div>
               <Field label="Consigne système">
-                <textarea rows={5} value={agent.systemPrompt} onChange={(e) => updateAgent({ systemPrompt: e.target.value })} style={{ fontSize: 11.5 }} />
+                <textarea rows={5} value={agent.systemPrompt} onChange={(e) => updateAgent({ systemPrompt: e.target.value })} style={{ fontSize: 12 }} />
               </Field>
             </div>
 

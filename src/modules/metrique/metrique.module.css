@@ -10,13 +10,18 @@
 }
 .kpis {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line-1);
+  border: 1px solid var(--line-1);
+  margin-bottom: 16px;
 }
-@media (max-width: 1500px) {
+.kpis > * {
+  border: 0;
+}
+@media (min-width: 1900px) {
   .kpis {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
   }
 }
 .grid {
@@ -169,7 +174,7 @@
 }
 .planItem small {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -184,11 +189,11 @@
   background: rgba(255, 255, 255, 0.02);
 }
 .statusBanner.objectif {
-  border-color: rgba(61, 220, 151, 0.4);
+  border-color: var(--mint-line);
   background: var(--mint-soft);
 }
 .statusBanner.echec {
-  border-color: rgba(255, 59, 78, 0.45);
+  border-color: var(--ember-line);
   background: var(--ember-soft);
 }
 .statusBanner h4 {
@@ -213,7 +218,7 @@
   height: 220px;
 }
 .note {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-3);
   line-height: 1.5;
 }

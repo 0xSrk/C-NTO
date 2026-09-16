@@ -37,7 +37,7 @@
 }
 .botItem small {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -59,16 +59,16 @@
   position: relative;
 }
 .stage b {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
 }
 .stage small {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.4;
 }
 .stage.done {
-  border-color: rgba(61, 220, 151, 0.35);
+  border-color: var(--mint-line);
 }
 .stage.done b {
   color: var(--mint);
@@ -101,7 +101,7 @@
   padding: 7px 10px;
   border: 1px solid var(--line-0);
   border-radius: var(--radius);
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-1);
 }
 .rule button {
@@ -131,11 +131,11 @@
 .guard::before {
   content: '▮';
   color: var(--ember);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.6;
 }
 .hint {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-3);
   line-height: 1.55;
 }
@@ -157,7 +157,7 @@
 }
 .phase i {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--gold);
   letter-spacing: 0.1em;
   padding-top: 2px;

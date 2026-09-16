@@ -126,7 +126,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         const a = nodes[i];
         const b = nodes[j];
         const hot = st.hover === i || st.hover === j;
-        ctx.strokeStyle = hot ? 'rgba(201,162,77,0.7)' : 'rgba(255,255,255,0.12)';
+        ctx.strokeStyle = hot ? 'rgba(211,171,83,0.7)' : 'rgba(255,255,255,0.12)';
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -138,17 +138,17 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         const hot = st.hover === i;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = active ? '#c9a24d' : hot ? '#f3f4f8' : n.title.startsWith('Journal ') ? '#7fd1ff' : '#8b91a3';
+        ctx.fillStyle = active ? '#d3ab53' : hot ? '#ffffff' : n.title.startsWith('Journal ') ? '#8fc7e8' : '#8a8a8a';
         ctx.fill();
         if (active || hot) {
           ctx.beginPath();
           ctx.arc(n.x, n.y, r + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = active ? 'rgba(201,162,77,0.5)' : 'rgba(255,255,255,0.3)';
+          ctx.strokeStyle = active ? 'rgba(211,171,83,0.5)' : 'rgba(255,255,255,0.3)';
           ctx.stroke();
         }
         if (hot || active || n.degree >= 2 || nodes.length <= 30) {
           ctx.font = `${11 / st.scale}px "JetBrains Mono Variable", monospace`;
-          ctx.fillStyle = hot || active ? '#f3f4f8' : 'rgba(139,145,163,0.9)';
+          ctx.fillStyle = hot || active ? '#ffffff' : 'rgba(138,138,138,0.9)';
           ctx.textAlign = 'center';
           ctx.fillText(n.title.length > 28 ? `${n.title.slice(0, 27)}…` : n.title, n.x, n.y + r + 13 / st.scale);
         }

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Progress, Sigil, cx } from '@/design/primitives';
+import { InvertedTab, Progress, cx } from '@/design/primitives';
+import { plural } from '@/lib/format';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { Button } from '@/design/primitives';
@@ -72,31 +73,46 @@ export function Shell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [setTab]);
 
+  const live = bridgeLive || orchestrator.running;
+  const liveLabel = bridgeLive && orchestrator.running ? 'Pont · Lien' : bridgeLive ? 'Pont NT8' : orchestrator.running ? 'Lien IA' : isDesk ? 'Veille' : 'Navigateur';
+
   return (
     <div className={s.shell}>
+      <div className={s.ambience} aria-hidden>
+        <div className={s.lightRoom} />
+        <div className={s.lightBeams} />
+        <div className={cx(s.lightWarm, !live && s.off)} />
+        <div className={s.lightHeader} />
+      </div>
+
       <header className={s.title}>
         <div className={s.brand}>
-          <Wordmark width={64} strokeWidth={1.1} color="var(--text-0)" />
+          <Wordmark width={62} strokeWidth={1.1} color="var(--text-0)" />
           <span className={s.brandSep} />
-          <Sigil size={9} className={s.brandSigil} />
+          <span className={s.brandMark}>SIΞRRΛSKΛ—LAB</span>
+          <InvertedTab>CΛNTO · Artefact 002</InvertedTab>
         </div>
         <div className={s.titleCenter}>
           <span>
-            <b>{active.code}</b> · {active.label}
+            <b>{active.code}</b> <span className={s.sep}>·</span> {active.label}
           </span>
-          <span>NASDAQ-100 · CME GLOBEX</span>
-          <span>NQ / MNQ</span>
+          <span>
+            NQ <span className={s.sep}>·</span> CME
+          </span>
         </div>
         <div className={s.titleRight}>
-          <span className={cx('micro')}>{isDesk ? 'SHELL LOCAL' : 'MODE NAVIGATEUR'}</span>
+          <span className={cx(s.livePill, live ? s.on : s.off)} title={bridgeStatus?.folder ?? undefined}>
+            <i className={s.liveDot} />
+            {liveLabel}
+          </span>
           {isDesk && (
             <div className={s.winControls}>
-              <button onClick={() => desk?.window.minimize()} aria-label="Réduire">
+              <button onClick={() => desk?.window.minimize()} aria-label="Réduire" title="Réduire">
                 <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1">
                   <path d="M0 5h10" />
                 </svg>
               </button>
-              <button onClick={() => desk?.window.toggleMaximize()} aria-label="Agrandir">
+              <button onClick={() => desk?.window.toggleMaximize()} aria-label="Agrandir" title="Agrandir">
                 {maximized ? (
                   <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1" fill="none">
                     <path d="M2 3h5v5H2zM3.5 3V1.5h5v5H7" />
@@ -107,7 +123,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   </svg>
                 )}
               </button>
-              <button className={s.close} onClick={() => desk?.window.close()} aria-label="Fermer">
+              <button className={s.close} onClick={() => desk?.window.close()} aria-label="Fermer" title="Fermer">
                 <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1">
                   <path d="M0 0l10 10M10 0L0 10" />
                 </svg>
@@ -128,7 +144,7 @@ export function Shell({ children }: { children: ReactNode }) {
             return (
               <button key={t.id} className={cx(s.navItem, tab === t.id && s.on)} onClick={() => setTab(t.id)} title={`${t.label} — Ctrl+${t.index.slice(-1)}`} aria-current={tab === t.id ? 'page' : undefined}>
                 <span className={s.navIndex}>{t.index}</span>
-                <Icon size={16} />
+                <Icon size={14} />
                 <span className={s.navLabel}>{t.label}</span>
                 <span className={s.navBadge}>
                   {t.id === 'metrique' && sessionsCount > 0 ? sessionsCount : ''}
@@ -139,6 +155,7 @@ export function Shell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className={s.railFoot}>
+          <div className={s.hatch} aria-hidden />
           <div className={s.capacity}>
             <div className={s.capacityRow}>
               <span>Séances</span>
@@ -149,27 +166,28 @@ export function Shell({ children }: { children: ReactNode }) {
             <Progress value={sessionsCount / SESSION_CAPACITY} tone={sessionsCount / SESSION_CAPACITY > 0.9 ? 'ember' : 'gold'} />
           </div>
           <div className={s.railMeta}>
-            <span>Artefact · prototype 0.1.0</span>
-            <span>Forgé par SIΞRRΛSKΛ</span>
+            <span>Design Unit</span>
+            <span>SIΞRRΛSKΛ Lab</span>
+            <span className={s.dimmer}>Rev. A · 0.1.0</span>
           </div>
         </div>
       </aside>
 
       <main className={s.main}>{children}</main>
 
-      <footer className={s.status}>
+      <footer className={cx(s.status, s.frameBottom)}>
         <MarketPhase />
         <span className={s.statusItem}>
-          <i className={cx(s.statusDot, orchestrator.running && s.ok, orchestrator.running && s.live)} />
-          Passerelle {orchestrator.running ? `active · ${orchestrator.clients} lien(s)` : 'en veille'}
+          <i className={cx(s.statusDot, orchestrator.running && s.gold, orchestrator.running && s.live)} />
+          Passerelle {orchestrator.running ? `active · ${plural(orchestrator.clients, 'lien')}` : 'en veille'}
         </span>
         <span className={s.statusItem} title={bridgeStatus?.folder ?? undefined}>
-          <i className={cx(s.statusDot, bridgeLive && s.ok, bridgeLive && s.live, !!bridgeStatus?.error && s.warn)} />
-          Pont NinjaTrader {bridgeStatus?.error ? 'en erreur' : bridgeLive ? `actif · ${bridgeStatus.files} fichier(s)` : isDesk ? 'non configuré' : 'import manuel'}
+          <i className={cx(s.statusDot, bridgeLive && s.gold, bridgeLive && s.live, !!bridgeStatus?.error && s.warn)} />
+          Pont NinjaTrader {bridgeStatus?.error ? 'en erreur' : bridgeLive ? `actif · ${plural(bridgeStatus.files, 'fichier')}` : isDesk ? 'non configuré' : 'import manuel'}
         </span>
         <div className={s.statusRight}>
           <Clocks />
-          <span className={cx(s.statusItem, s.statusHide)}>Coffre local · IndexedDB</span>
+          <span className={cx(s.statusItem, s.statusHide)}>Coffre local</span>
         </div>
       </footer>
 
@@ -206,7 +224,7 @@ function ConfirmDialog() {
         </>
       }
     >
-      <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.6 }}>{pending.text ?? 'Cette action ne peut pas être annulée.'}</p>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>{pending.text ?? 'Cette action ne peut pas être annulée.'}</p>
     </Modal>
   );
 }
@@ -241,11 +259,14 @@ export function ModuleHeader({ tab, actions }: { tab: TabId; actions?: ReactNode
   const def = TABS.find((t) => t.id === tab) ?? TABS[0];
   return (
     <div className={s.moduleHead}>
+      <span className={s.watermark} aria-hidden>
+        {def.code}
+      </span>
       <div className={s.moduleTitle}>
         <h1>
           {def.label}
           <small>
-            {def.index} · {def.code}
+            <b>{def.index}</b> · {def.code} · Rev. A
           </small>
         </h1>
         <span className={s.moduleTagline}>{def.tagline}</span>
