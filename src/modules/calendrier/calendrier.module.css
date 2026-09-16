@@ -1,0 +1,417 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.monthTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-0);
+  text-transform: capitalize;
+  min-width: 190px;
+}
+.filters {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.filterBtn {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.filterBtn.on {
+  color: var(--text-0);
+  border-color: var(--line-2);
+  background: rgba(255, 255, 255, 0.04);
+}
+.filterBtn i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cat);
+}
+
+/* ─── Grille ─────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, 0.45fr));
+  grid-auto-rows: minmax(104px, 1fr);
+  gap: 1px;
+  background: var(--line-0);
+  border: 1px solid var(--line-1);
+  flex: 1;
+  min-height: 0;
+}
+.dow {
+  grid-auto-rows: auto;
+  background: var(--bg-2);
+  border-bottom: none;
+}
+.dow span {
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  background: var(--bg-2);
+}
+.day {
+  background: var(--bg-1);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--t-fast) var(--ease);
+  border: 1px solid transparent;
+}
+.day:hover {
+  background: var(--bg-3);
+}
+.day.selected {
+  border-color: var(--gold-line);
+  background: var(--bg-3);
+}
+.day.weekend {
+  background: var(--bg-0);
+  opacity: 0.6;
+}
+.day.outside {
+  opacity: 0.35;
+}
+.day.holiday {
+  background: repeating-linear-gradient(-45deg, var(--bg-1), var(--bg-1) 6px, rgba(255, 255, 255, 0.02) 6px, rgba(255, 255, 255, 0.02) 12px);
+}
+.dayHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.dayNum {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+.day.today .dayNum {
+  color: var(--gold);
+  font-weight: 600;
+}
+.day.today .dayNum::after {
+  content: ' · auj.';
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+.dayPnl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 1px;
+}
+.dayPnl.pos {
+  background: var(--mint-soft);
+}
+.dayPnl.neg {
+  background: var(--ember-soft);
+}
+.evs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.ev {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 1px 4px;
+  border-radius: 1px;
+  border-left: 2px solid var(--cat);
+  background: rgba(255, 255, 255, 0.02);
+}
+.ev.impact3 {
+  color: var(--text-0);
+  background: color-mix(in srgb, var(--cat) 14%, transparent);
+}
+.ev time {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-3);
+}
+.more {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-3);
+  padding-left: 4px;
+}
+.noteDot {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+/* ─── Flux ───────────────────────────────────── */
+.flux {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--line-1);
+  background: var(--bg-1);
+}
+.fluxDay {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  border-bottom: 1px solid var(--line-0);
+}
+.fluxDay.selected {
+  background: rgba(201, 162, 77, 0.05);
+}
+.fluxDayHead {
+  padding: 10px 12px;
+  border-right: 1px solid var(--line-0);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+.fluxDayHead b {
+  font-size: 13px;
+  color: var(--text-0);
+  font-weight: 500;
+}
+.fluxDayHead b::first-letter {
+  text-transform: uppercase;
+}
+.fluxDayHead.today b {
+  color: var(--gold);
+}
+.fluxDayHead span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+}
+.fluxEvents {
+  display: flex;
+  flex-direction: column;
+}
+.fluxEv {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 12px;
+  border-bottom: 1px dashed var(--line-0);
+  cursor: pointer;
+  border-left: 2px solid var(--cat);
+}
+.fluxEv:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+.fluxEv:last-child {
+  border-bottom: none;
+}
+.fluxTime {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-1);
+}
+.fluxTime small {
+  display: block;
+  font-size: 9.5px;
+  color: var(--text-3);
+}
+.fluxTitle {
+  font-size: 12.5px;
+  color: var(--text-1);
+}
+.fluxTitle.impact3 {
+  color: var(--text-0);
+  font-weight: 500;
+}
+.fluxEmpty {
+  padding: 8px 12px;
+  color: var(--text-4);
+  font-size: 11px;
+}
+
+/* ─── Panneau latéral ────────────────────────── */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+.detailDate {
+  font-size: 15px;
+  color: var(--text-0);
+  font-weight: 600;
+}
+.evCard {
+  border: 1px solid var(--line-0);
+  border-left: 2px solid var(--cat);
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.evCardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.evCardHead b {
+  font-size: 12.5px;
+  color: var(--text-0);
+  font-weight: 500;
+  flex: 1;
+}
+.evCardHead time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold);
+}
+.evDesc {
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.tip {
+  font-size: 11.5px;
+  color: var(--text-1);
+  line-height: 1.5;
+  padding: 7px 9px;
+  border-radius: var(--radius);
+  background: var(--gold-soft);
+  border: 1px solid rgba(201, 162, 77, 0.2);
+}
+.tip::before {
+  content: 'Repère débutant — ';
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.impactBar {
+  display: inline-flex;
+  gap: 2px;
+}
+.impactBar i {
+  width: 4px;
+  height: 9px;
+  background: var(--line-2);
+}
+.impactBar i.on {
+  background: var(--cat);
+}
+.markers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.marker {
+  display: grid;
+  grid-template-columns: 52px 52px 1fr;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--line-0);
+}
+.marker b {
+  font-family: var(--font-mono);
+  color: var(--text-0);
+  font-weight: 500;
+}
+.marker small {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+.persoForm {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 6px;
+}
+.persoItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-1);
+  padding: 4px 0;
+}
+.persoItem time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold);
+}
+.persoItem button {
+  margin-left: auto;
+  color: var(--text-3);
+}
+.legendCats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.legendCats i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  background: var(--cat);
+}
+.side > * {
+  flex: none;
+}

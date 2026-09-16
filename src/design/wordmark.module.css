@@ -1,0 +1,83 @@
+.stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.85s cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
+  animation-delay: calc(0.12s + var(--i) * 0.1s);
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.glint {
+  stroke-dasharray: 0.06 0.94;
+  stroke-dashoffset: 1.06;
+  opacity: 0;
+  animation: glint 0.85s cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
+  animation-delay: calc(0.12s + var(--i) * 0.1s);
+}
+
+@keyframes glint {
+  0% {
+    stroke-dashoffset: 1.06;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+.guides line {
+  opacity: 0;
+  transform-origin: center;
+  animation: guide 1.7s ease-out forwards;
+}
+.guides .guideMid {
+  animation-delay: 0.1s;
+}
+.guides .guideV {
+  animation: guideV 1.5s ease-out forwards;
+  animation-delay: 0.2s;
+}
+
+@keyframes guide {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  25% {
+    opacity: 0.32;
+    transform: scaleX(1);
+  }
+  70% {
+    opacity: 0.18;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes guideV {
+  0% {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  30% {
+    opacity: 0.16;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(1);
+  }
+}

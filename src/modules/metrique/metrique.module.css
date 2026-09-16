@@ -1,0 +1,240 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.toolbar .spacer {
+  flex: 1;
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+@media (max-width: 1500px) {
+  .kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: stretch;
+}
+.gridTop {
+  align-items: start;
+}
+.c12 {
+  grid-column: span 12;
+}
+.c8 {
+  grid-column: span 8;
+}
+.c6 {
+  grid-column: span 6;
+}
+.c4 {
+  grid-column: span 4;
+}
+.c3 {
+  grid-column: span 3;
+}
+@media (max-width: 1280px) {
+  .c8,
+  .c6,
+  .c4,
+  .c3 {
+    grid-column: span 12;
+  }
+  .c6 {
+    grid-column: span 6;
+  }
+}
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.miniStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+.kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 14px;
+  font-size: 12px;
+}
+.kv dt {
+  color: var(--text-3);
+  margin: 0;
+}
+.kv dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--text-0);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+.splitWide {
+  grid-template-columns: minmax(0, 1fr) 520px;
+}
+.tableWrap {
+  overflow: auto;
+  max-height: calc(100vh - 330px);
+}
+.tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.stars {
+  display: inline-flex;
+  gap: 2px;
+}
+.stars button {
+  color: var(--text-4);
+  font-size: 13px;
+  line-height: 1;
+}
+.stars button.on {
+  color: var(--gold);
+}
+.detailHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.detailHead h2 {
+  font-size: 16px;
+  color: var(--text-0);
+}
+.detailPnl {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+}
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.formGrid .full {
+  grid-column: span 2;
+}
+.planCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.planList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 420px;
+  overflow: auto;
+}
+.planItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-0);
+  border-radius: var(--radius);
+  text-align: left;
+  color: var(--text-2);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.planItem:hover {
+  border-color: var(--line-2);
+  color: var(--text-0);
+}
+.planItem.on {
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+  color: var(--text-0);
+}
+.planItem small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.statusBanner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+.statusBanner.objectif {
+  border-color: rgba(61, 220, 151, 0.4);
+  background: var(--mint-soft);
+}
+.statusBanner.echec {
+  border-color: rgba(255, 59, 78, 0.45);
+  background: var(--ember-soft);
+}
+.statusBanner h4 {
+  font-size: 13px;
+  color: var(--text-0);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.statusBanner p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.warnList {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--amber);
+}
+.scatter {
+  width: 100%;
+  height: 220px;
+}
+.note {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.note b {
+  color: var(--text-2);
+  font-weight: 500;
+}
+.dropzone {
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12px;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.dropzone.over {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--text-0);
+}
+.rows > * {
+  flex: none;
+}
