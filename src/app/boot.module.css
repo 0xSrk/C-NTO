@@ -8,7 +8,7 @@
   align-items: center;
   justify-items: center;
   overflow: hidden;
-  transition: opacity 0.65s cubic-bezier(0.4, 0, 0.2, 1), transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1), transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-app-region: drag;
 }
 .boot.leaving {
@@ -31,7 +31,7 @@
   background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 30%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.22) 70%, transparent 100%);
   opacity: 0;
   filter: blur(0.2px);
-  animation: sweep 3.2s cubic-bezier(0.55, 0, 0.1, 1) infinite;
+  animation: sweep 2.4s cubic-bezier(0.55, 0, 0.1, 1) infinite;
 }
 .beams i:nth-child(1) {
   top: 18%;
@@ -39,12 +39,12 @@
 }
 .beams i:nth-child(2) {
   top: 56%;
-  animation-delay: 1.1s;
+  animation-delay: 0.8s;
   transform: rotate(-0.6deg);
 }
 .beams i:nth-child(3) {
   top: 78%;
-  animation-delay: 2.1s;
+  animation-delay: 1.5s;
   opacity: 0.6;
 }
 
@@ -73,8 +73,8 @@
   margin-top: 6vh;
 }
 .sigil {
-  animation: sigil-in 1.8s ease-out both;
-  animation-delay: 1.1s;
+  animation: sigil-in 1.1s ease-out both;
+  animation-delay: 0.55s;
 }
 @keyframes sigil-in {
   from {

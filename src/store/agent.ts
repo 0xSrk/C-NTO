@@ -32,6 +32,7 @@ interface AgentState {
   probe: () => Promise<{ ok: boolean; detail: string; models?: string[] }>;
   startOrchestrator: () => Promise<void>;
   stopOrchestrator: () => Promise<void>;
+  rotateToken: () => Promise<void>;
 }
 
 const MAX_TOOL_ROUNDS = 6;
@@ -86,7 +87,7 @@ export const useAgent = create<AgentState>((set, get) => ({
           return;
         }
         if (req.method.startsWith('bridge.')) {
-          api.orchestrator.respond(req.id, req.clientId, null, 'Pont NinjaTrader non disponible dans ce prototype (voir docs/PONT-NINJATRADER.md)');
+          api.orchestrator.respond(req.id, req.clientId, null, 'Transport WebSocket du pont non disponible : utiliser le transport fichier (Métrique › Pont NinjaTrader, docs/PONT-NINJATRADER.md)');
           log(false, 'pont non disponible');
           return;
         }
@@ -177,6 +178,11 @@ export const useAgent = create<AgentState>((set, get) => ({
     if (!desk) return;
     const status = await desk.orchestrator.stop();
     set({ orchestrator: status });
+  },
+
+  async rotateToken() {
+    if (!desk) return;
+    set({ orchestrator: await desk.orchestrator.rotateToken() });
   },
 }));
 

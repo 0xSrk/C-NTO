@@ -136,17 +136,48 @@ interface VaultFile {
   bots?: BotBlueprint[];
 }
 
+const MAX_ROWS = 200_000;
+
+/** Ne conserve que des objets simples porteurs d'une clé chaîne : écarte prototypes et valeurs parasites. */
+function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string): T[] {
+  if (input === undefined) return [];
+  if (!Array.isArray(input)) throw new Error(`Sauvegarde invalide : « ${label} » doit être une liste.`);
+  if (input.length > MAX_ROWS) throw new Error(`Sauvegarde invalide : « ${label} » dépasse ${MAX_ROWS} lignes.`);
+  const out: T[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const rec = item as Record<string, unknown>;
+    if (typeof rec[key] !== 'string' || (rec[key] as string).length === 0 || (rec[key] as string).length > 200) continue;
+    if ('__proto__' in rec || 'constructor' in rec) continue;
+    out.push({ ...rec } as T);
+  }
+  return out;
+}
+
 export async function restoreVault(json: string): Promise<{ sessions: number; trades: number; notes: number }> {
-  const data = JSON.parse(json) as VaultFile;
-  if (data.artefact !== 'CΛNTO') throw new Error('Fichier non reconnu : sauvegarde CΛNTO attendue.');
+  if (json.length > 400 * 1024 * 1024) throw new Error('Sauvegarde trop volumineuse.');
+  let data: VaultFile;
+  try {
+    data = JSON.parse(json) as VaultFile;
+  } catch {
+    throw new Error('Fichier illisible : JSON invalide.');
+  }
+  if (!data || typeof data !== 'object' || data.artefact !== 'CΛNTO') throw new Error('Fichier non reconnu : sauvegarde CΛNTO attendue.');
+  const sessions = rows<Session>(data.sessions, 'id', 'sessions');
+  const trades = rows<Trade>(data.trades, 'id', 'trades');
+  const notes = rows<Note>(data.notes, 'id', 'notes');
+  const calendar = rows<CalendarEntry>(data.calendar, 'id', 'calendar');
+  const settings = rows<Setting>(data.settings, 'key', 'settings');
+  const copierAccounts = rows<CopierAccount>(data.copierAccounts, 'id', 'copierAccounts');
+  const bots = rows<BotBlueprint>(data.bots, 'id', 'bots');
   await db.transaction('rw', [db.sessions, db.trades, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots], async () => {
-    if (data.sessions) await db.sessions.bulkPut(data.sessions);
-    if (data.trades) await db.trades.bulkPut(data.trades);
-    if (data.notes) await db.notes.bulkPut(data.notes);
-    if (data.calendar) await db.calendar.bulkPut(data.calendar);
-    if (data.settings) await db.settings.bulkPut(data.settings);
-    if (data.copierAccounts) await db.copierAccounts.bulkPut(data.copierAccounts);
-    if (data.bots) await db.bots.bulkPut(data.bots);
+    if (sessions.length) await db.sessions.bulkPut(sessions);
+    if (trades.length) await db.trades.bulkPut(trades);
+    if (notes.length) await db.notes.bulkPut(notes);
+    if (calendar.length) await db.calendar.bulkPut(calendar);
+    if (settings.length) await db.settings.bulkPut(settings);
+    if (copierAccounts.length) await db.copierAccounts.bulkPut(copierAccounts);
+    if (bots.length) await db.bots.bulkPut(bots);
   });
-  return { sessions: data.sessions?.length ?? 0, trades: data.trades?.length ?? 0, notes: data.notes?.length ?? 0 };
+  return { sessions: sessions.length, trades: trades.length, notes: notes.length };
 }

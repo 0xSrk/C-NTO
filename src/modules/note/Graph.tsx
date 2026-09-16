@@ -17,7 +17,7 @@ interface Node {
 /** Graphe de force minimaliste (canvas) : nœuds = notes, arêtes = liens [[wiki]]. */
 export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: string | null; onOpen: (id: string) => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const state = useRef<{ nodes: Node[]; edges: [number, number][]; hover: number | null; drag: number | null; offset: { x: number; y: number }; scale: number }>({ nodes: [], edges: [], hover: null, drag: null, offset: { x: 0, y: 0 }, scale: 1 });
+  const state = useRef<{ nodes: Node[]; edges: [number, number][]; hover: number | null; drag: number | null; offset: { x: number; y: number }; scale: number; frame: number; wake: (() => void) | null }>({ nodes: [], edges: [], hover: null, drag: null, offset: { x: 0, y: 0 }, scale: 1, frame: 0, wake: null });
 
   useEffect(() => {
     const byTitle = new Map(notes.map((n, i) => [n.title.toLowerCase(), i]));
@@ -40,6 +40,8 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
     });
     state.current.nodes = nodes;
     state.current.edges = edges;
+    state.current.frame = 0;
+    state.current.wake?.();
   }, [notes]);
 
   useEffect(() => {
@@ -48,9 +50,15 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let raf = 0;
-    let frame = 0;
+    let dirty = true;
+    const wake = () => {
+      dirty = true;
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+    state.current.wake = wake;
 
     const tick = () => {
+      raf = 0;
       const st = state.current;
       const { nodes, edges } = st;
       const rect = canvas.getBoundingClientRect();
@@ -62,7 +70,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       const cx = rect.width / 2 + st.offset.x;
       const cy = rect.height / 2 + st.offset.y;
 
-      if (frame < 600) {
+      if (st.frame < 600) {
         for (let i = 0; i < nodes.length; i++) {
           const a = nodes[i];
           for (let j = i + 1; j < nodes.length; j++) {
@@ -104,7 +112,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
           n.x += n.vx;
           n.y += n.vy;
         });
-        frame++;
+        st.frame++;
       }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -145,9 +153,14 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         }
       });
       ctx.restore();
-      raf = requestAnimationFrame(tick);
+      dirty = false;
+      // La simulation continue tant qu'elle n'a pas convergé ; ensuite le canvas ne se
+      // redessine que sur interaction (survol, glisser, zoom) : zéro CPU au repos.
+      if (st.frame < 600 || dirty) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
+    const ro = new ResizeObserver(() => wake());
+    ro.observe(canvas);
 
     const toWorld = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -174,16 +187,22 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       if (st.drag !== null) {
         st.nodes[st.drag].x = p.x;
         st.nodes[st.drag].y = p.y;
-        frame = Math.min(frame, 300);
+        st.frame = Math.min(st.frame, 300);
+        wake();
         return;
       }
       if (panning) {
         st.offset.x += e.clientX - panning.x;
         st.offset.y += e.clientY - panning.y;
         panning = { x: e.clientX, y: e.clientY };
+        wake();
         return;
       }
-      st.hover = pick(p);
+      const hover = pick(p);
+      if (hover !== st.hover) {
+        st.hover = hover;
+        wake();
+      }
       canvas.style.cursor = st.hover !== null ? 'pointer' : 'grab';
     };
     const onDown = (e: MouseEvent) => {
@@ -206,13 +225,16 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       e.preventDefault();
       const st = state.current;
       st.scale = Math.max(0.4, Math.min(2.5, st.scale * (e.deltaY > 0 ? 0.9 : 1.1)));
+      wake();
     };
     canvas.addEventListener('mousemove', onMove);
     canvas.addEventListener('mousedown', onDown);
     window.addEventListener('mouseup', onUp);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => {
-      cancelAnimationFrame(raf);
+      if (raf) cancelAnimationFrame(raf);
+      state.current.wake = null;
+      ro.disconnect();
       canvas.removeEventListener('mousemove', onMove);
       canvas.removeEventListener('mousedown', onDown);
       window.removeEventListener('mouseup', onUp);

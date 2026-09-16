@@ -18,6 +18,7 @@ const fmtUpdated = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'sh
 export default function Note() {
   const { notes, activeId, setActive, create, update, remove, openByTitle, dailyNote } = useNotes();
   const toast = useUi((u) => u.toast);
+  const confirmDialog = useUi((u) => u.confirm);
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('scinde');
@@ -115,7 +116,7 @@ export default function Note() {
             </div>
           ) : active ? (
             <Editor key={active.id} note={active} mode={mode} notes={notes} onChange={(patch) => update(active.id, patch)} onOpenTitle={(t) => openByTitle(t)} onTag={(t) => setTagFilter(t)} onDelete={async () => {
-              if (confirm(`Supprimer « ${active.title} » ?`)) {
+              if (await confirmDialog(`Supprimer « ${active.title} » ?`, 'La note et ses liens entrants seront perdus.')) {
                 await remove(active.id);
                 toast('Note supprimée.', 'warn');
               }

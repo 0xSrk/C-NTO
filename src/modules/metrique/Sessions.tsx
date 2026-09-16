@@ -113,6 +113,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
   const setTab = useUi((u) => u.setTab);
   const focusSession = useUi((u) => u.focusSession);
   const toast = useUi((u) => u.toast);
+  const confirmDialog = useUi((u) => u.confirm);
   const dailyNote = useNotes((n) => n.dailyNote);
   const [note, setNote] = useState(session.note ?? '');
   const [tagInput, setTagInput] = useState('');
@@ -185,7 +186,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
             size="sm"
             variant="ghost"
             onClick={async () => {
-              if (confirm(`Supprimer la séance du ${session.date} et ses ${session.tradeCount} trade(s) ?`)) {
+              if (await confirmDialog(`Supprimer la séance du ${formatDateFr(session.date)} ?`, `${session.tradeCount} trade(s) seront retirés du journal. Cette action est irréversible.`)) {
                 await deleteSession(session.id);
                 onDeleted();
               }

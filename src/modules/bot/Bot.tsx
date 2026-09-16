@@ -7,6 +7,7 @@ import { findPlan } from '@/engine/propfirm';
 import type { BotBlueprint } from '@/store/db';
 import { BOT_TEMPLATES, deriveGuards, useBots, type BotRule } from '@/store/bots';
 import { useSettings } from '@/store/settings';
+import { useUi } from '@/store/ui';
 import s from './bot.module.css';
 
 const STAGES: { id: BotBlueprint['status']; label: string; text: string }[] = [
@@ -27,6 +28,7 @@ export default function Bot() {
     const y = new Date().getFullYear();
     return deriveGuards(plan, [...generateNasdaqEvents(y), ...generateNasdaqEvents(y + 1)], 10);
   }, [plan]);
+  const confirmDialog = useUi((u) => u.confirm);
   const [ruleKind, setRuleKind] = useState<BotRule['kind']>('condition');
   const [ruleText, setRuleText] = useState('');
 
@@ -92,7 +94,7 @@ export default function Bot() {
                       size="sm"
                       variant="ghost"
                       onClick={async () => {
-                        if (confirm(`Supprimer l’automate « ${bot.name} » ?`)) await remove(bot.id);
+                        if (await confirmDialog(`Supprimer l’automate « ${bot.name} » ?`, `${bot.rules.length} règle(s) seront perdues.`)) await remove(bot.id);
                       }}
                       aria-label="Supprimer"
                     >

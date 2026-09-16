@@ -28,7 +28,7 @@ const PRESETS: { id: string; label: string; provider: AgentProvider; baseUrl: st
 ];
 
 export default function Agent() {
-  const { messages, streaming, streamText, pendingTool, error, send, stop, newConversation, probe, orchestrator, startOrchestrator, stopOrchestrator, linkLog } = useAgent();
+  const { messages, streaming, streamText, pendingTool, error, send, stop, newConversation, probe, orchestrator, startOrchestrator, stopOrchestrator, rotateToken, linkLog } = useAgent();
   const agent = useSettings((st) => st.settings.agent);
   const port = useSettings((st) => st.settings.orchestratorPort);
   const updateAgent = useSettings((st) => st.updateAgent);
@@ -243,10 +243,24 @@ export default function Agent() {
               ) : (
                 <div className={s.hint}>Disponible dans le shell local (Electron) : CΛNTO ouvre un serveur WebSocket sur 127.0.0.1 auquel un orchestrateur IA se connecte pour piloter le desk.</div>
               )}
+              {isDesk && orchestrator.token && (
+                <Field label="Jeton de session" hint="à fournir par l’orchestrateur : ?token=… ou desk.auth — les pages web sont refusées">
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input readOnly value={orchestrator.token} className="mono" style={{ flex: 1, fontSize: 11 }} onFocus={(e) => e.currentTarget.select()} />
+                    <Button size="sm" variant="ghost" onClick={() => navigator.clipboard?.writeText(orchestrator.token ?? '').then(() => toast('Jeton copié.', 'ok'))}>
+                      Copier
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => rotateToken()} title="Régénérer le jeton (déconnecte les liens)">
+                      Renouveler
+                    </Button>
+                  </div>
+                </Field>
+              )}
               <div className={s.hint}>
-                Protocole JSON-RPC 2.0 sur <code>ws://127.0.0.1:{port}</code>. Méthodes : <code>desk.describe</code>, <code>desk.ping</code>, puis <code>tool.&lt;nom&gt;</code> pour chaque outil natif.
+                Protocole JSON-RPC 2.0 sur <code>ws://127.0.0.1:{port}/?token=…</code>. Méthodes : <code>desk.auth</code>, <code>desk.describe</code>, <code>desk.ping</code>, puis <code>tool.&lt;nom&gt;</code> pour chaque outil natif.
               </div>
-              <pre className={s.proto}>{`→ {"jsonrpc":"2.0","id":1,"method":"desk.describe"}
+              <pre className={s.proto}>{`→ {"jsonrpc":"2.0","id":0,"method":"desk.auth","params":{"token":"…"}}
+→ {"jsonrpc":"2.0","id":1,"method":"desk.describe"}
 → {"jsonrpc":"2.0","id":2,"method":"tool.desk_overview","params":{}}
 → {"jsonrpc":"2.0","id":3,"method":"tool.list_sessions",
    "params":{"from":"2026-09-01","limit":10}}

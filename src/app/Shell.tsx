@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Progress, Sigil, cx } from '@/design/primitives';
 import { Wordmark } from '@/design/Wordmark';
+import { Modal } from '@/design/Modal';
+import { Button } from '@/design/primitives';
 import { SESSION_CAPACITY } from '@/engine/types';
 import { desk, isDesk } from '@/lib/desk';
 import { ET_ZONE } from '@/lib/time';
@@ -12,12 +14,12 @@ import { useBridge } from '@/store/bridge';
 import { TABS } from './tabs';
 import s from './shell.module.css';
 
-function useClock() {
+function useClock(everyMs = 1000) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
+    const t = setInterval(() => setNow(new Date()), everyMs);
     return () => clearInterval(t);
-  }, []);
+  }, [everyMs]);
   return now;
 }
 
@@ -47,8 +49,6 @@ export function Shell({ children }: { children: ReactNode }) {
   const orchestrator = useAgent((a) => a.orchestrator);
   const bridgeStatus = useBridge((b) => b.status);
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
-  const now = useClock();
-  const phase = marketPhase(now);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
   const [maximized, setMaximized] = useState(false);
 
@@ -154,10 +154,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <main className={s.main}>{children}</main>
 
       <footer className={s.status}>
-        <span className={s.statusItem}>
-          <i className={cx(s.statusDot, phase.tone === 'ok' && s.ok, phase.tone === 'warn' && s.warn, phase.tone === 'ok' && s.live)} />
-          {phase.label}
-        </span>
+        <MarketPhase />
         <span className={s.statusItem}>
           <i className={cx(s.statusDot, orchestrator.running && s.ok, orchestrator.running && s.live)} />
           Passerelle {orchestrator.running ? `active · ${orchestrator.clients} lien(s)` : 'en veille'}
@@ -167,12 +164,7 @@ export function Shell({ children }: { children: ReactNode }) {
           Pont NinjaTrader {bridgeStatus?.error ? 'en erreur' : bridgeLive ? `actif · ${bridgeStatus.files} fichier(s)` : isDesk ? 'non configuré' : 'import manuel'}
         </span>
         <div className={s.statusRight}>
-          <span className={s.statusItem}>
-            Local <b>{fmtLocal.format(now)}</b>
-          </span>
-          <span className={s.statusItem}>
-            New York <b>{fmtEt.format(now)} ET</b>
-          </span>
+          <Clocks />
           <span className={s.statusItem}>Coffre local · IndexedDB</span>
         </div>
       </footer>
@@ -184,7 +176,60 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
+      <ConfirmDialog />
     </div>
+  );
+}
+
+function ConfirmDialog() {
+  const pending = useUi((u) => u.pendingConfirm);
+  const resolve = useUi((u) => u.resolveConfirm);
+  if (!pending) return null;
+  return (
+    <Modal
+      title={pending.title}
+      sub="confirmation requise"
+      onClose={() => resolve(false)}
+      width={460}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => resolve(false)} autoFocus>
+            Annuler
+          </Button>
+          <Button variant={pending.danger ? 'danger' : 'gold'} onClick={() => resolve(true)}>
+            Confirmer
+          </Button>
+        </>
+      }
+    >
+      <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.6 }}>{pending.text ?? 'Cette action ne peut pas être annulée.'}</p>
+    </Modal>
+  );
+}
+
+/** Horloges isolées : seules ces cellules se rafraîchissent chaque seconde. */
+function Clocks() {
+  const now = useClock();
+  return (
+    <>
+      <span className={s.statusItem}>
+        Local <b>{fmtLocal.format(now)}</b>
+      </span>
+      <span className={s.statusItem}>
+        New York <b>{fmtEt.format(now)} ET</b>
+      </span>
+    </>
+  );
+}
+
+function MarketPhase() {
+  const now = useClock(30_000);
+  const phase = marketPhase(now);
+  return (
+    <span className={s.statusItem}>
+      <i className={cx(s.statusDot, phase.tone === 'ok' && s.ok, phase.tone === 'warn' && s.warn, phase.tone === 'ok' && s.live)} />
+      {phase.label}
+    </span>
   );
 }
 

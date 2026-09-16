@@ -1,6 +1,5 @@
 @import '@fontsource-variable/space-grotesk/index.css';
 @import '@fontsource-variable/jetbrains-mono/index.css';
-@import '@fontsource/michroma/index.css';
 
 :root {
   --bg-void: #04050a;
@@ -39,7 +38,6 @@
 
   --font-ui: 'Space Grotesk Variable', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  --font-display: 'Michroma', var(--font-ui);
 
   --radius: 2px;
   --radius-lg: 4px;

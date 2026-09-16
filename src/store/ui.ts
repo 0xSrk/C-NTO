@@ -21,6 +21,10 @@ interface UiState {
   /** Date choisie dans le calendrier, ouverte depuis un autre module */
   focusDate: string | null;
   focusOnDate: (d: string | null) => void;
+  /** Dialogue de confirmation (remplace window.confirm) */
+  pendingConfirm: { title: string; text?: string; danger?: boolean; resolve: (ok: boolean) => void } | null;
+  confirm: (title: string, text?: string, danger?: boolean) => Promise<boolean>;
+  resolveConfirm: (ok: boolean) => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -37,4 +41,14 @@ export const useUi = create<UiState>((set, get) => ({
   focusSession: (id) => set({ focusSessionId: id }),
   focusDate: null,
   focusOnDate: (d) => set({ focusDate: d }),
+  pendingConfirm: null,
+  confirm(title, text, danger = true) {
+    get().pendingConfirm?.resolve(false);
+    return new Promise<boolean>((resolve) => set({ pendingConfirm: { title, text, danger, resolve } }));
+  },
+  resolveConfirm(ok) {
+    const p = get().pendingConfirm;
+    set({ pendingConfirm: null });
+    p?.resolve(ok);
+  },
 }));

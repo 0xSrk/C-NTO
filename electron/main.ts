@@ -109,6 +109,7 @@ const MAX_TEXT = 50 * 1024 * 1024;
 ipcMain.handle('orch:start', (e, port: unknown) => (trusted(e) && isPort(port) ? orchestrator.start(port) : orchestrator.status()));
 ipcMain.handle('orch:stop', (e) => (trusted(e) ? orchestrator.stop() : orchestrator.status()));
 ipcMain.handle('orch:status', () => orchestrator.status());
+ipcMain.handle('orch:rotate-token', (e) => (trusted(e) ? orchestrator.rotateToken() : orchestrator.status()));
 ipcMain.on('orch:respond', (e, id: unknown, clientId: unknown, result: unknown, error?: unknown) => {
   if (!trusted(e) || !isString(id, 64) || !isString(clientId, 32)) return;
   orchestrator.respond(id, clientId, result, isString(error, 2000) ? error : undefined);

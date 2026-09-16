@@ -10,7 +10,8 @@ export interface BootStep {
   detail?: string;
 }
 
-const MIN_DURATION_MS = 3400;
+const MIN_DURATION_MS = 1500;
+const LEAVE_MS = 420;
 
 export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: boolean; onFinished: () => void }) {
   const [startedAt] = useState(() => Date.now());
@@ -18,20 +19,32 @@ export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: b
   const [visibleCount, setVisibleCount] = useState(0);
 
   useEffect(() => {
-    const t = setInterval(() => setVisibleCount((c) => Math.min(steps.length, c + 1)), 260);
+    const t = setInterval(() => setVisibleCount((c) => Math.min(steps.length, c + 1)), 120);
     return () => clearInterval(t);
   }, [steps.length]);
 
+  const [skipped, setSkipped] = useState(false);
   useEffect(() => {
     if (!ready) return;
-    const remaining = Math.max(0, MIN_DURATION_MS - (Date.now() - startedAt));
+    const remaining = skipped ? 0 : Math.max(0, MIN_DURATION_MS - (Date.now() - startedAt));
     const t1 = setTimeout(() => setLeaving(true), remaining);
-    const t2 = setTimeout(onFinished, remaining + 650);
+    const t2 = setTimeout(onFinished, remaining + LEAVE_MS);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [ready, startedAt, onFinished]);
+  }, [ready, skipped, startedAt, onFinished]);
+
+  // Un clic ou une touche écourte l'attente dès que le desk est prêt.
+  useEffect(() => {
+    const skip = () => setSkipped(true);
+    window.addEventListener('keydown', skip);
+    window.addEventListener('pointerdown', skip);
+    return () => {
+      window.removeEventListener('keydown', skip);
+      window.removeEventListener('pointerdown', skip);
+    };
+  }, []);
 
   const completed = steps.filter((st) => st.status !== 'pending').length;
   const progress = steps.length ? completed / steps.length : 0;
@@ -65,7 +78,7 @@ export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: b
         </div>
         <div className={s.footer}>
           <span>ARTEFACT CΛNTO · PROTOTYPE 0.1</span>
-          <span>{ready && visibleCount >= steps.length ? 'ACCÈS ACCORDÉ' : 'INITIALISATION'}</span>
+          <span>{ready ? 'ACCÈS ACCORDÉ' : 'INITIALISATION'}</span>
         </div>
       </div>
     </div>

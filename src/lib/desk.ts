@@ -10,6 +10,8 @@ export interface OrchestratorStatus {
   running: boolean;
   port: number;
   clients: number;
+  /** Jeton de session à fournir par l'orchestrateur (`?token=` ou `desk.auth`) */
+  token?: string;
   error?: string;
 }
 
@@ -65,6 +67,7 @@ export interface DeskApi {
     start: (port: number) => Promise<OrchestratorStatus>;
     stop: () => Promise<OrchestratorStatus>;
     status: () => Promise<OrchestratorStatus>;
+    rotateToken: () => Promise<OrchestratorStatus>;
     respond: (id: string, clientId: string, result: unknown, error?: string) => void;
     broadcast: (event: string, payload: unknown) => void;
     onRequest: (cb: (req: OrchestratorRequest) => void) => () => void;

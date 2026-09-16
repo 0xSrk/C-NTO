@@ -12,6 +12,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const clearAll = useJournal((j) => j.clearAll);
   const count = useJournal((j) => j.sessions.length);
   const toast = useUi((u) => u.toast);
+  const confirmDialog = useUi((u) => u.confirm);
 
   return (
     <Modal
@@ -25,7 +26,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             variant="danger"
             size="sm"
             onClick={async () => {
-              if (count && confirm(`Effacer les ${count} séances et tous les trades du coffre ? Cette action est irréversible (exportez le coffre avant).`)) {
+              if (count && (await confirmDialog(`Effacer les ${count} séances et tous les trades ?`, 'Cette action est irréversible : exportez le coffre avant si nécessaire.'))) {
                 await clearAll();
                 toast('Journal effacé.', 'warn');
                 onClose();

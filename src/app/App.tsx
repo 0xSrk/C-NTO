@@ -9,6 +9,7 @@ import { useNotes } from '@/store/notes';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { Boot, type BootStep } from './Boot';
+import { ErrorBoundary } from './ErrorBoundary';
 import { Shell } from './Shell';
 
 const Metrique = lazy(() => import('@/modules/metrique/Metrique'));
@@ -41,44 +42,59 @@ function mark(id: string, status: BootStep['status'], detail?: string) {
   for (const l of listeners) l(id, status, detail);
 }
 
+export interface BootTimings {
+  /** ms depuis l'origine de navigation */
+  bootStart: number;
+  bootReady: number;
+  deskShown: number | null;
+}
+export const bootTimings: BootTimings = { bootStart: 0, bootReady: 0, deskShown: null };
+
+async function step(id: string, run: () => Promise<[BootStep['status'], string | undefined]>): Promise<void> {
+  try {
+    const [status, detail] = await run();
+    mark(id, status, detail);
+  } catch (e) {
+    mark(id, 'warn', e instanceof Error ? e.message : 'indisponible');
+  }
+}
+
 function boot(): Promise<void> {
   if (bootPromise) return bootPromise;
+  bootTimings.bootStart = performance.now();
   bootPromise = (async () => {
     mark('core', 'ok', isDesk ? 'shell Electron' : 'navigateur');
-    try {
+    // Précharge le module d'accueil pendant l'écran de chargement.
+    void import('@/modules/metrique/Metrique');
+    const year = new Date().getFullYear();
+    // Les réglages d'abord (pilotent l'import du pont), puis tous les coffres en parallèle.
+    await step('vault', async () => {
       await useSettings.getState().load();
       await useJournal.getState().load();
       const j = useJournal.getState();
-      mark('vault', 'ok', `${j.sessions.length} séance(s) · ${j.trades.length} trade(s)`);
-    } catch (e) {
-      mark('vault', 'warn', e instanceof Error ? e.message : 'indisponible');
-    }
-    mark('engine', 'ok', 'ratios · Monte Carlo · prop firm');
-    const year = new Date().getFullYear();
-    mark('calendar', 'ok', `${generateNasdaqEvents(year).length} repères ${year}`);
-    try {
-      await useNotes.getState().load();
-      await useCalendar.getState().load();
-      mark('notes', 'ok', `${useNotes.getState().notes.length} note(s)`);
-    } catch {
-      mark('notes', 'warn', 'indisponible');
-    }
-    try {
-      await useAgent.getState().load();
-      const o = useAgent.getState().orchestrator;
-      mark('agent', o.running ? 'ok' : 'off', o.running ? `port ${o.port}` : 'en veille');
-    } catch {
-      mark('agent', 'warn', 'erreur');
-    }
-    try {
-      await useBridge.getState().load();
-      const b = useBridge.getState().status;
-      if (!isDesk) mark('bridge', 'off', 'navigateur · import manuel');
-      else if (b?.enabled && b.folder) mark('bridge', b.error ? 'warn' : 'ok', b.error ?? `dossier surveillé · ${b.files} fichier(s)`);
-      else mark('bridge', 'off', 'non configuré');
-    } catch {
-      mark('bridge', 'warn', 'erreur');
-    }
+      return ['ok', `${j.sessions.length} séance(s) · ${j.trades.length} trade(s)`];
+    });
+    await Promise.all([
+      step('engine', async () => ['ok', 'ratios · Monte Carlo · prop firm']),
+      step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} repères ${year}`]),
+      step('notes', async () => {
+        await Promise.all([useNotes.getState().load(), useCalendar.getState().load()]);
+        return ['ok', `${useNotes.getState().notes.length} note(s)`];
+      }),
+      step('agent', async () => {
+        await useAgent.getState().load();
+        const o = useAgent.getState().orchestrator;
+        return [o.running ? 'ok' : 'off', o.running ? `port ${o.port}` : 'en veille'];
+      }),
+      step('bridge', async () => {
+        await useBridge.getState().load();
+        const b = useBridge.getState().status;
+        if (!isDesk) return ['off', 'navigateur · import manuel'];
+        if (b?.enabled && b.folder) return [b.error ? 'warn' : 'ok', b.error ?? `dossier surveillé · ${b.files} fichier(s)`];
+        return ['off', 'non configuré'];
+      }),
+    ]);
+    bootTimings.bootReady = performance.now();
   })();
   return bootPromise;
 }
@@ -101,21 +117,26 @@ export function App() {
     };
   }, []);
 
-  const finish = useCallback(() => setBooted(true), []);
+  const finish = useCallback(() => {
+    bootTimings.deskShown = performance.now();
+    setBooted(true);
+  }, []);
 
   return (
     <>
       {booted && (
         <Shell>
-          <Suspense fallback={<div className="micro" style={{ padding: 24 }}>Chargement du module…</div>}>
-            {tab === 'metrique' && <Metrique />}
-            {tab === 'visual' && <Visual />}
-            {tab === 'calendrier' && <Calendrier />}
-            {tab === 'note' && <Note />}
-            {tab === 'agent' && <Agent />}
-            {tab === 'bot' && <Bot />}
-            {tab === 'copieur' && <Copieur />}
-          </Suspense>
+          <ErrorBoundary resetKey={tab}>
+            <Suspense fallback={<div className="micro" style={{ padding: 24 }}>Chargement du module…</div>}>
+              {tab === 'metrique' && <Metrique />}
+              {tab === 'visual' && <Visual />}
+              {tab === 'calendrier' && <Calendrier />}
+              {tab === 'note' && <Note />}
+              {tab === 'agent' && <Agent />}
+              {tab === 'bot' && <Bot />}
+              {tab === 'copieur' && <Copieur />}
+            </Suspense>
+          </ErrorBoundary>
         </Shell>
       )}
       {!booted && <Boot steps={steps} ready={ready} onFinished={finish} />}
