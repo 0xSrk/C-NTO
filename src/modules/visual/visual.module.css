@@ -60,7 +60,7 @@
 }
 .side {
   border-left: 1px solid var(--line-1);
-  background: rgba(10, 12, 18, 0.7);
+  background: color-mix(in srgb, var(--bg-0) 70%, transparent);
   display: flex;
   flex-direction: column;
   min-height: 0;
