@@ -12,11 +12,14 @@
         --text-0: #ffffff;
         --text-1: #c4c4c4;
         --text-2: #7a7a7a;
-        --line: rgba(255, 255, 255, 0.12);
+        --text-3: #5a5a5a;
+        --line: rgba(255, 255, 255, 0.1);
+        --line-fine: rgba(255, 255, 255, 0.06);
         --led: #c41e3a;
         --amber: #d8b45a;
         --font: 'Segoe UI', 'Helvetica Neue', sans-serif;
         --mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+        --ease: cubic-bezier(0.4, 0, 0.2, 1);
       }
       * {
         box-sizing: border-box;
@@ -39,23 +42,42 @@
         flex-direction: column;
         padding: 28px 32px 24px;
         position: relative;
+        transition: opacity 0.55s var(--ease), transform 0.7s var(--ease);
       }
       .frame::before,
-      .frame::after {
-        content: '+';
+      .frame::after,
+      .frame .c-bl,
+      .frame .c-br {
         position: absolute;
         font-family: var(--mono);
-        font-size: 11px;
-        color: var(--text-2);
+        font-size: 10px;
+        color: var(--text-3);
         -webkit-app-region: no-drag;
+        line-height: 1;
       }
       .frame::before {
+        content: '+';
         top: 10px;
         left: 10px;
       }
       .frame::after {
+        content: '+';
         top: 10px;
         right: 10px;
+      }
+      .frame .c-bl {
+        content: '+';
+        bottom: 10px;
+        left: 10px;
+      }
+      .frame .c-br {
+        bottom: 10px;
+        right: 10px;
+      }
+      .frame.leaving {
+        opacity: 0;
+        transform: scale(0.985);
+        pointer-events: none;
       }
       .chrome {
         display: flex;
@@ -73,7 +95,7 @@
       }
       .chrome button:hover {
         color: var(--text-0);
-        background: #111;
+        background: #0a0a0a;
       }
       .chrome button.x:hover {
         background: var(--led);
@@ -87,14 +109,21 @@
         gap: 18px;
         flex: 1;
         justify-content: center;
+        transition: opacity 0.4s var(--ease);
+      }
+      .frame.leaving .brand {
+        opacity: 0;
       }
       .mark {
-        width: 72px;
-        height: 72px;
+        width: 64px;
+        height: 64px;
       }
       .word {
-        width: 220px;
+        width: 200px;
         height: auto;
+      }
+      .word path {
+        stroke-width: 1;
       }
       .lab {
         font-family: var(--mono);
@@ -113,6 +142,11 @@
         flex-direction: column;
         gap: 10px;
         margin-top: auto;
+        transition: opacity 0.35s var(--ease);
+      }
+      .frame.leaving .actions,
+      .frame.leaving .meta {
+        opacity: 0;
       }
       .btn {
         height: 44px;
@@ -127,8 +161,8 @@
         transition: background 120ms linear, border-color 120ms linear, color 120ms linear;
       }
       .btn:hover:not(:disabled) {
-        background: #0a0a0a;
-        border-color: rgba(255, 255, 255, 0.28);
+        background: #080808;
+        border-color: rgba(255, 255, 255, 0.22);
       }
       .btn:disabled {
         opacity: 0.45;
@@ -162,6 +196,7 @@
         min-height: 28px;
         line-height: 1.4;
         -webkit-app-region: no-drag;
+        transition: opacity 0.35s var(--ease);
       }
       .meta.warn {
         color: var(--amber);
@@ -169,10 +204,89 @@
       .meta.err {
         color: #e07070;
       }
+
+      /* ─── Transition : traits symétriques + nano-circuit ─── */
+      .xfer {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        pointer-events: none;
+        opacity: 0;
+        background: #000;
+      }
+      .xfer.on {
+        opacity: 1;
+        transition: opacity 0.2s linear;
+      }
+      .xfer svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .xfer .trace {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.18);
+        stroke-width: 0.75;
+        stroke-linecap: square;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+      }
+      .xfer.on .trace {
+        animation: draw 0.9s var(--ease) forwards;
+      }
+      .xfer .trace.led {
+        stroke: rgba(196, 30, 58, 0.5);
+        stroke-width: 0.85;
+      }
+      .xfer .inset {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.07);
+        stroke-width: 0.75;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+        opacity: 1;
+      }
+      .xfer.on .inset {
+        animation: draw 0.75s var(--ease) 0.12s forwards;
+      }
+      .xfer .node {
+        fill: rgba(255, 255, 255, 0.4);
+        opacity: 0;
+      }
+      .xfer .node.led {
+        fill: var(--led);
+      }
+      .xfer.on .node {
+        animation: node-in 0.22s linear forwards;
+      }
+      @keyframes draw {
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes node-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .xfer canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        mix-blend-mode: screen;
+        opacity: 0.85;
+      }
     </style>
   </head>
   <body>
-    <div class="frame">
+    <div class="frame" id="frame">
+      <span class="c-bl" aria-hidden>+</span>
+      <span class="c-br" aria-hidden>+</span>
       <div class="chrome">
         <button type="button" class="x" id="btn-close" aria-label="Fermer" title="Fermer">✕</button>
       </div>
@@ -182,7 +296,7 @@
           <path d="M18 18h9v36H18zm25 0H54v36H43V33L33.5 54h-7L37 33.5 26.5 18H34l6 12.5z" fill="#c41e3a" />
         </svg>
         <svg class="word" viewBox="0 0 640 160" fill="none" aria-label="CΛNTO">
-          <g stroke="#ffffff" stroke-width="1.25" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
+          <g stroke="#ffffff" stroke-width="1" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
             <path d="M136 40 A48 48 0 1 0 136 120" />
             <path d="M176 128 L224 32 L272 128" />
             <path d="M304 128 L304 32 L384 128 L384 32" />
@@ -197,6 +311,42 @@
         <button type="button" class="btn" id="btn-update" hidden>Mettre à jour</button>
       </div>
       <p class="meta" id="meta">Contrôle de version…</p>
+    </div>
+
+    <div class="xfer" id="xfer" aria-hidden="true">
+      <svg viewBox="0 0 420 560" preserveAspectRatio="none">
+        <!-- Cadres incrustés -->
+        <rect class="inset" x="24" y="24" width="372" height="512" pathLength="1" />
+        <rect class="inset" x="48" y="48" width="324" height="464" pathLength="1" style="animation-delay: 0.28s" />
+        <!-- Traits horizontaux symétriques -->
+        <path class="trace" pathLength="1" d="M0 180 H210" style="animation-delay: 0.05s" />
+        <path class="trace" pathLength="1" d="M420 180 H210" style="animation-delay: 0.05s" />
+        <path class="trace" pathLength="1" d="M0 280 H210" style="animation-delay: 0.18s" />
+        <path class="trace" pathLength="1" d="M420 280 H210" style="animation-delay: 0.18s" />
+        <path class="trace" pathLength="1" d="M0 380 H210" style="animation-delay: 0.3s" />
+        <path class="trace" pathLength="1" d="M420 380 H210" style="animation-delay: 0.3s" />
+        <!-- Traits verticaux -->
+        <path class="trace" pathLength="1" d="M140 0 V560" style="animation-delay: 0.12s" />
+        <path class="trace" pathLength="1" d="M280 0 V560" style="animation-delay: 0.12s" />
+        <!-- Filets LED -->
+        <path class="trace led" pathLength="1" d="M210 80 V480" style="animation-delay: 0.35s" />
+        <path class="trace led" pathLength="1" d="M80 280 H340" style="animation-delay: 0.42s" />
+        <!-- Nano nœuds (1×1 px) -->
+        <rect class="node" x="209.5" y="179.5" width="1" height="1" style="animation-delay: 0.55s" />
+        <rect class="node led" x="209.5" y="279.5" width="1" height="1" style="animation-delay: 0.62s" />
+        <rect class="node" x="209.5" y="379.5" width="1" height="1" style="animation-delay: 0.7s" />
+        <rect class="node" x="139.5" y="279.5" width="1" height="1" style="animation-delay: 0.58s" />
+        <rect class="node" x="279.5" y="279.5" width="1" height="1" style="animation-delay: 0.58s" />
+        <rect class="node led" x="139.5" y="179.5" width="1" height="1" style="animation-delay: 0.66s" />
+        <rect class="node led" x="279.5" y="179.5" width="1" height="1" style="animation-delay: 0.66s" />
+        <rect class="node" x="139.5" y="379.5" width="1" height="1" style="animation-delay: 0.74s" />
+        <rect class="node" x="279.5" y="379.5" width="1" height="1" style="animation-delay: 0.74s" />
+        <rect class="node" x="79.5" y="279.5" width="1" height="1" style="animation-delay: 0.68s" />
+        <rect class="node" x="339.5" y="279.5" width="1" height="1" style="animation-delay: 0.68s" />
+        <rect class="node led" x="209.5" y="79.5" width="1" height="1" style="animation-delay: 0.78s" />
+        <rect class="node led" x="209.5" y="479.5" width="1" height="1" style="animation-delay: 0.78s" />
+      </svg>
+      <canvas id="nano" width="420" height="560"></canvas>
     </div>
     <script src="./launcher-ui.js"></script>
   </body>
