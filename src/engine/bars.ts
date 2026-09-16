@@ -1,4 +1,4 @@
-import { parseCsv, parseLocaleNumber } from '@/lib/csv';
+import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { gaussian, mulberry32 } from '@/lib/rng';
 import { detectDayFirst, parseFlexibleDateTime, zonedToUtc, ET_ZONE } from '@/lib/time';
 import type { Instrument } from './types';
@@ -110,7 +110,7 @@ export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] }
   if (iTime === -1 || iOpen === -1 || iHigh === -1 || iLow === -1 || iClose === -1) {
     return { bars: [], warnings: ['Colonnes attendues : Time/Date, Open, High, Low, Close, (Volume).'] };
   }
-  const dec: ',' | '.' | undefined = table.delimiter === ';' ? ',' : undefined;
+  const dec = detectDecimalSeparator(rows.slice(0, 80).map((r) => r[iClose] ?? '')) ?? (table.delimiter === ';' ? ',' : undefined);
   const dayFirst = detectDayFirst(rows.slice(0, 50).map((r) => r[iTime] ?? ''));
   const bars: Bar[] = [];
   let skipped = 0;

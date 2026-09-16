@@ -1,11 +1,54 @@
-# Pont NinjaTrader — spécification du protocole CΛNTO Bridge
+# Pont NinjaTrader — CΛNTO Bridge
 
-Le pont relie NinjaTrader 8 (poste du trader) au shell CΛNTO, en local uniquement. Il est composé de deux moitiés :
+Le pont relie NinjaTrader 8 (poste du trader) au desk CΛNTO, en local uniquement. Aucune donnée ne quitte la machine : pas de serveur tiers, pas de télémétrie.
 
-- **Côté CΛNTO** : un serveur WebSocket JSON-RPC 2.0 ouvert par le shell Electron sur `ws://127.0.0.1:<port>` (module *Agent IA › Orchestrateur externe* — le même serveur accepte l'orchestrateur IA et le pont, différenciés par la méthode `hello`).
-- **Côté NinjaTrader** : un AddOn NinjaScript (« CΛNTO Bridge », livraison ultérieure) qui se connecte au serveur, publie l'état des comptes et exécute les ordres de réplication.
+Il existe en deux étages :
 
-Aucune donnée ne quitte la machine : pas de serveur tiers, pas de télémétrie.
+| Étage | État | Rôle |
+| --- | --- | --- |
+| **Transport fichier (CSV)** | **implémenté** | import automatique des exécutions et des exports NinjaTrader vers le journal Métrique |
+| Transport WebSocket JSON-RPC | spécifié (section B) | réplication d'ordres (copieur), exécution des automates, état des comptes |
+
+---
+
+## A. Transport fichier — import automatique (implémenté)
+
+### Principe
+
+1. Le shell CΛNTO surveille un dossier (`Métrique › Pont NinjaTrader`), par défaut `Documents\NinjaTrader 8\export\CANTO`.
+2. Tout fichier `.csv` / `.txt` nouveau ou modifié y est lu dès que sa taille est stable (NinjaTrader a fini d'écrire), puis transmis au journal.
+3. Le journal détecte le format — export **Trades** (Trade Performance), export **Executions**, ou **CΛNTO CSV** — et importe. Les exécutions sont appariées en trades aller-retour par compte et par contrat, méthode **FIFO** avec fractionnement des remplissages partiels ; les commissions sont réparties au contrat.
+4. Le dédoublonnage (empreinte instrument · sens · quantité · horodatages · prix) garantit qu'un fichier relu ou un export répété ne crée jamais de doublon : le journal temps réel qui grossit toute la journée est simplement rejoué.
+5. L'état du pont (dossier, fichiers déjà traités, dernier import) est persisté dans `%APPDATA%\CΛNTO\bridge-state.json` ; « Relire le dossier » force un rejeu complet.
+
+### Côté NinjaTrader : l'AddOn `ninjatrader/CantoBridge.cs`
+
+- Copier le fichier dans `Documents\NinjaTrader 8\bin\Custom\AddOns\`, ouvrir le NinjaScript Editor et compiler (F5). L'AddOn démarre avec la plateforme, sans interface.
+- Il s'abonne à `Account.ExecutionUpdate` pour tous les comptes (y compris ceux connectés plus tard) et rattrape les exécutions déjà présentes dans `Account.Executions` au démarrage.
+- Chaque exécution est ajoutée à `export\CANTO\executions-AAAA-MM-JJ.csv` avec **exactement les colonnes de l'export « Executions »** de NinjaTrader, en culture invariante :
+
+```
+Instrument,Action,Quantity,Price,Time,ID,E/X,Position,Order ID,Name,Commission,Rate,Account,Connection
+MNQ 12-26,Buy,3,21000.25,2026-09-16 15:31:02,3f2a…,Entry,-,7c1…,Entry,2.22,1,APEX-50K,Rithmic
+```
+
+- Le fichier est ouvert en `FileShare.Read` : CΛNTO peut le lire pendant que NinjaTrader écrit.
+
+### Sans AddOn : export manuel
+
+Control Center › **Trade Performance › Trades** (ou onglet **Executions**) › clic droit › *Export* vers le dossier surveillé. Le fichier est importé à l'écriture. Les cultures en-US (`9/16/2026 3:31:02 PM`, `$1,250.50`) et fr-FR (`16/09/2026 15:31:02`, `1 250,50 $`) sont reconnues ; le séparateur décimal est déduit des colonnes de prix.
+
+### Limites connues
+
+- Le pairing FIFO reconstitue les trades tels que NinjaTrader les affiche en mode FIFO ; un compte configuré en LIFO donnera les mêmes PnL agrégés par séance mais des découpages de trades différents.
+- Les positions encore ouvertes en fin de fichier ne sont pas importées (signalées dans le journal du pont) ; elles le seront à la clôture.
+- MAE/MFE ne sont pas disponibles à partir des exécutions (uniquement dans l'export « Trades »).
+
+---
+
+## B. Transport WebSocket — spécification (à venir)
+
+Le second étage réutilise le serveur WebSocket JSON-RPC 2.0 ouvert par le shell Electron sur `ws://127.0.0.1:<port>` (module *Agent IA › Orchestrateur externe*). Le même serveur accepte l'orchestrateur IA et le pont, différenciés par la méthode `hello`.
 
 ## 1. Enveloppe
 

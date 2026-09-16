@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from 'react';
 import { Modal } from '@/design/Modal';
 import { Button, Field, cx } from '@/design/primitives';
+import { FORMAT_LABEL } from '@/engine/import';
 import { openTextFile } from '@/lib/desk';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
@@ -22,12 +23,13 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
       const r = await importCsv(text, { boundaryHour: settings.boundaryHour, riskPerContract: settings.riskPerContract || undefined });
       const lines = [
         `Fichier : ${name}`,
-        `Format détecté : ${r.format === 'ninjatrader-trades' ? 'NinjaTrader · Trades' : r.format === 'canto-csv' ? 'CΛNTO CSV' : 'inconnu'}`,
-        `Trades lus : ${r.trades.length} · séances créées : ${r.added} · séances fusionnées : ${r.merged}`,
+        `Format détecté : ${FORMAT_LABEL[r.format]}`,
+        `Trades lus : ${r.trades.length} · nouveaux : ${r.newTrades} · séances créées : ${r.added} · fusionnées : ${r.merged}`,
         ...r.warnings,
       ];
       setReport(lines);
-      if (r.trades.length) toast(`${r.trades.length} trades importés (${r.added} nouvelle(s) séance(s), ${r.merged} fusion(s)).`, 'ok');
+      if (r.newTrades) toast(`${r.newTrades} trade(s) importé(s) (${r.added} nouvelle(s) séance(s), ${r.merged} fusion(s)).`, 'ok');
+      else if (r.trades.length) toast('Fichier déjà importé : aucun nouveau trade.', 'info');
       else toast('Aucun trade importé.', 'warn');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Import impossible.', 'error');
@@ -45,8 +47,8 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="Importer depuis NinjaTrader"
-      sub="Trade Performance › Trades › clic droit › Export"
+      title="Importer un CSV NinjaTrader"
+      sub="Trade Performance › Trades · Executions · CΛNTO CSV"
       onClose={onClose}
       width={620}
       footer={
@@ -77,9 +79,9 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
           onDragLeave={() => setOver(false)}
           onDrop={onDrop}
         >
-          Déposez ici l’export CSV de NinjaTrader (cultures en-US et fr-FR reconnues automatiquement).
+          Déposez ici un export CSV de NinjaTrader — « Trades » (Trade Performance) ou « Executions » (appariées automatiquement en trades, FIFO). Cultures en-US et fr-FR reconnues.
           <br />
-          <span className="dim">Colonnes attendues : Instrument · Market pos. · Qty · Entry price · Exit price · Entry time · Exit time · Commission · MAE · MFE</span>
+          <span className="dim">Trades : Instrument · Market pos. · Qty · Entry/Exit price · Entry/Exit time · Commission · MAE · MFE — Executions : Instrument · Action · Quantity · Price · Time · ID · Commission · Account</span>
         </div>
         <div className={s.formGrid}>
           <Field label="Bascule de journée (heure locale)" hint="0 = date civile (poste en France) · 18 = convention Globex (poste en heure ET)">

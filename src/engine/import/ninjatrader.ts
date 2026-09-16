@@ -1,4 +1,4 @@
-import { parseCsv, parseLocaleNumber } from '@/lib/csv';
+import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { uid } from '@/lib/id';
 import { detectDayFirst, parseFlexibleDateTime, tradingDayKey } from '@/lib/time';
 import { summarizeTrades } from '../metrics';
@@ -16,7 +16,7 @@ export interface ImportResult {
   sessions: Session[];
   trades: Trade[];
   warnings: string[];
-  format: 'ninjatrader-trades' | 'canto-csv' | 'inconnu';
+  format: 'ninjatrader-trades' | 'ninjatrader-executions' | 'canto-csv' | 'inconnu';
   skipped: number;
 }
 
@@ -82,8 +82,16 @@ export function detectFormat(headers: string[]): ImportResult['format'] {
   const norm = headers.map(normalizeHeader);
   if (norm.includes('market pos.') && idx.entryPrice !== undefined && idx.exitPrice !== undefined) return 'ninjatrader-trades';
   if (idx.instrument !== undefined && idx.direction !== undefined && idx.entryTime !== undefined && idx.exitTime !== undefined) return 'canto-csv';
+  if (idx.instrument !== undefined && norm.includes('action') && (norm.includes('quantity') || norm.includes('qty')) && norm.includes('price') && norm.includes('time')) return 'ninjatrader-executions';
   return 'inconnu';
 }
+
+export const FORMAT_LABEL: Record<ImportResult['format'], string> = {
+  'ninjatrader-trades': 'NinjaTrader · Trades',
+  'ninjatrader-executions': 'NinjaTrader · Exécutions',
+  'canto-csv': 'CΛNTO CSV',
+  inconnu: 'inconnu',
+};
 
 /**
  * Importe un CSV de trades (NinjaTrader 8 « Trades » ou format CΛNTO) et regroupe en séances.
@@ -94,11 +102,11 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   const table = parseCsv(text);
   const warnings: string[] = [];
   const format = detectFormat(table.headers);
-  if (format === 'inconnu') {
+  if (format === 'inconnu' || format === 'ninjatrader-executions') {
     return { sessions: [], trades: [], warnings: ['Colonnes non reconnues : export NinjaTrader « Trades » attendu (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).'], format, skipped: table.rows.length };
   }
   const col = buildColumnIndex(table.headers);
-  const decimalSep: ',' | '.' | undefined = table.delimiter === ';' ? ',' : undefined;
+  const decimalSep = detectDecimalSeparator(table.rows.slice(0, 80).flatMap((r) => [r[col.entryPrice] ?? '', r[col.exitPrice] ?? ''])) ?? (table.delimiter === ';' ? ',' : undefined);
   const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[col.entryTime] ?? ''));
   const boundary = opts.sessionBoundaryHour ?? 0;
   const source = opts.source ?? 'ninjatrader';
@@ -184,9 +192,14 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   if (profitMismatch > 0) warnings.push(`${profitMismatch} trade(s) : la colonne Profit diffère du PnL recalculé (prix × valeur du point). Le PnL recalculé est conservé.`);
   if (skipped > 0) warnings.push(`${skipped} ligne(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`);
 
+  return { sessions: groupIntoSessions(trades, boundary, source), trades, warnings, format, skipped };
+}
+
+/** Regroupe des trades en séances (journée de trading × compte) et leur affecte un sessionId. */
+export function groupIntoSessions(trades: Trade[], boundaryHour: number, source: SessionSource): Session[] {
   const byDay = new Map<string, Trade[]>();
   for (const t of trades) {
-    const key = `${tradingDayKey(t.exitTime, boundary)}|${t.account ?? ''}`;
+    const key = `${tradingDayKey(t.exitTime, boundaryHour)}|${t.account ?? ''}`;
     const arr = byDay.get(key);
     if (arr) arr.push(t);
     else byDay.set(key, [t]);
@@ -210,7 +223,7 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
     });
   }
   sessions.sort((a, b) => a.date.localeCompare(b.date));
-  return { sessions, trades, warnings, format, skipped };
+  return sessions;
 }
 
 /** Export CSV au format CΛNTO (réimportable). */

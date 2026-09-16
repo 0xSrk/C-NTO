@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { generateNasdaqEvents } from '@/engine/calendar';
 import { isDesk } from '@/lib/desk';
 import { useAgent } from '@/store/agent';
+import { useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
@@ -69,7 +70,15 @@ function boot(): Promise<void> {
     } catch {
       mark('agent', 'warn', 'erreur');
     }
-    mark('bridge', 'off', 'hors ligne');
+    try {
+      await useBridge.getState().load();
+      const b = useBridge.getState().status;
+      if (!isDesk) mark('bridge', 'off', 'navigateur · import manuel');
+      else if (b?.enabled && b.folder) mark('bridge', b.error ? 'warn' : 'ok', b.error ?? `dossier surveillé · ${b.files} fichier(s)`);
+      else mark('bridge', 'off', 'non configuré');
+    } catch {
+      mark('bridge', 'warn', 'erreur');
+    }
   })();
   return bootPromise;
 }

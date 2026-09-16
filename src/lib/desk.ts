@@ -13,10 +13,44 @@ export interface OrchestratorStatus {
   error?: string;
 }
 
+export interface BridgeStatus {
+  enabled: boolean;
+  folder: string | null;
+  watching: boolean;
+  error?: string;
+  files: number;
+  pending: number;
+  processed: number;
+  lastEvent?: { at: number; file: string; kind: 'nouveau' | 'modifié' | 'rescan' };
+  lastImport?: { at: number; file: string; format: string; trades: number; sessionsAdded: number; sessionsMerged: number; warnings: string[] };
+}
+
+export interface BridgeFilePayload {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  text: string;
+  kind: 'nouveau' | 'modifié' | 'rescan';
+}
+
+export interface BridgeApi {
+  status: () => Promise<BridgeStatus | null>;
+  configure: (cfg: { folder?: string | null; enabled?: boolean }) => Promise<BridgeStatus | null>;
+  pickFolder: () => Promise<string | null>;
+  defaultFolder: () => Promise<string | null>;
+  rescan: () => Promise<BridgeStatus | null>;
+  result: (fileId: string, result: { format: string; trades: number; sessionsAdded: number; sessionsMerged: number; warnings: string[] }) => void;
+  openFolder: (target: string) => Promise<boolean>;
+  onFile: (cb: (file: BridgeFilePayload) => void) => () => void;
+  onStatus: (cb: (status: BridgeStatus) => void) => () => void;
+}
+
 export interface DeskApi {
   isDesk: true;
   platform: string;
   version: string;
+  bridge: BridgeApi;
   window: {
     minimize: () => void;
     toggleMaximize: () => void;

@@ -8,6 +8,7 @@ import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
+import { useBridge } from '@/store/bridge';
 import { TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -44,6 +45,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const sessionsCount = useJournal((j) => j.sessions.length);
   const callsign = useSettings((st) => st.settings.callsign);
   const orchestrator = useAgent((a) => a.orchestrator);
+  const bridgeStatus = useBridge((b) => b.status);
+  const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
   const now = useClock();
   const phase = marketPhase(now);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
@@ -159,9 +162,9 @@ export function Shell({ children }: { children: ReactNode }) {
           <i className={cx(s.statusDot, orchestrator.running && s.ok, orchestrator.running && s.live)} />
           Passerelle {orchestrator.running ? `active · ${orchestrator.clients} lien(s)` : 'en veille'}
         </span>
-        <span className={s.statusItem}>
-          <i className={s.statusDot} />
-          Pont NinjaTrader hors ligne
+        <span className={s.statusItem} title={bridgeStatus?.folder ?? undefined}>
+          <i className={cx(s.statusDot, bridgeLive && s.ok, bridgeLive && s.live, !!bridgeStatus?.error && s.warn)} />
+          Pont NinjaTrader {bridgeStatus?.error ? 'en erreur' : bridgeLive ? `actif · ${bridgeStatus.files} fichier(s)` : isDesk ? 'non configuré' : 'import manuel'}
         </span>
         <div className={s.statusRight}>
           <span className={s.statusItem}>

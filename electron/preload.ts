@@ -29,4 +29,15 @@ contextBridge.exposeInMainWorld('canto', {
     onRequest: (cb: (req: unknown) => void) => subscribe('orch:request', cb),
     onStatus: (cb: (status: unknown) => void) => subscribe('orch:status', cb),
   },
+  bridge: {
+    status: () => ipcRenderer.invoke('bridge:status'),
+    configure: (cfg: { folder?: string | null; enabled?: boolean }) => ipcRenderer.invoke('bridge:configure', cfg),
+    pickFolder: () => ipcRenderer.invoke('bridge:pick-folder'),
+    defaultFolder: () => ipcRenderer.invoke('bridge:default-folder'),
+    rescan: () => ipcRenderer.invoke('bridge:rescan'),
+    result: (fileId: string, result: unknown) => ipcRenderer.send('bridge:result', fileId, result),
+    openFolder: (target: string) => ipcRenderer.invoke('shell:open-path', target),
+    onFile: (cb: (file: unknown) => void) => subscribe('bridge:file', cb),
+    onStatus: (cb: (status: unknown) => void) => subscribe('bridge:status', cb),
+  },
 });

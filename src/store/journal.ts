@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { generateDemoJournal } from '@/engine/demo';
-import { importTradesCsv, type ImportResult } from '@/engine/import/ninjatrader';
+import { importCsvAuto, type ImportResult } from '@/engine/import';
 import { summarizeTrades } from '@/engine/metrics';
-import { SESSION_CAPACITY, type Session, type Trade } from '@/engine/types';
+import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
 import { uid } from '@/lib/id';
 import { db } from './db';
 
@@ -11,7 +11,7 @@ interface JournalState {
   sessions: Session[];
   trades: Trade[];
   load: () => Promise<void>;
-  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number }) => Promise<ImportResult & { added: number; merged: number }>;
+  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number; source?: SessionSource }) => Promise<ImportResult & { added: number; merged: number; newTrades: number }>;
   loadDemo: () => Promise<number>;
   addManualSession: (input: { date: string; account?: string; pnl: number; tradeCount: number; note?: string; tags?: string[]; rating?: number }) => Promise<Session>;
   updateSession: (id: string, patch: Partial<Pick<Session, 'note' | 'tags' | 'rating' | 'account'>>) => Promise<void>;
@@ -35,26 +35,43 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 
   async importCsv(text, opts = {}) {
-    const result = importTradesCsv(text, { sessionBoundaryHour: opts.boundaryHour ?? 0, riskPerContract: opts.riskPerContract });
-    if (result.sessions.length === 0) return { ...result, added: 0, merged: 0 };
+    const result = importCsvAuto(text, { sessionBoundaryHour: opts.boundaryHour ?? 0, riskPerContract: opts.riskPerContract, source: opts.source });
+    if (result.sessions.length === 0) return { ...result, added: 0, merged: 0, newTrades: 0 };
     const { sessions: existing, trades: existingTrades } = get();
     // Fusion : une séance existante (même date + même compte) absorbe les nouveaux trades,
-    // les doublons exacts (instrument, sens, heures, prix) sont ignorés.
+    // les doublons exacts (instrument, sens, heures, prix) sont ignorés — les exports
+    // successifs et le journal temps réel du pont peuvent donc être rejoués sans risque.
     const byKey = new Map(existing.map((s) => [`${s.date}|${s.account ?? ''}`, s]));
     const fingerprint = (t: Trade) => `${t.instrument}|${t.direction}|${t.qty}|${t.entryTime}|${t.exitTime}|${t.entryPrice}|${t.exitPrice}`;
     const known = new Set(existingTrades.map(fingerprint));
+    const knownIds = new Set(existingTrades.map((t) => t.id));
+    const incomingBySession = new Map<string, Trade[]>();
+    for (const t of result.trades) {
+      if (known.has(fingerprint(t)) || knownIds.has(t.id)) continue;
+      known.add(fingerprint(t));
+      const arr = incomingBySession.get(t.sessionId);
+      if (arr) arr.push(t);
+      else incomingBySession.set(t.sessionId, [t]);
+    }
+    const existingBySession = new Map<string, Trade[]>();
+    for (const t of existingTrades) {
+      const arr = existingBySession.get(t.sessionId);
+      if (arr) arr.push(t);
+      else existingBySession.set(t.sessionId, [t]);
+    }
     const toAddSessions: Session[] = [];
     const toPutSessions: Session[] = [];
     const toAddTrades: Trade[] = [];
     let merged = 0;
     let added = 0;
     for (const s of result.sessions) {
-      const sTrades = result.trades.filter((t) => t.sessionId === s.id && !known.has(fingerprint(t)));
-      if (sTrades.length === 0) continue;
+      const sTrades = incomingBySession.get(s.id);
+      if (!sTrades || sTrades.length === 0) continue;
       const target = byKey.get(`${s.date}|${s.account ?? ''}`);
       if (target) {
         for (const t of sTrades) t.sessionId = target.id;
-        const all = [...existingTrades.filter((t) => t.sessionId === target.id), ...toAddTrades.filter((t) => t.sessionId === target.id), ...sTrades];
+        const all = [...(existingBySession.get(target.id) ?? []), ...sTrades];
+        existingBySession.set(target.id, all);
         toPutSessions.push({ ...target, ...summarizeTrades(all), updatedAt: Date.now() });
         merged++;
       } else {
@@ -63,18 +80,21 @@ export const useJournal = create<JournalState>((set, get) => ({
           break;
         }
         toAddSessions.push(s);
+        byKey.set(`${s.date}|${s.account ?? ''}`, s);
+        existingBySession.set(s.id, sTrades);
         added++;
       }
       toAddTrades.push(...sTrades);
-      for (const t of sTrades) known.add(fingerprint(t));
     }
-    await db.transaction('rw', [db.sessions, db.trades], async () => {
-      if (toAddSessions.length) await db.sessions.bulkAdd(toAddSessions);
-      if (toPutSessions.length) await db.sessions.bulkPut(toPutSessions);
-      if (toAddTrades.length) await db.trades.bulkAdd(toAddTrades);
-    });
-    await get().load();
-    return { ...result, added, merged };
+    if (toAddTrades.length) {
+      await db.transaction('rw', [db.sessions, db.trades], async () => {
+        if (toAddSessions.length) await db.sessions.bulkAdd(toAddSessions);
+        if (toPutSessions.length) await db.sessions.bulkPut(toPutSessions);
+        await db.trades.bulkAdd(toAddTrades);
+      });
+      await get().load();
+    }
+    return { ...result, added, merged, newTrades: toAddTrades.length };
   },
 
   async loadDemo() {

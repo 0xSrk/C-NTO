@@ -69,6 +69,27 @@ export function parseCsv(text: string, delimiter?: string): CsvTable {
 }
 
 /**
+ * Déduit le séparateur décimal d'un échantillon de valeurs numériques (prix de préférence) :
+ * une valeur contenant les deux signes tranche par le dernier rencontré ; sinon le seul signe présent.
+ */
+export function detectDecimalSeparator(samples: string[]): ',' | '.' | undefined {
+  let sawDot = false;
+  let sawComma = false;
+  for (const raw of samples) {
+    const s = raw.replace(/[^\d.,]/g, '');
+    if (!s) continue;
+    const dot = s.lastIndexOf('.');
+    const comma = s.lastIndexOf(',');
+    if (dot !== -1 && comma !== -1) return comma > dot ? ',' : '.';
+    if (dot !== -1) sawDot = true;
+    if (comma !== -1) sawComma = true;
+  }
+  if (sawDot && !sawComma) return '.';
+  if (sawComma && !sawDot) return ',';
+  return undefined;
+}
+
+/**
  * Convertit une chaîne numérique localisée en nombre.
  * Gère : "$1,250.50", "1 250,50 $", "(125,00)", "-125.00", "€ 12,5", "1.250,50".
  */
