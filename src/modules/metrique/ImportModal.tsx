@@ -100,7 +100,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
           Le PnL est recalculé depuis les prix et la valeur du point (NQ 20 $ · MNQ 2 $) puis diminué des commissions ; la colonne Profit sert de contrôle. Les instruments hors NQ/MNQ sont ignorés. Les doublons exacts sont écartés ; une séance existante (même date, même compte) absorbe les nouveaux trades — vous pouvez empiler les exports au fil des semaines.
         </p>
         {report && (
-          <div style={{ border: '1px solid var(--line-1)', padding: 10, borderRadius: 2 }}>
+          <div style={{ border: '1px solid var(--line-1)', padding: 12, borderRadius: 0 }}>
             {report.map((l, i) => (
               <div key={i} className="mono" style={{ fontSize: 11, color: i < 3 ? 'var(--text-1)' : 'var(--amber)' }}>
                 {l}

@@ -3,7 +3,7 @@ import type { SVGProps } from 'react';
 type P = SVGProps<SVGSVGElement> & { size?: number };
 
 function base({ size = 16, ...rest }: P) {
-  return { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, ...rest };
+  return { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1, strokeLinecap: 'square' as const, strokeLinejoin: 'miter' as const, strokeMiterlimit: 2, ...rest };
 }
 
 export const IconMetric = (p: P) => (

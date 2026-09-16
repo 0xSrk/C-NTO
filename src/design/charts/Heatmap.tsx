@@ -25,7 +25,7 @@ export function colorFor(v: number, max: number, signed: boolean): string {
   if (max <= 0) return 'rgba(255,255,255,0.04)';
   const t = Math.min(1, Math.abs(v) / max);
   if (signed) return v >= 0 ? `rgba(127, 207, 154, ${0.12 + t * 0.78})` : `rgba(224, 119, 108, ${0.12 + t * 0.78})`;
-  return `rgba(211, 171, 83, ${0.08 + t * 0.85})`;
+  return `rgba(196, 30, 58, ${0.08 + t * 0.85})`;
 }
 
 export function Heatmap({ rows, cols, cells, height, formatValue = (v) => v.toFixed(0), signed = true, colLabelEvery = 1 }: Props) {
@@ -56,7 +56,7 @@ export function Heatmap({ rows, cols, cells, height, formatValue = (v) => v.toFi
               y={top + c.row * ch + gap / 2}
               width={Math.max(1, cw - gap)}
               height={Math.max(1, ch - gap)}
-              rx={1}
+              rx={0}
               fill={c.value === null ? 'rgba(255,255,255,0.03)' : colorFor(c.value, max, signed)}
               className={s.cell}
               onMouseEnter={() => setHover(c)}

@@ -148,7 +148,7 @@ export default function Agent() {
               <div className={s.sectionTitle}>
                 <span>Fournisseur</span>
                 <select
-                  style={{ height: 24, padding: '0 6px', fontSize: 11 }}
+                  style={{ height: 28, padding: '0 6px', fontSize: 11 }}
                   value=""
                   onChange={(e) => {
                     const p = PRESETS.find((x) => x.id === e.target.value);

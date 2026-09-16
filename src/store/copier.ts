@@ -31,7 +31,16 @@ export const DEFAULT_COPIER: CopierConfig = {
 };
 
 export const COPIER_CHANGELOG: { version: string; date: string; items: string[] }[] = [
-  { version: '0.1.0', date: '2026-09-15', items: ['Modèle de comptes maître / suiveurs', 'Règles de dimensionnement fixe · ratio · risque', 'Correspondance NQ ↔ MNQ', 'Filtres : fenêtre horaire, blackout catalyseurs, marge plancher', 'Spécification du pont NinjaTrader (docs/PONT-NINJATRADER.md)'] },
+  {
+    version: '1.0.0',
+    date: '2026-09-16',
+    items: [
+      'Grammaire visuelle Lab v1.0 — précision lithographique, LED unique',
+      'Modèle maître / suiveurs, sizing fixe · ratio · risque, NQ ↔ MNQ',
+      'Filtres : fenêtre horaire, blackout catalyseurs, marge plancher',
+      'Spécification du pont NinjaTrader (docs/PONT-NINJATRADER.md)',
+    ],
+  },
 ];
 
 interface CopierState {

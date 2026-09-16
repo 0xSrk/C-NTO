@@ -21,7 +21,7 @@ function createWindow(): void {
     minHeight: 720,
     frame: false,
     titleBarStyle: 'hidden',
-    backgroundColor: '#04050a',
+    backgroundColor: '#000000',
     show: false,
     title: 'CΛNTO',
     webPreferences: {

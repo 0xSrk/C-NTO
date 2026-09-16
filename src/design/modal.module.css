@@ -14,15 +14,15 @@
   background: var(--bg-2);
   border: 1px solid var(--line-2);
   border-radius: 0;
-  box-shadow: 0 0 0 1px #000, 0 30px 80px -30px rgba(0, 0, 0, 1);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   animation: rise-in var(--t-med) var(--ease-out) both;
 }
 .corner {
   position: absolute;
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-color: var(--gold-line);
   border-style: solid;
 }
@@ -50,7 +50,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 16px 18px 12px;
+  padding: 16px 20px 12px;
   border-bottom: 1px solid var(--line-0);
 }
 .head h2 {
@@ -70,8 +70,8 @@
 }
 .close {
   color: var(--text-3);
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border-radius: var(--radius);
@@ -81,7 +81,7 @@
   background: rgba(255, 255, 255, 0.06);
 }
 .body {
-  padding: 16px 18px;
+  padding: 16px 20px;
   overflow: auto;
   min-height: 0;
 }
@@ -89,6 +89,6 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 18px 16px;
+  padding: 12px 20px 16px;
   border-top: 1px solid var(--line-0);
 }

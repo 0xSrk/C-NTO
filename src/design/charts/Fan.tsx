@@ -63,13 +63,13 @@ export function Fan({ result, height = 240, formatY = (v) => v.toFixed(0), ruin,
               {Math.round(t) + 1}
             </text>
           ))}
-          <path d={model.band} fill="rgba(143, 199, 232, 0.10)" />
+          <path d={model.band} fill="var(--ice-soft)" />
           {result.samples.map((p, i) => (
-            <path key={i} d={model.line(p)} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={0.8} />
+            <path key={i} d={model.line(p)} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={1} />
           ))}
           <path d={model.line(result.envelope.p5)} fill="none" stroke="var(--ember)" strokeWidth={1} strokeDasharray="3 3" />
           <path d={model.line(result.envelope.p95)} fill="none" stroke="var(--mint)" strokeWidth={1} strokeDasharray="3 3" />
-          <path d={model.line(result.envelope.p50)} fill="none" stroke="var(--ice)" strokeWidth={1.6} />
+          <path d={model.line(result.envelope.p50)} fill="none" stroke="var(--ice)" strokeWidth={2} />
           {ruin !== undefined && (
             <>
               <line x1={padding.left} x2={width - padding.right} y1={model.sy(-ruin)} y2={model.sy(-ruin)} stroke="var(--ember)" strokeWidth={1} />

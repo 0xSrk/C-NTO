@@ -87,7 +87,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <header className={s.title}>
         <div className={s.brand}>
-          <Wordmark width={62} strokeWidth={1.1} color="var(--text-0)" />
+          <Wordmark width={64} strokeWidth={1} color="var(--text-0)" />
           <span className={s.brandSep} />
           <span className={s.brandMark}>SIΞRRΛSKΛ—LAB</span>
           <InvertedTab>CΛNTO · Artefact 002</InvertedTab>
@@ -168,7 +168,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className={s.railMeta}>
             <span>Design Unit</span>
             <span>SIΞRRΛSKΛ Lab</span>
-            <span className={s.dimmer}>Rev. A · 0.1.0</span>
+            <span className={s.dimmer}>Rev. A · 1.0.0</span>
           </div>
         </div>
       </aside>

@@ -81,7 +81,7 @@ export const useAgent = create<AgentState>((set, get) => ({
       unsubscribeRequests = api.orchestrator.onRequest(async (req: OrchestratorRequest) => {
         const log = (ok: boolean, detail?: string) => pushLog(set, get, { direction: 'in', method: req.method, ok, detail });
         if (req.method === 'desk.describe') {
-          api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: '0.1.0', tools: toolSchemas() });
+          api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: '1.0.0', tools: toolSchemas() });
           log(true);
           return;
         }

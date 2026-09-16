@@ -84,10 +84,10 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
         textColor: '#8a8a8a',
         fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
         fontSize: 11,
-        panes: { separatorColor: '#232323', separatorHoverColor: 'rgba(211,171,83,0.25)', enableResize: true },
+        panes: { separatorColor: '#232323', separatorHoverColor: 'rgba(196,30,58,0.28)', enableResize: true },
         attributionLogo: false,
       },
-      grid: { vertLines: { color: '#161616' }, horzLines: { color: '#161616' } },
+      grid: { vertLines: { color: '#171717' }, horzLines: { color: '#171717' } },
       crosshair: { mode: CrosshairMode.Normal, vertLine: { color: '#8a8a8a', labelBackgroundColor: '#0b0b0b', width: 1, style: LineStyle.Dotted }, horzLine: { color: '#8a8a8a', labelBackgroundColor: '#0b0b0b', width: 1, style: LineStyle.Dotted } },
       rightPriceScale: { borderColor: '#232323', scaleMargins: { top: 0.06, bottom: 0.05 } },
       timeScale: {
@@ -218,7 +218,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       if (entry < first || entry > last) continue;
       const long = t.direction === 'long';
       markers.push({ time: toTs(entry), position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: long ? '#7fcf9a' : '#e0776c', text: `${long ? 'L' : 'S'} ${t.qty} @ ${fmtPrice(t.entryPrice)}`, size: 1 });
-      if (exit >= first && exit <= last) markers.push({ time: toTs(exit), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl >= 0 ? '#d3ab53' : '#8a8a8a', text: fmtUsd(t.pnl, { sign: true }), size: 0.8 });
+      if (exit >= first && exit <= last) markers.push({ time: toTs(exit), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl >= 0 ? '#c41e3a' : '#8a8a8a', text: fmtUsd(t.pnl, { sign: true }), size: 0.8 });
     }
     markers.sort((a, b) => (a.time as number) - (b.time as number));
     markersRef.current.setMarkers(markers);
