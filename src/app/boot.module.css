@@ -2,7 +2,8 @@
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.035) 0, transparent 55%), #000;
+  background: #000000;
+  background-image: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.035) 0, transparent 55%);
   display: grid;
   grid-template-rows: 1fr auto;
   align-items: center;
