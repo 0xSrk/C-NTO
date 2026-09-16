@@ -1,5 +1,6 @@
 import { app, shell } from 'electron';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { compareSemver } from './semver';
@@ -26,11 +27,25 @@ export function repoRoot(): string {
   return path.resolve(__dirname, '..');
 }
 
+function npmCliPath(): string {
+  const candidates = [
+    process.env.npm_execpath,
+    path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(repoRoot(), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ].filter((c): c is string => typeof c === 'string' && c.length > 0);
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  throw new Error('npm-cli.js introuvable');
+}
+
+/** Spawn sans shell — évite DEP0190 (args + shell:true). */
 function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string; err: string }> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, {
       cwd,
-      shell: process.platform === 'win32',
+      shell: false,
       env: process.env,
       windowsHide: true,
     });
@@ -45,6 +60,10 @@ function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; 
     child.on('error', (e) => resolve({ code: 1, out, err: e.message }));
     child.on('close', (code) => resolve({ code: code ?? 1, out, err }));
   });
+}
+
+function runNpm(args: string[], cwd: string) {
+  return run(process.execPath, [npmCliPath(), ...args], cwd);
 }
 
 async function isGitCheckout(root: string): Promise<boolean> {
@@ -168,8 +187,7 @@ export async function applyUpdate(): Promise<UpdateStatus> {
     return { current, latest: null, available: true, busy: false, error: pull.err || pull.out || 'git pull a échoué', source: 'git' };
   }
 
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const install = await run(npm, ['install', '--legacy-peer-deps'], root);
+  const install = await runNpm(['install', '--legacy-peer-deps'], root);
   if (install.code !== 0) {
     return {
       current,
@@ -192,12 +210,11 @@ export function relaunchDesk(): void {
     return;
   }
   const root = repoRoot();
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const child = spawn(npm, ['run', 'launch'], {
+  const child = spawn(process.execPath, [npmCliPath(), 'run', 'launch'], {
     cwd: root,
     detached: true,
     stdio: 'ignore',
-    shell: process.platform === 'win32',
+    shell: false,
     env: { ...process.env, CANTO_LAUNCHER_PARENT: undefined },
     windowsHide: true,
   });

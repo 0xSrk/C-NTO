@@ -2,28 +2,64 @@
 /**
  * Lanceur CΛNTO — compile le shell, démarre Vite (127.0.0.1), ouvre la fenêtre lanceur.
  * Exit code 42 (depuis Electron après une màj) → reboucle.
+ *
+ * Aucun `spawn(..., { shell: true, args })` : évite DEP0190 (Node 22+).
  */
 import { spawn } from 'node:child_process';
-import { createWriteStream, mkdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import http from 'node:http';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
 const RELAUNCH = 42;
 const PORT = 5173;
 const HOST = '127.0.0.1';
 const isWin = process.platform === 'win32';
-const npm = isWin ? 'npm.cmd' : 'npm';
 
-function run(cmd, args) {
+/** Chemin absolu vers `npm-cli.js` (même Node que le lanceur). */
+function npmCliPath() {
+  const candidates = [
+    process.env.npm_execpath,
+    path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(root, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ].filter(Boolean);
+  for (const c of candidates) {
+    if (c && existsSync(c)) return c;
+  }
+  throw new Error('npm-cli.js introuvable — vérifiez l’installation Node.js / npm.');
+}
+
+/** Binaire Electron (electron.exe / Electron.app) sans passer par .cmd + shell. */
+function electronBinary() {
+  try {
+    const fromPkg = require('electron');
+    if (typeof fromPkg === 'string' && existsSync(fromPkg)) return fromPkg;
+  } catch {
+    /* path.txt */
+  }
+  const pathFile = path.join(root, 'node_modules', 'electron', 'path.txt');
+  if (existsSync(pathFile)) {
+    const rel = readFileSync(pathFile, 'utf8').trim();
+    const abs = path.isAbsolute(rel) ? rel : path.join(root, 'node_modules', 'electron', rel);
+    if (existsSync(abs)) return abs;
+  }
+  const dist = path.join(root, 'node_modules', 'electron', 'dist', isWin ? 'electron.exe' : 'electron');
+  if (existsSync(dist)) return dist;
+  throw new Error('Binaire Electron introuvable — lancez npm install.');
+}
+
+function runNodeScript(scriptPath, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
       cwd: root,
       stdio: 'inherit',
-      shell: isWin,
       env: process.env,
       windowsHide: true,
+      shell: false,
     });
     child.on('error', reject);
     child.on('close', (code) => resolve(code ?? 1));
@@ -54,7 +90,7 @@ function waitForVite(timeoutMs = 90_000) {
 }
 
 async function compileElectron() {
-  const code = await run(npm, ['run', 'electron:compile']);
+  const code = await runNodeScript(npmCliPath(), ['run', 'electron:compile']);
   if (code !== 0) throw new Error('electron:compile a échoué');
 }
 
@@ -72,6 +108,7 @@ function startVite() {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, FORCE_COLOR: '0' },
     windowsHide: true,
+    shell: false,
   });
   child.stdout?.pipe(log);
   child.stderr?.pipe(log);
@@ -83,17 +120,17 @@ function startVite() {
 
 function runElectron() {
   return new Promise((resolve, reject) => {
-    const bin = path.join(root, 'node_modules', '.bin', isWin ? 'electron.cmd' : 'electron');
+    const bin = electronBinary();
     const child = spawn(bin, ['.', '--launcher'], {
       cwd: root,
       stdio: 'inherit',
-      shell: isWin,
       env: {
         ...process.env,
         CANTO_DEV_URL: `http://${HOST}:${PORT}`,
         CANTO_LAUNCHER_PARENT: '1',
       },
       windowsHide: false,
+      shell: false,
     });
     child.on('error', reject);
     child.on('close', (code) => resolve(code ?? 0));
@@ -104,7 +141,7 @@ function stopChild(child) {
   if (!child || child.killed || child.exitCode !== null) return;
   try {
     if (isWin) {
-      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true, shell: false });
     } else {
       child.kill('SIGTERM');
     }
