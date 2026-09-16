@@ -36,7 +36,7 @@
   border: 1px solid var(--line-1);
   border-radius: var(--radius);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -75,7 +75,7 @@
 .dow span {
   padding: 6px 8px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -127,14 +127,14 @@
 }
 .day.today .dayNum::after {
   content: ' · auj.';
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
 }
 .dayPnl {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   padding: 0 4px;
-  border-radius: 1px;
+  border-radius: 0;
 }
 .dayPnl.pos {
   background: var(--mint-soft);
@@ -152,13 +152,13 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 1px 4px;
-  border-radius: 1px;
+  border-radius: 0;
   border-left: 2px solid var(--cat);
   background: rgba(255, 255, 255, 0.02);
 }
@@ -168,12 +168,12 @@
 }
 .ev time {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   color: var(--text-3);
 }
 .more {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   color: var(--text-3);
   padding-left: 4px;
 }
@@ -204,7 +204,7 @@
   border-bottom: 1px solid var(--line-0);
 }
 .fluxDay.selected {
-  background: rgba(201, 162, 77, 0.05);
+  background: var(--gold-soft);
 }
 .fluxDayHead {
   padding: 10px 12px;
@@ -227,7 +227,7 @@
 }
 .fluxDayHead span {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-3);
   letter-spacing: 0.08em;
 }
@@ -258,11 +258,11 @@
 }
 .fluxTime small {
   display: block;
-  font-size: 9.5px;
+  font-size: 11px;
   color: var(--text-3);
 }
 .fluxTitle {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-1);
 }
 .fluxTitle.impact3 {
@@ -304,7 +304,7 @@
   gap: 8px;
 }
 .evCardHead b {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-0);
   font-weight: 500;
   flex: 1;
@@ -315,23 +315,23 @@
   color: var(--gold);
 }
 .evDesc {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-2);
   line-height: 1.5;
 }
 .tip {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-1);
-  line-height: 1.5;
-  padding: 7px 9px;
-  border-radius: var(--radius);
-  background: var(--gold-soft);
-  border: 1px solid rgba(201, 162, 77, 0.2);
+  line-height: 1.55;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line-1);
+  border-left: 2px solid var(--gold);
+  background: var(--bg-1);
 }
 .tip::before {
   content: 'Repère débutant — ';
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--gold);
@@ -357,7 +357,7 @@
   display: grid;
   grid-template-columns: 52px 52px 1fr;
   gap: 10px;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-2);
   padding: 3px 0;
   border-bottom: 1px dashed var(--line-0);
@@ -398,7 +398,7 @@
   flex-wrap: wrap;
   gap: 6px 12px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-3);

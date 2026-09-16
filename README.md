@@ -73,7 +73,7 @@ src/engine/          moteur pur TypeScript : métriques, Monte Carlo, import Nin
 src/store/           persistance Dexie (IndexedDB) et états Zustand
 src/modules/         un dossier par onglet
 tests/               tests Vitest du moteur
-docs/                spécification du pont NinjaTrader, compte rendu d'audit (docs/AUDIT.md)
+docs/                système visuel (DESIGN.md), pont NinjaTrader, compte rendu d'audit (AUDIT.md)
 ```
 
 Le moteur (`src/engine`) est indépendant de l'interface : les indicateurs, les outils exposés à l'agent et les plans prop firm sont des registres que le Lab enrichit sans toucher aux modules.

@@ -1,24 +1,23 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 3, 6, 0.72);
-  backdrop-filter: blur(3px);
+  background: rgba(0, 0, 0, 0.72);
   display: grid;
   place-items: center;
   z-index: 6000;
-  animation: fade-in var(--t-fast) var(--ease) both;
+  animation: fade-in var(--t-fast) linear both;
 }
 .modal {
   position: relative;
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 80px);
-  background: linear-gradient(180deg, var(--bg-3), var(--bg-2));
+  background: var(--bg-2);
   border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 1), 0 0 0 1px rgba(0, 0, 0, 0.6);
+  border-radius: 0;
+  box-shadow: 0 0 0 1px #000, 0 30px 80px -30px rgba(0, 0, 0, 1);
   display: flex;
   flex-direction: column;
-  animation: rise-in var(--t-med) var(--ease) both;
+  animation: rise-in var(--t-med) var(--ease-out) both;
 }
 .corner {
   position: absolute;
@@ -55,17 +54,17 @@
   border-bottom: 1px solid var(--line-0);
 }
 .head h2 {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text-0);
 }
 .sub {
   display: block;
-  margin-top: 3px;
+  margin-top: 6px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
 }

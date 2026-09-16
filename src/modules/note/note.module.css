@@ -41,7 +41,7 @@
 }
 .group {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-4);
@@ -63,11 +63,11 @@
 }
 .item.on {
   background: var(--gold-soft);
-  border-color: rgba(201, 162, 77, 0.25);
+  border-color: var(--gold-line);
   color: var(--text-0);
 }
 .itemTitle {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -75,7 +75,7 @@
 }
 .itemMeta {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   color: var(--text-3);
   letter-spacing: 0.06em;
   white-space: nowrap;
@@ -90,7 +90,7 @@
 }
 .tagBtn {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-3);
   padding: 1px 6px;
   border: 1px solid var(--line-0);
@@ -119,11 +119,13 @@
   flex: 1;
   background: transparent;
   border: none;
-  font-size: 18px;
-  font-weight: 600;
+  height: auto;
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 700;
   color: var(--text-0);
   padding: 4px 0;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 .titleInput:focus {
   box-shadow: none;
@@ -147,7 +149,7 @@
   background: transparent;
   padding: 18px 22px;
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.7;
   color: var(--text-1);
   tab-size: 2;
@@ -159,7 +161,7 @@
   overflow: auto;
   padding: 18px 26px 40px;
   border-left: 1px solid var(--line-0);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.7;
   color: var(--text-1);
 }
@@ -197,7 +199,7 @@
   font-size: 12px;
   background: rgba(255, 255, 255, 0.06);
   padding: 1px 5px;
-  border-radius: 2px;
+  border-radius: 0;
 }
 .preview pre {
   background: var(--bg-0);
@@ -214,7 +216,7 @@
   padding: 6px 14px;
   border-left: 2px solid var(--gold-line);
   color: var(--text-2);
-  background: rgba(201, 162, 77, 0.05);
+  background: var(--gold-soft);
 }
 .preview ul,
 .preview ol {
@@ -231,7 +233,7 @@
 .preview td {
   border: 1px solid var(--line-1);
   padding: 4px 10px;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .preview hr {
   border: none;
@@ -240,7 +242,7 @@
 }
 .preview :global(a.wikilink) {
   color: var(--ice);
-  border-bottom: 1px dotted rgba(127, 209, 255, 0.5);
+  border-bottom: 1px dotted var(--ice-line);
   cursor: pointer;
 }
 .preview :global(a.wikilink.missing) {
@@ -327,7 +329,7 @@
   left: 14px;
   bottom: 12px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-3);

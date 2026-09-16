@@ -12,15 +12,15 @@ import { useUi } from '@/store/ui';
 import s from './calendrier.module.css';
 
 const CAT_COLOR: Record<EventCategory, string> = {
-  fed: '#c9a24d',
-  emploi: '#ff3b4e',
-  inflation: '#f5b84b',
-  croissance: '#7fd1ff',
-  sentiment: '#8b91a3',
-  resultats: '#a78bfa',
-  cme: '#3ddc97',
-  horaire: '#5b6174',
-  perso: '#f3f4f8',
+  fed: '#d3ab53',
+  emploi: '#e0776c',
+  inflation: '#d8b45a',
+  croissance: '#8fc7e8',
+  sentiment: '#8a8a8a',
+  resultats: '#a996e0',
+  cme: '#7fcf9a',
+  horaire: '#6c6c6c',
+  perso: '#ffffff',
 };
 const CATS = Object.keys(CAT_COLOR) as EventCategory[];
 const DOW = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];

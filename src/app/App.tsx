@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { generateNasdaqEvents } from '@/engine/calendar';
 import { isDesk } from '@/lib/desk';
+import { plural } from '@/lib/format';
 import { useAgent } from '@/store/agent';
 import { useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
@@ -74,14 +75,14 @@ function boot(): Promise<void> {
       await useSettings.getState().load();
       await useJournal.getState().load();
       const j = useJournal.getState();
-      return ['ok', `${j.sessions.length} séance(s) · ${j.trades.length} trade(s)`];
+      return ['ok', `${plural(j.sessions.length, 'séance')} · ${plural(j.trades.length, 'trade')}`];
     });
     await Promise.all([
       step('engine', async () => ['ok', 'ratios · Monte Carlo · prop firm']),
       step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} repères ${year}`]),
       step('notes', async () => {
         await Promise.all([useNotes.getState().load(), useCalendar.getState().load()]);
-        return ['ok', `${useNotes.getState().notes.length} note(s)`];
+        return ['ok', plural(useNotes.getState().notes.length, 'note')];
       }),
       step('agent', async () => {
         await useAgent.getState().load();
@@ -92,7 +93,7 @@ function boot(): Promise<void> {
         await useBridge.getState().load();
         const b = useBridge.getState().status;
         if (!isDesk) return ['off', 'navigateur · import manuel'];
-        if (b?.enabled && b.folder) return [b.error ? 'warn' : 'ok', b.error ?? `dossier surveillé · ${b.files} fichier(s)`];
+        if (b?.enabled && b.folder) return [b.error ? 'warn' : 'ok', b.error ?? `dossier surveillé · ${plural(b.files, 'fichier')}`];
         return ['off', 'non configuré'];
       }),
     ]);

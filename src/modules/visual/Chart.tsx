@@ -81,17 +81,17 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#8b91a3',
+        textColor: '#8a8a8a',
         fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
-        fontSize: 10,
-        panes: { separatorColor: 'rgba(255,255,255,0.08)', separatorHoverColor: 'rgba(201,162,77,0.25)', enableResize: true },
+        fontSize: 11,
+        panes: { separatorColor: '#232323', separatorHoverColor: 'rgba(211,171,83,0.25)', enableResize: true },
         attributionLogo: false,
       },
-      grid: { vertLines: { color: 'rgba(255,255,255,0.035)' }, horzLines: { color: 'rgba(255,255,255,0.035)' } },
-      crosshair: { mode: CrosshairMode.Normal, vertLine: { color: 'rgba(201,162,77,0.5)', labelBackgroundColor: '#1a1f2b', width: 1, style: LineStyle.Dashed }, horzLine: { color: 'rgba(201,162,77,0.5)', labelBackgroundColor: '#1a1f2b', width: 1, style: LineStyle.Dashed } },
-      rightPriceScale: { borderColor: 'rgba(255,255,255,0.10)', scaleMargins: { top: 0.06, bottom: 0.05 } },
+      grid: { vertLines: { color: '#161616' }, horzLines: { color: '#161616' } },
+      crosshair: { mode: CrosshairMode.Normal, vertLine: { color: '#8a8a8a', labelBackgroundColor: '#0b0b0b', width: 1, style: LineStyle.Dotted }, horzLine: { color: '#8a8a8a', labelBackgroundColor: '#0b0b0b', width: 1, style: LineStyle.Dotted } },
+      rightPriceScale: { borderColor: '#232323', scaleMargins: { top: 0.06, bottom: 0.05 } },
       timeScale: {
-        borderColor: 'rgba(255,255,255,0.10)',
+        borderColor: '#232323',
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
@@ -109,17 +109,17 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       handleScroll: { vertTouchDrag: false },
     });
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor: '#3ddc97',
-      downColor: '#ff3b4e',
-      borderUpColor: '#3ddc97',
-      borderDownColor: '#ff3b4e',
-      wickUpColor: 'rgba(61,220,151,0.8)',
-      wickDownColor: 'rgba(255,59,78,0.8)',
-      priceLineColor: 'rgba(201,162,77,0.8)',
+      upColor: '#7fcf9a',
+      downColor: '#e0776c',
+      borderUpColor: '#7fcf9a',
+      borderDownColor: '#e0776c',
+      wickUpColor: 'rgba(127,207,154,0.8)',
+      wickDownColor: 'rgba(224,119,108,0.8)',
+      priceLineColor: '#8a8a8a',
       priceLineStyle: LineStyle.Dotted,
       priceFormat: { type: 'price', precision: 2, minMove: 0.25 },
     });
-    const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: 'rgba(127,209,255,0.35)', lastValueVisible: false, priceLineVisible: false }, 1);
+    const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: 'rgba(138,138,138,0.35)', lastValueVisible: false, priceLineVisible: false }, 1);
     const volPane = chart.panes()[1];
     if (volPane) volPane.setHeight(70);
     chartRef.current = chart;
@@ -164,7 +164,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   useEffect(() => {
     if (!ready || !candleRef.current || !volumeRef.current) return;
     candleRef.current.setData(bars.map((b) => ({ time: toTs(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
-    volumeRef.current.setData(bars.map((b) => ({ time: toTs(b.time), value: b.volume, color: b.close >= b.open ? 'rgba(61,220,151,0.28)' : 'rgba(255,59,78,0.28)' })));
+    volumeRef.current.setData(bars.map((b) => ({ time: toTs(b.time), value: b.volume, color: b.close >= b.open ? 'rgba(127,207,154,0.28)' : 'rgba(224,119,108,0.28)' })));
     chartRef.current?.timeScale().fitContent();
     const n = bars.length;
     if (n > 160) chartRef.current?.timeScale().setVisibleLogicalRange({ from: n - 160, to: n + 6 });
@@ -217,8 +217,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       const exit = snap(t.exitTime);
       if (entry < first || entry > last) continue;
       const long = t.direction === 'long';
-      markers.push({ time: toTs(entry), position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: long ? '#3ddc97' : '#ff3b4e', text: `${long ? 'L' : 'S'} ${t.qty} @ ${fmtPrice(t.entryPrice)}`, size: 1 });
-      if (exit >= first && exit <= last) markers.push({ time: toTs(exit), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl >= 0 ? '#c9a24d' : '#8b91a3', text: fmtUsd(t.pnl, { sign: true }), size: 0.8 });
+      markers.push({ time: toTs(entry), position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: long ? '#7fcf9a' : '#e0776c', text: `${long ? 'L' : 'S'} ${t.qty} @ ${fmtPrice(t.entryPrice)}`, size: 1 });
+      if (exit >= first && exit <= last) markers.push({ time: toTs(exit), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: t.pnl >= 0 ? '#d3ab53' : '#8a8a8a', text: fmtUsd(t.pnl, { sign: true }), size: 0.8 });
     }
     markers.sort((a, b) => (a.time as number) - (b.time as number));
     markersRef.current.setMarkers(markers);

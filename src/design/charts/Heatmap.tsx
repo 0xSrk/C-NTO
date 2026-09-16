@@ -24,8 +24,8 @@ interface Props {
 export function colorFor(v: number, max: number, signed: boolean): string {
   if (max <= 0) return 'rgba(255,255,255,0.04)';
   const t = Math.min(1, Math.abs(v) / max);
-  if (signed) return v >= 0 ? `rgba(61, 220, 151, ${0.12 + t * 0.78})` : `rgba(255, 59, 78, ${0.12 + t * 0.78})`;
-  return `rgba(201, 162, 77, ${0.08 + t * 0.85})`;
+  if (signed) return v >= 0 ? `rgba(127, 207, 154, ${0.12 + t * 0.78})` : `rgba(224, 119, 108, ${0.12 + t * 0.78})`;
+  return `rgba(211, 171, 83, ${0.08 + t * 0.85})`;
 }
 
 export function Heatmap({ rows, cols, cells, height, formatValue = (v) => v.toFixed(0), signed = true, colLabelEvery = 1 }: Props) {

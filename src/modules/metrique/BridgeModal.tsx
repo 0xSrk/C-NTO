@@ -98,7 +98,7 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflow: 'auto' }}>
               {log.map((l) => (
-                <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto', gap: 10, fontSize: 11.5, alignItems: 'center' }} className="mono">
+                <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto', gap: 10, fontSize: 12, alignItems: 'center' }} className="mono">
                   <span className="dim">{fmtTime.format(l.at)}</span>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {l.file} <span className="dim">· {l.kind} · {l.format}</span>

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import s from './primitives.module.css';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -49,9 +49,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
 }
 
-export function Button({ variant = 'default', size = 'md', active, className, children, ...rest }: ButtonProps) {
+export function Button({ variant = 'default', size = 'md', active, className, children, type = 'button', ...rest }: ButtonProps) {
   return (
-    <button className={cx(s.btn, variant !== 'default' && s[variant], size === 'sm' && s.sm, active && s.active, className)} {...rest}>
+    <button type={type} className={cx(s.btn, variant !== 'default' && s[variant], size === 'sm' && s.sm, active && s.active, className)} {...rest}>
       {children}
     </button>
   );
@@ -66,11 +66,60 @@ export function Tag({ children, tone, dot, live, className }: { children: ReactN
   );
 }
 
-export function Stat({ label, value, hint, tone, small, className }: { label: ReactNode; value: ReactNode; hint?: ReactNode; tone?: 'pos' | 'neg' | 'flat' | 'gold' | 'ice'; small?: boolean; className?: string }) {
+/** Onglet inversé (fond blanc, texte noir) — un seul par écran. */
+export function InvertedTab({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cx(s.invertedTab, className)}>{children}</span>;
+}
+
+/** Interpole une valeur numérique vers sa nouvelle cible (380 ms), chiffres tabulaires. */
+function useCountUp(target: number | undefined, duration = 380): number | undefined {
+  const [value, setValue] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    if (target === undefined || !Number.isFinite(target)) {
+      setValue(target);
+      return;
+    }
+    const start = from.current !== undefined && Number.isFinite(from.current) ? from.current : target;
+    if (start === target || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      from.current = target;
+      setValue(target);
+      return;
+    }
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setValue(start + (target - start) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else from.current = target;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return value;
+}
+
+interface StatProps {
+  label: ReactNode;
+  value: ReactNode;
+  hint?: ReactNode;
+  tone?: 'pos' | 'neg' | 'flat' | 'gold' | 'ice';
+  small?: boolean;
+  className?: string;
+  /** Valeur numérique interpolée à l'arrivée des données ; `format` la met en forme */
+  num?: number;
+  format?: (v: number) => string;
+}
+
+export function Stat({ label, value, hint, tone, small, className, num, format }: StatProps) {
+  const animated = useCountUp(num);
+  const shown = num !== undefined && format && animated !== undefined ? format(animated) : value;
   return (
     <div className={cx(s.stat, tone && tone !== 'flat' && s[tone], className)}>
       <span className={s.statLabel}>{label}</span>
-      <span className={cx(s.statValue, small && s.sm)}>{value}</span>
+      <span className={cx(s.statValue, small && s.sm)}>{shown}</span>
       {hint !== undefined && <span className={s.statHint}>{hint}</span>}
     </div>
   );
@@ -126,11 +175,11 @@ export function Progress({ value, tone, className }: { value: number; tone?: 'go
   );
 }
 
-/** Marque SIΞRRΛSKΛ gravée — toujours discrète. */
-export function Sigil({ size = 10, className, style }: { size?: number; className?: string; style?: CSSProperties }) {
+/** Marque SIΞRRΛSKΛ—LAB — discrète, mono espacée ; `engraved` pour la version gravée du chargement. */
+export function Sigil({ size = 11, className, style, engraved, lab = true }: { size?: number; className?: string; style?: CSSProperties; engraved?: boolean; lab?: boolean }) {
   return (
-    <span className={cx(s.sigil, className)} style={{ fontSize: size, ...style }}>
-      SIΞRRΛSKΛ
+    <span className={cx(s.sigil, engraved && s.engraved, className)} style={{ fontSize: size, ...style }}>
+      {lab ? 'SIΞRRΛSKΛ—LAB' : 'SIΞRRΛSKΛ'}
     </span>
   );
 }

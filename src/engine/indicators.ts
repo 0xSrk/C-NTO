@@ -125,12 +125,12 @@ function toLine(bars: Bar[], values: (number | null)[]): { time: number; value?:
 }
 
 const PALETTE = {
-  ice: '#7FD1FF',
-  gold: '#C9A24D',
-  mint: '#3DDC97',
-  ember: '#FF4D5E',
-  violet: '#A78BFA',
-  steel: '#8A90A2',
+  ice: '#8fc7e8',
+  gold: '#ffffff',
+  mint: '#7fcf9a',
+  ember: '#e0776c',
+  violet: '#a996e0',
+  steel: '#6c6c6c',
 };
 
 export const INDICATORS: IndicatorDefinition[] = [
