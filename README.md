@@ -17,7 +17,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
 [![Tests](https://img.shields.io/badge/tests-58%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
-[![Version](https://img.shields.io/badge/version-1.1.0-c41e3a?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-1.1.1-c41e3a?style=flat-square)](package.json)
 
 <br/>
 

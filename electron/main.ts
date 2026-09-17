@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, session, shell } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -6,6 +6,7 @@ import { NinjaBridge } from './bridge';
 import { Orchestrator } from './orchestrator';
 import { fetchMacroReleases } from './macro-calendar';
 import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
+import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, type UiZoomMode } from './ui-scale';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 const LAUNCHER_MODE = process.argv.includes('--launcher');
@@ -24,6 +25,61 @@ const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolea
 };
 
 const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
+
+/** Préférence zoom envoyée par le renderer (persistée dans IndexedDB). */
+let zoomUser = 1;
+let zoomAuto = true;
+
+function displayFor(winRef: BrowserWindow | null) {
+  if (winRef && !winRef.isDestroyed()) {
+    try {
+      return screen.getDisplayMatching(winRef.getBounds());
+    } catch {
+      /* fallback */
+    }
+  }
+  return screen.getPrimaryDisplay();
+}
+
+function autoZoomFor(winRef: BrowserWindow | null): number {
+  const d = displayFor(winRef);
+  return computeAutoZoom(d.workAreaSize.width, d.workAreaSize.height, d.scaleFactor);
+}
+
+function effectiveZoom(winRef: BrowserWindow | null = win): number {
+  const mode: UiZoomMode = zoomAuto ? 'auto' : 'manual';
+  return resolveZoom(autoZoomFor(winRef), zoomUser, mode);
+}
+
+function applyZoom(winRef: BrowserWindow | null = win): number {
+  const factor = effectiveZoom(winRef);
+  if (winRef && !winRef.isDestroyed()) {
+    try {
+      winRef.webContents.setZoomFactor(factor);
+    } catch {
+      /* webContents pas prêt */
+    }
+  }
+  return factor;
+}
+
+function zoomSnapshot(winRef: BrowserWindow | null = win) {
+  const auto = autoZoomFor(winRef);
+  const factor = effectiveZoom(winRef);
+  const d = displayFor(winRef);
+  return {
+    factor,
+    auto,
+    user: zoomUser,
+    mode: (zoomAuto ? 'auto' : 'manual') as UiZoomMode,
+    display: {
+      width: d.workAreaSize.width,
+      height: d.workAreaSize.height,
+      scaleFactor: d.scaleFactor,
+      label: `${d.workAreaSize.width}×${d.workAreaSize.height}`,
+    },
+  };
+}
 
 function createLauncherWindow(): void {
   launcherWin = new BrowserWindow({
@@ -55,9 +111,14 @@ function createLauncherWindow(): void {
 }
 
 function createWindow(opts: { fromLauncher?: boolean } = {}): void {
+  const primary = screen.getPrimaryDisplay();
+  const auto = computeAutoZoom(primary.workAreaSize.width, primary.workAreaSize.height, primary.scaleFactor);
+  const initialZoom = resolveZoom(auto, zoomUser, zoomAuto ? 'auto' : 'manual');
+  const size = suggestWindowSize(primary.workAreaSize.width, primary.workAreaSize.height, initialZoom);
+
   win = new BrowserWindow({
-    width: 1560,
-    height: 980,
+    width: size.width,
+    height: size.height,
     minWidth: 1180,
     minHeight: 720,
     frame: false,
@@ -77,9 +138,30 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     },
   });
 
-  win.once('ready-to-show', () => win?.show());
+  win.once('ready-to-show', () => {
+    applyZoom(win);
+    win?.show();
+  });
+  win.webContents.on('did-finish-load', () => {
+    applyZoom(win);
+    win?.webContents.send('zoom:changed', zoomSnapshot(win));
+  });
   win.on('maximize', () => win?.webContents.send('window:maximized', true));
   win.on('unmaximize', () => win?.webContents.send('window:maximized', false));
+  let moveTimer: ReturnType<typeof setTimeout> | null = null;
+  const onDisplayMaybeChanged = () => {
+    if (moveTimer) clearTimeout(moveTimer);
+    moveTimer = setTimeout(() => {
+      if (!win || win.isDestroyed()) return;
+      const before = win.webContents.getZoomFactor();
+      const after = applyZoom(win);
+      if (Math.abs(before - after) > 0.001) {
+        win.webContents.send('zoom:changed', zoomSnapshot(win));
+      }
+    }, 280);
+  };
+  win.on('moved', onDisplayMaybeChanged);
+  win.on('resized', onDisplayMaybeChanged);
   win.on('closed', () => {
     win = null;
   });
@@ -119,6 +201,11 @@ app.commandLine.appendSwitch('lang', 'fr-FR');
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  screen.on('display-metrics-changed', () => {
+    if (!win || win.isDestroyed()) return;
+    applyZoom(win);
+    win.webContents.send('zoom:changed', zoomSnapshot(win));
+  });
   if (LAUNCHER_MODE) createLauncherWindow();
   else createWindow();
   app.on('activate', () => {
@@ -153,6 +240,41 @@ ipcMain.on('window:close', (e) => {
 });
 
 ipcMain.handle('app:version', (e) => (trusted(e) ? app.getVersion() : ''));
+
+/* ─── Zoom / calibrage écran ─── */
+ipcMain.handle('zoom:get', (e) => (trusted(e) ? zoomSnapshot(BrowserWindow.fromWebContents(e.sender) ?? win) : null));
+ipcMain.handle('zoom:set', (e, payload: unknown) => {
+  if (!trusted(e) || !payload || typeof payload !== 'object') return null;
+  const p = payload as { user?: unknown; auto?: unknown };
+  if (typeof p.user === 'number' && Number.isFinite(p.user)) zoomUser = snapZoom(p.user);
+  if (typeof p.auto === 'boolean') zoomAuto = p.auto;
+  const w = BrowserWindow.fromWebContents(e.sender) ?? win;
+  applyZoom(w);
+  const snap = zoomSnapshot(w);
+  w?.webContents.send('zoom:changed', snap);
+  return snap;
+});
+ipcMain.handle('zoom:step', (e, direction: unknown) => {
+  if (!trusted(e) || (direction !== 1 && direction !== -1)) return null;
+  const w = BrowserWindow.fromWebContents(e.sender) ?? win;
+  const current = effectiveZoom(w);
+  zoomAuto = false;
+  zoomUser = stepZoom(current, direction);
+  applyZoom(w);
+  const snap = zoomSnapshot(w);
+  w?.webContents.send('zoom:changed', snap);
+  return snap;
+});
+ipcMain.handle('zoom:reset', (e) => {
+  if (!trusted(e)) return null;
+  zoomAuto = true;
+  zoomUser = 1;
+  const w = BrowserWindow.fromWebContents(e.sender) ?? win;
+  applyZoom(w);
+  const snap = zoomSnapshot(w);
+  w?.webContents.send('zoom:changed', snap);
+  return snap;
+});
 
 /* ─── Mise à jour ─── */
 ipcMain.handle('update:check', async (e): Promise<UpdateStatus | null> => {

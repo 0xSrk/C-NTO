@@ -16,6 +16,13 @@ contextBridge.exposeInMainWorld('canto', {
     close: () => ipcRenderer.send('window:close'),
     onMaximized: (cb: (max: boolean) => void) => subscribe<boolean>('window:maximized', cb),
   },
+  zoom: {
+    get: () => ipcRenderer.invoke('zoom:get'),
+    set: (payload: { user?: number; auto?: boolean }) => ipcRenderer.invoke('zoom:set', payload),
+    step: (direction: 1 | -1) => ipcRenderer.invoke('zoom:step', direction),
+    reset: () => ipcRenderer.invoke('zoom:reset'),
+    onChange: (cb: (snap: unknown) => void) => subscribe('zoom:changed', cb),
+  },
   files: {
     saveText: (defaultName: string, text: string) => ipcRenderer.invoke('files:save-text', defaultName, text),
     openText: (filters: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('files:open-text', filters),
