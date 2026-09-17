@@ -241,7 +241,7 @@ Façon Obsidian, 100 % local :
 
 ## Bot & Copieur
 
-**Bot** (phase conception) — gabarits, grammaire conditions / actions / garde-fous, cycle de vie `brouillon → backtest → papier → réel verrouillé`. Garde-fous dérivés du plan prop firm et du calendrier.
+**Bot** (phase conception) — gabarits, grammaire conditions / actions / garde-fous, cycle de vie `brouillon → backtest → papier`. Garde-fous dérivés du plan prop firm et du calendrier. Aucun envoi d’ordre.
 
 **Copieur** — topologie maître → suiveurs, dimensionnement (fixe, ratio, risque), correspondance NQ ↔ MNQ, filtres (fenêtre horaire, blackout catalyseurs, marge plancher, latence), journal des versions. La **réplication d'ordres** attend le transport WebSocket du pont (spécifié dans `docs/PONT-NINJATRADER.md`).
 
