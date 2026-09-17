@@ -10,6 +10,8 @@
 
 Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8, calendrier catalyseurs, notes, agent IA, automates et copieur, dans une seule application locale. Données 100 % sur le poste.
 
+> Licence : `UNLICENSED`. Source visible. Pas de concession de droits. Pas de réutilisation sans accord SIΞRRΛSKΛ.
+
 [![Node](https://img.shields.io/badge/Node-22.12%2B-000000?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Shell-Electron-000000?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
