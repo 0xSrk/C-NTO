@@ -35,6 +35,10 @@ export interface Settings {
   uiZoomAuto: boolean;
   backupFolder: string | null;
   backupEncrypted: boolean;
+  /** Copie quotidienne dans backupFolder si Electron et jour ≠ lastBackupAt. */
+  backupDaily: boolean;
+  /** Export barres + messages agent (gros). Défaut false. */
+  backupIncludeHeavy: boolean;
   lastBackupAt: number | null;
   agent: AgentConfig;
   orchestratorPort: number;
@@ -58,6 +62,8 @@ export const DEFAULT_SETTINGS: Settings = {
   uiZoomAuto: true,
   backupFolder: null,
   backupEncrypted: false,
+  backupDaily: true,
+  backupIncludeHeavy: false,
   lastBackupAt: null,
   agent: {
     provider: 'openai-compatible',
@@ -132,8 +138,8 @@ function todayUtc(ms = Date.now()): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-async function writeBackupFile(folder: string, encrypt: boolean): Promise<{ ok: boolean; encrypted: boolean; path?: string }> {
-  const json = await exportVault();
+async function writeBackupFile(folder: string, encrypt: boolean, includeHeavy: boolean): Promise<{ ok: boolean; encrypted: boolean; path?: string }> {
+  const json = await exportVault({ includeHeavy });
   const name = `canto-vault-${todayUtc()}.json`;
   if (desk?.files.writeInFolder) return desk.files.writeInFolder(folder, name, json, encrypt);
   const saved = await saveTextFile(name, json, 'application/json');
@@ -192,13 +198,14 @@ export const useSettings = create<SettingsState>((set, get) => ({
       folder = await desk.files.pickFolder();
       if (folder) await get().update({ backupFolder: folder });
     }
+    const includeHeavy = get().settings.backupIncludeHeavy === true;
     if (!folder) {
-      const json = await exportVault();
+      const json = await exportVault({ includeHeavy });
       const saved = await saveTextFile(`canto-vault-${todayUtc()}.json`, json, 'application/json');
       if (saved) await get().update({ lastBackupAt: Date.now() });
       return { ok: saved, encrypted: false };
     }
-    const r = await writeBackupFile(folder, get().settings.backupEncrypted);
+    const r = await writeBackupFile(folder, get().settings.backupEncrypted, includeHeavy);
     if (r.ok) {
       await get().update({ lastBackupAt: Date.now() });
       if (get().settings.backupEncrypted && !r.encrypted) useUi.getState().toast('Chiffrement indisponible : sauvegarde écrite en clair.', 'warn');
@@ -208,10 +215,10 @@ export const useSettings = create<SettingsState>((set, get) => ({
 }));
 
 async function maybeDailyBackup(settings: Settings): Promise<void> {
-  if (!settings.backupFolder || !desk?.files.writeInFolder) return;
+  if (!settings.backupDaily || !settings.backupFolder || !desk?.files.writeInFolder) return;
   const last = settings.lastBackupAt ? todayUtc(settings.lastBackupAt) : '';
   if (todayUtc() === last) return;
-  const r = await writeBackupFile(settings.backupFolder, settings.backupEncrypted);
+  const r = await writeBackupFile(settings.backupFolder, settings.backupEncrypted, settings.backupIncludeHeavy === true);
   if (!r.ok) return;
   await useSettings.getState().update({ lastBackupAt: Date.now() });
   if (settings.backupEncrypted && !r.encrypted) useUi.getState().toast('Chiffrement indisponible : sauvegarde écrite en clair.', 'warn');

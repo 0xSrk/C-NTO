@@ -99,6 +99,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label="Chiffrer la sauvegarde" className={s.full}>
           <Toggle on={settings.backupEncrypted} onChange={(v) => update({ backupEncrypted: v })} label="trousseau système si disponible" />
         </Field>
+        <Field label="Sauvegarde quotidienne" className={s.full} hint="si un dossier est choisi, au boot Electron">
+          <Toggle on={settings.backupDaily} onChange={(v) => update({ backupDaily: v })} label="écrire canto-vault-AAAA-MM-JJ.json" />
+        </Field>
+        <Field label="Coffre lourd" className={s.full} hint="barres et messages agent — fichier beaucoup plus gros">
+          <Toggle on={settings.backupIncludeHeavy} onChange={(v) => update({ backupIncludeHeavy: v })} label="inclure barSeries et agentMessages" />
+        </Field>
         <Field label="Sauvegarde" className={s.full}>
           <Button
             onClick={async () => {
