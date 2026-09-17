@@ -419,15 +419,6 @@ ipcMain.handle('secrets:encrypt', (e, text: unknown) => {
   if (!safeStorage.isEncryptionAvailable()) return null;
   return safeStorage.encryptString(text).toString('base64');
 });
-ipcMain.handle('secrets:decrypt', (e, payload: unknown) => {
-  if (!trusted(e) || !isString(payload, 16384)) return null;
-  if (!safeStorage.isEncryptionAvailable()) return null;
-  try {
-    return safeStorage.decryptString(Buffer.from(payload, 'base64'));
-  } catch {
-    return null;
-  }
-});
 
 /* ─── LLM (process main : la clé ne transite pas par le renderer) ─── */
 const LLM_HOSTS = new Set(['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai', 'api.moonshot.ai']);
