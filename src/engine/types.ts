@@ -63,6 +63,8 @@ export interface Trade {
   risk?: number;
   /** Identifiants d'exécutions NT ayant formé ce trade */
   executionIds?: string[];
+  /** Identifiants d'ordres NT (FIFO entrée puis sortie) */
+  orderIds?: string[];
   /** Mois de contrat (ex. 12-26, SEP26) */
   contractMonth?: string;
   schemaVersion?: number;
@@ -91,4 +93,5 @@ export interface Session {
   schemaVersion?: number;
 }
 
+/** Soft limit UI : warning + proposition d'export, pas de drop silencieux à l'import. */
 export const SESSION_CAPACITY = 1000;

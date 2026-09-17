@@ -36,9 +36,13 @@ describe('exécutions NinjaTrader', () => {
     const t3 = trades[2]!;
     // 2 NQ achetés à 20000 : 1 vendu à 20010 (+200 brut), 1 vendu à 20005 (+100 brut)
     expect(t1).toMatchObject({ instrument: 'NQ', direction: 'long', qty: 1, entryPrice: 20000, exitPrice: 20010, entryName: 'Entry', exitName: 'Target1' });
+    expect(t1.executionIds).toEqual(['e1', 'e2']);
+    expect(t1.orderIds).toEqual(['o1', 'o2']);
     expect(t1.commission).toBeCloseTo(2.25 + 2.25);
     expect(t1.pnl).toBeCloseTo(200 - 4.5);
     expect(t2).toMatchObject({ direction: 'long', qty: 1, exitPrice: 20005, exitName: 'Stop1' });
+    expect(t2.executionIds).toEqual(['e1', 'e3']);
+    expect(t2.orderIds).toEqual(['o1', 'o3']);
     expect(t2.pnl).toBeCloseTo(100 - 4.5);
     // 5 MNQ short 20100 → cover 20090 : +10 pts × 2 $ × 5 = +100 brut
     expect(t3).toMatchObject({ instrument: 'MNQ', direction: 'short', qty: 5, entryPrice: 20100, exitPrice: 20090 });
