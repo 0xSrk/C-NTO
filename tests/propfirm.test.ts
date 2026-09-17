@@ -140,6 +140,7 @@ describe('registre prop firms', () => {
     expect(findPlan('apex-50')?.drawdownType).toBe('intraday-trailing');
     expect(findPlan('apex-50')?.source).toBe('bundled');
     expect(findPlan('apex-50')?.version).toBe(1);
+    expect(findPlan('apex-50')?.effectiveFrom).toBeUndefined();
     expect(findPlan('nope')).toBeUndefined();
   });
 });
