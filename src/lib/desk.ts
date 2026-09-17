@@ -55,6 +55,7 @@ export interface UpdateStatus {
   busy: boolean;
   error?: string;
   source: 'git' | 'github' | 'none';
+  applied?: boolean;
 }
 
 export interface ZoomSnapshot {
@@ -72,7 +73,7 @@ export interface DeskApi {
   version: () => Promise<string>;
   update: {
     check: () => Promise<UpdateStatus | null>;
-    apply: () => Promise<UpdateStatus | null>;
+    apply: (opts?: { channel?: string; confirmStash?: boolean }) => Promise<UpdateStatus | null>;
     relaunch: () => Promise<boolean>;
     startDesk: () => Promise<boolean>;
   };

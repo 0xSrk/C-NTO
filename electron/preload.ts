@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld('canto', {
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
-    apply: () => ipcRenderer.invoke('update:apply'),
+    apply: (opts?: { channel?: string; confirmStash?: boolean }) => ipcRenderer.invoke('update:apply', opts),
     relaunch: () => ipcRenderer.invoke('update:relaunch'),
     startDesk: () => ipcRenderer.invoke('update:start-desk'),
   },

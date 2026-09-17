@@ -35,6 +35,8 @@ export interface Settings {
   orchestratorPort: number;
   /** Autoriser l'orchestrateur externe à écrire (notes, annotations) */
   orchestratorAllowWrite: boolean;
+  /** `dev` : git pull + npm install. Défaut `release` (page GitHub Releases). */
+  updateChannel: 'release' | 'dev';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -62,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   orchestratorPort: 47117,
   orchestratorAllowWrite: false,
+  updateChannel: 'release',
 };
 
 interface SettingsState {

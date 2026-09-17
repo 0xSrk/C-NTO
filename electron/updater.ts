@@ -11,6 +11,35 @@ export const GITHUB_REPO = '0xSrk/C-NTO';
 export const GITHUB_BRANCH = 'main';
 /** Code de sortie : le script `launch.mjs` relance la boucle. */
 export const RELAUNCH_EXIT_CODE = 42;
+const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
+
+type UpdateChannel = 'release' | 'dev';
+
+/** Miroir de src/engine/updatePolicy.ts — le process main ne compile pas `src/`. */
+function canApplyGitUpdate(input: { channel: UpdateChannel; isGitCheckout: boolean; dirty: boolean }): { ok: true } | { ok: false; reason: string } {
+  if (input.channel !== 'dev') return { ok: false, reason: 'channel_release' };
+  if (!input.isGitCheckout) return { ok: false, reason: 'not_git' };
+  if (input.dirty) return { ok: false, reason: 'dirty' };
+  return { ok: true };
+}
+
+function canStash(input: { channel: UpdateChannel; confirmStash: boolean }): boolean {
+  return input.channel === 'dev' && input.confirmStash === true;
+}
+
+function resolveChannel(isGitCheckout: boolean, setting: string | undefined): UpdateChannel {
+  if (isGitCheckout && setting === 'dev') return 'dev';
+  return 'release';
+}
+
+async function gitDirty(root: string): Promise<boolean> {
+  const r = await run('git', ['status', '--porcelain'], root);
+  return r.code === 0 && r.out.trim().length > 0;
+}
+
+function openReleasesPage(): void {
+  if (RELEASES_URL.startsWith('https:')) void shell.openExternal(RELEASES_URL);
+}
 
 export interface UpdateStatus {
   current: string;
@@ -20,6 +49,8 @@ export interface UpdateStatus {
   error?: string;
   /** Source de la détection */
   source: 'git' | 'github' | 'none';
+  /** true seulement après un pull dev réussi */
+  applied?: boolean;
 }
 
 export function repoRoot(): string {
@@ -156,42 +187,68 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
   };
 }
 
-export async function applyUpdate(): Promise<UpdateStatus> {
+export async function applyUpdate(opts: { channel?: string; confirmStash?: boolean } = {}): Promise<UpdateStatus> {
   const root = repoRoot();
   const current = await readLocalVersion(root);
+  const git = await isGitCheckout(root);
+  const channel = resolveChannel(git, opts.channel);
+  const latest = (git ? await gitRemotePackageVersion(root) : null) ?? (await fetchGithubPackageVersion());
 
-  if (!(await isGitCheckout(root))) {
-    void shell.openExternal(`https://github.com/${GITHUB_REPO}`);
+  if (channel === 'release') {
+    openReleasesPage();
     return {
       current,
-      latest: null,
+      latest: latest ?? current,
+      available: latest ? compareSemver(latest, current) > 0 : true,
+      busy: false,
+      applied: false,
+      source: git ? 'git' : 'github',
+    };
+  }
+
+  if (!git) {
+    openReleasesPage();
+    return {
+      current,
+      latest: latest ?? null,
       available: true,
       busy: false,
-      error: 'Dépôt git introuvable — ouvrez GitHub pour télécharger la dernière version.',
+      error: 'Dépôt git introuvable — ouvrez la page des versions.',
       source: 'none',
     };
   }
 
-  const fetch = await run('git', ['fetch', 'origin', GITHUB_BRANCH], root);
-  if (fetch.code !== 0) {
-    return { current, latest: null, available: true, busy: false, error: fetch.err || 'git fetch a échoué', source: 'git' };
+  const dirty = await gitDirty(root);
+  const gitOk = canApplyGitUpdate({ channel, isGitCheckout: git, dirty });
+  if (!gitOk.ok) {
+    if (gitOk.reason === 'dirty' && canStash({ channel, confirmStash: opts.confirmStash === true })) {
+      const stash = await run('git', ['stash', 'push', '-u', '-m', 'canto-auto-update'], root);
+      if (stash.code !== 0) {
+        return { current, latest: latest ?? null, available: true, busy: false, error: stash.err || 'git stash a échoué', source: 'git' };
+      }
+    } else if (gitOk.reason === 'dirty') {
+      return { current, latest: latest ?? null, available: true, busy: false, error: 'dirty_needs_stash', source: 'git' };
+    } else {
+      openReleasesPage();
+      return { current, latest: latest ?? null, available: true, busy: false, error: gitOk.reason, source: 'git' };
+    }
   }
 
-  // Préfère fast-forward ; si modifs locales, stash puis pull.
-  let pull = await run('git', ['pull', '--ff-only', 'origin', GITHUB_BRANCH], root);
-  if (pull.code !== 0) {
-    await run('git', ['stash', 'push', '-u', '-m', 'canto-auto-update'], root);
-    pull = await run('git', ['pull', '--ff-only', 'origin', GITHUB_BRANCH], root);
+  const fetch = await run('git', ['fetch', 'origin', GITHUB_BRANCH], root);
+  if (fetch.code !== 0) {
+    return { current, latest: latest ?? null, available: true, busy: false, error: fetch.err || 'git fetch a échoué', source: 'git' };
   }
+
+  const pull = await run('git', ['pull', '--ff-only', 'origin', GITHUB_BRANCH], root);
   if (pull.code !== 0) {
-    return { current, latest: null, available: true, busy: false, error: pull.err || pull.out || 'git pull a échoué', source: 'git' };
+    return { current, latest: latest ?? null, available: true, busy: false, error: pull.err || pull.out || 'git pull a échoué', source: 'git' };
   }
 
   const install = await runNpm(['install', '--legacy-peer-deps'], root);
   if (install.code !== 0) {
     return {
       current,
-      latest: null,
+      latest: latest ?? null,
       available: false,
       busy: false,
       error: install.err || 'npm install a échoué',
@@ -200,7 +257,7 @@ export async function applyUpdate(): Promise<UpdateStatus> {
   }
 
   const next = await readLocalVersion(root);
-  return { current: next, latest: next, available: false, busy: false, source: 'git' };
+  return { current: next, latest: next, available: false, busy: false, applied: true, source: 'git' };
 }
 
 /** Relance : si le parent est `launch.mjs`, exit 42 ; sinon spawn détaché de `npm run launch`. */

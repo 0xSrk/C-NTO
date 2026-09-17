@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { cx } from '@/design/primitives';
 import { desk, isDesk, type UpdateStatus } from '@/lib/desk';
+import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './shell.module.css';
 
 /** Bouton titlebar : contrôle GitHub/git au boot ; ambre si une màj est dispo. */
 export function UpdateButton() {
   const toast = useUi((u) => u.toast);
+  const confirmDialog = useUi((u) => u.confirm);
+  const channel = useSettings((st) => st.settings.updateChannel);
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const api = desk?.update;
@@ -32,7 +35,9 @@ export function UpdateButton() {
   const available = status.available;
   const label = busy ? 'Màj…' : available ? 'Màj' : `v${status.current}`;
   const title = available
-    ? `Mise à jour disponible : v${status.current} → v${status.latest ?? '…'} — cliquer pour installer et relancer`
+    ? channel === 'dev'
+      ? `Mise à jour disponible : v${status.current} → v${status.latest ?? '…'} — cliquer pour git pull et relancer`
+      : `v${status.latest ?? '…'} dispo — cliquer pour ouvrir GitHub Releases`
     : `Version locale v${status.current}${status.latest ? ` · distant v${status.latest}` : ''} — à jour`;
 
   const onClick = async () => {
@@ -41,9 +46,18 @@ export function UpdateButton() {
       return;
     }
     setBusy(true);
-    toast('Téléchargement de la mise à jour…', 'info');
+    toast(channel === 'dev' ? 'Téléchargement de la mise à jour…' : `v${status.latest ?? ''} dispo — ouverture des versions.`, 'info');
     try {
-      const r = await api.apply();
+      let r = await api.apply({ channel, confirmStash: false });
+      if (r?.error === 'dirty_needs_stash') {
+        const ok = await confirmDialog('Modifications locales détectées', 'Mettre de côté le travail en cours (git stash) puis tirer la mise à jour ?');
+        if (!ok) {
+          setBusy(false);
+          toast('Mise à jour annulée.', 'warn');
+          return;
+        }
+        r = await api.apply({ channel, confirmStash: true });
+      }
       if (!r || r.error) {
         toast(r?.error ?? 'Mise à jour impossible.', 'error');
         setBusy(false);
@@ -51,6 +65,11 @@ export function UpdateButton() {
         return;
       }
       setStatus(r);
+      if (!r.applied) {
+        toast('Page des versions ouverte.', 'ok');
+        setBusy(false);
+        return;
+      }
       toast('Mise à jour installée — redémarrage…', 'ok');
       await api.relaunch();
     } catch (e) {

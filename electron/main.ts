@@ -292,11 +292,15 @@ ipcMain.handle('update:check', async (e): Promise<UpdateStatus | null> => {
     };
   }
 });
-ipcMain.handle('update:apply', async (e): Promise<UpdateStatus | null> => {
+ipcMain.handle('update:apply', async (e, payload: unknown): Promise<UpdateStatus | null> => {
   if (!trusted(e) || updateBusy) return null;
   updateBusy = true;
   try {
-    return await applyUpdate();
+    const p = payload && typeof payload === 'object' ? (payload as { channel?: unknown; confirmStash?: unknown }) : {};
+    return await applyUpdate({
+      channel: typeof p.channel === 'string' ? p.channel : undefined,
+      confirmStash: p.confirmStash === true,
+    });
   } finally {
     updateBusy = false;
   }
