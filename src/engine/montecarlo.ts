@@ -10,6 +10,7 @@ export interface MonteCarloOptions {
   /** Objectif de profit ($) — probabilité de l'atteindre avant la ruine */
   target?: number;
   signal?: AbortSignal;
+  onProgress?: (done: number, total: number) => void;
 }
 
 export interface MonteCarloResult {
@@ -78,8 +79,8 @@ export function clampMonteCarlo(runs: number, horizon: number): { runs: number; 
  * Bootstrap (tirage avec remise) d'une suite de PnL : quantifie la dispersion des
  * trajectoires possibles à partir de l'historique réel — sans hypothèse de distribution.
  * Mémoire bornée : l'enveloppe est estimée sur 500 trajectoires et 240 pas.
+ * UI : `monteCarloOffthread` (Worker) dans MonteCarloView — cette fonction reste synchrone pour les tests.
  */
-// TODO(P1.5) worker
 export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): MonteCarloResult | null {
   const pnls = input.filter(Number.isFinite);
   const n = pnls.length;
@@ -132,6 +133,7 @@ export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): Monte
     if (isRuined) ruined++;
     if (hitTarget) reached++;
     if (path) samples.push(path);
+    if (opts.onProgress && ((r & 31) === 0 || r === runs - 1)) opts.onProgress(r + 1, runs);
   }
 
   const envelope = { steps, p5: [] as number[], p50: [] as number[], p95: [] as number[] };

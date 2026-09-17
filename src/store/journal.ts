@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { generateDemoJournal } from '@/engine/demo';
-import { importCsvAuto, type ImportResult } from '@/engine/import';
+import { CSV_WORKER_MIN_LINES, csvLineCount, importCsvAuto, type ImportOptions, type ImportResult } from '@/engine/import';
+import { listenWorker } from '@/lib/worker';
 import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { summarizeTrades } from '@/engine/metrics';
 import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
@@ -39,7 +40,20 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 
   async importCsv(text, opts = {}) {
-    const result = importCsvAuto(text, { sessionBoundaryHour: opts.boundaryHour ?? 0, riskPerContract: opts.riskPerContract, source: opts.source });
+    const importOpts: ImportOptions = { sessionBoundaryHour: opts.boundaryHour ?? 0, riskPerContract: opts.riskPerContract, source: opts.source };
+    let result: ImportResult;
+    if (typeof Worker !== 'undefined' && csvLineCount(text) > CSV_WORKER_MIN_LINES) {
+      try {
+        const worker = new Worker(new URL('../engine/import/csv.worker.ts', import.meta.url), { type: 'module' });
+        const pending = listenWorker<ImportResult>(worker);
+        worker.postMessage({ text, opts: importOpts });
+        result = await pending;
+      } catch {
+        result = importCsvAuto(text, importOpts);
+      }
+    } else {
+      result = importCsvAuto(text, importOpts);
+    }
     if (result.sessions.length === 0) return { ...result, added: 0, merged: 0, newTrades: 0 };
     const { sessions: existing, trades: existingTrades } = get();
     // Fusion : une séance existante (même date + même compte) absorbe les nouveaux trades.
