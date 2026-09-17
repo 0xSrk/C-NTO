@@ -15,7 +15,7 @@ interface BarsState {
   load: () => Promise<void>;
   setActive: (id: string) => Promise<void>;
   regenerateDemo: (opts?: { endDate?: string; days?: number; timeframe?: number }) => Promise<BarSeries>;
-  importCsv: (text: string, name: string, instrument: Instrument, timeframe: number) => Promise<{ bars: number; warnings: string[] }>;
+  importCsv: (text: string, name: string, instrument: Instrument, timeframe: number, opts?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<{ bars: number; warnings: string[] }>;
   remove: (id: string) => Promise<void>;
   addIndicator: (definitionId: string) => Promise<void>;
   updateIndicator: (id: string, params: Record<string, number | string>) => Promise<void>;
@@ -80,15 +80,16 @@ export const useBars = create<BarsState>((set, get) => ({
     return demo;
   },
 
-  async importCsv(text, name, instrument, timeframe) {
+  async importCsv(text, name, instrument, timeframe, opts = {}) {
     let parsed: { bars: Bar[]; warnings: string[] };
     if (typeof Worker !== 'undefined' && csvLineCount(text) > CSV_WORKER_MIN_LINES) {
       try {
         const worker = new Worker(new URL('../engine/bars.worker.ts', import.meta.url), { type: 'module' });
-        const pending = listenWorker<{ bars: Bar[]; warnings: string[] }>(worker);
+        const pending = listenWorker<{ bars: Bar[]; warnings: string[] }>(worker, { signal: opts.signal, onProgress: opts.onProgress });
         worker.postMessage({ text });
         parsed = await pending;
-      } catch {
+      } catch (e) {
+        if (opts.signal?.aborted || (e instanceof Error && e.name === 'AbortError')) throw e;
         parsed = importBarsCsv(text);
       }
     } else {

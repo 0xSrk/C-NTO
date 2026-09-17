@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconImport, IconPlus, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Modal } from '@/design/Modal';
-import { Button, Empty, Field, Tag, Toggle, cx } from '@/design/primitives';
+import { Button, Empty, Field, Progress, Tag, Toggle, cx } from '@/design/primitives';
 import { INDICATORS, indicatorById, type IndicatorLine } from '@/engine/indicators';
 import type { Instrument } from '@/engine/types';
 import { openTextFile } from '@/lib/desk';
@@ -281,8 +281,8 @@ export default function Visual() {
       {importOpen && (
         <ImportBarsModal
           onClose={() => setImportOpen(false)}
-          onImport={async (text, name, instrument, timeframe) => {
-            const r = await importCsv(text, name, instrument, timeframe);
+          onImport={async (text, name, instrument, timeframe, opts) => {
+            const r = await importCsv(text, name, instrument, timeframe, opts);
             toast(r.bars ? `${fmtInt(r.bars)} barres importées.` : r.warnings.join(' '), r.bars ? 'ok' : 'warn');
             if (r.bars) setImportOpen(false);
           }}
@@ -292,9 +292,40 @@ export default function Visual() {
   );
 }
 
-function ImportBarsModal({ onClose, onImport }: { onClose: () => void; onImport: (text: string, name: string, instrument: Instrument, timeframe: number) => Promise<void> }) {
+function ImportBarsModal({ onClose, onImport }: { onClose: () => void; onImport: (text: string, name: string, instrument: Instrument, timeframe: number, opts?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<void> }) {
   const [instrument, setInstrument] = useState<Instrument>('NQ');
   const [timeframe, setTimeframe] = useState(5);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const toast = useUi((u) => u.toast);
+
+  const cancel = () => abortRef.current?.abort();
+
+  const pick = async () => {
+    const f = await openTextFile('.csv,.txt');
+    if (!f) return;
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setBusy(true);
+    setProgress(0);
+    try {
+      await onImport(f.text, f.name, instrument, timeframe, {
+        signal: ac.signal,
+        onProgress: (done, total) => {
+          if (!ac.signal.aborted) setProgress(total ? done / total : 0);
+        },
+      });
+      if (!ac.signal.aborted) setProgress(1);
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') toast('Import annulé.', 'info');
+      else toast(e instanceof Error ? e.message : 'Import impossible.', 'error');
+    } finally {
+      abortRef.current = null;
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal
       title="Importer des barres OHLCV"
@@ -303,21 +334,22 @@ function ImportBarsModal({ onClose, onImport }: { onClose: () => void; onImport:
       width={480}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
-            Annuler
-          </Button>
-          <Button
-            variant="gold"
-            onClick={async () => {
-              const f = await openTextFile('.csv,.txt');
-              if (f) await onImport(f.text, f.name, instrument, timeframe);
-            }}
-          >
+          {busy ? (
+            <Button variant="ghost" onClick={cancel}>
+              Annuler
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={onClose}>
+              Annuler
+            </Button>
+          )}
+          <Button variant="gold" disabled={busy} onClick={() => void pick()}>
             Choisir un fichier
           </Button>
         </>
       }
     >
+      {busy && <Progress value={progress} tone="gold" />}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Field label="Instrument">
           <select value={instrument} onChange={(e) => setInstrument(e.target.value as Instrument)}>

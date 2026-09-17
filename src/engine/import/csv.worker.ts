@@ -4,6 +4,7 @@ import { detectFormat, importTradesCsv, type ImportOptions } from './ninjatrader
 
 self.onmessage = (e: MessageEvent<{ text: string; opts: ImportOptions }>) => {
   try {
+    self.postMessage({ type: 'progress', done: 0, total: 1 });
     const { text, opts } = e.data;
     const headers = parseCsv(text.slice(0, 4000)).headers;
     const format = detectFormat(headers);
