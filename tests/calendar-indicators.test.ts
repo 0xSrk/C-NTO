@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateDemoBars, importBarsCsv } from '@/engine/bars';
-import { generateNasdaqEvents } from '@/engine/calendar';
+import { CATEGORY_HELP, CATEGORY_LABEL, generateNasdaqEvents } from '@/engine/calendar';
 import { INDICATORS, indicatorById, defaultParams, sessionKeyOf } from '@/engine/indicators';
 import { monteCarlo } from '@/engine/montecarlo';
 import { generateDemoJournal } from '@/engine/demo';
@@ -11,6 +11,13 @@ describe('calendrier Nasdaq', () => {
     const ev = generateNasdaqEvents(2026).filter((e) => e.title.startsWith('Décision FOMC'));
     expect(ev.map((e) => e.date)).toEqual(['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09']);
     expect(ev.every((e) => !e.estimated && e.impact === 3)).toBe(true);
+  });
+
+  it('expose une aide débutant pour chaque catégorie', () => {
+    for (const key of Object.keys(CATEGORY_LABEL) as (keyof typeof CATEGORY_LABEL)[]) {
+      expect(CATEGORY_HELP[key].lead.length).toBeGreaterThan(20);
+      expect(CATEGORY_HELP[key].points.length).toBeGreaterThanOrEqual(2);
+    }
   });
 
   it('calcule fêtes, expirations et rollovers', () => {

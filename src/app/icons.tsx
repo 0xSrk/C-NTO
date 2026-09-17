@@ -145,3 +145,11 @@ export const IconGraph = (p: P) => (
     <path d="M5.6 4.6l4.7.3M5 5.5l2.3 5M11 6.6l-2.2 3.8" opacity=".6" />
   </svg>
 );
+
+export const IconHelp = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="8" cy="8" r="6" />
+    <path d="M6.2 6.2a1.9 1.9 0 1 1 2.6 2.4c-.55.35-.8.6-.8 1.2" />
+    <path d="M8 11.6v.2" />
+  </svg>
+);

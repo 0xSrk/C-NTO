@@ -58,7 +58,9 @@
       "dist/**",
       "dist-electron/**",
       "package.json",
-      "build/icon.png"
+      "build/icon.png",
+      "build/logo.svg",
+      "build/icon.ico"
     ],
     "electronFuses": {
       "runAsNode": false,
@@ -69,7 +71,7 @@
       "onlyLoadAppFromAsar": true
     },
     "win": {
-      "icon": "build/icon.png",
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "portable"

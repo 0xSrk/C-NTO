@@ -39,6 +39,82 @@ export const CATEGORY_LABEL: Record<EventCategory, string> = {
   perso: 'Personnel',
 };
 
+/** Aide courte débutant — pastille « ? » des filtres calendrier. */
+export const CATEGORY_HELP: Record<EventCategory, { lead: string; points: string[] }> = {
+  fed: {
+    lead: 'Décisions de la banque centrale américaine (Fed). C’est souvent le moment le plus violent de l’année sur le Nasdaq.',
+    points: [
+      'La décision de taux tombe en général à 14:00 ET, la conférence de presse juste après.',
+      'Débutant : n’ouvrez pas de trade 15 minutes avant. Observez d’abord.',
+      'Le vrai mouvement arrive souvent pendant la conférence, pas à la seconde de l’annonce.',
+    ],
+  },
+  emploi: {
+    lead: 'Chiffres sur le marché du travail américain (NFP, chômage, ADP…). Ils font réagir le dollar et donc le NQ.',
+    points: [
+      'Publication typique : 8:30 ET (14:30 Paris en hiver).',
+      'Attendez la clôture de la première bougie 5 minutes avant de décider.',
+      'Une surprise (beaucoup plus fort ou faible que l’attendu) = mèches très longues.',
+    ],
+  },
+  inflation: {
+    lead: 'Mesure de la hausse des prix (CPI, PPI, PCE). La Fed regarde ça pour ajuster ses taux.',
+    points: [
+      'Souvent publié à 8:30 ET. Réaction violente puis parfois retournement dans l’heure.',
+      'Comparez le « publié » à l’« attendu » : c’est l’écart qui compte, pas le chiffre seul.',
+      'Débutant : réduisez la taille ou restez à plat autour de la publication.',
+    ],
+  },
+  croissance: {
+    lead: 'Santé de l’économie : PIB, ISM, ventes au détail, production…',
+    points: [
+      'ISM / PMI à 10:00 ET : pic de volatilité 30 min après l’ouverture RTH.',
+      'PIB et ventes au détail : plutôt pré-ouverture, le marché digère avant 9:30 ET.',
+      'Utile pour le biais de la journée, rarement un trade « à la seconde ».',
+    ],
+  },
+  sentiment: {
+    lead: 'Enquêtes d’humeur des ménages ou des entreprises (Michigan, confidence…).',
+    points: [
+      'Impact en général modéré, sauf grosse surprise.',
+      'Souvent à 10:00 ET — peut colorer la matinée sans tout casser.',
+      'À croiser avec inflation / emploi pour comprendre le contexte.',
+    ],
+  },
+  resultats: {
+    lead: 'Publications de résultats des grandes entreprises tech (mégacaps) qui pèsent lourd dans le Nasdaq-100.',
+    points: [
+      'Souvent après la clôture : le gap se voit à la réouverture du lendemain.',
+      'Une surprise sur Apple, Nvidia, Microsoft… peut déplacer tout le NQ.',
+      'Prudence sur les positions overnight autour de ces dates.',
+    ],
+  },
+  cme: {
+    lead: 'Repères liés aux contrats à terme CME (expiration, rollover du contrat NQ).',
+    points: [
+      'Rollover : passer au contrat suivant dans NinjaTrader quand le volume migre.',
+      'Expiration trimestrielle : volumes et niveaux parfois « étranges » autour de 9:30 ET.',
+      'Vérifiez toujours quel contrat (échéance) vous tradez.',
+    ],
+  },
+  horaire: {
+    lead: 'Jours fériés, séances écourtées, changements d’heure — la liquidité n’est pas normale.',
+    points: [
+      'Spreads élargis, mouvements erratiques : beaucoup de traders financés s’abstiennent.',
+      'Pendant le décalage DST, New York et Paris ne sont plus à 6 h d’écart.',
+      'Cochez ces jours pour éviter les mauvaises surprises d’horaire.',
+    ],
+  },
+  perso: {
+    lead: 'Vos propres notes et rappels du jour (coaching, revue, niveaux personnels).',
+    points: [
+      'Ils n’arrivent pas d’Investing : c’est votre journal de bord.',
+      'Utilisez-les pour figer une intention avant la séance.',
+      'Visibles uniquement sur votre machine.',
+    ],
+  },
+};
+
 /** Réunions FOMC connues (jour de décision = second jour). */
 const FOMC_DECISIONS: Record<number, string[]> = {
   2024: ['2024-01-31', '2024-03-20', '2024-05-01', '2024-06-12', '2024-07-31', '2024-09-18', '2024-11-07', '2024-12-18'],
