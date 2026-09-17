@@ -159,6 +159,14 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
   return { executions, skipped, warnings };
 }
 
+function uniqIds(ids: (string | undefined)[]): string[] | undefined {
+  const out: string[] = [];
+  for (const id of ids) {
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out.length ? out : undefined;
+}
+
 /**
  * Apparie les exécutions en trades aller-retour par compte et par contrat, méthode FIFO
  * (première entrée, première sortie), avec fractionnement des remplissages partiels.
@@ -171,6 +179,7 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
     price: number;
     time: number;
     executionId: string;
+    orderId?: string;
     identityKey: string;
     name?: string;
     commissionPerContract: number;
@@ -216,6 +225,8 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
         commission,
         entryName: lot.name,
         exitName: e.name,
+        executionIds: uniqIds([lot.executionId, e.executionId]),
+        orderIds: uniqIds([lot.orderId, e.orderId]),
       });
       tradeExecutionKeys.push([lot.identityKey, e.identityKey]);
       lot.quantity -= matched;
@@ -223,7 +234,17 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
       if (lot.quantity <= 0) lots.shift();
     }
     if (remaining > 0) {
-      lots.push({ direction: side, quantity: remaining, price: e.price, time: e.time, executionId: e.executionId, identityKey: e.identityKey, name: e.name, commissionPerContract: cpc });
+      lots.push({
+        direction: side,
+        quantity: remaining,
+        price: e.price,
+        time: e.time,
+        executionId: e.executionId,
+        orderId: e.orderId,
+        identityKey: e.identityKey,
+        name: e.name,
+        commissionPerContract: cpc,
+      });
     }
   }
 

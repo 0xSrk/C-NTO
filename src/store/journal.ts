@@ -109,7 +109,7 @@ export const useJournal = create<JournalState>((set, get) => ({
         merged++;
       } else {
         if (existing.length + toAddSessions.length >= SESSION_CAPACITY) {
-          result.warnings.push(`Capacité atteinte (${SESSION_CAPACITY} séances) : certaines séances n'ont pas été ajoutées.`);
+          result.warnings.push(`Capacité atteinte (${SESSION_CAPACITY} séances) : certaines séances n'ont pas été ajoutées. Exportez le coffre (Métrique › Sauvegarde) avant d'importer davantage.`);
           break;
         }
         toAddSessions.push(s);

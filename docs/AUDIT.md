@@ -113,3 +113,13 @@ L'exécution référencée pour crépuscule appartient à un autre dépôt et n'
 - [x] `scripts/hash-release.mjs` SHA-256 des artefacts `release/`
 - [x] patch 1.1.2 après P0
 
+Reliquats `docs/AGENT-HARDENING.md` (numérotation de ce brief) :
+
+- [x] P0.4 coffre `macroReleases` + `includeHeavy` — `src/engine/vault.ts`, `src/store/db.ts`
+- [x] P1.1 `executeDeskTool` — `src/engine/agent/runner.ts`, `src/store/agent.ts`, `tests/agent-runner.test.ts`
+- [x] P2.2 `Trade.orderIds` FIFO + `SESSION_CAPACITY` commenté — `src/engine/types.ts`, `src/engine/import/executions.ts`
+- [x] P2.3 `PropPlan.effectiveFrom` — `src/engine/propfirm.ts`
+- [x] P3.2 Worker CSV barres > 5000 — `src/engine/bars.worker.ts`, `src/store/bars.ts`
+- [x] P2.6 `executions-*.seen.txt` — `.gitignore`
+- [x] P1.2 hôte `api.moonshot.ai` — `src/engine/agent/llm.ts`, `electron/main.ts`
+

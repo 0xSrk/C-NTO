@@ -20,6 +20,8 @@ export interface PropPlan {
   note?: string;
   version: number;
   source: 'bundled' | 'user';
+  /** Date ISO (YYYY-MM-DD) à partir de laquelle ces chiffres s'appliquent — optionnel, indicatif. */
+  effectiveFrom?: string;
 }
 
 export interface PropFirm {
