@@ -14,7 +14,7 @@ interface JournalState {
   sessions: Session[];
   trades: Trade[];
   load: () => Promise<void>;
-  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number; source?: SessionSource }) => Promise<ImportResult & { added: number; merged: number; newTrades: number }>;
+  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number; source?: SessionSource; signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<ImportResult & { added: number; merged: number; newTrades: number }>;
   loadDemo: () => Promise<number>;
   addManualSession: (input: { date: string; account?: string; pnl: number; tradeCount: number; note?: string; tags?: string[]; rating?: number }) => Promise<Session>;
   updateSession: (id: string, patch: Partial<Pick<Session, 'note' | 'tags' | 'rating' | 'account'>>) => Promise<void>;
@@ -45,10 +45,11 @@ export const useJournal = create<JournalState>((set, get) => ({
     if (typeof Worker !== 'undefined' && csvLineCount(text) > CSV_WORKER_MIN_LINES) {
       try {
         const worker = new Worker(new URL('../engine/import/csv.worker.ts', import.meta.url), { type: 'module' });
-        const pending = listenWorker<ImportResult>(worker);
+        const pending = listenWorker<ImportResult>(worker, { signal: opts.signal, onProgress: opts.onProgress });
         worker.postMessage({ text, opts: importOpts });
         result = await pending;
-      } catch {
+      } catch (e) {
+        if (opts.signal?.aborted || (e instanceof Error && e.name === 'AbortError')) throw e;
         result = importCsvAuto(text, importOpts);
       }
     } else {

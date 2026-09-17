@@ -1,6 +1,6 @@
-import { useState, type DragEvent } from 'react';
+import { useRef, useState, type DragEvent } from 'react';
 import { Modal } from '@/design/Modal';
-import { Button, Field, cx } from '@/design/primitives';
+import { Button, Field, Progress, cx } from '@/design/primitives';
 import { FORMAT_LABEL } from '@/engine/import';
 import { openTextFile } from '@/lib/desk';
 import { useJournal } from '@/store/journal';
@@ -15,12 +15,30 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
   const toast = useUi((u) => u.toast);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [report, setReport] = useState<string[] | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const cancel = () => {
+    abortRef.current?.abort();
+  };
 
   const run = async (text: string, name: string) => {
+    const ac = new AbortController();
+    abortRef.current = ac;
     setBusy(true);
+    setProgress(0);
     try {
-      const r = await importCsv(text, { boundaryHour: settings.boundaryHour, riskPerContract: settings.riskPerContract || undefined });
+      const r = await importCsv(text, {
+        boundaryHour: settings.boundaryHour,
+        riskPerContract: settings.riskPerContract || undefined,
+        signal: ac.signal,
+        onProgress: (done, total) => {
+          if (!ac.signal.aborted) setProgress(total ? done / total : 0);
+        },
+      });
+      if (ac.signal.aborted) return;
+      setProgress(1);
       const lines = [
         `Fichier : ${name}`,
         `Format détecté : ${FORMAT_LABEL[r.format]}`,
@@ -32,8 +50,10 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
       else if (r.trades.length) toast('Fichier déjà importé : aucun nouveau trade.', 'info');
       else toast('Aucun trade importé.', 'warn');
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Import impossible.', 'error');
+      if (e instanceof Error && e.name === 'AbortError') toast('Import annulé.', 'info');
+      else toast(e instanceof Error ? e.message : 'Import impossible.', 'error');
     } finally {
+      abortRef.current = null;
       setBusy(false);
     }
   };
@@ -53,9 +73,15 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
       width={620}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
-            Fermer
-          </Button>
+          {busy ? (
+            <Button variant="ghost" onClick={cancel}>
+              Annuler
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={onClose}>
+              Fermer
+            </Button>
+          )}
           <Button
             variant="gold"
             disabled={busy}
@@ -70,6 +96,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
       }
     >
       <div className={s.rows}>
+        {busy && <Progress value={progress} tone="gold" />}
         <div
           className={cx(s.dropzone, over && s.over)}
           onDragOver={(e) => {

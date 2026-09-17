@@ -39,6 +39,7 @@ export default function Metrique() {
   const reloadSettings = useSettings((st) => st.load);
   const bridgeStatus = useBridge((b) => b.status);
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
+  const backupIncludeHeavy = useSettings((st) => st.settings.backupIncludeHeavy);
 
   const onExportCsv = async () => {
     if (trades.length === 0) return toast('Aucun trade à exporter.', 'warn');
@@ -46,8 +47,8 @@ export default function Metrique() {
     if (saved) toast(`${plural(trades.length, 'trade exporté', 'trades exportés')} (CSV réimportable).`, 'ok');
   };
   const onExportVault = async () => {
-    const saved = await saveTextFile(`canto-coffre-${new Date().toISOString().slice(0, 10)}.json`, await exportVault(), 'application/json');
-    if (saved) toast('Sauvegarde complète du coffre exportée (clé API et blob chiffré exclus).', 'ok');
+    const saved = await saveTextFile(`canto-coffre-${new Date().toISOString().slice(0, 10)}.json`, await exportVault({ includeHeavy: backupIncludeHeavy === true }), 'application/json');
+    if (saved) toast(backupIncludeHeavy ? 'Coffre exporté (barres et messages agent inclus, clé API exclue).' : 'Sauvegarde du coffre exportée (clé API et blob chiffré exclus).', 'ok');
   };
   const onRestore = async () => {
     const f = await openTextFile('.json');
