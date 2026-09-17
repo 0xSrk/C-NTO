@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { desk, saveTextFile } from '@/lib/desk';
+import { setUserPlans, type PropPlan } from '@/engine/propfirm';
 import { db, exportVault, setSetting } from './db';
 import { useUi } from './ui';
 
@@ -23,6 +24,8 @@ export interface Settings {
   planId: string;
   /** Compte rejoué contre le plan ('' = toutes les séances) */
   planAccount: string;
+  /** Plans saisis par l'opérateur — jamais écrasés par le registre bundled */
+  userPlans: PropPlan[];
   boundaryHour: number;
   riskPerContract: number;
   calendarView: 'grille' | 'flux';
@@ -47,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   startingBalance: 50_000,
   planId: 'apex-50',
   planAccount: '',
+  userPlans: [],
   boundaryHour: 0,
   riskPerContract: 0,
   calendarView: 'grille',
@@ -84,7 +88,20 @@ interface SettingsState {
 
 type StoredSettings = Partial<Omit<Settings, 'agent'>> & {
   agent?: Partial<AgentConfig> & { apiKeyEncrypted?: string };
+  userPlans?: unknown;
 };
+
+function keepUserPlans(raw: unknown): PropPlan[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PropPlan[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const p = row as Partial<PropPlan>;
+    if (p.source !== 'user' || typeof p.id !== 'string' || !p.id) continue;
+    out.push({ ...(p as PropPlan), source: 'user', version: typeof p.version === 'number' ? p.version : 1 });
+  }
+  return out;
+}
 
 /**
  * Persistance : sous le shell, la clé API est chiffrée par `safeStorage` (DPAPI / trousseau) et
@@ -134,7 +151,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
     const blob = typeof apiKeyEncrypted === 'string' && apiKeyEncrypted.length > 0 ? apiKeyEncrypted : undefined;
     let apiKey = blob ? '' : typeof agentStored.apiKey === 'string' ? agentStored.apiKey : '';
     let keyEncrypted = !!blob;
-    let next = { ...DEFAULT_SETTINGS, ...stored, agent: { ...DEFAULT_SETTINGS.agent, ...agentStored, apiKey, apiKeyEncrypted: blob } };
+    let next = { ...DEFAULT_SETTINGS, ...stored, userPlans: keepUserPlans(stored.userPlans), agent: { ...DEFAULT_SETTINGS.agent, ...agentStored, apiKey, apiKeyEncrypted: blob } };
+    setUserPlans(next.userPlans);
     if (apiKey && desk?.secrets) {
       const r = await persist(next);
       if (r.encrypted) {
@@ -147,7 +165,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
     void maybeDailyBackup(next);
   },
   async update(patch) {
-    const next = { ...get().settings, ...patch };
+    const next = { ...get().settings, ...patch, userPlans: keepUserPlans(patch.userPlans ?? get().settings.userPlans) };
+    setUserPlans(next.userPlans);
     set({ settings: next });
     const r = await persist(next);
     set({

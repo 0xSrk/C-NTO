@@ -8,7 +8,9 @@
     "maxDrawdown": 2000,
     "drawdownType": "eod-trailing",
     "minTradingDays": 2,
-    "phase": "evaluation"
+    "phase": "evaluation",
+    "version": 1,
+    "source": "bundled"
   },
   "sessions": [
     {

@@ -28,6 +28,8 @@ const plan: PropPlan = {
   drawdownType: 'eod-trailing',
   minTradingDays: 2,
   phase: 'evaluation',
+  version: 1,
+  source: 'bundled',
 };
 
 describe('evaluatePlan · trailing fin de journée', () => {
@@ -69,6 +71,8 @@ describe('evaluatePlan · trailing fin de journée', () => {
     expect(r.passedOn).toBe(expected.passedOn);
     expect(r.timeline.length).toBe(expected.timelineLength);
     expect(r.remainingToTarget).toBe(expected.remainingToTarget);
+    expect(r.planId).toBe(vec.plan.id);
+    expect(r.planVersion).toBe(vec.plan.version);
   });
 
   it('filtre par compte et agrège les séances d’une même journée', () => {
@@ -134,6 +138,8 @@ describe('registre prop firms', () => {
       }
     }
     expect(findPlan('apex-50')?.drawdownType).toBe('intraday-trailing');
+    expect(findPlan('apex-50')?.source).toBe('bundled');
+    expect(findPlan('apex-50')?.version).toBe(1);
     expect(findPlan('nope')).toBeUndefined();
   });
 });
