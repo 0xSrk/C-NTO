@@ -6,6 +6,15 @@ import { db, type BotBlueprint } from './db';
 
 export type BotRule = BotBlueprint['rules'][number];
 
+const LIVE_STATUSES = new Set(['verrouille', 'reel', 'réel', 'real', 'live', 'locked']);
+
+function coerceBotStatus(status: string): BotBlueprint['status'] {
+  const v = status.toLowerCase();
+  if (v === 'brouillon' || v === 'backtest' || v === 'papier') return v;
+  if (LIVE_STATUSES.has(v)) return 'papier';
+  return 'brouillon';
+}
+
 export const BOT_TEMPLATES: { id: string; name: string; description: string; rules: Omit<BotRule, 'id'>[] }[] = [
   {
     id: 'orb',
@@ -74,7 +83,14 @@ export const useBots = create<BotsState>((set, get) => ({
   bots: [],
   activeId: null,
   async load() {
-    const bots = await db.bots.orderBy('updatedAt').reverse().toArray();
+    const rows = await db.bots.orderBy('updatedAt').reverse().toArray();
+    const bots: BotBlueprint[] = [];
+    for (const b of rows) {
+      const status = coerceBotStatus(b.status);
+      const next = status === b.status ? b : { ...b, status, updatedAt: Date.now() };
+      if (next !== b) await db.bots.put(next);
+      bots.push(next);
+    }
     set({ bots, ready: true, activeId: get().activeId ?? bots[0]?.id ?? null });
   },
   async create(templateId) {
@@ -97,7 +113,7 @@ export const useBots = create<BotsState>((set, get) => ({
   async update(id, patch) {
     const cur = get().bots.find((b) => b.id === id);
     if (!cur) return;
-    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    const next = { ...cur, ...patch, status: coerceBotStatus(String(patch.status ?? cur.status)), updatedAt: Date.now() };
     await db.bots.put(next);
     set({ bots: get().bots.map((b) => (b.id === id ? next : b)) });
   },

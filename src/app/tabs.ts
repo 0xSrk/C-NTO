@@ -17,6 +17,6 @@ export const TABS: TabDef[] = [
   { id: 'calendrier', index: '03', label: 'Calendrier', code: 'CAL', tagline: 'Catalyseurs Nasdaq · repères', icon: IconCalendar },
   { id: 'note', index: '04', label: 'Note', code: 'NTE', tagline: 'Coffre de notes · liens', icon: IconNote },
   { id: 'agent', index: '05', label: 'Agent IA', code: 'AGT', tagline: 'Passerelle native · orchestrateur', icon: IconAgent },
-  { id: 'bot', index: '06', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates NinjaTrader', icon: IconBot },
-  { id: 'copieur', index: '07', label: 'Copieur', code: 'CPY', tagline: 'Réplication de comptes', icon: IconCopier },
+  { id: 'bot', index: '06', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates · CONCEPTION', icon: IconBot },
+  { id: 'copieur', index: '07', label: 'Copieur', code: 'CPY', tagline: 'Réplication de comptes · CONCEPTION', icon: IconCopier },
 ];

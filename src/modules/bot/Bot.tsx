@@ -6,17 +6,15 @@ import { generateNasdaqEvents } from '@/engine/calendar';
 import { findPlan } from '@/engine/propfirm';
 import { plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr } from '@/lib/time';
-import type { BotBlueprint } from '@/store/db';
 import { BOT_TEMPLATES, deriveGuards, useBots, type BotRule } from '@/store/bots';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './bot.module.css';
 
-const STAGES: { id: BotBlueprint['status']; label: string; text: string }[] = [
+const STAGES: { id: 'brouillon' | 'backtest' | 'papier'; label: string; text: string }[] = [
   { id: 'brouillon', label: 'Brouillon', text: 'Règles rédigées, revues par le trader.' },
   { id: 'backtest', label: 'Backtest', text: 'Rejeu sur barres importées (Visual).' },
-  { id: 'papier', label: 'Papier', text: 'Exécution simulée via le pont NinjaTrader.' },
-  { id: 'verrouille', label: 'Réel · verrouillé', text: 'Nécessite le pont actif et les garde-fous.' },
+  { id: 'papier', label: 'Papier', text: 'Statut d’atelier — aucun ordre n’est envoyé.' },
 ];
 
 const KIND_TONE: Record<BotRule['kind'], 'ice' | 'mint' | 'ember'> = { condition: 'ice', action: 'mint', garde: 'ember' };
@@ -48,7 +46,7 @@ export default function Bot() {
         actions={
           <>
             <Tag tone="amber" dot>
-              Phase 1 · conception
+              CONCEPTION
             </Tag>
             <Button variant="gold" onClick={() => create()}>
               <IconPlus size={14} /> Nouvel automate
@@ -129,9 +127,8 @@ export default function Bot() {
                       </div>
                       <div className={s.pipeline}>
                         {STAGES.map((st, i) => {
-                          const locked = st.id === 'papier' || st.id === 'verrouille';
                           return (
-                            <button key={st.id} className={cx(s.stage, i < stageIndex && s.done, i === stageIndex && s.current, locked && s.locked)} disabled={locked} onClick={() => update(bot.id, { status: st.id })} title={locked ? 'Nécessite le pont NinjaTrader (phase 3)' : undefined}>
+                            <button key={st.id} className={cx(s.stage, i < stageIndex && s.done, i === stageIndex && s.current)} onClick={() => update(bot.id, { status: st.id })}>
                               <b>{st.label}</b>
                               <small>{st.text}</small>
                             </button>
