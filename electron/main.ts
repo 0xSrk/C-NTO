@@ -17,6 +17,21 @@ let bridge: NinjaBridge | null = null;
 let updateBusy = false;
 
 const isString = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
+
+function openExternalSafe(url: string): void {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:') {
+      void shell.openExternal(url);
+      return;
+    }
+    if (u.protocol === 'http:' && u.hostname === '127.0.0.1') {
+      void shell.openExternal(url);
+    }
+  } catch {
+    /* URL invalide */
+  }
+}
 const isDateKey = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const isPort = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1024 && v <= 65535;
 const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean => {
@@ -166,7 +181,7 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     win = null;
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) void shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
   });
   const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
