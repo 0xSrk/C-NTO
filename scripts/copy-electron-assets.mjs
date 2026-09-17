@@ -8,4 +8,5 @@ mkdirSync(dest, { recursive: true });
 for (const f of ['launcher.html', 'launcher-ui.js']) {
   cpSync(path.join(root, 'electron', f), path.join(dest, f));
 }
+cpSync(path.join(root, 'build', 'logo.svg'), path.join(dest, 'logo.svg'));
 console.log('electron assets → dist-electron/');

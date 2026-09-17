@@ -115,8 +115,10 @@
         opacity: 0;
       }
       .mark {
-        width: 64px;
-        height: 64px;
+        width: 72px;
+        height: 72px;
+        display: block;
+        border: 1px solid var(--line-fine);
       }
       .word {
         width: 200px;
@@ -291,10 +293,7 @@
         <button type="button" class="x" id="btn-close" aria-label="Fermer" title="Fermer">✕</button>
       </div>
       <div class="brand">
-        <svg class="mark" viewBox="0 0 72 72" fill="none" aria-hidden="true">
-          <rect width="72" height="72" fill="#000" />
-          <path d="M18 18h9v36H18zm25 0H54v36H43V33L33.5 54h-7L37 33.5 26.5 18H34l6 12.5z" fill="#c41e3a" />
-        </svg>
+        <img class="mark" src="./logo.svg" width="72" height="72" alt="" aria-hidden="true" />
         <svg class="word" viewBox="0 0 640 160" fill="none" aria-label="CΛNTO">
           <g stroke="#ffffff" stroke-width="1" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
             <path d="M136 40 A48 48 0 1 0 136 120" />

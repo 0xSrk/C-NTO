@@ -1,7 +1,7 @@
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 12px;
   height: 100%;
   min-height: 0;
 }
@@ -30,11 +30,22 @@
   flex-wrap: wrap;
   margin-left: auto;
 }
-.filterBtn {
-  height: var(--chip-h);
-  padding: 0 8px;
+.filterChip {
+  display: inline-flex;
+  align-items: stretch;
   border: 1px solid var(--line-1);
   border-radius: var(--radius);
+  overflow: hidden;
+}
+.filterChip.on {
+  border-color: var(--line-2);
+  background: rgba(255, 255, 255, 0.04);
+}
+.filterBtn {
+  height: var(--chip-h);
+  padding: 0 6px 0 8px;
+  border: 0;
+  background: transparent;
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: var(--track-11);
@@ -43,17 +54,31 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
 }
-.filterBtn.on {
+.filterChip.on .filterBtn {
   color: var(--text-0);
-  border-color: var(--line-2);
-  background: rgba(255, 255, 255, 0.04);
 }
 .filterBtn i {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--cat);
+}
+.helpDot {
+  width: 22px;
+  border: 0;
+  border-left: 1px solid var(--line-0);
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1;
+}
+.helpDot:hover {
+  color: var(--gold);
+  background: rgba(196, 30, 58, 0.08);
 }
 
 /* ─── Grille ─────────────────────────────────── */
@@ -151,20 +176,29 @@
 .ev {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: var(--fs-small);
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   padding: 1px 4px;
   border-radius: 0;
   border-left: 2px solid var(--cat);
   background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
 }
 .ev.impact3 {
   color: var(--text-0);
   background: color-mix(in srgb, var(--cat) 14%, transparent);
+}
+.ev.evPublished {
+  background: color-mix(in srgb, var(--cat) 10%, transparent);
+}
+.evTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
 .ev time {
   font-family: var(--font-mono);
@@ -185,6 +219,48 @@
   height: 4px;
   border-radius: 50%;
   background: var(--gold);
+}
+
+/* Impression sur la ligne */
+.linePrint {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--track-11);
+  padding: 0 4px;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.linePrint.awaiting {
+  color: var(--text-3);
+}
+.linePrint.published {
+  color: var(--text-0);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line-1);
+}
+.linePrint.published b {
+  font-weight: 600;
+}
+.linePrint.published em {
+  font-style: normal;
+  color: var(--text-3);
+  font-weight: 400;
+}
+.linePrint.mint {
+  color: var(--mint);
+  border-color: var(--mint-line);
+  background: var(--mint-soft);
+}
+.linePrint.ember {
+  color: var(--ember);
+  border-color: var(--ember-line);
+  background: var(--ember-soft);
+}
+.linePrint.amber {
+  color: var(--amber);
+  border-color: var(--amber-line);
 }
 
 /* ─── Flux ───────────────────────────────────── */
@@ -237,13 +313,16 @@
 }
 .fluxEv {
   display: grid;
-  grid-template-columns: 96px 1fr auto;
-  gap: 12px;
+  grid-template-columns: 88px minmax(0, 1fr) auto auto;
+  gap: 10px;
   align-items: center;
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-bottom: 1px dashed var(--line-0);
   cursor: pointer;
   border-left: 2px solid var(--cat);
+}
+.fluxEv.evPublished {
+  background: rgba(255, 255, 255, 0.02);
 }
 .fluxEv:hover {
   background: rgba(255, 255, 255, 0.025);
@@ -264,6 +343,10 @@
 .fluxTitle {
   font-size: 13px;
   color: var(--text-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .fluxTitle.impact3 {
   color: var(--text-0);
@@ -274,29 +357,65 @@
   color: var(--text-4);
   font-size: var(--fs-small);
 }
+.fluxEv .linePrint {
+  max-width: none;
+  justify-self: end;
+}
 
-/* ─── Panneau latéral ────────────────────────── */
+/* ─── Panneau latéral compact ────────────────── */
 .side {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
   overflow: auto;
 }
-.detailDate {
-  font-size: 16px;
+.sideStack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sideBlock {
+  border: 1px solid var(--line-0);
+  background: rgba(255, 255, 255, 0.015);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sideBlockHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sideBlockHead h4 {
+  margin: 0;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
   color: var(--text-0);
-  font-weight: 600;
+  font-weight: 500;
+}
+.sideBlockHead span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 .evCard {
   border: 1px solid var(--line-0);
   border-left: 2px solid var(--cat);
-  padding: 8px 12px;
+  padding: 6px 8px;
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   gap: 4px;
   background: rgba(255, 255, 255, 0.015);
+}
+.evCard.evPublished {
+  border-color: var(--line-1);
 }
 .evCardHead {
   display: flex;
@@ -304,26 +423,58 @@
   gap: 8px;
 }
 .evCardHead b {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-0);
   font-weight: 500;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .evCardHead time {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--gold);
+  flex: none;
+}
+.evMeta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.catHelp {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-3);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.catHelp span {
+  color: var(--gold);
+  opacity: 0.85;
+}
+.catHelp:hover {
+  color: var(--text-1);
 }
 .evDesc {
   font-size: 12px;
   color: var(--text-2);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 .tip {
   font-size: 12px;
   color: var(--text-1);
   line-height: 1.55;
-  padding: 8px 12px 8px 12px;
+  padding: 8px 12px;
   border: 1px solid var(--line-1);
   border-left: 2px solid var(--gold);
   background: var(--bg-1);
@@ -348,33 +499,38 @@
 .impactBar i.on {
   background: var(--cat);
 }
-.markers {
+.markersCompact {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
-.marker {
+.markerCompact {
   display: grid;
-  grid-template-columns: 52px 52px 1fr;
-  gap: 12px;
-  font-size: 12px;
+  grid-template-columns: 48px 1fr;
+  gap: 8px;
+  font-size: 11px;
   color: var(--text-2);
-  padding: 4px 0;
+  padding: 2px 0;
   border-bottom: 1px dashed var(--line-0);
 }
-.marker b {
+.markerCompact:last-child {
+  border-bottom: none;
+}
+.markerCompact b {
   font-family: var(--font-mono);
   color: var(--text-0);
   font-weight: 500;
 }
-.marker small {
-  font-family: var(--font-mono);
-  color: var(--text-3);
-}
 .persoForm {
   display: grid;
-  grid-template-columns: 72px 1fr auto;
-  gap: 6px;
+  grid-template-columns: 64px 1fr auto;
+  gap: 4px;
+}
+.noteArea {
+  width: 100%;
+  resize: vertical;
+  min-height: 48px;
+  font-size: 12px;
 }
 .noteActions {
   display: flex;
@@ -391,7 +547,7 @@
 .prints {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
   margin-top: 2px;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -400,14 +556,14 @@
 }
 .prints span {
   border: 1px solid var(--line-0);
-  padding: 4px 6px;
+  padding: 3px 5px;
   min-width: 0;
 }
 .prints em {
   display: block;
   font-style: normal;
   color: var(--text-4);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   text-transform: uppercase;
   font-size: 9px;
 }
@@ -423,14 +579,6 @@
   color: var(--amber);
   border-color: var(--amber-line);
 }
-.printInline {
-  display: block;
-  margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-3);
-  font-weight: 400;
-}
 .feedStatus {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -442,23 +590,27 @@
 .history {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 220px;
+  gap: 0;
+  max-height: 160px;
   overflow: auto;
 }
 .histRow {
   display: grid;
-  grid-template-columns: 64px 1fr auto;
-  gap: 8px;
+  grid-template-columns: 40px 1fr auto;
+  gap: 6px;
   align-items: baseline;
   text-align: left;
-  padding: 6px 4px;
+  padding: 4px 0;
   border-bottom: 1px dashed var(--line-0);
   color: var(--text-2);
   width: 100%;
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  cursor: pointer;
 }
 .histRow:hover {
-  background: rgba(255, 255, 255, 0.03);
   color: var(--text-0);
 }
 .histRow time {
@@ -467,7 +619,7 @@
   color: var(--text-3);
 }
 .histTitle {
-  font-size: 12px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -478,9 +630,14 @@
   color: var(--text-2);
   white-space: nowrap;
 }
+.histVals em {
+  font-style: normal;
+  color: var(--text-3);
+  margin-right: 2px;
+}
 .histVals b {
   color: var(--text-0);
-  font-weight: 500;
+  font-weight: 600;
 }
 .histVals.mint b {
   color: var(--mint);
@@ -497,7 +654,7 @@
   gap: 8px;
   font-size: 12px;
   color: var(--text-1);
-  padding: 4px 0;
+  padding: 2px 0;
 }
 .persoItem time {
   font-family: var(--font-mono);
@@ -507,26 +664,36 @@
 .persoItem button {
   margin-left: auto;
   color: var(--text-3);
-}
-.legendCats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: var(--track-11);
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.legendCats i {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-  background: var(--cat);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 .side > * {
   flex: none;
+}
+
+/* Aide débutant */
+.helpBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.helpLead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-1);
+}
+.helpList {
+  margin: 0;
+  padding: 0 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.helpList li::marker {
+  color: var(--gold);
 }

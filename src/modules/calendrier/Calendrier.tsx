@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { Modal } from '@/design/Modal';
 import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
-import { CATEGORY_LABEL, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
+import { CATEGORY_HELP, CATEGORY_LABEL, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
 import { mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
 import { fmtUsd, plural, signClass } from '@/lib/format';
 import { addDays, dateKeyLocal, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
@@ -46,6 +47,7 @@ export default function Calendrier() {
   const [hidden, setHidden] = useState<Set<EventCategory>>(new Set());
   const [showEstimated, setShowEstimated] = useState(true);
   const [minImpact, setMinImpact] = useState<1 | 2 | 3>(1);
+  const [helpCat, setHelpCat] = useState<EventCategory | null>(null);
   const sessions = useJournal((j) => j.sessions);
   const entries = useCalendar((c) => c.entries);
   const toast = useUi((u) => u.toast);
@@ -190,21 +192,34 @@ export default function Calendrier() {
               </span>
               <div className={s.filters}>
                 {CATS.filter((c) => c !== 'perso').map((c) => (
-                  <button
-                    key={c}
-                    className={cx(s.filterBtn, !hidden.has(c) && s.on)}
-                    style={catStyle(c)}
-                    onClick={() =>
-                      setHidden((h) => {
-                        const n = new Set(h);
-                        if (n.has(c)) n.delete(c);
-                        else n.add(c);
-                        return n;
-                      })
-                    }
-                  >
-                    <i /> {CATEGORY_LABEL[c]}
-                  </button>
+                  <span key={c} className={cx(s.filterChip, !hidden.has(c) && s.on)} style={catStyle(c)}>
+                    <button
+                      type="button"
+                      className={s.filterBtn}
+                      onClick={() =>
+                        setHidden((h) => {
+                          const n = new Set(h);
+                          if (n.has(c)) n.delete(c);
+                          else n.add(c);
+                          return n;
+                        })
+                      }
+                    >
+                      <i /> {CATEGORY_LABEL[c]}
+                    </button>
+                    <button
+                      type="button"
+                      className={s.helpDot}
+                      aria-label={`Aide : ${CATEGORY_LABEL[c]}`}
+                      title="Aide débutant"
+                      onClick={(e: MouseEvent) => {
+                        e.stopPropagation();
+                        setHelpCat(c);
+                      }}
+                    >
+                      ?
+                    </button>
+                  </span>
                 ))}
               </div>
             </div>
@@ -231,11 +246,12 @@ export default function Calendrier() {
                         </div>
                         <div className={s.evs}>
                           {evs.slice(0, 3).map((e) => (
-                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3)} style={catStyle(e.category)} title={`${e.timeET ? `${localTime(d, e.timeET)} · ` : ''}${e.title}${e.actual ? ` · ${e.actual}` : e.forecast ? ` · ≈${e.forecast}` : ''}`}>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3, e.actual && s.evPublished)} style={catStyle(e.category)} title={`${e.timeET ? `${localTime(d, e.timeET)} · ` : ''}${e.title}${e.actual ? ` · publié ${e.actual}` : e.forecast ? ` · attendu ${e.forecast}` : ''}`}>
+                              <span className={s.evTitle}>
                                 {e.actual ? '' : e.estimated ? '≈ ' : ''}
                                 {e.title}
                               </span>
+                              <LinePrint e={e} />
                             </div>
                           ))}
                           {evs.length > 3 && <span className={s.more}>+{evs.length - 3}</span>}
@@ -263,7 +279,7 @@ export default function Calendrier() {
                         {[...evs]
                           .sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'))
                           .map((e) => (
-                            <div key={e.id} className={s.fluxEv} style={catStyle(e.category)} onClick={() => setSelected(d)}>
+                            <div key={e.id} className={cx(s.fluxEv, e.actual && s.evPublished)} style={catStyle(e.category)} onClick={() => setSelected(d)}>
                               <div className={s.fluxTime}>
                                 {e.timeET ? localTime(d, e.timeET) : 'journée'}
                                 {e.timeET && <small>{e.timeET} ET</small>}
@@ -271,12 +287,8 @@ export default function Calendrier() {
                               <div className={cx(s.fluxTitle, e.impact === 3 && s.impact3)}>
                                 {e.estimated ? '≈ ' : ''}
                                 {e.title}
-                                {(e.forecast || e.actual) && (
-                                  <small className={s.printInline}>
-                                    {e.actual ? `→ ${e.actual}` : e.forecast ? `attendu ${e.forecast}` : ''}
-                                  </small>
-                                )}
                               </div>
+                              <LinePrint e={e} detailed />
                               <Impact level={e.impact} category={e.category} />
                             </div>
                           ))}
@@ -295,9 +307,22 @@ export default function Calendrier() {
             )}
           </div>
 
-          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} />
+          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} onHelp={setHelpCat} />
         </div>
       </ModuleContent>
+
+      {helpCat && (
+        <Modal title={CATEGORY_LABEL[helpCat]} sub="Repère débutant" onClose={() => setHelpCat(null)} width={440}>
+          <div className={s.helpBody}>
+            <p className={s.helpLead}>{CATEGORY_HELP[helpCat].lead}</p>
+            <ul className={s.helpList}>
+              {CATEGORY_HELP[helpCat].points.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
@@ -310,6 +335,28 @@ function Impact({ level, category }: { level: number; category: EventCategory })
       ))}
     </span>
   );
+}
+
+/** Résultat / attendu sur la ligne — lecture immédiate une fois publié. */
+function LinePrint({ e, detailed }: { e: CalEvent; detailed?: boolean }) {
+  if (!e.forecast && !e.previous && !e.actual) return null;
+  const tone = surpriseTone(e.actual, e.forecast);
+  if (e.actual != null && e.actual !== '') {
+    return (
+      <span className={cx(s.linePrint, s.published, tone && s[tone])} title={e.forecast ? `Attendu ${e.forecast} → Publié ${e.actual}` : `Publié ${e.actual}`}>
+        {detailed && e.forecast ? <em>{e.forecast} → </em> : null}
+        <b>{e.actual}</b>
+      </span>
+    );
+  }
+  if (e.forecast) {
+    return (
+      <span className={cx(s.linePrint, s.awaiting)} title={`Attendu ${e.forecast}`}>
+        ≈{e.forecast}
+      </span>
+    );
+  }
+  return null;
 }
 
 function Prints({ e }: { e: CalEvent }) {
@@ -335,11 +382,13 @@ function DaySide({
   events,
   history,
   onSelectDate,
+  onHelp,
 }: {
   date: string;
   events: CalEvent[];
   history: ReturnType<typeof useMacro.getState>['releases'];
   onSelectDate: (d: string) => void;
+  onHelp: (c: EventCategory) => void;
 }) {
   const sessions = useJournal((j) => j.sessions);
   const entries = useCalendar((c) => c.entries);
@@ -411,136 +460,132 @@ function DaySide({
 
   return (
     <aside className={s.side}>
-      <Panel title={formatDateFr(date, { weekday: true })} sub={plural(events.length, 'repère')} accent>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <Panel title={formatDateFr(date, { weekday: true })} sub={plural(events.length, 'repère')} accent tight>
+        <div className={s.sideStack}>
           {sess && (
             <div className={s.evCard} style={catStyle('cme')}>
               <div className={s.evCardHead}>
-                <b>Séance du journal</b>
+                <b>Séance</b>
                 <span className={cx('mono', signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>
               </div>
               <div className={s.evDesc}>
-                {plural(sess.tradeCount, 'trade')} · {sess.account ?? 'compte non renseigné'}
-                {sess.tags.length ? ` · ${sess.tags.join(', ')}` : ''}
+                {plural(sess.tradeCount, 'trade')}
+                {sess.account ? ` · ${sess.account}` : ''}
               </div>
-              <div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    focusSession(sess.id);
-                    setTab('visual');
-                  }}
-                >
-                  Projeter dans Visual
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  focusSession(sess.id);
+                  setTab('visual');
+                }}
+              >
+                Projeter Visual
+              </Button>
             </div>
           )}
-          {sorted.length === 0 && !sess && <div className={s.evDesc}>Journée sans catalyseur programmé : conditions « normales », se référer aux repères de séance.</div>}
+          {sorted.length === 0 && !sess && <div className={s.evDesc}>Aucun catalyseur — conditions « normales ».</div>}
           {sorted.map((e) => (
-            <div key={e.id} className={s.evCard} style={catStyle(e.category)}>
+            <div key={e.id} className={cx(s.evCard, e.actual && s.evPublished)} style={catStyle(e.category)}>
               <div className={s.evCardHead}>
                 <b>{e.title}</b>
                 {e.timeET && (
                   <time>
-                    {localTime(date, e.timeET)} <span className="dim">· {e.timeET} ET</span>
+                    {localTime(date, e.timeET)}
                   </time>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={s.evMeta}>
                 <Impact level={e.impact} category={e.category} />
-                <Tag>{CATEGORY_LABEL[e.category]}</Tag>
-                {e.source === 'investing' && <Tag tone="ice">Investing</Tag>}
-                {e.source === 'forexfactory' && <Tag tone="amber">FF</Tag>}
-                {e.estimated && <Tag tone="amber">date estimée</Tag>}
+                <button type="button" className={s.catHelp} onClick={() => onHelp(e.category)} title={`Aide : ${CATEGORY_LABEL[e.category]}`}>
+                  {CATEGORY_LABEL[e.category]} <span>?</span>
+                </button>
                 {e.actual != null && e.actual !== '' && <Tag tone="mint">publié</Tag>}
+                {e.estimated && <Tag tone="amber">estimé</Tag>}
               </div>
               <Prints e={e} />
-              <div className={s.evDesc}>{e.description}</div>
-              {e.beginnerTip && <div className={s.tip}>{e.beginnerTip}</div>}
+              {e.description && !e.actual && !e.forecast && <div className={s.evDesc}>{e.description}</div>}
             </div>
           ))}
         </div>
       </Panel>
 
-      <Panel title="Suivi personnel" sub="note & rappels du jour">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <textarea
-            rows={3}
-            value={note}
-            onChange={(e) => queueNoteSave(e.target.value)}
-            onBlur={() => void flushNote(false).catch(() => undefined)}
-            placeholder="Biais du jour, niveaux clés, intention de séance…"
-            style={{ width: '100%', resize: 'vertical' }}
-          />
-          <div className={s.noteActions}>
-            <Button size="sm" onClick={() => void flushNote(true)}>
-              Enregistrer la note
-            </Button>
-            {noteSaved && <span className={s.noteOk}>Enregistré</span>}
-          </div>
-          {dayEntries
-            .filter((e) => e.kind === 'event')
-            .map((e) => (
-              <div key={e.id} className={s.persoItem}>
-                <time>{e.time ?? '—'}</time>
-                <span>{e.title}</span>
-                <button type="button" onClick={() => void remove(e.id)} aria-label="Supprimer">
-                  ×
-                </button>
-              </div>
-            ))}
-          <form className={s.persoForm} onSubmit={(ev) => void addReminder(ev)}>
-            <input type="time" value={evTime} onChange={(e) => setEvTime(e.target.value)} aria-label="Heure du rappel" />
-            <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder="Rappel personnel (revue, coaching…)" aria-label="Titre du rappel" />
-            <Button size="sm" type="submit" title="Ajouter le rappel" aria-label="Ajouter le rappel" disabled={busy || !evTitle.trim()}>
-              <IconPlus size={12} />
-            </Button>
-          </form>
+      <section className={s.sideBlock}>
+        <header className={s.sideBlockHead}>
+          <h4>Perso</h4>
+          <span>note · rappels</span>
+        </header>
+        <textarea
+          rows={2}
+          value={note}
+          onChange={(e) => queueNoteSave(e.target.value)}
+          onBlur={() => void flushNote(false).catch(() => undefined)}
+          placeholder="Biais, niveaux, intention…"
+          className={s.noteArea}
+        />
+        <div className={s.noteActions}>
+          <Button size="sm" variant="ghost" onClick={() => void flushNote(true)}>
+            Enregistrer
+          </Button>
+          {noteSaved && <span className={s.noteOk}>OK</span>}
         </div>
-      </Panel>
+        {dayEntries
+          .filter((e) => e.kind === 'event')
+          .map((e) => (
+            <div key={e.id} className={s.persoItem}>
+              <time>{e.time ?? '—'}</time>
+              <span>{e.title}</span>
+              <button type="button" onClick={() => void remove(e.id)} aria-label="Supprimer">
+                ×
+              </button>
+            </div>
+          ))}
+        <form className={s.persoForm} onSubmit={(ev) => void addReminder(ev)}>
+          <input type="time" value={evTime} onChange={(e) => setEvTime(e.target.value)} aria-label="Heure du rappel" />
+          <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder="Rappel…" aria-label="Titre du rappel" />
+          <Button size="sm" type="submit" title="Ajouter" aria-label="Ajouter le rappel" disabled={busy || !evTitle.trim()}>
+            <IconPlus size={12} />
+          </Button>
+        </form>
+      </section>
 
-      <Panel title="Historique macro" sub="résultats publiés · Investing">
+      <section className={s.sideBlock}>
+        <header className={s.sideBlockHead}>
+          <h4>Publiés</h4>
+          <span>fil macro</span>
+        </header>
         <div className={s.history}>
-          {history.length === 0 && <div className={s.evDesc}>Lancez « Sync Investing » pour constituer l’historique (attendu / publié).</div>}
-          {history.map((r) => {
+          {history.length === 0 && <div className={s.evDesc}>Sync Investing pour l’historique.</div>}
+          {history.slice(0, 18).map((r) => {
             const tone = surpriseTone(r.actual, r.forecast);
             return (
-              <button key={r.id} type="button" className={s.histRow} onClick={() => onSelectDate(r.date)} style={catStyle(r.impact === 3 ? 'fed' : 'croissance')}>
-                <time>
-                  {r.date.slice(5)}
-                  {r.timeET ? ` · ${r.timeET}` : ''}
-                </time>
+              <button key={r.id} type="button" className={s.histRow} onClick={() => onSelectDate(r.date)}>
+                <time>{r.date.slice(5)}</time>
                 <span className={s.histTitle}>{r.title.replace(/^U\.S\.\s+/i, '')}</span>
                 <span className={cx(s.histVals, tone && s[tone])}>
-                  {r.forecast ?? '—'} → <b>{r.actual}</b>
+                  {r.forecast ? <em>{r.forecast}→</em> : null}
+                  <b>{r.actual}</b>
                 </span>
               </button>
             );
           })}
         </div>
-      </Panel>
+      </section>
 
-      <Panel title="Repères de séance" sub="heure locale · New York">
-        <div className={s.markers}>
+      <section className={s.sideBlock}>
+        <header className={s.sideBlockHead}>
+          <h4>Séance</h4>
+          <span>locale · ET</span>
+        </header>
+        <div className={s.markersCompact}>
           {SESSION_MARKERS.map((m) => (
-            <div key={m.timeET} className={s.marker}>
+            <div key={m.timeET} className={s.markerCompact} title={m.note}>
               <b>{localTime(date, m.timeET)}</b>
-              <small>{m.timeET} ET</small>
-              <span title={m.note}>{m.label}</span>
+              <span>{m.label}</span>
             </div>
           ))}
         </div>
-        <div className={s.legendCats} style={{ marginTop: 12 }}>
-          {CATS.map((c) => (
-            <span key={c} style={catStyle(c)}>
-              <i />
-              {CATEGORY_LABEL[c]}
-            </span>
-          ))}
-        </div>
-      </Panel>
+      </section>
     </aside>
   );
 }
