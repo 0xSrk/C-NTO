@@ -19,7 +19,7 @@ function num(v: unknown, fallback: number): number {
 }
 
 /** Outils natifs exposés à l'agent IA et à l'orchestrateur externe (même contrat). */
-export function createDeskTools(ports: DeskPorts): DeskTool[] {
+function createDeskTools(ports: DeskPorts): DeskTool[] {
   return [
     {
       name: 'desk_overview',
