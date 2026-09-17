@@ -50,7 +50,14 @@ contextBridge.exposeInMainWorld('canto', {
   },
   secrets: {
     encrypt: (text: string) => ipcRenderer.invoke('secrets:encrypt', text),
-    decrypt: (payload: string) => ipcRenderer.invoke('secrets:decrypt', payload),
+  },
+  llm: {
+    start: (payload: unknown) => ipcRenderer.invoke('llm:start', payload),
+    abort: (requestId: string) => ipcRenderer.send('llm:abort', requestId),
+    probe: (config: unknown) => ipcRenderer.invoke('llm:probe', config),
+    onDelta: (cb: (payload: { requestId: string; text: string }) => void) => subscribe('llm:delta', cb),
+    onDone: (cb: (payload: unknown) => void) => subscribe('llm:done', cb),
+    onError: (cb: (payload: { requestId: string; error: string }) => void) => subscribe('llm:error', cb),
   },
   bridge: {
     status: () => ipcRenderer.invoke('bridge:status'),

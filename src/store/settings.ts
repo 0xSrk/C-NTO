@@ -10,6 +10,8 @@ export interface AgentConfig {
   baseUrl: string;
   model: string;
   apiKey: string;
+  /** Blob chiffré — le renderer ne détient plus la clé en clair sous le shell. */
+  apiKeyEncrypted?: string;
   systemPrompt: string;
   temperature: number;
   toolsEnabled: boolean;
@@ -37,6 +39,7 @@ export interface Settings {
   orchestratorAllowWrite: boolean;
   /** `dev` : git pull + npm install. Défaut `release` (page GitHub Releases). */
   updateChannel: 'release' | 'dev';
+  llmAllowedHosts: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -65,6 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   orchestratorPort: 47117,
   orchestratorAllowWrite: false,
   updateChannel: 'release',
+  llmAllowedHosts: [],
 };
 
 interface SettingsState {
@@ -86,19 +90,25 @@ type StoredSettings = Partial<Omit<Settings, 'agent'>> & {
  * Persistance : sous le shell, la clé API est chiffrée par `safeStorage` (DPAPI / trousseau) et
  * seule sa forme chiffrée est écrite dans IndexedDB ; en navigateur elle reste en clair, localement.
  */
-async function persist(settings: Settings): Promise<boolean> {
-  const { apiKey, ...agentRest } = settings.agent;
+async function persist(settings: Settings): Promise<{ encrypted: boolean; blob?: string }> {
+  const { apiKey, apiKeyEncrypted, ...agentRest } = settings.agent;
   let encrypted = false;
-  let agent: StoredSettings['agent'] = { ...agentRest, apiKey };
+  let blob = apiKeyEncrypted;
+  let agent: StoredSettings['agent'] = { ...agentRest, apiKey, apiKeyEncrypted };
   if (desk?.secrets && apiKey) {
     const payload = await desk.secrets.encrypt(apiKey);
     if (payload) {
       agent = { ...agentRest, apiKey: '', apiKeyEncrypted: payload };
       encrypted = true;
+      blob = payload;
     }
+  } else if (apiKeyEncrypted && !apiKey) {
+    agent = { ...agentRest, apiKey: '', apiKeyEncrypted };
+    encrypted = true;
+    blob = apiKeyEncrypted;
   }
   await setSetting('settings', { ...settings, agent });
-  return encrypted;
+  return { encrypted, blob };
 }
 
 function todayUtc(ms = Date.now()): string {
@@ -121,28 +131,41 @@ export const useSettings = create<SettingsState>((set, get) => ({
     const row = await db.settings.get('settings');
     const stored = (row?.value as StoredSettings | undefined) ?? {};
     const { apiKeyEncrypted, ...agentStored } = stored.agent ?? {};
-    let apiKey = typeof agentStored.apiKey === 'string' ? agentStored.apiKey : '';
-    let keyEncrypted = false;
-    if (apiKeyEncrypted && desk?.secrets) {
-      const clear = await desk.secrets.decrypt(apiKeyEncrypted);
-      if (clear !== null) {
-        apiKey = clear;
+    const blob = typeof apiKeyEncrypted === 'string' && apiKeyEncrypted.length > 0 ? apiKeyEncrypted : undefined;
+    let apiKey = blob ? '' : typeof agentStored.apiKey === 'string' ? agentStored.apiKey : '';
+    let keyEncrypted = !!blob;
+    let next = { ...DEFAULT_SETTINGS, ...stored, agent: { ...DEFAULT_SETTINGS.agent, ...agentStored, apiKey, apiKeyEncrypted: blob } };
+    if (apiKey && desk?.secrets) {
+      const r = await persist(next);
+      if (r.encrypted) {
+        apiKey = '';
         keyEncrypted = true;
+        next = { ...next, agent: { ...next.agent, apiKey: '', apiKeyEncrypted: r.blob } };
       }
     }
-    const next = { ...DEFAULT_SETTINGS, ...stored, agent: { ...DEFAULT_SETTINGS.agent, ...agentStored, apiKey } };
     set({ settings: next, keyEncrypted, ready: true });
     void maybeDailyBackup(next);
   },
   async update(patch) {
     const next = { ...get().settings, ...patch };
     set({ settings: next });
-    set({ keyEncrypted: await persist(next) });
+    const r = await persist(next);
+    set({
+      keyEncrypted: r.encrypted,
+      settings: r.blob ? { ...get().settings, agent: { ...get().settings.agent, apiKey: r.encrypted ? '' : get().settings.agent.apiKey, apiKeyEncrypted: r.blob } } : get().settings,
+    });
   },
   async updateAgent(patch) {
     const next = { ...get().settings, agent: { ...get().settings.agent, ...patch } };
     set({ settings: next });
-    set({ keyEncrypted: await persist(next) });
+    const r = await persist(next);
+    set({
+      keyEncrypted: r.encrypted,
+      settings: {
+        ...get().settings,
+        agent: { ...get().settings.agent, apiKey: r.encrypted && patch.apiKey !== undefined ? '' : get().settings.agent.apiKey, apiKeyEncrypted: r.blob ?? get().settings.agent.apiKeyEncrypted },
+      },
+    });
   },
   async backupNow() {
     let folder = get().settings.backupFolder;

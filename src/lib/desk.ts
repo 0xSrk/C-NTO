@@ -81,7 +81,27 @@ export interface DeskApi {
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
     encrypt: (text: string) => Promise<string | null>;
-    decrypt: (payload: string) => Promise<string | null>;
+  };
+  llm?: {
+    start: (payload: {
+      requestId: string;
+      config: { provider: string; baseUrl: string; model: string; temperature: number; apiKeyEncrypted?: string };
+      messages: unknown[];
+      tools: unknown[];
+      allowedHosts?: string[];
+    }) => Promise<void>;
+    abort: (requestId: string) => void;
+    probe: (config: {
+      provider: string;
+      baseUrl: string;
+      model: string;
+      temperature?: number;
+      apiKeyEncrypted?: string;
+      allowedHosts?: string[];
+    }) => Promise<{ ok: boolean; detail: string; models?: string[] }>;
+    onDelta: (cb: (p: { requestId: string; text: string }) => void) => () => void;
+    onDone: (cb: (p: { requestId: string; result: { text: string; toolCalls: { id: string; name: string; args: string }[] } }) => void) => () => void;
+    onError: (cb: (p: { requestId: string; error: string }) => void) => () => void;
   };
   window: {
     minimize: () => void;
