@@ -6,6 +6,7 @@ import { summarizeTrades } from '@/engine/metrics';
 import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
 import { uid } from '@/lib/id';
 import { db } from './db';
+import { useUi } from './ui';
 
 interface JournalState {
   ready: boolean;
@@ -140,7 +141,10 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 
   async addManualSession(input) {
-    if (get().sessions.length >= SESSION_CAPACITY) throw new Error(`Capacité atteinte (${SESSION_CAPACITY} séances).`);
+    if (get().sessions.length >= SESSION_CAPACITY) {
+      useUi.getState().toast(`Capacité atteinte (${SESSION_CAPACITY} séances) : ajout manuel refusé.`, 'warn');
+      throw new Error(`Capacité atteinte (${SESSION_CAPACITY} séances).`);
+    }
     if (get().sessions.some((s) => s.date === input.date && (s.account ?? '') === (input.account?.trim() ?? ''))) {
       throw new Error('Une séance existe déjà pour cette date et ce compte : éditez-la depuis la liste.');
     }
