@@ -128,4 +128,9 @@ Reliquats `docs/AGENT-HARDENING.md` (numérotation de ce brief) :
 - [x] P1.6 copy conception sans « réel » — `README.md`, `src/modules/bot/Bot.tsx`
 - [x] P1.2 plus d’IPC `secrets:decrypt` — `electron/main.ts`
 - [x] P1.1 `createDeskTools` non exporté — `src/engine/agent/tools.ts`
+- [x] P0.4 `backupDaily` + export `includeHeavy` câblé — `src/store/settings.ts`, `SettingsModal.tsx`
+- [x] P1.1 `runTool` non exporté — `src/engine/agent/tools.ts`
+- [x] P1.2 plus de fetch LLM renderer — `src/engine/agent/llm.ts`
+- [x] P2.7 licence UNLICENSED en tête README — `README.md`
+- [x] P3.2 Annuler + barre CSV journal/barres — `ImportModal.tsx`, `Visual.tsx`
 
