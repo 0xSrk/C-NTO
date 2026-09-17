@@ -15,7 +15,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-58%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-69%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/badge/version-1.1.1-c41e3a?style=flat-square)](package.json)
 
@@ -108,12 +108,12 @@ CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre 
 
 | État | Comportement |
 |---|---|
-| À jour | Le bouton affiche `v1.1.0` (discret) |
+| À jour | Le bouton affiche `v1.1.1` (discret) |
 | Mise à jour dispo | Le bouton passe **ambre / jaune** — un clic télécharge (`git pull` + `npm install`) et **relance** automatiquement |
 
 Même action depuis le lanceur : le bouton **Mettre à jour et relancer** apparaît uniquement lorsqu'une version plus récente (ou des commits sur `main`) est détectée.
 
-Pas besoin de terminal pour rester à jour. Si des modifications locales bloquent le pull, CΛNTO tente un `git stash` puis réessaie ; en cas d'échec, un message explicite s'affiche.
+Pas besoin de terminal pour rester à jour. Si des modifications locales bloquent le pull, CΛNTO tente un `git stash` puis réessaie ; en cas d'échec, un message explicite s'affiche. La mise à jour git+npm automatique sera restreinte au canal dev (voir brief 17 sept.).
 
 ---
 
@@ -323,5 +323,5 @@ Le registre des prop firms est **indicatif** : les règles changent fréquemment
 
 <div align="center">
 <br/>
-<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.0</sub>
+<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.1</sub>
 </div>
