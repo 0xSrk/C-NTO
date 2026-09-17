@@ -46,7 +46,6 @@ export default function Metrique() {
     const saved = await saveTextFile(`canto-trades-${new Date().toISOString().slice(0, 10)}.csv`, exportTradesCsv(trades), 'text/csv');
     if (saved) toast(`${plural(trades.length, 'trade exporté', 'trades exportés')} (CSV réimportable).`, 'ok');
   };
-  const backupIncludeHeavy = useSettings((st) => st.settings.backupIncludeHeavy);
   const onExportVault = async () => {
     const saved = await saveTextFile(`canto-coffre-${new Date().toISOString().slice(0, 10)}.json`, await exportVault({ includeHeavy: backupIncludeHeavy === true }), 'application/json');
     if (saved) toast(backupIncludeHeavy ? 'Coffre exporté (barres et messages agent inclus, clé API exclue).' : 'Sauvegarde du coffre exportée (clé API et blob chiffré exclus).', 'ok');
