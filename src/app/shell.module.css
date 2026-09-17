@@ -406,6 +406,46 @@
   font-size: var(--fs-label);
   color: var(--text-3);
   letter-spacing: var(--track-13);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lienBadge {
+  color: var(--text-2);
+}
+.protoPill {
+  display: inline-flex;
+  align-items: center;
+  height: 14px;
+  padding: 0 5px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #1a1200;
+  background: linear-gradient(180deg, #f0c14b 0%, #d4a017 100%);
+  border: 1px solid rgba(255, 200, 60, 0.85);
+  box-shadow: 0 0 8px rgba(240, 180, 40, 0.35);
+  animation: proto-glint 2.8s var(--ease-in-out) infinite;
+}
+@keyframes proto-glint {
+  0%,
+  100% {
+    opacity: 0.72;
+    filter: brightness(0.95);
+    box-shadow: 0 0 4px rgba(240, 180, 40, 0.2);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.15);
+    box-shadow: 0 0 12px rgba(255, 200, 60, 0.55);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .protoPill {
+    animation: none;
+    opacity: 0.9;
+  }
 }
 .railFoot {
   margin-top: auto;

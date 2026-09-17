@@ -23,25 +23,32 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   async add(input) {
     const now = Date.now();
     const e: CalendarEntry = { ...input, id: uid('c'), createdAt: now, updatedAt: now };
-    await db.calendar.add(e);
-    set({ entries: [...get().entries, e] });
+    await db.calendar.put(e);
+    const rest = get().entries.filter((x) => x.id !== e.id);
+    set({ entries: [...rest, e] });
     return e;
   },
   async update(id, patch) {
-    await db.calendar.update(id, { ...patch, updatedAt: Date.now() });
-    set({ entries: get().entries.map((e) => (e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e)) });
+    const now = Date.now();
+    await db.calendar.update(id, { ...patch, updatedAt: now });
+    set({ entries: get().entries.map((e) => (e.id === id ? { ...e, ...patch, updatedAt: now } : e)) });
   },
   async remove(id) {
     await db.calendar.delete(id);
     set({ entries: get().entries.filter((e) => e.id !== id) });
   },
   async setDayNote(date, body) {
+    const trimmed = body.trim();
     const existing = get().entries.find((e) => e.date === date && e.kind === 'note');
-    if (existing) {
-      if (!body.trim()) return get().remove(existing.id);
-      return get().update(existing.id, { body });
+    if (!trimmed) {
+      if (existing) await get().remove(existing.id);
+      return;
     }
-    if (!body.trim()) return;
-    await get().add({ date, kind: 'note', title: 'Note du jour', body });
+    if (existing) {
+      if (existing.body === trimmed) return;
+      await get().update(existing.id, { body: trimmed, title: 'Note du jour' });
+      return;
+    }
+    await get().add({ date, kind: 'note', title: 'Note du jour', body: trimmed });
   },
 }));

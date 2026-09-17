@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
 import { Orchestrator } from './orchestrator';
+import { fetchMacroReleases } from './macro-calendar';
 import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
@@ -15,6 +16,7 @@ let bridge: NinjaBridge | null = null;
 let updateBusy = false;
 
 const isString = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
+const isDateKey = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const isPort = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1024 && v <= 65535;
 const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean => {
   const s = e.sender;
@@ -198,6 +200,17 @@ ipcMain.handle('update:start-desk', (e) => {
     }, 220);
   }
   return true;
+});
+
+/* ─── Calendrier macro (Investing.com → Forex Factory) ─── */
+ipcMain.handle('calendar:macro', async (e, fromDate: unknown, toDate: unknown) => {
+  if (!trusted(e) || !isDateKey(fromDate) || !isDateKey(toDate)) return { releases: [], source: 'none' as const, error: 'Plage invalide' };
+  if (fromDate > toDate) return { releases: [], source: 'none' as const, error: 'Plage inversée' };
+  try {
+    return await fetchMacroReleases(fromDate, toDate);
+  } catch (err) {
+    return { releases: [], source: 'none' as const, error: err instanceof Error ? err.message : 'Sync macro impossible' };
+  }
 });
 
 /* ─── Fichiers (toujours derrière un dialogue système) ─── */

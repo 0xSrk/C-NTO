@@ -84,6 +84,29 @@ export interface DeskApi {
     saveText: (defaultName: string, text: string) => Promise<boolean>;
     openText: (filters: { name: string; extensions: string[] }[]) => Promise<{ name: string; text: string } | null>;
   };
+  calendar?: {
+    fetchMacro: (
+      fromDate: string,
+      toDate: string,
+    ) => Promise<{
+      releases: {
+        id: string;
+        date: string;
+        timeET?: string;
+        title: string;
+        currency: string;
+        impact: 1 | 2 | 3;
+        forecast?: string;
+        previous?: string;
+        actual?: string;
+        period?: string;
+        source: 'investing' | 'forexfactory';
+        at: string;
+      }[];
+      source: 'investing' | 'forexfactory' | 'none';
+      error?: string;
+    }>;
+  };
   orchestrator: {
     start: (port: number) => Promise<OrchestratorStatus>;
     stop: () => Promise<OrchestratorStatus>;

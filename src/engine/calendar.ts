@@ -16,6 +16,15 @@ export interface CalEvent {
   /** Date déduite d'une règle de récurrence (non confirmée) */
   estimated: boolean;
   allDay?: boolean;
+  /** Consensus / attendu (Investing) */
+  forecast?: string;
+  /** Lecture précédente */
+  previous?: string;
+  /** Résultat publié */
+  actual?: string;
+  /** Période de référence (ex. Jul) */
+  period?: string;
+  source?: 'local' | 'investing' | 'forexfactory';
 }
 
 export const CATEGORY_LABEL: Record<EventCategory, string> = {

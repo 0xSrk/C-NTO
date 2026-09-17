@@ -26,6 +26,23 @@ export interface CalendarEntry {
   updatedAt: number;
 }
 
+/** Publication macro (Investing / FF) persistée pour historique. */
+export interface MacroReleaseRow {
+  id: string;
+  date: string;
+  timeET?: string;
+  title: string;
+  currency: string;
+  impact: 1 | 2 | 3;
+  forecast?: string;
+  previous?: string;
+  actual?: string;
+  period?: string;
+  source: 'investing' | 'forexfactory';
+  at: string;
+  syncedAt: number;
+}
+
 export interface Setting<T = unknown> {
   key: string;
   value: T;
@@ -78,6 +95,7 @@ class CantoDb extends Dexie {
   trades!: EntityTable<Trade, 'id'>;
   notes!: EntityTable<Note, 'id'>;
   calendar!: EntityTable<CalendarEntry, 'id'>;
+  macroReleases!: EntityTable<MacroReleaseRow, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
   agentMessages!: EntityTable<AgentMessage, 'id'>;
   barSeries!: EntityTable<BarSeries, 'id'>;
@@ -91,6 +109,18 @@ class CantoDb extends Dexie {
       trades: 'id, sessionId, exitTime, instrument',
       notes: 'id, title, updatedAt, *tags',
       calendar: 'id, date, kind',
+      settings: 'key',
+      agentMessages: 'id, conversationId, createdAt',
+      barSeries: 'id, instrument, createdAt',
+      copierAccounts: 'id, role',
+      bots: 'id, status, updatedAt',
+    });
+    this.version(2).stores({
+      sessions: 'id, date, account, source',
+      trades: 'id, sessionId, exitTime, instrument',
+      notes: 'id, title, updatedAt, *tags',
+      calendar: 'id, date, kind',
+      macroReleases: 'id, date, source, impact',
       settings: 'key',
       agentMessages: 'id, conversationId, createdAt',
       barSeries: 'id, instrument, createdAt',
