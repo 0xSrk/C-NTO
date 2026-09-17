@@ -430,7 +430,7 @@ ipcMain.handle('secrets:decrypt', (e, payload: unknown) => {
 });
 
 /* ─── LLM (process main : la clé ne transite pas par le renderer) ─── */
-const LLM_HOSTS = new Set(['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai']);
+const LLM_HOSTS = new Set(['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai', 'api.moonshot.ai']);
 const llmAbort = new Map<string, AbortController>();
 
 function llmHostOk(baseUrl: string, extra: unknown): boolean {

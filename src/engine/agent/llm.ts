@@ -33,7 +33,7 @@ interface StreamArgs {
   signal?: AbortSignal;
 }
 
-export const DEFAULT_LLM_HOSTS = ['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai'] as const;
+export const DEFAULT_LLM_HOSTS = ['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai', 'api.moonshot.ai'] as const;
 
 export function llmHostAllowed(baseUrl: string, extra: string[] = []): boolean {
   try {
