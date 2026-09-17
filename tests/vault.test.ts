@@ -4,7 +4,7 @@ import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 describe('coffre canto-vault-v2', () => {
   it('export v2 ne contient aucune des clés apiKey|apiKeyBlob|orchToken|token', () => {
     const vault = buildVaultV2({
-      appVersion: '1.1.1',
+      appVersion: '1.1.2',
       exportedAt: 1,
       sessions: [{ id: 's1', date: '2026-09-15' }],
       trades: [],

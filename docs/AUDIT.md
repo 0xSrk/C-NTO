@@ -107,4 +107,9 @@ L'exécution référencée pour crépuscule appartient à un autre dépôt et n'
 - [x] P3.1 `noUncheckedIndexedAccess` — `tsconfig.json`, `electron/tsconfig.json`
 - [x] P3.6 script `npm run check` — `package.json`
 - [x] P1.5 Worker MC/CSV — `montecarlo.worker.ts` + `csv.worker.ts` (> 5000 lignes), barre + Annuler, tests restent sur les fonctions synchrones
+- [x] P0.5 pont : SHA-256 après stabilité, skip si contenu identique — `electron/bridge.ts`
+- [x] P2.4 disclaimers Sharpe / MC i.i.d. / Executions sans MAE — `Analyse.tsx`, `MonteCarloView.tsx`, `ImportModal.tsx`
+- [x] P2.5 `engines.node >= 22.12.0` — `package.json`
+- [x] `scripts/hash-release.mjs` SHA-256 des artefacts `release/`
+- [x] patch 1.1.2 après P0
 

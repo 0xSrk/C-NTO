@@ -15,9 +15,9 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-89%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-91%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
-[![Version](https://img.shields.io/badge/version-1.1.1-c41e3a?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-1.1.2-c41e3a?style=flat-square)](package.json)
 
 <br/>
 
@@ -115,7 +115,7 @@ Deux canaux :
 
 | État | Comportement |
 |---|---|
-| À jour | Le bouton affiche `v1.1.1` (discret) |
+| À jour | Le bouton affiche `v1.1.2` (discret) |
 | Mise à jour dispo | Le bouton passe **ambre / jaune** |
 
 Même action depuis le lanceur : le bouton **Mettre à jour** apparaît lorsqu'une version plus récente est détectée (canal release : ouvre la page des versions).
@@ -332,5 +332,5 @@ Licence : tous droits réservés, SIΞRRΛSKΛ. Dépôt consultable. Réutilisat
 
 <div align="center">
 <br/>
-<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.1</sub>
+<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.2</sub>
 </div>

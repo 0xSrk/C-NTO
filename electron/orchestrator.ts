@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron';
+import { app } from 'electron';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { WebSocket, WebSocketServer } from 'ws';
@@ -135,7 +136,7 @@ export class Orchestrator {
         const authenticated = tokensMatch(q, this.token);
         this.clients.set(id, { id, socket, authenticated, window: { start: Date.now(), count: 0 }, inflight: 0 });
         this.emitStatus();
-        safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: '1.1.1', clientId: id, authenticated } });
+        safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: app.getVersion(), clientId: id, authenticated } });
         socket.on('message', (raw) => this.onMessage(id, raw.toString()));
         socket.on('close', () => {
           this.clients.delete(id);
