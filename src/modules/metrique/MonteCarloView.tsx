@@ -105,7 +105,7 @@ export function MonteCarloView() {
             </Field>
           </div>
           <p className={s.note}>
-            Chaque trajectoire tire {result?.horizon ?? sample.length} résultats au hasard, avec remise, dans votre historique réel. Le résultat ne suppose aucune loi de distribution : il ne fait que réordonner votre propre passé pour mesurer la part de chance dans votre courbe actuelle.
+            Chaque trajectoire tire {result?.horizon ?? sample.length} résultats au hasard, avec remise, dans votre historique réel (bootstrap i.i.d. : l’autocorrélation n’est pas modélisée). Le résultat ne suppose aucune loi de distribution : il ne fait que réordonner votre propre passé pour mesurer la part de chance dans votre courbe actuelle.
           </p>
         </div>
       </Panel>

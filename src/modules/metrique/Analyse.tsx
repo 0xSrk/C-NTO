@@ -270,6 +270,7 @@ export function Analyse() {
 
   return (
     <div className={s.analyse}>
+      <p className={s.note}>Sharpe : rf = 0, annualisation √252, séances agrégées par date Globex.</p>
       {/* Rail d’insights — lecture immédiate */}
       <section className={s.insightRail} aria-label="Repères d’analyse">
         <div className={s.insight}>
