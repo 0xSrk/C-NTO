@@ -45,6 +45,14 @@ Control Center › **Trade Performance › Trades** (ou onglet **Executions**) �
 - Les positions encore ouvertes en fin de fichier ne sont pas importées (signalées dans le journal du pont) ; elles le seront à la clôture.
 - MAE/MFE ne sont pas disponibles à partir des exécutions (uniquement dans l'export « Trades »).
 
+### Idempotence (2026-09-17)
+
+- Écriture atomique : `executions-YYYY-MM-DD.csv.tmp` puis `File.Move(tmp, final, overwrite: true)`.
+- IDs déjà écrits dans `executions-YYYY-MM-DD.seen.txt` (un ID par ligne). Au rattrapage, un ID présent dans `.seen` n'est pas réécrit.
+- `MarketPosition.Flat` et position inconnue : pas d'écriture, `Log(Warning)`. Plus de mapping « not Long → Sell ».
+- Filtre compte : `AccountFilter` (constante en tête, vide = tous).
+- Le watcher desk n'importe que `.csv` / `.txt` ; `.tmp` est hors filtre. `.seen.txt` est exclu explicitement côté pont (P1.2).
+
 ---
 
 ## B. Transport WebSocket — spécification (à venir)
