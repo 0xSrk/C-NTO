@@ -13,5 +13,5 @@ userData/
 *.csv
 *.tmp
 canto-vault*.json
-.seen-*.txt
+executions-*.seen.txt
 Thumbs.db
