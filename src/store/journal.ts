@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { generateDemoJournal } from '@/engine/demo';
 import { importCsvAuto, type ImportResult } from '@/engine/import';
+import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { summarizeTrades } from '@/engine/metrics';
 import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
 import { uid } from '@/lib/id';
@@ -40,17 +41,32 @@ export const useJournal = create<JournalState>((set, get) => ({
     const result = importCsvAuto(text, { sessionBoundaryHour: opts.boundaryHour ?? 0, riskPerContract: opts.riskPerContract, source: opts.source });
     if (result.sessions.length === 0) return { ...result, added: 0, merged: 0, newTrades: 0 };
     const { sessions: existing, trades: existingTrades } = get();
-    // Fusion : une séance existante (même date + même compte) absorbe les nouveaux trades,
-    // les doublons exacts (instrument, sens, heures, prix) sont ignorés — les exports
-    // successifs et le journal temps réel du pont peuvent donc être rejoués sans risque.
+    // Fusion : une séance existante (même date + même compte) absorbe les nouveaux trades.
+    // Exécutions : clé account+ID (ou hash de repli). Autres formats : empreinte prix/heures.
     const byKey = new Map(existing.map((s) => [`${s.date}|${s.account ?? ''}`, s]));
     const fingerprint = (t: Trade) => `${t.instrument}|${t.direction}|${t.qty}|${t.entryTime}|${t.exitTime}|${t.entryPrice}|${t.exitPrice}`;
-    const known = new Set(existingTrades.map(fingerprint));
     const knownIds = new Set(existingTrades.map((t) => t.id));
+    const incoming: Trade[] = [];
+    const incomingKeys = new Map<Trade, string[]>();
+    if (result.format === 'ninjatrader-executions') {
+      const knownExec = new Set((await db.importedExecutions.toArray()).map((row) => row.key));
+      const picked = takeNewExecutionTrades(result.trades, result.tradeExecutionKeys ?? [], knownExec);
+      for (let i = 0; i < picked.trades.length; i++) {
+        const t = picked.trades[i]!;
+        incoming.push(t);
+        incomingKeys.set(t, picked.tradeKeys[i] ?? []);
+      }
+    } else {
+      const known = new Set(existingTrades.map(fingerprint));
+      for (const t of result.trades) {
+        if (known.has(fingerprint(t)) || knownIds.has(t.id)) continue;
+        known.add(fingerprint(t));
+        incoming.push(t);
+      }
+    }
     const incomingBySession = new Map<string, Trade[]>();
-    for (const t of result.trades) {
-      if (known.has(fingerprint(t)) || knownIds.has(t.id)) continue;
-      known.add(fingerprint(t));
+    for (const t of incoming) {
+      if (knownIds.has(t.id)) continue;
       const arr = incomingBySession.get(t.sessionId);
       if (arr) arr.push(t);
       else incomingBySession.set(t.sessionId, [t]);
@@ -89,10 +105,21 @@ export const useJournal = create<JournalState>((set, get) => ({
       toAddTrades.push(...sTrades);
     }
     if (toAddTrades.length) {
-      await db.transaction('rw', [db.sessions, db.trades], async () => {
+      const importedAt = Date.now();
+      const execRows = toAddTrades.flatMap((t) =>
+        (incomingKeys.get(t) ?? []).map((key) => ({
+          key,
+          account: t.account ?? '',
+          executionId: key.includes('\0') ? key.slice(key.indexOf('\0') + 1) : key,
+          sessionId: t.sessionId,
+          importedAt,
+        })),
+      );
+      await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions], async () => {
         if (toAddSessions.length) await db.sessions.bulkAdd(toAddSessions);
         if (toPutSessions.length) await db.sessions.bulkPut(toPutSessions);
         await db.trades.bulkAdd(toAddTrades);
+        if (execRows.length) await db.importedExecutions.bulkPut(execRows);
       });
       await get().load();
     }
@@ -153,8 +180,9 @@ export const useJournal = create<JournalState>((set, get) => ({
     const unique = [...new Set(ids.filter(Boolean))];
     if (unique.length === 0) return;
     const idSet = new Set(unique);
-    await db.transaction('rw', [db.sessions, db.trades], async () => {
+    await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions], async () => {
       await db.trades.where('sessionId').anyOf(unique).delete();
+      await db.importedExecutions.where('sessionId').anyOf(unique).delete();
       await db.sessions.bulkDelete(unique);
     });
     set({
@@ -169,9 +197,10 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 
   async clearAll() {
-    await db.transaction('rw', [db.sessions, db.trades], async () => {
+    await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions], async () => {
       await db.trades.clear();
       await db.sessions.clear();
+      await db.importedExecutions.clear();
     });
     set({ sessions: [], trades: [] });
   },

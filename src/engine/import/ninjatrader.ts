@@ -18,6 +18,8 @@ export interface ImportResult {
   warnings: string[];
   format: 'ninjatrader-trades' | 'ninjatrader-executions' | 'canto-csv' | 'inconnu';
   skipped: number;
+  /** Clés d'idempotence par trade (format exécutions uniquement). */
+  tradeExecutionKeys?: string[][];
 }
 
 /** Colonnes reconnues (export « Trade Performance › Trades » de NinjaTrader 8 et format CΛNTO). */

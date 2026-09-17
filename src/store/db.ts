@@ -90,6 +90,14 @@ export interface ChartLayout {
   indicators: IndicatorInstance[];
 }
 
+export interface ImportedExecution {
+  key: string;
+  account: string;
+  executionId: string;
+  sessionId: string;
+  importedAt: number;
+}
+
 class CantoDb extends Dexie {
   sessions!: EntityTable<Session, 'id'>;
   trades!: EntityTable<Trade, 'id'>;
@@ -101,6 +109,7 @@ class CantoDb extends Dexie {
   barSeries!: EntityTable<BarSeries, 'id'>;
   copierAccounts!: EntityTable<CopierAccount, 'id'>;
   bots!: EntityTable<BotBlueprint, 'id'>;
+  importedExecutions!: EntityTable<ImportedExecution, 'key'>;
 
   constructor() {
     super('canto');
@@ -126,6 +135,9 @@ class CantoDb extends Dexie {
       barSeries: 'id, instrument, createdAt',
       copierAccounts: 'id, role',
       bots: 'id, status, updatedAt',
+    });
+    this.version(3).stores({
+      importedExecutions: 'key, account, sessionId',
     });
   }
 }

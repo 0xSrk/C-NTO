@@ -1,6 +1,7 @@
 import { detectDecimalSeparator, inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { detectDayFirst, parseFlexibleDateTime } from '@/lib/time';
 import { INSTRUMENTS, type Instrument, type SessionSource, type Trade } from '../types';
+import { executionIdentityKey, executionTimeIso } from './identity';
 import { detectInstrument, groupIntoSessions, type ImportOptions, type ImportResult } from './ninjatrader';
 
 /**
@@ -19,6 +20,7 @@ export interface Execution {
   orderId?: string;
   name?: string;
   commission: number;
+  identityKey: string;
 }
 
 export interface OpenLot {
@@ -34,6 +36,7 @@ export interface OpenLot {
 export interface ExecutionsImportResult extends ImportResult {
   executions: number;
   openLots: OpenLot[];
+  tradeExecutionKeys: string[][];
 }
 
 const COLS: Record<string, string[]> = {
@@ -101,7 +104,7 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
   const executions: Execution[] = [];
   let skipped = 0;
   const expectedCols = table.headers.length;
-  table.rows.forEach((row, i) => {
+  table.rows.forEach((row) => {
     if (expectedCols > 0 && row.length !== expectedCols) {
       skipped++;
       return;
@@ -120,18 +123,29 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
     }
     const commissionRaw = get('commission');
     const commission = commissionRaw ? Math.abs(parseLocaleNumber(commissionRaw, dec)) || 0 : 0;
+    const account = get('account') || 'Compte';
+    const executionId = get('id');
     executions.push({
-      account: get('account') || 'Compte',
+      account,
       instrumentName,
       instrument,
       action,
       quantity,
       price,
       time,
-      executionId: get('id') || `row${i}`,
+      executionId,
       orderId: get('orderId') || undefined,
       name: get('name') || undefined,
       commission,
+      identityKey: executionIdentityKey({
+        account,
+        executionId,
+        instrument: instrumentName,
+        timeIso: executionTimeIso(time),
+        price,
+        qty: quantity,
+        action,
+      }),
     });
   });
   const warnings: string[] = [];
@@ -143,7 +157,7 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
  * Apparie les exécutions en trades aller-retour par compte et par contrat, méthode FIFO
  * (première entrée, première sortie), avec fractionnement des remplissages partiels.
  */
-export function pairExecutions(executions: Execution[]): { trades: Trade[]; openLots: OpenLot[] } {
+export function pairExecutions(executions: Execution[]): { trades: Trade[]; openLots: OpenLot[]; tradeExecutionKeys: string[][] } {
   const sorted = executions.map((e, i) => ({ e, i })).sort((a, b) => a.e.time - b.e.time || a.i - b.i);
   interface Lot {
     direction: 'long' | 'short';
@@ -151,11 +165,13 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
     price: number;
     time: number;
     executionId: string;
+    identityKey: string;
     name?: string;
     commissionPerContract: number;
   }
   const books = new Map<string, Lot[]>();
   const trades: Trade[] = [];
+  const tradeExecutionKeys: string[][] = [];
   const seenIds = new Set<string>();
 
   for (const { e } of sorted) {
@@ -194,12 +210,13 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
         entryName: lot.name,
         exitName: e.name,
       });
+      tradeExecutionKeys.push([lot.identityKey, e.identityKey]);
       lot.quantity -= matched;
       remaining -= matched;
       if (lot.quantity <= 0) lots.shift();
     }
     if (remaining > 0) {
-      lots.push({ direction: side, quantity: remaining, price: e.price, time: e.time, executionId: e.executionId, name: e.name, commissionPerContract: cpc });
+      lots.push({ direction: side, quantity: remaining, price: e.price, time: e.time, executionId: e.executionId, identityKey: e.identityKey, name: e.name, commissionPerContract: cpc });
     }
   }
 
@@ -211,13 +228,13 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
       if (instrument) openLots.push({ account, instrumentName, instrument, direction: lot.direction, quantity: lot.quantity, price: lot.price, time: lot.time });
     }
   }
-  return { trades, openLots };
+  return { trades, openLots, tradeExecutionKeys };
 }
 
 /** Import complet d'un export Executions (ou du journal temps réel du pont) → séances + trades. */
 export function importExecutionsCsv(text: string, opts: ImportOptions = {}): ExecutionsImportResult {
   const { executions, skipped, warnings } = parseExecutionsCsv(text);
-  const { trades, openLots } = pairExecutions(executions);
+  const { trades, openLots, tradeExecutionKeys } = pairExecutions(executions);
   if (opts.riskPerContract) for (const t of trades) t.risk = opts.riskPerContract * t.qty;
   if (openLots.length) warnings.push(`${openLots.length} position(s) encore ouverte(s) en fin de fichier — non importée(s) tant qu'elles ne sont pas clôturées.`);
   const source: SessionSource = opts.source ?? 'ninjatrader';
@@ -229,5 +246,6 @@ export function importExecutionsCsv(text: string, opts: ImportOptions = {}): Exe
     skipped,
     executions: executions.length,
     openLots,
+    tradeExecutionKeys,
   };
 }

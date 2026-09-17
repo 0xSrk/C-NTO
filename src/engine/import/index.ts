@@ -12,5 +12,6 @@ export function importCsvAuto(text: string, opts: ImportOptions = {}): ImportRes
 
 export { detectFormat, FORMAT_LABEL, exportTradesCsv, importTradesCsv } from './ninjatrader';
 export type { ImportOptions, ImportResult } from './ninjatrader';
+export { executionIdentityKey, takeNewExecutionTrades } from './identity';
 export { importExecutionsCsv, pairExecutions, parseExecutionsCsv } from './executions';
 export type { Execution, ExecutionsImportResult, OpenLot } from './executions';
