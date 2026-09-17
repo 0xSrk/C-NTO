@@ -79,7 +79,9 @@ export function generateDemoBars(opts: { days?: number; timeframe?: number; seed
   return bars;
 }
 
-/** Import de barres OHLCV depuis un CSV (export NinjaTrader « Historical Data » ou générique). */
+/** Import de barres OHLCV depuis un CSV (export NinjaTrader « Historical Data » ou générique).
+ * Fichiers > 5000 lignes : Worker via `src/store/bars.ts` (`bars.worker.ts`).
+ */
 export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] } {
   const table = parseCsv(text);
   const warnings: string[] = [];

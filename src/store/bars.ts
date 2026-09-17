@@ -1,8 +1,10 @@
 import { create } from 'zustand';
-import { generateDemoBars, importBarsCsv, type BarSeries } from '@/engine/bars';
+import { generateDemoBars, importBarsCsv, type Bar, type BarSeries } from '@/engine/bars';
+import { CSV_WORKER_MIN_LINES, csvLineCount } from '@/engine/import';
 import { defaultParams, indicatorById, type IndicatorInstance } from '@/engine/indicators';
 import type { Instrument } from '@/engine/types';
 import { uid } from '@/lib/id';
+import { listenWorker } from '@/lib/worker';
 import { db, getSetting, setSetting } from './db';
 
 interface BarsState {
@@ -79,7 +81,20 @@ export const useBars = create<BarsState>((set, get) => ({
   },
 
   async importCsv(text, name, instrument, timeframe) {
-    const { bars, warnings } = importBarsCsv(text);
+    let parsed: { bars: Bar[]; warnings: string[] };
+    if (typeof Worker !== 'undefined' && csvLineCount(text) > CSV_WORKER_MIN_LINES) {
+      try {
+        const worker = new Worker(new URL('../engine/bars.worker.ts', import.meta.url), { type: 'module' });
+        const pending = listenWorker<{ bars: Bar[]; warnings: string[] }>(worker);
+        worker.postMessage({ text });
+        parsed = await pending;
+      } catch {
+        parsed = importBarsCsv(text);
+      }
+    } else {
+      parsed = importBarsCsv(text);
+    }
+    const { bars, warnings } = parsed;
     if (bars.length === 0) return { bars: 0, warnings: warnings.length ? warnings : ['Aucune barre reconnue.'] };
     const sr: BarSeries = { id: uid('b'), instrument, timeframe, label: `${instrument} · ${timeframe} min · ${name}`, source: 'csv', bars, createdAt: Date.now() };
     await db.barSeries.add(sr);
