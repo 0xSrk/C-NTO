@@ -16,6 +16,8 @@ interface JournalState {
   addManualSession: (input: { date: string; account?: string; pnl: number; tradeCount: number; note?: string; tags?: string[]; rating?: number }) => Promise<Session>;
   updateSession: (id: string, patch: Partial<Pick<Session, 'note' | 'tags' | 'rating' | 'account'>>) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
+  /** Suppression en lot (trades inclus), une seule transaction. */
+  deleteSessions: (ids: string[]) => Promise<void>;
   updateTrade: (id: string, patch: Partial<Pick<Trade, 'tags' | 'risk' | 'strategy'>>) => Promise<void>;
   clearAll: () => Promise<void>;
 }
@@ -144,11 +146,21 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 
   async deleteSession(id) {
+    await get().deleteSessions([id]);
+  },
+
+  async deleteSessions(ids) {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return;
+    const idSet = new Set(unique);
     await db.transaction('rw', [db.sessions, db.trades], async () => {
-      await db.trades.where('sessionId').equals(id).delete();
-      await db.sessions.delete(id);
+      await db.trades.where('sessionId').anyOf(unique).delete();
+      await db.sessions.bulkDelete(unique);
     });
-    set({ sessions: get().sessions.filter((s) => s.id !== id), trades: get().trades.filter((t) => t.sessionId !== id) });
+    set({
+      sessions: get().sessions.filter((s) => !idSet.has(s.id)),
+      trades: get().trades.filter((t) => !idSet.has(t.sessionId)),
+    });
   },
 
   async updateTrade(id, patch) {
