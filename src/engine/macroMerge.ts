@@ -36,26 +36,12 @@ export function macroToCalEvent(r: MacroReleaseRow): CalEvent {
   };
 }
 
-/** Titres structurels locaux souvent doublonnés par Investing. */
-const MACRO_TITLE_RE = /nfp|emploi|cpi|ppi|pce|ism|fomc|pib|ventes au détail|michigan|confidence|confiance/i;
-
-/**
- * Fusionne événements structurels Nasdaq + publications macro persistées.
- * Les macros Investing remplacent les estimations locales du même jour / même famille.
- */
+/** Fusionne événements structurels Nasdaq + publications macro persistées (additif : un fetch ne déplace pas un FOMC bundled). */
 export function mergeCalendarEvents(local: CalEvent[], macros: MacroReleaseRow[]): CalEvent[] {
   const live = macros.map(macroToCalEvent);
-  const liveKeys = new Set(live.map((e) => `${e.date}|${e.category}|${(e.timeET ?? '').slice(0, 2)}`));
-  const kept = local.filter((e) => {
-    if (e.category === 'cme' || e.category === 'horaire' || e.category === 'resultats' || e.category === 'perso') return true;
-    if (!MACRO_TITLE_RE.test(e.title) && !e.estimated) return true;
-    // Écarter une estimation locale si Investing couvre déjà ce créneau / catégorie.
-    const key = `${e.date}|${e.category}|${(e.timeET ?? '').slice(0, 2)}`;
-    if (liveKeys.has(key)) return false;
-    const sameDay = live.some((m) => m.date === e.date && m.category === e.category);
-    return !sameDay;
-  });
-  return [...kept, ...live].sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
+  const localIds = new Set(local.map((e) => e.id));
+  const added = live.filter((e) => !localIds.has(e.id));
+  return [...local, ...added].sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
 }
 
 /** Surprise : actual vs forecast (numérique si possible). */

@@ -3,6 +3,9 @@ import { desk } from '@/lib/desk';
 import { addDays, dateKeyLocal } from '@/lib/time';
 import { db, type MacroReleaseRow } from './db';
 
+const CACHE_MS = 24 * 60 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 8_000;
+
 function etDateKey(iso: string): { date: string; timeET: string } | null {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -38,10 +41,13 @@ export const useMacro = create<MacroState>((set, get) => ({
   lastSource: null,
   async load() {
     const releases = await db.macroReleases.orderBy('date').reverse().toArray();
-    set({ releases, ready: true });
+    const lastSyncedAt = releases.reduce((m, r) => Math.max(m, r.syncedAt), 0) || undefined;
+    set({ releases, ready: true, lastSyncedAt });
   },
   async sync(from, to) {
     if (get().syncing) return;
+    const cachedAt = get().lastSyncedAt ?? get().releases.reduce((m, r) => Math.max(m, r.syncedAt), 0);
+    if (cachedAt && Date.now() - cachedAt < CACHE_MS && get().releases.length > 0) return;
     const today = dateKeyLocal(new Date());
     const fromDate = from ?? addDays(today, -45);
     const toDate = to ?? addDays(today, 21);
@@ -55,7 +61,14 @@ export const useMacro = create<MacroState>((set, get) => ({
       if (desk?.calendar?.fetchMacro) {
         payload = await desk.calendar.fetchMacro(fromDate, toDate);
       } else {
-        const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json');
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+        let res: Response;
+        try {
+          res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', { signal: ac.signal });
+        } finally {
+          clearTimeout(timer);
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const rows = (await res.json()) as {
           title: string;
@@ -104,7 +117,7 @@ export const useMacro = create<MacroState>((set, get) => ({
     } catch (e) {
       set({
         syncing: false,
-        lastSource: 'none',
+        lastSource: get().lastSource ?? 'none',
         lastError: e instanceof Error ? e.message : 'Sync macro impossible',
       });
     }
