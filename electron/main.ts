@@ -711,6 +711,9 @@ ipcMain.on('bridge:result', (e, fileId: unknown, result: unknown) => {
     sessionsAdded: typeof r.sessionsAdded === 'number' ? r.sessionsAdded : 0,
     sessionsMerged: typeof r.sessionsMerged === 'number' ? r.sessionsMerged : 0,
     warnings: Array.isArray(r.warnings) ? r.warnings.filter((w): w is string => isString(w, 500)).slice(0, 20) : [],
+    path: isString(r.path, 1024) ? r.path : undefined,
+    acceptedIds: Array.isArray(r.acceptedIds) ? r.acceptedIds.filter((id): id is string => isString(id, 200)).slice(0, 20_000) : [],
+    skipped: typeof r.skipped === 'number' ? r.skipped : 0,
   });
 });
 ipcMain.handle('shell:open-path', async (e, target: unknown) => {

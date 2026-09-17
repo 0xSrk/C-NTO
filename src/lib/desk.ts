@@ -42,7 +42,19 @@ export interface BridgeApi {
   pickFolder: () => Promise<string | null>;
   defaultFolder: () => Promise<string | null>;
   rescan: () => Promise<BridgeStatus | null>;
-  result: (fileId: string, result: { format: string; trades: number; sessionsAdded: number; sessionsMerged: number; warnings: string[] }) => void;
+  result: (
+    fileId: string,
+    result: {
+      format: string;
+      trades: number;
+      sessionsAdded: number;
+      sessionsMerged: number;
+      warnings: string[];
+      path?: string;
+      acceptedIds?: string[];
+      skipped?: number;
+    },
+  ) => void;
   openFolder: (target: string) => Promise<boolean>;
   onFile: (cb: (file: BridgeFilePayload) => void) => () => void;
   onStatus: (cb: (status: BridgeStatus) => void) => () => void;

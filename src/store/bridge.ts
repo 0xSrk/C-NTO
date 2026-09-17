@@ -54,6 +54,8 @@ export const useBridge = create<BridgeState>((set, get) => ({
       unsubscribeFile = api.onFile(async (file) => {
         const { settings } = useSettings.getState();
         const entry: BridgeLogEntry = { id: uid('bl'), at: Date.now(), file: file.name, kind: file.kind, format: 'inconnu', trades: 0, sessionsAdded: 0, sessionsMerged: 0, warnings: [] };
+        let acceptedIds: string[] = [];
+        let skipped = 0;
         try {
           const r = await useJournal.getState().importCsv(file.text, { boundaryHour: settings.boundaryHour, riskPerContract: settings.riskPerContract || undefined, source: 'ninjatrader' });
           entry.format = FORMAT_LABEL[r.format];
@@ -61,13 +63,24 @@ export const useBridge = create<BridgeState>((set, get) => ({
           entry.sessionsAdded = r.added;
           entry.sessionsMerged = r.merged;
           entry.warnings = r.warnings;
+          acceptedIds = (r.tradeExecutionKeys ?? []).flat();
+          skipped = r.skipped + Math.max(0, r.trades.length - r.newTrades);
           if (r.newTrades > 0) useUi.getState().toast(`Pont NinjaTrader · ${r.newTrades} trade(s) importé(s) depuis ${file.name} (${r.added} séance(s) créée(s), ${r.merged} fusionnée(s)).`, 'ok');
           else if (r.format === 'inconnu') useUi.getState().toast(`Pont NinjaTrader · ${file.name} ignoré : format non reconnu.`, 'warn');
         } catch (e) {
           entry.error = e instanceof Error ? e.message : String(e);
           useUi.getState().toast(`Pont NinjaTrader · échec sur ${file.name} : ${entry.error}`, 'error');
         }
-        api.result(file.id, { format: entry.format, trades: entry.trades, sessionsAdded: entry.sessionsAdded, sessionsMerged: entry.sessionsMerged, warnings: entry.warnings });
+        api.result(file.id, {
+          format: entry.format,
+          trades: entry.trades,
+          sessionsAdded: entry.sessionsAdded,
+          sessionsMerged: entry.sessionsMerged,
+          warnings: entry.warnings,
+          path: file.path,
+          acceptedIds,
+          skipped,
+        });
         set({ log: [entry, ...get().log].slice(0, 60) });
       });
       api.onStatus((status) => set({ status }));
