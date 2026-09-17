@@ -12,6 +12,9 @@ export interface VaultV2 {
   bots?: unknown[];
   copier?: unknown[];
   settings?: unknown;
+  macroReleases?: unknown[];
+  barSeries?: unknown[];
+  agentMessages?: unknown[];
 }
 
 export interface VaultParts {
@@ -24,6 +27,10 @@ export interface VaultParts {
   bots?: unknown[];
   copier?: unknown[];
   settings?: unknown;
+  macroReleases?: unknown[];
+  barSeries?: unknown[];
+  agentMessages?: unknown[];
+  includeHeavy?: boolean;
 }
 
 export interface ParsedVault {
@@ -35,6 +42,9 @@ export interface ParsedVault {
   copier: unknown;
   settings: unknown;
   settingsIsObject: boolean;
+  macroReleases: unknown;
+  barSeries: unknown;
+  agentMessages: unknown;
 }
 
 /** Retire les champs secrets (clé API, jeton) quel que soit le nidage. */
@@ -66,6 +76,11 @@ export function buildVaultV2(input: VaultParts): VaultV2 {
   if (input.bots) vault.bots = input.bots;
   if (input.copier) vault.copier = input.copier;
   if (input.settings !== undefined) vault.settings = stripSecrets(input.settings);
+  if (input.macroReleases) vault.macroReleases = input.macroReleases;
+  if (input.includeHeavy === true) {
+    if (input.barSeries) vault.barSeries = input.barSeries;
+    if (input.agentMessages) vault.agentMessages = input.agentMessages;
+  }
   return vault;
 }
 
@@ -95,5 +110,8 @@ export function parseVaultJson(json: string): ParsedVault {
     copier: rec.copier ?? rec.copierAccounts,
     settings,
     settingsIsObject: !!settings && typeof settings === 'object' && !Array.isArray(settings),
+    macroReleases: rec.macroReleases,
+    barSeries: rec.barSeries,
+    agentMessages: rec.agentMessages,
   };
 }

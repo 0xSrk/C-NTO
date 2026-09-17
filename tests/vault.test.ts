@@ -49,4 +49,30 @@ describe('coffre canto-vault-v2', () => {
     expect(stripped.agent.temperature).toBe(0.2);
     expect(stripped.agent).not.toHaveProperty('apiKeyEncrypted');
   });
+
+  it('macroReleases toujours exportées ; barSeries/agentMessages seulement si includeHeavy', () => {
+    const light = buildVaultV2({
+      appVersion: '1.1.2',
+      sessions: [],
+      trades: [],
+      notes: [],
+      macroReleases: [{ id: 'm1', date: '2026-09-17', title: 'FOMC' }],
+      barSeries: [{ id: 'b1' }],
+      agentMessages: [{ id: 'a1' }],
+    });
+    expect(light.macroReleases).toEqual([{ id: 'm1', date: '2026-09-17', title: 'FOMC' }]);
+    expect(light.barSeries).toBeUndefined();
+    expect(light.agentMessages).toBeUndefined();
+    const heavy = buildVaultV2({
+      appVersion: '1.1.2',
+      sessions: [],
+      trades: [],
+      notes: [],
+      includeHeavy: true,
+      barSeries: [{ id: 'b1' }],
+      agentMessages: [{ id: 'a1' }],
+    });
+    expect(heavy.barSeries).toEqual([{ id: 'b1' }]);
+    expect(heavy.agentMessages).toEqual([{ id: 'a1' }]);
+  });
 });

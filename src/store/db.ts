@@ -171,9 +171,10 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
   await db.settings.put({ key, value });
 }
 
-/** Sauvegarde complète du coffre (JSON v2) — réimportable via `restoreVault`. */
-export async function exportVault(): Promise<string> {
-  const [sessions, trades, notes, calendar, settings, copierAccounts, bots] = await Promise.all([
+/** Sauvegarde coffre JSON v2. `includeHeavy` (défaut false) ajoute barres + messages agent. */
+export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<string> {
+  const includeHeavy = opts?.includeHeavy === true;
+  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, macroReleases, barSeries, agentMessages] = await Promise.all([
     db.sessions.toArray(),
     db.trades.toArray(),
     db.notes.toArray(),
@@ -181,6 +182,9 @@ export async function exportVault(): Promise<string> {
     db.settings.toArray(),
     db.copierAccounts.toArray(),
     db.bots.toArray(),
+    db.macroReleases.toArray(),
+    includeHeavy ? db.barSeries.toArray() : Promise.resolve([]),
+    includeHeavy ? db.agentMessages.toArray() : Promise.resolve([]),
   ]);
   const settingsObj = settings.find((row) => row.key === 'settings')?.value;
   return JSON.stringify(
@@ -193,6 +197,10 @@ export async function exportVault(): Promise<string> {
       bots,
       copier: copierAccounts,
       settings: settingsObj,
+      macroReleases,
+      includeHeavy,
+      barSeries: includeHeavy ? barSeries : undefined,
+      agentMessages: includeHeavy ? agentMessages : undefined,
     }),
   );
 }
@@ -229,6 +237,9 @@ const CHECKS: Record<string, Check> = {
   settings: (r) => r.key !== 'settings' || (typeof r.value === 'object' && r.value !== null),
   copierAccounts: (r) => isStr(r.name) && (r.role === 'maitre' || r.role === 'suiveur') && typeof r.sizing === 'object' && r.sizing !== null,
   bots: (r) => isStr(r.name) && Array.isArray(r.rules) && isNum(r.updatedAt),
+  macroReleases: (r) => isStr(r.date) && isStr(r.title),
+  barSeries: (r) => (r.instrument === 'NQ' || r.instrument === 'MNQ') && Array.isArray(r.bars),
+  agentMessages: (r) => isStr(r.conversationId) && isStr(r.role) && isStr(r.content),
 };
 
 function coerceSessions(list: Session[]): Session[] {
@@ -277,10 +288,16 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
   }
   const copierAccounts = rows<CopierAccount>(parsed.copier, 'id', 'copierAccounts', CHECKS.copierAccounts);
   const bots = rows<BotBlueprint>(parsed.bots, 'id', 'bots', CHECKS.bots);
+  const macroReleases = rows<MacroReleaseRow>(parsed.macroReleases, 'id', 'macroReleases', CHECKS.macroReleases);
+  const barSeries = rows<BarSeries>(parsed.barSeries, 'id', 'barSeries', CHECKS.barSeries);
+  const agentMessages = rows<AgentMessage>(parsed.agentMessages, 'id', 'agentMessages', CHECKS.agentMessages);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
   let apiKeyReencrypted = false;
-  await db.transaction('rw', [db.sessions, db.trades, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots], async () => {
+  await db.transaction(
+    'rw',
+    [db.sessions, db.trades, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots, db.macroReleases, db.barSeries, db.agentMessages],
+    async () => {
     if (sessions.length) {
       await db.sessions.clear();
       await db.trades.clear();
@@ -323,6 +340,18 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
     if (bots.length) {
       await db.bots.clear();
       await db.bots.bulkPut(bots);
+    }
+    if (macroReleases.length) {
+      await db.macroReleases.clear();
+      await db.macroReleases.bulkPut(macroReleases);
+    }
+    if (barSeries.length) {
+      await db.barSeries.clear();
+      await db.barSeries.bulkPut(barSeries);
+    }
+    if (agentMessages.length) {
+      await db.agentMessages.clear();
+      await db.agentMessages.bulkPut(agentMessages);
     }
   });
   return { sessions: sessions.length, trades: consistentTrades.length, notes: notes.length, apiKeyReencrypted };
