@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p electron/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check": "npm run typecheck && npm test && npm run build",
     "electron:compile": "tsc -p electron/tsconfig.json && node scripts/copy-electron-assets.mjs",
     "launch": "node scripts/launch.mjs",
     "desk:dev": "npm run electron:compile && concurrently -k -n vite,desk -c cyan,white \"vite --strictPort\" \"cross-env CANTO_DEV_URL=http://localhost:5173 electron .\"",
