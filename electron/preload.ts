@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld('canto', {
     startDesk: () => ipcRenderer.invoke('update:start-desk'),
   },
   orchestrator: {
-    start: (port: number) => ipcRenderer.invoke('orch:start', port),
+    start: (port: number, allowWrites?: boolean) => ipcRenderer.invoke('orch:start', port, allowWrites),
     stop: () => ipcRenderer.invoke('orch:stop'),
     status: () => ipcRenderer.invoke('orch:status'),
     rotateToken: () => ipcRenderer.invoke('orch:rotate-token'),

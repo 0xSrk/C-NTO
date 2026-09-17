@@ -383,7 +383,7 @@ ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown
 });
 
 /* ─── Orchestrateur ─── */
-ipcMain.handle('orch:start', (e, port: unknown) => (trusted(e) && isPort(port) ? orchestrator.start(port) : orchestrator.status()));
+ipcMain.handle('orch:start', (e, port: unknown, allowWrites: unknown) => (trusted(e) && isPort(port) ? orchestrator.start(port, allowWrites === true) : orchestrator.status()));
 ipcMain.handle('orch:stop', (e) => (trusted(e) ? orchestrator.stop() : orchestrator.status()));
 ipcMain.handle('orch:status', (e) => (trusted(e) ? orchestrator.status() : { running: false, port: 0, clients: 0, token: '' }));
 ipcMain.handle('orch:rotate-token', (e) => (trusted(e) ? orchestrator.rotateToken() : orchestrator.status()));

@@ -126,7 +126,7 @@ export interface DeskApi {
     }>;
   };
   orchestrator: {
-    start: (port: number) => Promise<OrchestratorStatus>;
+    start: (port: number, allowWrites?: boolean) => Promise<OrchestratorStatus>;
     stop: () => Promise<OrchestratorStatus>;
     status: () => Promise<OrchestratorStatus>;
     rotateToken: () => Promise<OrchestratorStatus>;
