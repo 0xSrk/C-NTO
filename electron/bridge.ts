@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron';
+import { createHash } from 'node:crypto';
 import { promises as fs, watch, type FSWatcher } from 'node:fs';
 import path from 'node:path';
 
@@ -41,6 +42,7 @@ export interface BridgeFilePayload {
 interface ProcessedFile {
   size: number;
   mtimeMs: number;
+  sha256?: string;
   acceptedIds?: string[];
 }
 
@@ -74,7 +76,7 @@ export class NinjaBridge {
   private watcher: FSWatcher | null = null;
   private poll: NodeJS.Timeout | null = null;
   private timers = new Map<string, NodeJS.Timeout>();
-  private inflight = new Map<string, { path: string; size: number; mtimeMs: number }>();
+  private inflight = new Map<string, { path: string; size: number; mtimeMs: number; sha256: string }>();
   private state: PersistedState = { config: { folder: null, enabled: false }, processed: {} };
   private error: string | undefined;
   private lastEvent: BridgeStatus['lastEvent'];
@@ -158,7 +160,7 @@ export class NinjaBridge {
     const prev = this.state.processed[filePath];
     const incoming = Array.isArray(result.acceptedIds) ? result.acceptedIds : [];
     const acceptedIds = [...new Set([...(prev?.acceptedIds ?? []), ...incoming])];
-    this.state.processed[filePath] = { size: entry.size, mtimeMs: entry.mtimeMs, acceptedIds };
+    this.state.processed[filePath] = { size: entry.size, mtimeMs: entry.mtimeMs, sha256: entry.sha256, acceptedIds };
     this.state.lastImport = {
       at: Date.now(),
       file: path.basename(filePath),
@@ -299,9 +301,15 @@ export class NinjaBridge {
       this.emitStatus();
       return;
     }
+    const sha256 = createHash('sha256').update(text, 'utf8').digest('hex');
+    if (!forced && done?.sha256 === sha256) {
+      this.state.processed[file] = { ...done, size: st2.size, mtimeMs: st2.mtimeMs, sha256 };
+      await this.save();
+      return;
+    }
     const id = `f${++this.seq}`;
     const kind: BridgeFilePayload['kind'] = forced ?? (done ? 'modifié' : 'nouveau');
-    this.inflight.set(id, { path: file, size: st2.size, mtimeMs: st2.mtimeMs });
+    this.inflight.set(id, { path: file, size: st2.size, mtimeMs: st2.mtimeMs, sha256 });
     this.lastEvent = { at: Date.now(), file: path.basename(file), kind };
     const payload: BridgeFilePayload = { id, name: path.basename(file), path: file, size: st2.size, text, kind };
     this.win.webContents.send('bridge:file', payload);

@@ -56,7 +56,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
   const active = TABS.find((t) => t.id === tab);
   const [maximized, setMaximized] = useState(false);
-  const [appVersion, setAppVersion] = useState('1.1.1');
+  const [appVersion, setAppVersion] = useState('1.1.2');
 
   useEffect(() => {
     if (!desk) return;
