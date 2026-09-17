@@ -183,7 +183,7 @@ export default function Bot() {
                 </Panel>
               </>
             ) : (
-              <Empty title="Atelier d’automates" text="Cet espace prépare la création de bots pilotant vos comptes NinjaTrader. En phase 1, vous formalisez la logique ; les phases suivantes brancheront backtest, papier puis réel." />
+              <Empty title="Atelier d’automates" text="Cet espace prépare la création de bots. En phase conception, vous formalisez la logique ; backtest et papier viendront ensuite. Aucun ordre n’est envoyé." />
             )}
           </div>
 

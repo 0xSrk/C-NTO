@@ -15,7 +15,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-91%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-99%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/badge/version-1.1.2-c41e3a?style=flat-square)](package.json)
 
@@ -241,7 +241,7 @@ Façon Obsidian, 100 % local :
 
 ## Bot & Copieur
 
-**Bot** (phase conception) — gabarits, grammaire conditions / actions / garde-fous, cycle de vie `brouillon → backtest → papier → réel verrouillé`. Garde-fous dérivés du plan prop firm et du calendrier.
+**Bot** (phase conception) — gabarits, grammaire conditions / actions / garde-fous, cycle de vie `brouillon → backtest → papier`. Garde-fous dérivés du plan prop firm et du calendrier. Aucun envoi d’ordre.
 
 **Copieur** — topologie maître → suiveurs, dimensionnement (fixe, ratio, risque), correspondance NQ ↔ MNQ, filtres (fenêtre horaire, blackout catalyseurs, marge plancher, latence), journal des versions. La **réplication d'ordres** attend le transport WebSocket du pont (spécifié dans `docs/PONT-NINJATRADER.md`).
 

@@ -84,6 +84,8 @@ L'exécution référencée pour crépuscule appartient à un autre dépôt et n'
 
 ## Suite 2026-09-17
 
+Tickets : [`docs/AGENT-HARDENING.md`](AGENT-HARDENING.md).
+
 - [x] P2.1 `.gitignore` env/csv/vault/seen — `.gitignore`
 - [x] P2.5 versions unifiées 1.1.1 — `README.md`, `package.json`
 - [x] P0.1 import idempotent par executionId — `src/engine/import/identity.ts`, `src/store/journal.ts`
@@ -122,4 +124,8 @@ Reliquats `docs/AGENT-HARDENING.md` (numérotation de ce brief) :
 - [x] P3.2 Worker CSV barres > 5000 — `src/engine/bars.worker.ts`, `src/store/bars.ts`
 - [x] P2.6 `executions-*.seen.txt` — `.gitignore`
 - [x] P1.2 hôte `api.moonshot.ai` — `src/engine/agent/llm.ts`, `electron/main.ts`
+- [x] P2.5 badge README 99 tests — `README.md`
+- [x] P1.6 copy conception sans « réel » — `README.md`, `src/modules/bot/Bot.tsx`
+- [x] P1.2 plus d’IPC `secrets:decrypt` — `electron/main.ts`
+- [x] P1.1 `createDeskTools` non exporté — `src/engine/agent/tools.ts`
 
