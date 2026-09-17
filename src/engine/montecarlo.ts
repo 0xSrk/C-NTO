@@ -9,6 +9,7 @@ export interface MonteCarloOptions {
   ruinDrawdown?: number;
   /** Objectif de profit ($) — probabilité de l'atteindre avant la ruine */
   target?: number;
+  signal?: AbortSignal;
 }
 
 export interface MonteCarloResult {
@@ -78,10 +79,12 @@ export function clampMonteCarlo(runs: number, horizon: number): { runs: number; 
  * trajectoires possibles à partir de l'historique réel — sans hypothèse de distribution.
  * Mémoire bornée : l'enveloppe est estimée sur 500 trajectoires et 240 pas.
  */
+// TODO(P1.5) worker
 export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): MonteCarloResult | null {
   const pnls = input.filter(Number.isFinite);
   const n = pnls.length;
   if (n < 5) return null;
+  if (opts.signal?.aborted) return null;
   const { runs, horizon } = clampMonteCarlo(opts.runs ?? 2000, opts.horizon ?? n);
   const rand = mulberry32(Number.isFinite(opts.seed) ? (opts.seed as number) : 1337);
   const ruin = Number.isFinite(opts.ruinDrawdown) ? (opts.ruinDrawdown as number) : undefined;
@@ -100,6 +103,7 @@ export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): Monte
   const samples: number[][] = [];
 
   for (let r = 0; r < runs; r++) {
+    if (opts.signal?.aborted) return null;
     let eq = 0;
     let peak = 0;
     let maxDd = 0;

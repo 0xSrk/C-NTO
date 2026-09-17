@@ -101,6 +101,7 @@ export const FORMAT_LABEL: Record<ImportResult['format'], string> = {
  * Le PnL est recalculé à partir des prix et de la valeur du point (source de vérité), puis
  * comparé à la colonne Profit lorsqu'elle est en devise.
  */
+// TODO(P1.5) worker
 export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportResult {
   const table = parseCsv(text);
   const warnings: string[] = [];
