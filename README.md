@@ -25,6 +25,10 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 
 <img src="docs/media/metrique.png" alt="CΛNTO — Métrique : tableau de bord, courbe d'équité, heatmap annuelle, 140 séances" width="920"/>
 
+<br/>
+
+**`01 MTR` · `02 VIS` · `03 CAL` · `04 NTE` · `05 AGT` · `06 BOT` · `07 CPY`**
+
 <br/><br/>
 
 </div>
@@ -33,22 +37,17 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 
 ## Sommaire
 
-1. [En bref](#en-bref)
-2. [Démarrer](#démarrer)
-3. [Mettre à jour](#mettre-à-jour)
-4. [Les sept modules](#les-sept-modules)
-5. [Métrique — journal & moteur](#métrique--journal--moteur)
-6. [Visual — bougies & indicateurs](#visual--bougies--indicateurs)
-7. [Calendrier — catalyseurs Nasdaq](#calendrier--catalyseurs-nasdaq)
-8. [Note — coffre Markdown](#note--coffre-markdown)
-9. [Agent IA & orchestrateur](#agent-ia--orchestrateur)
-10. [Bot & Copieur](#bot--copieur)
-11. [Pont NinjaTrader 8](#pont-ninjatrader-8)
-12. [Architecture](#architecture)
-13. [Développement](#développement)
-14. [Système visuel](#système-visuel)
-15. [Suite](#suite)
-16. [Avertissement](#avertissement)
+0. [En bref](#en-bref) · [Démarrer](#démarrer) · [Mettre à jour](#mettre-à-jour)
+1. [`01 · MTR` Métrique](#01-mtr)
+2. [`02 · VIS` Visual](#02-vis)
+3. [`03 · CAL` Calendrier](#03-cal)
+4. [`04 · NTE` Note](#04-nte)
+5. [`05 · AGT` Agent IA](#05-agt)
+6. [`06 · BOT` Bot](#06-bot)
+7. [`07 · CPY` Copieur](#07-cpy)
+8. [Pont NinjaTrader 8](#pont)
+9. [Architecture](#architecture) · [Développement](#développement) · [Système visuel](#système-visuel)
+10. [Suite](#suite) · [Avertissement](#avertissement)
 
 ---
 
@@ -58,13 +57,14 @@ CΛNTO est le **desk local** du Lab pour travailler le **Nasdaq-100 futures** au
 
 | | |
 |---|---|
-| **Mesurer** | Journal jusqu'à 1 000 séances · profit factor, espérance, Sharpe / Sortino / Calmar, SQN, Kelly, z-score, MAE / MFE, drawdown, régularité glissante |
-| **Importer** | Pont NinjaTrader (dossier surveillé + AddOn exécutions) · CSV Trades / Executions · cultures en-US / fr-FR · appariement FIFO |
-| **Rejouer** | Règles prop firm (trailing EOD / intraday / statique, perte journalière, consistance) · Monte Carlo bootstrap borné |
-| **Voir** | Bougies NQ, indicateurs extensibles, projection des trades d'une séance |
+| **Mesurer** | Journal jusqu’à 1 000 séances · profit factor, espérance, Sharpe / Sortino / Calmar, SQN, Kelly, z-score, MAE / MFE, drawdown, régularité glissante |
+| **Importer** | Pont NT (dossier surveillé + AddOn exécutions) · CSV Trades / Executions / CΛNTO · cultures en-US / fr-FR · appariement FIFO · idempotence par ID d’exécution |
+| **Rejouer** | Plans prop firm versionnés (trailing EOD / intraday / statique, perte journalière, consistance) · Monte Carlo bootstrap borné |
+| **Voir** | Bougies NQ / MNQ, catalogue d’indicateurs, projection des trades d’une séance |
 | **Contextualiser** | Calendrier FOMC, NFP, CPI, ISM, expirations CME, fériés, DST — heures locales + ET |
 | **Noter** | Coffre Markdown `[[wiki]]`, tags, graphe de force |
-| **Orchestrer** | Agent IA (outils desk + confirmation d'écriture) · WebSocket JSON-RPC authentifié pour un orchestrateur externe |
+| **Orchestrer** | Agent IA (outils desk + confirmation d’écriture, LLM via le process main) · WebSocket JSON-RPC authentifié |
+| **Concevoir** | Bot et Copieur en phase **CONCEPTION** — aucun ordre n’est envoyé |
 
 ---
 
@@ -86,9 +86,9 @@ Puis **double-cliquez `CANTO.cmd`** (Windows) — ou lancez :
 npm run launch
 ```
 
-Le **lanceur** s'ouvre : logotype CΛNTO, bouton **Lancer le desk**, et contrôle automatique de version. Un clic ouvre le desk complet.
+Le **lanceur** s’ouvre : logotype CΛNTO, bouton **Lancer le desk**, contrôle de version. Un clic ouvre le desk complet.
 
-Astuce Windows : clic droit sur `CANTO.cmd` › *Envoyer vers › Bureau (créer un raccourci)* pour un accès permanent.
+Astuce Windows : clic droit sur `CANTO.cmd` › *Envoyer vers › Bureau (créer un raccourci)*.
 
 ### Autres commandes
 
@@ -96,9 +96,9 @@ Astuce Windows : clic droit sur `CANTO.cmd` › *Envoyer vers › Bureau (créer
 |---|---|
 | `npm run launch` / `CANTO.cmd` | **Lanceur** → desk (voie principale) |
 | `npm run desk:dev` | Desk Electron + Vite (sans écran lanceur) |
-| `npm run dev` | Navigateur seul (hors passerelle orchestrateur) |
+| `npm run dev` | Navigateur seul (hors passerelle orchestrateur, hors chiffrement `safeStorage`) |
 | `npm run dist:win` | Installeur NSIS + portable → `release/` |
-| `npm run typecheck && npm test && npm run build` | Vérification moteur + UI |
+| `npm run check` | `typecheck` + `test` + `build` |
 
 Au premier lancement : écran lanceur, puis boot lithographique, puis le desk. Un **jeu de démonstration** (140 séances) se charge depuis Métrique › *Charger un jeu de démonstration*.
 
@@ -108,11 +108,9 @@ Au premier lancement : écran lanceur, puis boot lithographique, puis le desk. U
 
 CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre du desk).
 
-Deux canaux :
-
 | Canal | Condition | Effet |
 |---|---|---|
-| **release** (défaut) | l'app n'est pas un checkout git, **ou** le réglage `updateChannel` n'est pas `dev` | Annonce `vX.Y.Z dispo`. Un clic ouvre [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (`https` seulement). Pas de `git pull` ni de `npm install`. |
+| **release** (défaut) | l’app n’est pas un checkout git, **ou** le réglage `updateChannel` n’est pas `dev` | Annonce `vX.Y.Z dispo`. Un clic ouvre [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (`https` seulement). Pas de `git pull` ni de `npm install`. |
 | **dev** | checkout git **et** `updateChannel === 'dev'` | `git pull --ff-only` ; `npm install --legacy-peer-deps` **uniquement** après un pull réussi. `git stash` seulement après confirmation. |
 
 | État | Comportement |
@@ -120,201 +118,369 @@ Deux canaux :
 | À jour | Le bouton affiche `v1.1.2` (discret) |
 | Mise à jour dispo | Le bouton passe **ambre / jaune** |
 
-Même action depuis le lanceur : le bouton **Mettre à jour** apparaît lorsqu'une version plus récente est détectée (canal release : ouvre la page des versions).
-
-La mise à jour git+npm automatique est restreinte au canal dev (voir brief 17 sept.).
+Même action depuis le lanceur : le bouton **Mettre à jour** apparaît lorsqu’une version plus récente est détectée (canal release : ouvre la page des versions).
 
 ---
 
-## Les sept modules
-
-| # | Module | Rôle |
-|---|---|---|
-| 01 | **Métrique** | Journal, pont NT, moteur quantitatif, prop firm, Monte Carlo |
-| 02 | **Visual** | Graphique bougies, indicateurs, projection de trades, import OHLCV |
-| 03 | **Calendrier** | Grille + flux, catalyseurs Nasdaq, notes du jour, PnL journal |
-| 04 | **Note** | Coffre Markdown type Obsidian, backlinks, graphe |
-| 05 | **Agent IA** | LLM local ou cloud, outils desk, orchestrateur WebSocket |
-| 06 | **Bot** | Atelier d'automates (conception) |
-| 07 | **Copieur** | Topologie maître → suiveurs (réplication via AddOn à venir) |
+<a id="01-mtr"></a>
 
 <div align="center">
-<img src="docs/media/visual.png" alt="CΛNTO — Visual : bougies NQ 5 min, VWAP, EMA 21, Opening Range" width="920"/>
-<br/><sub>02 · Visual — bougies, volume, catalogue d'indicateurs.</sub>
+
+**`01 · MTR · MÉTRIQUE · JOURNAL ULTIME · MOTEUR QUANTITATIF`**
+
+## Métrique
+
+### 1 000 séances · moteur TypeScript pur · rejeu prop firm · Monte Carlo
+
+<img src="docs/media/metrique.png" alt="CΛNTO — Métrique : tableau de bord, courbe d'équité, heatmap annuelle" width="920"/>
+
+<sub>Tableau de bord — PnL net, ratios, courbe d’équité, drawdown depuis le plus haut, année glissante. 140 séances de démonstration.</sub>
+
 </div>
 
----
+Cinq vues dans le même module : **Tableau de bord** · **Séances** · **Analyse** · **Prop firm** · **Monte Carlo**. Capacité **1 000 séances** (avertissement + proposition d’export au-delà, pas de drop silencieux). Chaque séance porte un compte, une date de trading (clé Globex **18:00 America/New_York**), des tags et une liste de trades.
 
-## Métrique — journal & moteur
+Le moteur (`src/engine`) est TypeScript pur, indépendant de l’UI.
 
-Capacité : **1 000 séances**. Chaque séance porte un compte, une date de trading (clé Globex 18:00 America/New_York), des tags et une liste de trades.
-
-**Moteur** (`src/engine`) — TypeScript pur, indépendant de l'UI :
-
-- Ratios : profit factor, payoff, espérance ($ et R), win rate, SQN (Van Tharp), Kelly
-- Séries journalières : Sharpe, Sortino, Calmar, drawdown max / actuel / durée, % de séances gagnantes, consistance (part du meilleur jour dans le profit net)
-- MAE / MFE (unité déduite de la colonne Profit), z-score des séries, régularité glissante
-- Monte Carlo bootstrap borné (`runs × horizon ≤ 5 M` tirages), enveloppe P5 / P50 / P95
-- Rejeu prop firm : validation le jour où les conditions sont réunies (`passedOn`), agrégation par date, filtre par compte
-
-**Vues** : Tableau de bord · Séances · Analyse (carte horaire, MAE/MFE, distribution) · Prop firm · Monte Carlo.
-
-<div align="center">
-<img src="docs/media/analyse.png" alt="CΛNTO — Analyse : distribution, carte horaire, nuage MAE/MFE" width="920"/>
-<br/><br/>
-<img src="docs/media/propfirm.png" alt="CΛNTO — Prop firm : rejeu de plan, trailing, consistance" width="920"/>
-<br/><br/>
-<img src="docs/media/montecarlo.png" alt="CΛNTO — Monte Carlo : enveloppe bootstrap, risque de ruine" width="920"/>
-</div>
-
-Export / restauration complète du coffre en JSON ; export CSV réimportable. La clé API de l'agent (clair **et** blob chiffré) n'est **jamais** exportée. Sous le shell, une clé restaurée depuis un coffre navigateur est re-chiffrée immédiatement.
-
----
-
-## Visual — bougies & indicateurs
-
-Graphique **lightweight-charts** : OHLCV, volume, croisement, marqueurs de trades (sorties gagnantes en LED Lab).
-
-**Catalogue** (`src/engine/indicators.ts`) — registre extensible :
-
-| Indicateur | Paramètres typiques |
+| Famille | Ce qui est calculé |
 |---|---|
-| EMA / SMA | période |
-| VWAP de séance | bandes ±1σ / ±2σ |
-| Opening Range (RTH) | 5 / 15 / 30 min |
-| Niveaux séance précédente | PDH / PDL / PDC |
-| ATR | période |
-| Volume relatif (RVOL) | période |
+| Trade | profit factor, payoff, espérance ($ et R), win rate, SQN (Van Tharp), Kelly, z-score des séries, MAE / MFE (unité déduite de la colonne Profit), edge ratio, capture ratio |
+| Journée | Sharpe **rf = 0**, annualisation **√252**, Sortino, Calmar, drawdown max / actuel / durée jusqu’à récupération, % de séances gagnantes, consistance = part du **meilleur jour dans le profit net** |
+| Direction | long / short séparés, carte horaire, jour de semaine, instrument |
+| Prop firm | trailing EOD / intraday / statique, lock, perte journalière, consistance, jours minimums — validation le jour où les conditions sont réunies (`passedOn`), agrégation **par date** (deux comptes le même jour = une journée), filtre par compte |
+| Monte Carlo | bootstrap **i.i.d.** (ignore l’autocorrélation), `runs × horizon ≤ 5 M` tirages, enveloppe P5 / P50 / P95, worker + Annuler |
 
-Import de barres : CSV OHLCV (export NinjaTrader Historical Data ou tout format compatible). Données démo synthétiques disponibles sans import.
+### Import
+
+Trois formats reconnus automatiquement : **NinjaTrader · Trades**, **NinjaTrader · Exécutions**, **CΛNTO CSV**. Cultures en-US et fr-FR ; séparateur décimal déduit des colonnes de prix. Le PnL est **recalculé** depuis prix × valeur du point (NQ 20 $ · MNQ 2 $), commissions déduites ; la colonne Profit sert de contrôle.
+
+- Trades : dédupliqués par empreinte `instrument \| direction \| qty \| heures \| prix`.
+- Exécutions : appariement **FIFO** par compte et contrat, IDs d’exécution persistés, commissions au prorata. Un second import du même fichier ne recrée ni trade ni séance (`date \| account` fusionne).
+- Fichiers **> 5 000 lignes** : parse dans un Worker, barre de progression, **Annuler** (`AbortSignal`) — pas de repli synchrone si on annule.
+
+### Coffre
+
+Export JSON `canto-vault-v2` (lecture v1 conservée). Toujours : séances, trades, notes, calendrier, réglages (clé API **et** blob chiffré exclus), comptes copieur, automates, `macroReleases`. Option **coffre lourd** (`backupIncludeHeavy`, défaut off) : barres + messages agent. Sauvegarde quotidienne dans un dossier choisi si `backupDaily` est coché. Sous Electron, une clé restaurée depuis un coffre navigateur est re-chiffrée tout de suite.
+
+<div align="center">
+
+**`01.3 · ANALYSE · CHAMPS · CARTES · EXCURSIONS`**
+
+### Analyse
+
+<img src="docs/media/analyse.png" alt="CΛNTO — Analyse : stratégies, tags, carte horaire, MAE/MFE" width="920"/>
+
+<sub>Analyse — ranking par stratégie et par tag, carte horaire (jour × heure d’entrée), durée en position, nuage MAE × MFE, multiples de R.</sub>
+
+</div>
+
+<br/>
+
+<div align="center">
+
+**`01.4 · PROP FIRM · REGISTRE INDICATIF · REJEU`**
+
+### Prop firm
+
+<img src="docs/media/propfirm.png" alt="CΛNTO — Prop firm : registre de plans, rejeu Apex Full 50K" width="920"/>
+
+<sub>Prop firm — registre Topstep, Apex, MyFundedFutures, Take Profit Trader, Tradeify, Earn2Trade. Ici : Apex Full 50K, trailing intra-journalier, objectif atteint.</sub>
+
+</div>
+
+Les chiffres des plans sont **indicatifs** (`version: 1`, `effectiveFrom` optionnel). Validez toujours auprès de la firme. Le libellé « Indicatif » est affiché dans le rail.
+
+<br/>
+
+<div align="center">
+
+**`01.5 · MONTE CARLO · BOOTSTRAP I.I.D.`**
+
+### Monte Carlo
+
+<img src="docs/media/montecarlo.png" alt="CΛNTO — Monte Carlo : éventail de trajectoires, percentiles, ruine" width="920"/>
+
+<sub>Monte Carlo — 2 000 simulations × 140 périodes, médiane / ruine / objectif, éventail de trajectoires, table de percentiles. Graine reproductible.</sub>
+
+</div>
 
 ---
 
-## Calendrier — catalyseurs Nasdaq
+<a id="02-vis"></a>
 
-Deux vues : **grille mensuelle** et **flux chronologique**.
+<div align="center">
+
+**`02 · VIS · VISUAL · GRAPHIQUE AVANCÉ · INDICATEURS`**
+
+## Visual
+
+### Bougies NQ / MNQ · catalogue extensible · projection de séance
+
+<img src="docs/media/visual.png" alt="CΛNTO — Visual : bougies NQ 5 min, VWAP, EMA 21, Opening Range" width="920"/>
+
+<sub>NQ · 5 min · démo synthétique — VWAP ±σ, EMA 21, Opening Range 15 min RTH, volume, rail d’indicateurs et séance projetée.</sub>
+
+</div>
+
+Graphique **lightweight-charts** : OHLCV, volume, croisement, marqueurs de trades (sorties gagnantes en LED Lab). Import CSV NinjaTrader Historical Data (en-tête Time/Open/High/Low/Close/Volume, ou `yyyyMMdd HHmmss;O;H;L;C;V`). Même règle Worker / Annuler au-delà de 5 000 lignes. Démo synthétique sans import.
+
+**Catalogue** (`src/engine/indicators.ts`) — registre, pas un menu figé : un nouvel indicateur s’ajoute par définition.
+
+| Indicateur | Rôle | Paramètres typiques |
+|---|---|---|
+| EMA / SMA | tendance court / moyen terme | période (21 / 50) |
+| VWAP de séance | prix moyen pondéré volume, reset 18:00 ET | bandes ±1σ / ±2σ |
+| Opening Range (RTH) | haut / bas des premières minutes cash | 5 / 15 / 30 min |
+| Niveaux séance précédente | PDH / PDL / PDC | — |
+| ATR | volatilité, panneau séparé | période 14 |
+| Volume relatif (RVOL) | volume vs moyenne | période 20 |
+
+Depuis Métrique › Séances › *Voir dans Visual*, les trades d’une journée se projettent sur le graphique.
+
+---
+
+<a id="03-cal"></a>
+
+<div align="center">
+
+**`03 · CAL · CALENDRIER · CATALYSEURS NASDAQ · REPÈRES`**
+
+## Calendrier
+
+### Grille + flux · FOMC / NFP / CPI · notes du jour · PnL superposé
+
+<img src="docs/media/calendrier.png" alt="CΛNTO — Calendrier : grille septembre, FOMC, conseils débutant" width="920"/>
+
+<sub>Grille septembre 2026 — familles colorées, PnL du journal dans les cellules, panneau du jour (FOMC + vente au détail) avec repères débutant.</sub>
+
+</div>
+
+Deux vues : **grille mensuelle** et **flux chronologique**. Filtres notable / majeur / dates estimées. Heures **locales et ET**, repères de séance Globex.
 
 | Famille | Exemples |
 |---|---|
-| Fed | FOMC (dates officielles 2024–2026), conférences |
+| Fed | FOMC (dates officielles 2024–2026), conférences de presse |
 | Emploi | NFP, rapport emploi |
 | Inflation | CPI, PPI, PCE |
 | Croissance | PIB, ventes au détail, ISM / PMI |
 | Résultats | Mégacaps Nasdaq-100 |
-| CME | Expirations, rollovers |
+| CME | Expirations, rollovers NQ / MNQ |
 | Horaires | Fériés US, séances écourtées, bascules DST US / EU |
 
-Heures locales + ET, repères de séance, conseils débutant, notes et rappels personnels, PnL du journal superposé par jour.
-
-<div align="center">
-<img src="docs/media/calendrier.png" alt="CΛNTO — Calendrier : grille septembre, FOMC, tip débutant" width="920"/>
-</div>
+Chaque événement majeur porte un **repère débutant** (fenêtre à éviter, heure de publication). Le panneau droit accueille la **note du jour** et les rappels. Les catalyseurs officiels se fusionnent de façon additive (cache 24 h côté shell).
 
 ---
 
-## Note — coffre Markdown
-
-Façon Obsidian, 100 % local :
-
-- Éditeur Markdown + aperçu assaini (DOMPurify)
-- Liens `[[wiki]]`, backlinks, `#tags`, recherche
-- Note du jour
-- Graphe de force (nœuds = notes, arêtes = liens)
+<a id="04-nte"></a>
 
 <div align="center">
-<img src="docs/media/note.png" alt="CΛNTO — Note : éditeur Markdown, tags, graphe" width="920"/>
+
+**`04 · NTE · NOTE · COFFRE DE NOTES · LIENS`**
+
+## Note
+
+### Markdown local · `[[wiki]]` · tags · graphe de force
+
+<img src="docs/media/note.png" alt="CΛNTO — Note : éditeur Markdown, aperçu, backlinks, tags" width="920"/>
+
+<sub>Vue scindée — source à gauche, aperçu assaini à droite, liens entrants / sortants, tags, propriétés. Note du jour en un clic.</sub>
+
 </div>
+
+Façon Obsidian, 100 % dans le coffre Dexie :
+
+- Éditeur + aperçu (DOMPurify : pas de `style` / formulaires / SVG, URL `https?` / `mailto` / `#`)
+- Liens `[[wiki]]`, backlinks, `#tags`, recherche plein texte
+- **Note du jour** préremplie
+- Graphe de force (nœuds = notes, arêtes = liens) — endormi au repos
+- Modes : épinglée, `.md` brut, scindée, aperçu
 
 ---
 
-## Agent IA & orchestrateur
-
-**Passerelle native** : fournisseur OpenAI-compatible (Ollama, LM Studio, OpenAI, OpenRouter…) ou Anthropic. Streaming. Clé API chiffrée par le trousseau OS (`safeStorage`) sous Electron.
-
-**Outils desk** (lecture libre ; écritures `create_note` / `annotate_session` avec confirmation opérateur) : métriques, séances, notes, calendrier, plan prop firm. Préambule « données non fiables », plafond d'appels par tour.
-
-**Orchestrateur externe** (shell Electron uniquement) : serveur JSON-RPC 2.0 sur WebSocket `127.0.0.1`, jeton de session (comparaison à temps constant), origines navigateur refusées, 8 clients max, 1 Mo / trame, 40 req/s.
+<a id="05-agt"></a>
 
 <div align="center">
-<img src="docs/media/agent.png" alt="CΛNTO — Agent IA : conversation, outils, orchestrateur" width="920"/>
+
+**`05 · AGT · AGENT IA · PASSERELLE NATIVE · ORCHESTRATEUR`**
+
+## Agent IA
+
+### LLM local ou cloud via le process main · outils desk · JSON-RPC
+
+<img src="docs/media/agent.png" alt="CΛNTO — Agent IA : suggestions, fournisseur, orchestrateur" width="920"/>
+
+<sub>Passerelle — presets Ollama / LM Studio / OpenAI / OpenRouter / Anthropic, consigne système, outils du desk, orchestrateur `127.0.0.1:47117`.</sub>
+
 </div>
+
+Le renderer **ne fetch pas** le fournisseur : `streamChat` / `probe` passent par le shell Electron (`desk.llm`). La clé API est chiffrée par le trousseau OS (`safeStorage`) ; en clair elle n’est plus détenue sous Electron après enregistrement. Hosts autorisés : `127.0.0.1`, `localhost`, `api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.moonshot.ai` (+ liste courte réglable). CSP sans `connect-src *`.
+
+**Outils** — lecture libre ; écritures uniquement après **confirmation** (LLM) ou flag orch (défaut **off**) :
+
+| Outil | Kind | Rôle |
+|---|---|---|
+| `desk_overview` | lecture | snapshot métriques + plan |
+| `list_sessions` / `get_session` | lecture | journal |
+| `search_notes` / `read_note` | lecture | coffre |
+| `calendar_events` | lecture | catalyseurs |
+| `propfirm_status` | lecture | rejeu du plan courant |
+| `create_note` | écriture | nouvelle note (confirmée) |
+| `annotate_session` | écriture | annotation de séance (confirmée) |
+
+Plafonds : 6 tours, 8 appels / tour, 2 écritures / tour, `body` / `note` ≤ 20 000 caractères. Préambule « données non fiables » sur les retours d’outils. `copy.order` n’existe pas.
+
+**Orchestrateur** (shell uniquement) : JSON-RPC 2.0 sur `ws://127.0.0.1:<port>`, jeton de session (comparaison à temps constant, **jamais** dans le status périodique — bouton *Copier le jeton*), origines navigateur refusées, 8 clients, 1 Mo / trame, 40 req/s.
 
 ---
 
-## Bot & Copieur
-
-**Bot** (phase conception) — gabarits, grammaire conditions / actions / garde-fous, cycle de vie `brouillon → backtest → papier`. Garde-fous dérivés du plan prop firm et du calendrier. Aucun envoi d’ordre.
-
-**Copieur** — topologie maître → suiveurs, dimensionnement (fixe, ratio, risque), correspondance NQ ↔ MNQ, filtres (fenêtre horaire, blackout catalyseurs, marge plancher, latence), journal des versions. La **réplication d'ordres** attend le transport WebSocket du pont (spécifié dans `docs/PONT-NINJATRADER.md`).
+<a id="06-bot"></a>
 
 <div align="center">
-<img src="docs/media/bot.png" alt="CΛNTO — Bot : atelier d'automates, gabarits ORB" width="920"/>
-<br/><br/>
-<img src="docs/media/copieur.png" alt="CΛNTO — Copieur : comptes, sizing, filtres" width="920"/>
+
+**`06 · BOT · ATELIER D’AUTOMATES · CONCEPTION`**
+
+## Bot
+
+### Gabarits · grammaire · garde-fous prop firm — aucun ordre
+
+<img src="docs/media/bot.png" alt="CΛNTO — Bot : atelier d'automates, gabarits ORB et VWAP" width="920"/>
+
+<sub>Atelier — badge CONCEPTION, gabarits ORB 15 min et VWAP reclaim, garde-fous dérivés du plan Apex Full 50K et du calendrier (FOMC, expiration).</sub>
+
 </div>
 
+Phase **CONCEPTION** uniquement. Cycle de vie atelier : `brouillon → backtest → papier`. Le statut *papier* est un étiquetage — **aucun ordre n’est envoyé**.
+
+| Gabarit | Idée |
+|---|---|
+| **ORB 15 min** | cassure de l’opening range RTH dans le sens du VWAP, 1 MNQ, max 2 tentatives |
+| **VWAP reclaim** | reprise après −1σ en tendance EMA, sortie partielle +1σ |
+
+Les garde-fous sont **imposés** à tout automate : coupe-circuit 30 % du DD max, perte journalière (80 % de la limite firme ou 40 % du DD), plafond de consistance, flat 16:59 ET, blackout ±15 min autour des catalyseurs majeurs des 10 prochains jours.
+
 ---
+
+<a id="07-cpy"></a>
+
+<div align="center">
+
+**`07 · CPY · COPIEUR · RÉPLICATION DE COMPTES · CONCEPTION`**
+
+## Copieur
+
+### Topologie maître → suiveurs · sizing · filtres — transport WS à venir
+
+<img src="docs/media/copieur.png" alt="CΛNTO — Copieur : topologie, filtres, kill switch DÉSARMÉ" width="920"/>
+
+<sub>Copieur — DÉSARMÉ par défaut, pont WebSocket hors ligne, sizing fixe / ratio / risque, fenêtre horaire, blackout catalyseurs. Kill switch **Couper** = `enabled: false`.</sub>
+
+</div>
+
+Prototype persisté (comptes, règles, filtres). La **réplication d’ordres** attend le transport WebSocket de l’AddOn, spécifié dans [`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md) — **non écrit**. Sans ce transport, aucun ordre ne part.
+
+| | |
+|---|---|
+| Sizing | fixe · ratio · risque, plafond de contrats, carte NQ ↔ MNQ |
+| Filtres | fenêtre locale, budget latence, marge plancher (fraction du DD), stops / objectifs, blackout catalyseurs |
+| Armement | défaut **off** ; bouton **Couper** désarme tout de suite |
+
+---
+
+<a id="pont"></a>
+
+<div align="center">
+
+**`PONT · NINJATRADER 8 · TRANSPORT FICHIER · ADDON`**
 
 ## Pont NinjaTrader 8
 
-Transport **fichier CSV** implémenté — local uniquement, aucune télémétrie.
+### CSV local · AddOn exécutions · idempotence — aucune télémétrie
+
+</div>
+
+Transport **fichier CSV** implémenté. Local uniquement.
 
 | Mode | Comment |
 |---|---|
-| **Automatique** | Métrique › Pont NinjaTrader › dossier (défaut `Documents\NinjaTrader 8\export\CANTO`). Tout CSV déposé / modifié est importé à écriture terminée. |
-| **Temps réel** | Installer `ninjatrader/CantoBridge.cs` dans `Documents\NinjaTrader 8\bin\Custom\AddOns\` → NinjaScript Editor › Compile (F5). Chaque exécution → `executions-AAAA-MM-JJ.csv`, appariée FIFO par CΛNTO. |
-| **Manuel** | Trade Performance › Trades (ou Executions) › Export CSV › Importer. Cultures en-US / fr-FR. PnL recalculé depuis prix × point. |
+| **Automatique** | Métrique › Pont NinjaTrader › dossier (défaut `Documents\NinjaTrader 8\export\CANTO`). Tout `.csv` / `.txt` déposé ou modifié est importé à écriture terminée (hash SHA-256 après stabilité : même contenu → skip). Les `.tmp` et `.seen.txt` sont ignorés. |
+| **Temps réel** | Copier `ninjatrader/CantoBridge.cs` dans `Documents\NinjaTrader 8\bin\Custom\AddOns\` → NinjaScript Editor › Compile (F5). Chaque exécution → `executions-AAAA-MM-JJ.csv` (écriture atomique `.tmp` puis replace). IDs déjà écrits dans `executions-AAAA-MM-JJ.seen.txt` (survivent au restart NT). Buy / Sell uniquement — le reste est logué, pas d’écriture. |
+| **Manuel** | Trade Performance › Trades ou Executions › Export CSV › Importer. |
 
-Guide complet : **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**.
+L’export **Executions** ne contient pas de MAE/MFE (affiché dans l’UI d’import). Positions encore ouvertes : signalées, pas importées tant qu’elles ne sont pas clôturées.
+
+Guide : **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**. L’étage WebSocket (copieur, automates live) est **spécifié, pas implémenté**.
 
 ---
 
+<div align="center">
+
+**`ARCH · COQUE · MOTEUR · COFFRE`**
+
 ## Architecture
 
+</div>
+
 ```
-electron/         shell (fenêtre sans cadre, lanceur, mise à jour git,
-                  dialogues, pont dossier, WebSocket JSON-RPC, secrets)
-ninjatrader/      AddOn CΛNTO Bridge (exécutions → CSV)
-scripts/          launch.mjs · copy-electron-assets
+electron/         shell (fenêtre sans cadre, lanceur, mise à jour,
+                  dialogues, pont dossier, WebSocket JSON-RPC, secrets, proxy LLM)
+ninjatrader/      AddOn CΛNTO Bridge (exécutions → CSV atomique + .seen)
+scripts/          launch.mjs · copy-electron-assets · hash-release.mjs
 CANTO.cmd         double-clic Windows → lanceur
 build/            icône Lab (LED)
 src/app/          boot, coque (titlebar 56 · rail 232 · status 28), onglets
 src/design/       jetons, primitives, logotype CΛNTO, graphiques SVG
 src/engine/       métriques, Monte Carlo, import NT, prop firm,
-                  indicateurs, calendrier Nasdaq, outils agent, clients LLM
+                  indicateurs, calendrier Nasdaq, outils agent, politique LLM / update
 src/store/        Dexie (IndexedDB) + Zustand
 src/modules/      un dossier par onglet (01…07)
-tests/            Vitest — moteur + import + auth
+tests/            Vitest — 100 tests (moteur, import, coffre, agent, updater)
+vectors/          vecteurs JSON partagés (métriques / prop firm)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
 
-Le moteur (`src/engine`) est indépendant de l'interface : indicateurs, outils agent et plans prop firm sont des registres enrichissables sans toucher aux modules.
+Le moteur (`src/engine`) ne touche pas l’UI : indicateurs, outils agent et plans prop firm sont des registres. Les outils desk reçoivent des **ports** injectés — plus d’écriture directe dans les stores.
 
 ---
 
+<div align="center">
+
+**`DEV · NODE 22 · VITEST · ELECTRON`**
+
 ## Développement
+
+</div>
 
 ```bash
 npm install
 npm run launch         # voie utilisateur (lanceur + desk)
 npm run desk:dev       # Electron + Vite sans lanceur
 npm run typecheck      # tsc app + electron
-npm test               # Vitest
+npm test               # Vitest (100)
 npm run build          # bundle production
+npm run check          # typecheck + test + build
 npm run dist:win       # NSIS + portable
 ```
 
+CI : GitHub Actions, `windows-latest`, Node 22, `npm ci` puis `typecheck` / `test` / `build`.
+
 ---
+
+<div align="center">
+
+**`SYS · SIΞRRΛSKΛ · LITHOGRAPHIE · LED #c41e3a`**
 
 ## Système visuel
 
-Grammaire lithographique décrite dans **[docs/DESIGN.md](docs/DESIGN.md)** :
+</div>
+
+Grammaire lithographique — **[docs/DESIGN.md](docs/DESIGN.md)** :
 
 - Noir absolu, hairlines 1 px, grille **4 px** stricte, aucun arrondi
-- Inter 700 (titres / valeurs) · JetBrains Mono capitales (libellés, jamais &lt; 11 px)
+- Inter 700 (titres / valeurs, jamais &lt; 12 px) · JetBrains Mono capitales (libellés, jamais &lt; 11 px)
 - Une seule LED Lab `#c41e3a` — point, filet, mot-clé ; jamais en aplat
-- Wordmark CΛNTO tracé au trait (square / miter), onglet inversé `CΛNTO · ARTEFACT 002`
-- Vert / rouge : sens uniquement (direction, PnL, statut)
+- Wordmark CΛNTO tracé au trait (`square` / `miter`), un seul onglet inversé `CΛNTO · ARTEFACT 002`
+- Vert / rouge : **sens uniquement** (direction, PnL, statut)
+- Chrome : titlebar 56 · rail 232 · status 28 · lignes de table 36
 
 ---
 
@@ -322,17 +488,19 @@ Grammaire lithographique décrite dans **[docs/DESIGN.md](docs/DESIGN.md)** :
 
 - Copieur actif + exécution papier des automates (transport WebSocket du pont)
 - Backtest des automates sur les barres importées
-- Agent : mémoire longue par trader, profils d'évolution du desk
+- Agent : mémoire longue par trader, profils d’évolution du desk
 
 ---
 
 ## Avertissement
 
-Le registre des prop firms est **indicatif** : les règles changent fréquemment et doivent être validées auprès de chaque firme. CΛNTO n'émet aucun conseil d'investissement. Les données restent sur le poste ; aucun serveur tiers n'est requis pour le journal.
+Le registre des prop firms est **indicatif** : les règles changent fréquemment et doivent être validées auprès de chaque firme. CΛNTO n’émet aucun conseil d’investissement. Les données restent sur le poste ; aucun serveur tiers n’est requis pour le journal. Bot et Copieur ne sont pas armables.
 
-Licence : tous droits réservés, SIΞRRΛSKΛ. Dépôt consultable. Réutilisation, fork publié ou usage commercial non autorisés sans accord.
+Licence : `UNLICENSED`. Tous droits réservés, SIΞRRΛSKΛ. Dépôt consultable. Réutilisation, fork publié ou usage commercial non autorisés sans accord.
 
 <div align="center">
 <br/>
-<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.2</sub>
+
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v1.1.2`**
+
 </div>
