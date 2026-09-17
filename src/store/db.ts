@@ -2,7 +2,9 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { BarSeries } from '@/engine/bars';
 import type { IndicatorInstance } from '@/engine/indicators';
 import type { Session, Trade } from '@/engine/types';
+import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { desk } from '@/lib/desk';
+import pkg from '../../package.json';
 
 export interface Note {
   id: string;
@@ -169,7 +171,7 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
   await db.settings.put({ key, value });
 }
 
-/** Sauvegarde complète du coffre (JSON) — réimportable via `restoreVault`. */
+/** Sauvegarde complète du coffre (JSON v2) — réimportable via `restoreVault`. */
 export async function exportVault(): Promise<string> {
   const [sessions, trades, notes, calendar, settings, copierAccounts, bots] = await Promise.all([
     db.sessions.toArray(),
@@ -180,28 +182,19 @@ export async function exportVault(): Promise<string> {
     db.copierAccounts.toArray(),
     db.bots.toArray(),
   ]);
-  // La clé API (clair ou blob chiffré) ne quitte jamais le coffre local.
-  const safeSettings = settings.map((row) => {
-    if (row.key !== 'settings') return row;
-    const value = row.value as { agent?: { apiKey?: string; apiKeyEncrypted?: string } };
-    if (!value.agent) return row;
-    const agent = { ...value.agent, apiKey: '' };
-    delete agent.apiKeyEncrypted;
-    return { key: row.key, value: { ...value, agent } };
-  });
-  return JSON.stringify({ artefact: 'CΛNTO', version: 1, exportedAt: new Date().toISOString(), sessions, trades, notes, calendar, settings: safeSettings, copierAccounts, bots });
-}
-
-interface VaultFile {
-  artefact: string;
-  version: number;
-  sessions?: Session[];
-  trades?: Trade[];
-  notes?: Note[];
-  calendar?: CalendarEntry[];
-  settings?: Setting[];
-  copierAccounts?: CopierAccount[];
-  bots?: BotBlueprint[];
+  const settingsObj = settings.find((row) => row.key === 'settings')?.value;
+  return JSON.stringify(
+    buildVaultV2({
+      appVersion: pkg.version,
+      sessions,
+      trades,
+      notes,
+      calendarNotes: calendar,
+      bots,
+      copier: copierAccounts,
+      settings: settingsObj,
+    }),
+  );
 }
 
 const MAX_ROWS = 200_000;
@@ -229,7 +222,7 @@ function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string
 }
 
 const CHECKS: Record<string, Check> = {
-  sessions: (r) => isStr(r.date) && /^\d{4}-\d{2}-\d{2}$/.test(r.date as string) && isNum(r.pnl) && isNum(r.tradeCount) && isStrArray(r.tags) && Array.isArray(r.instruments),
+  sessions: (r) => isStr(r.date) && /^\d{4}-\d{2}-\d{2}$/.test(r.date as string),
   trades: (r) => isStr(r.sessionId) && isNum(r.pnl) && isNum(r.entryTime) && isNum(r.exitTime) && isNum(r.qty) && (r.direction === 'long' || r.direction === 'short') && (r.instrument === 'NQ' || r.instrument === 'MNQ'),
   notes: (r) => isStr(r.title) && isStr(r.body) && isStrArray(r.tags) && isNum(r.updatedAt),
   calendar: (r) => isStr(r.date) && isStr(r.title) && (r.kind === 'note' || r.kind === 'event'),
@@ -238,34 +231,52 @@ const CHECKS: Record<string, Check> = {
   bots: (r) => isStr(r.name) && Array.isArray(r.rules) && isNum(r.updatedAt),
 };
 
+function coerceSessions(list: Session[]): Session[] {
+  const now = Date.now();
+  return list.map((s) => ({
+    ...s,
+    tags: Array.isArray(s.tags) ? s.tags : [],
+    tradeCount: isNum(s.tradeCount) ? s.tradeCount : 0,
+    pnl: isNum(s.pnl) ? s.pnl : 0,
+    grossProfit: isNum(s.grossProfit) ? s.grossProfit : 0,
+    grossLoss: isNum(s.grossLoss) ? s.grossLoss : 0,
+    commission: isNum(s.commission) ? s.commission : 0,
+    instruments: Array.isArray(s.instruments) ? s.instruments : [],
+    source: s.source ?? 'csv',
+    createdAt: isNum(s.createdAt) ? s.createdAt : now,
+    updatedAt: isNum(s.updatedAt) ? s.updatedAt : now,
+  }));
+}
+
 export async function restoreVault(json: string): Promise<{ sessions: number; trades: number; notes: number; apiKeyReencrypted: boolean }> {
   if (json.length > 400 * 1024 * 1024) throw new Error('Sauvegarde trop volumineuse.');
-  let data: VaultFile;
-  try {
-    data = JSON.parse(json) as VaultFile;
-  } catch {
-    throw new Error('Fichier illisible : JSON invalide.');
-  }
-  if (!data || typeof data !== 'object' || data.artefact !== 'CΛNTO') throw new Error('Fichier non reconnu : sauvegarde CΛNTO attendue.');
-  const sessions = rows<Session>(data.sessions, 'id', 'sessions', CHECKS.sessions);
-  const trades = rows<Trade>(data.trades, 'id', 'trades', CHECKS.trades);
-  const notes = rows<Note>(data.notes, 'id', 'notes', CHECKS.notes);
-  const calendar = rows<CalendarEntry>(data.calendar, 'id', 'calendar', CHECKS.calendar);
+  const parsed = parseVaultJson(json);
+  const sessions = coerceSessions(rows<Session>(parsed.sessions, 'id', 'sessions', CHECKS.sessions));
+  const trades = rows<Trade>(parsed.trades, 'id', 'trades', CHECKS.trades);
+  const notes = rows<Note>(parsed.notes, 'id', 'notes', CHECKS.notes);
+  const calendar = rows<CalendarEntry>(parsed.calendar, 'id', 'calendar', CHECKS.calendar);
   // Agent : on n'écrase pas URL/modèle/consigne, mais une clé en clair issue d'un coffre navigateur
   // est reprise puis re-chiffrée immédiatement sous le shell (safeStorage).
   let pendingApiKey: string | null = null;
-  const settings = rows<Setting>(data.settings, 'key', 'settings', CHECKS.settings).map((row) => {
-    if (row.key !== 'settings') return row;
-    const value = { ...(row.value as Record<string, unknown>) };
-    const agent = value.agent as { apiKey?: unknown } | undefined;
-    if (agent && typeof agent.apiKey === 'string' && agent.apiKey.length > 0 && agent.apiKey.length <= 4096) {
-      pendingApiKey = agent.apiKey;
-    }
+  let settingsRows: Setting[] = [];
+  if (parsed.settingsIsObject) {
+    const value = stripSecrets(parsed.settings) as Record<string, unknown>;
     delete value.agent;
-    return { key: row.key, value };
-  });
-  const copierAccounts = rows<CopierAccount>(data.copierAccounts, 'id', 'copierAccounts', CHECKS.copierAccounts);
-  const bots = rows<BotBlueprint>(data.bots, 'id', 'bots', CHECKS.bots);
+    settingsRows = [{ key: 'settings', value }];
+  } else {
+    settingsRows = rows<Setting>(parsed.settings, 'key', 'settings', CHECKS.settings).map((row) => {
+      if (row.key !== 'settings') return row;
+      const value = { ...(row.value as Record<string, unknown>) };
+      const agent = value.agent as { apiKey?: unknown } | undefined;
+      if (agent && typeof agent.apiKey === 'string' && agent.apiKey.length > 0 && agent.apiKey.length <= 4096) {
+        pendingApiKey = agent.apiKey;
+      }
+      delete value.agent;
+      return { key: row.key, value };
+    });
+  }
+  const copierAccounts = rows<CopierAccount>(parsed.copier, 'id', 'copierAccounts', CHECKS.copierAccounts);
+  const bots = rows<BotBlueprint>(parsed.bots, 'id', 'bots', CHECKS.bots);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
   let apiKeyReencrypted = false;
@@ -284,7 +295,7 @@ export async function restoreVault(json: string): Promise<{ sessions: number; tr
       await db.calendar.clear();
       await db.calendar.bulkPut(calendar);
     }
-    for (const row of settings) {
+    for (const row of settingsRows) {
       if (row.key === 'settings') {
         const current = (await db.settings.get('settings'))?.value as Record<string, unknown> | undefined;
         await db.settings.put({ key: 'settings', value: { ...(current ?? {}), ...(row.value as Record<string, unknown>), agent: current?.agent } });

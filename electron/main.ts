@@ -355,6 +355,29 @@ ipcMain.handle('files:open-text', async (e, filters: unknown) => {
 });
 const MAX_TEXT = 50 * 1024 * 1024;
 
+ipcMain.handle('files:pick-folder', async (e) => {
+  if (!trusted(e) || !win) return null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: 'Dossier de sauvegarde du coffre' });
+  return canceled || filePaths.length === 0 ? null : filePaths[0];
+});
+
+ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown, text: unknown, encrypt: unknown) => {
+  if (!trusted(e) || !isString(folder, 1024) || !isString(name, 255) || !isString(text, MAX_TEXT)) return { ok: false, encrypted: false };
+  if (path.basename(name) !== name || name.includes('..') || !path.isAbsolute(folder)) return { ok: false, encrypted: false };
+  let body = text;
+  let encrypted = false;
+  if (encrypt === true) {
+    if (safeStorage.isEncryptionAvailable()) {
+      body = JSON.stringify({ format: 'canto-vault-v2-enc', payload: safeStorage.encryptString(text).toString('base64') });
+      encrypted = true;
+    }
+  }
+  await fs.mkdir(folder, { recursive: true });
+  const dest = path.join(folder, name);
+  await fs.writeFile(dest, body, 'utf8');
+  return { ok: true, encrypted, path: dest };
+});
+
 /* ─── Orchestrateur ─── */
 ipcMain.handle('orch:start', (e, port: unknown) => (trusted(e) && isPort(port) ? orchestrator.start(port) : orchestrator.status()));
 ipcMain.handle('orch:stop', (e) => (trusted(e) ? orchestrator.stop() : orchestrator.status()));

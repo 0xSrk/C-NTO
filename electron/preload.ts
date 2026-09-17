@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('canto', {
   files: {
     saveText: (defaultName: string, text: string) => ipcRenderer.invoke('files:save-text', defaultName, text),
     openText: (filters: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('files:open-text', filters),
+    pickFolder: () => ipcRenderer.invoke('files:pick-folder'),
+    writeInFolder: (folder: string, name: string, text: string, encrypt: boolean) => ipcRenderer.invoke('files:write-in-folder', folder, name, text, encrypt),
   },
   calendar: {
     fetchMacro: (fromDate: string, toDate: string) => ipcRenderer.invoke('calendar:macro', fromDate, toDate),

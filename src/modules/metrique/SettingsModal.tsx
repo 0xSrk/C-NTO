@@ -1,14 +1,16 @@
 import { Modal } from '@/design/Modal';
-import { Button, Field } from '@/design/primitives';
+import { Button, Field, Toggle } from '@/design/primitives';
 import { PROP_FIRMS } from '@/engine/propfirm';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
+import { desk } from '@/lib/desk';
 import s from './metrique.module.css';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useSettings((st) => st.settings);
   const update = useSettings((st) => st.update);
+  const backupNow = useSettings((st) => st.backupNow);
   const clearAll = useJournal((j) => j.clearAll);
   const count = useJournal((j) => j.sessions.length);
   const toast = useUi((u) => u.toast);
@@ -72,6 +74,34 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Risque par contrat ($)" hint="pour les multiples de R à l'import">
           <input type="number" min={0} step={5} value={settings.riskPerContract} onChange={(e) => update({ riskPerContract: Number(e.target.value) || 0 })} />
+        </Field>
+        <Field label="Dossier de sauvegarde" className={s.full} hint="copie quotidienne canto-vault-AAAA-MM-JJ.json">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input readOnly value={settings.backupFolder ?? ''} placeholder="aucun (dialogue à chaque sauvegarde)" style={{ flex: 1 }} />
+            <Button
+              size="sm"
+              onClick={async () => {
+                const folder = await desk?.files.pickFolder?.();
+                if (folder) await update({ backupFolder: folder });
+              }}
+            >
+              Choisir
+            </Button>
+          </div>
+        </Field>
+        <Field label="Chiffrer la sauvegarde" className={s.full}>
+          <Toggle on={settings.backupEncrypted} onChange={(v) => update({ backupEncrypted: v })} label="trousseau système si disponible" />
+        </Field>
+        <Field label="Sauvegarde" className={s.full}>
+          <Button
+            onClick={async () => {
+              const r = await backupNow();
+              if (r.ok) toast(r.encrypted ? 'Coffre sauvegardé (chiffré).' : 'Coffre sauvegardé.', 'ok');
+              else toast('Sauvegarde annulée ou impossible.', 'warn');
+            }}
+          >
+            Sauvegarder maintenant
+          </Button>
         </Field>
       </div>
     </Modal>

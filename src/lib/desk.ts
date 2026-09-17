@@ -98,6 +98,8 @@ export interface DeskApi {
   files: {
     saveText: (defaultName: string, text: string) => Promise<boolean>;
     openText: (filters: { name: string; extensions: string[] }[]) => Promise<{ name: string; text: string } | null>;
+    pickFolder?: () => Promise<string | null>;
+    writeInFolder?: (folder: string, name: string, text: string, encrypt: boolean) => Promise<{ ok: boolean; encrypted: boolean; path?: string }>;
   };
   calendar?: {
     fetchMacro: (
