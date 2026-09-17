@@ -36,8 +36,10 @@ function findBar(bars: Bar[], time: number): Bar | null {
   let hi = bars.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const t = bars[mid].time;
-    if (t === time) return bars[mid];
+    const midBar = bars[mid];
+    if (!midBar) break;
+    const t = midBar.time;
+    if (t === time) return midBar;
     if (t < time) lo = mid + 1;
     else hi = mid - 1;
   }
@@ -177,8 +179,9 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
     let paneCursor = 2;
     const paneByKey = new Map<string, number>();
     for (const l of lines) {
-      const paneIndex = l.pane === 'pane' ? paneByKey.get(l.key.split(':')[0]) ?? paneCursor++ : 0;
-      if (l.pane === 'pane') paneByKey.set(l.key.split(':')[0], paneIndex);
+      const paneKey = l.key.split(':')[0] ?? l.key;
+      const paneIndex = l.pane === 'pane' ? paneByKey.get(paneKey) ?? paneCursor++ : 0;
+      if (l.pane === 'pane') paneByKey.set(paneKey, paneIndex);
       const segments = splitSegments(l.data);
       segments.forEach((segment, i) => {
         const segKey = `${l.key}#${i}`;
@@ -208,8 +211,9 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   useEffect(() => {
     if (!ready || !markersRef.current || bars.length === 0) return;
     const step = timeframe * 60;
-    const first = bars[0].time;
-    const last = bars[bars.length - 1].time;
+    const first = bars[0]?.time;
+    const last = bars[bars.length - 1]?.time;
+    if (first === undefined || last === undefined) return;
     const snap = (ms: number) => Math.floor(ms / 1000 / step) * step;
     const markers: SeriesMarker<Time>[] = [];
     for (const t of trades) {

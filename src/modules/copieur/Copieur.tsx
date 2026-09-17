@@ -59,7 +59,7 @@ export default function Copieur() {
               <Stat small label="Pont NinjaTrader" value="Hors ligne" hint="transport WebSocket non connecté" />
               <Stat small label="Maîtres · suiveurs" value={`${masters.length} · ${followers.length}`} hint={plural(followers.filter((f) => f.enabled).length, 'suiveur actif', 'suiveurs actifs')} tone="ice" />
               <Stat small label="Budget latence" value={`${config.latencyBudgetMs} ms`} hint="alerte au-delà" tone="gold" />
-              <Stat small label="Version" value={COPIER_CHANGELOG[0].version} hint={`canal ${config.channel}`} />
+              <Stat small label="Version" value={COPIER_CHANGELOG[0]?.version ?? '1.0.0'} hint={`canal ${config.channel}`} />
             </div>
 
             <div className={s.banner}>

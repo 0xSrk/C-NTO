@@ -40,8 +40,8 @@ export function Fan({ result, height = 240, formatY = (v) => v.toFixed(0), ruin,
     const sx = (i: number) => padding.left + (n <= 1 ? w : (i / (n - 1)) * w);
     const sy = (y: number) => padding.top + h - ((y - yMin) / (yMax - yMin)) * h;
     const steps = result.envelope.steps;
-    const line = (arr: number[]) => arr.map((v, k) => `${k === 0 ? 'M' : 'L'}${sx(steps[k]).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
-    const back = [...result.envelope.p5].reverse().map((v, j) => `L${sx(steps[steps.length - 1 - j]).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
+    const line = (arr: number[]) => arr.map((v, k) => `${k === 0 ? 'M' : 'L'}${sx(steps[k] ?? k).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
+    const back = [...result.envelope.p5].reverse().map((v, j) => `L${sx(steps[steps.length - 1 - j] ?? 0).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
     const band = `${line(result.envelope.p95)} ${back} Z`;
     return { yMin, yMax, sx, sy, line, band, ticks: niceTicks(yMin, yMax, 5), ticksX: niceTicks(0, n - 1, Math.max(2, Math.floor(w / 90))) };
   }, [result, width, height, ruin, target, padding]);

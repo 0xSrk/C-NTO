@@ -64,7 +64,7 @@ describe('parseCsv', () => {
     expect(t.rows[0]).toEqual(['1', 'x;y', '3']);
     const stray = parseCsv('a,b\n1,5" pouces\n2,x\n');
     expect(stray.rows.length).toBe(2);
-    expect(stray.rows[0][1]).toBe('5" pouces');
+    expect(stray.rows[0]![1]).toBe('5" pouces');
   });
 });
 
@@ -86,7 +86,9 @@ describe('importTradesCsv', () => {
     expect(r.format).toBe('ninjatrader-trades');
     expect(r.trades.length).toBe(3);
     expect(r.skipped).toBe(1);
-    const [t1, t2, t3] = r.trades;
+    const t1 = r.trades[0]!;
+    const t2 = r.trades[1]!;
+    const t3 = r.trades[2]!;
     expect(t1.instrument).toBe('NQ');
     expect(t1.direction).toBe('long');
     expect(t1.pnl).toBeCloseTo(200 - 4.5);
@@ -96,10 +98,10 @@ describe('importTradesCsv', () => {
     expect(t3.instrument).toBe('MNQ');
     expect(t3.pnl).toBeCloseTo(20 * 5 * 2 - 3.7);
     expect(r.sessions.length).toBe(2);
-    expect(r.sessions[0].date).toBe('2026-09-15');
-    expect(r.sessions[0].tradeCount).toBe(2);
-    expect(r.sessions[0].pnl).toBeCloseTo(195.5 - 409);
-    expect(r.sessions[1].date).toBe('2026-09-16');
+    expect(r.sessions[0]!.date).toBe('2026-09-15');
+    expect(r.sessions[0]!.tradeCount).toBe(2);
+    expect(r.sessions[0]!.pnl).toBeCloseTo(195.5 - 409);
+    expect(r.sessions[1]!.date).toBe('2026-09-16');
     expect(new Date(t1.entryTime).getHours()).toBe(9);
   });
 
@@ -107,12 +109,12 @@ describe('importTradesCsv', () => {
     const r = importTradesCsv(NT_FR);
     expect(r.format).toBe('ninjatrader-trades');
     expect(r.trades.length).toBe(2);
-    expect(r.trades[0].entryPrice).toBe(20000);
-    expect(r.trades[0].pnl).toBeCloseTo(195.5);
-    expect(r.trades[1].pnl).toBeCloseTo(10 * 3 * 2 - 2.22);
-    expect(r.trades[1].account).toBe('Apex-50K');
-    expect(new Date(r.trades[0].entryTime).getMonth()).toBe(8);
-    expect(new Date(r.trades[0].entryTime).getDate()).toBe(15);
+    expect(r.trades[0]!.entryPrice).toBe(20000);
+    expect(r.trades[0]!.pnl).toBeCloseTo(195.5);
+    expect(r.trades[1]!.pnl).toBeCloseTo(10 * 3 * 2 - 2.22);
+    expect(r.trades[1]!.account).toBe('Apex-50K');
+    expect(new Date(r.trades[0]!.entryTime).getMonth()).toBe(8);
+    expect(new Date(r.trades[0]!.entryTime).getDate()).toBe(15);
     expect(r.sessions.length).toBe(1);
   });
 
@@ -125,12 +127,12 @@ describe('importTradesCsv', () => {
   it('exporte puis réimporte au format CΛNTO', () => {
     const r = importTradesCsv(NT_EN);
     const csv = exportTradesCsv(r.trades);
-    const headers = csv.split('\n')[0].split(',');
+    const headers = csv.split('\n')[0]!.split(',');
     expect(detectFormat(headers)).toBe('ninjatrader-trades');
     const again = importTradesCsv(csv, { source: 'csv' });
     expect(again.trades.length).toBe(3);
     expect(again.trades.map((t) => t.pnl)).toEqual(r.trades.map((t) => t.pnl));
-    expect(again.sessions[0].source).toBe('csv');
+    expect(again.sessions[0]!.source).toBe('csv');
   });
 });
 
@@ -140,20 +142,20 @@ describe('unités et réconciliation', () => {
 1,MNQ 12-26,Sim101,,Long,1,20000.00,20010.00,9/15/2026 9:35:00 AM,9/15/2026 9:42:00 AM,Entry,Exit,$19.50,$19.50,$0.50,$5.00,$22.00,$2.50,7
 `;
     const r = importTradesCsv(csv);
-    expect(r.trades[0].pnl).toBeCloseTo(19.5);
+    expect(r.trades[0]!.pnl).toBeCloseTo(19.5);
     const again = importTradesCsv(exportTradesCsv(r.trades));
-    expect(again.trades[0].pnl).toBeCloseTo(19.5);
+    expect(again.trades[0]!.pnl).toBeCloseTo(19.5);
   });
 
   it('convertit MAE/MFE exprimés en ticks ou en points selon la colonne Profit', () => {
     const ticks = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
 1,NQ 12-26,Sim101,,Long,1,20000.00,20010.00,9/15/2026 9:35:00 AM,9/15/2026 9:42:00 AM,Entry,Exit,40,40,4.50,9,44,4,7
 `;
-    const t = importTradesCsv(ticks).trades[0];
+    const t = importTradesCsv(ticks).trades[0]!;
     expect(t.mae).toBeCloseTo(45);
     expect(t.mfe).toBeCloseTo(220);
     const points = ticks.replace(',40,40,4.50,9,44,4,7', ',10,10,4.50,2.25,11,1,7');
-    const p = importTradesCsv(points).trades[0];
+    const p = importTradesCsv(points).trades[0]!;
     expect(p.mae).toBeCloseTo(45);
     expect(p.mfe).toBeCloseTo(220);
   });
@@ -185,10 +187,10 @@ describe('intégrité import (audit F-02 / F-03 / F-04)', () => {
     const r = importTradesCsv(csv);
     expect(r.trades.length).toBe(1);
     // PnL = prix × point MNQ − commission (la colonne Profit divergente est signalée, pas avalée).
-    expect(r.trades[0].pnl).toBeCloseTo(12 * 2 - 0.74, 1);
-    expect(r.trades[0].commission).toBeCloseTo(0.74, 2);
-    expect(r.trades[0].mae).toBeCloseTo(60, 1);
-    expect(r.trades[0].mfe).toBeCloseTo(280, 1);
+    expect(r.trades[0]!.pnl).toBeCloseTo(12 * 2 - 0.74, 1);
+    expect(r.trades[0]!.commission).toBeCloseTo(0.74, 2);
+    expect(r.trades[0]!.mae).toBeCloseTo(60, 1);
+    expect(r.trades[0]!.mfe).toBeCloseTo(280, 1);
   });
 
   it('F-04 : date ambiguë en-US sans AM/PM → mois/jour (2 janvier)', () => {
@@ -197,8 +199,8 @@ describe('intégrité import (audit F-02 / F-03 / F-04)', () => {
 `;
     const r = importTradesCsv(csv);
     expect(r.trades.length).toBe(1);
-    expect(r.sessions[0].date).toBe('2026-01-02');
-    const d = new Date(r.trades[0].entryTime);
+    expect(r.sessions[0]!.date).toBe('2026-01-02');
+    const d = new Date(r.trades[0]!.entryTime);
     expect(d.getMonth()).toBe(0);
     expect(d.getDate()).toBe(2);
   });

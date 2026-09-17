@@ -79,7 +79,7 @@ describe('evaluatePlan · trailing fin de journée', () => {
     const all = [{ ...session('a', '2026-01-05', 1000), account: 'X' }, { ...session('b', '2026-01-05', 500), account: 'Y' }, { ...session('c', '2026-01-06', 200), account: 'X' }];
     const merged = evaluatePlan(plan, all);
     expect(merged.timeline.length).toBe(2);
-    expect(merged.timeline[0].dayPnl).toBe(1500);
+    expect(merged.timeline[0]!.dayPnl).toBe(1500);
     const onlyX = evaluatePlan(plan, all, [], 'X');
     expect(onlyX.balance).toBe(51_200);
     expect(onlyX.daysTraded).toBe(2);

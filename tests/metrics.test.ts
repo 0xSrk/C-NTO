@@ -62,7 +62,7 @@ describe('computeTradeStats', () => {
     const clustered = [...Array(20).fill(1), ...Array(20).fill(-1)];
     expect(streakZScore(alternating)).toBeGreaterThan(1.96);
     expect(streakZScore(clustered)).toBeLessThan(-1.96);
-    const s = computeTradeStats([100, 100, 100, -50, -50, 100].map((p, i) => trade(p, i)));
+    const s = computeTradeStats([100, 100, 100, -50, -50, 100]!.map((p, i) => trade(p, i)));
     expect(s.maxConsecWins).toBe(3);
     expect(s.maxConsecLosses).toBe(2);
     expect(s.currentStreak).toBe(1);
@@ -88,7 +88,7 @@ describe('computeTradeStats', () => {
 
 describe('drawdownSeries', () => {
   it('suit le pic et la durée du drawdown', () => {
-    const pts = [100, 100, -150, -100, 50, 300].map((pnl, i) => ({ t: i * 1000, pnl }));
+    const pts = [100, 100, -150, -100, 50, 300]!.map((pnl, i) => ({ t: i * 1000, pnl }));
     const dd = drawdownSeries(pts, 1000);
     expect(dd.maxDrawdown).toBe(250);
     expect(dd.maxDrawdownPct).toBeCloseTo(250 / 1200);
@@ -96,8 +96,8 @@ describe('drawdownSeries', () => {
     // durée mesurée du pic (t=1000) jusqu'à la récupération (t=5000)
     expect(dd.maxDrawdownDurationMs).toBe(4000);
     expect(dd.currentDrawdown).toBe(0);
-    expect(drawdownSeries([0, 0, 0].map((pnl, i) => ({ t: i, pnl })), 100).maxDrawdownPeriods).toBe(0);
-    expect(dd.equity[dd.equity.length - 1].equity).toBe(1300);
+    expect(drawdownSeries([0, 0, 0]!.map((pnl, i) => ({ t: i, pnl })), 100).maxDrawdownPeriods).toBe(0);
+    expect(dd.equity[dd.equity.length - 1]!.equity).toBe(1300);
   });
 });
 
@@ -135,7 +135,7 @@ describe('computeDailyStats', () => {
     expect(d.sortino).toBeGreaterThan(d.sharpe);
     expect(d.maxDrawdown).toBe(400);
     expect(d.rolling.length).toBe(5);
-    expect(d.rolling[4].pnl).toBe(1700);
+    expect(d.rolling[4]!.pnl).toBe(1700);
   });
 
   it('agrège plusieurs comptes le même jour en une seule journée', () => {
@@ -172,6 +172,6 @@ describe('histogram', () => {
     const h = histogram([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5);
     expect(h.length).toBe(5);
     expect(h.reduce((s, b) => s + b.count, 0)).toBe(10);
-    expect(h[4].count).toBe(2);
+    expect(h[4]!.count).toBe(2);
   });
 });

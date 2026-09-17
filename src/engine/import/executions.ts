@@ -93,14 +93,17 @@ function stableId(parts: (string | number)[]): string {
 export function parseExecutionsCsv(text: string): { executions: Execution[]; skipped: number; warnings: string[] } {
   const table = parseCsv(text);
   const idx = indexColumns(table.headers);
+  const iPrice = idx.price;
+  const iCommission = idx.commission;
+  const iTime = idx.time;
   const sample = table.rows.slice(0, 80);
   const dec =
     inferDecimalSeparator(
-      sample.map((r) => r[idx.price] ?? ''),
-      sample.map((r) => r[idx.commission] ?? ''),
+      sample.map((r) => (iPrice !== undefined ? (r[iPrice] ?? '') : '')),
+      sample.map((r) => (iCommission !== undefined ? (r[iCommission] ?? '') : '')),
       table.delimiter,
-    ) ?? detectDecimalSeparator(sample.map((r) => r[idx.price] ?? ''));
-  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[idx.time] ?? '')) ?? table.delimiter === ';';
+    ) ?? detectDecimalSeparator(sample.map((r) => (iPrice !== undefined ? (r[iPrice] ?? '') : '')));
+  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => (iTime !== undefined ? (r[iTime] ?? '') : ''))) ?? table.delimiter === ';';
   const executions: Execution[] = [];
   let skipped = 0;
   const expectedCols = table.headers.length;
@@ -109,7 +112,10 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
       skipped++;
       return;
     }
-    const get = (k: string) => (idx[k] !== undefined ? (row[idx[k]] ?? '').trim() : '');
+    const get = (k: string) => {
+      const i = idx[k];
+      return i !== undefined ? (row[i] ?? '').trim() : '';
+    };
     const instrumentName = get('instrument');
     const instrument = detectInstrument(instrumentName);
     const actionRaw = get('action').toLowerCase();
@@ -186,8 +192,9 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
     let remaining = e.quantity;
     const spec = INSTRUMENTS[e.instrument];
 
-    while (remaining > 0 && lots.length > 0 && lots[0].direction !== side) {
+    while (remaining > 0 && lots.length > 0) {
       const lot = lots[0];
+      if (!lot || lot.direction === side) break;
       const matched = Math.min(lot.quantity, remaining);
       const gross = (e.price - lot.price) * matched * spec.pointValue * (lot.direction === 'long' ? 1 : -1);
       const commission = Math.round(matched * (lot.commissionPerContract + cpc) * 100) / 100;
@@ -223,6 +230,7 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
   const openLots: OpenLot[] = [];
   for (const [key, lots] of books) {
     const [account, instrumentName] = key.split('|');
+    if (!account || !instrumentName) continue;
     for (const lot of lots) {
       const instrument = detectInstrument(instrumentName);
       if (instrument) openLots.push({ account, instrumentName, instrument, direction: lot.direction, quantity: lot.quantity, price: lot.price, time: lot.time });

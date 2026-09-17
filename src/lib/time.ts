@@ -46,7 +46,7 @@ export function tradingDayKey(ms: number, boundaryHour = 0, zone?: string): stri
 
 export function parseDateKey(key: string): Date {
   const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, m - 1, d, 12, 0, 0, 0);
+  return new Date(y ?? 0, (m ?? 1) - 1, d ?? 1, 12, 0, 0, 0);
 }
 
 export function addDays(key: string, days: number): string {
@@ -109,7 +109,7 @@ function tzOffsetMinutes(utcMs: number, timeZone: string): number {
 export function zonedToUtc(dateKey: string, time: string, timeZone: string): number {
   const [y, m, d] = dateKey.split('-').map(Number);
   const [hh, mm] = time.split(':').map(Number);
-  const guess = Date.UTC(y, m - 1, d, hh, mm, 0, 0);
+  const guess = Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0, 0, 0);
   let offset = tzOffsetMinutes(guess, timeZone);
   let utc = guess - offset * 60000;
   const offset2 = tzOffsetMinutes(utc, timeZone);
@@ -166,21 +166,22 @@ export function parseFlexibleDateTime(raw: string, dayFirst?: boolean): number {
   if (!s) return NaN;
   const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*([AaPp]\.?[Mm]\.?)?\s*(Z|[+-]\d{2}:?\d{2})?)?$/.exec(s);
   if (iso) {
-    const [, y, m, d, hh = '0', mm = '0', ss = '0', ampm, tz] = iso;
+    const [, y, mo, d, hh = '0', mm = '0', ss = '0', ampm, tz] = iso;
+    if (!y || !mo || !d) return NaN;
     if (tz) {
-      const t = Date.parse(`${y}-${pad2(+m)}-${pad2(+d)}T${pad2(applyAmPm(+hh, ampm))}:${mm}:${ss}${tz === 'Z' ? 'Z' : tz.includes(':') ? tz : `${tz.slice(0, 3)}:${tz.slice(3)}`}`);
+      const t = Date.parse(`${y}-${pad2(+mo)}-${pad2(+d)}T${pad2(applyAmPm(+hh, ampm))}:${mm}:${ss}${tz === 'Z' ? 'Z' : tz.includes(':') ? tz : `${tz.slice(0, 3)}:${tz.slice(3)}`}`);
       return Number.isNaN(t) ? NaN : t;
     }
-    return new Date(+y, +m - 1, +d, applyAmPm(+hh, ampm), +mm, +ss).getTime();
+    return new Date(+y, +mo - 1, +d, applyAmPm(+hh, ampm), +mm, +ss).getTime();
   }
   const m = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})(?:[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]\.?)?)?$/.exec(s);
   if (!m) {
     const t = Date.parse(s);
     return Number.isNaN(t) ? NaN : t;
   }
-  const a = +m[1];
-  const b = +m[2];
-  let year = +m[3];
+  const a = +(m[1] ?? 0);
+  const b = +(m[2] ?? 0);
+  let year = +(m[3] ?? 0);
   if (year < 100) year += 2000;
   const hour = applyAmPm(+(m[4] ?? '0'), m[7]);
   const minute = +(m[5] ?? '0');
@@ -197,8 +198,8 @@ export function detectDayFirst(samples: string[]): boolean | undefined {
   for (const s of samples) {
     const m = /^(\d{1,2})[/.\-](\d{1,2})[/.\-]\d{2,4}/.exec(s.trim());
     if (!m) continue;
-    if (+m[1] > 12) return true;
-    if (+m[2] > 12) return false;
+    if (+(m[1] ?? 0) > 12) return true;
+    if (+(m[2] ?? 0) > 12) return false;
   }
   if (samples.some((s) => /\b[ap]\.?m\.?\b/i.test(s))) return false;
   return undefined;

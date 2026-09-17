@@ -367,10 +367,12 @@ ipcMain.handle('files:open-text', async (e, filters: unknown) => {
   const safeFilters = Array.isArray(filters) ? filters.filter((f): f is { name: string; extensions: string[] } => !!f && isString(f.name, 64) && Array.isArray(f.extensions) && f.extensions.every((x: unknown) => isString(x, 16))) : [];
   const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: safeFilters });
   if (canceled || filePaths.length === 0) return null;
-  const st = await fs.stat(filePaths[0]);
+  const filePath = filePaths[0];
+  if (!filePath) return null;
+  const st = await fs.stat(filePath);
   if (st.size > MAX_TEXT) throw new Error('Fichier trop volumineux (limite 50 Mo)');
-  const text = await fs.readFile(filePaths[0], 'utf8');
-  return { name: path.basename(filePaths[0]), text };
+  const text = await fs.readFile(filePath, 'utf8');
+  return { name: path.basename(filePath), text };
 });
 const MAX_TEXT = 50 * 1024 * 1024;
 

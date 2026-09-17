@@ -40,14 +40,14 @@ function typedPercentile(sorted: Float64Array, p: number): number {
   const idx = (sorted.length - 1) * p;
   const lo = Math.floor(idx);
   const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  if (lo === hi) return sorted[lo] ?? 0;
+  return (sorted[lo] ?? 0) + ((sorted[hi] ?? 0) - (sorted[lo] ?? 0)) * (idx - lo);
 }
 
 function summarize(values: Float64Array) {
   const sorted = values.slice().sort();
   let sum = 0;
-  for (let i = 0; i < sorted.length; i++) sum += sorted[i];
+  for (let i = 0; i < sorted.length; i++) sum += sorted[i] ?? 0;
   return {
     p5: typedPercentile(sorted, 0.05),
     p25: typedPercentile(sorted, 0.25),
@@ -112,15 +112,18 @@ export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): Monte
     const keepEnvelope = r < envRuns;
     const path = r % sampleEvery === 0 && samples.length < SAMPLE_PATHS ? new Array<number>(steps.length) : null;
     for (let i = 0; i < horizon; i++) {
-      eq += pnls[Math.floor(rand() * n)];
+      eq += pnls[Math.floor(rand() * n)] ?? 0;
       if (eq > peak) peak = eq;
       const dd = peak - eq;
       if (dd > maxDd) maxDd = dd;
       if (ruin !== undefined && !isRuined && !hitTarget && dd >= ruin) isRuined = true;
       if (target !== undefined && !hitTarget && !isRuined && eq >= target) hitTarget = true;
       const k = stepIndex[i];
-      if (k >= 0) {
-        if (keepEnvelope) stepValues[k][r] = eq;
+      if (k !== undefined && k >= 0) {
+        if (keepEnvelope) {
+          const row = stepValues[k];
+          if (row) row[r] = eq;
+        }
         if (path) path[k] = eq;
       }
     }

@@ -33,8 +33,10 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         const j = byTitle.get(l);
         if (j !== undefined && j !== i) {
           edges.push([i, j]);
-          nodes[i].degree++;
-          nodes[j].degree++;
+          const ni = nodes[i];
+          const nj = nodes[j];
+          if (ni) ni.degree++;
+          if (nj) nj.degree++;
         }
       }
     });
@@ -73,8 +75,10 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       if (st.frame < 600) {
         for (let i = 0; i < nodes.length; i++) {
           const a = nodes[i];
+          if (!a) continue;
           for (let j = i + 1; j < nodes.length; j++) {
             const b = nodes[j];
+            if (!b) continue;
             let dx = a.x - b.x;
             let dy = a.y - b.y;
             let d2 = dx * dx + dy * dy;
@@ -96,6 +100,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         for (const [i, j] of edges) {
           const a = nodes[i];
           const b = nodes[j];
+          if (!a || !b) continue;
           const dx = b.x - a.x;
           const dy = b.y - a.y;
           const d = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -125,6 +130,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       for (const [i, j] of edges) {
         const a = nodes[i];
         const b = nodes[j];
+        if (!a || !b) continue;
         const hot = st.hover === i || st.hover === j;
         ctx.strokeStyle = hot ? 'rgba(196,30,58,0.7)' : 'rgba(255,255,255,0.12)';
         ctx.beginPath();
@@ -186,8 +192,11 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       const st = state.current;
       const p = toWorld(e);
       if (st.drag !== null) {
-        st.nodes[st.drag].x = p.x;
-        st.nodes[st.drag].y = p.y;
+        const dragged = st.nodes[st.drag];
+        if (dragged) {
+          dragged.x = p.x;
+          dragged.y = p.y;
+        }
         st.frame = Math.min(st.frame, 300);
         wake();
         return;
@@ -218,7 +227,8 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         const i = st.drag;
         st.drag = null;
         const p = toWorld(e);
-        if (Math.hypot(st.nodes[i].x - p.x, st.nodes[i].y - p.y) < 2) onOpen(st.nodes[i].id);
+        const node = st.nodes[i];
+        if (node && Math.hypot(node.x - p.x, node.y - p.y) < 2) onOpen(node.id);
       }
       panning = null;
     };

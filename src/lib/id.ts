@@ -6,7 +6,7 @@ export function uid(prefix = ''): string {
   let time = '';
   let t = now;
   for (let i = 0; i < 8; i++) {
-    time = ALPHABET[t % 32] + time;
+    time = (ALPHABET[t % 32] ?? '0') + time;
     t = Math.floor(t / 32);
   }
   let rnd = '';
@@ -16,6 +16,6 @@ export function uid(prefix = ''): string {
   } else {
     for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
   }
-  for (let i = 0; i < bytes.length; i++) rnd += ALPHABET[bytes[i] % 32];
+  for (let i = 0; i < bytes.length; i++) rnd += ALPHABET[(bytes[i] ?? 0) % 32] ?? '0';
   return prefix ? `${prefix}_${time}${rnd}` : `${time}${rnd}`;
 }
