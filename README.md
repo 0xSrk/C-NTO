@@ -328,6 +328,8 @@ Grammaire lithographique décrite dans **[docs/DESIGN.md](docs/DESIGN.md)** :
 
 Le registre des prop firms est **indicatif** : les règles changent fréquemment et doivent être validées auprès de chaque firme. CΛNTO n'émet aucun conseil d'investissement. Les données restent sur le poste ; aucun serveur tiers n'est requis pour le journal.
 
+Licence : tous droits réservés, SIΞRRΛSKΛ. Dépôt consultable. Réutilisation, fork publié ou usage commercial non autorisés sans accord.
+
 <div align="center">
 <br/>
 <sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.1</sub>
