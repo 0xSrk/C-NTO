@@ -54,7 +54,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const orchestrator = useAgent((a) => a.orchestrator);
   const bridgeStatus = useBridge((b) => b.status);
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
-  const active = TABS.find((t) => t.id === tab) ?? TABS[0];
+  const active = TABS.find((t) => t.id === tab);
   const [maximized, setMaximized] = useState(false);
   const [appVersion, setAppVersion] = useState('1.1.1');
 
@@ -74,7 +74,8 @@ export function Shell({ children }: { children: ReactNode }) {
       const m = /^Digit([1-7])$/.exec(e.code);
       if ((e.ctrlKey || e.metaKey) && m && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        setTab(TABS[Number(m[1]) - 1].id);
+        const tab = TABS[Number(m[1]) - 1];
+        if (tab) setTab(tab.id);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -102,7 +103,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <div className={s.titleCenter}>
           <span>
-            <b>{active.code}</b> <span className={s.sep}>·</span> {active.label}
+            <b>{active?.code}</b> <span className={s.sep}>·</span> {active?.label}
           </span>
           <span>
             NQ <span className={s.sep}>·</span> CME
@@ -268,7 +269,8 @@ function MarketPhase() {
 }
 
 export function ModuleHeader({ tab, actions }: { tab: TabId; actions?: ReactNode }) {
-  const def = TABS.find((t) => t.id === tab) ?? TABS[0];
+  const def = TABS.find((t) => t.id === tab);
+  if (!def) return null;
   return (
     <div className={s.moduleHead}>
       <span className={s.watermark} aria-hidden>

@@ -26,6 +26,7 @@ namespace NinjaTrader.NinjaScript.AddOns
     public class CantoBridge : AddOnBase
     {
         private const string Header = "Instrument,Action,Quantity,Price,Time,ID,E/X,Position,Order ID,Name,Commission,Rate,Account,Connection";
+        static readonly string AccountFilter = "";
         private static readonly object Sync = new object();
         private readonly HashSet<string> written = new HashSet<string>();
         private readonly HashSet<Account> subscribed = new HashSet<Account>();
@@ -44,6 +45,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                 {
                     folder = Path.Combine(Core.Globals.UserDataDir, "export", "CANTO");
                     Directory.CreateDirectory(folder);
+                    LoadSeen();
                 }
                 catch (Exception ex)
                 {
@@ -112,13 +114,49 @@ namespace NinjaTrader.NinjaScript.AddOns
             }
         }
 
-        private void Write(Execution execution, MarketPosition marketPosition, int quantity, double price, DateTime time, string executionId)
+        private void LoadSeen()
         {
-            if (execution == null || string.IsNullOrEmpty(folder)) return;
-            string key = executionId + "|" + time.Ticks;
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
             lock (written)
             {
-                if (!written.Add(key)) return;
+                foreach (string path in Directory.GetFiles(folder, "executions-*.seen.txt"))
+                {
+                    try
+                    {
+                        foreach (string line in File.ReadAllLines(path))
+                        {
+                            string id = line.Trim();
+                            if (id.Length > 0) written.Add(id);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log("CΛNTO Bridge : lecture .seen impossible — " + ex.Message, LogLevel.Warning);
+                    }
+                }
+            }
+        }
+
+        private void Write(Execution execution, MarketPosition marketPosition, int quantity, double price, DateTime time, string executionId)
+        {
+            if (execution == null || string.IsNullOrEmpty(folder) || string.IsNullOrEmpty(executionId)) return;
+            string account = execution.Account != null ? execution.Account.Name : "";
+            if (!string.IsNullOrEmpty(AccountFilter) && account != AccountFilter) return;
+
+            if (marketPosition == MarketPosition.Flat)
+            {
+                Log("CΛNTO Bridge : exécution ignorée (position Flat) " + executionId, LogLevel.Warning);
+                return;
+            }
+            if (marketPosition != MarketPosition.Long && marketPosition != MarketPosition.Short)
+            {
+                Log("CΛNTO Bridge : exécution ignorée (position inconnue) " + executionId, LogLevel.Warning);
+                return;
+            }
+
+            lock (written)
+            {
+                if (!written.Add(executionId)) return;
             }
 
             CultureInfo inv = CultureInfo.InvariantCulture;
@@ -127,7 +165,6 @@ namespace NinjaTrader.NinjaScript.AddOns
             string entryExit = execution.IsEntry ? "Entry" : (execution.IsExit ? "Exit" : "");
             string orderId = execution.Order != null ? execution.Order.OrderId : "";
             string orderName = execution.Order != null ? execution.Order.Name : execution.Name;
-            string account = execution.Account != null ? execution.Account.Name : "";
             string connection = "";
             try
             {
@@ -152,14 +189,34 @@ namespace NinjaTrader.NinjaScript.AddOns
                 .Append(Csv(account)).Append(',')
                 .Append(Csv(connection));
 
-            string file = Path.Combine(folder, "executions-" + time.ToString("yyyy-MM-dd", inv) + ".csv");
+            string stamp = time.ToString("yyyy-MM-dd", inv);
+            string file = Path.Combine(folder, "executions-" + stamp + ".csv");
+            string tmp = file + ".tmp";
+            string seen = Path.Combine(folder, "executions-" + stamp + ".seen.txt");
+            string seenTmp = seen + ".tmp";
             lock (Sync)
             {
-                bool fresh = !File.Exists(file) || new FileInfo(file).Length == 0;
-                using (StreamWriter writer = new StreamWriter(new FileStream(file, FileMode.Append, FileAccess.Write, FileShare.Read), new UTF8Encoding(false)))
+                try
                 {
-                    if (fresh) writer.WriteLine(Header);
-                    writer.WriteLine(line.ToString());
+                    List<string> lines = new List<string>();
+                    if (File.Exists(file)) lines.AddRange(File.ReadAllLines(file));
+                    if (lines.Count == 0) lines.Add(Header);
+                    lines.Add(line.ToString());
+                    File.WriteAllLines(tmp, lines, new UTF8Encoding(false));
+                    File.Move(tmp, file, overwrite: true);
+
+                    List<string> seenLines = new List<string>();
+                    if (File.Exists(seen)) seenLines.AddRange(File.ReadAllLines(seen));
+                    seenLines.Add(executionId);
+                    File.WriteAllLines(seenTmp, seenLines, new UTF8Encoding(false));
+                    File.Move(seenTmp, seen, overwrite: true);
+                }
+                catch
+                {
+                    lock (written) { written.Remove(executionId); }
+                    try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* tmp */ }
+                    try { if (File.Exists(seenTmp)) File.Delete(seenTmp); } catch { /* tmp */ }
+                    throw;
                 }
             }
         }

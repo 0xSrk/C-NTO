@@ -15,8 +15,8 @@ describe('calendrier Nasdaq', () => {
 
   it('expose une aide débutant pour chaque catégorie', () => {
     for (const key of Object.keys(CATEGORY_LABEL) as (keyof typeof CATEGORY_LABEL)[]) {
-      expect(CATEGORY_HELP[key].lead.length).toBeGreaterThan(20);
-      expect(CATEGORY_HELP[key].points.length).toBeGreaterThanOrEqual(2);
+      expect(CATEGORY_HELP[key]!.lead.length).toBeGreaterThan(20);
+      expect(CATEGORY_HELP[key]!.points.length).toBeGreaterThanOrEqual(2);
     }
   });
 
@@ -24,9 +24,9 @@ describe('calendrier Nasdaq', () => {
     const ev = generateNasdaqEvents(2026);
     const titles = (t: string) => ev.filter((e) => e.title.includes(t));
     expect(easterSunday(2026)).toBe('2026-04-05');
-    expect(titles('Good Friday')[0].date).toBe('2026-04-03');
-    expect(titles('Thanksgiving')[0].date).toBe('2026-11-26');
-    expect(titles('Independence Day')[0].date).toBe('2026-07-03');
+    expect(titles('Good Friday')[0]!.date).toBe('2026-04-03');
+    expect(titles('Thanksgiving')[0]!.date).toBe('2026-11-26');
+    expect(titles('Independence Day')[0]!.date).toBe('2026-07-03');
     expect(titles('Expiration trimestrielle').map((e) => e.date)).toEqual(['2026-03-20', '2026-06-19', '2026-09-18', '2026-12-18']);
     expect(titles('Rollover').map((e) => e.date)).toEqual(['2026-03-12', '2026-06-11', '2026-09-10', '2026-12-10']);
     expect(titles('NFP').length).toBe(12);
@@ -47,7 +47,7 @@ describe('barres et indicateurs', () => {
     const keys = new Set(bars.map((b) => sessionKeyOf(b.time)));
     expect(keys.size).toBe(3);
     expect(bars.every((b) => b.high >= Math.max(b.open, b.close) && b.low <= Math.min(b.open, b.close))).toBe(true);
-    for (let i = 1; i < bars.length; i++) expect(bars[i].time).toBeGreaterThan(bars[i - 1].time);
+    for (let i = 1; i < bars.length; i++) expect(bars[i]!.time).toBeGreaterThan(bars[i - 1]!.time);
   });
 
   it('calcule chaque indicateur sans erreur et avec des valeurs finies', () => {
@@ -65,9 +65,9 @@ describe('barres et indicateurs', () => {
   it('EMA suit la clôture sur une série constante', () => {
     const flat = Array.from({ length: 50 }, (_, i) => ({ time: 1_700_000_000 + i * 300, open: 100, high: 100, low: 100, close: 100, volume: 10 }));
     const ema = indicatorById('ema')!.compute(flat, { period: 9 });
-    expect(ema.lines[0].data.at(-1)?.value).toBeCloseTo(100);
+    expect(ema.lines[0]!.data.at(-1)?.value).toBeCloseTo(100);
     const vwap = indicatorById('vwap')!.compute(flat, { bands: '0' });
-    expect(vwap.lines[0].data.at(-1)?.value).toBeCloseTo(100);
+    expect(vwap.lines[0]!.data.at(-1)?.value).toBeCloseTo(100);
   });
 });
 
@@ -109,16 +109,16 @@ describe('barres NinjaTrader sans en-tête', () => {
   it('lit le volume et le format journalier', () => {
     const { bars } = importBarsCsv('20260915 093000;24180.25;24190.5;24175;24188.75;1523\n20260915 093500;24188.75;24195;24180;24182.25;1200\n');
     expect(bars.length).toBe(2);
-    expect(bars[0].open).toBeCloseTo(24180.25);
+    expect(bars[0]!.open).toBeCloseTo(24180.25);
     expect(bars.map((b) => b.volume)).toEqual([1523, 1200]);
     const daily = importBarsCsv('20260915;24180.25;24390.5;24075;24288.75;523000\n');
     expect(daily.bars.length).toBe(1);
-    expect(daily.bars[0].volume).toBe(523000);
+    expect(daily.bars[0]!.volume).toBe(523000);
   });
 
   it('n’observe pas le Nouvel An du samedi la veille', () => {
     const ev = generateNasdaqEvents(2028).filter((e) => e.title.includes('Nouvel An'));
     expect(ev.length).toBe(0);
-    expect(generateNasdaqEvents(2027).filter((e) => e.title.includes('Nouvel An'))[0].date).toBe('2027-01-01');
+    expect(generateNasdaqEvents(2027).filter((e) => e.title.includes('Nouvel An'))[0]!.date).toBe('2027-01-01');
   });
 });

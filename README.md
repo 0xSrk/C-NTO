@@ -15,7 +15,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-58%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-89%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/badge/version-1.1.1-c41e3a?style=flat-square)](package.json)
 
@@ -106,14 +106,21 @@ Au premier lancement : écran lanceur, puis boot lithographique, puis le desk. U
 
 CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre du desk).
 
+Deux canaux :
+
+| Canal | Condition | Effet |
+|---|---|---|
+| **release** (défaut) | l'app n'est pas un checkout git, **ou** le réglage `updateChannel` n'est pas `dev` | Annonce `vX.Y.Z dispo`. Un clic ouvre [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (`https` seulement). Pas de `git pull` ni de `npm install`. |
+| **dev** | checkout git **et** `updateChannel === 'dev'` | `git pull --ff-only` ; `npm install --legacy-peer-deps` **uniquement** après un pull réussi. `git stash` seulement après confirmation. |
+
 | État | Comportement |
 |---|---|
-| À jour | Le bouton affiche `v1.1.0` (discret) |
-| Mise à jour dispo | Le bouton passe **ambre / jaune** — un clic télécharge (`git pull` + `npm install`) et **relance** automatiquement |
+| À jour | Le bouton affiche `v1.1.1` (discret) |
+| Mise à jour dispo | Le bouton passe **ambre / jaune** |
 
-Même action depuis le lanceur : le bouton **Mettre à jour et relancer** apparaît uniquement lorsqu'une version plus récente (ou des commits sur `main`) est détectée.
+Même action depuis le lanceur : le bouton **Mettre à jour** apparaît lorsqu'une version plus récente est détectée (canal release : ouvre la page des versions).
 
-Pas besoin de terminal pour rester à jour. Si des modifications locales bloquent le pull, CΛNTO tente un `git stash` puis réessaie ; en cas d'échec, un message explicite s'affiche.
+La mise à jour git+npm automatique est restreinte au canal dev (voir brief 17 sept.).
 
 ---
 
@@ -321,7 +328,9 @@ Grammaire lithographique décrite dans **[docs/DESIGN.md](docs/DESIGN.md)** :
 
 Le registre des prop firms est **indicatif** : les règles changent fréquemment et doivent être validées auprès de chaque firme. CΛNTO n'émet aucun conseil d'investissement. Les données restent sur le poste ; aucun serveur tiers n'est requis pour le journal.
 
+Licence : tous droits réservés, SIΞRRΛSKΛ. Dépôt consultable. Réutilisation, fork publié ou usage commercial non autorisés sans accord.
+
 <div align="center">
 <br/>
-<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.0</sub>
+<sub>DESIGN UNIT · SIΞRRΛSKΛ LAB · ARTEFACT 002 · REV. A · v1.1.1</sub>
 </div>

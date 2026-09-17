@@ -32,6 +32,7 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
 
   for (let di = 0; di < days.length; di++) {
     const date = days[di];
+    if (!date) continue;
     price += gaussian(rand) * 120 + 9;
     edge += (0.03 - edge) * 0.1 + gaussian(rand) * 0.008;
     edge = Math.max(-0.06, Math.min(0.06, edge));
@@ -65,7 +66,10 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
       const tags: string[] = [];
       if (tilt && rand() < 0.6) tags.push(rand() < 0.5 ? 'FOMO' : 'revenge');
       if (!tilt && win && rand() < 0.4) tags.push('A+');
-      if (rand() < 0.2) tags.push(TAGS[Math.floor(rand() * TAGS.length)]);
+      if (rand() < 0.2) {
+        const extra = TAGS[Math.floor(rand() * TAGS.length)];
+        if (extra) tags.push(extra);
+      }
       dayTrades.push({
         id: uid('t'),
         sessionId,
@@ -81,7 +85,7 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
         commission,
         mae,
         mfe,
-        strategy: STRATEGIES[Math.floor(rand() * STRATEGIES.length)],
+        strategy: STRATEGIES[Math.floor(rand() * STRATEGIES.length)] ?? 'ORB 15m',
         tags: tags.length ? [...new Set(tags)] : undefined,
         risk: Math.round(riskPts * spec.pointValue * qty),
       });

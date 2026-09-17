@@ -39,8 +39,11 @@ export default function Visual() {
   useEffect(() => {
     if (!session || !active || active.source !== 'demo' || active.bars.length === 0) return;
     // Comparaison sur les clés de date : une séance datée d'un week-end ne relance pas la génération en boucle.
-    const firstKey = dateKeyLocal(new Date(active.bars[0].time * 1000));
-    const lastKey = dateKeyLocal(new Date(active.bars[active.bars.length - 1].time * 1000));
+    const firstBar = active.bars[0];
+    const lastBar = active.bars[active.bars.length - 1];
+    if (!firstBar || !lastBar) return;
+    const firstKey = dateKeyLocal(new Date(firstBar.time * 1000));
+    const lastKey = dateKeyLocal(new Date(lastBar.time * 1000));
     if (session.date >= firstKey && session.date <= lastKey) return;
     if (regeneratedFor.current === session.date) return;
     regeneratedFor.current = session.date;

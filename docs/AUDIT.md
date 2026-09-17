@@ -81,3 +81,30 @@ Différé : piège de focus dans les modales, échelle typographique réduite à
 ## 6. Ce que le raffinage « crépuscule » attend
 
 L'exécution référencée pour crépuscule appartient à un autre dépôt et n'est pas accessible depuis ce projet ; les refinements ci-dessus proviennent de l'auditeur design indépendant. Pour aligner CΛNTO sur crépuscule, fournir ses jetons (palette, typographies, rythme d'animation) ou l'accès à son dépôt.
+
+## Suite 2026-09-17
+
+- [x] P2.1 `.gitignore` env/csv/vault/seen — `.gitignore`
+- [x] P2.5 versions unifiées 1.1.1 — `README.md`, `package.json`
+- [x] P0.1 import idempotent par executionId — `src/engine/import/identity.ts`, `src/store/journal.ts`
+- [x] P0.2 AddOn C# atomique + `.seen` — `ninjatrader/CantoBridge.cs`
+- [x] P0.6 coffre `canto-vault-v2` — `src/engine/vault.ts`
+- [x] P0.3 updater deux canaux — `src/engine/updatePolicy.ts`, `electron/updater.ts`
+- [x] P0.4 gate écriture agent / ports — `src/engine/agent/ports.ts`, `src/engine/agent/tools.ts`
+- [x] P0.5 LLM via process main, CSP sans `connect-src *` — `electron/main.ts`, `index.html`
+- [x] P1.1 vecteurs métriques partagés — `vectors/`
+- [x] P1.2 watcher mémorise acceptedIds — `electron/bridge.ts`, `src/store/bridge.ts`
+- [x] P1.3 champs optionnels + toast capacité 1000 — `src/engine/types.ts`, `src/store/journal.ts`
+- [x] P1.4 plans prop `version`/`source`, rejeu `planId`+`planVersion` — `src/engine/propfirm.ts`, `src/store/settings.ts`
+- [x] P1.6 Bot/Copieur CONCEPTION, pas de `copy.order` runtime — `src/modules/bot/`, `src/modules/copieur/`
+- [x] P1.7 merge macro additif, cache 24 h, timeout 8 s — `src/engine/macroMerge.ts`, `electron/macro-calendar.ts`
+- [x] P2.2 licence UNLICENSED — `README.md`
+- [x] P2.3 jeton orch masqué, `orch:copy-token` — `electron/orchestrator.ts`
+- [x] P2.4 modale tab trap + Esc + restore focus — `src/design/Modal.tsx`
+- [x] P2.6 CI windows-latest Node 22 — `.github/workflows/ci.yml`
+- [x] P2.7 journal technique anneau 200 — `src/lib/log.ts`
+- [x] P2.8 `openExternal` https / `http://127.0.0.1` — `electron/main.ts`
+- [x] P3.1 `noUncheckedIndexedAccess` — `tsconfig.json`, `electron/tsconfig.json`
+- [x] P3.6 script `npm run check` — `package.json`
+- [ ] P1.5 Worker MC/CSV — `AbortSignal` dans `montecarlo.ts` ; câblage Worker reporté (`// TODO(P1.5) worker`) pour ne pas casser les tests MC bornés
+

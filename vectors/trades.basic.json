@@ -1,0 +1,82 @@
+{
+  "trades": [
+    {
+      "id": "t0",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "long",
+      "qty": 1,
+      "entryTime": 1767623400000,
+      "exitTime": 1767624000000,
+      "entryPrice": 20000,
+      "exitPrice": 20005,
+      "pnl": 100,
+      "commission": 4
+    },
+    {
+      "id": "t1",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "short",
+      "qty": 1,
+      "entryTime": 1767627000000,
+      "exitTime": 1767627600000,
+      "entryPrice": 20000,
+      "exitPrice": 19997.5,
+      "pnl": -50,
+      "commission": 4
+    },
+    {
+      "id": "t2",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "long",
+      "qty": 1,
+      "entryTime": 1767630600000,
+      "exitTime": 1767631200000,
+      "entryPrice": 20000,
+      "exitPrice": 20010,
+      "pnl": 200,
+      "commission": 4
+    },
+    {
+      "id": "t3",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "short",
+      "qty": 1,
+      "entryTime": 1767634200000,
+      "exitTime": 1767634800000,
+      "entryPrice": 20000,
+      "exitPrice": 19997.5,
+      "pnl": -50,
+      "commission": 4
+    },
+    {
+      "id": "t4",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "long",
+      "qty": 1,
+      "entryTime": 1767637800000,
+      "exitTime": 1767638400000,
+      "entryPrice": 20000,
+      "exitPrice": 20007.5,
+      "pnl": 150,
+      "commission": 4
+    },
+    {
+      "id": "t5",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "short",
+      "qty": 1,
+      "entryTime": 1767641400000,
+      "exitTime": 1767642000000,
+      "entryPrice": 20000,
+      "exitPrice": 19995,
+      "pnl": -100,
+      "commission": 4
+    }
+  ]
+}

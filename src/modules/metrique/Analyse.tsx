@@ -177,11 +177,15 @@ export function Analyse() {
       const m = (x.exitTime - x.entryTime) / 60000;
       const i = edges.findIndex((edge) => m < edge);
       const b = acc[i === -1 ? acc.length - 1 : i];
+      if (!b) continue;
       b.n++;
       b.pnl += x.pnl;
       if (x.pnl > 0) b.wins++;
     }
-    return labels.map((label, i) => ({ key: label, value: acc[i].pnl, label, hint: `${plural(acc[i].n, 'trade')} · ${acc[i].n ? fmtPct(acc[i].wins / acc[i].n, 0) : '—'} réussite` }));
+    return labels.map((label, i) => {
+      const cell = acc[i] ?? { n: 0, wins: 0, pnl: 0 };
+      return { key: label, value: cell.pnl, label, hint: `${plural(cell.n, 'trade')} · ${cell.n ? fmtPct(cell.wins / cell.n, 0) : '—'} réussite` };
+    });
   }, [trades]);
 
   const heat = useMemo(() => {
@@ -211,7 +215,7 @@ export function Analyse() {
       });
     });
     const best = candidates.reduce<{ dow: number; h: number; pnl: number } | null>((accBest, c) => (!accBest || c.pnl > accBest.pnl ? c : accBest), null);
-    return { rows: rows.map((d) => WEEKDAY_KEYS[d]), cols: hours.map((h) => `${h}h`), cells, best, hours };
+    return { rows: rows.map((d) => WEEKDAY_KEYS[d] ?? ''), cols: hours.map((h) => `${h}h`), cells, best, hours };
   }, [trades]);
 
   const byDow = useMemo(() => {
@@ -224,7 +228,7 @@ export function Analyse() {
       cur.n++;
       acc.set(dow, cur);
     }
-    return [1, 2, 3, 4, 5].map((d) => ({ key: WEEKDAY_KEYS[d], pnl: acc.get(d)?.pnl ?? 0, n: acc.get(d)?.n ?? 0 }));
+    return [1, 2, 3, 4, 5].map((d) => ({ key: WEEKDAY_KEYS[d] ?? '', pnl: acc.get(d)?.pnl ?? 0, n: acc.get(d)?.n ?? 0 }));
   }, [trades]);
 
   const scatter = useMemo(() => {

@@ -55,7 +55,10 @@ export function Sessions() {
         const b = list.findIndex((x) => x.id === id);
         if (a >= 0 && b >= 0) {
           const [lo, hi] = a < b ? [a, b] : [b, a];
-          for (let i = lo; i <= hi; i++) next.add(list[i].id);
+          for (let i = lo; i <= hi; i++) {
+            const row = list[i];
+            if (row) next.add(row.id);
+          }
           return next;
         }
       }

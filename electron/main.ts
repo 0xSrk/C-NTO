@@ -17,6 +17,21 @@ let bridge: NinjaBridge | null = null;
 let updateBusy = false;
 
 const isString = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
+
+function openExternalSafe(url: string): void {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:') {
+      void shell.openExternal(url);
+      return;
+    }
+    if (u.protocol === 'http:' && u.hostname === '127.0.0.1') {
+      void shell.openExternal(url);
+    }
+  } catch {
+    /* URL invalide */
+  }
+}
 const isDateKey = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const isPort = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1024 && v <= 65535;
 const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean => {
@@ -166,7 +181,7 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     win = null;
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) void shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
   });
   const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
@@ -292,11 +307,15 @@ ipcMain.handle('update:check', async (e): Promise<UpdateStatus | null> => {
     };
   }
 });
-ipcMain.handle('update:apply', async (e): Promise<UpdateStatus | null> => {
+ipcMain.handle('update:apply', async (e, payload: unknown): Promise<UpdateStatus | null> => {
   if (!trusted(e) || updateBusy) return null;
   updateBusy = true;
   try {
-    return await applyUpdate();
+    const p = payload && typeof payload === 'object' ? (payload as { channel?: unknown; confirmStash?: unknown }) : {};
+    return await applyUpdate({
+      channel: typeof p.channel === 'string' ? p.channel : undefined,
+      confirmStash: p.confirmStash === true,
+    });
   } finally {
     updateBusy = false;
   }
@@ -348,18 +367,44 @@ ipcMain.handle('files:open-text', async (e, filters: unknown) => {
   const safeFilters = Array.isArray(filters) ? filters.filter((f): f is { name: string; extensions: string[] } => !!f && isString(f.name, 64) && Array.isArray(f.extensions) && f.extensions.every((x: unknown) => isString(x, 16))) : [];
   const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: safeFilters });
   if (canceled || filePaths.length === 0) return null;
-  const st = await fs.stat(filePaths[0]);
+  const filePath = filePaths[0];
+  if (!filePath) return null;
+  const st = await fs.stat(filePath);
   if (st.size > MAX_TEXT) throw new Error('Fichier trop volumineux (limite 50 Mo)');
-  const text = await fs.readFile(filePaths[0], 'utf8');
-  return { name: path.basename(filePaths[0]), text };
+  const text = await fs.readFile(filePath, 'utf8');
+  return { name: path.basename(filePath), text };
 });
 const MAX_TEXT = 50 * 1024 * 1024;
 
+ipcMain.handle('files:pick-folder', async (e) => {
+  if (!trusted(e) || !win) return null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: 'Dossier de sauvegarde du coffre' });
+  return canceled || filePaths.length === 0 ? null : filePaths[0];
+});
+
+ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown, text: unknown, encrypt: unknown) => {
+  if (!trusted(e) || !isString(folder, 1024) || !isString(name, 255) || !isString(text, MAX_TEXT)) return { ok: false, encrypted: false };
+  if (path.basename(name) !== name || name.includes('..') || !path.isAbsolute(folder)) return { ok: false, encrypted: false };
+  let body = text;
+  let encrypted = false;
+  if (encrypt === true) {
+    if (safeStorage.isEncryptionAvailable()) {
+      body = JSON.stringify({ format: 'canto-vault-v2-enc', payload: safeStorage.encryptString(text).toString('base64') });
+      encrypted = true;
+    }
+  }
+  await fs.mkdir(folder, { recursive: true });
+  const dest = path.join(folder, name);
+  await fs.writeFile(dest, body, 'utf8');
+  return { ok: true, encrypted, path: dest };
+});
+
 /* ─── Orchestrateur ─── */
-ipcMain.handle('orch:start', (e, port: unknown) => (trusted(e) && isPort(port) ? orchestrator.start(port) : orchestrator.status()));
+ipcMain.handle('orch:start', (e, port: unknown, allowWrites: unknown) => (trusted(e) && isPort(port) ? orchestrator.start(port, allowWrites === true) : orchestrator.status()));
 ipcMain.handle('orch:stop', (e) => (trusted(e) ? orchestrator.stop() : orchestrator.status()));
-ipcMain.handle('orch:status', (e) => (trusted(e) ? orchestrator.status() : { running: false, port: 0, clients: 0, token: '' }));
+ipcMain.handle('orch:status', (e) => (trusted(e) ? orchestrator.status() : { running: false, port: 0, clients: 0 }));
 ipcMain.handle('orch:rotate-token', (e) => (trusted(e) ? orchestrator.rotateToken() : orchestrator.status()));
+ipcMain.handle('orch:copy-token', (e) => (trusted(e) ? orchestrator.copyToken() : null));
 ipcMain.on('orch:respond', (e, id: unknown, clientId: unknown, result: unknown, error?: unknown) => {
   if (!trusted(e) || !isString(id, 64) || !isString(clientId, 32)) return;
   orchestrator.respond(id, clientId, result, isString(error, 2000) ? error : undefined);
@@ -383,6 +428,275 @@ ipcMain.handle('secrets:decrypt', (e, payload: unknown) => {
     return null;
   }
 });
+
+/* ─── LLM (process main : la clé ne transite pas par le renderer) ─── */
+const LLM_HOSTS = new Set(['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai']);
+const llmAbort = new Map<string, AbortController>();
+
+function llmHostOk(baseUrl: string, extra: unknown): boolean {
+  try {
+    const u = new URL(baseUrl);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const extraHosts = Array.isArray(extra)
+      ? extra.filter((h): h is string => typeof h === 'string' && /^[a-z0-9.-]+$/i.test(h)).map((h) => h.toLowerCase())
+      : [];
+    return LLM_HOSTS.has(u.hostname.toLowerCase()) || extraHosts.includes(u.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function decryptLlmKey(blob: unknown): string {
+  if (typeof blob !== 'string' || !blob || !safeStorage.isEncryptionAvailable()) return '';
+  try {
+    return safeStorage.decryptString(Buffer.from(blob, 'base64'));
+  } catch {
+    return '';
+  }
+}
+
+function joinLlmUrl(base: string, p: string): string {
+  return `${base.replace(/\/+$/, '')}/${p.replace(/^\/+/, '')}`;
+}
+
+async function readLlmError(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '');
+  try {
+    const j = JSON.parse(text) as { error?: { message?: string }; message?: string };
+    return j.error?.message ?? j.message ?? text.slice(0, 300);
+  } catch {
+    return text.slice(0, 300) || res.statusText;
+  }
+}
+
+async function sseData(res: Response, signal: AbortSignal, onData: (data: string) => void): Promise<void> {
+  const reader = res.body?.getReader();
+  if (!reader) return;
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    if (signal.aborted) {
+      await reader.cancel();
+      return;
+    }
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.slice(0, idx).replace(/\r$/, '');
+      buffer = buffer.slice(idx + 1);
+      if (line.startsWith('data:')) onData(line.slice(5).trim());
+    }
+  }
+}
+
+ipcMain.handle('llm:probe', async (e, config: unknown) => {
+  if (!trusted(e) || !config || typeof config !== 'object') return { ok: false, detail: 'Requête invalide' };
+  const c = config as { provider?: unknown; baseUrl?: unknown; apiKeyEncrypted?: unknown; allowedHosts?: unknown };
+  if (!isString(c.baseUrl, 2048) || !llmHostOk(c.baseUrl, c.allowedHosts)) return { ok: false, detail: 'Hôte LLM non autorisé.' };
+  const key = decryptLlmKey(c.apiKeyEncrypted);
+  try {
+    if (c.provider === 'anthropic') {
+      if (!key) return { ok: false, detail: 'Clé API requise.' };
+      const res = await fetch(joinLlmUrl(c.baseUrl, 'v1/models'), { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
+      if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
+      const j = (await res.json()) as { data?: { id: string }[] };
+      return { ok: true, detail: `${j.data?.length ?? 0} modèle(s) disponibles`, models: j.data?.map((m) => m.id) };
+    }
+    const headers: Record<string, string> = {};
+    if (key) headers.Authorization = `Bearer ${key}`;
+    const res = await fetch(joinLlmUrl(c.baseUrl, 'models'), { headers });
+    if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
+    const j = (await res.json()) as { data?: { id: string }[] };
+    const models = j.data?.map((m) => m.id) ?? [];
+    return { ok: true, detail: `${models.length} modèle(s) disponibles`, models };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+ipcMain.on('llm:abort', (e, requestId: unknown) => {
+  if (!trusted(e) || !isString(requestId, 64)) return;
+  llmAbort.get(requestId)?.abort();
+  llmAbort.delete(requestId);
+});
+
+ipcMain.handle('llm:start', async (e, payload: unknown) => {
+  if (!trusted(e) || !payload || typeof payload !== 'object') return;
+  const p = payload as {
+    requestId?: unknown;
+    config?: { provider?: unknown; baseUrl?: unknown; model?: unknown; temperature?: unknown; apiKeyEncrypted?: unknown };
+    messages?: unknown;
+    tools?: unknown;
+    allowedHosts?: unknown;
+  };
+  if (!isString(p.requestId, 64) || !p.config || typeof p.config !== 'object' || !isString(p.config.baseUrl, 2048) || !isString(p.config.model, 256)) return;
+  const requestId = p.requestId;
+  const sender = e.sender;
+  if (!llmHostOk(p.config.baseUrl, p.allowedHosts)) {
+    sender.send('llm:error', { requestId, error: 'Hôte LLM non autorisé.' });
+    return;
+  }
+  const ac = new AbortController();
+  llmAbort.set(requestId, ac);
+  const key = decryptLlmKey(p.config.apiKeyEncrypted);
+  const provider = p.config.provider === 'anthropic' ? 'anthropic' : 'openai-compatible';
+  const model = p.config.model;
+  const temperature = typeof p.config.temperature === 'number' ? p.config.temperature : 0.3;
+  const messages = Array.isArray(p.messages) ? p.messages : [];
+  const tools = Array.isArray(p.tools) ? p.tools : [];
+  try {
+    if (provider === 'anthropic') {
+      await streamAnthropicMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, ac.signal);
+    } else {
+      await streamOpenAiMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, ac.signal);
+    }
+  } catch (err) {
+    if (!ac.signal.aborted) sender.send('llm:error', { requestId, error: err instanceof Error ? err.message : String(err) });
+  } finally {
+    llmAbort.delete(requestId);
+  }
+});
+
+type Wc = Electron.WebContents;
+
+async function streamOpenAiMain(
+  sender: Wc,
+  requestId: string,
+  baseUrl: string,
+  model: string,
+  temperature: number,
+  key: string,
+  messages: unknown[],
+  tools: unknown[],
+  signal: AbortSignal,
+): Promise<void> {
+  const oaMessages = (messages as { role?: string; content?: string; toolCalls?: { id: string; name: string; args: string }[]; toolCallId?: string; name?: string }[]).map((m) => {
+    if (m.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: m.content || null,
+        tool_calls: m.toolCalls?.length ? m.toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.args } })) : undefined,
+      };
+    }
+    if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
+    return { role: m.role, content: m.content };
+  });
+  const body: Record<string, unknown> = { model, messages: oaMessages, stream: true, temperature };
+  if (tools.length) body.tools = (tools as { name: string; description: string; parameters: unknown }[]).map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (key) headers.Authorization = `Bearer ${key}`;
+  const res = await fetch(joinLlmUrl(baseUrl, 'chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
+  if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
+  let text = '';
+  const calls = new Map<number, { id: string; name: string; args: string }>();
+  await sseData(res, signal, (data) => {
+    if (!data || data === '[DONE]') return;
+    let json: { choices?: { delta?: { content?: string; tool_calls?: { index: number; id?: string; function?: { name?: string; arguments?: string } }[] } }[] };
+    try {
+      json = JSON.parse(data);
+    } catch {
+      return;
+    }
+    const delta = json.choices?.[0]?.delta;
+    if (!delta) return;
+    if (delta.content) {
+      text += delta.content;
+      sender.send('llm:delta', { requestId, text: delta.content });
+    }
+    for (const tc of delta.tool_calls ?? []) {
+      const cur = calls.get(tc.index) ?? { id: tc.id ?? `call_${tc.index}`, name: '', args: '' };
+      if (tc.id) cur.id = tc.id;
+      if (tc.function?.name) cur.name += tc.function.name;
+      if (tc.function?.arguments) cur.args += tc.function.arguments;
+      calls.set(tc.index, cur);
+    }
+  });
+  sender.send('llm:done', { requestId, result: { text, toolCalls: [...calls.values()].filter((c) => c.name) } });
+}
+
+async function streamAnthropicMain(
+  sender: Wc,
+  requestId: string,
+  baseUrl: string,
+  model: string,
+  temperature: number,
+  key: string,
+  messages: unknown[],
+  tools: unknown[],
+  signal: AbortSignal,
+): Promise<void> {
+  const msgs = messages as { role?: string; content?: string; toolCalls?: { id: string; name: string; args: string }[]; toolCallId?: string }[];
+  const system = msgs.find((m) => m.role === 'system')?.content;
+  const converted: { role: 'user' | 'assistant'; content: unknown }[] = [];
+  for (const m of msgs) {
+    if (m.role === 'system') continue;
+    if (m.role === 'user') converted.push({ role: 'user', content: m.content });
+    else if (m.role === 'assistant') {
+      const blocks: unknown[] = [];
+      if (m.content) blocks.push({ type: 'text', text: m.content });
+      for (const tc of m.toolCalls ?? []) {
+        let input: unknown = {};
+        try {
+          input = tc.args ? JSON.parse(tc.args) : {};
+        } catch {
+          input = {};
+        }
+        blocks.push({ type: 'tool_use', id: tc.id, name: tc.name, input });
+      }
+      converted.push({ role: 'assistant', content: blocks.length ? blocks : [{ type: 'text', text: '…' }] });
+    } else {
+      const block = { type: 'tool_result', tool_use_id: m.toolCallId, content: m.content };
+      const last = converted[converted.length - 1];
+      if (last && last.role === 'user' && Array.isArray(last.content)) (last.content as unknown[]).push(block);
+      else converted.push({ role: 'user', content: [block] });
+    }
+  }
+  const body: Record<string, unknown> = { model, max_tokens: 4096, stream: true, temperature: Math.max(0, Math.min(1, temperature)), messages: converted };
+  if (system) body.system = system;
+  if (tools.length) {
+    body.tools = (tools as { name: string; description: string; parameters: unknown }[]).map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+  }
+  const res = await fetch(joinLlmUrl(baseUrl, 'v1/messages'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
+  let text = '';
+  const calls: { id: string; name: string; args: string }[] = [];
+  const blocks = new Map<number, { id: string; name: string; args: string }>();
+  await sseData(res, signal, (data) => {
+    if (!data) return;
+    let ev: { type: string; index?: number; content_block?: { type: string; id?: string; name?: string }; delta?: { type: string; text?: string; partial_json?: string } };
+    try {
+      ev = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (ev.type === 'error') throw new Error((ev as unknown as { error?: { message?: string } }).error?.message ?? 'Erreur du fournisseur pendant le flux');
+    if (ev.type === 'content_block_start' && ev.content_block?.type === 'tool_use' && ev.index !== undefined) {
+      blocks.set(ev.index, { id: ev.content_block.id ?? `toolu_${ev.index}`, name: ev.content_block.name ?? '', args: '' });
+    } else if (ev.type === 'content_block_delta' && ev.delta) {
+      if (ev.delta.type === 'text_delta' && ev.delta.text) {
+        text += ev.delta.text;
+        sender.send('llm:delta', { requestId, text: ev.delta.text });
+      } else if (ev.delta.type === 'input_json_delta' && ev.index !== undefined) {
+        const b = blocks.get(ev.index);
+        if (b) b.args += ev.delta.partial_json ?? '';
+      }
+    } else if (ev.type === 'content_block_stop' && ev.index !== undefined) {
+      const b = blocks.get(ev.index);
+      if (b) {
+        calls.push({ ...b, args: b.args || '{}' });
+        blocks.delete(ev.index);
+      }
+    }
+  });
+  sender.send('llm:done', { requestId, result: { text, toolCalls: calls } });
+}
 
 /* ─── Pont NinjaTrader ─── */
 ipcMain.handle('bridge:status', (e) => (trusted(e) ? bridge?.status() ?? null : null));
@@ -415,6 +729,9 @@ ipcMain.on('bridge:result', (e, fileId: unknown, result: unknown) => {
     sessionsAdded: typeof r.sessionsAdded === 'number' ? r.sessionsAdded : 0,
     sessionsMerged: typeof r.sessionsMerged === 'number' ? r.sessionsMerged : 0,
     warnings: Array.isArray(r.warnings) ? r.warnings.filter((w): w is string => isString(w, 500)).slice(0, 20) : [],
+    path: isString(r.path, 1024) ? r.path : undefined,
+    acceptedIds: Array.isArray(r.acceptedIds) ? r.acceptedIds.filter((id): id is string => isString(id, 200)).slice(0, 20_000) : [],
+    skipped: typeof r.skipped === 'number' ? r.skipped : 0,
   });
 });
 ipcMain.handle('shell:open-path', async (e, target: unknown) => {

@@ -18,6 +18,8 @@ export interface ImportResult {
   warnings: string[];
   format: 'ninjatrader-trades' | 'ninjatrader-executions' | 'canto-csv' | 'inconnu';
   skipped: number;
+  /** Clés d'idempotence par trade (format exécutions uniquement). */
+  tradeExecutionKeys?: string[][];
 }
 
 /** Colonnes reconnues (export « Trade Performance › Trades » de NinjaTrader 8 et format CΛNTO). */
@@ -99,6 +101,7 @@ export const FORMAT_LABEL: Record<ImportResult['format'], string> = {
  * Le PnL est recalculé à partir des prix et de la valeur du point (source de vérité), puis
  * comparé à la colonne Profit lorsqu'elle est en devise.
  */
+// TODO(P1.5) worker
 export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportResult {
   const table = parseCsv(text);
   const warnings: string[] = [];
@@ -108,13 +111,25 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   }
   const col = buildColumnIndex(table.headers);
   const sample = table.rows.slice(0, 80);
+  const iEntry = col.entryPrice;
+  const iExit = col.exitPrice;
+  const iProfit = col.profit;
+  const iMae = col.mae;
+  const iMfe = col.mfe;
+  const iCommission = col.commission;
+  const iEntryTime = col.entryTime;
   const decimalSep = inferDecimalSeparator(
-    sample.flatMap((r) => [r[col.entryPrice] ?? '', r[col.exitPrice] ?? '']),
-    sample.flatMap((r) => [r[col.profit] ?? '', r[col.mae] ?? '', r[col.mfe] ?? '', r[col.commission] ?? '']),
+    sample.flatMap((r) => [iEntry !== undefined ? (r[iEntry] ?? '') : '', iExit !== undefined ? (r[iExit] ?? '') : '']),
+    sample.flatMap((r) => [
+      iProfit !== undefined ? (r[iProfit] ?? '') : '',
+      iMae !== undefined ? (r[iMae] ?? '') : '',
+      iMfe !== undefined ? (r[iMfe] ?? '') : '',
+      iCommission !== undefined ? (r[iCommission] ?? '') : '',
+    ]),
     table.delimiter,
   );
   // Culture fichier : AM/PM ou jour>12 tranche ; sinon le délimiteur `;` implique fr-FR (J/M), `,` implique en-US (M/J).
-  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[col.entryTime] ?? '')) ?? table.delimiter === ';';
+  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => (iEntryTime !== undefined ? (r[iEntryTime] ?? '') : ''))) ?? table.delimiter === ';';
   const boundary = opts.sessionBoundaryHour ?? 0;
   const source = opts.source ?? 'ninjatrader';
   const expectedCols = table.headers.length;
@@ -134,7 +149,10 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
       widthMismatch++;
       continue;
     }
-    const get = (k: string) => (col[k] !== undefined ? (row[col[k]] ?? '').trim() : '');
+    const get = (k: string) => {
+      const i = col[k];
+      return i !== undefined ? (row[i] ?? '').trim() : '';
+    };
     const instrument = detectInstrument(get('instrument'));
     if (!instrument) {
       skipped++;
@@ -238,6 +256,7 @@ export function groupIntoSessions(trades: Trade[], boundaryHour: number, source:
   const sessions: Session[] = [];
   for (const [key, dayTrades] of byDay) {
     const [date, account] = key.split('|');
+    if (!date) continue;
     const id = uid('s');
     for (const t of dayTrades) t.sessionId = id;
     const summary = summarizeTrades(dayTrades);

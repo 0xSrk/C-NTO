@@ -61,6 +61,11 @@ export interface Trade {
   tags?: string[];
   /** Risque planifié en USD, pour les multiples de R */
   risk?: number;
+  /** Identifiants d'exécutions NT ayant formé ce trade */
+  executionIds?: string[];
+  /** Mois de contrat (ex. 12-26, SEP26) */
+  contractMonth?: string;
+  schemaVersion?: number;
 }
 
 export interface Session {
@@ -81,6 +86,9 @@ export interface Session {
   rating?: number;
   createdAt: number;
   updatedAt: number;
+  executionIds?: string[];
+  contractMonth?: string;
+  schemaVersion?: number;
 }
 
 export const SESSION_CAPACITY = 1000;

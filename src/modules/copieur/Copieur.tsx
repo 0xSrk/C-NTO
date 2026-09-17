@@ -12,8 +12,6 @@ const BRIDGE_STEPS = [
   ['hello', 'AddOn → CΛNTO : version, comptes disponibles'],
   ['accounts', 'Instantané des comptes, soldes, positions'],
   ['execution', 'Chaque exécution du compte maître, horodatée'],
-  ['copy.order', 'CΛNTO → AddOn : ordre répliqué pour chaque suiveur'],
-  ['copy.ack', 'Accusé avec latence mesurée et identifiant NinjaTrader'],
   ['heartbeat', 'Battement toutes les 2 s, coupe-circuit si absent 6 s'],
 ];
 
@@ -45,10 +43,12 @@ export default function Copieur() {
         tab="copieur"
         actions={
           <>
-            <Tag tone={config.enabled ? 'mint' : undefined} dot live={config.enabled}>
-              {config.enabled ? 'armé · en attente du pont' : 'désarmé'}
+            <Tag tone="amber" dot>
+              CONCEPTION
             </Tag>
-            <Toggle on={config.enabled} onChange={(v) => updateConfig({ enabled: v })} label="Armer le copieur" />
+            <Button size="sm" variant="danger" onClick={() => updateConfig({ enabled: false })}>
+              Couper
+            </Button>
           </>
         }
       />
@@ -59,7 +59,7 @@ export default function Copieur() {
               <Stat small label="Pont NinjaTrader" value="Hors ligne" hint="transport WebSocket non connecté" />
               <Stat small label="Maîtres · suiveurs" value={`${masters.length} · ${followers.length}`} hint={plural(followers.filter((f) => f.enabled).length, 'suiveur actif', 'suiveurs actifs')} tone="ice" />
               <Stat small label="Budget latence" value={`${config.latencyBudgetMs} ms`} hint="alerte au-delà" tone="gold" />
-              <Stat small label="Version" value={COPIER_CHANGELOG[0].version} hint={`canal ${config.channel}`} />
+              <Stat small label="Version" value={COPIER_CHANGELOG[0]?.version ?? '1.0.0'} hint={`canal ${config.channel}`} />
             </div>
 
             <div className={s.banner}>
@@ -182,7 +182,7 @@ function AccountCard({ acc, onChange, onRemove, sample }: { acc: CopierAccount; 
   return (
     <div className={cx(s.acc, acc.role === 'maitre' && s.master)}>
       <div className={s.accHead}>
-        <Toggle on={acc.enabled} onChange={(v) => onChange({ enabled: v })} />
+        <Toggle on={acc.enabled} onChange={(v) => onChange({ enabled: v })} disabled />
         <b>{acc.name}</b>
         <Tag tone={acc.role === 'maitre' ? 'gold' : 'ice'}>{acc.role === 'maitre' ? 'maître' : 'suiveur'}</Tag>
         <button onClick={onRemove} aria-label="Retirer">

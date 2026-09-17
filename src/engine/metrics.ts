@@ -144,7 +144,7 @@ export function median(xs: number[]): number {
   if (xs.length === 0) return 0;
   const a = [...xs].sort((x, y) => x - y);
   const mid = Math.floor(a.length / 2);
-  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+  return a.length % 2 ? (a[mid] ?? 0) : ((a[mid - 1] ?? 0) + (a[mid] ?? 0)) / 2;
 }
 
 export function percentile(sorted: number[], p: number): number {
@@ -152,8 +152,8 @@ export function percentile(sorted: number[], p: number): number {
   const idx = (sorted.length - 1) * p;
   const lo = Math.floor(idx);
   const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  if (lo === hi) return sorted[lo] ?? 0;
+  return (sorted[lo] ?? 0) + ((sorted[hi] ?? 0) - (sorted[lo] ?? 0)) * (idx - lo);
 }
 
 export interface DrawdownResult {
@@ -368,7 +368,7 @@ export function computeTradeStats(input: Trade[]): TradeStats {
       (t) => String(new Date(t.entryTime).getHours()),
       Array.from({ length: 24 }, (_, i) => String(i)),
     ),
-    byWeekday: bucketize(trades, (t) => WEEKDAY_KEYS[new Date(t.entryTime).getDay()], WEEKDAY_KEYS),
+    byWeekday: bucketize(trades, (t) => WEEKDAY_KEYS[new Date(t.entryTime).getDay()] ?? 'dim', WEEKDAY_KEYS),
     byInstrument: bucketize(trades, (t) => t.instrument, instruments),
     equity: dd.equity,
     pnls,
@@ -432,9 +432,11 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
     const wr = win.filter((p) => p > 0).length / win.length;
     const m = mean(win);
     const sd = stddev(win);
+    const day = sessions[i];
+    if (!day) continue;
     rolling.push({
-      t: new Date(`${sessions[i].date}T12:00:00`).getTime(),
-      date: sessions[i].date,
+      t: new Date(`${day.date}T12:00:00`).getTime(),
+      date: day.date,
       winRate: wr,
       expectancy: m,
       sharpe: sd > EPS ? (m / sd) * ANNUALIZATION : 0,
@@ -486,7 +488,8 @@ export function histogram(input: number[], bins = 24): { x0: number; x1: number;
   const out = Array.from({ length: bins }, (_, i) => ({ x0: min + i * width, x1: min + (i + 1) * width, count: 0 }));
   for (const v of values) {
     const idx = Math.min(bins - 1, Math.floor((v - min) / width));
-    out[idx].count++;
+    const bucket = out[idx];
+    if (bucket) bucket.count++;
   }
   return out;
 }

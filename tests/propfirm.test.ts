@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluatePlan, findPlan, PROP_FIRMS, type PropPlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
+import { loadVector } from './helpers/loadVector';
 
 const session = (id: string, date: string, pnl: number): Session => ({
   id,
@@ -27,6 +28,8 @@ const plan: PropPlan = {
   drawdownType: 'eod-trailing',
   minTradingDays: 2,
   phase: 'evaluation',
+  version: 1,
+  source: 'bundled',
 };
 
 describe('evaluatePlan · trailing fin de journée', () => {
@@ -61,17 +64,22 @@ describe('evaluatePlan · trailing fin de journée', () => {
   });
 
   it('valide l’objectif le jour où il est atteint, même si le compte rechute ensuite', () => {
-    const r = evaluatePlan(plan, [session('a', '2026-01-05', 2000), session('b', '2026-01-06', 1500), session('c', '2026-01-07', -1500), session('d', '2026-01-08', -1500)]);
-    expect(r.status).toBe('objectif');
-    expect(r.passedOn).toBe('2026-01-06');
-    expect(r.timeline.length).toBe(2);
+    const vec = loadVector<{ plan: PropPlan; sessions: Session[] }>('propfirm.pass-then-giveback.json');
+    const expected = loadVector<{ status: string; passedOn?: string; timelineLength: number; remainingToTarget: number }>('propfirm.pass-then-giveback.expected.json');
+    const r = evaluatePlan(vec.plan, vec.sessions);
+    expect(r.status).toBe(expected.status);
+    expect(r.passedOn).toBe(expected.passedOn);
+    expect(r.timeline.length).toBe(expected.timelineLength);
+    expect(r.remainingToTarget).toBe(expected.remainingToTarget);
+    expect(r.planId).toBe(vec.plan.id);
+    expect(r.planVersion).toBe(vec.plan.version);
   });
 
   it('filtre par compte et agrège les séances d’une même journée', () => {
     const all = [{ ...session('a', '2026-01-05', 1000), account: 'X' }, { ...session('b', '2026-01-05', 500), account: 'Y' }, { ...session('c', '2026-01-06', 200), account: 'X' }];
     const merged = evaluatePlan(plan, all);
     expect(merged.timeline.length).toBe(2);
-    expect(merged.timeline[0].dayPnl).toBe(1500);
+    expect(merged.timeline[0]!.dayPnl).toBe(1500);
     const onlyX = evaluatePlan(plan, all, [], 'X');
     expect(onlyX.balance).toBe(51_200);
     expect(onlyX.daysTraded).toBe(2);
@@ -130,6 +138,8 @@ describe('registre prop firms', () => {
       }
     }
     expect(findPlan('apex-50')?.drawdownType).toBe('intraday-trailing');
+    expect(findPlan('apex-50')?.source).toBe('bundled');
+    expect(findPlan('apex-50')?.version).toBe(1);
     expect(findPlan('nope')).toBeUndefined();
   });
 });

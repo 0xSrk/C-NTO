@@ -42,11 +42,14 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
 
   const year = useMemo(() => {
     if (sessions.length === 0) return null;
-    const last = sessions[sessions.length - 1].date;
+    const last = sessions[sessions.length - 1]?.date;
+    if (!last) return null;
     const end = parseDateKey(last);
     const start = new Date(end);
     start.setDate(start.getDate() - 7 * 51 - end.getDay());
-    const first = parseDateKey(sessions[0].date);
+    const firstSess = sessions[0];
+    if (!firstSess) return null;
+    const first = parseDateKey(firstSess.date);
     if (first > start) start.setTime(first.getTime());
     const byDate = new Map(sessions.map((sess) => [sess.date, sess]));
     const cells: HeatCell[] = [];
@@ -69,7 +72,14 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
   }, [sessions]);
 
   const hourBars = useMemo(() => t.byHour.filter((b) => b.count > 0).map((b) => ({ key: b.key, value: b.pnl, label: `${b.key}h`, hint: `${b.count} trade(s) · ${fmtPct(b.winRate, 0)} réussite` })), [t.byHour]);
-  const weekdayBars = useMemo(() => [1, 2, 3, 4, 5].map((i) => t.byWeekday[i]).map((b) => ({ key: b.key, value: b.pnl, label: b.key, hint: `${b.count} trade(s) · ${fmtPct(b.winRate, 0)} réussite` })), [t.byWeekday]);
+  const weekdayBars = useMemo(
+    () =>
+      [1, 2, 3, 4, 5]
+        .map((i) => t.byWeekday[i])
+        .filter((b): b is NonNullable<typeof b> => !!b)
+        .map((b) => ({ key: b.key, value: b.pnl, label: b.key, hint: `${b.count} trade(s) · ${fmtPct(b.winRate, 0)} réussite` })),
+    [t.byWeekday],
+  );
   const hist = useMemo(() => histogram(t.pnls, 28), [t.pnls]);
   const thinSample = t.count < 30 || sessions.length < 5;
   const sqnHint = thinSample ? 'Échantillon insuffisant' : t.sqn >= 2.5 ? 'Système solide' : t.sqn >= 1.6 ? 'Correct' : 'Faible';

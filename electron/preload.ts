@@ -26,21 +26,24 @@ contextBridge.exposeInMainWorld('canto', {
   files: {
     saveText: (defaultName: string, text: string) => ipcRenderer.invoke('files:save-text', defaultName, text),
     openText: (filters: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('files:open-text', filters),
+    pickFolder: () => ipcRenderer.invoke('files:pick-folder'),
+    writeInFolder: (folder: string, name: string, text: string, encrypt: boolean) => ipcRenderer.invoke('files:write-in-folder', folder, name, text, encrypt),
   },
   calendar: {
     fetchMacro: (fromDate: string, toDate: string) => ipcRenderer.invoke('calendar:macro', fromDate, toDate),
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
-    apply: () => ipcRenderer.invoke('update:apply'),
+    apply: (opts?: { channel?: string; confirmStash?: boolean }) => ipcRenderer.invoke('update:apply', opts),
     relaunch: () => ipcRenderer.invoke('update:relaunch'),
     startDesk: () => ipcRenderer.invoke('update:start-desk'),
   },
   orchestrator: {
-    start: (port: number) => ipcRenderer.invoke('orch:start', port),
+    start: (port: number, allowWrites?: boolean) => ipcRenderer.invoke('orch:start', port, allowWrites),
     stop: () => ipcRenderer.invoke('orch:stop'),
     status: () => ipcRenderer.invoke('orch:status'),
     rotateToken: () => ipcRenderer.invoke('orch:rotate-token'),
+    copyToken: () => ipcRenderer.invoke('orch:copy-token'),
     respond: (id: string, clientId: string, result: unknown, error?: string) => ipcRenderer.send('orch:respond', id, clientId, result, error),
     broadcast: (event: string, payload: unknown) => ipcRenderer.send('orch:broadcast', event, payload),
     onRequest: (cb: (req: unknown) => void) => subscribe('orch:request', cb),
@@ -48,7 +51,14 @@ contextBridge.exposeInMainWorld('canto', {
   },
   secrets: {
     encrypt: (text: string) => ipcRenderer.invoke('secrets:encrypt', text),
-    decrypt: (payload: string) => ipcRenderer.invoke('secrets:decrypt', payload),
+  },
+  llm: {
+    start: (payload: unknown) => ipcRenderer.invoke('llm:start', payload),
+    abort: (requestId: string) => ipcRenderer.send('llm:abort', requestId),
+    probe: (config: unknown) => ipcRenderer.invoke('llm:probe', config),
+    onDelta: (cb: (payload: { requestId: string; text: string }) => void) => subscribe('llm:delta', cb),
+    onDone: (cb: (payload: unknown) => void) => subscribe('llm:done', cb),
+    onError: (cb: (payload: { requestId: string; error: string }) => void) => subscribe('llm:error', cb),
   },
   bridge: {
     status: () => ipcRenderer.invoke('bridge:status'),

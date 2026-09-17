@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { importCsvAuto } from '@/engine/import';
 import { importExecutionsCsv, pairExecutions, parseExecutionsCsv } from '@/engine/import/executions';
+import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { detectFormat } from '@/engine/import/ninjatrader';
 
 const NT_EXEC = `Instrument,Action,Quantity,Price,Time,ID,E/X,Position,Order ID,Name,Commission,Rate,Account,Connection
@@ -15,7 +16,7 @@ NQ 12-26,Sell,1,20200.00,9/16/2026 9:31:00 AM,e7,Entry,1 S,o7,Short,2.25,1,Sim10
 
 describe('exécutions NinjaTrader', () => {
   it('reconnaît le format Executions', () => {
-    const headers = NT_EXEC.split('\n')[0].split(',');
+    const headers = NT_EXEC.split('\n')[0]!.split(',');
     expect(detectFormat(headers)).toBe('ninjatrader-executions');
   });
 
@@ -30,7 +31,9 @@ describe('exécutions NinjaTrader', () => {
     const { executions } = parseExecutionsCsv(NT_EXEC);
     const { trades, openLots } = pairExecutions(executions);
     expect(trades.length).toBe(3);
-    const [t1, t2, t3] = trades;
+    const t1 = trades[0]!;
+    const t2 = trades[1]!;
+    const t3 = trades[2]!;
     // 2 NQ achetés à 20000 : 1 vendu à 20010 (+200 brut), 1 vendu à 20005 (+100 brut)
     expect(t1).toMatchObject({ instrument: 'NQ', direction: 'long', qty: 1, entryPrice: 20000, exitPrice: 20010, entryName: 'Entry', exitName: 'Target1' });
     expect(t1.commission).toBeCloseTo(2.25 + 2.25);
@@ -49,8 +52,8 @@ describe('exécutions NinjaTrader', () => {
     const b = importExecutionsCsv(NT_EXEC);
     expect(a.trades.map((t) => t.id)).toEqual(b.trades.map((t) => t.id));
     expect(a.sessions.length).toBe(1);
-    expect(a.sessions[0].tradeCount).toBe(3);
-    expect(a.sessions[0].pnl).toBeCloseTo(195.5 + 95.5 + 92.6);
+    expect(a.sessions[0]!.tradeCount).toBe(3);
+    expect(a.sessions[0]!.pnl).toBeCloseTo(195.5 + 95.5 + 92.6);
     expect(a.warnings.some((w) => w.includes('ouverte'))).toBe(true);
     expect(a.format).toBe('ninjatrader-executions');
   });
@@ -80,9 +83,9 @@ MNQ 12-26;Sell;3;21012.75;2026-09-16 15:39:40;x2;Exit;-;o2;Exit;2.22;1;APEX-50K;
 `;
     const r = importExecutionsCsv(csv);
     expect(r.trades.length).toBe(1);
-    expect(r.trades[0].entryPrice).toBeCloseTo(21000.25);
-    expect(r.trades[0].pnl).toBeCloseTo(12.5 * 2 * 3 - 4.44);
-    expect(r.trades[0].account).toBe('APEX-50K');
+    expect(r.trades[0]!.entryPrice).toBeCloseTo(21000.25);
+    expect(r.trades[0]!.pnl).toBeCloseTo(12.5 * 2 * 3 - 4.44);
+    expect(r.trades[0]!.account).toBe('APEX-50K');
   });
 
   it('importe une fixture au format exact de l’AddOn CantoBridge (virgule, point décimal, ISO)', () => {
@@ -94,6 +97,49 @@ MNQ 12-26,Sell,3,21012.75,2026-09-16 15:39:40,3f2a2222,Exit,-,7c1bbbbb,Exit,2.22
     expect(r.format).toBe('ninjatrader-executions');
     expect(r.warnings.filter((w) => !w.includes('ouverte')).length).toBe(0);
     expect(r.trades.length).toBe(1);
-    expect(r.trades[0].pnl).toBeCloseTo(12.5 * 2 * 3 - 4.44);
+    expect(r.trades[0]!.pnl).toBeCloseTo(12.5 * 2 * 3 - 4.44);
   });
 });
+
+function applyExecutions(csv: string, known: Set<string>) {
+  const r = importExecutionsCsv(csv);
+  const picked = takeNewExecutionTrades(r.trades, r.tradeExecutionKeys, known);
+  for (const keys of picked.tradeKeys) for (const k of keys) known.add(k);
+  return picked.trades;
+}
+
+describe('idempotence import exécutions', () => {
+  it('import is idempotent when the same executions CSV is applied three times', () => {
+    const known = new Set<string>();
+    const acc: ReturnType<typeof importExecutionsCsv>['trades'] = [];
+    for (let n = 0; n < 3; n++) acc.push(...applyExecutions(NT_EXEC, known));
+    expect(acc.length).toBe(importExecutionsCsv(NT_EXEC).trades.length);
+    expect(acc.length).toBe(3);
+  });
+
+  it('import adds only the new execution id when the file grows', () => {
+    const known = new Set<string>();
+    const first = applyExecutions(NT_EXEC, known);
+    expect(first.length).toBe(3);
+    const grown = `${NT_EXEC}NQ 12-26,Buy,1,20190.00,9/16/2026 9:50:00 AM,e8,Exit,-,o8,Cover,2.25,1,Sim101,Playback\n`;
+    const added = applyExecutions(grown, known);
+    expect(added.length).toBe(1);
+    expect(added[0]).toMatchObject({ instrument: 'NQ', direction: 'short', qty: 1, entryPrice: 20200, exitPrice: 20190 });
+    expect(applyExecutions(grown, known).length).toBe(0);
+  });
+
+  it('import uses fallback hash when execution ID is empty and still idempotent', () => {
+    const csv = `Instrument,Action,Quantity,Price,Time,ID,Account
+NQ 12-26,Buy,1,20000,2026-09-15 15:35:00,,Apex
+NQ 12-26,Sell,1,20010,2026-09-15 15:40:00,,Apex
+`;
+    const known = new Set<string>();
+    const first = applyExecutions(csv, known);
+    expect(first.length).toBe(1);
+    expect(parseExecutionsCsv(csv).executions[0]!.executionId).toBe('');
+    expect(parseExecutionsCsv(csv).executions[0]!.identityKey).toMatch(/^[0-9a-f]{8}$/);
+    expect(applyExecutions(csv, known).length).toBe(0);
+    expect(applyExecutions(csv, known).length).toBe(0);
+  });
+});
+

@@ -81,8 +81,8 @@ function sma(values: number[], period: number): (number | null)[] {
   const out: (number | null)[] = new Array(values.length).fill(null);
   let sum = 0;
   for (let i = 0; i < values.length; i++) {
-    sum += values[i];
-    if (i >= period) sum -= values[i - period];
+    sum += values[i] ?? 0;
+    if (i >= period) sum -= values[i - period] ?? 0;
     if (i >= period - 1) out[i] = sum / period;
   }
   return out;
@@ -95,14 +95,14 @@ function ema(values: number[], period: number): (number | null)[] {
   let seed = 0;
   for (let i = 0; i < values.length; i++) {
     if (i < period - 1) {
-      seed += values[i];
+      seed += values[i] ?? 0;
       continue;
     }
     if (i === period - 1) {
-      seed += values[i];
+      seed += values[i] ?? 0;
       prev = seed / period;
     } else {
-      prev = values[i] * k + (prev as number) * (1 - k);
+      prev = (values[i] ?? 0) * k + (prev as number) * (1 - k);
     }
     out[i] = prev;
   }
@@ -114,11 +114,13 @@ function toLine(bars: Bar[], values: (number | null)[]): { time: number; value?:
   let started = false;
   for (let i = 0; i < bars.length; i++) {
     const v = values[i];
+    const bar = bars[i];
+    if (!bar) continue;
     if (v !== null && Number.isFinite(v)) {
-      data.push({ time: bars[i].time, value: v });
+      data.push({ time: bar.time, value: v });
       started = true;
     } else if (started) {
-      data.push({ time: bars[i].time });
+      data.push({ time: bar.time });
     }
   }
   return data;
@@ -178,7 +180,8 @@ export const INDICATORS: IndicatorDefinition[] = [
       const keys = sessionKeys(bars);
       for (let i = 0; i < bars.length; i++) {
         const b = bars[i];
-        const k = keys[i];
+        const k = keys[i] ?? '';
+        if (!b) continue;
         if (k !== key) {
           key = k;
           pv = 0;
@@ -230,7 +233,8 @@ export const INDICATORS: IndicatorDefinition[] = [
       const keys = sessionKeys(bars);
       for (let i = 0; i < bars.length; i++) {
         const b = bars[i];
-        const k = keys[i];
+        const k = keys[i] ?? '';
+        if (!b) continue;
         if (k !== key) {
           key = k;
           orHigh = -Infinity;
@@ -283,7 +287,8 @@ export const INDICATORS: IndicatorDefinition[] = [
       const keys = sessionKeys(bars);
       for (let i = 0; i < bars.length; i++) {
         const b = bars[i];
-        const k = keys[i];
+        const k = keys[i] ?? '';
+        if (!b) continue;
         if (k !== key) {
           if (key) prev = { h: curHigh, l: curLow, c: curClose };
           key = k;
@@ -318,7 +323,7 @@ export const INDICATORS: IndicatorDefinition[] = [
       const period = Number(p.period);
       const tr: number[] = bars.map((b, i) => {
         if (i === 0) return b.high - b.low;
-        const pc = bars[i - 1].close;
+        const pc = bars[i - 1]?.close ?? b.close;
         return Math.max(b.high - b.low, Math.abs(b.high - pc), Math.abs(b.low - pc));
       });
       const out: (number | null)[] = new Array(bars.length).fill(null);
@@ -326,14 +331,14 @@ export const INDICATORS: IndicatorDefinition[] = [
       let seed = 0;
       for (let i = 0; i < tr.length; i++) {
         if (i < period) {
-          seed += tr[i];
+          seed += tr[i] ?? 0;
           if (i === period - 1) {
             prev = seed / period;
             out[i] = prev;
           }
           continue;
         }
-        prev = ((prev as number) * (period - 1) + tr[i]) / period;
+        prev = ((prev as number) * (period - 1) + (tr[i] ?? 0)) / period;
         out[i] = prev;
       }
       return { id: 'atr', lines: [{ key: 'atr', label: `ATR ${period}`, color: PALETTE.violet, pane: 'pane', data: toLine(bars, out) }] };

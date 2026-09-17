@@ -9,6 +9,7 @@ export interface MonteCarloOptions {
   ruinDrawdown?: number;
   /** Objectif de profit ($) — probabilité de l'atteindre avant la ruine */
   target?: number;
+  signal?: AbortSignal;
 }
 
 export interface MonteCarloResult {
@@ -39,14 +40,14 @@ function typedPercentile(sorted: Float64Array, p: number): number {
   const idx = (sorted.length - 1) * p;
   const lo = Math.floor(idx);
   const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  if (lo === hi) return sorted[lo] ?? 0;
+  return (sorted[lo] ?? 0) + ((sorted[hi] ?? 0) - (sorted[lo] ?? 0)) * (idx - lo);
 }
 
 function summarize(values: Float64Array) {
   const sorted = values.slice().sort();
   let sum = 0;
-  for (let i = 0; i < sorted.length; i++) sum += sorted[i];
+  for (let i = 0; i < sorted.length; i++) sum += sorted[i] ?? 0;
   return {
     p5: typedPercentile(sorted, 0.05),
     p25: typedPercentile(sorted, 0.25),
@@ -78,10 +79,12 @@ export function clampMonteCarlo(runs: number, horizon: number): { runs: number; 
  * trajectoires possibles à partir de l'historique réel — sans hypothèse de distribution.
  * Mémoire bornée : l'enveloppe est estimée sur 500 trajectoires et 240 pas.
  */
+// TODO(P1.5) worker
 export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): MonteCarloResult | null {
   const pnls = input.filter(Number.isFinite);
   const n = pnls.length;
   if (n < 5) return null;
+  if (opts.signal?.aborted) return null;
   const { runs, horizon } = clampMonteCarlo(opts.runs ?? 2000, opts.horizon ?? n);
   const rand = mulberry32(Number.isFinite(opts.seed) ? (opts.seed as number) : 1337);
   const ruin = Number.isFinite(opts.ruinDrawdown) ? (opts.ruinDrawdown as number) : undefined;
@@ -100,6 +103,7 @@ export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): Monte
   const samples: number[][] = [];
 
   for (let r = 0; r < runs; r++) {
+    if (opts.signal?.aborted) return null;
     let eq = 0;
     let peak = 0;
     let maxDd = 0;
@@ -108,15 +112,18 @@ export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): Monte
     const keepEnvelope = r < envRuns;
     const path = r % sampleEvery === 0 && samples.length < SAMPLE_PATHS ? new Array<number>(steps.length) : null;
     for (let i = 0; i < horizon; i++) {
-      eq += pnls[Math.floor(rand() * n)];
+      eq += pnls[Math.floor(rand() * n)] ?? 0;
       if (eq > peak) peak = eq;
       const dd = peak - eq;
       if (dd > maxDd) maxDd = dd;
       if (ruin !== undefined && !isRuined && !hitTarget && dd >= ruin) isRuined = true;
       if (target !== undefined && !hitTarget && !isRuined && eq >= target) hitTarget = true;
       const k = stepIndex[i];
-      if (k >= 0) {
-        if (keepEnvelope) stepValues[k][r] = eq;
+      if (k !== undefined && k >= 0) {
+        if (keepEnvelope) {
+          const row = stepValues[k];
+          if (row) row[r] = eq;
+        }
         if (path) path[k] = eq;
       }
     }

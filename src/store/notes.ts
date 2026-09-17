@@ -29,13 +29,19 @@ function prose(body: string): string {
 
 export function extractLinks(body: string): string[] {
   const out = new Set<string>();
-  for (const m of prose(body).matchAll(WIKILINK_RE)) out.add(m[1].trim().toLowerCase());
+  for (const m of prose(body).matchAll(WIKILINK_RE)) {
+    const t = m[1];
+    if (t) out.add(t.trim().toLowerCase());
+  }
   return [...out];
 }
 
 export function extractTags(body: string): string[] {
   const out = new Set<string>();
-  for (const m of prose(body).matchAll(TAG_RE)) out.add(m[2].toLowerCase());
+  for (const m of prose(body).matchAll(TAG_RE)) {
+    const t = m[2];
+    if (t) out.add(t.toLowerCase());
+  }
   return [...out];
 }
 

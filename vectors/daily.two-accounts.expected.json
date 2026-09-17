@@ -1,0 +1,12 @@
+{
+  "days": 2,
+  "winDays": 2,
+  "lossDays": 0,
+  "netPnl": 600,
+  "bestDay": 400,
+  "worstDay": 0,
+  "sharpe": 33.67491648096548,
+  "sortino": 0,
+  "maxDrawdown": 0,
+  "consistency": 0.6666666666666666
+}

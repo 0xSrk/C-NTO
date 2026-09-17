@@ -119,7 +119,7 @@ export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] }
     const raw = (r[iTime] ?? '').trim();
     let ms: number;
     const nt = /^(\d{4})(\d{2})(\d{2})(?:\s(\d{2})(\d{2})(\d{2}))?$/.exec(raw);
-    if (nt) ms = new Date(+nt[1], +nt[2] - 1, +nt[3], +(nt[4] ?? '0'), +(nt[5] ?? '0'), +(nt[6] ?? '0')).getTime();
+    if (nt) ms = new Date(+(nt[1] ?? 0), +(nt[2] ?? 1) - 1, +(nt[3] ?? 1), +(nt[4] ?? '0'), +(nt[5] ?? '0'), +(nt[6] ?? '0')).getTime();
     else ms = parseFlexibleDateTime(raw, dayFirst);
     const o = parseLocaleNumber(r[iOpen] ?? '', dec);
     const h = parseLocaleNumber(r[iHigh] ?? '', dec);
@@ -135,7 +135,8 @@ export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] }
   bars.sort((a, b) => a.time - b.time);
   const dedup: Bar[] = [];
   for (const b of bars) {
-    if (dedup.length && dedup[dedup.length - 1].time === b.time) dedup[dedup.length - 1] = b;
+    const last = dedup[dedup.length - 1];
+    if (last && last.time === b.time) dedup[dedup.length - 1] = b;
     else dedup.push(b);
   }
   if (skipped) warnings.push(`${skipped} ligne(s) ignorée(s).`);

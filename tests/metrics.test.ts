@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeDailyStats, computeTradeStats, drawdownSeries, histogram, streakZScore } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
+import { loadVector } from './helpers/loadVector';
 
 function trade(pnl: number, i: number, extra: Partial<Trade> = {}): Trade {
   const entry = Date.UTC(2026, 0, 5, 14, 30) + i * 3_600_000;
@@ -22,28 +23,30 @@ function trade(pnl: number, i: number, extra: Partial<Trade> = {}): Trade {
 
 describe('computeTradeStats', () => {
   it('calcule les ratios de base', () => {
-    const trades = [100, -50, 200, -50, 150, -100].map((p, i) => trade(p, i));
+    const { trades } = loadVector<{ trades: Trade[] }>('trades.basic.json');
+    const expected = loadVector<ReturnType<typeof computeTradeStats>>('trades.basic.expected.json');
     const s = computeTradeStats(trades);
-    expect(s.count).toBe(6);
-    expect(s.wins).toBe(3);
-    expect(s.losses).toBe(3);
-    expect(s.winRate).toBeCloseTo(0.5);
-    expect(s.grossProfit).toBe(450);
-    expect(s.grossLoss).toBe(-200);
-    expect(s.netPnl).toBe(250);
-    expect(s.profitFactor).toBeCloseTo(2.25);
-    expect(s.expectancy).toBeCloseTo(250 / 6);
-    expect(s.avgWin).toBeCloseTo(150);
-    expect(s.avgLoss).toBeCloseTo(-200 / 3);
-    expect(s.payoffRatio).toBeCloseTo(2.25);
-    expect(s.largestWin).toBe(200);
-    expect(s.largestLoss).toBe(-100);
-    expect(s.maxDrawdown).toBe(100);
-    expect(s.maxConsecWins).toBe(1);
-    expect(s.maxConsecLosses).toBe(1);
-    expect(s.long.count).toBe(3);
-    expect(s.short.count).toBe(3);
-    expect(s.commission).toBe(24);
+    expect(s.count).toBe(expected.count);
+    expect(s.wins).toBe(expected.wins);
+    expect(s.losses).toBe(expected.losses);
+    expect(s.winRate).toBeCloseTo(expected.winRate);
+    expect(s.grossProfit).toBe(expected.grossProfit);
+    expect(s.grossLoss).toBe(expected.grossLoss);
+    expect(s.netPnl).toBe(expected.netPnl);
+    expect(s.profitFactor).toBeCloseTo(expected.profitFactor);
+    expect(s.expectancy).toBeCloseTo(expected.expectancy);
+    expect(s.avgWin).toBeCloseTo(expected.avgWin);
+    expect(s.avgLoss).toBeCloseTo(expected.avgLoss);
+    expect(s.payoffRatio).toBeCloseTo(expected.payoffRatio);
+    expect(s.largestWin).toBe(expected.largestWin);
+    expect(s.largestLoss).toBe(expected.largestLoss);
+    expect(s.maxDrawdown).toBe(expected.maxDrawdown);
+    expect(s.maxConsecWins).toBe(expected.maxConsecWins);
+    expect(s.maxConsecLosses).toBe(expected.maxConsecLosses);
+    expect(s.long).toEqual(expected.long);
+    expect(s.short).toEqual(expected.short);
+    expect(s.commission).toBe(expected.commission);
+    expect(s.kelly).toBeCloseTo(expected.kelly);
   });
 
   it('gère un journal vide', () => {
@@ -59,7 +62,7 @@ describe('computeTradeStats', () => {
     const clustered = [...Array(20).fill(1), ...Array(20).fill(-1)];
     expect(streakZScore(alternating)).toBeGreaterThan(1.96);
     expect(streakZScore(clustered)).toBeLessThan(-1.96);
-    const s = computeTradeStats([100, 100, 100, -50, -50, 100].map((p, i) => trade(p, i)));
+    const s = computeTradeStats([100, 100, 100, -50, -50, 100]!.map((p, i) => trade(p, i)));
     expect(s.maxConsecWins).toBe(3);
     expect(s.maxConsecLosses).toBe(2);
     expect(s.currentStreak).toBe(1);
@@ -85,7 +88,7 @@ describe('computeTradeStats', () => {
 
 describe('drawdownSeries', () => {
   it('suit le pic et la durée du drawdown', () => {
-    const pts = [100, 100, -150, -100, 50, 300].map((pnl, i) => ({ t: i * 1000, pnl }));
+    const pts = [100, 100, -150, -100, 50, 300]!.map((pnl, i) => ({ t: i * 1000, pnl }));
     const dd = drawdownSeries(pts, 1000);
     expect(dd.maxDrawdown).toBe(250);
     expect(dd.maxDrawdownPct).toBeCloseTo(250 / 1200);
@@ -93,8 +96,8 @@ describe('drawdownSeries', () => {
     // durée mesurée du pic (t=1000) jusqu'à la récupération (t=5000)
     expect(dd.maxDrawdownDurationMs).toBe(4000);
     expect(dd.currentDrawdown).toBe(0);
-    expect(drawdownSeries([0, 0, 0].map((pnl, i) => ({ t: i, pnl })), 100).maxDrawdownPeriods).toBe(0);
-    expect(dd.equity[dd.equity.length - 1].equity).toBe(1300);
+    expect(drawdownSeries([0, 0, 0]!.map((pnl, i) => ({ t: i, pnl })), 100).maxDrawdownPeriods).toBe(0);
+    expect(dd.equity[dd.equity.length - 1]!.equity).toBe(1300);
   });
 });
 
@@ -132,14 +135,19 @@ describe('computeDailyStats', () => {
     expect(d.sortino).toBeGreaterThan(d.sharpe);
     expect(d.maxDrawdown).toBe(400);
     expect(d.rolling.length).toBe(5);
-    expect(d.rolling[4].pnl).toBe(1700);
+    expect(d.rolling[4]!.pnl).toBe(1700);
   });
 
   it('agrège plusieurs comptes le même jour en une seule journée', () => {
-    const d = computeDailyStats([{ ...session('2026-01-05', 500), account: 'A' }, { ...session('2026-01-05', -100), id: 'b', account: 'B' }, session('2026-01-06', 200)], 50_000);
-    expect(d.days).toBe(2);
-    expect(d.netPnl).toBe(600);
-    expect(d.bestDay).toBe(400);
+    const { sessions, startingBalance } = loadVector<{ sessions: Session[]; startingBalance: number }>('daily.two-accounts.json');
+    const expected = loadVector<ReturnType<typeof computeDailyStats>>('daily.two-accounts.expected.json');
+    const d = computeDailyStats(sessions, startingBalance);
+    expect(d.days).toBe(expected.days);
+    expect(d.winDays).toBe(expected.winDays);
+    expect(d.netPnl).toBe(expected.netPnl);
+    expect(d.bestDay).toBe(expected.bestDay);
+    expect(d.sharpe).toBeCloseTo(expected.sharpe);
+    expect(d.consistency).toBeCloseTo(expected.consistency);
   });
 });
 
@@ -164,6 +172,6 @@ describe('histogram', () => {
     const h = histogram([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5);
     expect(h.length).toBe(5);
     expect(h.reduce((s, b) => s + b.count, 0)).toBe(10);
-    expect(h[4].count).toBe(2);
+    expect(h[4]!.count).toBe(2);
   });
 });

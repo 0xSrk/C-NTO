@@ -8,8 +8,6 @@ export interface OrchestratorStatus {
   running: boolean;
   port: number;
   clients: number;
-  /** Jeton d'accès de la session (à fournir en `?token=` ou via `desk.auth`) */
-  token: string;
   error?: string;
 }
 
@@ -27,6 +25,28 @@ const MAX_INFLIGHT = 8;
 const RATE_WINDOW_MS = 1000;
 const RATE_MAX = 40;
 const OPEN = 1;
+
+const ORCH_READ_METHODS = new Set([
+  'desk.auth',
+  'desk.describe',
+  'desk.ping',
+  'desk_overview',
+  'list_sessions',
+  'get_session',
+  'search_notes',
+  'read_note',
+  'calendar_events',
+  'propfirm_status',
+]);
+const ORCH_WRITE_METHODS = new Set(['create_note', 'annotate_session']);
+
+/** Miroir de src/engine/agent/ports.ts `orchMethodAllowed`. */
+export function orchMethodAllowed(method: string, allowWrites: boolean): boolean {
+  const name = method.replace(/^tool\./, '');
+  if (ORCH_READ_METHODS.has(method) || ORCH_READ_METHODS.has(name)) return true;
+  if (allowWrites && ORCH_WRITE_METHODS.has(name)) return true;
+  return false;
+}
 
 function safeSend(socket: WebSocket, payload: unknown): void {
   if (socket.readyState !== OPEN) return;
@@ -53,13 +73,19 @@ export class Orchestrator {
   private error: string | undefined;
   private seq = 0;
   private token = randomBytes(18).toString('base64url');
+  private allowWrites = false;
 
   attach(win: BrowserWindow): void {
     this.win = win;
   }
 
   status(): OrchestratorStatus {
-    return { running: !!this.server, port: this.port, clients: this.clients.size, token: this.token, error: this.error };
+    return { running: !!this.server, port: this.port, clients: this.clients.size, error: this.error };
+  }
+
+  /** One-shot : le jeton n'est pas renvoyé par status(). */
+  copyToken(): string {
+    return this.token;
   }
 
   /** Régénère le jeton (déconnecte les clients en cours). */
@@ -71,7 +97,8 @@ export class Orchestrator {
     return this.status();
   }
 
-  async start(port: number): Promise<OrchestratorStatus> {
+  async start(port: number, allowWrites = false): Promise<OrchestratorStatus> {
+    this.allowWrites = allowWrites === true;
     if (this.server) return this.status();
     this.error = undefined;
     // `ws` n'est chargé qu'à l'ouverture de la passerelle : le démarrage du shell n'en dépend pas.
@@ -186,6 +213,10 @@ export class Orchestrator {
     }
     if (!client.authenticated) {
       this.reply(client, rpcId, { code: -32001, message: 'Authentification requise : desk.auth { token } ou ?token=' });
+      return;
+    }
+    if (!orchMethodAllowed(msg.method, this.allowWrites)) {
+      this.reply(client, rpcId, { code: -32601, message: 'Méthode introuvable' });
       return;
     }
     if (!this.win || this.win.isDestroyed()) {

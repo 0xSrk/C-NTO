@@ -60,14 +60,23 @@ function etParts(iso: string): { date: string; timeET: string } | null {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, timeET: `${parts.hour}:${parts.minute}` };
 }
 
+const FETCH_TIMEOUT_MS = 8_000;
+
 async function getJson(url: string): Promise<unknown> {
-  const res = await net.fetch(url, {
-    headers: { 'User-Agent': UA, Accept: 'application/json, text/plain, */*' },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const text = await res.text();
-  if (!text || text[0] === '<' || text === '403') throw new Error('Réponse non JSON');
-  return JSON.parse(text) as unknown;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await net.fetch(url, {
+      headers: { 'User-Agent': UA, Accept: 'application/json, text/plain, */*' },
+      signal: ac.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    if (!text || text[0] === '<' || text === '403') throw new Error('Réponse non JSON');
+    return JSON.parse(text) as unknown;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function parseInvesting(raw: unknown): MacroRelease[] {

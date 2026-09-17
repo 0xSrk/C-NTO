@@ -18,6 +18,8 @@ export interface PropPlan {
   minTradingDays?: number;
   phase: 'evaluation' | 'funded';
   note?: string;
+  version: number;
+  source: 'bundled' | 'user';
 }
 
 export interface PropFirm {
@@ -27,6 +29,10 @@ export interface PropFirm {
   platform: string[];
   payoutNote: string;
   plans: PropPlan[];
+}
+
+function bundled(plan: Omit<PropPlan, 'version' | 'source'>): PropPlan {
+  return { ...plan, version: 1, source: 'bundled' };
 }
 
 export const DRAWDOWN_LABEL: Record<DrawdownType, string> = {
@@ -40,7 +46,7 @@ export const DRAWDOWN_LABEL: Record<DrawdownType, string> = {
  * Les règles évoluent régulièrement : chaque plan est éditable et doit être validé par le trader
  * avant toute décision. Aucune valeur ici ne constitue une garantie.
  */
-export const PROP_FIRMS: PropFirm[] = [
+export const PROP_FIRMS: PropFirm[] = ([
   {
     id: 'topstep',
     name: 'Topstep',
@@ -113,14 +119,30 @@ export const PROP_FIRMS: PropFirm[] = [
       { id: 'e2t-100', firm: 'Earn2Trade', label: 'Gauntlet Mini 100K', accountSize: 100_000, profitTarget: 6_000, maxDrawdown: 3_500, drawdownType: 'eod-trailing', dailyLossLimit: 2_200, minTradingDays: 10, phase: 'evaluation' },
     ],
   },
-];
+] as { id: string; name: string; country: string; platform: string[]; payoutNote: string; plans: Omit<PropPlan, 'version' | 'source'>[] }[]).map((f) => ({
+  ...f,
+  plans: f.plans.map(bundled),
+}));
 
 export function findPlan(id: string): PropPlan | undefined {
+  const user = userPlanRegistry.find((p) => p.id === id);
+  if (user) return user;
   for (const f of PROP_FIRMS) {
     const p = f.plans.find((pl) => pl.id === id);
     if (p) return p;
   }
   return undefined;
+}
+
+/** Plans `source: 'user'` persistés : jamais écrasés par le registre bundled au boot. */
+let userPlanRegistry: PropPlan[] = [];
+
+export function setUserPlans(plans: PropPlan[]): void {
+  userPlanRegistry = plans.filter((p) => p.source === 'user');
+}
+
+export function listUserPlans(): PropPlan[] {
+  return userPlanRegistry.slice();
 }
 
 export interface PropTimelinePoint {
@@ -153,6 +175,8 @@ export interface PropEvaluation {
   consistency: { bestDay: number; share: number; limit: number | null; ok: boolean };
   dailyLossBreaches: string[];
   timeline: PropTimelinePoint[];
+  planId: string;
+  planVersion: number;
 }
 
 /**
@@ -292,5 +316,7 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
     consistency: { bestDay, share, limit, ok: consistencyOk },
     dailyLossBreaches,
     timeline,
+    planId: plan.id,
+    planVersion: plan.version,
   };
 }

@@ -1,6 +1,7 @@
 import { detectDecimalSeparator, inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { detectDayFirst, parseFlexibleDateTime } from '@/lib/time';
 import { INSTRUMENTS, type Instrument, type SessionSource, type Trade } from '../types';
+import { executionIdentityKey, executionTimeIso } from './identity';
 import { detectInstrument, groupIntoSessions, type ImportOptions, type ImportResult } from './ninjatrader';
 
 /**
@@ -19,6 +20,7 @@ export interface Execution {
   orderId?: string;
   name?: string;
   commission: number;
+  identityKey: string;
 }
 
 export interface OpenLot {
@@ -34,6 +36,7 @@ export interface OpenLot {
 export interface ExecutionsImportResult extends ImportResult {
   executions: number;
   openLots: OpenLot[];
+  tradeExecutionKeys: string[][];
 }
 
 const COLS: Record<string, string[]> = {
@@ -90,23 +93,29 @@ function stableId(parts: (string | number)[]): string {
 export function parseExecutionsCsv(text: string): { executions: Execution[]; skipped: number; warnings: string[] } {
   const table = parseCsv(text);
   const idx = indexColumns(table.headers);
+  const iPrice = idx.price;
+  const iCommission = idx.commission;
+  const iTime = idx.time;
   const sample = table.rows.slice(0, 80);
   const dec =
     inferDecimalSeparator(
-      sample.map((r) => r[idx.price] ?? ''),
-      sample.map((r) => r[idx.commission] ?? ''),
+      sample.map((r) => (iPrice !== undefined ? (r[iPrice] ?? '') : '')),
+      sample.map((r) => (iCommission !== undefined ? (r[iCommission] ?? '') : '')),
       table.delimiter,
-    ) ?? detectDecimalSeparator(sample.map((r) => r[idx.price] ?? ''));
-  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => r[idx.time] ?? '')) ?? table.delimiter === ';';
+    ) ?? detectDecimalSeparator(sample.map((r) => (iPrice !== undefined ? (r[iPrice] ?? '') : '')));
+  const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => (iTime !== undefined ? (r[iTime] ?? '') : ''))) ?? table.delimiter === ';';
   const executions: Execution[] = [];
   let skipped = 0;
   const expectedCols = table.headers.length;
-  table.rows.forEach((row, i) => {
+  table.rows.forEach((row) => {
     if (expectedCols > 0 && row.length !== expectedCols) {
       skipped++;
       return;
     }
-    const get = (k: string) => (idx[k] !== undefined ? (row[idx[k]] ?? '').trim() : '');
+    const get = (k: string) => {
+      const i = idx[k];
+      return i !== undefined ? (row[i] ?? '').trim() : '';
+    };
     const instrumentName = get('instrument');
     const instrument = detectInstrument(instrumentName);
     const actionRaw = get('action').toLowerCase();
@@ -120,18 +129,29 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
     }
     const commissionRaw = get('commission');
     const commission = commissionRaw ? Math.abs(parseLocaleNumber(commissionRaw, dec)) || 0 : 0;
+    const account = get('account') || 'Compte';
+    const executionId = get('id');
     executions.push({
-      account: get('account') || 'Compte',
+      account,
       instrumentName,
       instrument,
       action,
       quantity,
       price,
       time,
-      executionId: get('id') || `row${i}`,
+      executionId,
       orderId: get('orderId') || undefined,
       name: get('name') || undefined,
       commission,
+      identityKey: executionIdentityKey({
+        account,
+        executionId,
+        instrument: instrumentName,
+        timeIso: executionTimeIso(time),
+        price,
+        qty: quantity,
+        action,
+      }),
     });
   });
   const warnings: string[] = [];
@@ -143,7 +163,7 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
  * Apparie les exécutions en trades aller-retour par compte et par contrat, méthode FIFO
  * (première entrée, première sortie), avec fractionnement des remplissages partiels.
  */
-export function pairExecutions(executions: Execution[]): { trades: Trade[]; openLots: OpenLot[] } {
+export function pairExecutions(executions: Execution[]): { trades: Trade[]; openLots: OpenLot[]; tradeExecutionKeys: string[][] } {
   const sorted = executions.map((e, i) => ({ e, i })).sort((a, b) => a.e.time - b.e.time || a.i - b.i);
   interface Lot {
     direction: 'long' | 'short';
@@ -151,11 +171,13 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
     price: number;
     time: number;
     executionId: string;
+    identityKey: string;
     name?: string;
     commissionPerContract: number;
   }
   const books = new Map<string, Lot[]>();
   const trades: Trade[] = [];
+  const tradeExecutionKeys: string[][] = [];
   const seenIds = new Set<string>();
 
   for (const { e } of sorted) {
@@ -170,8 +192,9 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
     let remaining = e.quantity;
     const spec = INSTRUMENTS[e.instrument];
 
-    while (remaining > 0 && lots.length > 0 && lots[0].direction !== side) {
+    while (remaining > 0 && lots.length > 0) {
       const lot = lots[0];
+      if (!lot || lot.direction === side) break;
       const matched = Math.min(lot.quantity, remaining);
       const gross = (e.price - lot.price) * matched * spec.pointValue * (lot.direction === 'long' ? 1 : -1);
       const commission = Math.round(matched * (lot.commissionPerContract + cpc) * 100) / 100;
@@ -194,30 +217,32 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
         entryName: lot.name,
         exitName: e.name,
       });
+      tradeExecutionKeys.push([lot.identityKey, e.identityKey]);
       lot.quantity -= matched;
       remaining -= matched;
       if (lot.quantity <= 0) lots.shift();
     }
     if (remaining > 0) {
-      lots.push({ direction: side, quantity: remaining, price: e.price, time: e.time, executionId: e.executionId, name: e.name, commissionPerContract: cpc });
+      lots.push({ direction: side, quantity: remaining, price: e.price, time: e.time, executionId: e.executionId, identityKey: e.identityKey, name: e.name, commissionPerContract: cpc });
     }
   }
 
   const openLots: OpenLot[] = [];
   for (const [key, lots] of books) {
     const [account, instrumentName] = key.split('|');
+    if (!account || !instrumentName) continue;
     for (const lot of lots) {
       const instrument = detectInstrument(instrumentName);
       if (instrument) openLots.push({ account, instrumentName, instrument, direction: lot.direction, quantity: lot.quantity, price: lot.price, time: lot.time });
     }
   }
-  return { trades, openLots };
+  return { trades, openLots, tradeExecutionKeys };
 }
 
 /** Import complet d'un export Executions (ou du journal temps réel du pont) → séances + trades. */
 export function importExecutionsCsv(text: string, opts: ImportOptions = {}): ExecutionsImportResult {
   const { executions, skipped, warnings } = parseExecutionsCsv(text);
-  const { trades, openLots } = pairExecutions(executions);
+  const { trades, openLots, tradeExecutionKeys } = pairExecutions(executions);
   if (opts.riskPerContract) for (const t of trades) t.risk = opts.riskPerContract * t.qty;
   if (openLots.length) warnings.push(`${openLots.length} position(s) encore ouverte(s) en fin de fichier — non importée(s) tant qu'elles ne sont pas clôturées.`);
   const source: SessionSource = opts.source ?? 'ninjatrader';
@@ -229,5 +254,6 @@ export function importExecutionsCsv(text: string, opts: ImportOptions = {}): Exe
     skipped,
     executions: executions.length,
     openLots,
+    tradeExecutionKeys,
   };
 }

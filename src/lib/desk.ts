@@ -10,8 +10,6 @@ export interface OrchestratorStatus {
   running: boolean;
   port: number;
   clients: number;
-  /** Jeton de session à fournir par l'orchestrateur (`?token=` ou `desk.auth`) */
-  token?: string;
   error?: string;
 }
 
@@ -42,7 +40,19 @@ export interface BridgeApi {
   pickFolder: () => Promise<string | null>;
   defaultFolder: () => Promise<string | null>;
   rescan: () => Promise<BridgeStatus | null>;
-  result: (fileId: string, result: { format: string; trades: number; sessionsAdded: number; sessionsMerged: number; warnings: string[] }) => void;
+  result: (
+    fileId: string,
+    result: {
+      format: string;
+      trades: number;
+      sessionsAdded: number;
+      sessionsMerged: number;
+      warnings: string[];
+      path?: string;
+      acceptedIds?: string[];
+      skipped?: number;
+    },
+  ) => void;
   openFolder: (target: string) => Promise<boolean>;
   onFile: (cb: (file: BridgeFilePayload) => void) => () => void;
   onStatus: (cb: (status: BridgeStatus) => void) => () => void;
@@ -55,6 +65,7 @@ export interface UpdateStatus {
   busy: boolean;
   error?: string;
   source: 'git' | 'github' | 'none';
+  applied?: boolean;
 }
 
 export interface ZoomSnapshot {
@@ -72,7 +83,7 @@ export interface DeskApi {
   version: () => Promise<string>;
   update: {
     check: () => Promise<UpdateStatus | null>;
-    apply: () => Promise<UpdateStatus | null>;
+    apply: (opts?: { channel?: string; confirmStash?: boolean }) => Promise<UpdateStatus | null>;
     relaunch: () => Promise<boolean>;
     startDesk: () => Promise<boolean>;
   };
@@ -80,7 +91,27 @@ export interface DeskApi {
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
     encrypt: (text: string) => Promise<string | null>;
-    decrypt: (payload: string) => Promise<string | null>;
+  };
+  llm?: {
+    start: (payload: {
+      requestId: string;
+      config: { provider: string; baseUrl: string; model: string; temperature: number; apiKeyEncrypted?: string };
+      messages: unknown[];
+      tools: unknown[];
+      allowedHosts?: string[];
+    }) => Promise<void>;
+    abort: (requestId: string) => void;
+    probe: (config: {
+      provider: string;
+      baseUrl: string;
+      model: string;
+      temperature?: number;
+      apiKeyEncrypted?: string;
+      allowedHosts?: string[];
+    }) => Promise<{ ok: boolean; detail: string; models?: string[] }>;
+    onDelta: (cb: (p: { requestId: string; text: string }) => void) => () => void;
+    onDone: (cb: (p: { requestId: string; result: { text: string; toolCalls: { id: string; name: string; args: string }[] } }) => void) => () => void;
+    onError: (cb: (p: { requestId: string; error: string }) => void) => () => void;
   };
   window: {
     minimize: () => void;
@@ -98,6 +129,8 @@ export interface DeskApi {
   files: {
     saveText: (defaultName: string, text: string) => Promise<boolean>;
     openText: (filters: { name: string; extensions: string[] }[]) => Promise<{ name: string; text: string } | null>;
+    pickFolder?: () => Promise<string | null>;
+    writeInFolder?: (folder: string, name: string, text: string, encrypt: boolean) => Promise<{ ok: boolean; encrypted: boolean; path?: string }>;
   };
   calendar?: {
     fetchMacro: (
@@ -123,10 +156,11 @@ export interface DeskApi {
     }>;
   };
   orchestrator: {
-    start: (port: number) => Promise<OrchestratorStatus>;
+    start: (port: number, allowWrites?: boolean) => Promise<OrchestratorStatus>;
     stop: () => Promise<OrchestratorStatus>;
     status: () => Promise<OrchestratorStatus>;
     rotateToken: () => Promise<OrchestratorStatus>;
+    copyToken: () => Promise<string | null>;
     respond: (id: string, clientId: string, result: unknown, error?: string) => void;
     broadcast: (event: string, payload: unknown) => void;
     onRequest: (cb: (req: OrchestratorRequest) => void) => () => void;

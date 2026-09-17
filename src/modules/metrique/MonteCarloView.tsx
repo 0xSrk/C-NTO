@@ -20,6 +20,7 @@ export function MonteCarloView() {
   const params = useDeferredValue({ runs, horizon, seed, ruin, target });
   const effective = clampMonteCarlo(params.runs, params.horizon === '' ? sample.length : params.horizon);
 
+  // TODO(P1.5) worker
   const result = useMemo(
     () =>
       monteCarlo(sample, {

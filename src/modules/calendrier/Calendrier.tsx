@@ -74,7 +74,9 @@ export default function Calendrier() {
     updateSettings({ calendarView: v });
   };
 
-  const [year, month] = cursor.split('-').map(Number);
+  const [yearRaw, monthRaw] = cursor.split('-').map(Number);
+  const year = yearRaw ?? new Date().getFullYear();
+  const month = monthRaw ?? 1;
   const events = useMemo(() => {
     const years = new Set([year - 1, year, year + 1]);
     const local = [...years].flatMap((y) => generateNasdaqEvents(y));

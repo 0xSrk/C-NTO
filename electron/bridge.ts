@@ -38,13 +38,26 @@ export interface BridgeFilePayload {
   kind: 'nouveau' | 'modifié' | 'rescan';
 }
 
+interface ProcessedFile {
+  size: number;
+  mtimeMs: number;
+  acceptedIds?: string[];
+}
+
 interface PersistedState {
   config: BridgeConfig;
-  processed: Record<string, { size: number; mtimeMs: number }>;
+  processed: Record<string, ProcessedFile>;
   lastImport?: BridgeImportSummary;
 }
 
 const ACCEPTED = new Set(['.csv', '.txt']);
+
+function isWatchableBridgeFile(file: string): boolean {
+  const base = path.basename(file);
+  if (base.endsWith('.tmp') || base.endsWith('.seen.txt')) return false;
+  return ACCEPTED.has(path.extname(file).toLowerCase());
+}
+
 const MAX_BYTES = 50 * 1024 * 1024;
 const DEBOUNCE_MS = 700;
 const STABILITY_MS = 350;
@@ -125,12 +138,36 @@ export class NinjaBridge {
   }
 
   /** Résultat d'import renvoyé par le renderer pour un fichier transmis. */
-  async onResult(fileId: string, result: { format: string; trades: number; sessionsAdded: number; sessionsMerged: number; warnings: string[] }): Promise<void> {
+  async onResult(
+    fileId: string,
+    result: {
+      format: string;
+      trades: number;
+      sessionsAdded: number;
+      sessionsMerged: number;
+      warnings: string[];
+      path?: string;
+      acceptedIds?: string[];
+      skipped?: number;
+    },
+  ): Promise<void> {
     const entry = this.inflight.get(fileId);
     if (!entry) return;
     this.inflight.delete(fileId);
-    this.state.processed[entry.path] = { size: entry.size, mtimeMs: entry.mtimeMs };
-    this.state.lastImport = { at: Date.now(), file: path.basename(entry.path), ...result };
+    const filePath = result.path && result.path.length ? result.path : entry.path;
+    const prev = this.state.processed[filePath];
+    const incoming = Array.isArray(result.acceptedIds) ? result.acceptedIds : [];
+    const acceptedIds = [...new Set([...(prev?.acceptedIds ?? []), ...incoming])];
+    this.state.processed[filePath] = { size: entry.size, mtimeMs: entry.mtimeMs, acceptedIds };
+    this.state.lastImport = {
+      at: Date.now(),
+      file: path.basename(filePath),
+      format: result.format,
+      trades: result.trades,
+      sessionsAdded: result.sessionsAdded,
+      sessionsMerged: result.sessionsMerged,
+      warnings: result.warnings,
+    };
     await this.save();
     this.emitStatus();
   }
@@ -199,7 +236,7 @@ export class NinjaBridge {
   }
 
   private schedule(file: string): void {
-    if (!ACCEPTED.has(path.extname(file).toLowerCase())) return;
+    if (!isWatchableBridgeFile(file)) return;
     const existing = this.timers.get(file);
     if (existing) clearTimeout(existing);
     this.timers.set(
@@ -223,7 +260,7 @@ export class NinjaBridge {
       this.emitStatus();
       return;
     }
-    const files = names.filter((n) => ACCEPTED.has(path.extname(n).toLowerCase()));
+    const files = names.filter((n) => isWatchableBridgeFile(path.join(folder, n)));
     this.fileCount = files.length;
     for (const n of files) await this.consider(path.join(folder, n), kind);
     this.emitStatus();

@@ -146,7 +146,10 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
             if (sr.points.length === 0) return null;
             const d = sr.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${model.sx(p.x).toFixed(1)} ${model.sy(p.y).toFixed(1)}`).join(' ');
             const baseY = model.sy(baseline ?? model.yMin);
-            const area = `${d} L${model.sx(sr.points[sr.points.length - 1].x).toFixed(1)} ${baseY} L${model.sx(sr.points[0].x).toFixed(1)} ${baseY} Z`;
+            const lastPt = sr.points[sr.points.length - 1];
+            const firstPt = sr.points[0];
+            if (!lastPt || !firstPt) return null;
+            const area = `${d} L${model.sx(lastPt.x).toFixed(1)} ${baseY} L${model.sx(firstPt.x).toFixed(1)} ${baseY} Z`;
             return (
               <g key={sr.id}>
                 {sr.area && !sr.signed && <path d={area} fill={`url(#g-${uid}-${sr.id})`} />}
@@ -169,6 +172,7 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
           })}
           {endValue && primary && primary.points.length > 0 && (() => {
             const last = primary.points[primary.points.length - 1];
+            if (!last) return null;
             const color = primary.signed ? (last.y >= (baseline ?? 0) ? 'var(--mint)' : 'var(--ember)') : primary.color;
             return (
               <g>
@@ -179,22 +183,29 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
               </g>
             );
           })()}
-          {hover && primary && primary.points[hover.idx] && (
+          {hover && primary && (() => {
+            const hp = primary.points[hover.idx];
+            if (!hp) return null;
+            return (
             <g>
-              <line x1={model.sx(primary.points[hover.idx].x)} x2={model.sx(primary.points[hover.idx].x)} y1={padding.top} y2={height - padding.bottom} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 2" />
+              <line x1={model.sx(hp.x)} x2={model.sx(hp.x)} y1={padding.top} y2={height - padding.bottom} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 2" />
               {series.map((sr) => {
-                const p = sr.points[hover.idx] ?? sr.points.find((q) => q.x === primary.points[hover.idx].x);
+                const p = sr.points[hover.idx] ?? sr.points.find((q) => q.x === hp.x);
                 return p ? <circle key={sr.id} cx={model.sx(p.x)} cy={model.sy(p.y)} r={3} fill={sr.signed ? (p.y >= (baseline ?? 0) ? 'var(--mint)' : 'var(--ember)') : sr.color} stroke="#000" strokeWidth={1} /> : null;
               })}
             </g>
-          )}
+            );
+          })()}
         </svg>
       )}
-      {hover && model && primary && primary.points[hover.idx] && (
+      {hover && model && primary && (() => {
+        const hp = primary.points[hover.idx];
+        if (!hp) return null;
+        return (
         <div className={s.tooltip} style={{ left: Math.min(width - 150, hover.x + 12), top: padding.top + (legend ? 22 : 0) }}>
-          <span className={s.t}>{primary.points[hover.idx].label ?? formatX(primary.points[hover.idx].x)}</span>
+          <span className={s.t}>{hp.label ?? formatX(hp.x)}</span>
           {series.map((sr) => {
-            const p = sr.points[hover.idx] ?? sr.points.find((q) => q.x === primary.points[hover.idx].x);
+            const p = sr.points[hover.idx] ?? sr.points.find((q) => q.x === hp.x);
             return p ? (
               <span key={sr.id}>
                 {sr.label ?? sr.id} <b>{formatY(p.y)}</b>
@@ -202,7 +213,8 @@ export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), 
             ) : null;
           })}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

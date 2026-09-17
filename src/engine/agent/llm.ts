@@ -1,4 +1,6 @@
-import type { AgentConfig } from '@/store/settings';
+import { desk } from '@/lib/desk';
+import { uid } from '@/lib/id';
+import { useSettings, type AgentConfig } from '@/store/settings';
 
 export interface ToolSchema {
   name: string;
@@ -29,6 +31,20 @@ interface StreamArgs {
   tools: ToolSchema[];
   onDelta: (text: string) => void;
   signal?: AbortSignal;
+}
+
+export const DEFAULT_LLM_HOSTS = ['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai'] as const;
+
+export function llmHostAllowed(baseUrl: string, extra: string[] = []): boolean {
+  try {
+    const u = new URL(baseUrl);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    const allowed = new Set<string>([...DEFAULT_LLM_HOSTS, ...extra.map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]+$/.test(h))]);
+    return allowed.has(host);
+  } catch {
+    return false;
+  }
 }
 
 async function* sseLines(res: Response, signal?: AbortSignal): AsyncGenerator<string> {
@@ -172,7 +188,6 @@ async function streamAnthropic({ config, messages, tools, onDelta, signal }: Str
       'Content-Type': 'application/json',
       'x-api-key': config.apiKey,
       'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify(body),
     signal,
@@ -216,15 +231,83 @@ async function streamAnthropic({ config, messages, tools, onDelta, signal }: Str
 }
 
 export function streamChat(args: StreamArgs): Promise<StreamResult> {
+  if (desk?.llm) return streamViaMain(args);
+  if (!llmHostAllowed(args.config.baseUrl)) return Promise.reject(new Error('Hôte LLM non autorisé.'));
   return args.config.provider === 'anthropic' ? streamAnthropic(args) : streamOpenAi(args);
+}
+
+async function streamViaMain({ config, messages, tools, onDelta, signal }: StreamArgs): Promise<StreamResult> {
+  const api = desk?.llm;
+  if (!api) throw new Error('Passerelle LLM indisponible');
+  const requestId = uid('llm');
+  return new Promise((resolve, reject) => {
+    const stop = () => {
+      unsubDelta();
+      unsubDone();
+      unsubErr();
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onAbort = () => {
+      api.abort(requestId);
+      stop();
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    const unsubDelta = api.onDelta((p) => {
+      if (p.requestId === requestId) onDelta(p.text);
+    });
+    const unsubDone = api.onDone((p) => {
+      if (p.requestId !== requestId) return;
+      stop();
+      resolve(p.result);
+    });
+    const unsubErr = api.onError((p) => {
+      if (p.requestId !== requestId) return;
+      stop();
+      reject(new Error(p.error));
+    });
+    signal?.addEventListener('abort', onAbort);
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+    void api
+      .start({
+        requestId,
+        config: {
+          provider: config.provider,
+          baseUrl: config.baseUrl,
+          model: config.model,
+          temperature: config.temperature,
+          apiKeyEncrypted: config.apiKeyEncrypted,
+        },
+        messages,
+        tools,
+        allowedHosts: useSettings.getState().settings.llmAllowedHosts,
+      })
+      .catch((e) => {
+        stop();
+        reject(e instanceof Error ? e : new Error(String(e)));
+      });
+  });
 }
 
 /** Vérifie la joignabilité du fournisseur (liste des modèles pour OpenAI-compatible). */
 export async function probeProvider(config: AgentConfig): Promise<{ ok: boolean; detail: string; models?: string[] }> {
+  if (desk?.llm) {
+    return desk.llm.probe({
+      provider: config.provider,
+      baseUrl: config.baseUrl,
+      model: config.model,
+      temperature: config.temperature,
+      apiKeyEncrypted: config.apiKeyEncrypted,
+      allowedHosts: useSettings.getState().settings.llmAllowedHosts,
+    });
+  }
   try {
+    if (!llmHostAllowed(config.baseUrl)) return { ok: false, detail: 'Hôte LLM non autorisé.' };
     if (config.provider === 'anthropic') {
       if (!config.apiKey) return { ok: false, detail: 'Clé API requise.' };
-      const res = await fetch(joinUrl(config.baseUrl, 'v1/models'), { headers: { 'x-api-key': config.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
+      const res = await fetch(joinUrl(config.baseUrl, 'v1/models'), { headers: { 'x-api-key': config.apiKey, 'anthropic-version': '2023-06-01' } });
       if (!res.ok) return { ok: false, detail: `${res.status} — ${await readError(res)}` };
       const j = (await res.json()) as { data?: { id: string }[] };
       return { ok: true, detail: `${j.data?.length ?? 0} modèle(s) disponibles`, models: j.data?.map((m) => m.id) };

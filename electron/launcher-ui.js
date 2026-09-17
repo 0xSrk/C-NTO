@@ -111,6 +111,12 @@
         setMeta(status.error, 'err');
         return;
       }
+      if (!status.applied) {
+        applying = false;
+        paint();
+        setMeta(status.latest ? 'v' + status.latest + ' dispo — page des versions ouverte' : 'Page des versions ouverte');
+        return;
+      }
       setMeta('Redémarrage…', 'warn');
       await window.canto.update.relaunch();
     } catch (e) {

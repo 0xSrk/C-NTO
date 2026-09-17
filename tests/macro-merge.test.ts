@@ -18,7 +18,7 @@ describe('macroMerge', () => {
     expect(surpriseTone(undefined, '50')).toBeUndefined();
   });
 
-  it('remplace les estimations locales par les publications Investing du même jour', () => {
+  it('conserve les FOMC bundled et ajoute les publications Investing', () => {
     const local = generateNasdaqEvents(2026).filter((e) => e.date === '2026-09-16' && /FOMC|emploi|CPI/i.test(e.title));
     const macros: MacroReleaseRow[] = [
       {
@@ -38,6 +38,6 @@ describe('macroMerge', () => {
     ];
     const merged = mergeCalendarEvents(local, macros);
     expect(merged.some((e) => e.id === 'inv_1' && e.actual === '4.00%')).toBe(true);
-    expect(merged.filter((e) => e.date === '2026-09-16' && e.category === 'fed' && e.source !== 'investing').length).toBe(0);
+    expect(merged.filter((e) => e.date === '2026-09-16' && e.category === 'fed' && e.source !== 'investing').length).toBeGreaterThan(0);
   });
 });
