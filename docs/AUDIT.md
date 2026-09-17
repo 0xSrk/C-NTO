@@ -84,6 +84,8 @@ L'exécution référencée pour crépuscule appartient à un autre dépôt et n'
 
 ## Suite 2026-09-17
 
+Tickets : [`docs/AGENT-HARDENING.md`](AGENT-HARDENING.md).
+
 - [x] P2.1 `.gitignore` env/csv/vault/seen — `.gitignore`
 - [x] P2.5 versions unifiées 1.1.1 — `README.md`, `package.json`
 - [x] P0.1 import idempotent par executionId — `src/engine/import/identity.ts`, `src/store/journal.ts`
