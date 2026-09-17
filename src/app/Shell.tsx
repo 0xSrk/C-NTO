@@ -156,7 +156,12 @@ export function Shell({ children }: { children: ReactNode }) {
                 <span className={s.navLabel}>{t.label}</span>
                 <span className={s.navBadge}>
                   {t.id === 'metrique' && sessionsCount > 0 ? sessionsCount : ''}
-                  {t.id === 'agent' && orchestrator.running ? 'LIEN' : ''}
+                  {t.id === 'agent' && orchestrator.running ? <span className={s.lienBadge}>LIEN</span> : null}
+                  {(t.id === 'agent' || t.id === 'bot' || t.id === 'copieur') && (
+                    <i className={s.protoPill} title="Prototypage · déploiement à venir">
+                      PROTO
+                    </i>
+                  )}
                 </span>
               </button>
             );
@@ -174,9 +179,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <Progress value={sessionsCount / SESSION_CAPACITY} tone={sessionsCount / SESSION_CAPACITY > 0.9 ? 'ember' : 'gold'} />
           </div>
           <div className={s.railMeta}>
-            <span>Design Unit</span>
-            <span>SIΞRRΛSKΛ Lab</span>
-            <span className={s.dimmer}>Rev. A · v{appVersion}</span>
+            <span className={s.dimmer}>v{appVersion}</span>
           </div>
         </div>
       </aside>
@@ -195,7 +198,6 @@ export function Shell({ children }: { children: ReactNode }) {
         </span>
         <div className={s.statusRight}>
           <Clocks />
-          <span className={cx(s.statusItem, s.statusHide)}>Coffre local</span>
         </div>
       </footer>
 

@@ -6,6 +6,7 @@ import { useAgent } from '@/store/agent';
 import { useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
+import { useMacro } from '@/store/macro';
 import { useNotes } from '@/store/notes';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -24,7 +25,7 @@ const Copieur = lazy(() => import('@/modules/copieur/Copieur'));
 
 const INITIAL_STEPS: BootStep[] = [
   { id: 'core', label: 'Noyau CΛNTO', status: 'pending' },
-  { id: 'vault', label: 'Coffre local', status: 'pending' },
+  { id: 'vault', label: 'Persistance', status: 'pending' },
   { id: 'engine', label: 'Moteur métrique', status: 'pending' },
   { id: 'calendar', label: 'Calendrier Nasdaq', status: 'pending' },
   { id: 'notes', label: 'Coffre de notes', status: 'pending' },
@@ -81,7 +82,8 @@ function boot(): Promise<void> {
       step('engine', async () => ['ok', 'ratios · Monte Carlo · prop firm']),
       step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} repères ${year}`]),
       step('notes', async () => {
-        await Promise.all([useNotes.getState().load(), useCalendar.getState().load()]);
+        await Promise.all([useNotes.getState().load(), useCalendar.getState().load(), useMacro.getState().load()]);
+        void useMacro.getState().sync();
         return ['ok', plural(useNotes.getState().notes.length, 'note')];
       }),
       step('agent', async () => {

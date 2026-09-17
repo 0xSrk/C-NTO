@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
 import { CATEGORY_LABEL, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
+import { mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
 import { fmtUsd, plural, signClass } from '@/lib/format';
 import { addDays, dateKeyLocal, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
+import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './calendrier.module.css';
@@ -24,7 +26,6 @@ const CAT_COLOR: Record<EventCategory, string> = {
 };
 const CATS = Object.keys(CAT_COLOR) as EventCategory[];
 const DOW = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
-
 function localTime(date: string, timeET?: string): string | null {
   if (!timeET) return null;
   return formatTimeLocal(zonedToUtc(date, timeET, ET_ZONE));
@@ -47,6 +48,17 @@ export default function Calendrier() {
   const [minImpact, setMinImpact] = useState<1 | 2 | 3>(1);
   const sessions = useJournal((j) => j.sessions);
   const entries = useCalendar((c) => c.entries);
+  const toast = useUi((u) => u.toast);
+  const releases = useMacro((m) => m.releases);
+  const syncing = useMacro((m) => m.syncing);
+  const lastSource = useMacro((m) => m.lastSource);
+  const lastError = useMacro((m) => m.lastError);
+  const loadMacro = useMacro((m) => m.load);
+  const syncMacro = useMacro((m) => m.sync);
+
+  useEffect(() => {
+    void loadMacro().then(() => syncMacro());
+  }, [loadMacro, syncMacro]);
 
   useEffect(() => {
     if (focusDate) {
@@ -63,8 +75,9 @@ export default function Calendrier() {
   const [year, month] = cursor.split('-').map(Number);
   const events = useMemo(() => {
     const years = new Set([year - 1, year, year + 1]);
-    return [...years].flatMap((y) => generateNasdaqEvents(y));
-  }, [year]);
+    const local = [...years].flatMap((y) => generateNasdaqEvents(y));
+    return mergeCalendarEvents(local, releases);
+  }, [year, releases]);
 
   const visible = useMemo(() => events.filter((e) => !hidden.has(e.category) && (showEstimated || !e.estimated) && e.impact >= minImpact), [events, hidden, showEstimated, minImpact]);
 
@@ -88,6 +101,15 @@ export default function Calendrier() {
     }
     return m;
   }, [entries]);
+
+  const history = useMemo(
+    () =>
+      releases
+        .filter((r) => r.actual != null && r.actual !== '' && r.date <= today)
+        .sort((a, b) => b.date.localeCompare(a.date) || (b.timeET ?? '').localeCompare(a.timeET ?? ''))
+        .slice(0, 40),
+    [releases, today],
+  );
 
   const gridDays = useMemo(() => {
     const first = `${cursor}-01`;
@@ -114,6 +136,8 @@ export default function Calendrier() {
     setCursor(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
 
+  const sourceLabel = lastSource === 'investing' ? 'Investing.com' : lastSource === 'forexfactory' ? 'Forex Factory' : 'hors ligne';
+
   return (
     <>
       <ModuleHeader
@@ -123,6 +147,19 @@ export default function Calendrier() {
             <Segmented value={view} onChange={changeView} options={[{ value: 'grille', label: 'Grille mensuelle' }, { value: 'flux', label: 'Flux chronologique' }]} />
             <Segmented value={String(minImpact) as '1' | '2' | '3'} onChange={(v) => setMinImpact(Number(v) as 1 | 2 | 3)} options={[{ value: '1', label: 'Tout' }, { value: '2', label: 'Notable +' }, { value: '3', label: 'Majeur' }]} />
             <Toggle on={showEstimated} onChange={setShowEstimated} label="Dates estimées" />
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={syncing}
+              onClick={async () => {
+                await syncMacro(addDays(`${cursor}-01`, -10), addDays(`${cursor}-28`, 20));
+                const st = useMacro.getState();
+                if (st.lastError && st.lastSource === 'none') toast(st.lastError, 'warn');
+                else toast(`Macro · ${st.lastSource === 'investing' ? 'Investing.com' : st.lastSource === 'forexfactory' ? 'Forex Factory' : '—'} · ${st.releases.length} publications`, 'ok');
+              }}
+            >
+              {syncing ? 'Sync…' : 'Sync Investing'}
+            </Button>
           </>
         }
       />
@@ -147,6 +184,10 @@ export default function Calendrier() {
               >
                 Aujourd’hui
               </Button>
+              <span className={s.feedStatus} title={lastError ?? undefined}>
+                Fil {sourceLabel}
+                {lastError ? ' · partiel' : ''}
+              </span>
               <div className={s.filters}>
                 {CATS.filter((c) => c !== 'perso').map((c) => (
                   <button
@@ -190,9 +231,9 @@ export default function Calendrier() {
                         </div>
                         <div className={s.evs}>
                           {evs.slice(0, 3).map((e) => (
-                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3)} style={catStyle(e.category)} title={`${e.timeET ? `${localTime(d, e.timeET)} · ` : ''}${e.title}`}>
+                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3)} style={catStyle(e.category)} title={`${e.timeET ? `${localTime(d, e.timeET)} · ` : ''}${e.title}${e.actual ? ` · ${e.actual}` : e.forecast ? ` · ≈${e.forecast}` : ''}`}>
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {e.estimated ? '≈ ' : ''}
+                                {e.actual ? '' : e.estimated ? '≈ ' : ''}
                                 {e.title}
                               </span>
                             </div>
@@ -230,6 +271,11 @@ export default function Calendrier() {
                               <div className={cx(s.fluxTitle, e.impact === 3 && s.impact3)}>
                                 {e.estimated ? '≈ ' : ''}
                                 {e.title}
+                                {(e.forecast || e.actual) && (
+                                  <small className={s.printInline}>
+                                    {e.actual ? `→ ${e.actual}` : e.forecast ? `attendu ${e.forecast}` : ''}
+                                  </small>
+                                )}
                               </div>
                               <Impact level={e.impact} category={e.category} />
                             </div>
@@ -249,7 +295,7 @@ export default function Calendrier() {
             )}
           </div>
 
-          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} />
+          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} />
         </div>
       </ModuleContent>
     </>
@@ -266,7 +312,35 @@ function Impact({ level, category }: { level: number; category: EventCategory })
   );
 }
 
-function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
+function Prints({ e }: { e: CalEvent }) {
+  if (!e.forecast && !e.previous && !e.actual) return null;
+  const tone = surpriseTone(e.actual, e.forecast);
+  return (
+    <div className={s.prints}>
+      <span>
+        <em>Attendu</em> {e.forecast ?? '—'}
+      </span>
+      <span>
+        <em>Préc.</em> {e.previous ?? '—'}
+      </span>
+      <span className={tone ? s[tone] : undefined}>
+        <em>Publié</em> {e.actual ?? '—'}
+      </span>
+    </div>
+  );
+}
+
+function DaySide({
+  date,
+  events,
+  history,
+  onSelectDate,
+}: {
+  date: string;
+  events: CalEvent[];
+  history: ReturnType<typeof useMacro.getState>['releases'];
+  onSelectDate: (d: string) => void;
+}) {
   const sessions = useJournal((j) => j.sessions);
   const entries = useCalendar((c) => c.entries);
   const setDayNote = useCalendar((c) => c.setDayNote);
@@ -274,12 +348,64 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
   const remove = useCalendar((c) => c.remove);
   const setTab = useUi((u) => u.setTab);
   const focusSession = useUi((u) => u.focusSession);
+  const toast = useUi((u) => u.toast);
   const sess = sessions.find((x) => x.date === date);
   const dayEntries = entries.filter((e) => e.date === date);
   const noteEntry = dayEntries.find((e) => e.kind === 'note');
   const [note, setNote] = useState(noteEntry?.body ?? '');
+  const [noteSaved, setNoteSaved] = useState(false);
   const [evTime, setEvTime] = useState('');
   const [evTitle, setEvTitle] = useState('');
+  const [busy, setBusy] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteRef = useRef(note);
+  noteRef.current = note;
+
+  useEffect(() => {
+    setNote(noteEntry?.body ?? '');
+  }, [noteEntry?.body, noteEntry?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      const body = noteRef.current;
+      if (body !== (noteEntry?.body ?? '')) void setDayNote(date, body);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- save pending draft on unmount / day change
+  }, [date]);
+
+  const queueNoteSave = (value: string) => {
+    setNote(value);
+    setNoteSaved(false);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void setDayNote(date, value).then(() => setNoteSaved(true));
+    }, 400);
+  };
+
+  const flushNote = async (announce: boolean) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    await setDayNote(date, note);
+    setNoteSaved(true);
+    if (announce) toast('Note du jour enregistrée', 'ok');
+  };
+
+  const addReminder = async (e?: FormEvent) => {
+    e?.preventDefault();
+    const title = evTitle.trim();
+    if (!title || busy) return;
+    setBusy(true);
+    try {
+      await add({ date, kind: 'event', title, time: evTime || undefined });
+      setEvTitle('');
+      setEvTime('');
+      toast('Rappel ajouté', 'ok');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Impossible d’ajouter le rappel', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const sorted = [...events].sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'));
 
@@ -322,11 +448,15 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
                   </time>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Impact level={e.impact} category={e.category} />
                 <Tag>{CATEGORY_LABEL[e.category]}</Tag>
+                {e.source === 'investing' && <Tag tone="ice">Investing</Tag>}
+                {e.source === 'forexfactory' && <Tag tone="amber">FF</Tag>}
                 {e.estimated && <Tag tone="amber">date estimée</Tag>}
+                {e.actual != null && e.actual !== '' && <Tag tone="mint">publié</Tag>}
               </div>
+              <Prints e={e} />
               <div className={s.evDesc}>{e.description}</div>
               {e.beginnerTip && <div className={s.tip}>{e.beginnerTip}</div>}
             </div>
@@ -336,35 +466,59 @@ function DaySide({ date, events }: { date: string; events: CalEvent[] }) {
 
       <Panel title="Suivi personnel" sub="note & rappels du jour">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== (noteEntry?.body ?? '') && setDayNote(date, note)} placeholder="Biais du jour, niveaux clés, intention de séance…" style={{ width: '100%', resize: 'vertical' }} />
+          <textarea
+            rows={3}
+            value={note}
+            onChange={(e) => queueNoteSave(e.target.value)}
+            onBlur={() => void flushNote(false).catch(() => undefined)}
+            placeholder="Biais du jour, niveaux clés, intention de séance…"
+            style={{ width: '100%', resize: 'vertical' }}
+          />
+          <div className={s.noteActions}>
+            <Button size="sm" onClick={() => void flushNote(true)}>
+              Enregistrer la note
+            </Button>
+            {noteSaved && <span className={s.noteOk}>Enregistré</span>}
+          </div>
           {dayEntries
             .filter((e) => e.kind === 'event')
             .map((e) => (
               <div key={e.id} className={s.persoItem}>
                 <time>{e.time ?? '—'}</time>
                 <span>{e.title}</span>
-                <button onClick={() => remove(e.id)} aria-label="Supprimer">
+                <button type="button" onClick={() => void remove(e.id)} aria-label="Supprimer">
                   ×
                 </button>
               </div>
             ))}
-          <div className={s.persoForm}>
-            <input type="time" value={evTime} onChange={(e) => setEvTime(e.target.value)} />
-            <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder="Rappel personnel (revue, coaching…)" />
-            <Button
-              size="sm"
-              title="Ajouter le rappel"
-              aria-label="Ajouter le rappel"
-              onClick={async () => {
-                if (!evTitle.trim()) return;
-                await add({ date, kind: 'event', title: evTitle.trim(), time: evTime || undefined });
-                setEvTitle('');
-                setEvTime('');
-              }}
-            >
+          <form className={s.persoForm} onSubmit={(ev) => void addReminder(ev)}>
+            <input type="time" value={evTime} onChange={(e) => setEvTime(e.target.value)} aria-label="Heure du rappel" />
+            <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder="Rappel personnel (revue, coaching…)" aria-label="Titre du rappel" />
+            <Button size="sm" type="submit" title="Ajouter le rappel" aria-label="Ajouter le rappel" disabled={busy || !evTitle.trim()}>
               <IconPlus size={12} />
             </Button>
-          </div>
+          </form>
+        </div>
+      </Panel>
+
+      <Panel title="Historique macro" sub="résultats publiés · Investing">
+        <div className={s.history}>
+          {history.length === 0 && <div className={s.evDesc}>Lancez « Sync Investing » pour constituer l’historique (attendu / publié).</div>}
+          {history.map((r) => {
+            const tone = surpriseTone(r.actual, r.forecast);
+            return (
+              <button key={r.id} type="button" className={s.histRow} onClick={() => onSelectDate(r.date)} style={catStyle(r.impact === 3 ? 'fed' : 'croissance')}>
+                <time>
+                  {r.date.slice(5)}
+                  {r.timeET ? ` · ${r.timeET}` : ''}
+                </time>
+                <span className={s.histTitle}>{r.title.replace(/^U\.S\.\s+/i, '')}</span>
+                <span className={cx(s.histVals, tone && s[tone])}>
+                  {r.forecast ?? '—'} → <b>{r.actual}</b>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </Panel>
 

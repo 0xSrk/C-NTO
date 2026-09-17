@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('canto', {
     saveText: (defaultName: string, text: string) => ipcRenderer.invoke('files:save-text', defaultName, text),
     openText: (filters: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('files:open-text', filters),
   },
+  calendar: {
+    fetchMacro: (fromDate: string, toDate: string) => ipcRenderer.invoke('calendar:macro', fromDate, toDate),
+  },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     apply: () => ipcRenderer.invoke('update:apply'),
