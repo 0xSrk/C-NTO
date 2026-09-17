@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { orchMethodAllowed, takeToolCalls, clampToolArgs } from '@/engine/agent/ports';
-import { runTool, toolKind } from '@/engine/agent/tools';
+import { executeDeskTool, toolKind } from '@/engine/agent/runner';
 import type { DeskPorts } from '@/engine/agent/ports';
 
 function mockPorts(log: { writes: number }): DeskPorts {
@@ -27,7 +27,7 @@ describe('agent tools', () => {
     const denied = { ok: false, reason: 'operator_denied' };
     expect(denied.ok).toBe(false);
     expect(log.writes).toBe(0);
-    await runTool(mockPorts(log), 'desk_overview', {});
+    await executeDeskTool(mockPorts(log), 'desk_overview', {}, { source: 'llm' });
     expect(log.writes).toBe(0);
   });
 
@@ -54,7 +54,7 @@ describe('agent tools', () => {
     expect(clampToolArgs({ tags: Array.from({ length: 21 }, () => 'a') }).ok).toBe(false);
     expect(clampToolArgs({ tags: ['x'.repeat(41)] }).ok).toBe(false);
     const log = { writes: 0 };
-    const r = await runTool(mockPorts(log), 'create_note', { title: 'N', body: 'x'.repeat(20001) });
+    const r = await executeDeskTool(mockPorts(log), 'create_note', { title: 'N', body: 'x'.repeat(20001) }, { source: 'orch', allowWrite: true });
     expect(r).toEqual({ ok: false, reason: 'args_too_large' });
     expect(log.writes).toBe(0);
   });
