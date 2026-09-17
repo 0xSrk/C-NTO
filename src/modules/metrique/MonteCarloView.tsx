@@ -1,10 +1,26 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Fan } from '@/design/charts/Fan';
-import { Empty, Field, Panel, Segmented, Stat, cx } from '@/design/primitives';
-import { clampMonteCarlo, MAX_HORIZON, MAX_RUNS, monteCarlo } from '@/engine/montecarlo';
+import { Button, Empty, Field, Panel, Progress, Segmented, Stat, cx } from '@/design/primitives';
+import { clampMonteCarlo, MAX_HORIZON, MAX_RUNS, monteCarlo, type MonteCarloOptions, type MonteCarloResult } from '@/engine/montecarlo';
 import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
+import { listenWorker } from '@/lib/worker';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
+
+async function monteCarloOffthread(input: number[], opts: MonteCarloOptions = {}): Promise<MonteCarloResult | null> {
+  if (opts.signal?.aborted) return null;
+  const { signal, onProgress, ...rest } = opts;
+  if (typeof Worker === 'undefined') return monteCarlo(input, opts);
+  try {
+    const worker = new Worker(new URL('../../engine/montecarlo.worker.ts', import.meta.url), { type: 'module' });
+    const pending = listenWorker<MonteCarloResult | null>(worker, { signal, onProgress });
+    worker.postMessage({ pnls: input, opts: rest });
+    return await pending;
+  } catch (err) {
+    if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) return null;
+    return monteCarlo(input, opts);
+  }
+}
 
 export function MonteCarloView() {
   const { sessions, trades, plan } = useStats();
@@ -14,31 +30,62 @@ export function MonteCarloView() {
   const [ruin, setRuin] = useState<number | ''>(plan?.maxDrawdown ?? 2500);
   const [target, setTarget] = useState<number | ''>(plan?.profitTarget ?? 3000);
   const [seed, setSeed] = useState(1337);
+  const [result, setResult] = useState<MonteCarloResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const sample = useMemo(() => (level === 'seances' ? sessions.map((x) => x.pnl) : trades.map((x) => x.pnl)), [level, sessions, trades]);
-  // Les paramètres sont différés : la saisie reste fluide, la simulation suit.
   const params = useDeferredValue({ runs, horizon, seed, ruin, target });
   const effective = clampMonteCarlo(params.runs, params.horizon === '' ? sample.length : params.horizon);
 
-  // TODO(P1.5) worker
-  const result = useMemo(
-    () =>
-      monteCarlo(sample, {
-        runs: params.runs,
-        horizon: params.horizon === '' ? undefined : params.horizon,
-        seed: params.seed,
-        ruinDrawdown: params.ruin === '' ? undefined : params.ruin,
-        target: params.target === '' ? undefined : params.target,
-      }),
-    [sample, params],
-  );
+  useEffect(() => {
+    if (sample.length < 5) {
+      setResult(null);
+      setBusy(false);
+      return;
+    }
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setBusy(true);
+    setProgress(0);
+    void monteCarloOffthread(sample, {
+      runs: params.runs,
+      horizon: params.horizon === '' ? undefined : params.horizon,
+      seed: params.seed,
+      ruinDrawdown: params.ruin === '' ? undefined : params.ruin,
+      target: params.target === '' ? undefined : params.target,
+      signal: ac.signal,
+      onProgress: (done, total) => {
+        if (!ac.signal.aborted) setProgress(total ? done / total : 0);
+      },
+    }).then((r) => {
+      if (ac.signal.aborted) return;
+      setResult(r);
+      setProgress(1);
+      setBusy(false);
+    });
+    return () => ac.abort();
+  }, [sample, params]);
 
   if (sample.length < 5) return <Empty title="Échantillon insuffisant" text="Le bootstrap Monte Carlo nécessite au moins 5 séances (ou trades)." />;
 
   return (
     <div className={cx(s.grid, s.gridTop)}>
-      <Panel className={s.c4} title="Paramètres" sub="bootstrap avec remise">
+      <Panel
+        className={s.c4}
+        title="Paramètres"
+        sub="bootstrap avec remise"
+        actions={
+          busy ? (
+            <Button size="sm" variant="ghost" onClick={() => { abortRef.current?.abort(); setBusy(false); }}>
+              Annuler
+            </Button>
+          ) : undefined
+        }
+      >
         <div className={s.rows}>
+          {busy && <Progress value={progress} tone="gold" />}
           <Segmented value={level} onChange={setLevel} options={[{ value: 'seances', label: `Séances · ${sessions.length}` }, { value: 'trades', label: `Trades · ${trades.length}` }]} />
           <div className={s.formGrid}>
             <Field label="Simulations" hint={effective.runs !== params.runs ? `ramené à ${effective.runs} (budget de calcul)` : `max ${MAX_RUNS}`}>

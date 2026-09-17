@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { detectFormat, detectInstrument, exportTradesCsv, importTradesCsv } from '@/engine/import/ninjatrader';
+import { CSV_WORKER_MIN_LINES, csvLineCount } from '@/engine/import';
 import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { ET_ZONE, nthWeekdayOfMonth, parseFlexibleDateTime, tradingDayKey, zonedToUtc } from '@/lib/time';
 
@@ -65,6 +66,12 @@ describe('parseCsv', () => {
     const stray = parseCsv('a,b\n1,5" pouces\n2,x\n');
     expect(stray.rows.length).toBe(2);
     expect(stray.rows[0]![1]).toBe('5" pouces');
+  });
+
+  it('csvLineCount déclenche le Worker au-delà de 5000 lignes', () => {
+    expect(csvLineCount('a')).toBe(1);
+    expect(csvLineCount('a\nb\n')).toBe(3);
+    expect(CSV_WORKER_MIN_LINES).toBe(5000);
   });
 });
 

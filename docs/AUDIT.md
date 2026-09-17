@@ -106,5 +106,5 @@ L'exécution référencée pour crépuscule appartient à un autre dépôt et n'
 - [x] P2.8 `openExternal` https / `http://127.0.0.1` — `electron/main.ts`
 - [x] P3.1 `noUncheckedIndexedAccess` — `tsconfig.json`, `electron/tsconfig.json`
 - [x] P3.6 script `npm run check` — `package.json`
-- [ ] P1.5 Worker MC/CSV — `AbortSignal` dans `montecarlo.ts` ; câblage Worker reporté (`// TODO(P1.5) worker`) pour ne pas casser les tests MC bornés
+- [x] P1.5 Worker MC/CSV — `montecarlo.worker.ts` + `csv.worker.ts` (> 5000 lignes), barre + Annuler, tests restent sur les fonctions synchrones
 

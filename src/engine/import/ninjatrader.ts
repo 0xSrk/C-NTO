@@ -100,8 +100,8 @@ export const FORMAT_LABEL: Record<ImportResult['format'], string> = {
  * Importe un CSV de trades (NinjaTrader 8 « Trades » ou format CΛNTO) et regroupe en séances.
  * Le PnL est recalculé à partir des prix et de la valeur du point (source de vérité), puis
  * comparé à la colonne Profit lorsqu'elle est en devise.
+ * Fichiers > 5000 lignes : Worker via `src/store/journal.ts` (`csv.worker.ts`).
  */
-// TODO(P1.5) worker
 export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportResult {
   const table = parseCsv(text);
   const warnings: string[] = [];

@@ -94,6 +94,18 @@ describe('Monte Carlo & démo', () => {
     expect(monteCarlo(pnls, { runs: NaN, horizon: NaN })).not.toBeNull();
   });
 
+  it('monteCarlo reports progress and returns null when aborted', () => {
+    const { sessions } = generateDemoJournal({ sessions: 20, seed: 3, endDate: new Date(2026, 8, 1) });
+    const pnls = sessions.map((s) => s.pnl);
+    const ticks: number[] = [];
+    expect(monteCarlo(pnls, { runs: 200, seed: 1, onProgress: (done, total) => ticks.push(done / total) })).not.toBeNull();
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.at(-1)).toBe(1);
+    const ac = new AbortController();
+    ac.abort();
+    expect(monteCarlo(pnls, { signal: ac.signal })).toBeNull();
+  });
+
   it('le jeu de démo est cohérent (séances ↔ trades)', () => {
     const { sessions, trades } = generateDemoJournal({ sessions: 30, seed: 5, endDate: new Date(2026, 8, 1) });
     expect(sessions.length).toBe(30);
