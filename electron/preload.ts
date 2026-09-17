@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('canto', {
     stop: () => ipcRenderer.invoke('orch:stop'),
     status: () => ipcRenderer.invoke('orch:status'),
     rotateToken: () => ipcRenderer.invoke('orch:rotate-token'),
+    copyToken: () => ipcRenderer.invoke('orch:copy-token'),
     respond: (id: string, clientId: string, result: unknown, error?: string) => ipcRenderer.send('orch:respond', id, clientId, result, error),
     broadcast: (event: string, payload: unknown) => ipcRenderer.send('orch:broadcast', event, payload),
     onRequest: (cb: (req: unknown) => void) => subscribe('orch:request', cb),

@@ -8,8 +8,6 @@ export interface OrchestratorStatus {
   running: boolean;
   port: number;
   clients: number;
-  /** Jeton d'accès de la session (à fournir en `?token=` ou via `desk.auth`) */
-  token: string;
   error?: string;
 }
 
@@ -82,7 +80,12 @@ export class Orchestrator {
   }
 
   status(): OrchestratorStatus {
-    return { running: !!this.server, port: this.port, clients: this.clients.size, token: this.token, error: this.error };
+    return { running: !!this.server, port: this.port, clients: this.clients.size, error: this.error };
+  }
+
+  /** One-shot : le jeton n'est pas renvoyé par status(). */
+  copyToken(): string {
+    return this.token;
   }
 
   /** Régénère le jeton (déconnecte les clients en cours). */

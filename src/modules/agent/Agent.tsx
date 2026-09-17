@@ -3,7 +3,7 @@ import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { DESK_TOOLS } from '@/engine/agent/tools';
-import { isDesk } from '@/lib/desk';
+import { desk, isDesk } from '@/lib/desk';
 import { fmtNum } from '@/lib/format';
 import type { AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
@@ -247,12 +247,20 @@ export default function Agent() {
               ) : (
                 <div className={s.hint}>Disponible dans le shell local (Electron) : CΛNTO ouvre un serveur WebSocket sur 127.0.0.1 auquel un orchestrateur IA se connecte pour piloter le desk.</div>
               )}
-              {isDesk && orchestrator.token && (
+              {isDesk && (
                 <Field label="Jeton de session" hint="à fournir par l’orchestrateur : ?token=… ou desk.auth — les pages web sont refusées">
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <input readOnly value={orchestrator.token} className="mono" style={{ flex: 1, fontSize: 11 }} onFocus={(e) => e.currentTarget.select()} />
-                    <Button size="sm" variant="ghost" onClick={() => navigator.clipboard?.writeText(orchestrator.token ?? '').then(() => toast('Jeton copié.', 'ok'))}>
-                      Copier
+                    <input readOnly value="••••" className="mono" style={{ flex: 1, fontSize: 11 }} aria-label="Jeton masqué" />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={async () => {
+                        const token = await desk?.orchestrator.copyToken?.();
+                        if (token) await navigator.clipboard?.writeText(token);
+                        toast(token ? 'Jeton copié.' : 'Jeton indisponible.', token ? 'ok' : 'warn');
+                      }}
+                    >
+                      Copier le jeton
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => rotateToken()} title="Régénérer le jeton (déconnecte les liens)">
                       Renouveler
