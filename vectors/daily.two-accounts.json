@@ -1,0 +1,49 @@
+{
+  "startingBalance": 50000,
+  "sessions": [
+    {
+      "id": "2026-01-05",
+      "date": "2026-01-05",
+      "account": "A",
+      "instruments": ["NQ"],
+      "source": "manuel",
+      "tradeCount": 3,
+      "pnl": 500,
+      "grossProfit": 500,
+      "grossLoss": 0,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 0,
+      "updatedAt": 0
+    },
+    {
+      "id": "b",
+      "date": "2026-01-05",
+      "account": "B",
+      "instruments": ["NQ"],
+      "source": "manuel",
+      "tradeCount": 3,
+      "pnl": -100,
+      "grossProfit": 0,
+      "grossLoss": -100,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 0,
+      "updatedAt": 0
+    },
+    {
+      "id": "2026-01-06",
+      "date": "2026-01-06",
+      "instruments": ["NQ"],
+      "source": "manuel",
+      "tradeCount": 3,
+      "pnl": 200,
+      "grossProfit": 200,
+      "grossLoss": 0,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 0,
+      "updatedAt": 0
+    }
+  ]
+}

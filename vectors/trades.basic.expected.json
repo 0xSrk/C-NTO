@@ -1,0 +1,36 @@
+{
+  "count": 6,
+  "wins": 3,
+  "losses": 3,
+  "breakeven": 0,
+  "winRate": 0.5,
+  "grossProfit": 450,
+  "grossLoss": -200,
+  "netPnl": 250,
+  "profitFactor": 2.25,
+  "expectancy": 41.666666666666664,
+  "avgWin": 150,
+  "avgLoss": -66.66666666666667,
+  "payoffRatio": 2.25,
+  "largestWin": 200,
+  "largestLoss": -100,
+  "maxDrawdown": 100,
+  "maxConsecWins": 1,
+  "maxConsecLosses": 1,
+  "kelly": 0.2777777777777778,
+  "commission": 24,
+  "long": {
+    "count": 3,
+    "pnl": 450,
+    "wins": 3,
+    "winRate": 1,
+    "avgPnl": 150
+  },
+  "short": {
+    "count": 3,
+    "pnl": -200,
+    "wins": 0,
+    "winRate": 0,
+    "avgPnl": -66.66666666666667
+  }
+}

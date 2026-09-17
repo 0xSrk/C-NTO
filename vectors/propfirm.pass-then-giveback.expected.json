@@ -1,0 +1,11 @@
+{
+  "status": "objectif",
+  "passedOn": "2026-01-06",
+  "balance": 53500,
+  "highWater": 53500,
+  "floor": 51500,
+  "buffer": 2000,
+  "daysTraded": 2,
+  "remainingToTarget": 0,
+  "timelineLength": 2
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluatePlan, findPlan, PROP_FIRMS, type PropPlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
+import { loadVector } from './helpers/loadVector';
 
 const session = (id: string, date: string, pnl: number): Session => ({
   id,
@@ -61,10 +62,13 @@ describe('evaluatePlan · trailing fin de journée', () => {
   });
 
   it('valide l’objectif le jour où il est atteint, même si le compte rechute ensuite', () => {
-    const r = evaluatePlan(plan, [session('a', '2026-01-05', 2000), session('b', '2026-01-06', 1500), session('c', '2026-01-07', -1500), session('d', '2026-01-08', -1500)]);
-    expect(r.status).toBe('objectif');
-    expect(r.passedOn).toBe('2026-01-06');
-    expect(r.timeline.length).toBe(2);
+    const vec = loadVector<{ plan: PropPlan; sessions: Session[] }>('propfirm.pass-then-giveback.json');
+    const expected = loadVector<{ status: string; passedOn?: string; timelineLength: number; remainingToTarget: number }>('propfirm.pass-then-giveback.expected.json');
+    const r = evaluatePlan(vec.plan, vec.sessions);
+    expect(r.status).toBe(expected.status);
+    expect(r.passedOn).toBe(expected.passedOn);
+    expect(r.timeline.length).toBe(expected.timelineLength);
+    expect(r.remainingToTarget).toBe(expected.remainingToTarget);
   });
 
   it('filtre par compte et agrège les séances d’une même journée', () => {

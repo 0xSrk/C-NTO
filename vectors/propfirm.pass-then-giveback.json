@@ -1,0 +1,71 @@
+{
+  "plan": {
+    "id": "test-eod",
+    "firm": "Test",
+    "label": "50K",
+    "accountSize": 50000,
+    "profitTarget": 3000,
+    "maxDrawdown": 2000,
+    "drawdownType": "eod-trailing",
+    "minTradingDays": 2,
+    "phase": "evaluation"
+  },
+  "sessions": [
+    {
+      "id": "a",
+      "date": "2026-01-05",
+      "instruments": ["NQ"],
+      "source": "manuel",
+      "tradeCount": 1,
+      "pnl": 2000,
+      "grossProfit": 2000,
+      "grossLoss": 0,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 0,
+      "updatedAt": 0
+    },
+    {
+      "id": "b",
+      "date": "2026-01-06",
+      "instruments": ["NQ"],
+      "source": "manuel",
+      "tradeCount": 1,
+      "pnl": 1500,
+      "grossProfit": 1500,
+      "grossLoss": 0,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 0,
+      "updatedAt": 0
+    },
+    {
+      "id": "c",
+      "date": "2026-01-07",
+      "instruments": ["NQ"],
+      "source": "manuel",
+      "tradeCount": 1,
+      "pnl": -1500,
+      "grossProfit": 0,
+      "grossLoss": -1500,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 0,
+      "updatedAt": 0
+    },
+    {
+      "id": "d",
+      "date": "2026-01-08",
+      "instruments": ["NQ"],
+      "source": "manuel",
+      "tradeCount": 1,
+      "pnl": -1500,
+      "grossProfit": 0,
+      "grossLoss": -1500,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 0,
+      "updatedAt": 0
+    }
+  ]
+}
