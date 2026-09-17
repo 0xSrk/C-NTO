@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@/design/primitives';
+import { logLine } from '@/lib/log';
 
 interface Props {
   children: ReactNode;
@@ -27,6 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('[CΛNTO] module en erreur', error, info.componentStack);
+    logLine('error', `${error.message}${info.componentStack ? `\n${info.componentStack}` : ''}`);
   }
 
   render(): ReactNode {

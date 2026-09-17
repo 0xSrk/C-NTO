@@ -5,6 +5,7 @@ import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { desk } from '@/lib/desk';
+import { copyTechJournal } from '@/lib/log';
 import s from './metrique.module.css';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
@@ -107,6 +108,16 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             }}
           >
             Sauvegarder maintenant
+          </Button>
+        </Field>
+        <Field label="Journal technique" className={s.full} hint="anneau local, 200 lignes · pas d’envoi">
+          <Button
+            onClick={async () => {
+              const ok = await copyTechJournal();
+              toast(ok ? 'Journal technique copié.' : 'Copie impossible.', ok ? 'ok' : 'warn');
+            }}
+          >
+            Copier le journal technique
           </Button>
         </Field>
       </div>
