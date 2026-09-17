@@ -1,17 +1,41 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LineArea } from '@/design/charts/LineArea';
 import { Panel, Progress, Stat, Tag, cx } from '@/design/primitives';
-import { DRAWDOWN_LABEL, PROP_FIRMS } from '@/engine/propfirm';
+import { DRAWDOWN_LABEL, PROP_FIRMS, findPlan } from '@/engine/propfirm';
 import { fmtInt, fmtPct, fmtUsd, plural } from '@/lib/format';
 import { formatDateFr } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
 
+function firmIdForPlan(planId: string): string {
+  return PROP_FIRMS.find((f) => f.plans.some((pl) => pl.id === planId))?.id ?? PROP_FIRMS[0]?.id ?? '';
+}
+
 export function PropFirmView() {
   const { plan, planEval, sessions, accounts, planAccount } = useStats();
   const planId = useSettings((st) => st.settings.planId);
   const update = useSettings((st) => st.update);
+  const [firmId, setFirmId] = useState(() => firmIdForPlan(planId));
+
+  useEffect(() => {
+    setFirmId(firmIdForPlan(planId));
+  }, [planId]);
+
+  const firm = PROP_FIRMS.find((f) => f.id === firmId) ?? PROP_FIRMS[0];
+  const plans = firm?.plans ?? [];
+
+  const selectFirm = (id: string) => {
+    setFirmId(id);
+    const f = PROP_FIRMS.find((x) => x.id === id);
+    const keep = f?.plans.find((p) => p.id === planId) ?? f?.plans[0];
+    if (keep) update({ planId: keep.id, startingBalance: keep.accountSize });
+  };
+
+  const selectPlan = (id: string) => {
+    const p = findPlan(id);
+    if (p) update({ planId: p.id, startingBalance: p.accountSize });
+  };
 
   const timelineSeries = useMemo(() => {
     if (!planEval || !plan) return [];
@@ -24,27 +48,101 @@ export function PropFirmView() {
 
   return (
     <div className={cx(s.grid, s.gridTop)}>
-      <Panel className={s.c4} title="Registre" sub="firmes & plans indicatifs">
-        <div className={s.planList}>
-          {PROP_FIRMS.map((f) => (
-            <div key={f.id} className={s.planCard}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <b style={{ color: 'var(--text-0)', fontSize: 12 }}>{f.name}</b>
-                <span className="micro">{f.platform.join(' · ')}</span>
-              </div>
-              {f.plans.map((p) => (
-                <button key={p.id} className={cx(s.planItem, p.id === planId && s.on)} onClick={() => update({ planId: p.id, startingBalance: p.accountSize })}>
-                  <span>{p.label}</span>
-                  <span className="mono">{fmtUsd(p.profitTarget)}</span>
-                  <small>{DRAWDOWN_LABEL[p.drawdownType]}</small>
-                  <small>DD {fmtUsd(p.maxDrawdown)}</small>
-                </button>
+      <Panel className={s.c4} title="Plan prop" sub="choix en cascade">
+        <div className={s.cascade}>
+          <label className={s.cascadeStep}>
+            <span className={s.cascadeLabel}>
+              <em>01</em> Firme
+            </span>
+            <select value={firmId} onChange={(e) => selectFirm(e.target.value)} aria-label="Firme prop">
+              {PROP_FIRMS.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
               ))}
-            </div>
-          ))}
+            </select>
+            {firm && (
+              <div className={s.cascadeHint}>
+                <span>{firm.platform.join(' · ')}</span>
+                <span>{firm.country}</span>
+              </div>
+            )}
+          </label>
+
+          <div className={s.cascadeRail} aria-hidden />
+
+          <label className={s.cascadeStep}>
+            <span className={s.cascadeLabel}>
+              <em>02</em> Compte / plan
+            </span>
+            <select value={planId} onChange={(e) => selectPlan(e.target.value)} aria-label="Plan prop" disabled={!plans.length}>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label} · cible {fmtUsd(p.profitTarget)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {plan && (
+            <>
+              <div className={s.cascadeRail} aria-hidden />
+              <div className={s.cascadeNested}>
+                <span className={s.cascadeLabel}>
+                  <em>03</em> Règles imbriquées
+                </span>
+                <dl className={s.cascadeRules}>
+                  <div>
+                    <dt>Taille</dt>
+                    <dd>{fmtUsd(plan.accountSize)}</dd>
+                  </div>
+                  <div>
+                    <dt>Objectif</dt>
+                    <dd>{fmtUsd(plan.profitTarget)}</dd>
+                  </div>
+                  <div>
+                    <dt>Drawdown</dt>
+                    <dd>
+                      {fmtUsd(plan.maxDrawdown)}
+                      <small>{DRAWDOWN_LABEL[plan.drawdownType]}</small>
+                    </dd>
+                  </div>
+                  {plan.trailingLockAt !== undefined && (
+                    <div>
+                      <dt>Verrou trailing</dt>
+                      <dd>+{fmtUsd(plan.trailingLockAt)}</dd>
+                    </div>
+                  )}
+                  {plan.dailyLossLimit !== undefined && (
+                    <div>
+                      <dt>Perte / jour</dt>
+                      <dd>{fmtUsd(plan.dailyLossLimit)}</dd>
+                    </div>
+                  )}
+                  {plan.consistencyPct !== undefined && (
+                    <div>
+                      <dt>Consistance</dt>
+                      <dd>≤ {fmtPct(plan.consistencyPct, 0)}</dd>
+                    </div>
+                  )}
+                  {plan.minTradingDays !== undefined && (
+                    <div>
+                      <dt>Jours min.</dt>
+                      <dd>{plan.minTradingDays}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Phase</dt>
+                    <dd>{plan.phase === 'evaluation' ? 'Évaluation' : 'Funded'}</dd>
+                  </div>
+                </dl>
+                {firm?.payoutNote && <p className={s.cascadeNote}>{firm.payoutNote}</p>}
+              </div>
+            </>
+          )}
         </div>
-        <p className={s.note} style={{ marginTop: 12 }}>
-          <b>Registre indicatif.</b> Les règles des firmes changent fréquemment : validez chaque paramètre sur le site de la firme avant de vous y fier. Le plan sélectionné pilote le rejeu ci-contre et le Monte Carlo.
+        <p className={s.note} style={{ marginTop: 16 }}>
+          <b>Registre indicatif.</b> Validez chaque paramètre sur le site de la firme. Le plan pilote le rejeu et le Monte Carlo.
         </p>
       </Panel>
 
@@ -106,13 +204,13 @@ export function PropFirmView() {
 
             <Panel title="Lecture" sub="ce que le moteur vérifie">
               <p className={s.note}>
-                Le rejeu applique journée après journée : mise à jour du plus haut (fin de journée ou pic intrajournalier reconstruit via la MFE selon le type de trailing), calcul du plancher (avec verrou le cas échéant), détection d’un franchissement du plancher par la clôture ou l’excursion adverse (MAE), limite de perte journalière, règle de consistance (part du meilleur jour dans le profit net) et nombre minimum de jours tradés. L’objectif est validé le jour où toutes les conditions sont réunies ; le rejeu s’arrête alors. {plural(planEval.timeline.length, 'journée rejouée', 'journées rejouées')} sur {plural(sessions.length, 'séance')}.
+                Le rejeu applique journée après journée : mise à jour du plus haut, calcul du plancher, franchissement, limite journalière, consistance et jours minimum. L’objectif est validé le jour où toutes les conditions sont réunies. {plural(planEval.timeline.length, 'journée rejouée', 'journées rejouées')} sur {plural(sessions.length, 'séance')}.
               </p>
             </Panel>
           </>
         ) : (
           <Panel title="Aucun plan sélectionné">
-            <p className={s.note}>Choisissez un plan dans le registre pour rejouer votre journal contre ses règles.</p>
+            <p className={s.note}>Choisissez une firme puis un plan pour rejouer votre journal.</p>
           </Panel>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { IconTrash } from '@/app/icons';
 import { Button, Empty, Panel, Tag, cx, tableClass } from '@/design/primitives';
 import { computeTradeStats } from '@/engine/metrics';
@@ -15,9 +15,14 @@ const SOURCE_LABEL: Record<Session['source'], string> = { ninjatrader: 'NinjaTra
 export function Sessions() {
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
+  const deleteSessions = useJournal((j) => j.deleteSessions);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(() => new Set());
   const [sort, setSort] = useState<'date' | 'pnl'>('date');
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const toast = useUi((u) => u.toast);
+  const confirmDialog = useUi((u) => u.confirm);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -38,6 +43,51 @@ export function Sessions() {
   }, [trades]);
 
   const current = sessions.find((x) => x.id === selected) ?? null;
+  const allVisibleChecked = list.length > 0 && list.every((x) => checked.has(x.id));
+  const checkedCount = checked.size;
+
+  const toggleOne = (id: string, e: MouseEvent) => {
+    e.stopPropagation();
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (e.shiftKey && lastChecked) {
+        const a = list.findIndex((x) => x.id === lastChecked);
+        const b = list.findIndex((x) => x.id === id);
+        if (a >= 0 && b >= 0) {
+          const [lo, hi] = a < b ? [a, b] : [b, a];
+          for (let i = lo; i <= hi; i++) next.add(list[i].id);
+          return next;
+        }
+      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setLastChecked(id);
+  };
+
+  const toggleAllVisible = () => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (allVisibleChecked) for (const x of list) next.delete(x.id);
+      else for (const x of list) next.add(x.id);
+      return next;
+    });
+  };
+
+  const bulkDelete = async () => {
+    const ids = [...checked];
+    if (!ids.length) return;
+    const ok = await confirmDialog(
+      `Effacer ${plural(ids.length, 'séance')} ?`,
+      `${ids.length} séance(s) et leurs trades seront retirés du journal. Cette action est irréversible.`,
+    );
+    if (!ok) return;
+    await deleteSessions(ids);
+    setChecked(new Set());
+    if (selected && ids.includes(selected)) setSelected(null);
+    toast(`${plural(ids.length, 'séance')} effacée${ids.length > 1 ? 's' : ''}`, 'ok');
+  };
 
   if (sessions.length === 0) return <Empty title="Aucune séance" text="Importez vos trades ou créez une séance manuelle." />;
 
@@ -49,13 +99,21 @@ export function Sessions() {
         tight
         actions={
           <>
-            <input placeholder="Filtrer : date, compte, tag, note…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 240 }} />
+            <input placeholder="Filtrer : date, compte, tag, note…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 220 }} />
             <Button size="sm" variant="ghost" active={sort === 'date'} onClick={() => setSort('date')}>
               Date
             </Button>
             <Button size="sm" variant="ghost" active={sort === 'pnl'} onClick={() => setSort('pnl')}>
               PnL
             </Button>
+            {checkedCount > 0 && (
+              <>
+                <span className={s.selCount}>{checkedCount} sél.</span>
+                <Button size="sm" variant="danger" onClick={() => void bulkDelete()}>
+                  <IconTrash size={12} /> Effacer
+                </Button>
+              </>
+            )}
           </>
         }
       >
@@ -63,6 +121,9 @@ export function Sessions() {
           <table className={tableClass}>
             <thead>
               <tr>
+                <th className={s.checkCol}>
+                  <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} aria-label="Tout sélectionner" />
+                </th>
                 <th>Date</th>
                 <th>Compte</th>
                 <th className="num">Trades</th>
@@ -78,8 +139,18 @@ export function Sessions() {
               {list.map((x) => {
                 const own = tradesBySession.get(x.id) ?? [];
                 const wr = own.length ? own.filter((t) => t.pnl > 0).length / own.length : null;
+                const isChecked = checked.has(x.id);
                 return (
-                  <tr key={x.id} className={cx('clickable', selected === x.id && 'selected')} onClick={() => setSelected(x.id)} tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelected(x.id)}>
+                  <tr
+                    key={x.id}
+                    className={cx('clickable', selected === x.id && 'selected', isChecked && s.rowChecked)}
+                    onClick={() => setSelected(x.id)}
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelected(x.id)}
+                  >
+                    <td className={s.checkCol} onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={isChecked} onChange={() => undefined} onClick={(e) => toggleOne(x.id, e)} aria-label={`Sélectionner ${x.date}`} />
+                    </td>
                     <td className="mono">{formatDateFr(x.date, { weekday: true, short: true })}</td>
                     <td className="muted">{x.account ?? '—'}</td>
                     <td className="num">{x.tradeCount}</td>
@@ -102,7 +173,25 @@ export function Sessions() {
           </table>
         </div>
       </Panel>
-      {current ? <SessionDetail key={current.id} session={current} trades={tradesBySession.get(current.id) ?? []} onDeleted={() => setSelected(null)} /> : <Panel title="Détail" sub="sélectionnez une séance"><p className={s.note}>Cliquez sur une séance pour afficher ses trades, ses métriques, éditer la note, les tags et l’auto-évaluation.</p></Panel>}
+      {current ? (
+        <SessionDetail
+          key={current.id}
+          session={current}
+          trades={tradesBySession.get(current.id) ?? []}
+          onDeleted={() => {
+            setSelected(null);
+            setChecked((prev) => {
+              const next = new Set(prev);
+              next.delete(current.id);
+              return next;
+            });
+          }}
+        />
+      ) : (
+        <Panel title="Détail" sub="sélectionnez une séance">
+          <p className={s.note}>Cliquez sur une séance pour afficher ses trades. Cochez une ou plusieurs lignes pour les effacer en lot.</p>
+        </Panel>
+      )}
     </div>
   );
 }

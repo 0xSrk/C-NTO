@@ -245,3 +245,406 @@
 .rows > * {
   flex: none;
 }
+
+/* ─── Séances : multi-sélection ─── */
+.checkCol {
+  width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+.checkCol input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+.rowChecked td {
+  background: rgba(196, 30, 58, 0.04);
+}
+.selCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+/* ─── Analyse : trame lithographique ─── */
+.analyse {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.insightRail {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--line-0);
+  border-left: 2px solid var(--gold-line);
+  background: linear-gradient(90deg, rgba(196, 30, 58, 0.04), transparent 40%);
+  overflow-x: auto;
+}
+.insight {
+  flex: 1 1 140px;
+  min-width: 120px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.insightK {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.insight b {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-0);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.insight em {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  letter-spacing: var(--track-11);
+}
+.insightSep {
+  width: 1px;
+  background: var(--line-0);
+  flex: none;
+  align-self: stretch;
+}
+.analyseHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1280px) {
+  .analyseHero {
+    grid-template-columns: 1fr;
+  }
+}
+.trame,
+.midBlock,
+.analyseRank,
+.ringPane {
+  border: 1px solid var(--line-0);
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.01);
+  min-width: 0;
+}
+.trameHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.trameHead h3 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-0);
+  margin: 0;
+}
+.trameHead p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.4;
+}
+.trameLegend {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.legPos,
+.legNeg {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 2px;
+}
+.legPos {
+  background: rgba(127, 207, 154, 0.7);
+}
+.legNeg {
+  background: rgba(224, 119, 108, 0.7);
+}
+.weekRing {
+  width: 100%;
+  max-width: 220px;
+  margin: 0 auto;
+  display: block;
+}
+.ringLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--text-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ringCenter {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--text-2);
+  letter-spacing: 0.16em;
+}
+.ringSub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--text-4);
+  letter-spacing: 0.1em;
+}
+.ringStats {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ringStats li {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  border-bottom: 1px dashed var(--line-0);
+  padding: 4px 0;
+}
+.ringStats b {
+  font-weight: 500;
+  text-align: right;
+}
+.ringStats small {
+  color: var(--text-4);
+}
+.analyseMid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1280px) {
+  .analyseMid {
+    grid-template-columns: 1fr;
+  }
+}
+.field {
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+}
+.fieldAxis {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-4);
+  letter-spacing: 0.08em;
+}
+.inkRank {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.inkHead {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--line-0);
+  margin-bottom: 6px;
+}
+.inkRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr 88px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-0);
+  animation: ink-in 320ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+@keyframes ink-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.inkMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.inkMeta b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inkMeta small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-4);
+  letter-spacing: var(--track-11);
+}
+.inkTrack {
+  height: 6px;
+  background: var(--line-0);
+  position: relative;
+  overflow: hidden;
+}
+.inkBar {
+  display: block;
+  height: 100%;
+  transform-origin: left;
+}
+.inkBar.pos {
+  background: linear-gradient(90deg, rgba(127, 207, 154, 0.35), var(--mint));
+}
+.inkBar.neg {
+  background: linear-gradient(90deg, rgba(224, 119, 108, 0.35), var(--ember));
+}
+.inkVal {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Prop firm : cascade ─── */
+.cascade {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.cascadeStep {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cascadeLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cascadeLabel em {
+  font-style: normal;
+  color: var(--gold);
+  font-weight: 600;
+}
+.cascadeStep select {
+  width: 100%;
+  height: 36px;
+}
+.cascadeHint {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.cascadeRail {
+  height: 16px;
+  margin: 4px 0 4px 10px;
+  border-left: 1px solid var(--line-1);
+}
+.cascadeNested {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-0);
+  border-left: 2px solid var(--gold-line);
+  background: rgba(255, 255, 255, 0.015);
+  animation: cascade-in 280ms var(--ease-out) both;
+}
+@keyframes cascade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cascadeRules {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+}
+.cascadeRules > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line-0);
+  font-size: 12px;
+}
+.cascadeRules dt {
+  margin: 0;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.cascadeRules dd {
+  margin: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+.cascadeRules small {
+  display: block;
+  color: var(--text-4);
+  font-size: 10px;
+  margin-top: 2px;
+}
+.cascadeNote {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
