@@ -57,6 +57,14 @@ export interface UpdateStatus {
   source: 'git' | 'github' | 'none';
 }
 
+export interface ZoomSnapshot {
+  factor: number;
+  auto: number;
+  user: number;
+  mode: 'auto' | 'manual';
+  display: { width: number; height: number; scaleFactor: number; label: string };
+}
+
 export interface DeskApi {
   isDesk: true;
   platform: string;
@@ -79,6 +87,13 @@ export interface DeskApi {
     toggleMaximize: () => void;
     close: () => void;
     onMaximized: (cb: (max: boolean) => void) => () => void;
+  };
+  zoom?: {
+    get: () => Promise<ZoomSnapshot | null>;
+    set: (payload: { user?: number; auto?: boolean }) => Promise<ZoomSnapshot | null>;
+    step: (direction: 1 | -1) => Promise<ZoomSnapshot | null>;
+    reset: () => Promise<ZoomSnapshot | null>;
+    onChange: (cb: (snap: ZoomSnapshot) => void) => () => void;
   };
   files: {
     saveText: (defaultName: string, text: string) => Promise<boolean>;

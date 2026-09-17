@@ -653,6 +653,70 @@
   gap: var(--s-5);
 }
 
+/* ─── Zoom / calibrage ─── */
+.zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  border: 1px solid var(--line-1);
+  padding: 0 2px;
+  -webkit-app-region: no-drag;
+}
+.zoomBtn {
+  width: 22px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.zoomBtn:hover:not(:disabled) {
+  color: var(--text-0);
+  background: rgba(255, 255, 255, 0.04);
+}
+.zoomBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.zoomPct {
+  min-width: 72px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+.zoomPct:hover {
+  color: var(--text-0);
+}
+.zoomMode {
+  color: var(--gold);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+.zoomHint {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-4);
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  padding-right: 4px;
+}
+
 /* ─── Toasts ─── */
 .toasts {
   position: fixed;

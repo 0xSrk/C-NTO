@@ -23,6 +23,10 @@ export interface Settings {
   boundaryHour: number;
   riskPerContract: number;
   calendarView: 'grille' | 'flux';
+  /** Zoom UI : multiplicateur (auto) ou facteur absolu (manuel), 0.75–1.5 */
+  uiZoom: number;
+  /** true = calibrage écran automatique × uiZoom ; false = uiZoom absolu */
+  uiZoomAuto: boolean;
   agent: AgentConfig;
   orchestratorPort: number;
   /** Autoriser l'orchestrateur externe à écrire (notes, annotations) */
@@ -37,6 +41,8 @@ export const DEFAULT_SETTINGS: Settings = {
   boundaryHour: 0,
   riskPerContract: 0,
   calendarView: 'grille',
+  uiZoom: 1,
+  uiZoomAuto: true,
   agent: {
     provider: 'openai-compatible',
     baseUrl: 'http://localhost:11434/v1',

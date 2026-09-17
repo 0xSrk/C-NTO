@@ -13,6 +13,7 @@ import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
 import { useBridge } from '@/store/bridge';
 import { UpdateButton } from './UpdateButton';
+import { ZoomControls } from './ZoomControls';
 import { TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -55,7 +56,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
   const [maximized, setMaximized] = useState(false);
-  const [appVersion, setAppVersion] = useState('1.1.0');
+  const [appVersion, setAppVersion] = useState('1.1.1');
 
   useEffect(() => {
     if (!desk) return;
@@ -197,6 +198,7 @@ export function Shell({ children }: { children: ReactNode }) {
           Pont NinjaTrader {bridgeStatus?.error ? 'en erreur' : bridgeLive ? `actif · ${plural(bridgeStatus.files, 'fichier')}` : isDesk ? 'non configuré' : 'import manuel'}
         </span>
         <div className={s.statusRight}>
+          <ZoomControls />
           <Clocks />
         </div>
       </footer>
