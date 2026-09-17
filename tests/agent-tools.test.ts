@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { orchMethodAllowed, takeToolCalls, clampToolArgs } from '@/engine/agent/ports';
-import { executeDeskTool, toolKind } from '@/engine/agent/runner';
+import { executeDeskTool } from '@/engine/agent/runner';
+import { toolKind } from '@/engine/agent/tools';
 import type { DeskPorts } from '@/engine/agent/ports';
 
 function mockPorts(log: { writes: number }): DeskPorts {
