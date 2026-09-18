@@ -24,6 +24,7 @@ if not exist "node_modules\" (
   )
 )
 
+echo Telechargement Electron au besoin (sans module natif Windows)...
 call npm run launch
 set ERR=%ERRORLEVEL%
 if not "%ERR%"=="0" (

@@ -88,6 +88,8 @@ npm run launch
 
 Le **lanceur** s’ouvre : logotype CΛNTO, bouton **Lancer le desk**, contrôle de version. Un clic ouvre le desk complet.
 
+Premier lancement Windows : le binaire Electron est téléchargé puis extrait **sans** le module natif `extract-zip` (souvent bloqué par le Contrôle d’applications intelligentes). Comptez 1–2 min. Si le lanceur affiche `Cannot find native binding`, mettez à jour le dépôt (`git pull`) et relancez `CANTO.cmd`.
+
 Astuce Windows : clic droit sur `CANTO.cmd` › *Envoyer vers › Bureau (créer un raccourci)*.
 
 ### Autres commandes

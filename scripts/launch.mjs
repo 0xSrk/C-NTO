@@ -8,12 +8,11 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import http from 'node:http';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureElectron } from './ensure-electron.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(import.meta.url);
 const RELAUNCH = 42;
 const PORT = 5173;
 const HOST = '127.0.0.1';
@@ -33,23 +32,19 @@ function npmCliPath() {
   throw new Error('npm-cli.js introuvable — vérifiez l’installation Node.js / npm.');
 }
 
-/** Binaire Electron (electron.exe / Electron.app) sans passer par .cmd + shell. */
+/** Binaire Electron déjà extrait — ne pas `require('electron')` (install.js + binding natif Windows). */
 function electronBinary() {
-  try {
-    const fromPkg = require('electron');
-    if (typeof fromPkg === 'string' && existsSync(fromPkg)) return fromPkg;
-  } catch {
-    /* path.txt */
-  }
-  const pathFile = path.join(root, 'node_modules', 'electron', 'path.txt');
+  const dir = path.join(root, 'node_modules', 'electron');
+  const pathFile = path.join(dir, 'path.txt');
   if (existsSync(pathFile)) {
     const rel = readFileSync(pathFile, 'utf8').trim();
-    const abs = path.isAbsolute(rel) ? rel : path.join(root, 'node_modules', 'electron', rel);
+    const abs = path.isAbsolute(rel) ? rel : path.join(dir, 'dist', rel);
     if (existsSync(abs)) return abs;
   }
-  const dist = path.join(root, 'node_modules', 'electron', 'dist', isWin ? 'electron.exe' : 'electron');
+  const nested = process.platform === 'darwin' ? 'Electron.app/Contents/MacOS/Electron' : isWin ? 'electron.exe' : 'electron';
+  const dist = path.join(dir, 'dist', nested);
   if (existsSync(dist)) return dist;
-  throw new Error('Binaire Electron introuvable — lancez npm install.');
+  throw new Error('Binaire Electron introuvable après extraction.');
 }
 
 function runNodeScript(scriptPath, args) {
@@ -152,6 +147,7 @@ function stopChild(child) {
 
 async function main() {
   console.log('\n  CΛNTO · lanceur Lab\n');
+  const electronReady = ensureElectron(root);
   await compileElectron();
 
   for (;;) {
@@ -184,6 +180,12 @@ async function main() {
     }
 
     console.log(`  Vite prêt · http://${HOST}:${PORT}`);
+    try {
+      await electronReady;
+    } catch (e) {
+      stopChild(vite);
+      throw e;
+    }
     const code = await runElectron();
     stopChild(vite);
     await new Promise((r) => setTimeout(r, 500));
