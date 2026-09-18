@@ -5,6 +5,7 @@ import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { takeToolCalls, type DeskPorts } from '@/engine/agent/ports';
 import { desk, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
+import { APP_VERSION } from '@/lib/version';
 import { useCalendar } from './calendar';
 import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
@@ -96,7 +97,7 @@ export const useAgent = create<AgentState>((set, get) => ({
       unsubscribeRequests = api.orchestrator.onRequest(async (req: OrchestratorRequest) => {
         const log = (ok: boolean, detail?: string) => pushLog(set, get, { direction: 'in', method: req.method, ok, detail });
         if (req.method === 'desk.describe') {
-          api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: '1.0.0', tools: toolSchemas() });
+          api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: APP_VERSION, tools: toolSchemas() });
           log(true);
           return;
         }

@@ -4,6 +4,7 @@ import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Panel, Stat, Tag, Toggle, cx } from '@/design/primitives';
 import { PROP_FIRMS } from '@/engine/propfirm';
 import { plural } from '@/lib/format';
+import { APP_VERSION } from '@/lib/version';
 import type { CopierAccount } from '@/store/db';
 import { COPIER_CHANGELOG, replicatedQty, useCopier } from '@/store/copier';
 import s from './copieur.module.css';
@@ -59,7 +60,7 @@ export default function Copieur() {
               <Stat small label="Pont NinjaTrader" value="Hors ligne" hint="transport WebSocket non connecté" />
               <Stat small label="Maîtres · suiveurs" value={`${masters.length} · ${followers.length}`} hint={plural(followers.filter((f) => f.enabled).length, 'suiveur actif', 'suiveurs actifs')} tone="ice" />
               <Stat small label="Budget latence" value={`${config.latencyBudgetMs} ms`} hint="alerte au-delà" tone="gold" />
-              <Stat small label="Version" value={COPIER_CHANGELOG[0]?.version ?? '1.0.0'} hint={`canal ${config.channel}`} />
+              <Stat small label="Version" value={COPIER_CHANGELOG[0]?.version ?? APP_VERSION} hint={`canal ${config.channel}`} />
             </div>
 
             <div className={s.banner}>

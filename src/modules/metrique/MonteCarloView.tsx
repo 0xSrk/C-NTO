@@ -36,7 +36,7 @@ export function MonteCarloView() {
   const abortRef = useRef<AbortController | null>(null);
 
   const sample = useMemo(() => (level === 'seances' ? sessions.map((x) => x.pnl) : trades.map((x) => x.pnl)), [level, sessions, trades]);
-  const params = useDeferredValue({ runs, horizon, seed, ruin, target });
+  const params = useDeferredValue(useMemo(() => ({ runs, horizon, seed, ruin, target }), [runs, horizon, seed, ruin, target]));
   const effective = clampMonteCarlo(params.runs, params.horizon === '' ? sample.length : params.horizon);
 
   useEffect(() => {

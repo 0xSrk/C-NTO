@@ -6,6 +6,7 @@ import { Modal } from '@/design/Modal';
 import { Button } from '@/design/primitives';
 import { SESSION_CAPACITY } from '@/engine/types';
 import { desk, isDesk } from '@/lib/desk';
+import { APP_VERSION } from '@/lib/version';
 import { ET_ZONE } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
@@ -56,7 +57,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
   const active = TABS.find((t) => t.id === tab);
   const [maximized, setMaximized] = useState(false);
-  const [appVersion, setAppVersion] = useState('1.1.2');
+  const [appVersion, setAppVersion] = useState(APP_VERSION);
 
   useEffect(() => {
     if (!desk) return;
@@ -280,7 +281,7 @@ export function ModuleHeader({ tab, actions }: { tab: TabId; actions?: ReactNode
         <h1>
           {def.label}
           <small>
-            <b>{def.index}</b> · {def.code} · Rev. A
+            <b>{def.index}</b> · {def.code} · v{APP_VERSION}
           </small>
         </h1>
         <span className={s.moduleTagline}>{def.tagline}</span>
