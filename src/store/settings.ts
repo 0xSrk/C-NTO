@@ -44,7 +44,7 @@ export interface Settings {
   orchestratorPort: number;
   /** Autoriser l'orchestrateur externe à écrire (notes, annotations) */
   orchestratorAllowWrite: boolean;
-  /** `dev` : git pull + npm install. Défaut `release` (page GitHub Releases). */
+  /** `dev` : clone git (pull + relance). Conservé pour l’UI ; un checkout git tire toujours origin/main. */
   updateChannel: 'release' | 'dev';
   llmAllowedHosts: string[];
 }

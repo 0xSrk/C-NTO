@@ -110,17 +110,15 @@ Au premier lancement : écran lanceur, puis boot lithographique, puis le desk. U
 
 CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre du desk).
 
-| Canal | Condition | Effet |
-|---|---|---|
-| **release** (défaut) | l’app n’est pas un checkout git, **ou** le réglage `updateChannel` n’est pas `dev` | Annonce `vX.Y.Z dispo`. Un clic ouvre [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (`https` seulement). Pas de `git pull` ni de `npm install`. |
-| **dev** | checkout git **et** `updateChannel === 'dev'` | `git pull --ff-only` ; `npm install --legacy-peer-deps` **uniquement** après un pull réussi. `git stash` seulement après confirmation. |
+| Installation | Clic sur **Mettre à jour et relancer** |
+|---|---|
+| **Clone git** (voie recommandée, `git clone` … `CANTO.cmd`) | `git fetch` + `git pull --ff-only origin main`, puis `npm install --legacy-peer-deps`, puis **relance** le lanceur. Un working tree sale demande confirmation (stash). |
+| **Installeur** (pas de dossier `.git`) | Ouvre [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (`https` seulement). |
 
 | État | Comportement |
 |---|---|
 | À jour | Le bouton affiche `v1.1.2` (discret) |
-| Mise à jour dispo | Le bouton passe **ambre / jaune** |
-
-Même action depuis le lanceur : le bouton **Mettre à jour** apparaît lorsqu’une version plus récente est détectée (canal release : ouvre la page des versions).
+| Mise à jour dispo | Le bouton passe **ambre / jaune** — un clic installe et relance (clone git) |
 
 ---
 
