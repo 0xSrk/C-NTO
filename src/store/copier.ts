@@ -32,10 +32,11 @@ export const DEFAULT_COPIER: CopierConfig = {
 
 export const COPIER_CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
-    version: '1.0.0',
-    date: '2026-09-16',
+    version: '1.1.2',
+    date: '2026-09-17',
     items: [
-      'Grammaire visuelle Lab v1.0 — précision lithographique, LED unique',
+      'Alignement desk v1.1.2 — badge CONCEPTION, kill switch, aucun ordre',
+      'Grammaire visuelle Lab — précision lithographique, LED unique',
       'Modèle maître / suiveurs, sizing fixe · ratio · risque, NQ ↔ MNQ',
       'Filtres : fenêtre horaire, blackout catalyseurs, marge plancher',
       'Spécification du pont NinjaTrader (docs/PONT-NINJATRADER.md)',
