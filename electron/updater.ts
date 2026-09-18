@@ -13,23 +13,15 @@ export const GITHUB_BRANCH = 'main';
 export const RELAUNCH_EXIT_CODE = 42;
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
-type UpdateChannel = 'release' | 'dev';
-
 /** Miroir de src/engine/updatePolicy.ts — le process main ne compile pas `src/`. */
-function canApplyGitUpdate(input: { channel: UpdateChannel; isGitCheckout: boolean; dirty: boolean }): { ok: true } | { ok: false; reason: string } {
-  if (input.channel !== 'dev') return { ok: false, reason: 'channel_release' };
+function canApplyGitUpdate(input: { isGitCheckout: boolean; dirty: boolean }): { ok: true } | { ok: false; reason: string } {
   if (!input.isGitCheckout) return { ok: false, reason: 'not_git' };
   if (input.dirty) return { ok: false, reason: 'dirty' };
   return { ok: true };
 }
 
-function canStash(input: { channel: UpdateChannel; confirmStash: boolean }): boolean {
-  return input.channel === 'dev' && input.confirmStash === true;
-}
-
-function resolveChannel(isGitCheckout: boolean, setting: string | undefined): UpdateChannel {
-  if (isGitCheckout && setting === 'dev') return 'dev';
-  return 'release';
+function canStash(input: { confirmStash: boolean }): boolean {
+  return input.confirmStash === true;
 }
 
 async function gitDirty(root: string): Promise<boolean> {
@@ -191,20 +183,7 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
   const root = repoRoot();
   const current = await readLocalVersion(root);
   const git = await isGitCheckout(root);
-  const channel = resolveChannel(git, opts.channel);
   const latest = (git ? await gitRemotePackageVersion(root) : null) ?? (await fetchGithubPackageVersion());
-
-  if (channel === 'release') {
-    openReleasesPage();
-    return {
-      current,
-      latest: latest ?? current,
-      available: latest ? compareSemver(latest, current) > 0 : true,
-      busy: false,
-      applied: false,
-      source: git ? 'git' : 'github',
-    };
-  }
 
   if (!git) {
     openReleasesPage();
@@ -213,15 +192,16 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
       latest: latest ?? null,
       available: true,
       busy: false,
-      error: 'Dépôt git introuvable — ouvrez la page des versions.',
+      applied: false,
+      error: 'Dépôt git introuvable — page des versions ouverte.',
       source: 'none',
     };
   }
 
   const dirty = await gitDirty(root);
-  const gitOk = canApplyGitUpdate({ channel, isGitCheckout: git, dirty });
+  const gitOk = canApplyGitUpdate({ isGitCheckout: git, dirty });
   if (!gitOk.ok) {
-    if (gitOk.reason === 'dirty' && canStash({ channel, confirmStash: opts.confirmStash === true })) {
+    if (gitOk.reason === 'dirty' && canStash({ confirmStash: opts.confirmStash === true })) {
       const stash = await run('git', ['stash', 'push', '-u', '-m', 'canto-auto-update'], root);
       if (stash.code !== 0) {
         return { current, latest: latest ?? null, available: true, busy: false, error: stash.err || 'git stash a échoué', source: 'git' };

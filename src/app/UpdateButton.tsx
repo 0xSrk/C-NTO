@@ -35,9 +35,7 @@ export function UpdateButton() {
   const available = status.available;
   const label = busy ? 'Màj…' : available ? 'Màj' : `v${status.current}`;
   const title = available
-    ? channel === 'dev'
-      ? `Mise à jour disponible : v${status.current} → v${status.latest ?? '…'} — cliquer pour git pull et relancer`
-      : `v${status.latest ?? '…'} dispo — cliquer pour ouvrir GitHub Releases`
+    ? `Mise à jour disponible : v${status.current} → v${status.latest ?? '…'} — cliquer pour installer et relancer`
     : `Version locale v${status.current}${status.latest ? ` · distant v${status.latest}` : ''} — à jour`;
 
   const onClick = async () => {
@@ -46,7 +44,7 @@ export function UpdateButton() {
       return;
     }
     setBusy(true);
-    toast(channel === 'dev' ? 'Téléchargement de la mise à jour…' : `v${status.latest ?? ''} dispo — ouverture des versions.`, 'info');
+    toast('Téléchargement de la mise à jour…', 'info');
     try {
       let r = await api.apply({ channel, confirmStash: false });
       if (r?.error === 'dirty_needs_stash') {

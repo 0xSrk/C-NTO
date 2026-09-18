@@ -76,10 +76,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label="Risque par contrat ($)" hint="pour les multiples de R à l'import">
           <input type="number" min={0} step={5} value={settings.riskPerContract} onChange={(e) => update({ riskPerContract: Number(e.target.value) || 0 })} />
         </Field>
-        <Field label="Canal de mise à jour" className={s.full} hint="release : page GitHub · dev : git pull (checkout seulement)">
+        <Field label="Canal de mise à jour" className={s.full} hint="un clone git tire origin/main et relance ; sans git, page GitHub">
           <select value={settings.updateChannel} onChange={(e) => update({ updateChannel: e.target.value === 'dev' ? 'dev' : 'release' })}>
-            <option value="release">release — versions GitHub</option>
-            <option value="dev">dev — git pull + npm install</option>
+            <option value="release">release — installeur (page GitHub)</option>
+            <option value="dev">dev — clone git (pull + relancer)</option>
           </select>
         </Field>
         <Field label="Dossier de sauvegarde" className={s.full} hint="copie quotidienne canto-vault-AAAA-MM-JJ.json">

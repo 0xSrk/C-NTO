@@ -108,13 +108,13 @@
       if (status.error) {
         applying = false;
         paint();
-        setMeta(status.error, 'err');
+        setMeta(status.error === 'dirty_needs_stash' ? 'Modifications locales — stash ou commit, puis réessayez.' : status.error, 'err');
         return;
       }
       if (!status.applied) {
         applying = false;
         paint();
-        setMeta(status.latest ? 'v' + status.latest + ' dispo — page des versions ouverte' : 'Page des versions ouverte');
+        setMeta(status.error || (status.latest ? 'v' + status.latest + ' dispo — page des versions ouverte' : 'Page des versions ouverte'));
         return;
       }
       setMeta('Redémarrage…', 'warn');
