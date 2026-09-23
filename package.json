@@ -1,8 +1,8 @@
 {
   "name": "canto",
   "productName": "CΛNTO",
-  "version": "1.1.2",
-  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v1.1.2",
+  "version": "2.0.0",
+  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v2.0.0 · macOS, Windows, Linux",
   "private": true,
   "author": "SIΞRRΛSKΛ",
   "license": "UNLICENSED",
@@ -10,6 +10,7 @@
     "node": ">=22.12.0"
   },
   "main": "dist-electron/main.js",
+  "desktopName": "canto.desktop",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -23,8 +24,10 @@
     "launch": "node scripts/launch.mjs",
     "desk:dev": "npm run electron:compile && concurrently -k -n vite,desk -c cyan,white \"vite --strictPort\" \"cross-env CANTO_DEV_URL=http://localhost:5173 electron .\"",
     "desk:build": "npm run build && npm run electron:compile",
-    "dist": "npm run desk:build && electron-builder",
-    "dist:win": "npm run desk:build && electron-builder --win"
+    "dist": "npm run desk:build && electron-builder --publish never",
+    "dist:win": "npm run desk:build && electron-builder --win --x64 --arm64 --publish never",
+    "dist:mac": "npm run desk:build && electron-builder --mac --universal --publish never",
+    "dist:linux": "npm run desk:build && electron-builder --linux --x64 --arm64 --publish never"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -67,6 +70,10 @@
       "build/logo.svg",
       "build/icon.ico"
     ],
+    "extraResources": [
+      { "from": "ninjatrader/CantoBridge.cs", "to": "ninjatrader/CantoBridge.cs" },
+      { "from": "docs/PONT-NINJATRADER.md", "to": "ninjatrader/PONT-NINJATRADER.md" }
+    ],
     "electronFuses": {
       "runAsNode": false,
       "enableCookieEncryption": true,
@@ -78,27 +85,47 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        "nsis",
-        "portable"
+        { "target": "nsis", "arch": ["x64", "arm64"] },
+        { "target": "portable", "arch": ["x64", "arm64"] }
       ],
-      "artifactName": "CANTO-${version}-${arch}.${ext}"
+      "artifactName": "CANTO-${version}-win-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "CΛNTO"
+      "shortcutName": "CΛNTO",
+      "artifactName": "CANTO-${version}-win-${arch}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "CANTO-${version}-win-${arch}-portable.${ext}"
     },
     "linux": {
+      "icon": "build/icon.png",
+      "executableName": "canto",
+      "syncDesktopName": true,
+      "synopsis": "Desk de trading local Nasdaq / CME",
+      "category": "Finance",
+      "maintainer": "SIΞRRΛSKΛ Lab <canto@users.noreply.github.com>",
       "target": [
-        "AppImage"
+        { "target": "AppImage", "arch": ["x64", "arm64"] },
+        { "target": "deb", "arch": ["x64", "arm64"] }
       ],
-      "category": "Finance"
+      "artifactName": "CANTO-${version}-linux-${arch}.${ext}"
     },
     "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.finance",
+      "identity": null,
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false,
       "target": [
-        "dmg"
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
       ],
-      "category": "public.app-category.finance"
+      "artifactName": "CANTO-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "CΛNTO ${version}"
     }
   }
 }

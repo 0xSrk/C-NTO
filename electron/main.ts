@@ -8,6 +8,7 @@ import { Orchestrator } from './orchestrator';
 import { fetchMacroReleases } from './macro-calendar';
 import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
 import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, type UiZoomMode } from './ui-scale';
+import { defaultNinjaExportFolder } from './bridge-folder';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 const LAUNCHER_MODE = process.argv.includes('--launcher');
@@ -693,7 +694,7 @@ ipcMain.handle('bridge:pick-folder', async (e) => {
 });
 ipcMain.handle('bridge:default-folder', async (e) => {
   if (!trusted(e)) return null;
-  const folder = path.join(app.getPath('documents'), 'NinjaTrader 8', 'export', 'CANTO');
+  const folder = defaultNinjaExportFolder(app.getPath('documents'));
   await fs.mkdir(folder, { recursive: true });
   return folder;
 });

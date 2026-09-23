@@ -4,7 +4,11 @@ on:
   pull_request:
 jobs:
   check:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,3 +18,40 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  dist:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            script: dist:linux
+            artifact: canto-linux
+          - os: windows-latest
+            script: dist:win
+            artifact: canto-windows
+          - os: macos-latest
+            script: dist:mac
+            artifact: canto-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - name: Installeur natif
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error

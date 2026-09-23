@@ -2,13 +2,13 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V1.1.2 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V2.0.0 · DESK OUTPUT`**
 
 # CΛNTO
 
 ### Desk de trading local pour le Nasdaq-100 futures (NQ / MNQ, CME Globex)
 
-Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8, calendrier catalyseurs, notes, agent IA, automates et copieur, dans une seule application locale. Données 100 % sur le poste.
+Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8, calendrier catalyseurs, notes, agent IA, automates et copieur, dans une seule application locale. **v2.0.0** s’installe nativement sur **macOS, Windows et Linux** : le desk entier, y compris le pont NT8, tourne sur chaque OS. Données 100 % sur le poste.
 
 > Licence : `UNLICENSED`. Source visible. Pas de concession de droits. Pas de réutilisation sans accord SIΞRRΛSKΛ.
 
@@ -17,9 +17,12 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-115%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-116%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
-[![Version](https://img.shields.io/badge/version-1.1.2-c41e3a?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-2.0.0-c41e3a?style=flat-square)](package.json)
+[![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
+[![Windows](https://img.shields.io/badge/Windows-NSIS-000000?style=flat-square&logo=windows&logoColor=white)](#installer)
+[![Linux](https://img.shields.io/badge/Linux-AppImage%20%C2%B7%20deb-000000?style=flat-square&logo=linux&logoColor=white)](#installer)
 
 <br/>
 
@@ -70,36 +73,66 @@ CΛNTO est le **desk local** du Lab pour travailler le **Nasdaq-100 futures** au
 
 ## Démarrer
 
-**Prérequis** : [Node.js](https://nodejs.org) ≥ 22.12 (LTS) et npm. Windows 10 / 11 recommandé pour NinjaTrader — le shell tourne aussi sous macOS et Linux.
+**v2.0.0** est la version qui accueille les trois OS au même titre. Le logiciel entier — journal, calendrier, notes, agent, automates, copieur, et le **pont NinjaTrader 8** — est livré en application native, installable sans cloner le dépôt.
 
-### Voie simple (recommandée)
+| OS | Installeur | Ce que vous obtenez |
+|---|---|---|
+| **macOS** 12+ (Apple silicon et Intel) | `CANTO-2.0.0-mac-universal.dmg` | Application dans `/Applications`. Le pont fichier est dans le desk. |
+| **Windows** 10 / 11 (x64 et ARM) | `CANTO-2.0.0-win-x64-setup.exe` (ou `arm64`) | Assistant NSIS (dossier au choix, raccourci). Portable : `CANTO-2.0.0-win-x64-portable.exe`. |
+| **Linux** x64 et ARM64 | `CANTO-2.0.0-linux-x86_64.AppImage` ou `CANTO-2.0.0-linux-amd64.deb` | ARM64 : `linux-arm64.AppImage` et `linux-arm64.deb`. |
+
+<a id="installer"></a>
+
+### macOS
+
+1. Télécharger le DMG depuis les artefacts CI ou `npm run dist:mac` sur un Mac.
+2. Ouvrir le DMG, glisser **CΛNTO** dans **Applications**.
+3. Premier lancement : clic droit sur l’app › **Ouvrir** (le DMG n’est pas signé Apple ; Gatekeeper demande cette confirmation une fois).
+4. Le lanceur puis le desk s’ouvrent. Métrique › Pont NinjaTrader crée `~/Documents/NinjaTrader 8/export/CANTO` et le surveille.
+
+NinjaTrader 8 lui-même s’installe sur **Windows**. L’AddOn `CantoBridge.cs` se compile là-bas (F5) et écrit les CSV. Le desk macOS lit ce dossier s’il est local, partagé, ou synchronisé (Syncthing, partage réseau, copie). Le reste de CΛNTO — métriques, calendrier, notes, agent, coffre — est natif sur le Mac, sans Windows.
+
+Depuis les sources (développement) : double-clic sur `CANTO.command`, ou `chmod +x CANTO.sh && ./CANTO.sh`.
+
+### Windows
+
+1. Lancer `CANTO-2.0.0-win-x64-setup.exe` (ou `arm64` sur Windows ARM).
+2. Choisir le dossier, terminer l’assistant, ouvrir **CΛNTO** depuis le menu Démarrer.
+3. Variante sans installation : `CANTO-2.0.0-win-x64-portable.exe`.
+4. Métrique › Pont NinjaTrader › dossier par défaut `Documents\NinjaTrader 8\export\CANTO`.
+5. Temps réel : le fichier `CantoBridge.cs` est livré dans `resources/ninjatrader/` à côté de l’exécutable (sources : `ninjatrader/CantoBridge.cs`). Le copier dans `Documents\NinjaTrader 8\bin\Custom\AddOns\`, NinjaScript Editor › Compile (F5).
+
+Depuis les sources : double-clic sur `CANTO.cmd`. Le binaire Electron est téléchargé puis extrait **sans** le module natif `extract-zip` (souvent bloqué par le Contrôle d’applications intelligentes). Comptez 1–2 min. Si le lanceur affiche `Cannot find native binding`, mettez à jour le dépôt (`git pull`) et relancez `CANTO.cmd`. Raccourci : clic droit sur `CANTO.cmd` › *Envoyer vers › Bureau (créer un raccourci)*.
+
+### Linux
+
+1. **AppImage** (aucune installation système) : `chmod +x CANTO-2.0.0-linux-x86_64.AppImage && ./CANTO-2.0.0-linux-x86_64.AppImage`. ARM64 : `CANTO-2.0.0-linux-arm64.AppImage`.
+2. **Debian / Ubuntu** : `sudo apt install ./CANTO-2.0.0-linux-amd64.deb` (ARM64 : `CANTO-2.0.0-linux-arm64.deb`), puis lancer `canto` ou **CΛNTO** dans le menu.
+3. Le pont crée `~/Documents/NinjaTrader 8/export/CANTO`. Même règle que sur macOS : l’AddOn tourne dans NinjaTrader 8 sous Windows ; le desk Linux importe les CSV de ce dossier.
+
+Depuis les sources : `chmod +x CANTO.sh && ./CANTO.sh`.
+
+### Sources (les trois OS)
+
+**Prérequis** : [Node.js](https://nodejs.org) ≥ 22.12 (LTS) et npm.
 
 ```bash
 git clone https://github.com/0xSrk/C-NTO.git
 cd C-NTO
 npm install
-```
-
-Puis **double-cliquez `CANTO.cmd`** (Windows) — ou lancez :
-
-```bash
 npm run launch
 ```
 
 Le **lanceur** s’ouvre : logotype CΛNTO, bouton **Lancer le desk**, contrôle de version. Un clic ouvre le desk complet.
 
-Premier lancement Windows : le binaire Electron est téléchargé puis extrait **sans** le module natif `extract-zip` (souvent bloqué par le Contrôle d’applications intelligentes). Comptez 1–2 min. Si le lanceur affiche `Cannot find native binding`, mettez à jour le dépôt (`git pull`) et relancez `CANTO.cmd`.
-
-Astuce Windows : clic droit sur `CANTO.cmd` › *Envoyer vers › Bureau (créer un raccourci)*.
-
-### Autres commandes
-
 | Commande | Effet |
 |---|---|
-| `npm run launch` / `CANTO.cmd` | **Lanceur** → desk (voie principale) |
+| `npm run launch` · `CANTO.cmd` · `./CANTO.sh` · `CANTO.command` | **Lanceur** → desk |
 | `npm run desk:dev` | Desk Electron + Vite (sans écran lanceur) |
 | `npm run dev` | Navigateur seul (hors passerelle orchestrateur, hors chiffrement `safeStorage`) |
-| `npm run dist:win` | Installeur NSIS + portable → `release/` |
+| `npm run dist:mac` | DMG + zip universels → `release/` (sur macOS) |
+| `npm run dist:win` | NSIS + portable, x64 et ARM → `release/` (sur Windows) |
+| `npm run dist:linux` | AppImage + deb, x64 et ARM64 → `release/` (sur Linux) |
 | `npm run check` | `typecheck` + `test` + `build` |
 
 Au premier lancement : écran lanceur, puis boot lithographique, puis le desk. Un **jeu de démonstration** (140 séances) se charge depuis Métrique › *Charger un jeu de démonstration*.
@@ -117,7 +150,7 @@ CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre 
 
 | État | Comportement |
 |---|---|
-| À jour | Le bouton affiche `v1.1.2` (discret) |
+| À jour | Le bouton affiche `v2.0.0` (discret) |
 | Mise à jour dispo | Le bouton passe **ambre / jaune** — un clic installe et relance (clone git) |
 
 ---
@@ -402,8 +435,8 @@ Transport **fichier CSV** implémenté. Local uniquement.
 
 | Mode | Comment |
 |---|---|
-| **Automatique** | Métrique › Pont NinjaTrader › dossier (défaut `Documents\NinjaTrader 8\export\CANTO`). Tout `.csv` / `.txt` déposé ou modifié est importé à écriture terminée (hash SHA-256 après stabilité : même contenu → skip). Les `.tmp` et `.seen.txt` sont ignorés. |
-| **Temps réel** | Copier `ninjatrader/CantoBridge.cs` dans `Documents\NinjaTrader 8\bin\Custom\AddOns\` → NinjaScript Editor › Compile (F5). Chaque exécution → `executions-AAAA-MM-JJ.csv` (écriture atomique `.tmp` puis replace). IDs déjà écrits dans `executions-AAAA-MM-JJ.seen.txt` (survivent au restart NT). Buy / Sell uniquement — le reste est logué, pas d’écriture. |
+| **Automatique** | Métrique › Pont NinjaTrader › dossier. Défaut, sur **macOS, Windows et Linux** : `Documents/NinjaTrader 8/export/CANTO` (sous le dossier Documents du système). Tout `.csv` / `.txt` déposé ou modifié est importé à écriture terminée (hash SHA-256 après stabilité : même contenu → skip). Les `.tmp` et `.seen.txt` sont ignorés. |
+| **Temps réel** | Sur la machine **Windows** où NinjaTrader 8 est installé : copier `CantoBridge.cs` (`ninjatrader/CantoBridge.cs` dans les sources, ou `resources/ninjatrader/CantoBridge.cs` dans l’installeur) dans `Documents/NinjaTrader 8/bin/Custom/AddOns/` → NinjaScript Editor › Compile (F5). Chaque exécution → `executions-AAAA-MM-JJ.csv` (écriture atomique `.tmp` puis replace). Le desk qui lit ces fichiers peut être le même Windows, ou un CΛNTO natif macOS / Linux pointé vers ce dossier (partage ou synchro). IDs déjà écrits dans `executions-AAAA-MM-JJ.seen.txt` (survivent au restart NT). Buy / Sell uniquement — le reste est logué, pas d’écriture. |
 | **Manuel** | Trade Performance › Trades ou Executions › Export CSV › Importer. |
 
 L’export **Executions** ne contient pas de MAE/MFE (affiché dans l’UI d’import). Positions encore ouvertes : signalées, pas importées tant qu’elles ne sont pas clôturées.
@@ -426,6 +459,8 @@ electron/         shell (fenêtre sans cadre, lanceur, mise à jour,
 ninjatrader/      AddOn CΛNTO Bridge (exécutions → CSV atomique + .seen)
 scripts/          launch.mjs · copy-electron-assets · hash-release.mjs
 CANTO.cmd         double-clic Windows → lanceur
+CANTO.sh          terminal macOS / Linux → lanceur
+CANTO.command     double-clic Finder (macOS) → lanceur
 build/            icône Lab (LED)
 src/app/          boot, coque (titlebar 56 · rail 232 · status 28), onglets
 src/design/       jetons, primitives, logotype CΛNTO, graphiques SVG
@@ -433,7 +468,7 @@ src/engine/       métriques, Monte Carlo, import NT, prop firm,
                   indicateurs, calendrier Nasdaq, outils agent, politique LLM / update
 src/store/        Dexie (IndexedDB) + Zustand
 src/modules/      un dossier par onglet (01…07)
-tests/            Vitest — 115 tests (moteur, import, coffre, agent, updater)
+tests/            Vitest — 116 tests (moteur, import, coffre, agent, updater)
 vectors/          vecteurs JSON partagés (métriques / prop firm)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
@@ -455,13 +490,15 @@ npm install
 npm run launch         # voie utilisateur (lanceur + desk)
 npm run desk:dev       # Electron + Vite sans lanceur
 npm run typecheck      # tsc app + electron
-npm test               # Vitest (115)
+npm test               # Vitest (116)
 npm run build          # bundle production
 npm run check          # typecheck + test + build
-npm run dist:win       # NSIS + portable
+npm run dist:mac       # DMG + zip universels (macOS)
+npm run dist:win       # NSIS + portable, x64 et ARM (Windows)
+npm run dist:linux     # AppImage + deb, x64 et ARM64 (Linux)
 ```
 
-CI : GitHub Actions, `windows-latest`, Node 22, `npm ci` puis `typecheck` / `test` / `build`.
+CI : GitHub Actions sur **ubuntu, Windows et macOS** — `npm ci`, `typecheck`, `test`, `build`, puis l’installeur natif de l’OS (`dist:linux`, `dist:win`, `dist:mac`). Les binaires sont publiés en artefacts du workflow.
 
 ---
 
@@ -501,6 +538,6 @@ Licence : `UNLICENSED`. Tous droits réservés, SIΞRRΛSKΛ. Dépôt consultabl
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v1.1.2`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v2.0.0`**
 
 </div>

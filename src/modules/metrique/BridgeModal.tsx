@@ -55,7 +55,7 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
               <Button variant="gold" onClick={() => pickFolder()} disabled={busy}>
                 Choisir un dossier…
               </Button>
-              <Button onClick={() => useDefaultFolder()} disabled={busy} title="Documents\NinjaTrader 8\export\CANTO">
+              <Button onClick={() => useDefaultFolder()} disabled={busy} title="Documents/NinjaTrader 8/export/CANTO">
                 Dossier par défaut NinjaTrader
               </Button>
               {status?.folder && (
@@ -82,7 +82,7 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
           </div>
           <ol className={s.note} style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
             <li>
-              <b>Temps réel</b> — copier <code>ninjatrader/CantoBridge.cs</code> dans <code>Documents\NinjaTrader 8\bin\Custom\AddOns\</code>, puis NinjaScript Editor › <em>Compile</em> (F5). L’AddOn écrit chaque exécution dans <code>Documents\NinjaTrader 8\export\CANTO\executions-AAAA-MM-JJ.csv</code> ; CΛNTO les apparie en trades (FIFO) et met le journal à jour à la volée.
+              <b>Temps réel</b> — sur la machine Windows qui fait tourner NinjaTrader 8, copier <code>ninjatrader/CantoBridge.cs</code> dans <code>Documents/NinjaTrader 8/bin/Custom/AddOns/</code>, puis NinjaScript Editor › <em>Compile</em> (F5). L’AddOn écrit chaque exécution dans <code>Documents/NinjaTrader 8/export/CANTO/executions-AAAA-MM-JJ.csv</code>. Le desk CΛNTO — Windows, macOS ou Linux — surveille ce dossier (en local, ou un partage / une synchro) et apparie les exécutions en trades (FIFO).
             </li>
             <li>
               <b>Rattrapage</b> — Control Center › Trade Performance › Trades (ou onglet Executions) › clic droit › <em>Export</em> vers ce dossier : le fichier est importé dès qu’il est écrit.
