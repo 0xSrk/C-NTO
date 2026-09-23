@@ -203,13 +203,16 @@ namespace NinjaTrader.NinjaScript.AddOns
                     if (lines.Count == 0) lines.Add(Header);
                     lines.Add(line.ToString());
                     File.WriteAllLines(tmp, lines, new UTF8Encoding(false));
-                    File.Move(tmp, file, overwrite: true);
+                    // net48, pas l'overload 3 args (File.Move(src, dest, overwrite) est .NET Core / 5+).
+                    if (File.Exists(file)) File.Delete(file);
+                    File.Move(tmp, file);
 
                     List<string> seenLines = new List<string>();
                     if (File.Exists(seen)) seenLines.AddRange(File.ReadAllLines(seen));
                     seenLines.Add(executionId);
                     File.WriteAllLines(seenTmp, seenLines, new UTF8Encoding(false));
-                    File.Move(seenTmp, seen, overwrite: true);
+                    if (File.Exists(seen)) File.Delete(seen);
+                    File.Move(seenTmp, seen);
                 }
                 catch
                 {
@@ -224,6 +227,9 @@ namespace NinjaTrader.NinjaScript.AddOns
         private static string Csv(string value)
         {
             if (string.IsNullOrEmpty(value)) return "";
+            char lead = value[0];
+            if (lead == '=' || lead == '+' || lead == '-' || lead == '@')
+                value = "'" + value;
             if (value.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0)
                 return "\"" + value.Replace("\"", "\"\"") + "\"";
             return value;

@@ -141,6 +141,19 @@ describe('importTradesCsv', () => {
     expect(again.trades.map((t) => t.pnl)).toEqual(r.trades.map((t) => t.pnl));
     expect(again.sessions[0]!.source).toBe('csv');
   });
+
+  it('préfixe les cellules qui commencent par un caractère de formule', () => {
+    const r = importTradesCsv(NT_EN);
+    r.trades[0]!.strategy = '=cmd|calc';
+    r.trades[0]!.account = '+evil';
+    r.trades[1]!.entryName = '@load';
+    const csv = exportTradesCsv(r.trades);
+    expect(csv).toContain("'=cmd|calc");
+    expect(csv).toContain("'+evil");
+    expect(csv).toContain("'@load");
+    const plain = importTradesCsv(NT_EN);
+    expect(exportTradesCsv(plain.trades)).not.toContain("'NQ");
+  });
 });
 
 describe('unités et réconciliation', () => {

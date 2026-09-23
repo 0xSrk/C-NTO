@@ -1,3 +1,4 @@
+import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import type { Instrument, Session, Trade } from './types';
 
 export interface EquityPoint {
@@ -298,7 +299,12 @@ export function computeTradeStats(input: Trade[]): TradeStats {
   const profitFactor = grossLoss !== 0 ? grossProfit / Math.abs(grossLoss) : grossProfit > 0 ? Infinity : 0;
   const expectancy = count ? netPnl / count : 0;
   const std = stddev(pnls);
-  const sqn = count > 1 && std > EPS ? (Math.sqrt(count) * mean(pnls)) / std : 0;
+  // Van Tharp : SQN sur les R-multiples dès que chaque trade a un risque ; sinon sur le PnL $.
+  const rMultiples = trades.filter((t) => t.risk && t.risk > 0).map((t) => t.pnl / (t.risk as number));
+  const sqnOnR = rMultiples.length === count && count > 0;
+  const sqnSample = sqnOnR ? rMultiples : pnls;
+  const sqnStd = stddev(sqnSample);
+  const sqn = sqnSample.length > 1 && sqnStd > EPS ? (Math.sqrt(sqnSample.length) * mean(sqnSample)) / sqnStd : 0;
   const lossRate = count ? losses / count : 0;
   const kelly = Number.isFinite(payoffRatio) && payoffRatio > 0 ? winRate - lossRate / payoffRatio : winRate;
 
@@ -319,7 +325,6 @@ export function computeTradeStats(input: Trade[]): TradeStats {
   const winWithMfe = trades.filter((t) => t.pnl > 0 && typeof t.mfe === 'number' && (t.mfe as number) > EPS);
   const captureRatio = winWithMfe.length ? mean(winWithMfe.map((t) => t.pnl / (t.mfe as number))) : null;
 
-  const rMultiples = trades.filter((t) => t.risk && t.risk > 0).map((t) => t.pnl / (t.risk as number));
   const expectancyR = rMultiples.length ? mean(rMultiples) : null;
 
   const instruments = [...new Set(trades.map((t) => t.instrument))] as Instrument[];
@@ -365,7 +370,7 @@ export function computeTradeStats(input: Trade[]): TradeStats {
     short: directionStats(trades.filter((t) => t.direction === 'short')),
     byHour: bucketize(
       trades,
-      (t) => String(new Date(t.entryTime).getHours()),
+      (t) => String(zonedWallClock(t.entryTime, ET_ZONE).hour),
       Array.from({ length: 24 }, (_, i) => String(i)),
     ),
     byWeekday: bucketize(trades, (t) => WEEKDAY_KEYS[new Date(t.entryTime).getDay()] ?? 'dim', WEEKDAY_KEYS),
@@ -413,6 +418,7 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
     sessions.map((s) => ({ t: new Date(`${s.date}T12:00:00`).getTime(), pnl: s.pnl })),
     startingBalance,
   );
+  // Calmar ici = rendement linéaire annualisé (net / capital × 252 / jours) / drawdown %, pas un CAGR.
   const annualizedReturn = days ? (netPnl / startingBalance) * (252 / days) : 0;
   const calmar = dd.maxDrawdownPct > EPS ? annualizedReturn / dd.maxDrawdownPct : 0;
 
@@ -485,6 +491,7 @@ export function histogram(input: number[], bins = 24): { x0: number; x1: number;
     max += 1;
   }
   const width = (max - min) / bins;
+  if (!Number.isFinite(width) || width <= 0) return [];
   const out = Array.from({ length: bins }, (_, i) => ({ x0: min + i * width, x1: min + (i + 1) * width, count: 0 }));
   for (const v of values) {
     const idx = Math.min(bins - 1, Math.floor((v - min) / width));

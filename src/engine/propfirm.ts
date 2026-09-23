@@ -193,6 +193,7 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
   const filtered = account ? sessionsInput.filter((s) => (s.account ?? '') === account) : sessionsInput;
   const byDate = new Map<string, { date: string; ids: string[]; pnl: number; tradeCount: number }>();
   for (const s of filtered) {
+    if (!Number.isFinite(s.pnl)) continue;
     const cur = byDate.get(s.date);
     if (cur) {
       cur.ids.push(s.id);
@@ -242,7 +243,8 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
       if (favorable > intradayHigh) intradayHigh = favorable;
       // L'ordre MAE/MFE au sein d'un trade est inconnu : l'excursion adverse est testée contre
       // le plancher en vigueur à l'entrée, la clôture contre le plancher mis à jour par le pic.
-      if (balance + adverse <= dayFloor) breached = true;
+      // EOD : seul le solde de clôture compte (une mèche ne fait pas échouer un combine).
+      if (plan.drawdownType === 'intraday-trailing' && balance + adverse <= dayFloor) breached = true;
       if (plan.drawdownType === 'intraday-trailing') {
         const peak = balance + intradayHigh;
         if (peak > highWater) highWater = peak;
@@ -252,7 +254,7 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
       cum += t.pnl;
       if (cum < intradayLow) intradayLow = cum;
       if (cum > intradayHigh) intradayHigh = cum;
-      if (balance + cum <= dayFloor) breached = true;
+      if (plan.drawdownType !== 'eod-trailing' && balance + cum <= dayFloor) breached = true;
     }
     if (dayTrades.length === 0) {
       cum = s.pnl;

@@ -36,12 +36,22 @@ export function macroToCalEvent(r: MacroReleaseRow): CalEvent {
   };
 }
 
-/** Fusionne événements structurels Nasdaq + publications macro persistées (additif : un fetch ne déplace pas un FOMC bundled). */
+/** Même jour, même catégorie : le fil live remplace l'estimé (et le NFP structurel), il ne s'y ajoute pas. Un FOMC daté reste. */
+function displacedByLive(local: CalEvent, live: CalEvent[]): boolean {
+  return live.some((ev) => {
+    if (ev.date !== local.date || ev.category !== local.category) return false;
+    if (local.estimated) return true;
+    return /nfp|non-?farm|emploi us/i.test(local.title);
+  });
+}
+
+/** Fusionne événements structurels Nasdaq + publications macro persistées. */
 export function mergeCalendarEvents(local: CalEvent[], macros: MacroReleaseRow[]): CalEvent[] {
   const live = macros.map(macroToCalEvent);
-  const localIds = new Set(local.map((e) => e.id));
-  const added = live.filter((e) => !localIds.has(e.id));
-  return [...local, ...added].sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
+  const kept = local.filter((e) => !displacedByLive(e, live));
+  const keptIds = new Set(kept.map((e) => e.id));
+  const added = live.filter((e) => !keptIds.has(e.id));
+  return [...kept, ...added].sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
 }
 
 /** Surprise : actual vs forecast (numérique si possible). */

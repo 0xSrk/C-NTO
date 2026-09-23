@@ -120,6 +120,13 @@ export function zonedToUtc(dateKey: string, time: string, timeZone: string): num
   return utc;
 }
 
+/** Heure murale (0–23) et jour de semaine (0 = dimanche) d'un instant dans un fuseau. */
+export function zonedWallClock(ms: number, timeZone: string): { hour: number; weekday: number } {
+  const p = zonedParts(ms, timeZone);
+  const weekday = new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay();
+  return { hour: p.hour, weekday };
+}
+
 export function formatTimeLocal(ms: number, withSeconds = false): string {
   const d = new Date(ms);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}${withSeconds ? `:${pad2(d.getSeconds())}` : ''}`;

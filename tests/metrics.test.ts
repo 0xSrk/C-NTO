@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeDailyStats, computeTradeStats, drawdownSeries, histogram, streakZScore } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
+import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { loadVector } from './helpers/loadVector';
 
 function trade(pnl: number, i: number, extra: Partial<Trade> = {}): Trade {
@@ -83,6 +84,34 @@ describe('computeTradeStats', () => {
     const w = 2 / 3;
     const payoff = 250 / 100;
     expect(s.kelly).toBeCloseTo(w - (1 - w) / payoff);
+  });
+
+  it('place l’heure d’entrée en America/New_York', () => {
+    const entry = zonedToUtc('2026-01-15', '10:00', ET_ZONE);
+    const s = computeTradeStats([trade(100, 0, { entryTime: entry, exitTime: entry + 60_000 })]);
+    expect(s.byHour.find((b) => b.key === '10')!.count).toBe(1);
+    expect(s.byHour.find((b) => b.key === '16')!.count).toBe(0);
+  });
+
+  it('calcule le SQN sur les R-multiples quand chaque trade a un risque', () => {
+    const mixed = [
+      trade(200, 0, { risk: 100 }),
+      trade(-50, 1, { risk: 200 }),
+      trade(100, 2, { risk: 50 }),
+    ];
+    const onR = computeTradeStats(mixed);
+    const dollars = mixed.map((t) => t.pnl);
+    const rs = [2, -0.25, 2];
+    const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
+    const std = (xs: number[]) => {
+      const m = mean(xs);
+      return Math.sqrt(xs.reduce((s, v) => s + (v - m) ** 2, 0) / (xs.length - 1));
+    };
+    const sqn = (xs: number[]) => (Math.sqrt(xs.length) * mean(xs)) / std(xs);
+    expect(onR.sqn).toBeCloseTo(sqn(rs));
+    expect(onR.sqn).not.toBeCloseTo(sqn(dollars));
+    const noRisk = computeTradeStats(mixed.map((t) => ({ ...t, risk: undefined })));
+    expect(noRisk.sqn).toBeCloseTo(sqn(dollars));
   });
 });
 
@@ -173,5 +202,10 @@ describe('histogram', () => {
     expect(h.length).toBe(5);
     expect(h.reduce((s, b) => s + b.count, 0)).toBe(10);
     expect(h[4]!.count).toBe(2);
+  });
+
+  it('rend une liste vide si la largeur de classe n’est pas finie', () => {
+    expect(histogram([1, 2, 3], 0)).toEqual([]);
+    expect(histogram([-Number.MAX_VALUE, 1, Number.MAX_VALUE], 4)).toEqual([]);
   });
 });

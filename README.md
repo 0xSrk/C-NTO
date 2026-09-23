@@ -2,7 +2,7 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V1.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V1.1.2 · DESK OUTPUT`**
 
 # CΛNTO
 
@@ -17,7 +17,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-100%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-115%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/badge/version-1.1.2-c41e3a?style=flat-square)](package.json)
 
@@ -144,9 +144,9 @@ Le moteur (`src/engine`) est TypeScript pur, indépendant de l’UI.
 
 | Famille | Ce qui est calculé |
 |---|---|
-| Trade | profit factor, payoff, espérance ($ et R), win rate, SQN (Van Tharp), Kelly, z-score des séries, MAE / MFE (unité déduite de la colonne Profit), edge ratio, capture ratio |
-| Journée | Sharpe **rf = 0**, annualisation **√252**, Sortino, Calmar, drawdown max / actuel / durée jusqu’à récupération, % de séances gagnantes, consistance = part du **meilleur jour dans le profit net** |
-| Direction | long / short séparés, carte horaire, jour de semaine, instrument |
+| Trade | profit factor, payoff, espérance ($ et R), win rate, SQN (Van Tharp : sur R si chaque trade a un risque, sinon sur le PnL $), Kelly, z-score des séries, MAE / MFE (unité déduite de la colonne Profit), edge ratio, capture ratio |
+| Journée | Sharpe **rf = 0**, annualisation **√252**, Sortino, Calmar (rendement **linéaire** annualisé / drawdown %, pas un CAGR), drawdown max / actuel / durée jusqu’à récupération, % de séances gagnantes, consistance = part du **meilleur jour dans le profit net** |
+| Direction | long / short séparés, carte horaire (heure d’entrée **ET**), jour de semaine, instrument |
 | Prop firm | trailing EOD / intraday / statique, lock, perte journalière, consistance, jours minimums — validation le jour où les conditions sont réunies (`passedOn`), agrégation **par date** (deux comptes le même jour = une journée), filtre par compte |
 | Monte Carlo | bootstrap **i.i.d.** (ignore l’autocorrélation), `runs × horizon ≤ 5 M` tirages, enveloppe P5 / P50 / P95, worker + Annuler |
 
@@ -433,7 +433,7 @@ src/engine/       métriques, Monte Carlo, import NT, prop firm,
                   indicateurs, calendrier Nasdaq, outils agent, politique LLM / update
 src/store/        Dexie (IndexedDB) + Zustand
 src/modules/      un dossier par onglet (01…07)
-tests/            Vitest — 100 tests (moteur, import, coffre, agent, updater)
+tests/            Vitest — 115 tests (moteur, import, coffre, agent, updater)
 vectors/          vecteurs JSON partagés (métriques / prop firm)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
@@ -455,7 +455,7 @@ npm install
 npm run launch         # voie utilisateur (lanceur + desk)
 npm run desk:dev       # Electron + Vite sans lanceur
 npm run typecheck      # tsc app + electron
-npm test               # Vitest (100)
+npm test               # Vitest (115)
 npm run build          # bundle production
 npm run check          # typecheck + test + build
 npm run dist:win       # NSIS + portable

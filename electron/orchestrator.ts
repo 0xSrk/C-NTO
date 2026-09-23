@@ -18,10 +18,12 @@ interface Client {
   authenticated: boolean;
   window: { start: number; count: number };
   inflight: number;
+  authTimer?: ReturnType<typeof setTimeout>;
 }
 
 const MAX_PAYLOAD = 1024 * 1024;
 const MAX_CLIENTS = 8;
+const AUTH_GRACE_MS = 5000;
 const MAX_INFLIGHT = 8;
 const RATE_WINDOW_MS = 1000;
 const RATE_MAX = 40;
@@ -75,6 +77,8 @@ export class Orchestrator {
   private seq = 0;
   private token = randomBytes(18).toString('base64url');
   private allowWrites = false;
+  /** Réservations entre verifyClient et l'ajout dans `clients` — ferme la course TOCTOU. */
+  private pending = 0;
 
   attach(win: BrowserWindow): void {
     this.win = win;
@@ -112,12 +116,15 @@ export class Orchestrator {
         verifyClient: ({ req }: { req: IncomingMessage }) => {
           // Un navigateur envoie toujours Origin : on n'accepte que les clients natifs (aucune origine).
           if (req.headers.origin) return false;
-          return this.clients.size < MAX_CLIENTS;
+          if (this.clients.size + this.pending >= MAX_CLIENTS) return false;
+          this.pending++;
+          return true;
         },
       });
       server.on('listening', () => {
         this.server = server;
-        this.port = port;
+        const addr = server.address();
+        this.port = typeof addr === 'object' && addr ? addr.port : port;
         this.emitStatus();
         resolve(this.status());
       });
@@ -130,22 +137,36 @@ export class Orchestrator {
         }
       });
       server.on('connection', (socket, req) => {
-        const id = `c${++this.seq}`;
         const url = new URL(req.url ?? '/', 'ws://127.0.0.1');
-        const q = url.searchParams.get('token') ?? '';
-        const authenticated = tokensMatch(q, this.token);
-        this.clients.set(id, { id, socket, authenticated, window: { start: Date.now(), count: 0 }, inflight: 0 });
+        const q = url.searchParams.get('token');
+        // Jeton présent mais faux : fermeture immédiate, le slot n'est pas occupé.
+        if (q !== null && !tokensMatch(q, this.token)) {
+          this.pending = Math.max(0, this.pending - 1);
+          socket.close(1008, 'Jeton invalide');
+          return;
+        }
+        const id = `c${++this.seq}`;
+        const authenticated = q !== null && tokensMatch(q, this.token);
+        const client: Client = { id, socket, authenticated, window: { start: Date.now(), count: 0 }, inflight: 0 };
+        if (!authenticated) {
+          client.authTimer = setTimeout(() => {
+            const current = this.clients.get(id);
+            if (current && !current.authenticated) current.socket.close(1008, 'Authentification requise');
+          }, AUTH_GRACE_MS);
+        }
+        this.clients.set(id, client);
+        this.pending = Math.max(0, this.pending - 1);
         this.emitStatus();
         safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: app.getVersion(), clientId: id, authenticated } });
         socket.on('message', (raw) => this.onMessage(id, raw.toString()));
-        socket.on('close', () => {
+        const drop = () => {
+          const current = this.clients.get(id);
+          if (current?.authTimer) clearTimeout(current.authTimer);
           this.clients.delete(id);
           this.emitStatus();
-        });
-        socket.on('error', () => {
-          this.clients.delete(id);
-          this.emitStatus();
-        });
+        };
+        socket.on('close', drop);
+        socket.on('error', drop);
       });
     });
   }
@@ -153,6 +174,7 @@ export class Orchestrator {
   stop(): OrchestratorStatus {
     for (const c of this.clients.values()) c.socket.close(1001, 'CΛNTO ferme la passerelle');
     this.clients.clear();
+    this.pending = 0;
     this.server?.close();
     this.server = null;
     this.emitStatus();
@@ -207,6 +229,10 @@ export class Orchestrator {
 
     if (msg.method === 'desk.auth') {
       const token = msg.params && typeof msg.params === 'object' ? (msg.params as { token?: unknown }).token : undefined;
+      if (client.authTimer) {
+        clearTimeout(client.authTimer);
+        client.authTimer = undefined;
+      }
       client.authenticated = typeof token === 'string' && tokensMatch(token, this.token);
       safeSend(client.socket, client.authenticated ? { jsonrpc: '2.0', id: rpcId, result: { authenticated: true } } : { jsonrpc: '2.0', id: rpcId, error: { code: -32001, message: 'Jeton invalide' } });
       if (!client.authenticated) client.socket.close(1008, 'Jeton invalide');

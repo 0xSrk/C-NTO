@@ -47,7 +47,7 @@ Control Center › **Trade Performance › Trades** (ou onglet **Executions**) �
 
 ### Idempotence (2026-09-17)
 
-- Écriture atomique : `executions-YYYY-MM-DD.csv.tmp` puis `File.Move(tmp, final, overwrite: true)`.
+- Écriture atomique : `executions-YYYY-MM-DD.csv.tmp` puis `File.Delete` + `File.Move` à deux arguments (NinjaScript = .NET Framework 4.8, pas l’overload `overwrite`).
 - IDs déjà écrits dans `executions-YYYY-MM-DD.seen.txt` (un ID par ligne). Au rattrapage, un ID présent dans `.seen` n'est pas réécrit.
 - `MarketPosition.Flat` et position inconnue : pas d'écriture, `Log(Warning)`. Plus de mapping « not Long → Sell ».
 - Filtre compte : `AccountFilter` (constante en tête, vide = tous).
