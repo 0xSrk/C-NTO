@@ -11,7 +11,6 @@
     'title title'
     'rail main'
     'status status';
-  animation: fade-in 0.4s var(--ease-out) both;
   isolation: isolate;
 }
 

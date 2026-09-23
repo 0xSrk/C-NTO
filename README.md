@@ -112,7 +112,7 @@ Depuis les sources : double-clic sur `CANTO.cmd`. Le binaire Electron est télé
 
 Depuis les sources : `chmod +x CANTO.sh && ./CANTO.sh`.
 
-Sous un conteneur ou une session sans carte graphique, Electron peut écrire des erreurs dbus ou GPU. `canto --disable-gpu` réduit ce journal. Ce n’est pas le correctif du module Visual : le graphique attend une taille réelle avant de créer son canevas, pour ne pas noircir la fenêtre.
+Sans carte graphique (session distante, `/dev/dri` absent) Chromium peut laisser la fenêtre noire puis quitter (`SharedImageManager`, `GPU process isn't usable`). Le desk bascule alors tout seul en rendu logiciel, y compris au lancement suivant. macOS et Windows gardent l’accélération tant qu’une frame s’affiche. Forcer le logiciel : `CANTO_DISABLE_GPU=1`. Le graphique Visual attend toujours une taille réelle avant de créer son canevas.
 
 ### Sources (les trois OS)
 

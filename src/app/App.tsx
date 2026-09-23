@@ -116,8 +116,14 @@ export function App() {
     listeners.add(apply);
     let cancelled = false;
     boot().then(() => !cancelled && setReady(true));
+    // Le voile de boot est noir. S'il ne se termine pas (coffre bloqué), le desk
+    // doit quand même apparaître au lieu d'une fenêtre muette.
+    const watchdog = setTimeout(() => {
+      if (!cancelled) setReady(true);
+    }, 8000);
     return () => {
       cancelled = true;
+      clearTimeout(watchdog);
       listeners.delete(apply);
     };
   }, []);
