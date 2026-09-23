@@ -205,7 +205,8 @@ export class NinjaBridge {
     const folder = this.state.config.folder;
     if (!folder) return;
     try {
-      const st = await fs.stat(folder);
+      const st = await fs.lstat(folder);
+      if (st.isSymbolicLink()) throw new Error('Le chemin surveillé est un lien symbolique');
       if (!st.isDirectory()) throw new Error('Le chemin surveillé n’est pas un dossier');
     } catch (e) {
       this.error = `Dossier inaccessible : ${(e as Error).message}`;
@@ -272,11 +273,11 @@ export class NinjaBridge {
     if (!this.win || this.win.isDestroyed()) return;
     let st;
     try {
-      st = await fs.stat(file);
+      st = await fs.lstat(file);
     } catch {
       return;
     }
-    if (!st.isFile() || st.size === 0 || st.size > MAX_BYTES) return;
+    if (st.isSymbolicLink() || !st.isFile() || st.size === 0 || st.size > MAX_BYTES) return;
     const done = this.state.processed[file];
     if (!forced && done && done.size === st.size && done.mtimeMs === st.mtimeMs) return;
     if ([...this.inflight.values()].some((f) => f.path === file && f.size === st.size && f.mtimeMs === st.mtimeMs)) return;
@@ -285,10 +286,11 @@ export class NinjaBridge {
     await new Promise((r) => setTimeout(r, STABILITY_MS));
     let st2;
     try {
-      st2 = await fs.stat(file);
+      st2 = await fs.lstat(file);
     } catch {
       return;
     }
+    if (st2.isSymbolicLink()) return;
     if (st2.size !== st.size || st2.mtimeMs !== st.mtimeMs) {
       this.schedule(file);
       return;

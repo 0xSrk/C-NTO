@@ -111,7 +111,7 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
         <Stat label="Réussite" value={fmtPct(t.winRate)} num={t.winRate} format={(v) => fmtPct(v)} hint={`${t.wins} G · ${t.losses} P · ${t.breakeven} N`} tone={t.winRate >= 0.5 ? 'pos' : 'flat'} />
         <Stat label="Profit factor" value={fmtRatio(t.profitFactor)} num={Number.isFinite(t.profitFactor) ? t.profitFactor : undefined} format={(v) => fmtRatio(v)} hint={pfHint} tone={thinSample ? 'flat' : t.profitFactor >= 1.3 ? 'pos' : t.profitFactor < 1 ? 'neg' : 'flat'} />
         <Stat label="Espérance / trade" value={fmtUsd(t.expectancy, { cents: true, sign: true })} num={t.expectancy} format={(v) => fmtUsd(v, { cents: true, sign: true })} hint={t.expectancyR !== null ? `${fmtRatio(t.expectancyR)} R` : `Médiane ${fmtUsd(t.medianPnl, { cents: true })}`} tone={tone(t.expectancy)} />
-        <Stat label="Sharpe · séances" value={fmtRatio(d.sharpe)} num={d.sharpe} format={(v) => fmtRatio(v)} hint={thinSample ? 'Échantillon insuffisant' : `Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)}`} tone={thinSample ? 'flat' : d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'} />
+        <Stat label="Sharpe · séances" value={fmtRatio(d.sharpe)} num={d.sharpe} format={(v) => fmtRatio(v)} hint={thinSample ? 'Échantillon insuffisant' : `Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)} (rendement linéaire annualisé / DD)`} tone={thinSample ? 'flat' : d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'} />
         <Stat label="Drawdown max" value={fmtUsd(-d.maxDrawdown)} num={-d.maxDrawdown} format={(v) => fmtUsd(v)} hint={`${plural(d.maxDrawdownDays, 'journée')} · actuel ${fmtUsd(-d.currentDrawdown)}`} tone={d.currentDrawdown > 0 ? 'neg' : 'flat'} />
         <Stat label="SQN" value={fmtRatio(t.sqn)} num={thinSample ? undefined : t.sqn} format={(v) => fmtRatio(v)} hint={sqnHint} tone={thinSample ? 'flat' : t.sqn >= 2 ? 'pos' : 'flat'} />
         <Stat label="Séances gagnantes" value={fmtPct(d.winDayRate)} num={d.winDayRate} format={(v) => fmtPct(v)} hint={`${d.winDays} G · ${d.lossDays} P · meilleur ${fmtUsd(d.bestDay)}`} tone={d.winDayRate >= 0.5 ? 'pos' : 'flat'} />
@@ -139,7 +139,7 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
         <Panel className={s.c4} title="Distribution des trades" sub="PnL par trade">
           <Histogram bins={hist} height={170} formatX={(v) => fmtUsd(v)} />
         </Panel>
-        <Panel className={s.c4} title="Par heure d'entrée" sub="heure locale">
+        <Panel className={s.c4} title="Par heure d'entrée" sub="heure ET">
           <Bars data={hourBars} height={170} formatY={(v) => fmtUsd(v)} />
         </Panel>
         <Panel className={s.c4} title="Par jour de semaine" sub="PnL agrégé">

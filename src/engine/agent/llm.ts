@@ -1,6 +1,6 @@
 import { desk } from '@/lib/desk';
 import { uid } from '@/lib/id';
-import { useSettings, type AgentConfig } from '@/store/settings';
+import { type AgentConfig } from '@/store/settings';
 
 export interface ToolSchema {
   name: string;
@@ -33,15 +33,22 @@ interface StreamArgs {
   signal?: AbortSignal;
 }
 
-export const DEFAULT_LLM_HOSTS = ['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai', 'api.moonshot.ai'] as const;
+export const DEFAULT_LLM_HOSTS = ['127.0.0.1', 'localhost', '::1', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai', 'api.moonshot.ai'] as const;
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+/** Pré-contrôle renderer. L'hôte réel est réévalué dans le main (`llmHostOk`), qui ignore `extra`. */
 export function llmHostAllowed(baseUrl: string, extra: string[] = []): boolean {
+  void extra;
   try {
     const u = new URL(baseUrl);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
     const host = u.hostname.toLowerCase();
-    const allowed = new Set<string>([...DEFAULT_LLM_HOSTS, ...extra.map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]+$/.test(h))]);
-    return allowed.has(host);
+    if (LOOPBACK_HOSTS.has(host)) {
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    } else if (u.protocol !== 'https:') {
+      return false;
+    }
+    return (DEFAULT_LLM_HOSTS as readonly string[]).includes(host);
   } catch {
     return false;
   }
@@ -98,7 +105,6 @@ async function streamViaMain({ config, messages, tools, onDelta, signal }: Strea
         },
         messages,
         tools,
-        allowedHosts: useSettings.getState().settings.llmAllowedHosts,
       })
       .catch((e) => {
         stop();
@@ -116,6 +122,5 @@ export async function probeProvider(config: AgentConfig): Promise<{ ok: boolean;
     model: config.model,
     temperature: config.temperature,
     apiKeyEncrypted: config.apiKeyEncrypted,
-    allowedHosts: useSettings.getState().settings.llmAllowedHosts,
   });
 }

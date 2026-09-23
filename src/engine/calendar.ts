@@ -122,6 +122,24 @@ const FOMC_DECISIONS: Record<number, string[]> = {
   2026: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09'],
 };
 
+/**
+ * Dates de publication BLS « Employment Situation » (NFP), 8:30 ET.
+ * 2024 : calendrier BLS. 2025 : calendrier + reports du shutdown (sept. → 20 nov., nov. → 16 déc. ; octobre annulé).
+ * 2026 : bls.gov/schedule/news_release/empsit.htm, y compris le report du 11 février.
+ * 2027 n'est pas encore publié : heuristique, `estimated`, impact plafonné à 2.
+ */
+const NFP_RELEASES: Record<number, string[]> = {
+  2024: ['2024-01-05', '2024-02-02', '2024-03-08', '2024-04-05', '2024-05-03', '2024-06-07', '2024-07-05', '2024-08-02', '2024-09-06', '2024-10-04', '2024-11-01', '2024-12-06'],
+  2025: ['2025-01-10', '2025-02-07', '2025-03-07', '2025-04-04', '2025-05-02', '2025-06-06', '2025-07-03', '2025-08-01', '2025-09-05', '2025-11-20', '2025-12-16'],
+  2026: ['2026-01-09', '2026-02-11', '2026-03-06', '2026-04-03', '2026-05-08', '2026-06-05', '2026-07-02', '2026-08-07', '2026-09-04', '2026-10-02', '2026-11-06', '2026-12-04'],
+};
+
+/** 1er vendredi du mois, reporté au 2e si le jour tombe le 1er ou le 2. Hors table BLS seulement. */
+function heuristicNfp(year: number, month1: number): string {
+  const firstFriday = nthWeekdayOfMonth(year, month1, 5, 1);
+  return Number(firstFriday.slice(-2)) <= 2 ? nthWeekdayOfMonth(year, month1, 5, 2) : firstFriday;
+}
+
 const TIPS = {
   fed: 'Fenêtre la plus volatile de l’année sur NQ. Pas de position 15 min avant la décision ; le vrai mouvement arrive souvent pendant la conférence de presse (14:30 ET). Débutant : observer, ne pas trader.',
   nfp: 'Publication à 8:30 ET (14:30 Paris). Mèches de 100+ points possibles en quelques secondes. Attendre la clôture de la première bougie 5 min avant toute décision.',
@@ -177,7 +195,7 @@ function usHolidays(year: number): { date: string; title: string; closed: boolea
     ...list,
     { date: nthWeekdayOfMonth(year, 1, 1, 3), title: 'Martin Luther King Jr. Day', closed: false },
     { date: nthWeekdayOfMonth(year, 2, 1, 3), title: 'Presidents’ Day', closed: false },
-    { date: addDays(easterSunday(year), -2), title: 'Good Friday', closed: true },
+    { date: addDays(easterSunday(year), -2), title: 'Good Friday', closed: false },
     { date: nthWeekdayOfMonth(year, 5, 1, -1), title: 'Memorial Day', closed: false },
     { date: observed(`${year}-06-19`), title: 'Juneteenth', closed: false },
     { date: observed(`${year}-07-04`), title: 'Independence Day', closed: false },
@@ -205,11 +223,19 @@ export function generateNasdaqEvents(year: number): CalEvent[] {
     }
   }
 
-  for (let m = 1; m <= 12; m++) {
-    const firstFriday = nthWeekdayOfMonth(year, m, 5, 1);
-    const nfp = Number(firstFriday.slice(-2)) <= 2 ? nthWeekdayOfMonth(year, m, 5, 2) : firstFriday;
-    events.push({ id: id('nfp', nfp), date: nfp, timeET: '08:30', title: 'Rapport emploi US (NFP)', category: 'emploi', impact: 3, estimated: true, description: 'Créations d’emplois non agricoles, taux de chômage et salaires horaires. Publication BLS du premier vendredi du mois (sauf exception).', beginnerTip: TIPS.nfp });
+  const nfpDates = NFP_RELEASES[year];
+  if (nfpDates) {
+    for (const nfp of nfpDates) {
+      events.push({ id: id('nfp', nfp), date: nfp, timeET: '08:30', title: 'Rapport emploi US (NFP)', category: 'emploi', impact: 3, estimated: false, description: 'Créations d’emplois non agricoles, taux de chômage et salaires horaires. Date de publication BLS (Employment Situation, 8:30 ET).', beginnerTip: TIPS.nfp });
+    }
+  } else {
+    for (let m = 1; m <= 12; m++) {
+      const nfp = heuristicNfp(year, m);
+      events.push({ id: id('nfp', nfp), date: nfp, timeET: '08:30', title: 'Rapport emploi US (NFP)', category: 'emploi', impact: 2, estimated: true, description: 'Date estimée hors calendrier BLS publié. Vérifier bls.gov avant un blackout : l’impact est plafonné tant que la date n’est pas confirmée.', beginnerTip: TIPS.nfp });
+    }
+  }
 
+  for (let m = 1; m <= 12; m++) {
     const cpi = businessDayOnOrBefore(nthWeekdayOfMonth(year, m, 3, 2));
     events.push({ id: id('cpi', cpi), date: cpi, timeET: '08:30', title: 'Inflation CPI', category: 'inflation', impact: 3, estimated: true, description: 'Indice des prix à la consommation (headline et core). Publié par le BLS autour de la deuxième semaine du mois.', beginnerTip: TIPS.cpi });
     const ppi = addDays(cpi, 1);
@@ -253,7 +279,14 @@ export function generateNasdaqEvents(year: number): CalEvent[] {
   }
 
   for (const h of usHolidays(year)) {
-    events.push({ id: id('hol', h.date), date: h.date, title: h.closed ? `${h.title} · CME fermé` : `${h.title} · séance écourtée (clôture 13:00 ET)`, category: 'horaire', impact: 2, estimated: false, allDay: true, description: h.closed ? 'Marchés américains fermés. Pas de séance RTH ; Globex fermé ou très partiel.' : 'Jour férié américain : les futures sur indices cotent avec une clôture anticipée vers 13:00 ET. Vérifier les horaires publiés par le CME.', beginnerTip: TIPS.holiday });
+    const earlyFriday = h.title === 'Good Friday';
+    const title = h.closed ? `${h.title} · CME fermé` : earlyFriday ? `${h.title} · séance écourtée` : `${h.title} · séance écourtée (clôture 13:00 ET)`;
+    const description = h.closed
+      ? 'Marchés américains fermés. Pas de séance RTH ; Globex fermé ou très partiel.'
+      : earlyFriday
+        ? 'Good Friday : les futures sur indices Nasdaq cotent en séance écourtée, pas une journée fermée. L’horaire exact dépend du produit — vérifier le calendrier CME. Un NFP peut tomber le même jour.'
+        : 'Jour férié américain : les futures sur indices cotent avec une clôture anticipée vers 13:00 ET. Vérifier les horaires publiés par le CME.';
+    events.push({ id: id('hol', h.date), date: h.date, title, category: 'horaire', impact: 2, estimated: false, allDay: true, description, beginnerTip: TIPS.holiday });
   }
   const thanksgiving = nthWeekdayOfMonth(year, 11, 4, 4);
   events.push({ id: id('bf', thanksgiving), date: addDays(thanksgiving, 1), title: 'Lendemain de Thanksgiving · clôture 13:15 ET', category: 'horaire', impact: 1, estimated: false, allDay: true, description: 'Séance écourtée, volumes très faibles.', beginnerTip: TIPS.holiday });

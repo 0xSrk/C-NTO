@@ -160,7 +160,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <span className={s.navBadge}>
                   {t.id === 'metrique' && sessionsCount > 0 ? sessionsCount : ''}
                   {t.id === 'agent' && orchestrator.running ? <span className={s.lienBadge}>LIEN</span> : null}
-                  {(t.id === 'agent' || t.id === 'bot' || t.id === 'copieur') && (
+                  {(t.id === 'bot' || t.id === 'copieur') && (
                     <i className={s.protoPill} title="Prototypage · déploiement à venir">
                       PROTO
                     </i>

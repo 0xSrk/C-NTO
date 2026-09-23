@@ -85,6 +85,57 @@ describe('evaluatePlan · trailing fin de journée', () => {
     expect(onlyX.daysTraded).toBe(2);
   });
 
+  it('ne fait pas échouer un trailing EOD sur une mèche si la clôture reste au-dessus du plancher', () => {
+    const topstep = findPlan('topstep-50');
+    expect(topstep?.drawdownType).toBe('eod-trailing');
+    const wick: Trade = {
+      id: 't1',
+      sessionId: 'a',
+      instrument: 'NQ',
+      direction: 'long',
+      qty: 1,
+      entryTime: 1,
+      exitTime: 2,
+      entryPrice: 0,
+      exitPrice: 0,
+      pnl: 500,
+      commission: 0,
+      mae: 2100,
+    };
+    const r = evaluatePlan(topstep!, [session('a', '2026-09-16', 500)], [wick]);
+    expect(r.status).not.toBe('echec');
+    expect(r.balance).toBe(50_500);
+    expect(r.floor).toBe(48_500);
+  });
+
+  it('juge le trailing EOD sur le solde de clôture, pas sur un creux rattrapé dans la journée', () => {
+    const dip: Trade = {
+      id: 't1',
+      sessionId: 'a',
+      instrument: 'NQ',
+      direction: 'long',
+      qty: 1,
+      entryTime: 1,
+      exitTime: 2,
+      entryPrice: 0,
+      exitPrice: 0,
+      pnl: -2500,
+      commission: 0,
+    };
+    const recover: Trade = { ...dip, id: 't2', exitTime: 3, pnl: 3000 };
+    const r = evaluatePlan(plan, [session('a', '2026-09-16', 500)], [dip, recover]);
+    expect(r.status).not.toBe('echec');
+    expect(r.balance).toBe(50_500);
+  });
+
+  it('ignore les séances dont le PnL n’est pas fini', () => {
+    const r = evaluatePlan(plan, [session('a', '2026-01-05', Number.NaN), session('b', '2026-01-06', 500), session('c', '2026-01-07', Number.POSITIVE_INFINITY)]);
+    expect(r.timeline.map((p) => p.date)).toEqual(['2026-01-06']);
+    expect(r.balance).toBe(50_500);
+    expect(Number.isFinite(r.balance)).toBe(true);
+    expect(r.status).toBe('en-cours');
+  });
+
   it('bloque l’objectif si la règle de consistance n’est pas respectée', () => {
     const r = evaluatePlan({ ...plan, consistencyPct: 0.3 }, [session('a', '2026-01-05', 2500), session('b', '2026-01-06', 600)]);
     expect(r.status).toBe('en-cours');

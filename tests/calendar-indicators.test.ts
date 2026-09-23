@@ -20,6 +20,35 @@ describe('calendrier Nasdaq', () => {
     }
   });
 
+  it('aligne les NFP 2024–2026 sur le calendrier BLS', () => {
+    const bls: Record<number, string[]> = {
+      2024: ['2024-01-05', '2024-02-02', '2024-03-08', '2024-04-05', '2024-05-03', '2024-06-07', '2024-07-05', '2024-08-02', '2024-09-06', '2024-10-04', '2024-11-01', '2024-12-06'],
+      2025: ['2025-01-10', '2025-02-07', '2025-03-07', '2025-04-04', '2025-05-02', '2025-06-06', '2025-07-03', '2025-08-01', '2025-09-05', '2025-11-20', '2025-12-16'],
+      2026: ['2026-01-09', '2026-02-11', '2026-03-06', '2026-04-03', '2026-05-08', '2026-06-05', '2026-07-02', '2026-08-07', '2026-09-04', '2026-10-02', '2026-11-06', '2026-12-04'],
+    };
+    for (const year of [2024, 2025, 2026]) {
+      const nfp = generateNasdaqEvents(year).filter((e) => e.title.includes('NFP'));
+      expect(nfp.map((e) => e.date)).toEqual(bls[year]);
+      expect(nfp.every((e) => !e.estimated && e.impact === 3)).toBe(true);
+    }
+    const july4 = generateNasdaqEvents(2025).filter((e) => e.date === '2025-07-04' && e.title.includes('NFP'));
+    expect(july4).toEqual([]);
+    const guessed = generateNasdaqEvents(2027).filter((e) => e.title.includes('NFP'));
+    expect(guessed.length).toBe(12);
+    expect(guessed.every((e) => e.estimated && e.impact <= 2)).toBe(true);
+  });
+
+  it('marque le Good Friday 2026 comme séance écourtée et conserve le NFP', () => {
+    const day = generateNasdaqEvents(2026).filter((e) => e.date === '2026-04-03');
+    const gf = day.find((e) => e.title.includes('Good Friday'));
+    const nfp = day.find((e) => e.title.includes('NFP'));
+    expect(gf).toBeDefined();
+    expect(gf!.title).toMatch(/écourtée/);
+    expect(gf!.title).not.toMatch(/fermé/);
+    expect(nfp).toBeDefined();
+    expect(nfp!.estimated).toBe(false);
+  });
+
   it('calcule fêtes, expirations et rollovers', () => {
     const ev = generateNasdaqEvents(2026);
     const titles = (t: string) => ev.filter((e) => e.title.includes(t));
@@ -92,6 +121,9 @@ describe('Monte Carlo & démo', () => {
     expect(big!.envelope.steps.length).toBeLessThanOrEqual(240);
     expect(big!.samples.length).toBeLessThanOrEqual(40);
     expect(monteCarlo(pnls, { runs: NaN, horizon: NaN })).not.toBeNull();
+    const flat = monteCarlo([0, 0, 0, 0, 0, 0], { runs: 200, seed: 1, ruinDrawdown: 0 });
+    expect(flat).not.toBeNull();
+    expect(flat!.ruinProbability).toBeNull();
   });
 
   it('monteCarlo reports progress and returns null when aborted', () => {

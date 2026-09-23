@@ -88,7 +88,8 @@ export function monteCarlo(input: number[], opts: MonteCarloOptions = {}): Monte
   if (opts.signal?.aborted) return null;
   const { runs, horizon } = clampMonteCarlo(opts.runs ?? 2000, opts.horizon ?? n);
   const rand = mulberry32(Number.isFinite(opts.seed) ? (opts.seed as number) : 1337);
-  const ruin = Number.isFinite(opts.ruinDrawdown) ? (opts.ruinDrawdown as number) : undefined;
+  const ruinLevel = opts.ruinDrawdown;
+  const ruin = typeof ruinLevel === 'number' && Number.isFinite(ruinLevel) && ruinLevel > 1e-9 ? ruinLevel : undefined;
   const target = Number.isFinite(opts.target) ? (opts.target as number) : undefined;
 
   const finals = new Float64Array(runs);

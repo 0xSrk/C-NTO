@@ -4,6 +4,7 @@ import { Histogram } from '@/design/charts/Bars';
 import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, histogram, WEEKDAY_KEYS } from '@/engine/metrics';
+import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import type { Trade } from '@/engine/types';
 import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import s from './metrique.module.css';
@@ -192,9 +193,9 @@ export function Analyse() {
     const acc = new Map<number, { pnl: number; n: number }>();
     const hoursSeen = new Set<number>();
     for (const x of trades) {
-      const d = new Date(x.entryTime);
-      const dow = d.getDay();
-      const h = d.getHours();
+      const clock = zonedWallClock(x.entryTime, ET_ZONE);
+      const dow = clock.weekday;
+      const h = clock.hour;
       hoursSeen.add(h);
       const k = dow * 24 + h;
       const cur = acc.get(k);
@@ -312,7 +313,7 @@ export function Analyse() {
           <header className={s.trameHead}>
             <div>
               <h3>Trame horaire</h3>
-              <p>PnL par jour × heure locale d’entrée — densité d’avantage</p>
+              <p>PnL par jour × heure ET d’entrée — densité d’avantage</p>
             </div>
             <span className={s.trameLegend}>
               <i className={s.legNeg} /> perte <i className={s.legPos} /> gain

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
+import { llmHostOk } from './llm-host';
 import { Orchestrator } from './orchestrator';
 import { fetchMacroReleases } from './macro-calendar';
 import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
@@ -421,21 +422,7 @@ ipcMain.handle('secrets:encrypt', (e, text: unknown) => {
 });
 
 /* ─── LLM (process main : la clé ne transite pas par le renderer) ─── */
-const LLM_HOSTS = new Set(['127.0.0.1', 'localhost', 'api.openai.com', 'api.anthropic.com', 'openrouter.ai', 'api.moonshot.ai']);
 const llmAbort = new Map<string, AbortController>();
-
-function llmHostOk(baseUrl: string, extra: unknown): boolean {
-  try {
-    const u = new URL(baseUrl);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-    const extraHosts = Array.isArray(extra)
-      ? extra.filter((h): h is string => typeof h === 'string' && /^[a-z0-9.-]+$/i.test(h)).map((h) => h.toLowerCase())
-      : [];
-    return LLM_HOSTS.has(u.hostname.toLowerCase()) || extraHosts.includes(u.hostname.toLowerCase());
-  } catch {
-    return false;
-  }
-}
 
 function decryptLlmKey(blob: unknown): string {
   if (typeof blob !== 'string' || !blob || !safeStorage.isEncryptionAvailable()) return '';

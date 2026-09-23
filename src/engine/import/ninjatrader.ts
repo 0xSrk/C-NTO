@@ -284,7 +284,8 @@ export function exportTradesCsv(trades: Trade[]): string {
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
   };
   const esc = (v: string | number | undefined) => {
-    const s = v === undefined ? '' : String(v);
+    let s = v === undefined ? '' : String(v);
+    if (s.length > 0 && '=+-@'.includes(s[0]!)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [header.join(',')];
