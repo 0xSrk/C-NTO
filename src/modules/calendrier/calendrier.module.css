@@ -344,9 +344,8 @@
   font-size: 13px;
   color: var(--text-1);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
 }
 .fluxTitle.impact3 {
   color: var(--text-0);
@@ -428,9 +427,8 @@
   font-weight: 500;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
 }
 .evCardHead time {
   font-family: var(--font-mono);

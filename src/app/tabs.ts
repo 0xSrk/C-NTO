@@ -12,7 +12,7 @@ export interface TabDef {
 }
 
 export const TABS: TabDef[] = [
-  { id: 'metrique', index: '01', label: 'Métrique', code: 'MTR', tagline: 'Journal ultime · moteur quantitatif', icon: IconMetric },
+  { id: 'metrique', index: '01', label: 'Métrique', code: 'MET', tagline: 'Journal ultime · moteur quantitatif', icon: IconMetric },
   { id: 'visual', index: '02', label: 'Visual', code: 'VIS', tagline: 'Graphique avancé · indicateurs', icon: IconVisual },
   { id: 'calendrier', index: '03', label: 'Calendrier', code: 'CAL', tagline: 'Catalyseurs Nasdaq · repères', icon: IconCalendar },
   { id: 'note', index: '04', label: 'Note', code: 'NTE', tagline: 'Coffre de notes · liens', icon: IconNote },

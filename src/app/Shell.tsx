@@ -208,7 +208,20 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className={s.toasts} role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={cx(s.toast, t.tone !== 'info' && s[t.tone])} onClick={() => dismiss(t.id)}>
-            {t.text}
+            <span>{t.text}</span>
+            {t.action && (
+              <button
+                type="button"
+                className={s.toastAction}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  t.action?.run();
+                  dismiss(t.id);
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

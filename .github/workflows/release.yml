@@ -1,0 +1,66 @@
+name: release
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: write
+jobs:
+  build:
+    name: ${{ matrix.artifact }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            script: dist:linux
+            artifact: linux
+          - os: windows-latest
+            script: dist:win
+            artifact: windows
+          - os: macos-latest
+            script: dist:mac
+            artifact: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - name: Installeur natif
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact }}
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: publish
+      - name: SHA-256
+        run: |
+          cd publish
+          find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum | tee SHA256SUMS.txt
+      - name: Publier la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" publish/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "CΛNTO ${GITHUB_REF_NAME}" \
+            --notes "Installeurs natifs macOS (DMG universel), Windows (NSIS et portable) et Linux (AppImage et deb). Le fichier SHA256SUMS.txt couvre chaque binaire. L’installeur n’exige pas Node.js. NinjaTrader 8 se compile sur Windows ; le pont fichier est dans chaque paquet (resources/ninjatrader)."

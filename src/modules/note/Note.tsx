@@ -10,6 +10,7 @@ import { byTitle, extractLinks, useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
 import { Graph } from './Graph';
 import { renderNote } from './markdown';
+import { suggestNoteTitle } from './title';
 import s from './note.module.css';
 
 type Mode = 'editer' | 'scinde' | 'apercu';
@@ -163,6 +164,7 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
   const html = useMemo(() => renderNote(body, titles), [body, titles]);
 
   const pending = useRef<{ title?: string; body?: string } | null>(null);
+  const titleLocked = useRef(!/^nouvelle note(?: \d+)?$/i.test(note.title.trim()));
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const flush = () => {
@@ -208,7 +210,9 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
         <input
           className={s.titleInput}
           value={title}
+          placeholder="Titre — sinon la première ligne du texte"
           onChange={(e) => {
+            titleLocked.current = true;
             setTitle(e.target.value);
             schedule({ title: e.target.value });
           }}
@@ -229,8 +233,13 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
             className={s.textarea}
             value={body}
             onChange={(e) => {
-              setBody(e.target.value);
-              schedule({ body: e.target.value });
+              const nextBody = e.target.value;
+              setBody(nextBody);
+              if (!titleLocked.current) {
+                const suggested = suggestNoteTitle('Nouvelle note', nextBody) ?? 'Nouvelle note';
+                setTitle(suggested);
+                schedule({ body: nextBody, title: suggested });
+              } else schedule({ body: nextBody });
             }}
             onKeyDown={onKeyDown}
             placeholder="Markdown · [[lien vers une note]] · #tag"

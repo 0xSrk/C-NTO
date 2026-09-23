@@ -133,7 +133,7 @@ export function PropFirmView() {
                   )}
                   <div>
                     <dt>Phase</dt>
-                    <dd>{plan.phase === 'evaluation' ? 'Évaluation' : 'Funded'}</dd>
+                    <dd>{plan.phase === 'evaluation' ? 'Évaluation' : 'Financé'}</dd>
                   </div>
                 </dl>
                 {firm?.payoutNote && <p className={s.cascadeNote}>{firm.payoutNote}</p>}
@@ -142,7 +142,7 @@ export function PropFirmView() {
           )}
         </div>
         <p className={s.note} style={{ marginTop: 16 }}>
-          <b>Registre indicatif.</b> Validez chaque paramètre sur le site de la firme. Le plan pilote le rejeu et le Monte Carlo.
+          <b>Registre indicatif.</b> Validez chaque paramètre sur le site de la firme. Le plan pilote le rejeu et la simulation Monte-Carlo.
         </p>
       </Panel>
 

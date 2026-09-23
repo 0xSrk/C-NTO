@@ -269,6 +269,18 @@
   text-transform: uppercase;
   color: var(--amber);
 }
+.bulkBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  font-size: var(--fs-small);
+  color: var(--text-1);
+}
 
 /* ─── Analyse : trame lithographique ─── */
 .analyse {

@@ -5,6 +5,7 @@ import { computeTradeStats } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
 import { fmtInt, fmtPct, fmtPrice, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import { formatDuration, formatDateFr, formatTimeLocal } from '@/lib/time';
+import { db } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
@@ -16,6 +17,7 @@ export function Sessions() {
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
   const deleteSessions = useJournal((j) => j.deleteSessions);
+  const restoreSessions = useJournal((j) => j.restoreSessions);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(() => new Set());
@@ -83,13 +85,22 @@ export function Sessions() {
     if (!ids.length) return;
     const ok = await confirmDialog(
       `Effacer ${plural(ids.length, 'séance')} ?`,
-      `${ids.length} séance(s) et leurs trades seront retirés du journal. Cette action est irréversible.`,
+      `${ids.length} séance(s) et leurs trades seront retirés du journal. Vous pourrez annuler juste après.`,
     );
     if (!ok) return;
+    const idSet = new Set(ids);
+    const snapSessions = sessions.filter((x) => idSet.has(x.id));
+    const snapTrades = trades.filter((t) => idSet.has(t.sessionId));
+    const snapExec = await db.importedExecutions.where('sessionId').anyOf(ids).toArray();
     await deleteSessions(ids);
     setChecked(new Set());
     if (selected && ids.includes(selected)) setSelected(null);
-    toast(`${plural(ids.length, 'séance')} effacée${ids.length > 1 ? 's' : ''}`, 'ok');
+    toast(`${plural(ids.length, 'séance')} effacée${ids.length > 1 ? 's' : ''}`, 'warn', {
+      label: 'Annuler',
+      run: () => {
+        void restoreSessions(snapSessions, snapTrades, snapExec).then(() => toast('Séances restaurées.', 'ok'));
+      },
+    });
   };
 
   if (sessions.length === 0) return <Empty title="Aucune séance" text="Importez vos trades ou créez une séance manuelle." />;
@@ -109,17 +120,18 @@ export function Sessions() {
             <Button size="sm" variant="ghost" active={sort === 'pnl'} onClick={() => setSort('pnl')}>
               PnL
             </Button>
-            {checkedCount > 0 && (
-              <>
-                <span className={s.selCount}>{checkedCount} sél.</span>
-                <Button size="sm" variant="danger" onClick={() => void bulkDelete()}>
-                  <IconTrash size={12} /> Effacer
-                </Button>
-              </>
-            )}
+            {checkedCount > 0 && <span className={s.selCount}>{checkedCount} cochée{checkedCount > 1 ? 's' : ''}</span>}
           </>
         }
       >
+        {checkedCount > 0 && (
+          <div className={s.bulkBar}>
+            <span>{plural(checkedCount, 'séance cochée', 'séances cochées')}. L’effacement demande une confirmation, puis peut être annulé.</span>
+            <Button size="sm" variant="danger" onClick={() => void bulkDelete()}>
+              <IconTrash size={12} /> Effacer la sélection
+            </Button>
+          </div>
+        )}
         <div className={s.tableWrap}>
           <table className={tableClass}>
             <thead>
@@ -211,6 +223,9 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
   const [tagInput, setTagInput] = useState('');
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
   const sorted = useMemo(() => [...trades].sort((a, b) => a.exitTime - b.exitTime), [trades]);
+  const net = trades.length ? trades.reduce((sum, t) => sum + t.pnl, 0) : session.pnl;
+  const comm = trades.length ? trades.reduce((sum, t) => sum + (t.commission || 0), 0) : session.commission;
+  const brut = net + comm;
 
   const saveNote = () => {
     if (note !== (session.note ?? '')) updateSession(session.id, { note });
@@ -286,9 +301,9 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
     >
       <div className={s.rows}>
         <div className={s.detailHead}>
-          <span className={cx(s.detailPnl, signClass(session.pnl))}>{fmtUsd(session.pnl, { sign: true, cents: true })}</span>
+          <span className={cx(s.detailPnl, signClass(net))}>{fmtUsd(net, { sign: true, cents: true })}</span>
           <span className="muted">
-            brut {fmtUsd(session.grossProfit + session.grossLoss, { cents: true })} · comm. {fmtUsd(-session.commission, { cents: true })}
+            net {fmtUsd(net, { cents: true })} · brut {fmtUsd(brut, { cents: true })} · comm. {fmtUsd(-comm, { cents: true })}
           </span>
           <span className={s.stars} style={{ marginLeft: 'auto' }}>
             {[1, 2, 3, 4, 5].map((n) => (

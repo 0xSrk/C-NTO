@@ -4,6 +4,7 @@ import type { Bar } from '@/engine/bars';
 import type { IndicatorLine } from '@/engine/indicators';
 import type { Trade } from '@/engine/types';
 import { fmtPrice, fmtUsd } from '@/lib/format';
+import { chartHostReady, safePaneHeight } from './chartBox';
 import s from './visual.module.css';
 
 export interface HoverInfo {
@@ -71,6 +72,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   const lineRefs = useRef<Map<string, ISeriesApi<'Line'>>>(new Map());
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [ready, setReady] = useState(false);
+  const [fault, setFault] = useState<Error | null>(null);
   const linesRef = useRef(lines);
   linesRef.current = lines;
   const barsRef = useRef(bars);
@@ -79,8 +81,24 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const chart = createChart(el, {
-      autoSize: true,
+    let chart: IChartApi | null = null;
+    let disposed = false;
+    const fail = (err: unknown) => {
+      chart?.remove();
+      chart = null;
+      chartRef.current = null;
+      if (!disposed) setFault(err instanceof Error ? err : new Error(String(err)));
+    };
+    const boot = () => {
+      if (disposed || chart) return;
+      const width = Math.floor(el.clientWidth);
+      const height = Math.floor(el.clientHeight);
+      if (!chartHostReady(width, height)) return;
+      try {
+        chart = createChart(el, {
+      autoSize: false,
+      width,
+      height,
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: '#8a8a8a',
@@ -123,7 +141,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
     });
     const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: 'rgba(138,138,138,0.35)', lastValueVisible: false, priceLineVisible: false }, 1);
     const volPane = chart.panes()[1];
-    if (volPane) volPane.setHeight(70);
+    const volH = safePaneHeight(70, height, chart.panes().length);
+    if (volPane && volH) volPane.setHeight(volH);
     chartRef.current = chart;
     candleRef.current = candles;
     volumeRef.current = volume;
@@ -151,9 +170,27 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       });
       onHover({ time: t, bar, values });
     });
-    setReady(true);
+        setReady(true);
+      } catch (err) {
+        fail(err);
+      }
+    };
+    const ro = new ResizeObserver(() => {
+      if (!chart) {
+        boot();
+        return;
+      }
+      const width = Math.floor(el.clientWidth);
+      const height = Math.floor(el.clientHeight);
+      if (!chartHostReady(width, height)) return;
+      chart.applyOptions({ width, height });
+    });
+    ro.observe(el);
+    boot();
     return () => {
-      chart.remove();
+      disposed = true;
+      ro.disconnect();
+      chart?.remove();
       chartRef.current = null;
       candleRef.current = null;
       volumeRef.current = null;
@@ -203,8 +240,12 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
         lineRefs.current.delete(key);
       }
     }
-    chart.panes().forEach((pane, i) => {
-      if (i >= 2) pane.setHeight(90);
+    const host = containerRef.current;
+    const panes = chart.panes();
+    panes.forEach((pane, i) => {
+      if (i < 1 || !host) return;
+      const h = safePaneHeight(i === 1 ? 70 : 90, host.clientHeight, panes.length);
+      if (h) pane.setHeight(h);
     });
   }, [lines, ready]);
 
@@ -228,5 +269,6 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
     markersRef.current.setMarkers(markers);
   }, [trades, bars, timeframe, ready]);
 
+  if (fault) throw fault;
   return <div ref={containerRef} className={s.chart} />;
 }

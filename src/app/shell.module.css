@@ -741,6 +741,20 @@
   animation: rise-in 220ms var(--ease-out) both;
   cursor: pointer;
   line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toastAction {
+  margin-left: auto;
+  flex: none;
+  border: 1px solid var(--line-2);
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-0);
 }
 .toast.ok {
   border-left-color: var(--mint);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeDailyStats, computeTradeStats, drawdownSeries, histogram, streakZScore } from '@/engine/metrics';
+import { computeDailyStats, computeTradeStats, drawdownSeries, histogram, streakZScore, summarizeTrades } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { loadVector } from './helpers/loadVector';
@@ -193,6 +193,15 @@ describe('robustesse numérique', () => {
   it('supporte 200 000 valeurs sans dépassement de pile', () => {
     const values = Array.from({ length: 200_000 }, (_, i) => (i % 7) - 3);
     expect(histogram(values, 10).length).toBe(10);
+  });
+});
+
+describe('brut de séance', () => {
+  it('ajoute les commissions au net déjà stocké', () => {
+    const s = summarizeTrades([trade(-63.32, 0, { commission: 13.32 })]);
+    expect(s.pnl).toBeCloseTo(-63.32);
+    expect(s.commission).toBeCloseTo(13.32);
+    expect(s.grossProfit + s.grossLoss).toBeCloseTo(-50);
   });
 });
 
