@@ -32,6 +32,14 @@ export const DEFAULT_COPIER: CopierConfig = {
 
 export const COPIER_CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '2.0.0',
+    date: '2026-09-23',
+    items: [
+      'Desk natif macOS, Windows et Linux — installeurs DMG, NSIS et AppImage / deb',
+      'Pont fichier inclus sur chaque OS : le desk surveille l’export CANTO, l’AddOn NT8 reste compilé sous Windows',
+    ],
+  },
+  {
     version: '1.1.2',
     date: '2026-09-17',
     items: [

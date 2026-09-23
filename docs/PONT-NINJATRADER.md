@@ -15,7 +15,7 @@ Il existe en deux étages :
 
 ### Principe
 
-1. Le shell CΛNTO surveille un dossier (`Métrique › Pont NinjaTrader`), par défaut `Documents\NinjaTrader 8\export\CANTO`.
+1. Le shell CΛNTO — application native macOS, Windows ou Linux — surveille un dossier (`Métrique › Pont NinjaTrader`), par défaut `Documents/NinjaTrader 8/export/CANTO` sous le dossier Documents du système.
 2. Tout fichier `.csv` / `.txt` nouveau ou modifié y est lu dès que sa taille est stable (NinjaTrader a fini d'écrire), puis transmis au journal.
 3. Le journal détecte le format — export **Trades** (Trade Performance), export **Executions**, ou **CΛNTO CSV** — et importe. Les exécutions sont appariées en trades aller-retour par compte et par contrat, méthode **FIFO** avec fractionnement des remplissages partiels ; les commissions sont réparties au contrat.
 4. Le dédoublonnage (empreinte instrument · sens · quantité · horodatages · prix) garantit qu'un fichier relu ou un export répété ne crée jamais de doublon : le journal temps réel qui grossit toute la journée est simplement rejoué.
