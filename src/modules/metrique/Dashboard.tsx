@@ -126,7 +126,7 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
         </Panel>
 
         <Panel className={s.c12} title="Année glissante" sub="PnL par journée de trading">
-          {year && <Heatmap rows={year.rows} cols={year.cols} cells={year.cells} height={120} formatValue={(v) => fmtUsd(v)} />}
+          {year && <Heatmap rows={year.rows} cols={year.cols} cells={year.cells} height={200} formatValue={(v) => fmtUsd(v)} />}
         </Panel>
 
         <Panel className={s.c6} title="Régularité" sub="fenêtre glissante de 20 séances">

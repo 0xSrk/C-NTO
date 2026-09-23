@@ -68,7 +68,7 @@ export function MonteCarloView() {
     return () => ac.abort();
   }, [sample, params]);
 
-  if (sample.length < 5) return <Empty title="Échantillon insuffisant" text="Le bootstrap Monte Carlo nécessite au moins 5 séances (ou trades)." />;
+  if (sample.length < 5) return <Empty title="Échantillon insuffisant" text="La simulation Monte-Carlo nécessite au moins 5 séances (ou trades)." />;
 
   return (
     <div className={cx(s.grid, s.gridTop)}>

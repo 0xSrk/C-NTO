@@ -118,8 +118,8 @@ export default function Metrique() {
               { value: 'bord', label: 'Tableau de bord' },
               { value: 'seances', label: `Séances · ${sessions.length}` },
               { value: 'analyse', label: 'Analyse' },
-              { value: 'prop', label: 'Prop firm' },
-              { value: 'mc', label: 'Monte Carlo' },
+              { value: 'prop', label: 'Firme prop' },
+              { value: 'mc', label: 'Monte-Carlo' },
             ]}
           />
           <span className="spacer" style={{ flex: 1 }} />

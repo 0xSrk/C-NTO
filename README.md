@@ -17,7 +17,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-116%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-121%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/badge/version-2.0.0-c41e3a?style=flat-square)](package.json)
 [![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
@@ -30,7 +30,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 
 <br/>
 
-**`01 MTR` · `02 VIS` · `03 CAL` · `04 NTE` · `05 AGT` · `06 BOT` · `07 CPY`**
+**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 AGT` · `06 BOT` · `07 CPY`**
 
 <br/><br/>
 
@@ -41,7 +41,7 @@ Un artefact de **SIΞRRΛSKΛ Lab** — journal quantitatif, pont NinjaTrader 8,
 ## Sommaire
 
 0. [En bref](#en-bref) · [Démarrer](#démarrer) · [Mettre à jour](#mettre-à-jour)
-1. [`01 · MTR` Métrique](#01-mtr)
+1. [`01 · MET` Métrique](#métrique)
 2. [`02 · VIS` Visual](#02-vis)
 3. [`03 · CAL` Calendrier](#03-cal)
 4. [`04 · NTE` Note](#04-nte)
@@ -112,9 +112,15 @@ Depuis les sources : double-clic sur `CANTO.cmd`. Le binaire Electron est télé
 
 Depuis les sources : `chmod +x CANTO.sh && ./CANTO.sh`.
 
+Sous un conteneur ou une session sans carte graphique, Electron peut écrire des erreurs dbus ou GPU. `canto --disable-gpu` réduit ce journal. Ce n’est pas le correctif du module Visual : le graphique attend une taille réelle avant de créer son canevas, pour ne pas noircir la fenêtre.
+
 ### Sources (les trois OS)
 
-**Prérequis** : [Node.js](https://nodejs.org) ≥ 22.12 (LTS) et npm.
+Les installeurs ci-dessus ne demandent pas Node.js. Les sources, si.
+
+**Prérequis** : [Node.js](https://nodejs.org) **22.12 ou plus récent** (LTS) et npm. Electron 43 refuse Node 20 : `npm install` s’arrête avec `engine` / `required: { node: '>=22.12.0' }`.
+
+**Node trop ancien** : installez Node 22.12+, ou téléchargez l’installeur déjà construit sur les [Releases GitHub](https://github.com/0xSrk/C-NTO/releases) (DMG, setup Windows, AppImage, deb, et `SHA256SUMS.txt`). Une Release est publiée à chaque tag `v*`.
 
 ```bash
 git clone https://github.com/0xSrk/C-NTO.git
@@ -159,7 +165,7 @@ CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre 
 
 <div align="center">
 
-**`01 · MTR · MÉTRIQUE · JOURNAL ULTIME · MOTEUR QUANTITATIF`**
+**`01 · MET · MÉTRIQUE · JOURNAL ULTIME · MOTEUR QUANTITATIF`**
 
 ## Métrique
 
@@ -171,7 +177,7 @@ CΛNTO **contrôle le dépôt GitHub au démarrage** (lanceur et barre de titre 
 
 </div>
 
-Cinq vues dans le même module : **Tableau de bord** · **Séances** · **Analyse** · **Prop firm** · **Monte Carlo**. Capacité **1 000 séances** (avertissement + proposition d’export au-delà, pas de drop silencieux). Chaque séance porte un compte, une date de trading (clé Globex **18:00 America/New_York**), des tags et une liste de trades.
+Cinq vues dans le même module : **Tableau de bord** · **Séances** · **Analyse** · **Firme prop** · **Monte-Carlo**. Capacité **1 000 séances** (avertissement + proposition d’export au-delà, pas de drop silencieux). Chaque séance porte un compte, une date de trading (clé Globex **18:00 America/New_York**), des tags et une liste de trades.
 
 Le moteur (`src/engine`) est TypeScript pur, indépendant de l’UI.
 
@@ -468,7 +474,7 @@ src/engine/       métriques, Monte Carlo, import NT, prop firm,
                   indicateurs, calendrier Nasdaq, outils agent, politique LLM / update
 src/store/        Dexie (IndexedDB) + Zustand
 src/modules/      un dossier par onglet (01…07)
-tests/            Vitest — 116 tests (moteur, import, coffre, agent, updater)
+tests/            Vitest — 121 tests (moteur, import, coffre, agent, updater)
 vectors/          vecteurs JSON partagés (métriques / prop firm)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
@@ -490,7 +496,7 @@ npm install
 npm run launch         # voie utilisateur (lanceur + desk)
 npm run desk:dev       # Electron + Vite sans lanceur
 npm run typecheck      # tsc app + electron
-npm test               # Vitest (116)
+npm test               # Vitest (121)
 npm run build          # bundle production
 npm run check          # typecheck + test + build
 npm run dist:mac       # DMG + zip universels (macOS)
@@ -498,7 +504,7 @@ npm run dist:win       # NSIS + portable, x64 et ARM (Windows)
 npm run dist:linux     # AppImage + deb, x64 et ARM64 (Linux)
 ```
 
-CI : GitHub Actions sur **ubuntu, Windows et macOS** — `npm ci`, `typecheck`, `test`, `build`, puis l’installeur natif de l’OS (`dist:linux`, `dist:win`, `dist:mac`). Les binaires sont publiés en artefacts du workflow.
+CI : GitHub Actions sur **ubuntu, Windows et macOS** — `npm ci`, `typecheck`, `test`, `build`, puis l’installeur natif de l’OS (`dist:linux`, `dist:win`, `dist:mac`). Les binaires sont publiés en artefacts du workflow. Un tag `v*` lance le workflow `release` et crée la Release GitHub (installeurs + `SHA256SUMS.txt`).
 
 ---
 

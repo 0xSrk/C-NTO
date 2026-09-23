@@ -47,6 +47,9 @@ export default function Copieur() {
             <Tag tone="amber" dot>
               CONCEPTION
             </Tag>
+            <Tag tone={config.enabled ? 'ember' : 'mint'} dot>
+              {config.enabled ? 'ARMÉ' : 'DÉSARMÉ'}
+            </Tag>
             <Button size="sm" variant="danger" onClick={() => updateConfig({ enabled: false })}>
               Couper
             </Button>
@@ -57,7 +60,7 @@ export default function Copieur() {
         <div className={s.layout}>
           <div className={s.col}>
             <div className={s.board}>
-              <Stat small label="Pont NinjaTrader" value="Hors ligne" hint="transport WebSocket non connecté" />
+              <Stat small label="Pont NinjaTrader" value="Hors ligne" hint="pont local, non connecté" />
               <Stat small label="Maîtres · suiveurs" value={`${masters.length} · ${followers.length}`} hint={plural(followers.filter((f) => f.enabled).length, 'suiveur actif', 'suiveurs actifs')} tone="ice" />
               <Stat small label="Budget latence" value={`${config.latencyBudgetMs} ms`} hint="alerte au-delà" tone="gold" />
               <Stat small label="Version" value={COPIER_CHANGELOG[0]?.version ?? APP_VERSION} hint={`canal ${config.channel}`} />

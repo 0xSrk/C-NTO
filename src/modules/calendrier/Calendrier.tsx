@@ -286,7 +286,7 @@ export default function Calendrier() {
                                 {e.timeET ? localTime(d, e.timeET) : 'journée'}
                                 {e.timeET && <small>{e.timeET} ET</small>}
                               </div>
-                              <div className={cx(s.fluxTitle, e.impact === 3 && s.impact3)}>
+                              <div className={cx(s.fluxTitle, e.impact === 3 && s.impact3)} title={e.title}>
                                 {e.estimated ? '≈ ' : ''}
                                 {e.title}
                               </div>
@@ -298,7 +298,7 @@ export default function Calendrier() {
                           <div key={p.id} className={s.fluxEv} style={catStyle('perso')} onClick={() => setSelected(d)}>
                             <div className={s.fluxTime}>{p.time ?? (p.kind === 'note' ? 'note' : 'journée')}</div>
                             <div className={s.fluxTitle}>{p.kind === 'note' ? p.body?.slice(0, 90) : p.title}</div>
-                            <Tag>perso</Tag>
+                            <Tag>personnel</Tag>
                           </div>
                         ))}
                       </div>
@@ -490,7 +490,7 @@ function DaySide({
           {sorted.map((e) => (
             <div key={e.id} className={cx(s.evCard, e.actual && s.evPublished)} style={catStyle(e.category)}>
               <div className={s.evCardHead}>
-                <b>{e.title}</b>
+                <b title={e.title}>{e.title}</b>
                 {e.timeET && (
                   <time>
                     {localTime(date, e.timeET)}
@@ -514,8 +514,8 @@ function DaySide({
 
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
-          <h4>Perso</h4>
-          <span>note · rappels</span>
+          <h4>Personnel</h4>
+          <span>notes et rappels</span>
         </header>
         <textarea
           rows={2}
@@ -576,8 +576,8 @@ function DaySide({
 
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
-          <h4>Séance</h4>
-          <span>locale · ET</span>
+          <h4>Horaires</h4>
+          <span>poste et New York</span>
         </header>
         <div className={s.markersCompact}>
           {SESSION_MARKERS.map((m) => (

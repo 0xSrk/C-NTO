@@ -118,9 +118,9 @@ export function Stat({ label, value, hint, tone, small, className, num, format }
   const shown = num !== undefined && format && animated !== undefined ? format(animated) : value;
   return (
     <div className={cx(s.stat, tone && tone !== 'flat' && s[tone], className)}>
-      <span className={s.statLabel}>{label}</span>
+      <span className={s.statLabel} title={typeof label === 'string' ? label : undefined}>{label}</span>
       <span className={cx(s.statValue, small && s.sm)}>{shown}</span>
-      {hint !== undefined && <span className={s.statHint}>{hint}</span>}
+      {hint !== undefined && <span className={s.statHint} title={typeof hint === 'string' ? hint : undefined}>{hint}</span>}
     </div>
   );
 }

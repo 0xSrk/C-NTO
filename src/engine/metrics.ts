@@ -510,8 +510,10 @@ export function summarizeTrades(trades: Trade[]): Pick<Session, 'tradeCount' | '
   const instr = new Set<Instrument>();
   for (const t of trades) {
     pnl += t.pnl;
-    if (t.pnl > 0) gp += t.pnl;
-    else gl += t.pnl;
+    // Le pnl stocké est déjà net : le brut remet les commissions (coût positif).
+    const gross = t.pnl + (t.commission || 0);
+    if (gross > 0) gp += gross;
+    else gl += gross;
     com += t.commission || 0;
     instr.add(t.instrument);
   }

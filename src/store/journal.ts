@@ -6,7 +6,7 @@ import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { summarizeTrades } from '@/engine/metrics';
 import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
 import { uid } from '@/lib/id';
-import { db } from './db';
+import { db, type ImportedExecution } from './db';
 import { useUi } from './ui';
 
 interface JournalState {
@@ -21,6 +21,7 @@ interface JournalState {
   deleteSession: (id: string) => Promise<void>;
   /** Suppression en lot (trades inclus), une seule transaction. */
   deleteSessions: (ids: string[]) => Promise<void>;
+  restoreSessions: (sessions: Session[], trades: Trade[], executions?: ImportedExecution[]) => Promise<void>;
   updateTrade: (id: string, patch: Partial<Pick<Trade, 'tags' | 'risk' | 'strategy'>>) => Promise<void>;
   clearAll: () => Promise<void>;
 }
@@ -207,6 +208,21 @@ export const useJournal = create<JournalState>((set, get) => ({
     set({
       sessions: get().sessions.filter((s) => !idSet.has(s.id)),
       trades: get().trades.filter((t) => !idSet.has(t.sessionId)),
+    });
+  },
+
+  async restoreSessions(sessions, trades, executions = []) {
+    if (sessions.length === 0 && trades.length === 0) return;
+    await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions], async () => {
+      if (sessions.length) await db.sessions.bulkPut(sessions);
+      if (trades.length) await db.trades.bulkPut(trades);
+      if (executions.length) await db.importedExecutions.bulkPut(executions);
+    });
+    const sessionIds = new Set(get().sessions.map((s) => s.id));
+    const tradeIds = new Set(get().trades.map((t) => t.id));
+    set({
+      sessions: sortSessions([...get().sessions, ...sessions.filter((s) => !sessionIds.has(s.id))]),
+      trades: [...get().trades, ...trades.filter((t) => !tradeIds.has(t.id))],
     });
   },
 
