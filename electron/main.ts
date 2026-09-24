@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, session, shell } from 'electron';
-import { promises as fs } from 'node:fs';
+import { existsSync, mkdirSync, promises as fs, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
@@ -9,9 +9,69 @@ import { fetchMacroReleases } from './macro-calendar';
 import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
 import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, type UiZoomMode } from './ui-scale';
 import { defaultNinjaExportFolder } from './bridge-folder';
+import { hardwareAccelerationEnabled, hasDrmRenderNode } from './gpu-fallback';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 const LAUNCHER_MODE = process.argv.includes('--launcher');
+
+const gpuDir = app.getPath('userData');
+const gpuAttemptPath = path.join(gpuDir, 'gpu-attempt');
+const gpuSoftwarePath = path.join(gpuDir, 'gpu-software');
+try {
+  mkdirSync(gpuDir, { recursive: true });
+} catch {
+  /* le dossier userData sera recréé par Electron */
+}
+const gpuHardware = hardwareAccelerationEnabled({
+  platform: process.platform,
+  renderNode: hasDrmRenderNode((file) => existsSync(file)),
+  openAttempt: existsSync(gpuAttemptPath),
+  softwareMarker: existsSync(gpuSoftwarePath),
+  envDisabled: process.env.CANTO_DISABLE_GPU === '1',
+});
+if (!gpuHardware) {
+  app.disableHardwareAcceleration();
+  // Chromium 128+ refuse SwiftShader sans ce drapeau : sans GPU le processus
+  // meurt (« GPU process isn't usable ») et la fenêtre reste noire.
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+  if (existsSync(gpuAttemptPath)) {
+    try {
+      writeFileSync(gpuSoftwarePath, 'software\n');
+      unlinkSync(gpuAttemptPath);
+    } catch {
+      /* marqueur best-effort */
+    }
+  }
+} else {
+  try {
+    writeFileSync(gpuAttemptPath, `${Date.now()}\n`);
+  } catch {
+    /* sans marqueur, un crash GPU ne basculera qu'au signal child-process-gone */
+  }
+}
+
+function acknowledgeGpuFrame(): void {
+  try {
+    if (existsSync(gpuAttemptPath)) unlinkSync(gpuAttemptPath);
+  } catch {
+    /* déjà retiré */
+  }
+}
+
+let gpuRelaunching = false;
+function fallBackToSoftware(reason: string): void {
+  if (gpuRelaunching || !gpuHardware) return;
+  gpuRelaunching = true;
+  try {
+    writeFileSync(gpuSoftwarePath, `${reason}\n`);
+    if (existsSync(gpuAttemptPath)) unlinkSync(gpuAttemptPath);
+  } catch {
+    /* on relance quand même */
+  }
+  app.relaunch();
+  app.exit(0);
+}
 let win: BrowserWindow | null = null;
 let launcherWin: BrowserWindow | null = null;
 const orchestrator = new Orchestrator();
@@ -119,7 +179,10 @@ function createLauncherWindow(): void {
       spellcheck: false,
     },
   });
-  launcherWin.once('ready-to-show', () => launcherWin?.show());
+  launcherWin.once('ready-to-show', () => {
+    launcherWin?.show();
+    acknowledgeGpuFrame();
+  });
   launcherWin.on('closed', () => {
     launcherWin = null;
     if (!win) app.quit();
@@ -151,17 +214,28 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
       sandbox: true,
       spellcheck: false,
       v8CacheOptions: 'bypassHeatCheck',
-      backgroundThrottling: true,
+      backgroundThrottling: false,
     },
   });
 
   win.once('ready-to-show', () => {
     applyZoom(win);
     win?.show();
+    acknowledgeGpuFrame();
   });
   win.webContents.on('did-finish-load', () => {
     applyZoom(win);
+    win?.webContents.setBackgroundThrottling(true);
     win?.webContents.send('zoom:changed', zoomSnapshot(win));
+  });
+  let rendererReloads = 0;
+  win.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit') return;
+    console.error('[CΛNTO] processus de rendu arrêté', details.reason);
+    if (rendererReloads < 1 && win && !win.isDestroyed()) {
+      rendererReloads += 1;
+      win.webContents.reload();
+    }
   });
   win.on('maximize', () => win?.webContents.send('window:maximized', true));
   win.on('unmaximize', () => win?.webContents.send('window:maximized', false));
@@ -215,6 +289,11 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
 
 app.setName('CΛNTO');
 app.commandLine.appendSwitch('lang', 'fr-FR');
+app.on('child-process-gone', (_event, details) => {
+  if (details.type !== 'GPU' || details.reason === 'clean-exit') return;
+  console.error('[CΛNTO] processus GPU arrêté', details.reason);
+  fallBackToSoftware(details.reason);
+});
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
