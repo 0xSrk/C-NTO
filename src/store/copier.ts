@@ -32,6 +32,15 @@ export const DEFAULT_COPIER: CopierConfig = {
 
 export const COPIER_CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '2.0.2',
+    date: '2026-09-25',
+    items: [
+      'Application installée : ouverture sur le lanceur (langue, contrôle de version, transition vers le desk)',
+      'Mise à jour native : téléchargement vérifié (SHA-256) de l’installeur puis relance automatique',
+      'Journal de démarrage et instance unique',
+    ],
+  },
+  {
     version: '2.0.1',
     date: '2026-09-25',
     items: ['Langue du desk au lanceur : Français, English, Español — le choix est conservé'],

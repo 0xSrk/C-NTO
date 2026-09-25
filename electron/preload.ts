@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('canto', {
     apply: (opts?: { channel?: string; confirmStash?: boolean }) => ipcRenderer.invoke('update:apply', opts),
     relaunch: () => ipcRenderer.invoke('update:relaunch'),
     startDesk: () => ipcRenderer.invoke('update:start-desk'),
+    onProgress: (cb: (p: { received: number; total: number }) => void) => subscribe('update:progress', cb),
   },
   orchestrator: {
     start: (port: number, allowWrites?: boolean) => ipcRenderer.invoke('orch:start', port, allowWrites),

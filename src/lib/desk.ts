@@ -66,6 +66,8 @@ export interface UpdateStatus {
   error?: string;
   /** Fichiers suivis modifiés localement, quand error === 'dirty_needs_stash'. */
   dirtyFiles?: string[];
+  /** Application installée : installeur ouvert pour l'utilisateur (DMG, deb). */
+  opened?: string;
   source: 'git' | 'github' | 'none';
   applied?: boolean;
 }
@@ -92,6 +94,7 @@ export interface DeskApi {
     apply: (opts?: { channel?: string; confirmStash?: boolean }) => Promise<UpdateStatus | null>;
     relaunch: () => Promise<boolean>;
     startDesk: () => Promise<boolean>;
+    onProgress?: (cb: (p: { received: number; total: number }) => void) => () => void;
   };
   bridge: BridgeApi;
   secrets: {

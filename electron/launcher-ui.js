@@ -20,6 +20,9 @@
       releasesOpen: 'Page des versions ouverte',
       availableOpen: 'dispo — page des versions ouverte',
       restarting: 'Redémarrage…',
+      downloading: 'Téléchargement',
+      verified: 'Vérifié (SHA-256) — installation et redémarrage…',
+      installerOpened: 'Installeur ouvert — terminez l’installation puis relancez CΛNTO',
       updateFail: 'Échec de la mise à jour',
     },
     en: {
@@ -41,6 +44,9 @@
       releasesOpen: 'Releases page opened',
       availableOpen: 'available — releases page opened',
       restarting: 'Restarting…',
+      downloading: 'Downloading',
+      verified: 'Verified (SHA-256) — installing and restarting…',
+      installerOpened: 'Installer opened — finish the install, then relaunch CΛNTO',
       updateFail: 'Update failed',
     },
     es: {
@@ -62,6 +68,9 @@
       releasesOpen: 'Página de versiones abierta',
       availableOpen: 'disponible — página de versiones abierta',
       restarting: 'Reinicio…',
+      downloading: 'Descargando',
+      verified: 'Verificado (SHA-256) — instalando y reiniciando…',
+      installerOpened: 'Instalador abierto — termine la instalación y reinicie CΛNTO',
       updateFail: 'Error de la actualización',
     },
   };
@@ -561,8 +570,15 @@
     if (applying || launching) return;
     applying = true;
     paint();
+    // Application installée : progression du téléchargement de l'installeur.
+    const stopProgress = window.canto.update.onProgress?.((p) => {
+      const mb = (n) => (n / 1048576).toFixed(0);
+      const pct = p.total ? ' · ' + Math.floor((p.received / p.total) * 100) + ' %' : '';
+      setMeta(L().downloading + pct + ' · ' + mb(p.received) + (p.total ? ' / ' + mb(p.total) : '') + ' Mo', 'busy');
+    });
     try {
       status = await window.canto.update.apply({ confirmStash: stashArmed });
+      stopProgress?.();
       if (status.error) {
         applying = false;
         stashArmed = status.error === 'dirty_needs_stash';
@@ -574,12 +590,14 @@
       if (!status.applied) {
         applying = false;
         paint();
-        setMeta(status.error || (status.latest ? 'v' + status.latest + ' ' + L().availableOpen : L().releasesOpen));
+        if (status.opened) setMeta(L().installerOpened, 'ok');
+        else setMeta(status.error || (status.latest ? 'v' + status.latest + ' ' + L().availableOpen : L().releasesOpen));
         return;
       }
-      setMeta(L().restarting, 'warn');
+      setMeta(status.source === 'github' ? L().verified : L().restarting, 'warn');
       await window.canto.update.relaunch();
     } catch (e) {
+      stopProgress?.();
       applying = false;
       paint();
       setMeta(e instanceof Error ? e.message : L().updateFail, 'err');

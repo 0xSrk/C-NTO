@@ -78,7 +78,12 @@ export function UpdateButton() {
       }
       setStatus(r);
       if (!r.applied) {
-        toast(tr('Page des versions ouverte.', 'Releases page opened.', 'Página de versiones abierta.'), 'ok');
+        toast(
+          r.opened
+            ? tr('Installeur ouvert — terminez l’installation puis relancez CΛNTO.', 'Installer opened — finish the install, then relaunch CΛNTO.', 'Instalador abierto — termine la instalación y reinicie CΛNTO.')
+            : tr('Page des versions ouverte.', 'Releases page opened.', 'Página de versiones abierta.'),
+          'ok',
+        );
         setBusy(false);
         return;
       }

@@ -1,12 +1,14 @@
-import { app, shell } from 'electron';
+import { app, net, shell } from 'electron';
 import { readLocaleFile, uiText } from './locale';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { classifyDirty, GENERATED_FILES } from './git-dirty';
+import { applyInstallerUpdate, performPendingRestart, type DownloadProgress } from './native-update';
 import { parseLatestRelease } from './release-check';
 import { compareSemver } from './semver';
+import { mainLog } from './main-log';
 
 export { compareSemver } from './semver';
 
@@ -55,6 +57,8 @@ export interface UpdateStatus {
   available: boolean;
   /** Fichiers suivis modifiés localement, quand error === 'dirty_needs_stash'. */
   dirtyFiles?: string[];
+  /** Application installée : installeur ouvert pour l'utilisateur (DMG, deb) au lieu d'une relance. */
+  opened?: string;
   busy: boolean;
   error?: string;
   /** Source de la détection */
@@ -131,7 +135,7 @@ async function readLocalVersion(root: string): Promise<string> {
 async function fetchGithubPackageVersion(): Promise<string | null> {
   const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/package.json`;
   try {
-    const res = await fetch(url, {
+    const res = await net.fetch(url, {
       headers: { Accept: 'application/json', 'User-Agent': 'CANTO-Desk' },
       signal: AbortSignal.timeout(12_000),
     });
@@ -150,7 +154,7 @@ async function fetchGithubPackageVersion(): Promise<string | null> {
 async function fetchLatestRelease(): Promise<{ version: string; url: string } | null> {
   const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
   try {
-    const res = await fetch(url, {
+    const res = await net.fetch(url, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'CANTO-Desk', 'X-GitHub-Api-Version': '2022-11-28' },
       signal: AbortSignal.timeout(12_000),
     });
@@ -216,23 +220,47 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
   };
 }
 
-export async function applyUpdate(opts: { channel?: string; confirmStash?: boolean } = {}): Promise<UpdateStatus> {
+export async function applyUpdate(
+  opts: { channel?: string; confirmStash?: boolean; onProgress?: (p: DownloadProgress) => void } = {},
+): Promise<UpdateStatus> {
   const root = repoRoot();
   const current = await readLocalVersion(root);
   const git = await isGitCheckout(root);
 
   if (!git) {
-    const release = await fetchLatestRelease();
-    openReleasesPage(release?.url || RELEASES_URL);
-    return {
-      current,
-      latest: release?.version ?? null,
-      available: true,
-      busy: false,
-      applied: false,
-      error: ui('Dépôt git introuvable — page des versions ouverte.', 'Git repository not found — releases page opened.', 'Repositorio git no encontrado — página de versiones abierta.'),
-      source: 'none',
-    };
+    // Application installée : téléchargement vérifié de l'installeur de la dernière Release.
+    try {
+      const r = await applyInstallerUpdate({ repo: GITHUB_REPO, current, onProgress: opts.onProgress });
+      return {
+        current,
+        latest: r.version,
+        available: !r.restart,
+        busy: false,
+        applied: r.restart,
+        opened: r.restart ? undefined : r.file,
+        source: 'github',
+      };
+    } catch (e) {
+      const code = e instanceof Error ? e.message : String(e);
+      mainLog('error', `mise à jour native impossible : ${code}`);
+      if (code === 'no_installer') openReleasesPage();
+      const messages: Record<string, string> = {
+        release_unreachable: ui('Impossible de joindre GitHub', 'Could not reach GitHub', 'No se pudo contactar GitHub'),
+        already_latest: ui('Déjà à jour', 'Already up to date', 'Ya actualizado'),
+        no_installer: ui('Pas d’installeur pour ce système — page des versions ouverte', 'No installer for this system — releases page opened', 'Sin instalador para este sistema — página de versiones abierta'),
+        no_checksums: ui('Empreintes SHA-256 absentes de la release : installation refusée', 'Release has no SHA-256 checksums: install refused', 'La versión no tiene sumas SHA-256: instalación rechazada'),
+        checksum_mismatch: ui('Fichier corrompu (SHA-256 différent) : installation refusée', 'Corrupted download (SHA-256 mismatch): install refused', 'Descarga dañada (SHA-256 distinto): instalación rechazada'),
+      };
+      return {
+        current,
+        latest: null,
+        available: code !== 'already_latest',
+        busy: false,
+        applied: false,
+        error: messages[code] ?? `${ui('Téléchargement impossible', 'Download failed', 'Descarga imposible')} : ${code}`,
+        source: 'github',
+      };
+    }
   }
 
   const latest = (await gitRemotePackageVersion(root)) ?? (await fetchGithubPackageVersion());
@@ -282,6 +310,8 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
 
 /** Relance : si le parent est `launch.mjs`, exit 42 ; sinon spawn détaché de `npm run launch`. */
 export function relaunchDesk(): void {
+  // Application installée : l'installeur (Windows) ou la relance (AppImage) prend la main.
+  if (performPendingRestart()) return;
   if (process.env.CANTO_LAUNCHER_PARENT === '1') {
     app.releaseSingleInstanceLock();
     app.exit(RELAUNCH_EXIT_CODE);
