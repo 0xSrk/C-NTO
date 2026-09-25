@@ -16,7 +16,12 @@ import { planUserData } from './user-data';
 import { initMainLog, mainLog } from './main-log';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
-const LAUNCHER_MODE = process.argv.includes('--launcher');
+/**
+ * Le lanceur (langue, contrôle de version, transition vers le desk) ouvre CΛNTO partout :
+ * `launch.mjs` le demande explicitement, l'application installée l'affiche d'office.
+ * `--desk` ouvre directement le desk (raccourci, débogage).
+ */
+const LAUNCHER_MODE = !process.argv.includes('--desk') && (process.argv.includes('--launcher') || app.isPackaged);
 /** Taille maximale d'un texte échangé par IPC fichier (import CSV, coffre). */
 const MAX_TEXT = 50 * 1024 * 1024;
 const LLM_PROBE_TIMEOUT_MS = 15_000;
@@ -526,9 +531,13 @@ ipcMain.handle('update:apply', async (e, payload: unknown): Promise<UpdateStatus
   updateBusy = true;
   try {
     const p = payload && typeof payload === 'object' ? (payload as { channel?: unknown; confirmStash?: unknown }) : {};
+    const sender = e.sender;
     return await applyUpdate({
       channel: typeof p.channel === 'string' ? p.channel : undefined,
       confirmStash: p.confirmStash === true,
+      onProgress: (progress) => {
+        if (!sender.isDestroyed()) sender.send('update:progress', progress);
+      },
     });
   } finally {
     updateBusy = false;

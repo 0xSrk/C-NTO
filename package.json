@@ -1,8 +1,8 @@
 {
   "name": "canto",
   "productName": "CΛNTO",
-  "version": "2.0.1",
-  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v2.0.1 · macOS, Windows, Linux",
+  "version": "2.0.2",
+  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v2.0.2 · macOS, Windows, Linux",
   "private": true,
   "author": "SIΞRRΛSKΛ",
   "license": "UNLICENSED",
@@ -71,8 +71,14 @@
       "build/icon.ico"
     ],
     "extraResources": [
-      { "from": "ninjatrader/CantoBridge.cs", "to": "ninjatrader/CantoBridge.cs" },
-      { "from": "docs/PONT-NINJATRADER.md", "to": "ninjatrader/PONT-NINJATRADER.md" }
+      {
+        "from": "ninjatrader/CantoBridge.cs",
+        "to": "ninjatrader/CantoBridge.cs"
+      },
+      {
+        "from": "docs/PONT-NINJATRADER.md",
+        "to": "ninjatrader/PONT-NINJATRADER.md"
+      }
     ],
     "electronFuses": {
       "runAsNode": false,
@@ -85,8 +91,20 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64", "arm64"] },
-        { "target": "portable", "arch": ["x64", "arm64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "artifactName": "CANTO-${version}-win-${arch}.${ext}"
     },
@@ -107,8 +125,20 @@
       "category": "Finance",
       "maintainer": "SIΞRRΛSKΛ Lab <canto@users.noreply.github.com>",
       "target": [
-        { "target": "AppImage", "arch": ["x64", "arm64"] },
-        { "target": "deb", "arch": ["x64", "arm64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "artifactName": "CANTO-${version}-linux-${arch}.${ext}"
     },
@@ -119,8 +149,18 @@
       "gatekeeperAssess": false,
       "hardenedRuntime": false,
       "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "artifactName": "CANTO-${version}-mac-${arch}.${ext}"
     },
