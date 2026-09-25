@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { classifyDirty, GENERATED_FILES } from './git-dirty';
 import { parseLatestRelease } from './release-check';
 import { compareSemver } from './semver';
 
@@ -30,9 +31,16 @@ function ui(fr: string, en: string, es: string): string {
   return uiText(readLocaleFile(app.getPath('userData')), fr, en, es);
 }
 
+/**
+ * Vrais changements locaux ? Les fichiers régénérés par npm (package-lock.json) sont
+ * restaurés au passage : ils ne doivent jamais bloquer une mise à jour.
+ */
 async function gitDirty(root: string): Promise<boolean> {
   const r = await run('git', ['status', '--porcelain'], root);
-  return r.code === 0 && r.out.trim().length > 0;
+  if (r.code !== 0) return false;
+  const { generated, user } = classifyDirty(r.out);
+  if (generated.length) await run('git', ['checkout', '--', ...generated], root);
+  return user.length > 0;
 }
 
 function openReleasesPage(url: string = RELEASES_URL): void {
@@ -70,12 +78,12 @@ function npmCliPath(): string {
 }
 
 /** Spawn sans shell — évite DEP0190 (args + shell:true). */
-function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string; err: string }> {
+function run(cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = process.env): Promise<{ code: number; out: string; err: string }> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, {
       cwd,
       shell: false,
-      env: process.env,
+      env,
       windowsHide: true,
     });
     let out = '';
@@ -91,8 +99,9 @@ function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; 
   });
 }
 
+/** Dans le desk, `process.execPath` est Electron : ELECTRON_RUN_AS_NODE le fait tourner comme Node pour npm. */
 function runNpm(args: string[], cwd: string) {
-  return run(process.execPath, [npmCliPath(), ...args], cwd);
+  return run(process.execPath, [npmCliPath(), ...args], cwd, { ...process.env, ELECTRON_RUN_AS_NODE: '1' });
 }
 
 async function isGitCheckout(root: string): Promise<boolean> {
@@ -250,6 +259,8 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
   }
 
   const install = await runNpm(['install', '--legacy-peer-deps'], root);
+  // npm vient de réécrire le lockfile : l'arbre reste propre pour la prochaine mise à jour.
+  await run('git', ['checkout', '--', ...GENERATED_FILES], root);
   if (install.code !== 0) {
     return {
       current,
@@ -277,7 +288,7 @@ export function relaunchDesk(): void {
     detached: true,
     stdio: 'ignore',
     shell: false,
-    env: { ...process.env, CANTO_LAUNCHER_PARENT: undefined },
+    env: { ...process.env, CANTO_LAUNCHER_PARENT: undefined, ELECTRON_RUN_AS_NODE: '1' },
     windowsHide: true,
   });
   child.unref();

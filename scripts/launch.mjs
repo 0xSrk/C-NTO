@@ -128,6 +128,13 @@ function waitForVite(port, timeoutMs = 90_000) {
   });
 }
 
+/** Promesse attendue plus tard : marquée « gérée » tout de suite pour qu'un échec pendant la compilation ne tue pas le process avant son message. */
+function ensureElectronQuiet() {
+  const p = ensureElectron(root);
+  p.catch(() => {});
+  return p;
+}
+
 async function compileElectron() {
   const code = await runNodeScript(npmCliPath(), ['run', 'electron:compile']);
   if (code !== 0) throw new Error('electron:compile a échoué');
@@ -167,6 +174,8 @@ function runElectron(port) {
         ...process.env,
         CANTO_DEV_URL: `http://${HOST}:${port}`,
         CANTO_LAUNCHER_PARENT: '1',
+        // Hérité d'une relance depuis le desk : Electron doit redevenir une application.
+        ELECTRON_RUN_AS_NODE: undefined,
       },
       windowsHide: false,
       shell: false,
@@ -191,7 +200,8 @@ function stopChild(child) {
 
 async function main() {
   console.log('\n  CΛNTO · lanceur Lab\n');
-  const electronReady = ensureElectron(root);
+  // Téléchargement éventuel en parallèle de la compilation ; revérifié à chaque relance.
+  let electronReady = ensureElectronQuiet();
   await compileElectron();
 
   for (;;) {
@@ -236,6 +246,8 @@ async function main() {
     await new Promise((r) => setTimeout(r, 500));
     if (code === RELAUNCH) {
       console.log('\n  Mise à jour appliquée — redémarrage…\n');
+      // La mise à jour a pu réinstaller ou changer de version d'Electron : on revérifie le binaire.
+      electronReady = ensureElectronQuiet();
       await compileElectron();
       continue;
     }

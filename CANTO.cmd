@@ -23,6 +23,8 @@ if not exist "node_modules\" (
     pause
     exit /b 1
   )
+  REM npm reecrit package-lock.json : on le restaure pour que les mises a jour restent possibles.
+  git checkout -- package-lock.json >nul 2>&1
 )
 
 echo Telechargement Electron au besoin (sans module natif Windows)...
