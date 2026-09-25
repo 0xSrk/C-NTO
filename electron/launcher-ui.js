@@ -14,7 +14,8 @@
       available: 'disponible',
       linking: 'Liaison du circuit',
       opening: 'Ouverture du desk',
-      dirty: 'Modifications locales — stash ou commit, puis réessayez.',
+      dirty: 'Modifications locales dans le dossier — cliquez à nouveau pour les mettre de côté (git stash, réversible) et mettre à jour.',
+      stashUpdate: 'Mettre de côté et mettre à jour',
       releasesOpen: 'Page des versions ouverte',
       availableOpen: 'dispo — page des versions ouverte',
       restarting: 'Redémarrage…',
@@ -33,7 +34,8 @@
       available: 'available',
       linking: 'Linking the circuit',
       opening: 'Opening the desk',
-      dirty: 'Local changes — stash or commit, then try again.',
+      dirty: 'Local changes in the folder — click again to set them aside (git stash, reversible) and update.',
+      stashUpdate: 'Set aside and update',
       releasesOpen: 'Releases page opened',
       availableOpen: 'available — releases page opened',
       restarting: 'Restarting…',
@@ -52,7 +54,8 @@
       available: 'disponible',
       linking: 'Enlazando el circuito',
       opening: 'Abriendo el desk',
-      dirty: 'Cambios locales — stash o commit, luego reintente.',
+      dirty: 'Cambios locales en la carpeta — haga clic de nuevo para apartarlos (git stash, reversible) y actualizar.',
+      stashUpdate: 'Apartar y actualizar',
       releasesOpen: 'Página de versiones abierta',
       availableOpen: 'disponible — página de versiones abierta',
       restarting: 'Reinicio…',
@@ -84,6 +87,8 @@
   let locale = LOCALES.includes(fromQuery) ? fromQuery : 'fr';
   let status = null;
   let applying = false;
+  /** Modifications locales détectées : le prochain clic confirme le stash. */
+  let stashArmed = false;
   let launching = false;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -129,7 +134,7 @@
       btnUpdate.hidden = false;
       btnUpdate.classList.add('update');
       btnUpdate.classList.toggle('busy', applying);
-      btnUpdateLabel.textContent = applying ? L().updating : L().updateRelaunch;
+      btnUpdateLabel.textContent = applying ? L().updating : stashArmed ? L().stashUpdate : L().updateRelaunch;
       btnUpdate.disabled = applying || launching;
       btnLaunch.disabled = applying || launching;
       setMeta(`v${current} → v${latest ?? '…'} ${L().available}`, 'warn');
@@ -547,13 +552,15 @@
     applying = true;
     paint();
     try {
-      status = await window.canto.update.apply();
+      status = await window.canto.update.apply({ confirmStash: stashArmed });
       if (status.error) {
         applying = false;
+        stashArmed = status.error === 'dirty_needs_stash';
         paint();
-        setMeta(status.error === 'dirty_needs_stash' ? L().dirty : status.error, 'err');
+        setMeta(stashArmed ? L().dirty : status.error, stashArmed ? 'warn' : 'err');
         return;
       }
+      stashArmed = false;
       if (!status.applied) {
         applying = false;
         paint();
