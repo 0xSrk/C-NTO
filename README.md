@@ -102,6 +102,8 @@ From source (development): double-click `CANTO.command`, or `chmod +x CANTO.sh &
 4. Metrics › NinjaTrader bridge › default folder `Documents\NinjaTrader 8\export\CANTO`.
 5. Real time: `CantoBridge.cs` ships in `resources/ninjatrader/` next to the executable (sources: `ninjatrader/CantoBridge.cs`). Copy it to `Documents\NinjaTrader 8\bin\Custom\AddOns\`, then NinjaScript Editor › Compile (F5).
 
+**Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log` (startup, GPU mode, first paint, errors), and a startup error is shown in a dialog instead of closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it — check the Windows notifications and *Windows Security › App & browser control*, or use the source install (`CANTO.cmd`) below.
+
 From source: double-click `CANTO.cmd`. The Electron binary is downloaded and extracted **without** the `extract-zip` native module (often blocked by Smart App Control). Allow 1–2 minutes. If the launcher shows `Cannot find native binding`, update the repo (`git pull`) and run `CANTO.cmd` again. Shortcut: right-click `CANTO.cmd` › *Send to › Desktop (create shortcut)*.
 
 ### Linux

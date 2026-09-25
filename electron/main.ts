@@ -13,6 +13,7 @@ import { hardwareAccelerationEnabled, hasDrmRenderNode } from './gpu-fallback';
 import { parseLocale, readLocaleFile, uiText, writeLocaleFile, type AppLocale } from './locale';
 import { FolderGrants, isSafeBackupName } from './folder-grants';
 import { planUserData } from './user-data';
+import { initMainLog, mainLog } from './main-log';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 const LAUNCHER_MODE = process.argv.includes('--launcher');
@@ -43,6 +44,46 @@ app.setName('CΛNTO');
   app.setPath('sessionData', plan.dir);
 }
 
+const logPath = initMainLog(app.getPath('userData'));
+mainLog('info', `démarrage v${app.getVersion()} · ${process.platform}-${process.arch} · ${app.isPackaged ? 'installé' : 'dev'} · exe=${process.execPath} · args=${process.argv.slice(1).join(' ')}`);
+
+/**
+ * Une seule instance par dossier de données. Un second clic (raccourci, menu Démarrer)
+ * ramène la fenêtre existante au premier plan au lieu d'ouvrir une instance fantôme
+ * qui se disputerait le coffre.
+ */
+const primaryInstance = app.requestSingleInstanceLock();
+if (!primaryInstance) {
+  mainLog('info', 'une instance est déjà ouverte : elle passe au premier plan, celle-ci se ferme');
+  app.exit(0);
+}
+app.on('second-instance', () => {
+  const target = [win, launcherWin].find((w): w is BrowserWindow => !!w && !w.isDestroyed());
+  mainLog('info', `second lancement → ${target ? 'fenêtre existante au premier plan' : 'aucune fenêtre à montrer'}`);
+  if (!target) return;
+  if (target.isMinimized()) target.restore();
+  if (!target.isVisible()) target.show();
+  target.focus();
+});
+
+/** Erreur fatale du process principal : journalisée et expliquée, jamais une fermeture muette. */
+let fatalShown = false;
+process.on('uncaughtException', (err) => {
+  mainLog('error', `exception non gérée : ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+  if (fatalShown) return;
+  fatalShown = true;
+  const detail = err instanceof Error ? err.message : String(err);
+  dialog.showErrorBox(
+    'CΛNTO',
+    uiText(readLocaleFile(app.getPath('userData')), 'CΛNTO a rencontré une erreur', 'CΛNTO hit an error', 'CΛNTO encontró un error') + ` :\n\n${detail}\n\n` + uiText(readLocaleFile(app.getPath('userData')), 'Journal', 'Log', 'Registro') + ` : ${logPath}`,
+  );
+  // Au démarrage, sans fenêtre, l'application ne peut rien faire d'utile : on sort proprement.
+  if (!win && !launcherWin) app.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  mainLog('warn', `promesse rejetée : ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
+});
+
 const gpuDir = app.getPath('userData');
 const gpuAttemptPath = path.join(gpuDir, 'gpu-attempt');
 const gpuSoftwarePath = path.join(gpuDir, 'gpu-software');
@@ -64,7 +105,8 @@ if (!gpuHardware) {
   // meurt (« GPU process isn't usable ») et la fenêtre reste noire.
   app.commandLine.appendSwitch('enable-unsafe-swiftshader');
   app.commandLine.appendSwitch('disable-gpu-compositing');
-  if (existsSync(gpuAttemptPath)) {
+  // Seule l'instance principale touche aux marqueurs GPU (une seconde instance va se fermer).
+  if (primaryInstance && existsSync(gpuAttemptPath)) {
     try {
       writeFileSync(gpuSoftwarePath, 'software\n');
       unlinkSync(gpuAttemptPath);
@@ -72,7 +114,7 @@ if (!gpuHardware) {
       /* marqueur best-effort */
     }
   }
-} else {
+} else if (primaryInstance) {
   try {
     writeFileSync(gpuAttemptPath, `${Date.now()}\n`);
   } catch {
@@ -98,6 +140,9 @@ function fallBackToSoftware(reason: string): void {
   } catch {
     /* on relance quand même */
   }
+  mainLog('warn', `GPU indisponible (${reason}) : relance en rendu logiciel`);
+  // Libère le verrou d'instance : la relance ne doit pas se prendre pour un second clic.
+  app.releaseSingleInstanceLock();
   app.relaunch();
   app.exit(0);
 }
@@ -193,6 +238,22 @@ function zoomSnapshot(winRef: BrowserWindow | null = win) {
   };
 }
 
+/**
+ * Les fenêtres naissent masquées et s'affichent au premier rendu (`ready-to-show`). Si ce
+ * signal ne vient jamais (pilote graphique, rendu bloqué), la fenêtre est montrée quand même :
+ * une application lancée ne doit jamais rester invisible.
+ */
+const SHOW_GUARD_MS = 6000;
+function guardShow(w: BrowserWindow, label: string): void {
+  const timer = setTimeout(() => {
+    if (w.isDestroyed() || w.isVisible()) return;
+    mainLog('warn', `${label} : premier rendu absent après ${SHOW_GUARD_MS / 1000} s — affichage forcé`);
+    w.show();
+  }, SHOW_GUARD_MS);
+  w.once('show', () => clearTimeout(timer));
+  w.once('closed', () => clearTimeout(timer));
+}
+
 function createLauncherWindow(): void {
   launcherWin = new BrowserWindow({
     width: 420,
@@ -218,6 +279,7 @@ function createLauncherWindow(): void {
     launcherWin?.show();
     acknowledgeGpuFrame();
   });
+  guardShow(launcherWin, 'lanceur');
   launcherWin.on('closed', () => {
     launcherWin = null;
     if (!win) app.quit();
@@ -254,9 +316,14 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   });
 
   win.once('ready-to-show', () => {
+    mainLog('info', 'desk prêt à l’affichage');
     applyZoom(win);
     win?.show();
     acknowledgeGpuFrame();
+  });
+  guardShow(win, 'desk');
+  win.webContents.on('did-fail-load', (_event, code, description, url) => {
+    mainLog('error', `chargement du desk impossible (${code} ${description}) : ${url}`);
   });
   win.webContents.on('did-finish-load', () => {
     applyZoom(win);
@@ -266,7 +333,7 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   let rendererReloads = 0;
   win.webContents.on('render-process-gone', (_event, details) => {
     if (details.reason === 'clean-exit') return;
-    console.error('[CΛNTO] processus de rendu arrêté', details.reason);
+    mainLog('error', `processus de rendu arrêté : ${details.reason} (code ${details.exitCode})`);
     if (rendererReloads < 1 && win && !win.isDestroyed()) {
       rendererReloads += 1;
       win.webContents.reload();
@@ -322,8 +389,9 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
 const chromiumLang: Record<AppLocale, string> = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' };
 app.commandLine.appendSwitch('lang', chromiumLang[readLocaleFile(app.getPath('userData'))]);
 app.on('child-process-gone', (_event, details) => {
-  if (details.type !== 'GPU' || details.reason === 'clean-exit') return;
-  console.error('[CΛNTO] processus GPU arrêté', details.reason);
+  if (details.reason === 'clean-exit') return;
+  mainLog('error', `processus ${details.type} arrêté : ${details.reason} (code ${details.exitCode})`);
+  if (details.type !== 'GPU') return;
   fallBackToSoftware(details.reason);
 });
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
@@ -347,6 +415,8 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 app.whenReady().then(() => {
+  if (!primaryInstance) return;
+  mainLog('info', `prêt · GPU ${gpuHardware ? 'matériel' : 'logiciel'}`);
   // Aucune permission navigateur (caméra, notifications, géoloc…) ; seule l'écriture presse-papiers
   // assainie reste possible (bouton « Copier le jeton », « Copier le journal »).
   const PERMISSIONS_ALLOWED = new Set(['clipboard-sanitized-write']);

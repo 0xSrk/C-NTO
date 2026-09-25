@@ -283,10 +283,13 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
 /** Relance : si le parent est `launch.mjs`, exit 42 ; sinon spawn détaché de `npm run launch`. */
 export function relaunchDesk(): void {
   if (process.env.CANTO_LAUNCHER_PARENT === '1') {
+    app.releaseSingleInstanceLock();
     app.exit(RELAUNCH_EXIT_CODE);
     return;
   }
   const root = repoRoot();
+  // La nouvelle instance ne doit pas buter sur le verrou de celle qui se ferme.
+  app.releaseSingleInstanceLock();
   const child = spawn(process.execPath, [npmCliPath(), 'run', 'launch'], {
     cwd: root,
     detached: true,
