@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { parseLatestRelease } from './release-check';
 import { compareSemver } from './semver';
 
 export { compareSemver } from './semver';
@@ -34,8 +35,8 @@ async function gitDirty(root: string): Promise<boolean> {
   return r.code === 0 && r.out.trim().length > 0;
 }
 
-function openReleasesPage(): void {
-  if (RELEASES_URL.startsWith('https:')) void shell.openExternal(RELEASES_URL);
+function openReleasesPage(url: string = RELEASES_URL): void {
+  if (url.startsWith('https://github.com/')) void shell.openExternal(url);
 }
 
 export interface UpdateStatus {
@@ -129,6 +130,24 @@ async function fetchGithubPackageVersion(): Promise<string | null> {
   }
 }
 
+/**
+ * Voie installeur : dernière Release GitHub publiée (et non `package.json` sur `main`,
+ * dont le numéro peut avancer avant qu'un binaire existe).
+ */
+async function fetchLatestRelease(): Promise<{ version: string; url: string } | null> {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'CANTO-Desk', 'X-GitHub-Api-Version': '2022-11-28' },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return null;
+    return parseLatestRelease(await res.json());
+  } catch {
+    return null;
+  }
+}
+
 /** Détecte une avance de `origin/main` même si le numéro de version n'a pas bougé. */
 async function gitBehind(root: string): Promise<boolean> {
   const fetch = await run('git', ['fetch', 'origin', GITHUB_BRANCH, '--quiet'], root);
@@ -171,14 +190,14 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
     }
   }
 
-  const latest = await fetchGithubPackageVersion();
-  if (!latest) {
+  const release = await fetchLatestRelease();
+  if (!release) {
     return { ...base, error: ui('Impossible de joindre GitHub', 'Could not reach GitHub', 'No se pudo contactar GitHub'), source: 'github' };
   }
   return {
     current,
-    latest,
-    available: compareSemver(latest, current) > 0,
+    latest: release.version,
+    available: compareSemver(release.version, current) > 0,
     busy: false,
     source: 'github',
   };
@@ -188,13 +207,13 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
   const root = repoRoot();
   const current = await readLocalVersion(root);
   const git = await isGitCheckout(root);
-  const latest = (git ? await gitRemotePackageVersion(root) : null) ?? (await fetchGithubPackageVersion());
 
   if (!git) {
-    openReleasesPage();
+    const release = await fetchLatestRelease();
+    openReleasesPage(release?.url || RELEASES_URL);
     return {
       current,
-      latest: latest ?? null,
+      latest: release?.version ?? null,
       available: true,
       busy: false,
       applied: false,
@@ -203,6 +222,7 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
     };
   }
 
+  const latest = (await gitRemotePackageVersion(root)) ?? (await fetchGithubPackageVersion());
   const dirty = await gitDirty(root);
   const gitOk = canApplyGitUpdate({ isGitCheckout: git, dirty });
   if (!gitOk.ok) {

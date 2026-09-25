@@ -134,7 +134,8 @@ export interface DeskApi {
     saveText: (defaultName: string, text: string) => Promise<boolean>;
     openText: (filters: { name: string; extensions: string[] }[]) => Promise<{ name: string; text: string } | null>;
     pickFolder?: () => Promise<string | null>;
-    writeInFolder?: (folder: string, name: string, text: string, encrypt: boolean) => Promise<{ ok: boolean; encrypted: boolean; path?: string }>;
+    /** `reason: 'not_granted'` = dossier jamais accordé par un dialogue sur ce poste (à rechoisir). */
+    writeInFolder?: (folder: string, name: string, text: string, encrypt: boolean) => Promise<{ ok: boolean; encrypted: boolean; path?: string; reason?: 'invalid' | 'not_granted' }>;
   };
   calendar?: {
     fetchMacro: (

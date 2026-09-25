@@ -11,13 +11,15 @@ function escapeHtml(s: string): string {
 /**
  * Assainissement commun : pas de formulaires, d'iframes, de styles inline ni de cibles de
  * fenêtre — dans une fenêtre sans cadre, un contenu ne doit jamais pouvoir se faire passer
- * pour l'interface. Seuls http(s), mailto et les ancres sont admis comme URL.
+ * pour l'interface. Seuls http(s) et les ancres sont admis comme URL : `mailto:` est exclu
+ * car, sous le shell, un clic partirait au gestionnaire de protocole de l'OS sans passer par
+ * `will-navigate` (une note créée par l'agent ou l'orchestrateur pourrait pré-remplir un mail).
  */
 const SANITIZE: import('dompurify').Config = {
   ADD_ATTR: ['data-title', 'data-tag'],
   FORBID_ATTR: ['style', 'target'],
   FORBID_TAGS: ['style', 'script', 'iframe', 'form', 'input', 'button', 'select', 'textarea', 'svg', 'math', 'object', 'embed'],
-  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|#)/i,
+  ALLOWED_URI_REGEXP: /^(?:https?:|#)/i,
 };
 
 /** Rendu Markdown simple et assaini (messages de l'agent). */
