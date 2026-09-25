@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { InvertedTab, Progress, cx } from '@/design/primitives';
 import { plural } from '@/lib/format';
 import { Wordmark } from '@/design/Wordmark';
@@ -49,7 +49,7 @@ function marketPhase(now: Date): { label: string; tone: 'ok' | 'warn' | 'off' } 
   return { label: tr('Globex · hors RTH', 'Globex · outside RTH', 'Globex · fuera de RTH'), tone: 'warn' };
 }
 
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({ children, revealed = true }: { children: ReactNode; revealed?: boolean }) {
   const locale = useI18n((s) => s.locale);
   const tab = useUi((u) => u.tab);
   const setTab = useUi((u) => u.setTab);
@@ -93,13 +93,20 @@ export function Shell({ children }: { children: ReactNode }) {
   const liveLabel = bridgeLive && orchestrator.running ? tr('Pont · Lien', 'Bridge · Link', 'Puente · Enlace') : bridgeLive ? tr('Pont NT8', 'NT8 bridge', 'Puente NT8') : orchestrator.running ? tr('Lien IA', 'AI link', 'Enlace IA') : isDesk ? tr('Veille', 'Idle', 'En espera') : tr('Navigateur', 'Browser', 'Navegador');
 
   return (
-    <div className={s.shell}>
+    <div className={cx(s.shell, revealed ? s.intro : s.pending)}>
       <div className={s.ambience} aria-hidden>
         <div className={s.lightRoom} />
         <div className={s.lightBeams} />
         <div className={cx(s.lightWarm, !live && s.off)} />
         <div className={s.lightHeader} />
       </div>
+      {revealed && (
+        <div className={s.introLines} aria-hidden>
+          <i className={s.introHead} />
+          <i className={s.introRail} />
+          <i className={s.introStatus} />
+        </div>
+      )}
 
       <header className={s.title}>
         <div className={s.brand}>
@@ -156,11 +163,18 @@ export function Shell({ children }: { children: ReactNode }) {
           <span className={s.railCallsign}>{callsign}</span>
         </div>
         <nav className={s.nav}>
-          {TABS.map((item) => {
+          {TABS.map((item, n) => {
             const Icon = item.icon;
             const copy = tabCopy(item);
             return (
-              <button key={item.id} className={cx(s.navItem, tab === item.id && s.on)} onClick={() => setTab(item.id)} title={`${copy.label} — Ctrl+${item.index.slice(-1)}`} aria-current={tab === item.id ? 'page' : undefined}>
+              <button
+                key={item.id}
+                className={cx(s.navItem, tab === item.id && s.on)}
+                style={{ '--n': n } as CSSProperties}
+                onClick={() => setTab(item.id)}
+                title={`${copy.label} — Ctrl+${item.index.slice(-1)}`}
+                aria-current={tab === item.id ? 'page' : undefined}
+              >
                 <span className={s.navIndex}>{item.index}</span>
                 <Icon size={14} />
                 <span className={s.navLabel}>{copy.label}</span>

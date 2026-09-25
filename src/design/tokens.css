@@ -38,6 +38,11 @@
   --glow-accent-soft: 0 0 10px rgba(196, 30, 58, 0.16);
   --leak-accent: linear-gradient(90deg, rgba(196, 30, 58, 0.32), transparent);
 
+  /* Lumière : jamais une couleur, seulement du blanc qui frôle une arête */
+  --light-line: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07) 30%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.07) 70%, transparent);
+  --light-edge: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14) 50%, transparent);
+  --notch: 8px;
+
   /* Couleurs fonctionnelles : sens uniquement, désaturées */
   --mint: #7fcf9a;
   --mint-soft: rgba(127, 207, 154, 0.1);
@@ -118,6 +123,7 @@
 
 html {
   font-feature-settings: 'cv11', 'ss01', 'ss03', 'tnum';
+  font-kerning: normal;
   font-optical-sizing: auto;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
@@ -155,12 +161,17 @@ body {
 ::-webkit-scrollbar-track {
   background: var(--bg-0);
 }
+/* Pouce de 2 px centré dans une piste de 8 px : un filet, pas un bloc */
 ::-webkit-scrollbar-thumb {
   background: var(--line-2);
+  background-clip: padding-box;
+  border: 3px solid transparent;
   border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-2);
+  background: var(--text-3);
+  background-clip: padding-box;
+  border-width: 2px;
 }
 ::-webkit-scrollbar-corner {
   background: var(--bg-0);
@@ -196,6 +207,10 @@ h4 {
   letter-spacing: -0.02em;
   line-height: 1.1;
   color: var(--text-0);
+  text-wrap: balance;
+}
+h1 {
+  letter-spacing: -0.028em;
 }
 
 code,

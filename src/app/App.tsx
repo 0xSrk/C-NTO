@@ -112,6 +112,7 @@ export function App() {
   const [steps, setSteps] = useState<BootStep[]>(initialSteps);
   const [ready, setReady] = useState(false);
   const [booted, setBooted] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const tab = useUi((u) => u.tab);
 
   useEffect(() => {
@@ -132,8 +133,10 @@ export function App() {
     };
   }, []);
 
+  const reveal = useCallback(() => setRevealed(true), []);
   const finish = useCallback(() => {
     bootTimings.deskShown = performance.now();
+    setRevealed(true);
     setBooted(true);
   }, []);
 
@@ -142,7 +145,7 @@ export function App() {
   return (
     <>
       {(ready || booted) && (
-        <Shell>
+        <Shell revealed={revealed}>
           <ErrorBoundary resetKey={tab}>
             <Suspense fallback={<div className="micro" style={{ padding: 24 }} data-locale={locale}>{tr('Chargement du module…', 'Loading module…', 'Cargando el módulo…')}</div>}>
               {tab === 'metrique' && <Metrique />}
@@ -156,7 +159,7 @@ export function App() {
           </ErrorBoundary>
         </Shell>
       )}
-      {!booted && <Boot steps={steps} ready={ready} onFinished={finish} />}
+      {!booted && <Boot steps={steps} ready={ready} onReveal={reveal} onFinished={finish} />}
     </>
   );
 }

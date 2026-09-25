@@ -3,23 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'" />
     <title>CΛNTO</title>
     <style>
+      /* Polices du desk, embarquées à côté du lanceur (scripts/copy-electron-assets.mjs). */
+      @font-face {
+        font-family: 'Inter Variable';
+        font-style: normal;
+        font-display: block;
+        font-weight: 100 900;
+        src: url(./fonts/inter-latin-wght-normal.woff2) format('woff2-variations');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Inter Variable';
+        font-style: normal;
+        font-display: block;
+        font-weight: 100 900;
+        src: url(./fonts/inter-greek-wght-normal.woff2) format('woff2-variations');
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono Variable';
+        font-style: normal;
+        font-display: block;
+        font-weight: 100 800;
+        src: url(./fonts/jetbrains-mono-latin-wght-normal.woff2) format('woff2-variations');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono Variable';
+        font-style: normal;
+        font-display: block;
+        font-weight: 100 800;
+        src: url(./fonts/jetbrains-mono-greek-wght-normal.woff2) format('woff2-variations');
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+      }
+
       :root {
         color-scheme: dark only;
         --bg: #000000;
+        --bg-3: #0b0b0b;
         --text-0: #ffffff;
         --text-1: #c4c4c4;
-        --text-2: #7a7a7a;
-        --text-3: #5a5a5a;
-        --line: rgba(255, 255, 255, 0.1);
-        --line-fine: rgba(255, 255, 255, 0.06);
+        --text-2: #8a8a8a;
+        --text-3: #6c6c6c;
+        --text-4: #4a4a4a;
+        --line-0: #141414;
+        --line-1: #1e1e1e;
+        --line-2: #2e2e2e;
+        --line-3: #424242;
         --led: #c41e3a;
+        --led-line: rgba(196, 30, 58, 0.5);
         --amber: #d8b45a;
-        --font: 'Segoe UI', 'Helvetica Neue', sans-serif;
-        --mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
-        --ease: cubic-bezier(0.4, 0, 0.2, 1);
+        --ember: #e0776c;
+        --font: 'Inter Variable', 'Segoe UI', 'Helvetica Neue', sans-serif;
+        --mono: 'JetBrains Mono Variable', 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
       }
       * {
         box-sizing: border-box;
@@ -32,139 +73,428 @@
         background: var(--bg);
         color: var(--text-1);
         font-family: var(--font);
+        font-feature-settings: 'cv11', 'ss01', 'ss03', 'tnum';
+        text-rendering: geometricPrecision;
+        -webkit-font-smoothing: antialiased;
         overflow: hidden;
         user-select: none;
         -webkit-app-region: drag;
       }
+
+      /* ─── Réticule fixe : cadre à encoches, règles, repères de coin ─── */
+      .reticle {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .reticle svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .reticle .notch,
+      .reticle .tick {
+        shape-rendering: crispEdges;
+      }
+      .reticle .rim {
+        fill: none;
+        stroke: var(--line-1);
+        stroke-width: 1;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+        animation: draw 1.1s var(--ease-in-out) 0.05s both;
+      }
+      .reticle .notch {
+        stroke: var(--line-3);
+        stroke-width: 1;
+        animation: fade 0.4s linear 0.7s both;
+      }
+      .reticle .notch.led {
+        stroke: var(--led);
+      }
+      .reticle .tick {
+        stroke: var(--line-0);
+        stroke-width: 1;
+        animation: fade 0.5s linear 0.85s both;
+      }
+      .reticle .tick.major {
+        stroke: var(--line-2);
+      }
+      .cross {
+        position: absolute;
+        width: 9px;
+        height: 9px;
+        background:
+          linear-gradient(var(--text-4), var(--text-4)) 4px 0 / 1px 9px no-repeat,
+          linear-gradient(var(--text-4), var(--text-4)) 0 4px / 9px 1px no-repeat;
+        animation: fade 0.3s linear 0.1s both;
+      }
+      .cross.tl {
+        top: 8px;
+        left: 8px;
+      }
+      .cross.tr {
+        top: 8px;
+        right: 8px;
+      }
+      .cross.bl {
+        bottom: 8px;
+        left: 8px;
+      }
+      .cross.br {
+        bottom: 8px;
+        right: 8px;
+      }
+      /* Lumière de salle : une source zénithale très faible au-dessus de la marque */
+      .light {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background:
+          radial-gradient(ellipse 60% 36% at 50% 30%, rgba(255, 255, 255, 0.035), transparent 70%),
+          radial-gradient(ellipse 24% 10% at 50% 47%, rgba(196, 30, 58, 0.03), transparent 80%);
+        animation: fade 1.6s var(--ease) 0.3s both;
+      }
+
       .frame {
+        position: relative;
+        z-index: 1;
         height: 100%;
         display: flex;
         flex-direction: column;
-        padding: 28px 32px 24px;
-        position: relative;
-        transition: opacity 0.55s var(--ease), transform 0.7s var(--ease);
-      }
-      .frame::before,
-      .frame::after,
-      .frame .c-bl,
-      .frame .c-br {
-        position: absolute;
-        font-family: var(--mono);
-        font-size: 10px;
-        color: var(--text-3);
-        -webkit-app-region: no-drag;
-        line-height: 1;
-      }
-      .frame::before {
-        content: '+';
-        top: 10px;
-        left: 10px;
-      }
-      .frame::after {
-        content: '+';
-        top: 10px;
-        right: 10px;
-      }
-      .frame .c-bl {
-        content: '+';
-        bottom: 10px;
-        left: 10px;
-      }
-      .frame .c-br {
-        bottom: 10px;
-        right: 10px;
+        padding: 24px 32px 28px;
       }
       .frame.leaving {
-        opacity: 0;
-        transform: scale(0.985);
         pointer-events: none;
       }
-      .chrome {
+
+      /* ─── Bandeau haut ─── */
+      .top {
         display: flex;
-        justify-content: flex-end;
-        -webkit-app-region: no-drag;
-        margin: -8px -12px 8px 0;
-      }
-      .chrome button {
-        width: 40px;
+        align-items: center;
         height: 32px;
+        margin: -4px -12px 0 0;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-4);
+        animation: rise 0.6s var(--ease) 0.5s both;
+      }
+      .top b {
+        color: var(--text-2);
+        font-weight: 500;
+      }
+      .top .dot {
+        width: 4px;
+        height: 4px;
+        margin-right: 8px;
+        background: var(--led);
+        box-shadow: 0 0 0 1px rgba(196, 30, 58, 0.25), 0 0 6px rgba(196, 30, 58, 0.55);
+        animation: breathe 2.4s var(--ease-in-out) infinite;
+      }
+      .top .sp {
+        flex: 1;
+      }
+      .close {
+        -webkit-app-region: no-drag;
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
         border: 0;
         background: transparent;
-        color: var(--text-2);
+        color: var(--text-3);
         cursor: pointer;
+        transition: color 120ms linear, background 120ms linear;
       }
-      .chrome button:hover {
-        color: var(--text-0);
-        background: #0a0a0a;
-      }
-      .chrome button.x:hover {
-        background: var(--led);
+      .close:hover {
         color: #000;
+        background: var(--ember);
       }
+      .close svg {
+        display: block;
+        shape-rendering: crispEdges;
+      }
+
+      /* ─── Marque ─── */
       .brand {
-        margin-top: 28px;
+        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 18px;
-        flex: 1;
         justify-content: center;
-        transition: opacity 0.4s var(--ease);
-      }
-      .frame.leaving .brand {
-        opacity: 0;
+        gap: 24px;
+        padding-bottom: 8px;
       }
       .mark {
+        position: relative;
         width: 72px;
         height: 72px;
+        animation: mark-in 0.9s var(--ease) 0.15s both;
+      }
+      .mark img {
         display: block;
-        border: 1px solid var(--line-fine);
+        width: 72px;
+        height: 72px;
+        outline: 1px solid var(--line-1);
+      }
+      /* Équerres LED + croisillons d'axe */
+      .mark i {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border: 0 solid var(--led-line);
+        animation: bracket-in 0.7s var(--ease) 0.45s both;
+      }
+      .mark i:nth-of-type(1) {
+        top: -5px;
+        left: -5px;
+        border-width: 1px 0 0 1px;
+        --dx: -6px;
+        --dy: -6px;
+      }
+      .mark i:nth-of-type(2) {
+        top: -5px;
+        right: -5px;
+        border-width: 1px 1px 0 0;
+        --dx: 6px;
+        --dy: -6px;
+      }
+      .mark i:nth-of-type(3) {
+        bottom: -5px;
+        left: -5px;
+        border-width: 0 0 1px 1px;
+        --dx: -6px;
+        --dy: 6px;
+      }
+      .mark i:nth-of-type(4) {
+        bottom: -5px;
+        right: -5px;
+        border-width: 0 1px 1px 0;
+        --dx: 6px;
+        --dy: 6px;
+      }
+      .mark::before,
+      .mark::after {
+        content: '';
+        position: absolute;
+        background: var(--line-2);
+      }
+      .mark::before {
+        left: 50%;
+        top: -16px;
+        width: 1px;
+        height: calc(100% + 32px);
+        background: linear-gradient(var(--line-2) 0 8px, transparent 8px calc(100% - 8px), var(--line-2) calc(100% - 8px));
+      }
+      .mark::after {
+        top: 50%;
+        left: -16px;
+        height: 1px;
+        width: calc(100% + 32px);
+        background: linear-gradient(90deg, var(--line-2) 0 8px, transparent 8px calc(100% - 8px), var(--line-2) calc(100% - 8px));
       }
       .word {
-        width: 200px;
-        height: auto;
+        display: block;
+        width: 216px;
+        height: 54px;
+        overflow: visible;
+        transform-origin: 50% 50%;
+        transition: transform 0.28s var(--ease-in-out), opacity 0.2s linear 0.12s, filter 0.3s linear;
       }
-      .word path {
-        stroke-width: 1;
+      .word .core path {
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+        animation: draw 0.9s cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
+        animation-delay: calc(0.35s + var(--i) * 0.08s);
+      }
+      .word .bloom {
+        opacity: 0;
+        filter: blur(3px);
+        animation: bloom 1.6s ease-out 0.6s forwards;
+      }
+      .word .glint path {
+        stroke-dasharray: 0.05 0.95;
+        stroke-dashoffset: 1.05;
+        opacity: 0;
+      }
+      .word .glint path {
+        animation: glint 0.9s cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
+        animation-delay: calc(0.35s + var(--i) * 0.08s);
+      }
+      .frame.leaving .word .glint path {
+        animation: glint 0.62s cubic-bezier(0.5, 0, 0.2, 1) forwards;
+        animation-delay: calc(var(--i) * 0.05s);
+      }
+      .frame.leaving .word {
+        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
+      }
+      .frame.collapse .word {
+        transform: scaleY(0.02);
+        opacity: 0;
       }
       .lab {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         font-family: var(--mono);
-        font-size: 10px;
-        letter-spacing: 0.18em;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.22em;
         text-transform: uppercase;
-        color: var(--text-2);
+        color: var(--text-3);
+        animation: track-in 1.1s var(--ease) 0.8s both;
+      }
+      .lab::before,
+      .lab::after {
+        content: '';
+        width: 16px;
+        height: 1px;
+        background: var(--line-2);
       }
       .lab b {
         color: var(--led);
         font-weight: 600;
+        text-shadow: 0 0 8px rgba(196, 30, 58, 0.35);
       }
-      .actions {
+
+      /* ─── Commandes ─── */
+      .panel {
         -webkit-app-region: no-drag;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        margin-top: auto;
-        transition: opacity 0.35s var(--ease);
+        gap: 12px;
       }
-      .frame.leaving .actions,
-      .frame.leaving .meta {
-        opacity: 0;
+      .panel > * {
+        animation: rise 0.6s var(--ease) both;
+      }
+      .panel > :nth-child(1) {
+        animation-delay: 0.7s;
+      }
+      .panel > :nth-child(2) {
+        animation-delay: 0.78s;
+      }
+      .panel > :nth-child(3) {
+        animation-delay: 0.86s;
+      }
+      .panel > :nth-child(4) {
+        animation-delay: 0.94s;
+      }
+      .rule {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-3);
+      }
+      .rule::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, var(--line-1), transparent);
+      }
+      .rule b {
+        color: var(--text-4);
+        font-weight: 500;
+      }
+      .lang-row {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        border: 1px solid var(--line-1);
+      }
+      .lang-row button {
+        position: relative;
+        z-index: 1;
+        height: 32px;
+        border: 0;
+        background: transparent;
+        color: var(--text-2);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: color 160ms linear;
+      }
+      .lang-row button + button {
+        box-shadow: inset 1px 0 0 var(--line-1);
+      }
+      .lang-row button:hover {
+        color: var(--text-0);
+      }
+      .lang-row button.on {
+        color: #000;
+      }
+      .lang-row .thumb {
+        position: absolute;
+        z-index: 0;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: calc(100% / 3);
+        background: var(--text-0);
+        transform: translateX(calc(var(--at, 0) * 100%));
+        transition: transform 0.32s var(--ease);
+      }
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
       .btn {
-        height: 44px;
-        border: 1px solid var(--line);
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 48px;
+        padding: 0 16px;
+        border: 1px solid var(--line-2);
         background: transparent;
         color: var(--text-0);
         font-family: var(--mono);
         font-size: 11px;
-        letter-spacing: 0.14em;
+        font-weight: 500;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
+        text-align: left;
         cursor: pointer;
-        transition: background 120ms linear, border-color 120ms linear, color 120ms linear;
+        overflow: hidden;
+        transition: background 160ms linear, border-color 160ms linear, color 160ms linear;
       }
-      .btn:hover:not(:disabled) {
-        background: #080808;
-        border-color: rgba(255, 255, 255, 0.22);
+      .btn[hidden] {
+        display: none;
+      }
+      .btn .label {
+        flex: 1;
+      }
+      .btn .key {
+        display: grid;
+        place-items: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 4px;
+        border: 1px solid currentColor;
+        opacity: 0.35;
+      }
+      .btn .key svg {
+        display: block;
+      }
+      .btn .arrow {
+        width: 16px;
+        height: 8px;
+        transition: transform 0.32s var(--ease);
+      }
+      .btn:hover:not(:disabled) .arrow {
+        transform: translateX(4px);
       }
       .btn:disabled {
         opacity: 0.45;
@@ -174,226 +504,397 @@
         background: var(--text-0);
         color: #000;
         border-color: var(--text-0);
+        /* Encoche : coin haut-droit chanfreiné 8 px */
+        clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+      }
+      .btn.primary::after {
+        /* Fuite LED 1 px sur l'arête basse, glisse au survol */
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: 2px;
+        width: 96px;
+        background: linear-gradient(90deg, var(--led), transparent);
+        transform: translateX(-100%);
+        transition: transform 0.6s var(--ease);
+      }
+      .btn.primary:hover:not(:disabled)::after {
+        transform: translateX(0);
       }
       .btn.primary:hover:not(:disabled) {
-        background: #e8e8e8;
+        background: #ececec;
+      }
+      .btn.primary:active:not(:disabled) {
+        background: #d8d8d8;
       }
       .btn.update {
-        border-color: var(--amber);
+        height: 40px;
+        border-color: rgba(216, 180, 90, 0.5);
         color: var(--amber);
       }
       .btn.update:hover:not(:disabled) {
-        background: rgba(216, 180, 90, 0.08);
+        border-color: var(--amber);
+        background: rgba(216, 180, 90, 0.06);
       }
       .btn.update.busy {
         opacity: 0.7;
       }
+      .btn.update .key {
+        display: none;
+      }
       .meta {
-        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 16px;
         font-family: var(--mono);
-        font-size: 10px;
+        font-size: 11px;
         letter-spacing: 0.08em;
-        color: var(--text-2);
-        text-align: center;
-        min-height: 28px;
-        line-height: 1.4;
-        -webkit-app-region: no-drag;
-        transition: opacity 0.35s var(--ease);
+        color: var(--text-3);
+        line-height: 16px;
+      }
+      .meta::before {
+        content: '';
+        flex: none;
+        width: 4px;
+        height: 4px;
+        background: var(--text-4);
+      }
+      .meta .txt {
+        flex: none;
+        max-width: 100%;
+      }
+      .meta::after {
+        content: '';
+        flex: 1;
+        min-width: 16px;
+        border-bottom: 1px dotted var(--line-2);
+      }
+      .meta.ok::before {
+        background: var(--text-1);
       }
       .meta.warn {
         color: var(--amber);
       }
+      .meta.warn::before {
+        background: var(--amber);
+        box-shadow: 0 0 6px rgba(216, 180, 90, 0.5);
+      }
       .meta.err {
-        color: #e07070;
+        color: var(--ember);
       }
-      .lang {
-        -webkit-app-region: no-drag;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        margin-top: 8px;
+      .meta.err::before {
+        background: var(--ember);
       }
-      .lang-label {
-        font-family: var(--mono);
-        font-size: 10px;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: var(--text-2);
-        text-align: center;
-      }
-      .lang-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 6px;
-      }
-      .lang-row button {
-        height: 36px;
-        border: 1px solid var(--line);
-        background: transparent;
-        color: var(--text-1);
-        font-family: var(--mono);
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        cursor: pointer;
-      }
-      .lang-row button:hover {
-        border-color: rgba(255, 255, 255, 0.22);
-        color: var(--text-0);
-      }
-      .lang-row button.on {
-        background: var(--text-0);
-        color: #000;
-        border-color: var(--text-0);
+      .meta.busy::before {
+        animation: blink 0.9s steps(2, jump-none) infinite;
       }
 
-      /* ─── Transition : traits symétriques + nano-circuit ─── */
+      /* Sortie : tout se retire sauf le logotype, qui devient la source du circuit */
+      .frame.leaving .top,
+      .frame.leaving .mark,
+      .frame.leaving .lab,
+      .frame.leaving .panel > * {
+        animation: none;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.22s linear, transform 0.3s var(--ease);
+      }
+      .frame.leaving .mark {
+        transform: none;
+      }
+      .frame.leaving .lab {
+        transition-delay: 0.04s;
+      }
+      .frame.leaving .panel > :nth-child(1) {
+        transition-delay: 0.02s;
+      }
+      .frame.leaving .panel > :nth-child(2) {
+        transition-delay: 0.05s;
+      }
+      .frame.leaving .panel > :nth-child(4) {
+        transition-delay: 0.1s;
+      }
+
+      /* ─── Transition : circuit canvas + télémétrie ─── */
       .xfer {
         position: fixed;
         inset: 0;
-        z-index: 40;
+        z-index: 0;
         pointer-events: none;
-        opacity: 0;
-        background: #000;
+        visibility: hidden;
       }
       .xfer.on {
-        opacity: 1;
-        transition: opacity 0.2s linear;
-      }
-      .xfer svg {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-      }
-      .xfer .trace {
-        fill: none;
-        stroke: rgba(255, 255, 255, 0.18);
-        stroke-width: 0.75;
-        stroke-linecap: square;
-        stroke-dasharray: 1;
-        stroke-dashoffset: 1;
-      }
-      .xfer.on .trace {
-        animation: draw 0.9s var(--ease) forwards;
-      }
-      .xfer .trace.led {
-        stroke: rgba(196, 30, 58, 0.5);
-        stroke-width: 0.85;
-      }
-      .xfer .inset {
-        fill: none;
-        stroke: rgba(255, 255, 255, 0.07);
-        stroke-width: 0.75;
-        stroke-dasharray: 1;
-        stroke-dashoffset: 1;
-        opacity: 1;
-      }
-      .xfer.on .inset {
-        animation: draw 0.75s var(--ease) 0.12s forwards;
-      }
-      .xfer .node {
-        fill: rgba(255, 255, 255, 0.4);
-        opacity: 0;
-      }
-      .xfer .node.led {
-        fill: var(--led);
-      }
-      .xfer.on .node {
-        animation: node-in 0.22s linear forwards;
-      }
-      @keyframes draw {
-        to {
-          stroke-dashoffset: 0;
-        }
-      }
-      @keyframes node-in {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
+        visibility: visible;
       }
       .xfer canvas {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
-        mix-blend-mode: screen;
-        opacity: 0.85;
+      }
+      .hud {
+        position: absolute;
+        left: 32px;
+        right: 32px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        opacity: 0;
+        transition: opacity 0.3s linear 0.2s;
+      }
+      .xfer.on .hud {
+        opacity: 1;
+      }
+      .hud.top-hud {
+        top: 36px;
+      }
+      .hud.bottom-hud {
+        bottom: 36px;
+      }
+      .hud .fill {
+        flex: 1;
+        height: 1px;
+        background: var(--line-1);
+        position: relative;
+        overflow: hidden;
+      }
+      .hud .fill span {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), var(--text-0));
+      }
+      .hud .fill span::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: -1px;
+        width: 2px;
+        height: 3px;
+        background: #fff;
+        box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+      }
+      .hud b {
+        color: var(--text-0);
+        font-weight: 500;
+      }
+      .hud .led {
+        color: var(--led);
+      }
+      .hud .caret {
+        display: inline-block;
+        width: 6px;
+        height: 11px;
+        margin-left: 4px;
+        vertical-align: -1px;
+        background: var(--text-1);
+        animation: blink 0.9s steps(2, jump-none) infinite;
+      }
+
+      @keyframes draw {
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes mark-in {
+        from {
+          opacity: 0;
+          transform: scale(0.96);
+          filter: brightness(2.2);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+          filter: none;
+        }
+      }
+      @keyframes bracket-in {
+        from {
+          opacity: 0;
+          transform: translate(var(--dx), var(--dy));
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes track-in {
+        from {
+          opacity: 0;
+          letter-spacing: 0.5em;
+        }
+        to {
+          opacity: 1;
+          letter-spacing: 0.22em;
+        }
+      }
+      @keyframes bloom {
+        0% {
+          opacity: 0;
+        }
+        30% {
+          opacity: 0.55;
+        }
+        100% {
+          opacity: 0.16;
+        }
+      }
+      @keyframes glint {
+        0% {
+          stroke-dashoffset: 1.05;
+          opacity: 0;
+        }
+        10% {
+          opacity: 1;
+        }
+        85% {
+          opacity: 1;
+        }
+        100% {
+          stroke-dashoffset: 0;
+          opacity: 0;
+        }
+      }
+      @keyframes breathe {
+        0%,
+        100% {
+          opacity: 0.55;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      @keyframes blink {
+        to {
+          visibility: hidden;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 1ms !important;
+          animation-delay: 0ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 1ms !important;
+          transition-delay: 0ms !important;
+        }
       }
     </style>
   </head>
   <body>
+    <div class="light" aria-hidden="true"></div>
+    <div class="reticle" aria-hidden="true">
+      <!-- Cadre 420 × 620 : chanfreins 8 px aux angles, encoches d'axe, règle basse -->
+      <svg viewBox="0 0 420 620" id="reticle-svg">
+        <path class="rim" pathLength="1" d="M210 16.5 H395.5 L403.5 24.5 V595.5 L395.5 603.5 H210" />
+        <path class="rim" pathLength="1" d="M210 16.5 H24.5 L16.5 24.5 V595.5 L24.5 603.5 H210" />
+        <path class="notch" d="M206 16.5 H214 M206 603.5 H214 M16.5 306 V314 M403.5 306 V314" />
+        <path class="notch led" d="M210 17 V21 M210 599 V603" />
+        <g id="ticks"></g>
+      </svg>
+      <i class="cross tl"></i>
+      <i class="cross tr"></i>
+      <i class="cross bl"></i>
+      <i class="cross br"></i>
+    </div>
+
+    <div class="xfer" id="xfer" aria-hidden="true">
+      <canvas id="nano"></canvas>
+      <div class="hud top-hud">
+        <span>CΛNTO <span class="led">/</span> 002 · LINK</span>
+        <span style="flex: 1"></span>
+        <b id="hud-clock">T+0.000</b>
+      </div>
+      <div class="hud bottom-hud">
+        <span id="hud-text">Liaison du circuit</span><i class="caret"></i>
+        <span class="fill"><span id="hud-fill"></span></span>
+        <b id="hud-count">000</b>
+      </div>
+    </div>
+
     <div class="frame" id="frame">
-      <span class="c-bl" aria-hidden>+</span>
-      <span class="c-br" aria-hidden>+</span>
-      <div class="chrome">
-        <button type="button" class="x" id="btn-close" aria-label="Fermer" title="Fermer">✕</button>
+      <div class="top">
+        <i class="dot"></i>
+        <b>CΛNTO</b>&nbsp;/&nbsp;002
+        <span class="sp"></span>
+        <button type="button" class="close" id="btn-close" aria-label="Fermer" title="Fermer">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" /></svg>
+        </button>
       </div>
       <div class="brand">
-        <img class="mark" src="./logo.svg" width="72" height="72" alt="" aria-hidden="true" />
-        <svg class="word" viewBox="0 0 640 160" fill="none" aria-label="CΛNTO">
-          <g stroke="#ffffff" stroke-width="1" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
+        <div class="mark">
+          <img src="./logo.svg" width="72" height="72" alt="" aria-hidden="true" />
+          <i></i><i></i><i></i><i></i>
+        </div>
+        <svg class="word" id="word" viewBox="0 0 640 160" fill="none" aria-label="CΛNTO">
+          <g class="bloom" stroke="#ffffff" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
             <path d="M136 40 A48 48 0 1 0 136 120" />
             <path d="M176 128 L224 32 L272 128" />
             <path d="M304 128 L304 32 L384 128 L384 32" />
             <path d="M416 32 L512 32 M464 32 L464 128" />
             <path d="M560 32 A48 48 0 1 1 560 128 A48 48 0 1 1 560 32" />
           </g>
+          <g class="core" stroke="#ffffff" stroke-width="2.9" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
+            <path pathLength="1" style="--i: 0" d="M136 40 A48 48 0 1 0 136 120" />
+            <path pathLength="1" style="--i: 1" d="M176 128 L224 32 L272 128" />
+            <path pathLength="1" style="--i: 2" d="M304 128 L304 32 L384 128 L384 32" />
+            <path pathLength="1" style="--i: 3" d="M416 32 L512 32 M464 32 L464 128" />
+            <path pathLength="1" style="--i: 4" d="M560 32 A48 48 0 1 1 560 128 A48 48 0 1 1 560 32" />
+          </g>
+          <g class="glint" stroke="#ffffff" stroke-width="5" stroke-linecap="square" stroke-linejoin="miter">
+            <path pathLength="1" style="--i: 0" d="M136 40 A48 48 0 1 0 136 120" />
+            <path pathLength="1" style="--i: 1" d="M176 128 L224 32 L272 128" />
+            <path pathLength="1" style="--i: 2" d="M304 128 L304 32 L384 128 L384 32" />
+            <path pathLength="1" style="--i: 3" d="M416 32 L512 32 M464 32 L464 128" />
+            <path pathLength="1" style="--i: 4" d="M560 32 A48 48 0 1 1 560 128 A48 48 0 1 1 560 32" />
+          </g>
         </svg>
         <div class="lab">SIΞRRΛSKΛ—LAB · <b>Artefact 002</b></div>
       </div>
-      <div class="lang" id="lang">
-        <div class="lang-label" id="lang-label">Langue du desk</div>
+      <div class="panel">
+        <div class="rule" id="lang-label">Langue du desk</div>
         <div class="lang-row" role="radiogroup" id="lang-row">
+          <i class="thumb" aria-hidden="true"></i>
           <button type="button" data-locale="fr" role="radio">Français</button>
           <button type="button" data-locale="en" role="radio">English</button>
           <button type="button" data-locale="es" role="radio">Español</button>
         </div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="btn-launch">
+            <span class="label" id="btn-launch-label">Lancer le desk</span>
+            <span class="key" aria-hidden="true"><svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="currentColor" stroke-width="1"><path d="M9.5 0v4.5H1M3.5 2L1 4.5 3.5 7" /></svg></span>
+            <svg class="arrow" viewBox="0 0 16 8" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true"><path d="M0 4h15M11.5 0.5L15 4l-3.5 3.5" /></svg>
+          </button>
+          <button type="button" class="btn" id="btn-update" hidden>
+            <span class="label" id="btn-update-label">Mettre à jour</span>
+          </button>
+        </div>
+        <p class="meta" id="meta"><span class="txt" id="meta-text">Contrôle de version…</span></p>
       </div>
-      <div class="actions">
-        <button type="button" class="btn primary" id="btn-launch">Lancer le desk</button>
-        <button type="button" class="btn" id="btn-update" hidden>Mettre à jour</button>
-      </div>
-      <p class="meta" id="meta">Contrôle de version…</p>
-    </div>
-
-    <div class="xfer" id="xfer" aria-hidden="true">
-      <svg viewBox="0 0 420 560" preserveAspectRatio="none">
-        <!-- Cadres incrustés -->
-        <rect class="inset" x="24" y="24" width="372" height="512" pathLength="1" />
-        <rect class="inset" x="48" y="48" width="324" height="464" pathLength="1" style="animation-delay: 0.28s" />
-        <!-- Traits horizontaux symétriques -->
-        <path class="trace" pathLength="1" d="M0 180 H210" style="animation-delay: 0.05s" />
-        <path class="trace" pathLength="1" d="M420 180 H210" style="animation-delay: 0.05s" />
-        <path class="trace" pathLength="1" d="M0 280 H210" style="animation-delay: 0.18s" />
-        <path class="trace" pathLength="1" d="M420 280 H210" style="animation-delay: 0.18s" />
-        <path class="trace" pathLength="1" d="M0 380 H210" style="animation-delay: 0.3s" />
-        <path class="trace" pathLength="1" d="M420 380 H210" style="animation-delay: 0.3s" />
-        <!-- Traits verticaux -->
-        <path class="trace" pathLength="1" d="M140 0 V560" style="animation-delay: 0.12s" />
-        <path class="trace" pathLength="1" d="M280 0 V560" style="animation-delay: 0.12s" />
-        <!-- Filets LED -->
-        <path class="trace led" pathLength="1" d="M210 80 V480" style="animation-delay: 0.35s" />
-        <path class="trace led" pathLength="1" d="M80 280 H340" style="animation-delay: 0.42s" />
-        <!-- Nano nœuds (1×1 px) -->
-        <rect class="node" x="209.5" y="179.5" width="1" height="1" style="animation-delay: 0.55s" />
-        <rect class="node led" x="209.5" y="279.5" width="1" height="1" style="animation-delay: 0.62s" />
-        <rect class="node" x="209.5" y="379.5" width="1" height="1" style="animation-delay: 0.7s" />
-        <rect class="node" x="139.5" y="279.5" width="1" height="1" style="animation-delay: 0.58s" />
-        <rect class="node" x="279.5" y="279.5" width="1" height="1" style="animation-delay: 0.58s" />
-        <rect class="node led" x="139.5" y="179.5" width="1" height="1" style="animation-delay: 0.66s" />
-        <rect class="node led" x="279.5" y="179.5" width="1" height="1" style="animation-delay: 0.66s" />
-        <rect class="node" x="139.5" y="379.5" width="1" height="1" style="animation-delay: 0.74s" />
-        <rect class="node" x="279.5" y="379.5" width="1" height="1" style="animation-delay: 0.74s" />
-        <rect class="node" x="79.5" y="279.5" width="1" height="1" style="animation-delay: 0.68s" />
-        <rect class="node" x="339.5" y="279.5" width="1" height="1" style="animation-delay: 0.68s" />
-        <rect class="node led" x="209.5" y="79.5" width="1" height="1" style="animation-delay: 0.78s" />
-        <rect class="node led" x="209.5" y="479.5" width="1" height="1" style="animation-delay: 0.78s" />
-      </svg>
-      <canvas id="nano" width="420" height="560"></canvas>
     </div>
     <script src="./launcher-ui.js"></script>
   </body>

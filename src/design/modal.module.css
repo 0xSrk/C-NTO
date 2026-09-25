@@ -7,6 +7,17 @@
   z-index: 6000;
   animation: fade-in var(--t-fast) linear both;
 }
+.modal::before {
+  /* Lumière zénithale sur l'arête haute */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 1px;
+  background: var(--light-edge);
+  pointer-events: none;
+}
 .modal {
   position: relative;
   max-width: calc(100vw - 40px);

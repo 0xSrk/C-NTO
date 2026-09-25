@@ -471,18 +471,30 @@ ipcMain.handle('update:relaunch', (e) => {
 });
 ipcMain.handle('update:start-desk', (e) => {
   if (!trusted(e)) return false;
+  const created = !win;
   if (!win) createWindow({ fromLauncher: true });
   else {
     if (win.isMinimized()) win.restore();
     win.focus();
   }
-  // Laisse la transition du lanceur se terminer sous le desk déjà visible.
+  // Le lanceur garde sa LED allumée jusqu'à ce que le desk soit à l'écran : aucun
+  // instant sans fenêtre entre les deux. Filet de sécurité si le desk tarde.
   if (launcherWin && !launcherWin.isDestroyed()) {
     const l = launcherWin;
     launcherWin = null;
-    setTimeout(() => {
-      if (!l.isDestroyed()) l.close();
-    }, 220);
+    const closeLauncher = () => {
+      setTimeout(() => {
+        if (!l.isDestroyed()) l.close();
+      }, 240);
+    };
+    const desk = win;
+    if (created && desk && !desk.isVisible()) {
+      const fallback = setTimeout(closeLauncher, 6000);
+      desk.once('show', () => {
+        clearTimeout(fallback);
+        closeLauncher();
+      });
+    } else closeLauncher();
   }
   return true;
 });

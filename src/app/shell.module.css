@@ -14,21 +14,20 @@
   isolation: isolate;
 }
 
-/* Repères de coin « + » du cadre — filet typographique fin */
+/* Repères de coin « + » du cadre — croisillons 9 px tracés au pixel (plus de glyphe flou) */
 .shell::before,
 .shell::after,
 .frameBottom::before,
 .frameBottom::after {
-  content: '+';
+  content: '';
   position: fixed;
   z-index: 60;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1;
-  color: var(--text-3);
-  letter-spacing: 0;
+  width: 9px;
+  height: 9px;
+  background:
+    linear-gradient(var(--text-4), var(--text-4)) 4px 0 / 1px 9px no-repeat,
+    linear-gradient(var(--text-4), var(--text-4)) 0 4px / 9px 1px no-repeat;
   pointer-events: none;
-  opacity: 0.85;
 }
 .shell::before {
   top: var(--frame-inset);
@@ -81,7 +80,7 @@
   left: 0;
   width: 28vw;
   height: 200vh;
-  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.01) 50%, transparent 58%);
+  background: linear-gradient(115deg, transparent 46%, rgba(255, 255, 255, 0.008) 49.6%, rgba(255, 255, 255, 0.022) 50%, rgba(255, 255, 255, 0.008) 50.4%, transparent 54%);
   will-change: transform;
   animation: beamSweep 110s linear infinite;
 }
@@ -142,6 +141,31 @@
   border-bottom: 1px solid var(--line-0);
   -webkit-app-region: drag;
   user-select: none;
+}
+/* Lumière rasante sur la hairline basse : plus claire au centre, comme sous une source zénithale */
+.title::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--light-line);
+  pointer-events: none;
+}
+/* Encoche d'axe : segment gravé + point LED au centre de la barre */
+.title::before {
+  content: '';
+  position: absolute;
+  left: calc(50% - 16px);
+  bottom: -1px;
+  width: 32px;
+  height: 3px;
+  background:
+    linear-gradient(var(--gold), var(--gold)) 50% 0 / 1px 3px no-repeat,
+    linear-gradient(var(--line-3), var(--line-3)) 0 100% / 100% 1px no-repeat;
+  pointer-events: none;
+  z-index: 1;
 }
 .brand {
   display: flex;
@@ -377,6 +401,36 @@
   background: var(--bg-3);
   background-image: linear-gradient(90deg, var(--gold-soft), transparent 96px);
 }
+/* Équerre LED : le filet actif se replie en crochet 6 px en haut et en bas */
+.navItem::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  border-top: 1px solid var(--gold-line);
+  border-bottom: 1px solid var(--gold-line);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: opacity 160ms linear, transform 220ms var(--ease-out);
+  pointer-events: none;
+}
+.navItem.on::before {
+  opacity: 1;
+  transform: none;
+}
+/* Arête droite : hairline claire qui ferme la sélection contre le bord du rail */
+.navItem.on::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 12px;
+  bottom: 12px;
+  width: 1px;
+  background: var(--line-3);
+}
 .navItem svg {
   opacity: 0.8;
   transition: opacity 120ms linear;
@@ -540,6 +594,16 @@
   overflow: hidden;
   z-index: 1;
 }
+/* Encoche sous le titre : segment gravé 48 px, amorcé par 4 px de LED */
+.moduleHead::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  bottom: -1px;
+  width: 48px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold) 0 4px, var(--line-3) 4px);
+}
 /* Filigrane : code du module en grandes lettres */
 .watermark {
   position: absolute;
@@ -551,7 +615,9 @@
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
-  color: var(--watermark);
+  /* Filigrane gravé : contour 1 px, jamais d'aplat */
+  color: transparent;
+  -webkit-text-stroke: 1px #161616;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -620,6 +686,10 @@
   z-index: 1;
   background: var(--bg-0, #000000);
   border-top: 1px solid var(--line-0);
+  background-image: var(--light-line);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
   display: flex;
   align-items: center;
   gap: var(--s-5);
@@ -788,4 +858,100 @@
 }
 .toast.error {
   border-left-color: var(--ember);
+}
+
+/* ─── Entrée du desk après le chargement ───
+   Sous l'écran de boot, le desk est monté mais figé (.pending). À l'ouverture,
+   la lumière parcourt les hairlines du châssis puis les modules se posent. */
+.pending .main,
+.pending .main :global(*) {
+  animation-play-state: paused !important;
+}
+.introLines {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+}
+.introLines i {
+  position: absolute;
+  display: block;
+  opacity: 0;
+}
+.introHead,
+.introStatus {
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55) 30%, #ffffff 50%, rgba(255, 255, 255, 0.55) 70%, transparent);
+  animation: intro-x 1.1s var(--ease-out) 0.2s both;
+}
+.introHead {
+  top: calc(var(--titlebar-h) - 1px);
+}
+.introStatus {
+  bottom: calc(var(--statusbar-h) - 1px);
+  animation-delay: 0.32s;
+}
+.introRail {
+  left: calc(var(--rail-w) - 1px);
+  top: var(--titlebar-h);
+  bottom: var(--statusbar-h);
+  width: 1px;
+  background: linear-gradient(180deg, #ffffff, rgba(255, 255, 255, 0.4) 40%, transparent);
+  transform-origin: top;
+  animation: intro-y 1s var(--ease-out) 0.3s both;
+}
+@keyframes intro-x {
+  0% {
+    opacity: 1;
+    transform: scaleX(0);
+  }
+  55% {
+    opacity: 0.9;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+@keyframes intro-y {
+  0% {
+    opacity: 1;
+    transform: scaleY(0);
+  }
+  55% {
+    opacity: 0.8;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(1);
+  }
+}
+.intro .navItem {
+  animation: nav-in 0.46s var(--ease-out) both;
+  animation-delay: calc(0.28s + var(--n, 0) * 40ms);
+}
+@keyframes nav-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+.intro .brand,
+.intro .titleCenter,
+.intro .titleRight,
+.intro .status > * {
+  animation: fade-in 0.5s linear 0.25s both;
+}
+.intro .railHead,
+.intro .railFoot {
+  animation: fade-in 0.5s linear 0.5s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .introLines {
+    display: none;
+  }
 }

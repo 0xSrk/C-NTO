@@ -1,3 +1,10 @@
+/* Écartement de l'ouverture finale — hérité par la couture pour la suivre au pixel près. */
+@property --gap {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 .boot {
   position: fixed;
   inset: 0;
@@ -8,25 +15,87 @@
   align-items: center;
   justify-items: center;
   overflow: hidden;
-  transition: opacity 0.48s cubic-bezier(0.4, 0, 0.2, 1), transform 0.48s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-app-region: drag;
+  --gap: 0px;
 }
-.boot.fromLauncher {
-  animation: boot-in 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+
+/* ─── Sortie : couture lumineuse sur l'axe du logotype, puis écartement vertical ─── */
+.boot.leaving {
+  pointer-events: none;
+  --cut-a: calc(var(--axis, 50%) - var(--gap));
+  --cut-b: calc(var(--axis, 50%) + var(--gap));
+  -webkit-mask-image: linear-gradient(to bottom, #000 var(--cut-a), transparent var(--cut-a), transparent var(--cut-b), #000 var(--cut-b));
+  mask-image: linear-gradient(to bottom, #000 var(--cut-a), transparent var(--cut-a), transparent var(--cut-b), #000 var(--cut-b));
+  animation: split 0.58s cubic-bezier(0.7, 0, 0.2, 1) 0.18s both;
 }
-@keyframes boot-in {
+@keyframes split {
   from {
-    opacity: 0.35;
+    --gap: 0px;
   }
   to {
-    opacity: 1;
+    --gap: 100vh;
   }
 }
-.boot.leaving {
+.boot.leaving .center,
+.boot.leaving .console,
+.boot.leaving .hud {
   opacity: 0;
-  transform: scale(1.008);
+  transition: opacity 0.16s linear;
+}
+.boot.leaving .nano {
+  opacity: 0.55;
+  transition: opacity 0.4s linear;
+}
+
+.seam {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
   pointer-events: none;
 }
+.seam i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  top: var(--axis, 50%);
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35) 18%, #ffffff 50%, rgba(255, 255, 255, 0.35) 82%, transparent);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.28);
+  transform-origin: 50% 50%;
+}
+.seam i::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 12px);
+  width: 24px;
+  top: 0;
+  height: 1px;
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(196, 30, 58, 0.8);
+}
+.seam i:first-child {
+  margin-top: -1px;
+}
+.boot.leaving .seam i {
+  opacity: 1;
+  animation: seam-draw 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.boot.leaving .seam i:first-child {
+  translate: 0 calc(-1 * var(--gap));
+}
+.boot.leaving .seam i:last-child {
+  translate: 0 var(--gap);
+}
+@keyframes seam-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 
 .nano {
   position: absolute;
@@ -34,102 +103,33 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  opacity: 0.9;
   z-index: 0;
 }
 
-.circuit {
+/* ─── Télémétrie haute : continuité avec le lanceur ─── */
+.hud {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
+  z-index: 3;
+  top: 44px;
+  left: 56px;
+  right: 56px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-3);
+  animation: fade-in 0.4s linear 0.2s both;
 }
-.trace,
-.traceV,
-.traceLed,
-.inset {
-  fill: none;
-  stroke-linecap: square;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
+.hud b {
+  color: var(--text-0);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
-.trace {
-  stroke: rgba(255, 255, 255, 0.14);
-  stroke-width: 0.1;
-  animation: draw 0.95s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-.traceV {
-  stroke: rgba(255, 255, 255, 0.08);
-  stroke-width: 0.08;
-  animation: draw 1.05s cubic-bezier(0.4, 0, 0.2, 1) 0.08s forwards;
-}
-.traceLed {
-  stroke: rgba(196, 30, 58, 0.4);
-  stroke-width: 0.1;
-  animation: draw 1s cubic-bezier(0.4, 0, 0.2, 1) 0.18s forwards;
-}
-.inset {
-  stroke: rgba(255, 255, 255, 0.06);
-  stroke-width: 0.08;
-  animation: draw 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.05s forwards;
-}
-.fromLauncher .trace {
-  animation-duration: 1.05s;
-}
-@keyframes draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.beams {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: 2;
-}
-.beams i {
-  position: absolute;
-  left: -20%;
-  right: -20%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.022) 30%, rgba(255, 255, 255, 0.028) 50%, rgba(255, 255, 255, 0.022) 70%, transparent 100%);
-  opacity: 0;
-  animation: sweep 2.6s cubic-bezier(0.55, 0, 0.1, 1) infinite;
-}
-.beams i:nth-child(1) {
-  top: 18%;
-  animation-delay: 0s;
-}
-.beams i:nth-child(2) {
-  top: 56%;
-  animation-delay: 0.8s;
-  transform: rotate(-0.4deg);
-}
-.beams i:nth-child(3) {
-  top: 78%;
-  animation-delay: 1.5s;
-  opacity: 0.55;
-}
-
-@keyframes sweep {
-  0% {
-    transform: translateX(-30%);
-    opacity: 0;
-  }
-  15% {
-    opacity: 0.45;
-  }
-  60% {
-    opacity: 0.18;
-  }
-  100% {
-    transform: translateX(30%);
-    opacity: 0;
-  }
+.led {
+  font-style: normal;
+  color: var(--gold);
 }
 
 .center {
@@ -138,12 +138,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   margin-top: 6vh;
 }
 .sigil {
-  animation: sigil-in 1.1s ease-out both;
-  animation-delay: 0.55s;
+  animation: sigil-in 1.2s var(--ease-out) both;
+  animation-delay: 0.7s;
 }
 @keyframes sigil-in {
   from {
@@ -156,11 +156,12 @@
   }
 }
 
+/* ─── Console d'initialisation ─── */
 .console {
   position: relative;
   z-index: 3;
   width: min(680px, 84vw);
-  padding: 0 0 48px;
+  padding: 0 0 64px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -178,29 +179,58 @@
   align-items: baseline;
   gap: 12px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label);
   letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
-  animation: rise-in 0.28s var(--ease-out) both;
+  animation: line-in 0.36s var(--ease-out) both;
+}
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+    color: var(--text-0);
+  }
+}
+.lineIndex {
+  width: 20px;
+  color: var(--text-4);
 }
 .lineLabel {
   white-space: nowrap;
 }
 .lineDots {
   flex: 1;
-  border-bottom: 1px dotted rgba(255, 255, 255, 0.1);
-  transform: translateY(-4px);
+  min-width: 16px;
+  height: 1px;
+  align-self: center;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 4px);
 }
 .lineStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
   color: var(--text-2);
+}
+.lineMark {
+  width: 4px;
+  height: 4px;
+  background: var(--text-4);
+  align-self: center;
 }
 .line.ok .lineStatus {
   color: var(--text-1);
 }
+.line.ok .lineMark {
+  background: var(--text-0);
+}
 .line.warn .lineStatus {
   color: var(--amber);
+}
+.line.warn .lineMark {
+  background: var(--amber);
+  box-shadow: 0 0 6px rgba(216, 180, 90, 0.5);
 }
 .line.off .lineStatus {
   color: var(--text-3);
@@ -209,53 +239,84 @@
   animation: pulse-dot 1s ease-in-out infinite;
 }
 
+/* Barre : 1 px, graduée par étape, tête lumineuse */
 .bar {
   height: 1px;
-  background: rgba(255, 255, 255, 0.06);
   position: relative;
+  background: rgba(255, 255, 255, 0.06);
+}
+.bar::before {
+  content: '';
+  position: absolute;
+  inset: -2px 0 auto 0;
+  height: 5px;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px calc(100% / var(--steps, 7)));
+  pointer-events: none;
 }
 .bar span {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: var(--text-0);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), var(--text-0));
   transition: width 0.4s var(--ease-out);
 }
+.bar span::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  width: 2px;
+  height: 3px;
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.9), 0 0 16px rgba(255, 255, 255, 0.35);
+}
+.barDone span::after {
+  background: var(--gold);
+  box-shadow: var(--glow-accent);
+}
+
 .footer {
   display: flex;
   align-items: center;
   gap: 16px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label);
   letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
 }
 .footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
 }
 .footer > span:last-child {
   margin-left: auto;
 }
+.grantDot {
+  width: 4px;
+  height: 4px;
+  background: var(--text-4);
+}
 .granted {
   color: var(--gold);
   text-shadow: 0 0 6px rgba(196, 30, 58, 0.4);
 }
+.granted .grantDot {
+  background: var(--gold);
+  box-shadow: var(--glow-accent);
+}
 
-@media (prefers-reduced-motion: reduce) {
-  .trace,
-  .traceV,
-  .traceLed,
-  .inset,
-  .beams i,
-  .boot.fromLauncher {
-    animation: none !important;
-  }
-  .trace,
-  .traceV,
-  .traceLed,
-  .inset {
-    stroke-dashoffset: 0;
-  }
+/* Mouvement réduit : ni ouverture ni couture, un fondu court. */
+.boot.reduced.leaving {
+  -webkit-mask-image: none;
+  mask-image: none;
+  animation: none;
+  opacity: 0;
+  transition: opacity 0.24s linear;
+}
+.boot.reduced .seam {
+  display: none;
 }
