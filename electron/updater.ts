@@ -32,15 +32,17 @@ function ui(fr: string, en: string, es: string): string {
 }
 
 /**
- * Vrais changements locaux ? Les fichiers régénérés par npm (package-lock.json) sont
- * restaurés au passage : ils ne doivent jamais bloquer une mise à jour.
+ * Fichiers suivis réellement modifiés (ceux qui peuvent bloquer un pull). Les fichiers
+ * régénérés par npm (package-lock.json) sont restaurés au passage ; les fichiers non
+ * suivis ne comptent pas : git refusera lui-même s'ils entrent en collision.
  */
-async function gitDirty(root: string): Promise<boolean> {
-  const r = await run('git', ['status', '--porcelain'], root);
-  if (r.code !== 0) return false;
+async function gitDirtyFiles(root: string): Promise<string[]> {
+  // quotepath=false : chemins accentués en clair, utilisables tels quels par checkout / stash.
+  const r = await run('git', ['-c', 'core.quotepath=false', 'status', '--porcelain'], root);
+  if (r.code !== 0) return [];
   const { generated, user } = classifyDirty(r.out);
   if (generated.length) await run('git', ['checkout', '--', ...generated], root);
-  return user.length > 0;
+  return user;
 }
 
 function openReleasesPage(url: string = RELEASES_URL): void {
@@ -51,6 +53,8 @@ export interface UpdateStatus {
   current: string;
   latest: string | null;
   available: boolean;
+  /** Fichiers suivis modifiés localement, quand error === 'dirty_needs_stash'. */
+  dirtyFiles?: string[];
   busy: boolean;
   error?: string;
   /** Source de la détection */
@@ -232,16 +236,16 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
   }
 
   const latest = (await gitRemotePackageVersion(root)) ?? (await fetchGithubPackageVersion());
-  const dirty = await gitDirty(root);
-  const gitOk = canApplyGitUpdate({ isGitCheckout: git, dirty });
+  const dirtyFiles = await gitDirtyFiles(root);
+  const gitOk = canApplyGitUpdate({ isGitCheckout: git, dirty: dirtyFiles.length > 0 });
   if (!gitOk.ok) {
     if (gitOk.reason === 'dirty' && canStash({ confirmStash: opts.confirmStash === true })) {
-      const stash = await run('git', ['stash', 'push', '-u', '-m', 'canto-auto-update'], root);
+      const stash = await run('git', ['stash', 'push', '-m', 'canto-auto-update', '--', ...dirtyFiles], root);
       if (stash.code !== 0) {
         return { current, latest: latest ?? null, available: true, busy: false, error: stash.err || ui('git stash a échoué', 'git stash failed', 'git stash falló'), source: 'git' };
       }
     } else if (gitOk.reason === 'dirty') {
-      return { current, latest: latest ?? null, available: true, busy: false, error: 'dirty_needs_stash', source: 'git' };
+      return { current, latest: latest ?? null, available: true, busy: false, error: 'dirty_needs_stash', dirtyFiles, source: 'git' };
     } else {
       openReleasesPage();
       return { current, latest: latest ?? null, available: true, busy: false, error: gitOk.reason, source: 'git' };

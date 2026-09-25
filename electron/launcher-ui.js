@@ -14,7 +14,8 @@
       available: 'disponible',
       linking: 'Liaison du circuit',
       opening: 'Ouverture du desk',
-      dirty: 'Modifications locales dans le dossier — cliquez à nouveau pour les mettre de côté (git stash, réversible) et mettre à jour.',
+      dirty: 'Fichiers modifiés dans le dossier',
+      dirtyHint: 'cliquez à nouveau pour les mettre de côté (git stash, réversible) et mettre à jour.',
       stashUpdate: 'Mettre de côté et mettre à jour',
       releasesOpen: 'Page des versions ouverte',
       availableOpen: 'dispo — page des versions ouverte',
@@ -34,7 +35,8 @@
       available: 'available',
       linking: 'Linking the circuit',
       opening: 'Opening the desk',
-      dirty: 'Local changes in the folder — click again to set them aside (git stash, reversible) and update.',
+      dirty: 'Files changed in the folder',
+      dirtyHint: 'click again to set them aside (git stash, reversible) and update.',
       stashUpdate: 'Set aside and update',
       releasesOpen: 'Releases page opened',
       availableOpen: 'available — releases page opened',
@@ -54,7 +56,8 @@
       available: 'disponible',
       linking: 'Enlazando el circuito',
       opening: 'Abriendo el desk',
-      dirty: 'Cambios locales en la carpeta — haga clic de nuevo para apartarlos (git stash, reversible) y actualizar.',
+      dirty: 'Archivos modificados en la carpeta',
+      dirtyHint: 'haga clic de nuevo para apartarlos (git stash, reversible) y actualizar.',
       stashUpdate: 'Apartar y actualizar',
       releasesOpen: 'Página de versiones abierta',
       availableOpen: 'disponible — página de versiones abierta',
@@ -115,6 +118,13 @@
       return;
     }
     paint();
+  }
+
+  /** Nomme les fichiers en cause : trois chemins, puis « +N ». */
+  function dirtyMessage(files) {
+    const list = Array.isArray(files) ? files : [];
+    const shown = list.slice(0, 3).join(', ') + (list.length > 3 ? ' +' + (list.length - 3) : '');
+    return L().dirty + (shown ? ' : ' + shown : '') + ' — ' + L().dirtyHint;
   }
 
   function setMeta(text, kind) {
@@ -557,7 +567,7 @@
         applying = false;
         stashArmed = status.error === 'dirty_needs_stash';
         paint();
-        setMeta(stashArmed ? L().dirty : status.error, stashArmed ? 'warn' : 'err');
+        setMeta(stashArmed ? dirtyMessage(status.dirtyFiles) : status.error, stashArmed ? 'warn' : 'err');
         return;
       }
       stashArmed = false;

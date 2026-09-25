@@ -64,6 +64,8 @@ export interface UpdateStatus {
   available: boolean;
   busy: boolean;
   error?: string;
+  /** Fichiers suivis modifiés localement, quand error === 'dirty_needs_stash'. */
+  dirtyFiles?: string[];
   source: 'git' | 'github' | 'none';
   applied?: boolean;
 }
