@@ -131,7 +131,7 @@ export default function Copieur() {
                 tone="ice"
               />
               <Stat small label={tr('Budget latence', 'Latency budget', 'Presupuesto de latencia')} value={`${config.latencyBudgetMs} ms`} hint={tr('alerte au-delà', 'alert beyond', 'alerta más allá')} tone="gold" />
-              <Stat small label={tr('Version', 'Version', 'Versión')} value={COPIER_CHANGELOG[0]?.version ?? APP_VERSION} hint={`${tr('canal', 'channel', 'canal')} ${config.channel}`} />
+              <Stat small label={tr('Version', 'Version', 'Versión')} value={APP_VERSION} hint={`${tr('canal', 'channel', 'canal')} ${config.channel}`} />
             </div>
 
             <div className={s.banner}>
