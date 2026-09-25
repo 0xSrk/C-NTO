@@ -75,6 +75,20 @@ NQ 12-26,Buy,2,20000,2026-09-15 15:50:00,c,Apex
     expect(openLots.length).toBe(0);
   });
 
+  it('rejette une quantité Infinity ou un prix hors bornes (PnL toujours fini)', () => {
+    const csv = `Instrument,Action,Quantity,Price,Time,ID,Account
+NQ 12-26,Buy,${'9'.repeat(400)},20000,2026-09-15 15:35:00,a,Apex
+NQ 12-26,Sell,1,1e300,2026-09-15 15:40:00,b,Apex
+NQ 12-26,Buy,1,20000,2026-09-15 15:41:00,c,Apex
+NQ 12-26,Sell,1,20010,2026-09-15 15:42:00,d,Apex
+`;
+    const r = importExecutionsCsv(csv);
+    expect(r.skipped).toBe(2);
+    expect(r.trades.length).toBe(1);
+    expect(r.trades[0]!.pnl).toBe(200);
+    expect(r.trades.every((t) => Number.isFinite(t.pnl))).toBe(true);
+  });
+
   it('importCsvAuto dispatche selon le format', () => {
     expect(importCsvAuto(NT_EXEC).format).toBe('ninjatrader-executions');
     expect(importCsvAuto('foo,bar\n1,2\n').format).toBe('inconnu');

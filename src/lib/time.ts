@@ -134,14 +134,31 @@ export function formatTimeLocal(ms: number, withSeconds = false): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}${withSeconds ? `:${pad2(d.getSeconds())}` : ''}`;
 }
 
+const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Intl.DateTimeFormat mis en cache par langue active + options (clé JSON stable) :
+ * construire un formateur coûte ~50 µs, l'appeler ~1 µs. À utiliser partout où l'on
+ * formate dans une boucle de rendu (tableaux, légendes, axes).
+ */
+export function dateTimeFormatter(options: Intl.DateTimeFormatOptions, locale = intlTag()): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let f = dateTimeFormatters.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, options);
+    dateTimeFormatters.set(key, f);
+  }
+  return f;
+}
+
 export function formatDateFr(key: string, opts: { weekday?: boolean; short?: boolean } = {}): string {
   const d = parseDateKey(key);
-  return d.toLocaleDateString(intlTag(), {
+  return dateTimeFormatter({
     weekday: opts.weekday ? (opts.short ? 'short' : 'long') : undefined,
     day: 'numeric',
     month: opts.short ? 'short' : 'long',
     year: 'numeric',
-  });
+  }).format(d);
 }
 
 export function formatDuration(ms: number): string {

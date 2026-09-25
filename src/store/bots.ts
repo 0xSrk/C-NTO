@@ -162,8 +162,9 @@ export const useBots = create<BotsState>((set, get) => ({
     const cur = get().bots.find((b) => b.id === id);
     if (!cur) return;
     const next = { ...cur, ...patch, status: coerceBotStatus(String(patch.status ?? cur.status)), updatedAt: Date.now() };
-    await db.bots.put(next);
+    // Optimiste : le store reflète la frappe immédiatement (les champs contrôlés ne perdent pas de caractères).
     set({ bots: get().bots.map((b) => (b.id === id ? next : b)) });
+    await db.bots.put(next);
   },
   async remove(id) {
     await db.bots.delete(id);

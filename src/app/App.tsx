@@ -4,7 +4,7 @@ import { generateNasdaqEvents } from '@/engine/calendar';
 import { isDesk } from '@/lib/desk';
 import { plural } from '@/lib/format';
 import { useAgent } from '@/store/agent';
-import { useBridge } from '@/store/bridge';
+import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
@@ -98,7 +98,7 @@ function boot(): Promise<void> {
         await useBridge.getState().load();
         const b = useBridge.getState().status;
         if (!isDesk) return ['off', tr('navigateur · import manuel', 'browser · manual import', 'navegador · importación manual')];
-        if (b?.enabled && b.folder) return [b.error ? 'warn' : 'ok', b.error ?? `${tr('dossier surveillé', 'watched folder', 'carpeta vigilada')} · ${plural(b.files, tr('fichier', 'file', 'archivo'), tr('fichiers', 'files', 'archivos'))}`];
+        if (b?.enabled && b.folder) return [isBridgeLive(b) ? 'ok' : 'warn', b.error ?? `${tr('dossier surveillé', 'watched folder', 'carpeta vigilada')} · ${plural(b.files, tr('fichier', 'file', 'archivo'), tr('fichiers', 'files', 'archivos'))}`];
         return ['off', tr('non configuré', 'not configured', 'no configurado')];
       }),
     ]);

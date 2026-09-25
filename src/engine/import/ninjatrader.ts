@@ -13,6 +13,12 @@ export interface ImportOptions {
   riskPerContract?: number;
 }
 
+/** Bornes d'intégrité d'un trade importé (au-delà : ligne rejetée, jamais stockée). */
+export const QTY_MAX = 10_000;
+export const PRICE_MAX = 1_000_000;
+export const PNL_MAX = 10_000_000;
+export const MONEY_MAX = 10_000_000;
+
 export interface ImportResult {
   sessions: Session[];
   trades: Trade[];
@@ -105,7 +111,7 @@ export const FORMAT_LABEL: Record<ImportResult['format'], string> = {
  */
 export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportResult {
   const table = parseCsv(text);
-  const warnings: string[] = [];
+  const warnings: string[] = [...table.warnings];
   const format = detectFormat(table.headers);
   if (format === 'inconnu' || format === 'ninjatrader-executions') {
     return { sessions: [], trades: [], warnings: [tr('Colonnes non reconnues : export NinjaTrader « Trades » attendu (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).', 'Unrecognized columns: a NinjaTrader “Trades” export is expected (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).', 'Columnas no reconocidas: se espera un export NinjaTrader « Trades » (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).')], format, skipped: table.rows.length };
@@ -143,6 +149,7 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   let skipped = 0;
   let profitMismatch = 0;
   let widthMismatch = 0;
+  let outOfBounds = 0;
 
   for (const row of table.rows) {
     if (expectedCols > 0 && row.length !== expectedCols) {
@@ -165,13 +172,30 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
     const exitPrice = parseLocaleNumber(get('exitPrice'), decimalSep);
     const entryTime = parseFlexibleDateTime(get('entryTime'), dayFirst);
     const exitTime = parseFlexibleDateTime(get('exitTime'), dayFirst);
-    if (!direction || !qty || !Number.isFinite(entryPrice) || !Number.isFinite(exitPrice) || !Number.isFinite(entryTime) || !Number.isFinite(exitTime)) {
+    if (!direction || !qty || Number.isNaN(qty) || Number.isNaN(entryPrice) || Number.isNaN(exitPrice) || !Number.isFinite(entryTime) || !Number.isFinite(exitTime)) {
       skipped++;
+      continue;
+    }
+    if (!Number.isFinite(qty) || !Number.isFinite(entryPrice) || !Number.isFinite(exitPrice)) {
+      // Valeur ±Infinity (ex. 400 chiffres) : lisible mais absurde → hors bornes.
+      skipped++;
+      outOfBounds++;
+      continue;
+    }
+    // Bornes : quantité entière 1..10 000, prix 0..1 000 000 (sinon PnL absurde, Infinity ou perte de précision).
+    if (!Number.isInteger(qty) || qty > QTY_MAX || entryPrice < 0 || entryPrice > PRICE_MAX || exitPrice < 0 || exitPrice > PRICE_MAX) {
+      skipped++;
+      outOfBounds++;
       continue;
     }
     const spec = INSTRUMENTS[instrument];
     const commissionRaw = get('commission');
     const commission = commissionRaw ? Math.abs(parseLocaleNumber(commissionRaw, decimalSep)) || 0 : 0;
+    if (!Number.isFinite(commission) || commission > MONEY_MAX) {
+      skipped++;
+      outOfBounds++;
+      continue;
+    }
     const gross = (exitPrice - entryPrice) * qty * spec.pointValue * (direction === 'long' ? 1 : -1);
     let pnl = Math.round((gross - commission) * 100) / 100;
 
@@ -199,17 +223,24 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
       }
     }
 
+    if (!Number.isFinite(pnl) || Math.abs(pnl) > PNL_MAX) {
+      skipped++;
+      outOfBounds++;
+      continue;
+    }
+
     const maeRaw = get('mae');
     const mfeRaw = get('mfe');
+    const bounded = (v: number): number | undefined => (Number.isFinite(v) && v <= MONEY_MAX ? v : undefined);
     const toUsd = (raw: string): number | undefined => {
       if (!raw) return undefined;
       const v = Math.abs(parseLocaleNumber(raw, decimalSep));
       if (!Number.isFinite(v)) return undefined;
-      if (/[$€£]/.test(raw)) return v;
-      return Number.isFinite(excursionFactor) ? Math.round(v * excursionFactor * 100) / 100 : undefined;
+      if (/[$€£]/.test(raw)) return bounded(v);
+      return Number.isFinite(excursionFactor) ? bounded(Math.round(v * excursionFactor * 100) / 100) : undefined;
     };
     const riskRaw = get('risk');
-    const risk = riskRaw ? Math.abs(parseLocaleNumber(riskRaw, decimalSep)) || undefined : opts.riskPerContract ? opts.riskPerContract * qty : undefined;
+    const risk = riskRaw ? bounded(Math.abs(parseLocaleNumber(riskRaw, decimalSep))) || undefined : opts.riskPerContract ? opts.riskPerContract * qty : undefined;
     const tagsRaw = get('tags');
 
     trades.push({
@@ -236,6 +267,7 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   }
 
   if (profitMismatch > 0) warnings.push(tr(`${profitMismatch} trade(s) : la colonne Profit diffère du PnL recalculé (prix × valeur du point). Le PnL recalculé est conservé.`, `${profitMismatch} trade(s): the Profit column differs from the recomputed PnL (price × point value). The recomputed PnL is kept.`, `${profitMismatch} trade(s): la columna Profit difiere del PnL recalculado (precio × valor del punto). Se conserva el PnL recalculado.`));
+  if (outOfBounds > 0) warnings.push(tr(`${outOfBounds} ligne(s) rejetée(s) : quantité, prix, commission ou PnL hors bornes (qty entière 1–${QTY_MAX}, prix 0–${PRICE_MAX}, PnL fini).`, `${outOfBounds} row(s) rejected: quantity, price, commission or PnL out of bounds (integer qty 1–${QTY_MAX}, price 0–${PRICE_MAX}, finite PnL).`, `${outOfBounds} fila(s) rechazada(s): cantidad, precio, comisión o PnL fuera de límites (qty entera 1–${QTY_MAX}, precio 0–${PRICE_MAX}, PnL finito).`));
   if (widthMismatch > 0) warnings.push(tr(`${widthMismatch} ligne(s) rejetée(s) : nombre de colonnes incohérent ou décimale/délimiteur conflictuels (intégrité du journal).`, `${widthMismatch} row(s) rejected: inconsistent column count or conflicting decimal/delimiter (journal integrity).`, `${widthMismatch} fila(s) rechazada(s): número de columnas incoherente o decimal/delimitador en conflicto (integridad del diario).`));
   else if (skipped > 0) warnings.push(tr(`${skipped} ligne(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`, `${skipped} row(s) skipped (instrument other than NQ/MNQ or invalid fields).`, `${skipped} fila(s) ignorada(s) (instrumento distinto de NQ/MNQ o campos inválidos).`));
 
@@ -286,8 +318,9 @@ export function exportTradesCsv(trades: Trade[]): string {
   };
   const esc = (v: string | number | undefined) => {
     let s = v === undefined ? '' : String(v);
-    if (s.length > 0 && '=+-@'.includes(s[0]!)) s = `'${s}`;
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    // Injection de formule tableur : =, +, -, @ mais aussi tabulation et retour chariot en tête.
+    if (s.length > 0 && '=+-@\t\r'.includes(s[0]!)) s = `'${s}`;
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [header.join(',')];
   for (const t of trades) {

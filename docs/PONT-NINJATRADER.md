@@ -19,7 +19,8 @@ Il existe en deux étages :
 2. Tout fichier `.csv` / `.txt` nouveau ou modifié y est lu dès que sa taille est stable (NinjaTrader a fini d'écrire), puis transmis au journal.
 3. Le journal détecte le format — export **Trades** (Trade Performance), export **Executions**, ou **CΛNTO CSV** — et importe. Les exécutions sont appariées en trades aller-retour par compte et par contrat, méthode **FIFO** avec fractionnement des remplissages partiels ; les commissions sont réparties au contrat.
 4. Le dédoublonnage (empreinte instrument · sens · quantité · horodatages · prix) garantit qu'un fichier relu ou un export répété ne crée jamais de doublon : le journal temps réel qui grossit toute la journée est simplement rejoué.
-5. L'état du pont (dossier, fichiers déjà traités, dernier import) est persisté dans `%APPDATA%\CΛNTO\bridge-state.json` ; « Relire le dossier » force un rejeu complet.
+5. L'état du pont (dossier, fichiers déjà traités, dernier import) est persisté dans le dossier de données du desk — `%APPDATA%\CΛNTO\bridge-state.json` (Windows), `~/Library/Application Support/CΛNTO/` (macOS), `~/.config/CANTO/` (Linux, nom ASCII : Chromium vidait « CΛNTO » et écrivait à la racine de `~/.config` — migré automatiquement) ; « Relire le dossier » force un rejeu complet.
+6. Le dossier surveillé ne peut être choisi que par le dialogue système (ou le dossier par défaut) : le process principal refuse tout autre chemin envoyé par l'interface, même après redémarrage (`folder-grants.json`).
 
 ### Côté NinjaTrader : l'AddOn `ninjatrader/CantoBridge.cs`
 

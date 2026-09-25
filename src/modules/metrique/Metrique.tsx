@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { startTransition, useState } from 'react';
 import { IconExport, IconImport, IconLink, IconPlus, IconSettings } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Segmented, Tag } from '@/design/primitives';
@@ -9,8 +9,11 @@ import { plural } from '@/lib/format';
 import { tr, useI18n } from '@/i18n';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
+import { useAgent } from '@/store/agent';
+import { useBars } from '@/store/bars';
 import { useBots } from '@/store/bots';
-import { useBridge } from '@/store/bridge';
+import { useMacro } from '@/store/macro';
+import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useCopier } from '@/store/copier';
 import { useNotes } from '@/store/notes';
@@ -40,7 +43,7 @@ export default function Metrique() {
   const confirmDialog = useUi((u) => u.confirm);
   const reloadSettings = useSettings((st) => st.load);
   const bridgeStatus = useBridge((b) => b.status);
-  const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
+  const bridgeLive = isBridgeLive(bridgeStatus);
   const backupIncludeHeavy = useSettings((st) => st.settings.backupIncludeHeavy);
 
   const onExportCsv = async () => {
@@ -78,10 +81,22 @@ export default function Metrique() {
       return;
     try {
       const r = await restoreVault(f.text);
-      await Promise.all([reload(), reloadSettings(), useNotes.getState().load(), useCalendar.getState().load(), useBots.getState().load(), useCopier.getState().load()]);
+      // `useBars.load()` relit la base à chaque appel (le garde-fou `loading` ne fait que dédupliquer les appels concurrents).
+      await Promise.all([
+        reload(),
+        reloadSettings(),
+        useNotes.getState().load(),
+        useCalendar.getState().load(),
+        useBots.getState().load(),
+        useCopier.getState().load(),
+        useMacro.getState().load(),
+        useAgent.getState().load(),
+        useBars.getState().load(),
+      ]);
+      const skippedNote = r.skipped > 0 ? ` ${plural(r.skipped, tr('ligne invalide ignorée', 'invalid row skipped', 'fila inválida ignorada'), tr('lignes invalides ignorées', 'invalid rows skipped', 'filas inválidas ignoradas'))}.` : '';
       toast(
-        `${tr('Coffre restauré', 'Vault restored', 'Caja restaurada')} : ${plural(r.sessions, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}, ${plural(r.trades, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}, ${plural(r.notes, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))}.${r.apiKeyReencrypted ? ` ${tr('Clé API re-chiffrée.', 'API key re-encrypted.', 'Clave API cifrada de nuevo.')}` : ''}`,
-        'ok',
+        `${tr('Coffre restauré', 'Vault restored', 'Caja restaurada')} : ${plural(r.sessions, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}, ${plural(r.trades, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}, ${plural(r.notes, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))}.${r.apiKeyReencrypted ? ` ${tr('Clé API re-chiffrée.', 'API key re-encrypted.', 'Clave API cifrada de nuevo.')}` : ''}${skippedNote}`,
+        r.skipped > 0 ? 'warn' : 'ok',
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : tr('Restauration impossible.', 'Restore failed.', 'Restauración imposible.'), 'error');
@@ -138,7 +153,7 @@ export default function Metrique() {
         <div className={s.toolbar}>
           <Segmented
             value={view}
-            onChange={setView}
+            onChange={(v) => startTransition(() => setView(v))}
             options={[
               { value: 'bord', label: tr('Tableau de bord', 'Dashboard', 'Tablero') },
               { value: 'seances', label: `${tr('Séances', 'Sessions', 'Sesiones')} · ${sessions.length}` },

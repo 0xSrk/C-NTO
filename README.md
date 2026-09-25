@@ -17,7 +17,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — quantitative journal, NinjaTrader 8 br
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-124%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-181%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=c41e3a&label=version)](package.json)
 [![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
@@ -152,7 +152,7 @@ CΛNTO **checks the GitHub repository at startup** (launcher and the desk title 
 | Install | Click **Mettre à jour et relancer** (Update and relaunch) |
 |---|---|
 | **Git clone** (recommended path, `git clone` … `CANTO.cmd`) | `git fetch` + `git pull --ff-only origin main`, then `npm install --legacy-peer-deps`, then **relaunch** the launcher. A dirty working tree asks for confirmation (stash). |
-| **Installer** (no `.git` folder) | Opens [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (`https` only). |
+| **Installer** (no `.git` folder) | Compares the local version with the **latest published GitHub Release** (`releases/latest`, drafts and pre-releases ignored) and opens that release page (`https` only). The version on `main` is not used, so an installer is never told to update before a binary exists. |
 
 | State | Behavior |
 |---|---|
@@ -358,7 +358,7 @@ Obsidian-style, 100% inside the Dexie vault:
 
 </div>
 
-The renderer **does not fetch** the provider: `streamChat` / `probe` go through the Electron shell (`desk.llm`). The API key is encrypted by the OS keychain (`safeStorage`); once saved under Electron it is no longer held in the clear. Allowed hosts: `127.0.0.1`, `localhost`, `api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.moonshot.ai` (plus a short configurable list). CSP has no `connect-src *`.
+The renderer **does not fetch** the provider: `streamChat` / `probe` go through the Electron shell (`desk.llm`). The API key is encrypted by the OS keychain (`safeStorage`); once saved under Electron it is no longer held in the clear. Allowed hosts are pinned in the main process: `127.0.0.1`, `localhost`, `api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.moonshot.ai` — the renderer cannot widen the list. The renderer itself never leaves the machine: CSP `connect-src 'self'` (plus the Vite HMR socket in dev).
 
 **Tools** — reads are free; writes only after **confirmation** (LLM) or an orch flag (default **off**):
 
@@ -483,7 +483,7 @@ src/engine/       metrics, Monte Carlo, NT import, prop firm,
                   indicators, Nasdaq calendar, agent tools, LLM / update policy
 src/store/        Dexie (IndexedDB) + Zustand
 src/modules/      one folder per tab (01…07)
-tests/            Vitest — 124 tests (engine, import, vault, agent, updater)
+tests/            Vitest — 181 tests (engine, import, vault, agent, updater, shell)
 vectors/          shared JSON vectors (metrics / prop firm)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
@@ -505,7 +505,7 @@ npm install
 npm run launch         # user path (launcher + desk)
 npm run desk:dev       # Electron + Vite, no launcher
 npm run typecheck      # tsc app + electron
-npm test               # Vitest (124)
+npm test               # Vitest (181)
 npm run build          # production bundle
 npm run check          # typecheck + test + build
 npm run dist:mac       # universal DMG + zip (macOS)
@@ -513,7 +513,9 @@ npm run dist:win       # NSIS + portable, x64 and ARM (Windows)
 npm run dist:linux     # AppImage + deb, x64 and ARM64 (Linux)
 ```
 
-CI: GitHub Actions on **ubuntu, Windows, and macOS** — `npm ci`, `typecheck`, `test`, `build`, then that OS’s native installer (`dist:linux`, `dist:win`, `dist:mac`). Binaries are published as workflow artifacts. A `v*` tag runs the `release` workflow and creates the GitHub Release (installers + `SHA256SUMS.txt`).
+CI: GitHub Actions on **ubuntu, Windows, and macOS** — `npm ci`, `npm audit --omit=dev --audit-level=high`, `typecheck`, `test`, `build`, then that OS’s native installer (`dist:linux`, `dist:win`, `dist:mac`). Binaries are published as workflow artifacts. A `v*` tag runs the `release` workflow and creates the GitHub Release (installers + `SHA256SUMS.txt`).
+
+Data folder (vault, bridge state, language): `%APPDATA%\CΛNTO` (Windows), `~/Library/Application Support/CΛNTO` (macOS), `~/.config/CANTO` (Linux — earlier builds wrote to the root of `~/.config`; the first launch moves the vault into `CANTO/`).
 
 ---
 

@@ -201,12 +201,18 @@ export const useNotes = create<NotesState>((set, get) => ({
   },
 
   async update(id, patch) {
-    const cur = get().notes.find((n) => n.id === id);
-    if (!cur) return;
-    const next: Note = { ...cur, ...patch, updatedAt: Date.now() };
-    if (patch.body !== undefined) next.tags = extractTags(patch.body);
-    await db.notes.put(next);
-    set({ notes: [next, ...get().notes.filter((n) => n.id !== id)] });
+    if (!get().notes.some((n) => n.id === id)) return;
+    // Mise à jour partielle : aucun instantané pris avant l'attente n'est réécrit, donc deux
+    // patches entrelacés (épingle + corps différé) se cumulent au lieu de s'écraser.
+    const delta: Partial<Note> = { ...patch, updatedAt: Date.now() };
+    if (patch.body !== undefined) delta.tags = extractTags(patch.body);
+    await db.notes.update(id, delta);
+    set((s) => {
+      const cur = s.notes.find((n) => n.id === id);
+      if (!cur) return {};
+      const next: Note = { ...cur, ...delta };
+      return { notes: [next, ...s.notes.filter((n) => n.id !== id)] };
+    });
   },
 
   async remove(id) {

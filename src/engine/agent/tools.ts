@@ -11,6 +11,13 @@ export interface DeskTool extends ToolSchema {
 }
 
 const round = (v: number, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Propriétés déclarées dans le schéma d'un outil (tout autre argument est retiré avant exécution). */
+function declaredKeys(tool: DeskTool | undefined): readonly string[] {
+  const props = (tool?.parameters as { properties?: Record<string, unknown> } | undefined)?.properties;
+  return props ? Object.keys(props) : [];
+}
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback;
@@ -175,6 +182,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       async run(args) {
         const from = str(args.from);
         const to = str(args.to);
+        if (!DATE_RE.test(from) || !DATE_RE.test(to)) return { error: tr('Dates attendues au format YYYY-MM-DD', 'Dates expected in YYYY-MM-DD format', 'Fechas esperadas en formato YYYY-MM-DD') };
         const years = new Set([Number(from.slice(0, 4)), Number(to.slice(0, 4))]);
         const events = [...years].flatMap((y) => generateNasdaqEvents(y)).filter((e) => e.date >= from && e.date <= to);
         const perso = ports.calendarEntries().filter((e) => e.date >= from && e.date <= to);
@@ -260,7 +268,7 @@ async function runTool(ports: DeskPorts, name: string, rawArgs: string | Record<
       return { error: tr('Arguments JSON invalides', 'Invalid JSON arguments', 'Argumentos JSON inválidos') };
     }
   } else args = rawArgs ?? {};
-  const clamped = clampToolArgs(args);
+  const clamped = clampToolArgs(args, declaredKeys(tool));
   if (!clamped.ok) return { ok: false, reason: clamped.reason };
   try {
     return await tool.run(clamped.args);
@@ -279,13 +287,31 @@ export interface ExecuteCtx {
 
 const KNOWN_TOOLS = new Set(DESK_TOOLS.map((t) => t.name));
 
-function previewArgs(args: string | Record<string, unknown>): string {
-  if (typeof args === 'string') return args.slice(0, 400);
-  try {
-    return JSON.stringify(args).slice(0, 400);
-  } catch {
-    return '';
+const PREVIEW_BODY_MAX = 2000;
+const PREVIEW_KNOWN = new Set(['title', 'id', 'tags', 'body', 'note']);
+
+/** Aperçu lisible pour la confirmation d'écriture : titre, tags, séance cible, corps (≤ 2000 car., tronqué explicitement). */
+function previewArgs(args: Record<string, unknown>): string {
+  const truncated = tr('(tronqué)', '(truncated)', '(truncado)');
+  const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}… ${truncated}` : s);
+  const parts: string[] = [];
+  if (typeof args.title === 'string') parts.push(`${tr('Titre', 'Title', 'Título')} : ${clip(args.title, 200)}`);
+  if (typeof args.id === 'string') parts.push(`${tr('Séance cible', 'Target session', 'Sesión objetivo')} : ${clip(args.id, 64)}`);
+  if (Array.isArray(args.tags)) parts.push(`Tags : ${clip(args.tags.map(String).join(', '), 400)}`);
+  const body = typeof args.body === 'string' ? args.body : typeof args.note === 'string' ? args.note : undefined;
+  if (body !== undefined) {
+    const label = typeof args.body === 'string' ? tr('Corps', 'Body', 'Cuerpo') : tr('Note', 'Note', 'Nota');
+    parts.push(`${label} (${body.length} ${tr('caractères', 'characters', 'caracteres')}) :\n${clip(body, PREVIEW_BODY_MAX)}`);
   }
+  const rest = Object.fromEntries(Object.entries(args).filter(([k]) => !PREVIEW_KNOWN.has(k)));
+  if (Object.keys(rest).length) {
+    try {
+      parts.push(clip(JSON.stringify(rest), 400));
+    } catch {
+      /* argument non sérialisable : ignoré dans l'aperçu */
+    }
+  }
+  return parts.join('\n');
 }
 
 function parseArgs(args: string | Record<string, unknown>): { ok: true; args: Record<string, unknown> } | { ok: false; error: string } {
@@ -306,7 +332,7 @@ export async function executeDeskTool(ports: DeskPorts, name: string, args: stri
   if (!KNOWN_TOOLS.has(name)) return { ok: false, reason: 'unknown_tool' };
   const parsed = parseArgs(args);
   if (!parsed.ok) return { error: parsed.error };
-  const clamped = clampToolArgs(parsed.args);
+  const clamped = clampToolArgs(parsed.args, declaredKeys(DESK_TOOLS.find((t) => t.name === name)));
   if (!clamped.ok) return { ok: false, reason: clamped.reason };
   if (toolKind(name) === 'write') {
     if (ctx.source === 'orch' && ctx.allowWrite !== true) return { ok: false, reason: 'write_disabled' };
@@ -314,7 +340,7 @@ export async function executeDeskTool(ports: DeskPorts, name: string, args: stri
       const ok = ctx.confirmFn
         ? await ctx.confirmFn(
             tr(`L’agent veut exécuter « ${name} »`, `The agent wants to run “${name}”`, `El agente quiere ejecutar « ${name} »`),
-            tr(`Arguments : ${previewArgs(clamped.args)}`, `Arguments: ${previewArgs(clamped.args)}`, `Argumentos: ${previewArgs(clamped.args)}`),
+            `${tr('Arguments', 'Arguments', 'Argumentos')} :\n${previewArgs(clamped.args)}`,
           )
         : false;
       if (!ok) return { ok: false, reason: 'operator_denied' };

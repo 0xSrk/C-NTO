@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconGraph, IconPlus, IconSearch, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Empty, Segmented, Tag, cx } from '@/design/primitives';
-import { intlTag, tr, useI18n } from '@/i18n';
+import { tr, useI18n } from '@/i18n';
 import { saveTextFile } from '@/lib/desk';
 import { plural } from '@/lib/format';
-import { dateKeyLocal, formatDateFr } from '@/lib/time';
+import { dateKeyLocal, dateTimeFormatter, formatDateFr } from '@/lib/time';
 import type { Note as NoteType } from '@/store/db';
 import { byTitle, extractLinks, useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
@@ -16,8 +16,10 @@ import s from './note.module.css';
 
 type Mode = 'editer' | 'scinde' | 'apercu';
 
+const UPDATED_OPTS: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' };
+
 function formatUpdated(ms: number): string {
-  return new Intl.DateTimeFormat(intlTag(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(ms);
+  return dateTimeFormatter(UPDATED_OPTS).format(ms);
 }
 
 export default function Note() {
@@ -85,7 +87,7 @@ export default function Note() {
             <div className={s.listHead}>
               <div className={s.search}>
                 <IconSearch size={13} />
-                <input placeholder={tr('Rechercher dans le coffre…', 'Search the vault…', 'Buscar en la caja…')} value={query} onChange={(e) => setQuery(e.target.value)} />
+                <input type="search" placeholder={tr('Rechercher dans le coffre…', 'Search the vault…', 'Buscar en la caja…')} aria-label={tr('Rechercher dans le coffre', 'Search the vault', 'Buscar en la caja')} value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
               <span className="micro">
                 {plural(notes.length, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))} · {plural(allTags.length, tr('tag', 'tag', 'etiqueta'), tr('tags', 'tags', 'etiquetas'))}

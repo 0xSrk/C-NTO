@@ -131,25 +131,11 @@ export const IconSend = (p: P) => (
   </svg>
 );
 
-export const IconPlay = (p: P) => (
-  <svg {...base(p)}>
-    <path d="M4.5 2.5v11l8-5.5z" />
-  </svg>
-);
-
 export const IconGraph = (p: P) => (
   <svg {...base(p)}>
     <circle cx="4" cy="4" r="1.8" />
     <circle cx="12" cy="5" r="1.8" />
     <circle cx="8" cy="12" r="1.8" />
     <path d="M5.6 4.6l4.7.3M5 5.5l2.3 5M11 6.6l-2.2 3.8" opacity=".6" />
-  </svg>
-);
-
-export const IconHelp = (p: P) => (
-  <svg {...base(p)}>
-    <circle cx="8" cy="8" r="6" />
-    <path d="M6.2 6.2a1.9 1.9 0 1 1 2.6 2.4c-.55.35-.8.6-.8 1.2" />
-    <path d="M8 11.6v.2" />
   </svg>
 );

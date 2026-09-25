@@ -58,6 +58,13 @@ describe('executeDeskTool', () => {
     expect(log.writes).toBe(1);
   });
 
+  it('cap titre 200 dans le runner, avant mutation', async () => {
+    const log = { writes: 0 };
+    const r = await executeDeskTool(mockPorts(log), 'create_note', { title: 'x'.repeat(201), body: 'ok' }, { source: 'orch', allowWrite: true });
+    expect(r).toEqual({ ok: false, reason: 'args_too_large' });
+    expect(log.writes).toBe(0);
+  });
+
   it('cap body 20_000 dans le runner, avant mutation', async () => {
     const log = { writes: 0 };
     const r = await executeDeskTool(mockPorts(log), 'create_note', { title: 'N', body: 'x'.repeat(20_001) }, { source: 'orch', allowWrite: true });

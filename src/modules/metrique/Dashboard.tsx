@@ -1,18 +1,22 @@
 import { useMemo } from 'react';
-import { Bars } from '@/design/charts/Bars';
-import { Histogram } from '@/design/charts/Bars';
+import { Bars, Histogram } from '@/design/charts/Bars';
 import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { LineArea } from '@/design/charts/LineArea';
 import { Button, Empty, Panel, Stat, Tag } from '@/design/primitives';
 import { histogram } from '@/engine/metrics';
-import { intlTag, tr, useI18n } from '@/i18n';
+import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
-import { formatDuration, formatDateFr, parseDateKey } from '@/lib/time';
+import { dateKeyLocal, dateTimeFormatter, formatDuration, formatDateFr, parseDateKey } from '@/lib/time';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
 
 function tone(v: number): 'pos' | 'neg' | 'flat' {
   return signClass(v);
+}
+
+/** Étiquette d'un point d'équité (t = midi local de la date agrégée). */
+function equityLabel(tMs: number): string {
+  return formatDateFr(dateKeyLocal(new Date(tMs)), { short: true });
 }
 
 function trPlanStatus(status: 'en-cours' | 'objectif' | 'echec'): string {
@@ -23,9 +27,11 @@ function trPlanStatus(status: 'en-cours' | 'objectif' | 'echec'): string {
 
 export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: () => void }) {
   const locale = useI18n((s) => s.locale);
-  const { sessions, tradeStats: t, dailyStats: d, plan, planEval } = useStats();
+  const { sessions, tradeStats: t, dailyStats: d, plan, planEval, startingBalance } = useStats();
 
-  const startEq = d.equity[0] ? d.equity[0].equity - (sessions[0]?.pnl ?? 0) : 0;
+  // L'équité journalière est agrégée par date (plusieurs comptes = une journée) : le point de
+  // départ est le capital initial et chaque étiquette dérive de la date du point lui-même,
+  // jamais de l'index des séances brutes.
   const cumSeries = useMemo(
     () => [
       {
@@ -34,15 +40,12 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
         color: 'var(--mint)',
         area: true,
         signed: true,
-        points: d.equity.map((p, i) => ({ x: p.t, y: p.equity - startEq, label: formatDateFr(sessions[i]?.date ?? '', { short: true }) })),
+        points: d.equity.map((p) => ({ x: p.t, y: p.equity - startingBalance, label: equityLabel(p.t) })),
       },
     ],
-    [d.equity, sessions, startEq, locale],
+    [d.equity, startingBalance, locale],
   );
-  const ddSeries = useMemo(
-    () => [{ id: 'dd', label: 'Drawdown', color: 'var(--ember)', area: true, points: d.equity.map((p, i) => ({ x: p.t, y: p.drawdown, label: formatDateFr(sessions[i]?.date ?? '', { short: true }) })) }],
-    [d.equity, sessions],
-  );
+  const ddSeries = useMemo(() => [{ id: 'dd', label: 'Drawdown', color: 'var(--ember)', area: true, points: d.equity.map((p) => ({ x: p.t, y: p.drawdown, label: equityLabel(p.t) })) }], [d.equity, locale]);
   const rollingSeries = useMemo(
     () => [
       { id: 'wr', label: tr('Taux de réussite (20 séances)', 'Win rate (20 sessions)', 'Tasa de acierto (20 sesiones)'), color: 'var(--ice)', points: d.rolling.map((r) => ({ x: r.t, y: r.winRate * 100, label: formatDateFr(r.date, { short: true }) })) },
@@ -74,7 +77,7 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
     while (cursor <= end) {
       const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
       const dow = (cursor.getDay() + 6) % 7;
-      if (dow === 0) cols.push(cursor.getDate() <= 7 ? cursor.toLocaleDateString(intlTag(locale), { month: 'short' }) : '');
+      if (dow === 0) cols.push(cursor.getDate() <= 7 ? dateTimeFormatter({ month: 'short' }).format(cursor) : '');
       if (dow < 5) {
         const sess = byDate.get(key);
         cells.push({

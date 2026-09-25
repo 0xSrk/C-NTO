@@ -118,6 +118,15 @@ export class Orchestrator {
           if (req.headers.origin) return false;
           if (this.clients.size + this.pending >= MAX_CLIENTS) return false;
           this.pending++;
+          // Si la poignée de main échoue après la réservation, le slot est rendu à la fermeture du socket.
+          const reserved = req as IncomingMessage & { cantoReserved?: boolean };
+          reserved.cantoReserved = true;
+          req.socket.once('close', () => {
+            if (reserved.cantoReserved) {
+              reserved.cantoReserved = false;
+              this.pending = Math.max(0, this.pending - 1);
+            }
+          });
           return true;
         },
       });
@@ -137,11 +146,18 @@ export class Orchestrator {
         }
       });
       server.on('connection', (socket, req) => {
+        const reserved = req as IncomingMessage & { cantoReserved?: boolean };
+        const release = () => {
+          if (reserved.cantoReserved) {
+            reserved.cantoReserved = false;
+            this.pending = Math.max(0, this.pending - 1);
+          }
+        };
         const url = new URL(req.url ?? '/', 'ws://127.0.0.1');
         const q = url.searchParams.get('token');
         // Jeton présent mais faux : fermeture immédiate, le slot n'est pas occupé.
         if (q !== null && !tokensMatch(q, this.token)) {
-          this.pending = Math.max(0, this.pending - 1);
+          release();
           socket.close(1008, 'Jeton invalide');
           return;
         }
@@ -155,7 +171,7 @@ export class Orchestrator {
           }, AUTH_GRACE_MS);
         }
         this.clients.set(id, client);
-        this.pending = Math.max(0, this.pending - 1);
+        release();
         this.emitStatus();
         safeSend(socket, { jsonrpc: '2.0', method: 'desk.hello', params: { artefact: 'CΛNTO', version: app.getVersion(), clientId: id, authenticated } });
         socket.on('message', (raw) => this.onMessage(id, raw.toString()));

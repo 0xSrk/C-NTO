@@ -3,7 +3,9 @@ import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, Crossha
 import type { Bar } from '@/engine/bars';
 import type { IndicatorLine } from '@/engine/indicators';
 import type { Trade } from '@/engine/types';
+import { intlTag } from '@/i18n';
 import { fmtPrice, fmtUsd } from '@/lib/format';
+import { dateTimeFormatter } from '@/lib/time';
 import { chartHostReady, safePaneHeight } from './chartBox';
 import s from './visual.module.css';
 
@@ -23,9 +25,10 @@ interface Props {
 
 const LINE_STYLE: Record<NonNullable<IndicatorLine['lineStyle']>, LineStyle> = { solid: LineStyle.Solid, dashed: LineStyle.Dashed, dotted: LineStyle.Dotted };
 
-const fmtTime = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const fmtDateTime = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const fmtDay = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short' });
+// Formateurs résolus à l'appel (cache par langue dans dateTimeFormatter) : suivent la langue du desk.
+const TIME_OPTS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+const DATE_TIME_OPTS: Intl.DateTimeFormatOptions = { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+const DAY_OPTS: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
 
 function toTs(sec: number): UTCTimestamp {
   return sec as UTCTimestamp;
@@ -70,6 +73,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const lineRefs = useRef<Map<string, ISeriesApi<'Line'>>>(new Map());
+  /** Dernières données poussées par segment : un segment dont la référence n'a pas changé n'est pas renvoyé au graphique. */
+  const segmentDataRef = useRef<Map<string, IndicatorLine['data']>>(new Map());
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [ready, setReady] = useState(false);
   const [fault, setFault] = useState<Error | null>(null);
@@ -118,12 +123,12 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
         barSpacing: 7,
         tickMarkFormatter: (time: Time, tickType: number) => {
           const d = new Date((time as number) * 1000);
-          return tickType >= 3 ? fmtTime.format(d) : fmtDay.format(d);
+          return tickType >= 3 ? dateTimeFormatter(TIME_OPTS).format(d) : dateTimeFormatter(DAY_OPTS).format(d);
         },
       },
       localization: {
-        locale: 'fr-FR',
-        timeFormatter: (time: Time) => fmtDateTime.format(new Date((time as number) * 1000)),
+        locale: intlTag(),
+        timeFormatter: (time: Time) => dateTimeFormatter(DATE_TIME_OPTS).format(new Date((time as number) * 1000)),
         priceFormatter: (p: number) => fmtPrice(p),
       },
       handleScroll: { vertTouchDrag: false },
@@ -195,6 +200,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       candleRef.current = null;
       volumeRef.current = null;
       lineRefs.current.clear();
+      segmentDataRef.current.clear();
       markersRef.current = null;
       setReady(false);
     };
@@ -219,26 +225,35 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       const paneKey = l.key.split(':')[0] ?? l.key;
       const paneIndex = l.pane === 'pane' ? paneByKey.get(paneKey) ?? paneCursor++ : 0;
       if (l.pane === 'pane') paneByKey.set(paneKey, paneIndex);
-      const segments = splitSegments(l.data);
-      segments.forEach((segment, i) => {
+      // Les lignes sont mémorisées par indicateur (id + paramètres) côté Visual : une ligne dont
+      // `data` n'a pas changé de référence garde ses séries telles quelles (pas de setData).
+      const unchanged = segmentDataRef.current.get(l.key) === l.data;
+      const segments = unchanged ? null : splitSegments(l.data);
+      const segCount = segments ? segments.length : [...lineRefs.current.keys()].filter((k) => k.startsWith(`${l.key}#`)).length;
+      for (let i = 0; i < segCount; i++) {
         const segKey = `${l.key}#${i}`;
         wanted.add(segKey);
         let series = lineRefs.current.get(segKey);
         const options = { color: l.color, lineWidth: l.lineWidth ?? 1, lineStyle: LINE_STYLE[l.lineStyle ?? 'solid'] } as const;
         if (!series) {
-          series = chart.addSeries(LineSeries, { ...options, priceLineVisible: false, lastValueVisible: l.pane === 'pane' && i === segments.length - 1, crosshairMarkerVisible: false, title: l.pane === 'pane' && i === segments.length - 1 ? l.label : '' }, paneIndex);
+          series = chart.addSeries(LineSeries, { ...options, priceLineVisible: false, lastValueVisible: l.pane === 'pane' && i === segCount - 1, crosshairMarkerVisible: false, title: l.pane === 'pane' && i === segCount - 1 ? l.label : '' }, paneIndex);
           lineRefs.current.set(segKey, series);
         } else {
           series.applyOptions(options);
         }
-        series.setData(segment.map((p) => ({ time: toTs(p.time), value: p.value })));
-      });
+        const segment = segments?.[i];
+        if (segment) series.setData(segment.map((p) => ({ time: toTs(p.time), value: p.value })));
+      }
+      segmentDataRef.current.set(l.key, l.data);
     }
     for (const [key, series] of lineRefs.current) {
       if (!wanted.has(key)) {
         chart.removeSeries(series);
         lineRefs.current.delete(key);
       }
+    }
+    for (const key of segmentDataRef.current.keys()) {
+      if (!lineRefs.current.has(`${key}#0`)) segmentDataRef.current.delete(key);
     }
     const host = containerRef.current;
     const panes = chart.panes();

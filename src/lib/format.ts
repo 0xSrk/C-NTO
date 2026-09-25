@@ -16,6 +16,18 @@ function formats(): void {
   fixedCache.clear();
 }
 
+/** Formateur à décimales fixes, mis en cache par langue et précision (construire un Intl.NumberFormat coûte ~50 µs). */
+function fixedFormatter(digits: number): Intl.NumberFormat {
+  formats();
+  const key = `${cacheTag}|${digits}`;
+  let f = fixedCache.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(cacheTag, { maximumFractionDigits: digits, minimumFractionDigits: digits });
+    fixedCache.set(key, f);
+  }
+  return f;
+}
+
 /** Évite « -0 » : les zéros signés issus des graduations sont ramenés à 0. */
 const unsignZero = (v: number) => (Math.abs(v) < 1e-9 ? 0 : v);
 
@@ -35,14 +47,7 @@ export function plural(n: number, one: string, many = `${one}s`): string {
 
 export function fmtNum(v: number | undefined | null, digits = 2): string {
   if (v === undefined || v === null || !Number.isFinite(v)) return '—';
-  formats();
-  const key = `${cacheTag}:${digits}`;
-  let f = fixedCache.get(key);
-  if (!f) {
-    f = new Intl.NumberFormat(cacheTag, { maximumFractionDigits: digits, minimumFractionDigits: digits });
-    fixedCache.set(key, f);
-  }
-  return f.format(unsignZero(v));
+  return fixedFormatter(digits).format(unsignZero(v));
 }
 
 export function fmtInt(v: number | undefined | null): string {
@@ -53,15 +58,13 @@ export function fmtInt(v: number | undefined | null): string {
 
 export function fmtPct(v: number | undefined | null, digits = 1): string {
   if (v === undefined || v === null || !Number.isFinite(v)) return '—';
-  formats();
-  const body = new Intl.NumberFormat(cacheTag, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(unsignZero(v * 100));
-  return `${body}\u202f%`;
+  const body = fixedFormatter(digits).format(unsignZero(v * 100));
+  return `${body} %`;
 }
 
 export function fmtRatio(v: number | undefined | null, digits = 2): string {
   if (v === undefined || v === null || Number.isNaN(v) || !Number.isFinite(v)) return '—';
-  formats();
-  return new Intl.NumberFormat(cacheTag, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
+  return fixedFormatter(digits).format(v);
 }
 
 export function fmtPoints(v: number | undefined | null): string {
@@ -71,7 +74,12 @@ export function fmtPoints(v: number | undefined | null): string {
 
 export function fmtPrice(v: number | undefined | null): string {
   if (v === undefined || v === null || !Number.isFinite(v)) return '—';
-  return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  return fixedFormatter(2).format(v);
+}
+
+/** Identité du formateur en cache — exposé pour les tests (vérifie la réutilisation). */
+export function fixedFormatterForTest(digits: number): Intl.NumberFormat {
+  return fixedFormatter(digits);
 }
 
 export function signClass(v: number | undefined | null): 'pos' | 'neg' | 'flat' {

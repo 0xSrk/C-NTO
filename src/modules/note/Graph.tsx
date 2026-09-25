@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { tr, useI18n } from '@/i18n';
 import type { Note } from '@/store/db';
 import { extractLinks } from '@/store/notes';
 import s from './note.module.css';
@@ -14,8 +15,83 @@ interface Node {
   tags: number;
 }
 
+const MAX_FRAMES = 600;
+/** Énergie cinétique totale (Σ v²) sous laquelle la mise en page est considérée stable. */
+const REST_ENERGY = 0.05;
+/** Au-delà, la répulsion passe par une grille spatiale (voisins proches seulement). */
+const GRID_THRESHOLD = 300;
+const GRID_CELL = 120;
+const REPULSION = 6000;
+
+function repel(a: Node, b: Node): void {
+  let dx = a.x - b.x;
+  let dy = a.y - b.y;
+  let d2 = dx * dx + dy * dy;
+  if (d2 < 1) {
+    dx = Math.random() - 0.5;
+    dy = Math.random() - 0.5;
+    d2 = 1;
+  }
+  const f = REPULSION / d2;
+  const d = Math.sqrt(d2);
+  a.vx += (dx / d) * f;
+  a.vy += (dy / d) * f;
+  b.vx -= (dx / d) * f;
+  b.vy -= (dy / d) * f;
+}
+
+/** Répulsion exacte O(n²) : suffisante en dessous de GRID_THRESHOLD nœuds. */
+function repelAll(nodes: Node[]): void {
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i];
+    if (!a) continue;
+    for (let j = i + 1; j < nodes.length; j++) {
+      const b = nodes[j];
+      if (b) repel(a, b);
+    }
+  }
+}
+
+/**
+ * Répulsion approchée par grille : chaque nœud n'interagit qu'avec les 9 cellules voisines.
+ * À 120 px la force résiduelle (6000/d²) est < 0,5 : l'écart visuel est imperceptible.
+ */
+function repelGrid(nodes: Node[]): void {
+  const cells = new Map<string, Node[]>();
+  const keyOf = (cx: number, cy: number) => `${cx},${cy}`;
+  const coords = nodes.map((n) => [Math.floor(n.x / GRID_CELL), Math.floor(n.y / GRID_CELL)] as const);
+  nodes.forEach((n, i) => {
+    const c = coords[i];
+    if (!c) return;
+    const k = keyOf(c[0], c[1]);
+    const bucket = cells.get(k);
+    if (bucket) bucket.push(n);
+    else cells.set(k, [n]);
+  });
+  const done = new Set<string>();
+  nodes.forEach((a, i) => {
+    const c = coords[i];
+    if (!c) return;
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oy = -1; oy <= 1; oy++) {
+        const bucket = cells.get(keyOf(c[0] + ox, c[1] + oy));
+        if (!bucket) continue;
+        for (const b of bucket) {
+          if (a === b) continue;
+          // Chaque paire une seule fois : clé ordonnée par identifiant.
+          const pair = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+          if (done.has(pair)) continue;
+          done.add(pair);
+          repel(a, b);
+        }
+      }
+    }
+  });
+}
+
 /** Graphe de force minimaliste (canvas) : nœuds = notes, arêtes = liens [[wiki]]. */
 export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: string | null; onOpen: (id: string) => void }) {
+  useI18n((st) => st.locale);
   const ref = useRef<HTMLCanvasElement>(null);
   const state = useRef<{ nodes: Node[]; edges: [number, number][]; hover: number | null; drag: number | null; offset: { x: number; y: number }; scale: number; frame: number; wake: (() => void) | null }>({ nodes: [], edges: [], hover: null, drag: null, offset: { x: 0, y: 0 }, scale: 1, frame: 0, wake: null });
 
@@ -72,28 +148,10 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       const cx = rect.width / 2 + st.offset.x;
       const cy = rect.height / 2 + st.offset.y;
 
-      if (st.frame < 600) {
-        for (let i = 0; i < nodes.length; i++) {
-          const a = nodes[i];
-          if (!a) continue;
-          for (let j = i + 1; j < nodes.length; j++) {
-            const b = nodes[j];
-            if (!b) continue;
-            let dx = a.x - b.x;
-            let dy = a.y - b.y;
-            let d2 = dx * dx + dy * dy;
-            if (d2 < 1) {
-              dx = Math.random() - 0.5;
-              dy = Math.random() - 0.5;
-              d2 = 1;
-            }
-            const f = 6000 / d2;
-            const d = Math.sqrt(d2);
-            a.vx += (dx / d) * f;
-            a.vy += (dy / d) * f;
-            b.vx -= (dx / d) * f;
-            b.vy -= (dy / d) * f;
-          }
+      if (st.frame < MAX_FRAMES) {
+        if (nodes.length > GRID_THRESHOLD) repelGrid(nodes);
+        else repelAll(nodes);
+        for (const a of nodes) {
           a.vx -= a.x * 0.004;
           a.vy -= a.y * 0.004;
         }
@@ -111,14 +169,19 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
           b.vx -= (dx / d) * f;
           b.vy -= (dy / d) * f;
         }
+        let energy = 0;
         nodes.forEach((n, i) => {
           if (st.drag === i) return;
           n.vx *= 0.82;
           n.vy *= 0.82;
           n.x += n.vx;
           n.y += n.vy;
+          energy += n.vx * n.vx + n.vy * n.vy;
         });
         st.frame++;
+        // Arrêt anticipé dès que la mise en page ne bouge plus (le plafond de 600 reste la borne).
+        // Quelques images de sécurité pour laisser les positions initiales (angle) se dérouler.
+        if (st.frame > 10 && energy < REST_ENERGY && st.drag === null) st.frame = MAX_FRAMES;
       }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -163,7 +226,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       dirty = false;
       // La simulation continue tant qu'elle n'a pas convergé ; ensuite le canvas ne se
       // redessine que sur interaction (survol, glisser, zoom) : zéro CPU au repos.
-      if (st.frame < 600 || dirty) raf = requestAnimationFrame(tick);
+      if (st.frame < MAX_FRAMES || dirty) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     const ro = new ResizeObserver(() => wake());
@@ -256,7 +319,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
   return (
     <div className={s.graphWrap}>
       <canvas ref={ref} className={s.graphCanvas} />
-      <div className={s.graphHint}>glisser · molette pour zoomer · clic pour ouvrir</div>
+      <div className={s.graphHint}>{tr('glisser · molette pour zoomer · clic pour ouvrir', 'drag · wheel to zoom · click to open', 'arrastrar · rueda para zoom · clic para abrir')}</div>
     </div>
   );
 }

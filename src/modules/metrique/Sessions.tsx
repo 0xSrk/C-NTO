@@ -1,7 +1,6 @@
-import { useMemo, useState, type MouseEvent } from 'react';
+import { memo, useCallback, useDeferredValue, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { IconTrash } from '@/app/icons';
 import { Button, Empty, Panel, Tag, cx, tableClass } from '@/design/primitives';
-import { computeTradeStats } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtPrice, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
@@ -11,6 +10,7 @@ import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
 import s from './metrique.module.css';
+import { cachedTradeStats } from './useStats';
 
 function sourceLabel(source: Session['source']): string {
   if (source === 'ninjatrader') return 'NinjaTrader';
@@ -32,14 +32,16 @@ export function Sessions() {
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const toast = useUi((u) => u.toast);
   const confirmDialog = useUi((u) => u.confirm);
+  // La saisie du filtre reste fluide : la liste (jusqu'à 1000 lignes) suit avec un temps de retard.
+  const deferredQuery = useDeferredValue(query);
 
   const list = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     let arr = [...sessions];
     if (q) arr = arr.filter((x) => x.date.includes(q) || (x.account ?? '').toLowerCase().includes(q) || x.tags.some((t) => t.toLowerCase().includes(q)) || (x.note ?? '').toLowerCase().includes(q));
     arr.sort((a, b) => (sort === 'date' ? b.date.localeCompare(a.date) : b.pnl - a.pnl));
     return arr;
-  }, [sessions, query, sort]);
+  }, [sessions, deferredQuery, sort]);
 
   const tradesBySession = useMemo(() => {
     const m = new Map<string, Trade[]>();
@@ -51,21 +53,35 @@ export function Sessions() {
     return m;
   }, [trades]);
 
+  /** Taux de réussite par séance, calculé une fois par jeu de trades (pas à chaque rendu de ligne). */
+  const winRateBySession = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const [id, own] of tradesBySession) if (own.length) m.set(id, own.filter((t) => t.pnl > 0).length / own.length);
+    return m;
+  }, [tradesBySession]);
+
   const current = sessions.find((x) => x.id === selected) ?? null;
   const allVisibleChecked = list.length > 0 && list.every((x) => checked.has(x.id));
   const checkedCount = checked.size;
 
-  const toggleOne = (id: string, e: MouseEvent) => {
+  // Rappel stable (lu par ref) pour que les lignes mémorisées ne se réaffichent pas à chaque rendu parent.
+  const listRef = useRef(list);
+  listRef.current = list;
+  const lastCheckedRef = useRef(lastChecked);
+  lastCheckedRef.current = lastChecked;
+  const toggleOne = useCallback((id: string, e: MouseEvent) => {
     e.stopPropagation();
+    const rows = listRef.current;
+    const last = lastCheckedRef.current;
     setChecked((prev) => {
       const next = new Set(prev);
-      if (e.shiftKey && lastChecked) {
-        const a = list.findIndex((x) => x.id === lastChecked);
-        const b = list.findIndex((x) => x.id === id);
+      if (e.shiftKey && last) {
+        const a = rows.findIndex((x) => x.id === last);
+        const b = rows.findIndex((x) => x.id === id);
         if (a >= 0 && b >= 0) {
           const [lo, hi] = a < b ? [a, b] : [b, a];
           for (let i = lo; i <= hi; i++) {
-            const row = list[i];
+            const row = rows[i];
             if (row) next.add(row.id);
           }
           return next;
@@ -76,7 +92,7 @@ export function Sessions() {
       return next;
     });
     setLastChecked(id);
-  };
+  }, []);
 
   const toggleAllVisible = () => {
     setChecked((prev) => {
@@ -132,7 +148,14 @@ export function Sessions() {
         tight
         actions={
           <>
-            <input placeholder={tr('Filtrer : date, compte, tag, note…', 'Filter: date, account, tag, note…', 'Filtrar: fecha, cuenta, tag, nota…')} value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 220 }} />
+            <input
+              type="search"
+              placeholder={tr('Filtrer : date, compte, tag, note…', 'Filter: date, account, tag, note…', 'Filtrar: fecha, cuenta, tag, nota…')}
+              aria-label={tr('Filtrer les séances', 'Filter sessions', 'Filtrar las sesiones')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{ width: 220 }}
+            />
             <Button size="sm" variant="ghost" active={sort === 'date'} onClick={() => setSort('date')}>
               {tr('Date', 'Date', 'Fecha')}
             </Button>
@@ -177,39 +200,9 @@ export function Sessions() {
               </tr>
             </thead>
             <tbody>
-              {list.map((x) => {
-                const own = tradesBySession.get(x.id) ?? [];
-                const wr = own.length ? own.filter((t) => t.pnl > 0).length / own.length : null;
-                const isChecked = checked.has(x.id);
-                return (
-                  <tr
-                    key={x.id}
-                    className={cx('clickable', selected === x.id && 'selected', isChecked && s.rowChecked)}
-                    onClick={() => setSelected(x.id)}
-                    tabIndex={0}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelected(x.id)}
-                  >
-                    <td className={s.checkCol} onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={isChecked} onChange={() => undefined} onClick={(e) => toggleOne(x.id, e)} aria-label={`${tr('Sélectionner', 'Select', 'Seleccionar')} ${x.date}`} />
-                    </td>
-                    <td className="mono">{formatDateFr(x.date, { weekday: true, short: true })}</td>
-                    <td className="muted">{x.account ?? '—'}</td>
-                    <td className="num">{x.tradeCount}</td>
-                    <td className={cx('num', signClass(x.pnl))}>{fmtUsd(x.pnl, { sign: true })}</td>
-                    <td className="num">{wr === null ? '—' : fmtPct(wr, 0)}</td>
-                    <td className="num muted">{fmtUsd(-x.commission, { cents: true })}</td>
-                    <td>
-                      <div className={s.tags}>
-                        {x.tags.slice(0, 3).map((t) => (
-                          <Tag key={t}>{t}</Tag>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="gold">{x.rating ? '★'.repeat(x.rating) : ''}</td>
-                    <td className="muted">{sourceLabel(x.source)}</td>
-                  </tr>
-                );
-              })}
+              {list.map((x) => (
+                <SessionRow key={x.id} session={x} winRate={winRateBySession.get(x.id) ?? null} selected={selected === x.id} checked={checked.has(x.id)} onSelect={setSelected} onToggle={toggleOne} />
+              ))}
             </tbody>
           </table>
         </div>
@@ -237,6 +230,47 @@ export function Sessions() {
   );
 }
 
+/** Ligne mémorisée : seules les lignes dont la séance, la sélection ou la coche changent se réaffichent. */
+const SessionRow = memo(function SessionRow({
+  session: x,
+  winRate,
+  selected,
+  checked,
+  onSelect,
+  onToggle,
+}: {
+  session: Session;
+  winRate: number | null;
+  selected: boolean;
+  checked: boolean;
+  onSelect: (id: string) => void;
+  onToggle: (id: string, e: MouseEvent) => void;
+}) {
+  useI18n((s) => s.locale);
+  return (
+    <tr className={cx('clickable', selected && 'selected', checked && s.rowChecked)} onClick={() => onSelect(x.id)} tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect(x.id)}>
+      <td className={s.checkCol} onClick={(e) => e.stopPropagation()}>
+        <input type="checkbox" checked={checked} onChange={() => undefined} onClick={(e) => onToggle(x.id, e)} aria-label={`${tr('Sélectionner', 'Select', 'Seleccionar')} ${x.date}`} />
+      </td>
+      <td className="mono">{formatDateFr(x.date, { weekday: true, short: true })}</td>
+      <td className="muted">{x.account ?? '—'}</td>
+      <td className="num">{x.tradeCount}</td>
+      <td className={cx('num', signClass(x.pnl))}>{fmtUsd(x.pnl, { sign: true })}</td>
+      <td className="num">{winRate === null ? '—' : fmtPct(winRate, 0)}</td>
+      <td className="num muted">{fmtUsd(-x.commission, { cents: true })}</td>
+      <td>
+        <div className={s.tags}>
+          {x.tags.slice(0, 3).map((t) => (
+            <Tag key={t}>{t}</Tag>
+          ))}
+        </div>
+      </td>
+      <td className="gold">{x.rating ? '★'.repeat(x.rating) : ''}</td>
+      <td className="muted">{sourceLabel(x.source)}</td>
+    </tr>
+  );
+});
+
 function SessionDetail({ session, trades, onDeleted }: { session: Session; trades: Trade[]; onDeleted: () => void }) {
   useI18n((s) => s.locale);
   const updateSession = useJournal((j) => j.updateSession);
@@ -248,7 +282,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
   const dailyNote = useNotes((n) => n.dailyNote);
   const [note, setNote] = useState(session.note ?? '');
   const [tagInput, setTagInput] = useState('');
-  const stats = useMemo(() => computeTradeStats(trades), [trades]);
+  const stats = useMemo(() => cachedTradeStats(trades), [trades]);
   const sorted = useMemo(() => [...trades].sort((a, b) => a.exitTime - b.exitTime), [trades]);
   const net = trades.length ? trades.reduce((sum, t) => sum + t.pnl, 0) : session.pnl;
   const comm = trades.length ? trades.reduce((sum, t) => sum + (t.commission || 0), 0) : session.commission;
@@ -343,7 +377,15 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
           </span>
           <span className={s.stars} style={{ marginLeft: 'auto' }}>
             {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} className={cx(!!session.rating && session.rating >= n && s.on)} onClick={() => updateSession(session.id, { rating: session.rating === n ? undefined : n })} title={tr(`Auto-évaluation ${n}/5`, `Self-rating ${n}/5`, `Autoevaluación ${n}/5`)}>
+              <button
+                key={n}
+                type="button"
+                className={cx(!!session.rating && session.rating >= n && s.on)}
+                onClick={() => updateSession(session.id, { rating: session.rating === n ? undefined : n })}
+                title={tr(`Auto-évaluation ${n}/5`, `Self-rating ${n}/5`, `Autoevaluación ${n}/5`)}
+                aria-label={tr(`Auto-évaluation ${n}/5`, `Self-rating ${n}/5`, `Autoevaluación ${n}/5`)}
+                aria-pressed={session.rating === n}
+              >
                 ★
               </button>
             ))}

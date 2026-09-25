@@ -1,12 +1,30 @@
+import { tr } from '@/i18n';
+
 export interface CsvTable {
   delimiter: string;
   headers: string[];
   rows: string[][];
+  /** Anomalies structurelles non bloquantes (ex. guillemet non refermé en fin de fichier). */
+  warnings: string[];
+}
+
+/** Première ligne non vide, sans découper tout le texte (fichiers de plusieurs Mo). */
+function firstNonEmptyLine(text: string): string {
+  let start = 0;
+  while (start < text.length) {
+    let end = text.indexOf('\n', start);
+    if (end === -1) end = text.length;
+    let line = text.slice(start, end);
+    if (line.endsWith('\r')) line = line.slice(0, -1);
+    if (line.trim().length > 0) return line;
+    start = end + 1;
+  }
+  return '';
 }
 
 /** Détecte le délimiteur le plus probable sur la première ligne non vide. */
 export function detectDelimiter(text: string): string {
-  const firstLine = text.split(/\r?\n/).find((l) => l.trim().length > 0) ?? '';
+  const firstLine = firstNonEmptyLine(text);
   const candidates = [';', ',', '\t', '|'];
   let best = ',';
   let bestCount = -1;
@@ -63,9 +81,17 @@ export function parseCsv(text: string, delimiter?: string): CsvTable {
     row.push(field);
     if (row.some((f) => f.trim().length > 0)) rows.push(row);
   }
+  const warnings: string[] = [];
+  if (inQuotes) {
+    warnings.push(tr(
+      'Guillemet non refermé en fin de fichier : la dernière ligne peut être incomplète.',
+      'Unterminated quote at end of file: the last row may be incomplete.',
+      'Comillas sin cerrar al final del archivo: la última fila puede estar incompleta.',
+    ));
+  }
 
   const headers = (rows.shift() ?? []).map((h) => h.trim());
-  return { delimiter: delim, headers, rows };
+  return { delimiter: delim, headers, rows, warnings };
 }
 
 /**
@@ -126,6 +152,8 @@ export function inferDecimalSeparator(prices: string[], amounts: string[], delim
 export function parseLocaleNumber(raw: string, decimalSeparator?: ',' | '.'): number {
   let s = raw.trim();
   if (!s) return NaN;
+  // Notation scientifique (1e5, 2.5E-3) : refusée plutôt que dépouillée en silence de son exposant.
+  if (/\d\s*[eE]\s*[+-]?\d/.test(s)) return NaN;
   let negative = false;
   if (/^\(.*\)$/.test(s)) {
     negative = true;

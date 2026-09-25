@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { DESK_TOOLS, toolBlurb } from '@/engine/agent/tools';
-import { intlTag, tr, useI18n } from '@/i18n';
+import { tr, useI18n } from '@/i18n';
 import { desk, isDesk } from '@/lib/desk';
 import { fmtNum } from '@/lib/format';
+import { dateTimeFormatter } from '@/lib/time';
 import type { AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
@@ -51,9 +52,35 @@ const PRESETS: { id: string; label: string; provider: AgentProvider; baseUrl: st
   { id: 'anthropic', label: 'Anthropic', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514' },
 ];
 
+/** Le flux en cours est affiché en texte brut (Markdown seulement pour le message final) : O(n) par jeton au lieu de O(n²). */
+function StreamBubble({ text }: { text: string }) {
+  const deferred = useDeferredValue(text);
+  return (
+    <div className={cx(s.bubble, s.cursor)} style={{ whiteSpace: 'pre-wrap' }}>
+      {deferred}
+    </div>
+  );
+}
+
+const NEAR_BOTTOM_PX = 40;
+
 export default function Agent() {
   useI18n((s) => s.locale);
-  const { messages, streaming, streamText, pendingTool, error, send, stop, newConversation, probe, orchestrator, startOrchestrator, stopOrchestrator, rotateToken, linkLog } = useAgent();
+  // Sélecteurs champ par champ : chaque jeton reçu ne réaffiche que ce qui dépend de streamText.
+  const messages = useAgent((a) => a.messages);
+  const streaming = useAgent((a) => a.streaming);
+  const streamText = useAgent((a) => a.streamText);
+  const pendingTool = useAgent((a) => a.pendingTool);
+  const error = useAgent((a) => a.error);
+  const send = useAgent((a) => a.send);
+  const stop = useAgent((a) => a.stop);
+  const newConversation = useAgent((a) => a.newConversation);
+  const probe = useAgent((a) => a.probe);
+  const orchestrator = useAgent((a) => a.orchestrator);
+  const startOrchestrator = useAgent((a) => a.startOrchestrator);
+  const stopOrchestrator = useAgent((a) => a.stopOrchestrator);
+  const rotateToken = useAgent((a) => a.rotateToken);
+  const linkLog = useAgent((a) => a.linkLog);
   const agent = useSettings((st) => st.settings.agent);
   const port = useSettings((st) => st.settings.orchestratorPort);
   const allowWrite = useSettings((st) => st.settings.orchestratorAllowWrite);
@@ -65,12 +92,31 @@ export default function Agent() {
   const [probeState, setProbeState] = useState<{ ok: boolean; detail: string; models?: string[] } | null>(null);
   const [probing, setProbing] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
   const sugs = suggestions();
   const systemPromptValue = isDefaultAgentPrompt(agent.systemPrompt) ? defaultAgentPrompt() : agent.systemPrompt;
 
+  // Défilement automatique seulement si l'opérateur était déjà en bas (≈ 40 px) : remonter
+  // pour relire un message n'est plus interrompu par chaque jeton.
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    const el = listRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (el && stickToBottom.current) el.scrollTo({ top: el.scrollHeight });
   }, [messages.length, streamText]);
+
+  // Un nouvel envoi ramène toujours en bas.
+  useEffect(() => {
+    if (streaming) stickToBottom.current = true;
+  }, [streaming]);
 
   const submit = () => {
     const text = draft.trim();
@@ -132,7 +178,7 @@ export default function Agent() {
                       </span>
                     )}
                   </div>
-                  {streamText ? <div className={cx(s.bubble, s.cursor)} dangerouslySetInnerHTML={{ __html: renderMarkdown(streamText) }} /> : <div className={cx(s.bubble, s.cursor)}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
+                  {streamText ? <StreamBubble text={streamText} /> : <div className={cx(s.bubble, s.cursor)}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
                 </div>
               )}
               {error && (
@@ -389,7 +435,7 @@ export default function Agent() {
                 <div className={s.log}>
                   {linkLog.slice(0, 12).map((l) => (
                     <span key={l.id}>
-                      {new Date(l.at).toLocaleTimeString(intlTag())} {l.direction === 'in' ? '←' : '→'} <b>{l.method}</b>{' '}
+                      {dateTimeFormatter({ hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(l.at)} {l.direction === 'in' ? '←' : '→'} <b>{l.method}</b>{' '}
                       <span className={l.ok ? s.ok : s.ko}>{l.ok ? 'ok' : l.detail ?? tr('erreur', 'error', 'error')}</span>
                     </span>
                   ))}
@@ -424,15 +470,20 @@ export default function Agent() {
   );
 }
 
-function Message({ m }: { m: AgentMessage }) {
+function prettyToolContent(content: string): string {
+  try {
+    return JSON.stringify(JSON.parse(content), null, 1);
+  } catch {
+    return content; /* texte brut */
+  }
+}
+
+/** Mémorisé : les messages passés ne sont pas réaffichés (ni re-rendus en Markdown) à chaque jeton du flux. */
+const Message = memo(function Message({ m }: { m: AgentMessage }) {
   useI18n((s) => s.locale);
+  const html = useMemo(() => (m.role === 'assistant' && m.content ? renderMarkdown(m.content) : ''), [m.role, m.content]);
+  const pretty = useMemo(() => (m.role === 'tool' ? prettyToolContent(m.content) : ''), [m.role, m.content]);
   if (m.role === 'tool') {
-    let pretty = m.content;
-    try {
-      pretty = JSON.stringify(JSON.parse(m.content), null, 1);
-    } catch {
-      /* texte brut */
-    }
     return (
       <div className={cx(s.msg, s.assistant)}>
         <div className={s.msgHead}>
@@ -455,7 +506,7 @@ function Message({ m }: { m: AgentMessage }) {
             </span>
           ))}
         </div>
-        {m.content && <div className={s.bubble} dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />}
+        {html && <div className={s.bubble} dangerouslySetInnerHTML={{ __html: html }} />}
       </div>
     );
   }
@@ -463,10 +514,10 @@ function Message({ m }: { m: AgentMessage }) {
     <div className={cx(s.msg, s.user)}>
       <div className={s.msgHead}>
         <span>
-          {tr('Opérateur', 'Operator', 'Operador')} · {new Date(m.createdAt).toLocaleTimeString(intlTag(), { hour: '2-digit', minute: '2-digit' })}
+          {tr('Opérateur', 'Operator', 'Operador')} · {dateTimeFormatter({ hour: '2-digit', minute: '2-digit' }).format(m.createdAt)}
         </span>
       </div>
       <div className={s.bubble}>{m.content}</div>
     </div>
   );
-}
+});

@@ -1,16 +1,25 @@
-import { useMemo } from 'react';
 import { Modal } from '@/design/Modal';
 import { Button, Stat, Tag, Toggle, cx } from '@/design/primitives';
-import { intlTag, tr, useI18n } from '@/i18n';
+import { tr, useI18n } from '@/i18n';
 import { isDesk } from '@/lib/desk';
-import { useBridge } from '@/store/bridge';
+import { dateTimeFormatter } from '@/lib/time';
+import { isBridgeLive, useBridge } from '@/store/bridge';
 import s from './metrique.module.css';
 
+const TIME_OPTS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+
 export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; onManualImport: () => void }) {
-  const locale = useI18n((s) => s.locale);
-  const { status, log, busy, pickFolder, useDefaultFolder, setEnabled, rescan, openFolder } = useBridge();
-  const live = !!status?.enabled && !!status.folder && !status.error;
-  const fmtTime = useMemo(() => new Intl.DateTimeFormat(intlTag(locale), { hour: '2-digit', minute: '2-digit', second: '2-digit' }), [locale]);
+  useI18n((s) => s.locale);
+  const status = useBridge((b) => b.status);
+  const log = useBridge((b) => b.log);
+  const busy = useBridge((b) => b.busy);
+  const pickFolder = useBridge((b) => b.pickFolder);
+  const useDefaultFolder = useBridge((b) => b.useDefaultFolder);
+  const setEnabled = useBridge((b) => b.setEnabled);
+  const rescan = useBridge((b) => b.rescan);
+  const openFolder = useBridge((b) => b.openFolder);
+  const live = isBridgeLive(status);
+  const fmtTime = dateTimeFormatter(TIME_OPTS);
 
   return (
     <Modal

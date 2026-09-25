@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, session, shell } from 'electron';
-import { existsSync, mkdirSync, promises as fs, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, promises as fs, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
@@ -11,9 +11,37 @@ import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, ty
 import { defaultNinjaExportFolder } from './bridge-folder';
 import { hardwareAccelerationEnabled, hasDrmRenderNode } from './gpu-fallback';
 import { parseLocale, readLocaleFile, uiText, writeLocaleFile, type AppLocale } from './locale';
+import { FolderGrants, isSafeBackupName } from './folder-grants';
+import { planUserData } from './user-data';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 const LAUNCHER_MODE = process.argv.includes('--launcher');
+/** Taille maximale d'un texte échangé par IPC fichier (import CSV, coffre). */
+const MAX_TEXT = 50 * 1024 * 1024;
+const LLM_PROBE_TIMEOUT_MS = 15_000;
+
+app.setName('CΛNTO');
+// Le dossier de données est fixé avant tout `getPath('userData')` : sous Linux, Chromium vidait le
+// nom « CΛNTO » et le coffre atterrissait à la racine de ~/.config (migré ici, une fois).
+{
+  const plan = planUserData({ platform: process.platform, appData: app.getPath('appData'), exists: (p) => existsSync(p) });
+  if (plan.moves.length) {
+    try {
+      mkdirSync(plan.dir, { recursive: true });
+      for (const m of plan.moves) {
+        try {
+          renameSync(m.from, m.to);
+        } catch (err) {
+          console.error('[CΛNTO] migration userData impossible pour', m.from, err);
+        }
+      }
+    } catch (err) {
+      console.error('[CΛNTO] migration userData impossible', err);
+    }
+  }
+  app.setPath('userData', plan.dir);
+  app.setPath('sessionData', plan.dir);
+}
 
 const gpuDir = app.getPath('userData');
 const gpuAttemptPath = path.join(gpuDir, 'gpu-attempt');
@@ -78,6 +106,8 @@ let launcherWin: BrowserWindow | null = null;
 const orchestrator = new Orchestrator();
 let bridge: NinjaBridge | null = null;
 let updateBusy = false;
+/** Dossiers accordés par un dialogue système : seuls ceux-là sont accessibles en écriture / surveillance. */
+const grants = new FolderGrants(gpuDir);
 
 const isString = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
 
@@ -261,10 +291,6 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   win.on('closed', () => {
     win = null;
   });
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    openExternalSafe(url);
-    return { action: 'deny' };
-  });
   const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
   const indexUrl = pathToFileURL(indexFile).href;
   win.webContents.on('will-navigate', (event, url) => {
@@ -293,7 +319,6 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   bridge.attach(win);
 }
 
-app.setName('CΛNTO');
 const chromiumLang: Record<AppLocale, string> = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' };
 app.commandLine.appendSwitch('lang', chromiumLang[readLocaleFile(app.getPath('userData'))]);
 app.on('child-process-gone', (_event, details) => {
@@ -302,8 +327,31 @@ app.on('child-process-gone', (_event, details) => {
   fallBackToSoftware(details.reason);
 });
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+/**
+ * Durcissement commun à toutes les vues (desk, lanceur, et toute vue future) :
+ * aucune fenêtre enfant (les liens https partent vers le navigateur), aucun <webview>,
+ * aucune navigation hors du document chargé.
+ */
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    openExternalSafe(url);
+    return { action: 'deny' };
+  });
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+  contents.on('will-navigate', (event, url) => {
+    const own = BrowserWindow.fromWebContents(contents);
+    if (own && win && own === win) return; // le desk a sa propre règle (DEV_URL / index.html)
+    const current = contents.getURL();
+    // Le lanceur ne navigue jamais : seul un rechargement du même document est toléré.
+    if (!current || url.split('#')[0] !== current.split('#')[0]) event.preventDefault();
+  });
+});
 app.whenReady().then(() => {
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  // Aucune permission navigateur (caméra, notifications, géoloc…) ; seule l'écriture presse-papiers
+  // assainie reste possible (bouton « Copier le jeton », « Copier le journal »).
+  const PERMISSIONS_ALLOWED = new Set(['clipboard-sanitized-write']);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(PERMISSIONS_ALLOWED.has(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => PERMISSIONS_ALLOWED.has(permission));
   screen.on('display-metrics-changed', () => {
     if (!win || win.isDestroyed()) return;
     applyZoom(win);
@@ -470,17 +518,22 @@ ipcMain.handle('files:open-text', async (e, filters: unknown) => {
   const text = await fs.readFile(filePath, 'utf8');
   return { name: path.basename(filePath), text };
 });
-const MAX_TEXT = 50 * 1024 * 1024;
 
 ipcMain.handle('files:pick-folder', async (e) => {
   if (!trusted(e) || !win) return null;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: ui('Dossier de sauvegarde du coffre', 'Vault backup folder', 'Carpeta de copia de la caja') });
-  return canceled || filePaths.length === 0 ? null : filePaths[0];
+  const picked = canceled || filePaths.length === 0 ? null : filePaths[0];
+  return picked ? grants.grant(picked) : null;
 });
 
+/**
+ * Écriture bornée : uniquement dans un dossier accordé par `files:pick-folder` (persisté dans
+ * userData) et sous un nom `canto-vault-….json`. Un renderer compromis ne peut donc pas écrire
+ * un fichier arbitraire (profil shell, dossier de démarrage…).
+ */
 ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown, text: unknown, encrypt: unknown) => {
-  if (!trusted(e) || !isString(folder, 1024) || !isString(name, 255) || !isString(text, MAX_TEXT)) return { ok: false, encrypted: false };
-  if (path.basename(name) !== name || name.includes('..') || !path.isAbsolute(folder)) return { ok: false, encrypted: false };
+  if (!trusted(e) || !isString(folder, 1024) || !isSafeBackupName(name) || !isString(text, MAX_TEXT)) return { ok: false, encrypted: false, reason: 'invalid' };
+  if (!grants.has(folder)) return { ok: false, encrypted: false, reason: 'not_granted' };
   let body = text;
   let encrypted = false;
   if (encrypt === true) {
@@ -491,7 +544,10 @@ ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown
   }
   await fs.mkdir(folder, { recursive: true });
   const dest = path.join(folder, name);
-  await fs.writeFile(dest, body, 'utf8');
+  // Écriture atomique : le fichier précédent reste intact si l'écriture échoue à mi-chemin.
+  const tmp = `${dest}.tmp`;
+  await fs.writeFile(tmp, body, 'utf8');
+  await fs.rename(tmp, dest);
   return { ok: true, encrypted, path: dest };
 });
 
@@ -569,22 +625,25 @@ ipcMain.handle('llm:probe', async (e, config: unknown) => {
   const c = config as { provider?: unknown; baseUrl?: unknown; apiKeyEncrypted?: unknown; allowedHosts?: unknown };
   if (!isString(c.baseUrl, 2048) || !llmHostOk(c.baseUrl, c.allowedHosts)) return { ok: false, detail: ui('Hôte LLM non autorisé.', 'LLM host not allowed.', 'Host LLM no autorizado.') };
   const key = decryptLlmKey(c.apiKeyEncrypted);
+  // Un fournisseur muet ne doit pas laisser le bouton « Tester » tourner indéfiniment.
+  const signal = AbortSignal.timeout(LLM_PROBE_TIMEOUT_MS);
   try {
     if (c.provider === 'anthropic') {
       if (!key) return { ok: false, detail: ui('Clé API requise.', 'API key required.', 'Clave API requerida.') };
-      const res = await fetch(joinLlmUrl(c.baseUrl, 'v1/models'), { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
+      const res = await fetch(joinLlmUrl(c.baseUrl, 'v1/models'), { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal });
       if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
       const j = (await res.json()) as { data?: { id: string }[] };
       return { ok: true, detail: ui(`${j.data?.length ?? 0} modèle(s) disponibles`, `${j.data?.length ?? 0} model(s) available`, `${j.data?.length ?? 0} modelo(s) disponibles`), models: j.data?.map((m) => m.id) };
     }
     const headers: Record<string, string> = {};
     if (key) headers.Authorization = `Bearer ${key}`;
-    const res = await fetch(joinLlmUrl(c.baseUrl, 'models'), { headers });
+    const res = await fetch(joinLlmUrl(c.baseUrl, 'models'), { headers, signal });
     if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
     const j = (await res.json()) as { data?: { id: string }[] };
     const models = j.data?.map((m) => m.id) ?? [];
     return { ok: true, detail: ui(`${models.length} modèle(s) disponibles`, `${models.length} model(s) available`, `${models.length} modelo(s) disponibles`), models };
   } catch (err) {
+    if (signal.aborted) return { ok: false, detail: ui('Fournisseur muet (délai dépassé).', 'Provider did not answer (timeout).', 'Proveedor sin respuesta (tiempo agotado).') };
     return { ok: false, detail: err instanceof Error ? err.message : String(err) };
   }
 });
@@ -776,21 +835,25 @@ ipcMain.handle('bridge:status', (e) => (trusted(e) ? bridge?.status() ?? null : 
 ipcMain.handle('bridge:configure', (e, cfg: unknown) => {
   if (!trusted(e) || !bridge || !cfg || typeof cfg !== 'object') return bridge?.status() ?? null;
   const c = cfg as { folder?: unknown; enabled?: unknown };
+  // Le dossier surveillé ne peut venir que d'un dialogue (`bridge:pick-folder`) ou du dossier
+  // par défaut : le renderer ne pointe pas le lecteur de CSV vers un chemin de son choix.
+  const folder = c.folder === null ? null : isString(c.folder, 1024) && grants.has(c.folder) ? c.folder : undefined;
   return bridge.configure({
-    folder: c.folder === null ? null : isString(c.folder, 1024) ? c.folder : undefined,
+    folder,
     enabled: typeof c.enabled === 'boolean' ? c.enabled : undefined,
   });
 });
 ipcMain.handle('bridge:pick-folder', async (e) => {
   if (!trusted(e) || !win) return null;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: ui('Dossier surveillé par le pont NinjaTrader', 'Folder watched by the NinjaTrader bridge', 'Carpeta vigilada por el puente NinjaTrader') });
-  return canceled || filePaths.length === 0 ? null : filePaths[0];
+  const picked = canceled || filePaths.length === 0 ? null : filePaths[0];
+  return picked ? grants.grant(picked) : null;
 });
 ipcMain.handle('bridge:default-folder', async (e) => {
   if (!trusted(e)) return null;
   const folder = defaultNinjaExportFolder(app.getPath('documents'));
   await fs.mkdir(folder, { recursive: true });
-  return folder;
+  return grants.grant(folder);
 });
 ipcMain.handle('bridge:rescan', (e) => (trusted(e) && bridge ? bridge.rescan() : bridge?.status() ?? null));
 ipcMain.on('bridge:result', (e, fileId: unknown, result: unknown) => {

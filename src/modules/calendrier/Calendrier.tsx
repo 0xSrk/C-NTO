@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Modal } from '@/design/Modal';
@@ -312,6 +312,17 @@ function catStyle(c: EventCategory): CSSProperties {
   return { '--cat': CAT_COLOR[c] } as CSSProperties;
 }
 
+/** Entrée / Espace déclenchent l'action d'un élément non-bouton rendu focalisable (cellule, ligne de flux). */
+function onActivate(run: () => void) {
+  return (e: KeyboardEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      run();
+    }
+  };
+}
+
 export default function Calendrier() {
   useI18n((s) => s.locale);
   const today = dateKeyLocal(new Date());
@@ -518,7 +529,16 @@ export default function Calendrier() {
                     const holiday = evs.some((e) => e.category === 'horaire' && e.title.includes('CME fermé'));
                     const hasNote = (entriesByDate.get(d) ?? []).length > 0;
                     return (
-                      <div key={d} className={cx(s.day, (wd === 0 || wd === 6) && s.weekend, !d.startsWith(cursor) && s.outside, d === today && s.today, d === selected && s.selected, holiday && s.holiday)} onClick={() => setSelected(d)}>
+                      <div
+                        key={d}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={d === selected}
+                        aria-label={formatDateFr(d, { weekday: true })}
+                        className={cx(s.day, (wd === 0 || wd === 6) && s.weekend, !d.startsWith(cursor) && s.outside, d === today && s.today, d === selected && s.selected, holiday && s.holiday)}
+                        onClick={() => setSelected(d)}
+                        onKeyDown={onActivate(() => setSelected(d))}
+                      >
                         <div className={s.dayHead}>
                           <span className={s.dayNum}>{Number(d.slice(-2))}</span>
                           {sess && <span className={cx(s.dayPnl, signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>}
@@ -549,7 +569,7 @@ export default function Calendrier() {
                   const perso = entriesByDate.get(d) ?? [];
                   return (
                     <div key={d} className={cx(s.fluxDay, d === selected && s.selected)}>
-                      <div className={cx(s.fluxDayHead, d === today && s.today)} onClick={() => setSelected(d)}>
+                      <div className={cx(s.fluxDayHead, d === today && s.today)} role="button" tabIndex={0} aria-pressed={d === selected} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                         <b>{formatDateFr(d, { weekday: true, short: true })}</b>
                         {sess ? <span className={signClass(sess.pnl)}>{fmtUsd(sess.pnl, { sign: true })} · {plural(sess.tradeCount, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}</span> : <span>{evs.length ? plural(evs.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos')) : tr('calme', 'quiet', 'calma')}</span>}
                       </div>
@@ -558,7 +578,7 @@ export default function Calendrier() {
                         {[...evs]
                           .sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'))
                           .map((e) => (
-                            <div key={e.id} className={cx(s.fluxEv, e.actual && s.evPublished)} style={catStyle(e.category)} onClick={() => setSelected(d)}>
+                            <div key={e.id} className={cx(s.fluxEv, e.actual && s.evPublished)} style={catStyle(e.category)} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                               <div className={s.fluxTime}>
                                 {e.timeET ? localTime(d, e.timeET) : tr('journée', 'all day', 'jornada')}
                                 {e.timeET && <small>{e.timeET} ET</small>}
@@ -572,7 +592,7 @@ export default function Calendrier() {
                             </div>
                           ))}
                         {perso.map((p) => (
-                          <div key={p.id} className={s.fluxEv} style={catStyle('perso')} onClick={() => setSelected(d)}>
+                          <div key={p.id} className={s.fluxEv} style={catStyle('perso')} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                             <div className={s.fluxTime}>{p.time ?? (p.kind === 'note' ? tr('note', 'note', 'nota') : tr('journée', 'all day', 'jornada'))}</div>
                             <div className={s.fluxTitle}>{p.kind === 'note' ? p.body?.slice(0, 90) : p.title}</div>
                             <Tag>{tr('personnel', 'personal', 'personal')}</Tag>
