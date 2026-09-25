@@ -122,7 +122,7 @@ The installers above do not require Node.js. Building from source does.
 
 **Requirement**: [Node.js](https://nodejs.org) **22.12 or newer** (LTS) and npm. Electron 43 refuses Node 20: `npm install` stops with `engine` / `required: { node: '>=22.12.0' }`.
 
-**Node too old**: install Node 22.12+, or download a prebuilt installer from the [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (DMG, Windows setup, AppImage, deb, and `SHA256SUMS.txt`). A Release is published for every `v*` tag.
+**Node too old**: install Node 22.12+, or download a prebuilt installer from the [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (DMG, Windows setup, AppImage, deb, and `SHA256SUMS.txt`). A Release is published for every `v*` tag, or from *Actions › release › Run workflow*, which tags `v<package.json version>` on the built commit and refuses to overwrite an existing release.
 
 ```bash
 git clone https://github.com/0xSrk/C-NTO.git

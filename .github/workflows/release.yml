@@ -1,12 +1,50 @@
 name: release
+# Deux déclencheurs, même résultat :
+# - pousser un tag `v*` ;
+# - « Run workflow » dans l'onglet Actions (ou l'API) : le tag `v<version de package.json>`
+#   est créé sur le commit construit, au moment de publier la release.
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag de la release
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            tag="${GITHUB_REF_NAME}"
+            if [ "$tag" != "$version" ]; then
+              echo "::error::Le tag $tag ne correspond pas à package.json ($version) : les installeurs porteraient un autre numéro."
+              exit 1
+            fi
+          else
+            tag="$version"
+            if gh release view "$tag" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+              echo "::error::La release $tag existe déjà. Montez la version dans package.json avant de relancer."
+              exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+              echo "::error::Le tag $tag existe déjà sur un autre commit : supprimez-le ou montez la version."
+              exit 1
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Release : $tag sur ${GITHUB_SHA}"
+
   build:
+    needs: prepare
     name: ${{ matrix.artifact }}
     strategy:
       fail-fast: false
@@ -44,7 +82,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -59,8 +97,11 @@ jobs:
       - name: Publier la Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit.
         run: |
-          gh release create "${GITHUB_REF_NAME}" publish/* \
+          gh release create "$TAG" publish/* \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "CΛNTO ${GITHUB_REF_NAME}" \
+            --target "${GITHUB_SHA}" \
+            --title "CΛNTO $TAG" \
             --notes "Installeurs natifs macOS (DMG universel), Windows (NSIS et portable) et Linux (AppImage et deb). Le fichier SHA256SUMS.txt couvre chaque binaire. L’installeur n’exige pas Node.js. NinjaTrader 8 se compile sur Windows ; le pont fichier est dans chaque paquet (resources/ninjatrader)."
