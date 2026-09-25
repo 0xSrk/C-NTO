@@ -17,7 +17,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — quantitative journal, NinjaTrader 8 br
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-124%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-181%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=c41e3a&label=version)](package.json)
 [![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
@@ -483,7 +483,7 @@ src/engine/       metrics, Monte Carlo, NT import, prop firm,
                   indicators, Nasdaq calendar, agent tools, LLM / update policy
 src/store/        Dexie (IndexedDB) + Zustand
 src/modules/      one folder per tab (01…07)
-tests/            Vitest — 124 tests (engine, import, vault, agent, updater)
+tests/            Vitest — 181 tests (engine, import, vault, agent, updater, shell)
 vectors/          shared JSON vectors (metrics / prop firm)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
@@ -505,7 +505,7 @@ npm install
 npm run launch         # user path (launcher + desk)
 npm run desk:dev       # Electron + Vite, no launcher
 npm run typecheck      # tsc app + electron
-npm test               # Vitest (124)
+npm test               # Vitest (181)
 npm run build          # production bundle
 npm run check          # typecheck + test + build
 npm run dist:mac       # universal DMG + zip (macOS)

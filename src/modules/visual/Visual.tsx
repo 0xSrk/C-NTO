@@ -3,7 +3,8 @@ import { IconImport, IconPlus, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Modal } from '@/design/Modal';
 import { Button, Empty, Field, Progress, Tag, Toggle, cx } from '@/design/primitives';
-import { INDICATORS, indicatorById, type IndicatorLine } from '@/engine/indicators';
+import { INDICATORS, indicatorById, type IndicatorInstance, type IndicatorLine, type IndicatorParam } from '@/engine/indicators';
+import type { Bar } from '@/engine/bars';
 import type { Instrument } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { openTextFile } from '@/lib/desk';
@@ -80,14 +81,93 @@ function trParamLabel(label: string): string {
   }
 }
 
+/** Saisie numérique de paramètre : l'état local absorbe les frappes, le store n'est mis à jour qu'au blur / Entrée. */
+function NumberParam({ p, value, onCommit }: { p: IndicatorParam; value: number; onCommit: (v: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+  const commit = () => {
+    const n = Number(draft) || Number(p.default);
+    setDraft(String(n));
+    if (n !== value) onCommit(n);
+  };
+  return (
+    <input
+      type="number"
+      min={p.min}
+      max={p.max}
+      step={p.step}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commit();
+        }
+      }}
+    />
+  );
+}
+
+interface IndicatorCacheEntry {
+  bars: Bar[];
+  paramsKey: string;
+  lines: IndicatorLine[];
+}
+
+/**
+ * Lignes d'indicateur mémorisées par instance (id + barres + paramètres) : modifier un
+ * indicateur ne recalcule pas les autres, et les lignes inchangées gardent leur référence
+ * (le graphique saute alors le setData, voir Chart.tsx).
+ */
+function useIndicatorLines(bars: Bar[] | null, indicators: IndicatorInstance[]): IndicatorLine[] {
+  const cache = useRef<Map<string, IndicatorCacheEntry>>(new Map());
+  return useMemo(() => {
+    if (!bars) return [];
+    const out: IndicatorLine[] = [];
+    const seen = new Set<string>();
+    for (const inst of indicators) {
+      if (!inst.visible) continue;
+      const def = indicatorById(inst.definitionId);
+      if (!def) continue;
+      seen.add(inst.id);
+      const paramsKey = `${inst.definitionId}|${JSON.stringify(inst.params)}`;
+      let entry = cache.current.get(inst.id);
+      if (!entry || entry.bars !== bars || entry.paramsKey !== paramsKey) {
+        const res = def.compute(bars, inst.params);
+        entry = { bars, paramsKey, lines: res.lines.map((l) => ({ ...l, key: `${inst.id}:${l.key}` })) };
+        cache.current.set(inst.id, entry);
+      }
+      out.push(...entry.lines);
+    }
+    for (const id of cache.current.keys()) if (!seen.has(id)) cache.current.delete(id);
+    return out;
+  }, [bars, indicators]);
+}
+
 export default function Visual() {
   useI18n((s) => s.locale);
-  const { ready, series, activeId, indicators, load, setActive, regenerateDemo, importCsv, remove, addIndicator, updateIndicator, toggleIndicator, removeIndicator } = useBars();
+  const ready = useBars((b) => b.ready);
+  const series = useBars((b) => b.series);
+  const activeId = useBars((b) => b.activeId);
+  const indicators = useBars((b) => b.indicators);
+  const load = useBars((b) => b.load);
+  const setActive = useBars((b) => b.setActive);
+  const regenerateDemo = useBars((b) => b.regenerateDemo);
+  const importCsv = useBars((b) => b.importCsv);
+  const remove = useBars((b) => b.remove);
+  const addIndicator = useBars((b) => b.addIndicator);
+  const updateIndicator = useBars((b) => b.updateIndicator);
+  const toggleIndicator = useBars((b) => b.toggleIndicator);
+  const removeIndicator = useBars((b) => b.removeIndicator);
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
   const focusSessionId = useUi((u) => u.focusSessionId);
   const focusSession = useUi((u) => u.focusSession);
   const toast = useUi((u) => u.toast);
+  const confirmDialog = useUi((u) => u.confirm);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [catalog, setCatalog] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -126,22 +206,27 @@ export default function Visual() {
     );
   }, [session, active, regenerateDemo, toast]);
 
-  const lines: IndicatorLine[] = useMemo(() => {
-    if (!active) return [];
-    const out: IndicatorLine[] = [];
-    for (const inst of indicators) {
-      if (!inst.visible) continue;
-      const def = indicatorById(inst.definitionId);
-      if (!def) continue;
-      const res = def.compute(active.bars, inst.params);
-      for (const l of res.lines) out.push({ ...l, key: `${inst.id}:${l.key}` });
-    }
-    return out;
-  }, [active, indicators]);
+  const lines = useIndicatorLines(active?.bars ?? null, indicators);
 
   const onHover = useCallback((info: HoverInfo | null) => setHover(info), []);
   const lastBar = active?.bars[active.bars.length - 1];
   const shownBar = hover?.bar ?? lastBar ?? null;
+  const barDateKey = (time: number) => dateKeyLocal(new Date(time * 1000));
+
+  const removeActive = async () => {
+    if (!active) return;
+    const ok = await confirmDialog(
+      tr(`Supprimer la série « ${seriesLabel(active.label)} » ?`, `Delete the series “${seriesLabel(active.label)}”?`, `¿Eliminar la serie « ${seriesLabel(active.label)} »?`),
+      tr(
+        `${fmtInt(active.bars.length)} barres importées seront retirées du coffre. Cette action est irréversible.`,
+        `${fmtInt(active.bars.length)} imported bars will be removed from the vault. This action cannot be undone.`,
+        `${fmtInt(active.bars.length)} barras importadas se quitarán de la caja. Esta acción es irreversible.`,
+      ),
+    );
+    if (!ok) return;
+    await remove(active.id);
+    toast(tr('Série supprimée.', 'Series deleted.', 'Serie eliminada.'), 'warn');
+  };
 
   return (
     <>
@@ -163,7 +248,7 @@ export default function Visual() {
               {tr('Démo', 'Demo', 'Demo')}
             </Button>
             {active && active.source !== 'demo' && (
-              <Button variant="ghost" onClick={() => remove(active.id)} aria-label={tr('Supprimer la série', 'Delete series', 'Eliminar la serie')} title={tr('Supprimer la série', 'Delete series', 'Eliminar la serie')}>
+              <Button variant="ghost" onClick={() => void removeActive()} aria-label={tr('Supprimer la série', 'Delete series', 'Eliminar la serie')} title={tr('Supprimer la série', 'Delete series', 'Eliminar la serie')}>
                 <IconTrash size={13} />
               </Button>
             )}
@@ -193,7 +278,7 @@ export default function Visual() {
                     <b>{active.instrument} · {active.timeframe}m</b>
                     {shownBar && (
                       <>
-                        <span>{formatDateFr(new Date(shownBar.time * 1000).toISOString().slice(0, 10), { short: true })} {formatTimeLocal(shownBar.time * 1000)}</span>
+                        <span>{formatDateFr(barDateKey(shownBar.time), { short: true })} {formatTimeLocal(shownBar.time * 1000)}</span>
                         <span>
                           O <b className={signClass(shownBar.close - shownBar.open)}>{fmtPrice(shownBar.open)}</b> H <b>{fmtPrice(shownBar.high)}</b> L <b>{fmtPrice(shownBar.low)}</b> C <b className={signClass(shownBar.close - shownBar.open)}>{fmtPrice(shownBar.close)}</b>
                         </span>
@@ -264,7 +349,7 @@ export default function Visual() {
                           <label key={p.key}>
                             {trParamLabel(p.label)}
                             {p.type === 'number' ? (
-                              <input type="number" min={p.min} max={p.max} step={p.step} value={Number(inst.params[p.key])} onChange={(e) => updateIndicator(inst.id, { [p.key]: Number(e.target.value) || p.default })} />
+                              <NumberParam p={p} value={Number(inst.params[p.key])} onCommit={(v) => updateIndicator(inst.id, { [p.key]: v })} />
                             ) : (
                               <select value={String(inst.params[p.key])} onChange={(e) => updateIndicator(inst.id, { [p.key]: e.target.value })}>
                                 {p.options?.map((o) => (
@@ -344,7 +429,7 @@ export default function Visual() {
               <div className={s.desc}>
                 {active ? (
                   <>
-                    {seriesLabel(active.label)} — {fmtInt(active.bars.length)} {tr('barres', 'bars', 'barras')}, {tr('du', 'from', 'del')} {active.bars[0] ? formatDateFr(new Date(active.bars[0].time * 1000).toISOString().slice(0, 10), { short: true }) : '—'} {tr('au', 'to', 'al')} {lastBar ? formatDateFr(new Date(lastBar.time * 1000).toISOString().slice(0, 10), { short: true }) : '—'}.
+                    {seriesLabel(active.label)} — {fmtInt(active.bars.length)} {tr('barres', 'bars', 'barras')}, {tr('du', 'from', 'del')} {active.bars[0] ? formatDateFr(barDateKey(active.bars[0].time), { short: true }) : '—'} {tr('au', 'to', 'al')} {lastBar ? formatDateFr(barDateKey(lastBar.time), { short: true }) : '—'}.
                   </>
                 ) : (
                   tr('Aucune série.', 'No series.', 'Ninguna serie.')
@@ -382,6 +467,8 @@ function ImportBarsModal({ onClose, onImport }: { onClose: () => void; onImport:
   const toast = useUi((u) => u.toast);
 
   const cancel = () => abortRef.current?.abort();
+  // Fermeture pendant un import : le worker est interrompu, plus aucun setState après démontage.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const pick = async () => {
     const f = await openTextFile('.csv,.txt');
@@ -412,6 +499,7 @@ function ImportBarsModal({ onClose, onImport }: { onClose: () => void; onImport:
       title={tr('Importer des barres OHLCV', 'Import OHLCV bars', 'Importar barras OHLCV')}
       sub={tr('NinjaTrader · Historical Data · Export', 'NinjaTrader · Historical Data · Export', 'NinjaTrader · Historical Data · Export')}
       onClose={onClose}
+      dismissable={!busy}
       width={480}
       footer={
         <>

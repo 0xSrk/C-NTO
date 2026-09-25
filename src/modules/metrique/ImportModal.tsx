@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { Modal } from '@/design/Modal';
 import { Button, Field, Progress, cx } from '@/design/primitives';
 import { FORMAT_LABEL } from '@/engine/import';
@@ -32,6 +32,8 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
   const cancel = () => {
     abortRef.current?.abort();
   };
+  // Fermeture pendant un import : le worker est interrompu, plus aucun setState après démontage.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const run = async (text: string, name: string) => {
     const ac = new AbortController();
@@ -92,6 +94,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
       title={tr('Importer un CSV NinjaTrader', 'Import a NinjaTrader CSV', 'Importar un CSV NinjaTrader')}
       sub={tr('Trade Performance › Trades · Executions · CΛNTO CSV', 'Trade Performance › Trades · Executions · CΛNTO CSV', 'Trade Performance › Trades · Executions · CΛNTO CSV')}
       onClose={onClose}
+      dismissable={!busy}
       width={620}
       footer={
         <>

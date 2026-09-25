@@ -3,7 +3,7 @@ import { detectDecimalSeparator, inferDecimalSeparator, parseCsv, parseLocaleNum
 import { detectDayFirst, parseFlexibleDateTime } from '@/lib/time';
 import { INSTRUMENTS, type Instrument, type SessionSource, type Trade } from '../types';
 import { executionIdentityKey, executionTimeIso } from './identity';
-import { detectInstrument, groupIntoSessions, type ImportOptions, type ImportResult } from './ninjatrader';
+import { detectInstrument, groupIntoSessions, MONEY_MAX, PRICE_MAX, QTY_MAX, type ImportOptions, type ImportResult } from './ninjatrader';
 
 /**
  * Exécution brute telle qu'exportée par NinjaTrader 8 (onglet Executions › Export) ou écrite en
@@ -107,6 +107,7 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
   const dayFirst = detectDayFirst(table.rows.slice(0, 50).map((r) => (iTime !== undefined ? (r[iTime] ?? '') : ''))) ?? table.delimiter === ';';
   const executions: Execution[] = [];
   let skipped = 0;
+  let outOfBounds = 0;
   const expectedCols = table.headers.length;
   table.rows.forEach((row) => {
     if (expectedCols > 0 && row.length !== expectedCols) {
@@ -124,12 +125,23 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
     const quantity = Math.abs(parseLocaleNumber(get('quantity'), dec));
     const price = parseLocaleNumber(get('price'), dec);
     const time = parseFlexibleDateTime(get('time'), dayFirst);
-    if (!instrument || !action || !quantity || !Number.isFinite(price) || !Number.isFinite(time)) {
+    if (!instrument || !action || !quantity || Number.isNaN(quantity) || Number.isNaN(price) || !Number.isFinite(time)) {
       skipped++;
+      return;
+    }
+    // Bornes : quantité entière 1..10 000, prix 0..1 000 000 — sinon PnL/identités absurdes (Infinity, 1e300).
+    if (!Number.isFinite(quantity) || !Number.isFinite(price) || !Number.isInteger(quantity) || quantity > QTY_MAX || price < 0 || price > PRICE_MAX) {
+      skipped++;
+      outOfBounds++;
       return;
     }
     const commissionRaw = get('commission');
     const commission = commissionRaw ? Math.abs(parseLocaleNumber(commissionRaw, dec)) || 0 : 0;
+    if (!Number.isFinite(commission) || commission > MONEY_MAX) {
+      skipped++;
+      outOfBounds++;
+      return;
+    }
     const account = get('account') || 'Compte';
     const executionId = get('id');
     executions.push({
@@ -155,8 +167,9 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
       }),
     });
   });
-  const warnings: string[] = [];
+  const warnings: string[] = [...table.warnings];
   if (skipped) warnings.push(tr(`${skipped} exécution(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`, `${skipped} execution(s) skipped (instrument other than NQ/MNQ or invalid fields).`, `${skipped} ejecución(es) ignorada(s) (instrumento distinto de NQ/MNQ o campos inválidos).`));
+  if (outOfBounds) warnings.push(tr(`${outOfBounds} exécution(s) rejetée(s) : quantité, prix ou commission hors bornes (qty entière 1–${QTY_MAX}, prix 0–${PRICE_MAX}).`, `${outOfBounds} execution(s) rejected: quantity, price or commission out of bounds (integer qty 1–${QTY_MAX}, price 0–${PRICE_MAX}).`, `${outOfBounds} ejecución(es) rechazada(s): cantidad, precio o comisión fuera de límites (qty entera 1–${QTY_MAX}, precio 0–${PRICE_MAX}).`));
   return { executions, skipped, warnings };
 }
 
@@ -208,6 +221,12 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
       const matched = Math.min(lot.quantity, remaining);
       const gross = (e.price - lot.price) * matched * spec.pointValue * (lot.direction === 'long' ? 1 : -1);
       const commission = Math.round(matched * (lot.commissionPerContract + cpc) * 100) / 100;
+      const pnl = Math.round((gross - commission) * 100) / 100;
+      lot.quantity -= matched;
+      remaining -= matched;
+      if (lot.quantity <= 0) lots.shift();
+      // Entrées bornées à l'analyse : un PnL non fini ici serait une corruption, jamais un trade.
+      if (!Number.isFinite(pnl)) continue;
       let id = stableId([e.account, e.instrumentName, lot.executionId, e.executionId, matched]);
       while (seenIds.has(id)) id = `${id}_`;
       seenIds.add(id);
@@ -222,7 +241,7 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
         exitTime: e.time,
         entryPrice: lot.price,
         exitPrice: e.price,
-        pnl: Math.round((gross - commission) * 100) / 100,
+        pnl,
         commission,
         entryName: lot.name,
         exitName: e.name,
@@ -230,9 +249,6 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
         orderIds: uniqIds([lot.orderId, e.orderId]),
       });
       tradeExecutionKeys.push([lot.identityKey, e.identityKey]);
-      lot.quantity -= matched;
-      remaining -= matched;
-      if (lot.quantity <= 0) lots.shift();
     }
     if (remaining > 0) {
       lots.push({

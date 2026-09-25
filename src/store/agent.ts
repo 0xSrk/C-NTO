@@ -130,6 +130,8 @@ export const useAgent = create<AgentState>((set, get) => ({
   },
 
   async send(text) {
+    // Non réentrant : un seul flux à la fois (abortController global, état de stream partagé).
+    if (get().streaming) return;
     const { settings } = useSettings.getState();
     const { conversationId } = get();
     const userMsg: AgentMessage = { id: uid('m'), conversationId, role: 'user', content: text, createdAt: Date.now() };
@@ -223,4 +225,16 @@ export const useAgent = create<AgentState>((set, get) => ({
     set({ orchestrator: await desk.orchestrator.rotateToken() });
   },
 }));
+
+// L'allowlist d'écriture de l'orchestrateur vit côté main : basculer le réglage pendant qu'il tourne
+// re-pousse `start(port, allowWrite)` (le main met son drapeau à jour et renvoie le statut s'il tourne déjà).
+useSettings.subscribe((state, prev) => {
+  if (!desk || state.settings.orchestratorAllowWrite === prev.settings.orchestratorAllowWrite) return;
+  const current = useAgent.getState().orchestrator;
+  if (!current.running) return;
+  void desk.orchestrator
+    .start(current.port || state.settings.orchestratorPort, state.settings.orchestratorAllowWrite)
+    .then((status) => useAgent.setState({ orchestrator: status }))
+    .catch(() => undefined);
+});
 

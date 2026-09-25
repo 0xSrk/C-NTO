@@ -86,8 +86,9 @@ export const useCopier = create<CopierState>((set, get) => ({
     const cur = get().accounts.find((a) => a.id === id);
     if (!cur) return;
     const next = { ...cur, ...patch };
-    await db.copierAccounts.put(next);
+    // Optimiste : le store reflète la frappe immédiatement (les champs contrôlés ne perdent pas de caractères).
     set({ accounts: get().accounts.map((a) => (a.id === id ? next : a)) });
+    await db.copierAccounts.put(next);
   },
   async removeAccount(id) {
     await db.copierAccounts.delete(id);

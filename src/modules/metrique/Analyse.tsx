@@ -1,9 +1,8 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { Bars } from '@/design/charts/Bars';
-import { Histogram } from '@/design/charts/Bars';
+import { Bars, Histogram } from '@/design/charts/Bars';
 import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
-import { computeTradeStats, histogram, WEEKDAY_KEYS } from '@/engine/metrics';
+import { histogram, WEEKDAY_KEYS } from '@/engine/metrics';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import type { Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
@@ -21,20 +20,45 @@ interface GroupRow {
   avgDurationMs: number;
 }
 
+interface GroupAcc {
+  count: number;
+  pnl: number;
+  wins: number;
+  grossProfit: number;
+  grossLoss: number;
+  durationMs: number;
+}
+
+/** Agrégat léger O(n) par groupe (six champs) — pas besoin des statistiques complètes ici. */
 function groupBy(trades: Trade[], keyOf: (t: Trade) => string[]): GroupRow[] {
-  const map = new Map<string, Trade[]>();
+  const map = new Map<string, GroupAcc>();
   for (const t of trades) {
+    if (!Number.isFinite(t.pnl)) continue;
     for (const k of keyOf(t)) {
-      const arr = map.get(k);
-      if (arr) arr.push(t);
-      else map.set(k, [t]);
+      let acc = map.get(k);
+      if (!acc) {
+        acc = { count: 0, pnl: 0, wins: 0, grossProfit: 0, grossLoss: 0, durationMs: 0 };
+        map.set(k, acc);
+      }
+      acc.count++;
+      acc.pnl += t.pnl;
+      if (t.pnl > 0) {
+        acc.wins++;
+        acc.grossProfit += t.pnl;
+      } else if (t.pnl < 0) acc.grossLoss += t.pnl;
+      acc.durationMs += Math.max(0, t.exitTime - t.entryTime);
     }
   }
   return [...map.entries()]
-    .map(([key, arr]) => {
-      const st = computeTradeStats(arr);
-      return { key, count: st.count, pnl: st.netPnl, winRate: st.winRate, profitFactor: st.profitFactor, expectancy: st.expectancy, avgDurationMs: st.avgDurationMs };
-    })
+    .map(([key, a]) => ({
+      key,
+      count: a.count,
+      pnl: a.pnl,
+      winRate: a.count ? a.wins / a.count : 0,
+      profitFactor: a.grossLoss !== 0 ? a.grossProfit / Math.abs(a.grossLoss) : a.grossProfit > 0 ? Infinity : 0,
+      expectancy: a.count ? a.pnl / a.count : 0,
+      avgDurationMs: a.count ? a.durationMs / a.count : 0,
+    }))
     .sort((a, b) => b.pnl - a.pnl);
 }
 
@@ -256,7 +280,8 @@ export function Analyse() {
   const byDow = useMemo(() => {
     const acc = new Map<number, { pnl: number; n: number }>();
     for (const x of trades) {
-      const dow = new Date(x.entryTime).getDay();
+      // Même référentiel que la trame horaire : jour de semaine en heure de New York.
+      const dow = zonedWallClock(x.entryTime, ET_ZONE).weekday;
       if (dow === 0 || dow === 6) continue;
       const cur = acc.get(dow) ?? { pnl: 0, n: 0 };
       cur.pnl += x.pnl;

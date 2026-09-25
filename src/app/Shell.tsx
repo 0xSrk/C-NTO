@@ -12,7 +12,7 @@ import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
-import { useBridge } from '@/store/bridge';
+import { isBridgeLive, useBridge } from '@/store/bridge';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
@@ -59,7 +59,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const callsign = useSettings((st) => st.settings.callsign);
   const orchestrator = useAgent((a) => a.orchestrator);
   const bridgeStatus = useBridge((b) => b.status);
-  const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
+  const bridgeLive = isBridgeLive(bridgeStatus);
   const active = TABS.find((t) => t.id === tab);
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
@@ -204,7 +204,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </span>
         <span className={s.statusItem} title={bridgeStatus?.folder ?? undefined}>
           <i className={cx(s.statusDot, bridgeLive && s.gold, bridgeLive && s.live, !!bridgeStatus?.error && s.warn)} />
-          {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')} {bridgeStatus?.error ? tr('en erreur', 'in error', 'en error') : bridgeLive ? `${tr('actif', 'active', 'activo')} · ${plural(bridgeStatus.files, tr('fichier', 'file', 'archivo'), tr('fichiers', 'files', 'archivos'))}` : isDesk ? tr('non configuré', 'not configured', 'no configurado') : tr('import manuel', 'manual import', 'importación manual')}
+          {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')} {bridgeStatus?.error ? tr('en erreur', 'in error', 'en error') : bridgeLive ? `${tr('actif', 'active', 'activo')} · ${plural(bridgeStatus?.files ?? 0, tr('fichier', 'file', 'archivo'), tr('fichiers', 'files', 'archivos'))}` : isDesk ? tr('non configuré', 'not configured', 'no configurado') : tr('import manuel', 'manual import', 'importación manual')}
         </span>
         <div className={s.statusRight}>
           <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>

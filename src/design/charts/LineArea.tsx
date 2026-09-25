@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react';
+import { dateTimeFormatter } from '@/lib/time';
 import s from './charts.module.css';
 import { niceTicks, useMeasure } from './useMeasure';
 
@@ -32,9 +33,10 @@ interface Props {
 }
 
 const DEFAULT_PADDING = { top: 12, right: 14, bottom: 22, left: 56 };
-const fmtDefaultX = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short' });
+const DEFAULT_X_OPTS: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+const fmtDefaultX = (v: number) => dateTimeFormatter(DEFAULT_X_OPTS).format(v);
 
-export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), formatX = (v) => fmtDefaultX.format(v), baseline = 0, yDomain, legend, padding = DEFAULT_PADDING, endValue }: Props & { endValue?: boolean }) {
+export function LineArea({ series, height = 220, formatY = (v) => v.toFixed(0), formatX = fmtDefaultX, baseline = 0, yDomain, legend, padding = DEFAULT_PADDING, endValue }: Props & { endValue?: boolean }) {
   const [ref, { width }] = useMeasure<HTMLDivElement>();
   const [hover, setHover] = useState<{ x: number; idx: number } | null>(null);
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');

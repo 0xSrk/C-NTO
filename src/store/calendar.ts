@@ -13,6 +13,14 @@ interface CalendarState {
   setDayNote: (date: string, body: string) => Promise<void>;
 }
 
+/** Identifiant déterministe de la note libre d'un jour : deux écritures concurrentes (minuterie + blur) tombent sur la même ligne. */
+export function dayNoteId(date: string): string {
+  return `note_${date}`;
+}
+
+/** Les écritures de note du jour sont sérialisées : la dernière valeur gagne, sans doublon ni entrelacement. */
+let dayNoteChain: Promise<void> = Promise.resolve();
+
 export const useCalendar = create<CalendarState>((set, get) => ({
   ready: false,
   entries: [],
@@ -37,18 +45,25 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     await db.calendar.delete(id);
     set({ entries: get().entries.filter((e) => e.id !== id) });
   },
-  async setDayNote(date, body) {
-    const trimmed = body.trim();
-    const existing = get().entries.find((e) => e.date === date && e.kind === 'note');
-    if (!trimmed) {
-      if (existing) await get().remove(existing.id);
-      return;
-    }
-    if (existing) {
-      if (existing.body === trimmed) return;
-      await get().update(existing.id, { body: trimmed, title: 'Note du jour' });
-      return;
-    }
-    await get().add({ date, kind: 'note', title: 'Note du jour', body: trimmed });
+  setDayNote(date, body) {
+    const run = async () => {
+      const trimmed = body.trim();
+      const existing = get().entries.find((e) => e.date === date && e.kind === 'note');
+      if (!trimmed) {
+        if (existing) await get().remove(existing.id);
+        return;
+      }
+      if (existing) {
+        if (existing.body === trimmed) return;
+        await get().update(existing.id, { body: trimmed, title: 'Note du jour' });
+        return;
+      }
+      const now = Date.now();
+      const e: CalendarEntry = { id: dayNoteId(date), date, kind: 'note', title: 'Note du jour', body: trimmed, createdAt: now, updatedAt: now };
+      await db.calendar.put(e); // idempotent sur l'id : jamais deux notes pour le même jour
+      set({ entries: [...get().entries.filter((x) => x.id !== e.id), e] });
+    };
+    dayNoteChain = dayNoteChain.then(run, run);
+    return dayNoteChain;
   },
 }));

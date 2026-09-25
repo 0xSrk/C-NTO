@@ -20,9 +20,13 @@ export function UpdateButton() {
     if (!isDesk || !api) return;
     let cancelled = false;
     const refresh = () => {
-      void api.check().then((r) => {
-        if (!cancelled && r) setStatus(r);
-      });
+      // Hors ligne, le contrôle périodique échoue silencieusement (pas de toast global toutes les 30 min).
+      void api
+        .check()
+        .then((r) => {
+          if (!cancelled && r) setStatus(r);
+        })
+        .catch(() => undefined);
     };
     refresh();
     const t = setInterval(refresh, 30 * 60_000);

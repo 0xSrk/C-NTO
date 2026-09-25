@@ -38,6 +38,11 @@ let unsubscribeFile: (() => void) | null = null;
 
 const IDLE: BridgeStatus = { enabled: false, folder: null, watching: false, files: 0, pending: 0, processed: 0 };
 
+/** Pont réellement actif : activé, dossier choisi, sans erreur. */
+export function isBridgeLive(status: BridgeStatus | null | undefined): boolean {
+  return !!status?.enabled && !!status.folder && !status.error;
+}
+
 export const useBridge = create<BridgeState>((set, get) => ({
   ready: false,
   available: !!desk,

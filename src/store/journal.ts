@@ -8,6 +8,7 @@ import { summarizeTrades } from '@/engine/metrics';
 import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
 import { uid } from '@/lib/id';
 import { db, type ImportedExecution } from './db';
+import { withJournalLock } from './lock';
 import { useUi } from './ui';
 
 interface JournalState {
@@ -58,94 +59,9 @@ export const useJournal = create<JournalState>((set, get) => ({
       result = importCsvAuto(text, importOpts);
     }
     if (result.sessions.length === 0) return { ...result, added: 0, merged: 0, newTrades: 0 };
-    const { sessions: existing, trades: existingTrades } = get();
-    // Fusion : une séance existante (même date + même compte) absorbe les nouveaux trades.
-    // Exécutions : clé account+ID (ou hash de repli). Autres formats : empreinte prix/heures.
-    const byKey = new Map(existing.map((s) => [`${s.date}|${s.account ?? ''}`, s]));
-    const fingerprint = (t: Trade) => `${t.instrument}|${t.direction}|${t.qty}|${t.entryTime}|${t.exitTime}|${t.entryPrice}|${t.exitPrice}`;
-    const knownIds = new Set(existingTrades.map((t) => t.id));
-    const incoming: Trade[] = [];
-    const incomingKeys = new Map<Trade, string[]>();
-    if (result.format === 'ninjatrader-executions') {
-      const knownExec = new Set((await db.importedExecutions.toArray()).map((row) => row.key));
-      const picked = takeNewExecutionTrades(result.trades, result.tradeExecutionKeys ?? [], knownExec);
-      for (let i = 0; i < picked.trades.length; i++) {
-        const t = picked.trades[i]!;
-        incoming.push(t);
-        incomingKeys.set(t, picked.tradeKeys[i] ?? []);
-      }
-    } else {
-      const known = new Set(existingTrades.map(fingerprint));
-      for (const t of result.trades) {
-        if (known.has(fingerprint(t)) || knownIds.has(t.id)) continue;
-        known.add(fingerprint(t));
-        incoming.push(t);
-      }
-    }
-    const incomingBySession = new Map<string, Trade[]>();
-    for (const t of incoming) {
-      if (knownIds.has(t.id)) continue;
-      const arr = incomingBySession.get(t.sessionId);
-      if (arr) arr.push(t);
-      else incomingBySession.set(t.sessionId, [t]);
-    }
-    const existingBySession = new Map<string, Trade[]>();
-    for (const t of existingTrades) {
-      const arr = existingBySession.get(t.sessionId);
-      if (arr) arr.push(t);
-      else existingBySession.set(t.sessionId, [t]);
-    }
-    const toAddSessions: Session[] = [];
-    const toPutSessions: Session[] = [];
-    const toAddTrades: Trade[] = [];
-    let merged = 0;
-    let added = 0;
-    for (const s of result.sessions) {
-      const sTrades = incomingBySession.get(s.id);
-      if (!sTrades || sTrades.length === 0) continue;
-      const target = byKey.get(`${s.date}|${s.account ?? ''}`);
-      if (target) {
-        for (const t of sTrades) t.sessionId = target.id;
-        const all = [...(existingBySession.get(target.id) ?? []), ...sTrades];
-        existingBySession.set(target.id, all);
-        toPutSessions.push({ ...target, ...summarizeTrades(all), updatedAt: Date.now() });
-        merged++;
-      } else {
-        if (existing.length + toAddSessions.length >= SESSION_CAPACITY) {
-          result.warnings.push(tr(
-            `Capacité atteinte (${SESSION_CAPACITY} séances) : certaines séances n'ont pas été ajoutées. Exportez le coffre (Métrique › Sauvegarde) avant d'importer davantage.`,
-            `Capacity reached (${SESSION_CAPACITY} sessions): some sessions were not added. Export the vault (Metrics › Backup) before importing more.`,
-            `Capacidad alcanzada (${SESSION_CAPACITY} sesiones): algunas sesiones no se añadieron. Exporte la caja (Métrica › Copia) antes de importar más.`,
-          ));
-          break;
-        }
-        toAddSessions.push(s);
-        byKey.set(`${s.date}|${s.account ?? ''}`, s);
-        existingBySession.set(s.id, sTrades);
-        added++;
-      }
-      toAddTrades.push(...sTrades);
-    }
-    if (toAddTrades.length) {
-      const importedAt = Date.now();
-      const execRows = toAddTrades.flatMap((t) =>
-        (incomingKeys.get(t) ?? []).map((key) => ({
-          key,
-          account: t.account ?? '',
-          executionId: key.includes('\0') ? key.slice(key.indexOf('\0') + 1) : key,
-          sessionId: t.sessionId,
-          importedAt,
-        })),
-      );
-      await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions], async () => {
-        if (toAddSessions.length) await db.sessions.bulkAdd(toAddSessions);
-        if (toPutSessions.length) await db.sessions.bulkPut(toPutSessions);
-        await db.trades.bulkAdd(toAddTrades);
-        if (execRows.length) await db.importedExecutions.bulkPut(execRows);
-      });
-      await get().load();
-    }
-    return { ...result, added, merged, newTrades: toAddTrades.length };
+    // Fusion + écriture sous verrou : deux imports concurrents (pont + manuel, deux fichiers du pont)
+    // liraient sinon le même état de départ et créeraient des séances en double ou des collisions d'id.
+    return withJournalLock(() => mergeImport(result));
   },
 
   async loadDemo() {
@@ -264,3 +180,95 @@ export const useJournal = create<JournalState>((set, get) => ({
     set({ sessions: [], trades: [] });
   },
 }));
+
+/** Fusion d'un résultat d'import dans le journal (appelé sous `withJournalLock`). */
+async function mergeImport(result: ImportResult): Promise<ImportResult & { added: number; merged: number; newTrades: number }> {
+  const { sessions: existing, trades: existingTrades } = useJournal.getState();
+  // Fusion : une séance existante (même date + même compte) absorbe les nouveaux trades.
+  // Exécutions : clé account+ID (ou hash de repli). Autres formats : empreinte prix/heures.
+  const byKey = new Map(existing.map((s) => [`${s.date}|${s.account ?? ''}`, s]));
+  const fingerprint = (t: Trade) => `${t.instrument}|${t.direction}|${t.qty}|${t.entryTime}|${t.exitTime}|${t.entryPrice}|${t.exitPrice}`;
+  const knownIds = new Set(existingTrades.map((t) => t.id));
+  const incoming: Trade[] = [];
+  const incomingKeys = new Map<Trade, string[]>();
+  if (result.format === 'ninjatrader-executions') {
+    const knownExec = new Set((await db.importedExecutions.toArray()).map((row) => row.key));
+    const picked = takeNewExecutionTrades(result.trades, result.tradeExecutionKeys ?? [], knownExec);
+    for (let i = 0; i < picked.trades.length; i++) {
+      const t = picked.trades[i]!;
+      incoming.push(t);
+      incomingKeys.set(t, picked.tradeKeys[i] ?? []);
+    }
+  } else {
+    const known = new Set(existingTrades.map(fingerprint));
+    for (const t of result.trades) {
+      if (known.has(fingerprint(t)) || knownIds.has(t.id)) continue;
+      known.add(fingerprint(t));
+      incoming.push(t);
+    }
+  }
+  const incomingBySession = new Map<string, Trade[]>();
+  for (const t of incoming) {
+    if (knownIds.has(t.id)) continue;
+    const arr = incomingBySession.get(t.sessionId);
+    if (arr) arr.push(t);
+    else incomingBySession.set(t.sessionId, [t]);
+  }
+  const existingBySession = new Map<string, Trade[]>();
+  for (const t of existingTrades) {
+    const arr = existingBySession.get(t.sessionId);
+    if (arr) arr.push(t);
+    else existingBySession.set(t.sessionId, [t]);
+  }
+  const toAddSessions: Session[] = [];
+  const toPutSessions: Session[] = [];
+  const toAddTrades: Trade[] = [];
+  let merged = 0;
+  let added = 0;
+  for (const s of result.sessions) {
+    const sTrades = incomingBySession.get(s.id);
+    if (!sTrades || sTrades.length === 0) continue;
+    const target = byKey.get(`${s.date}|${s.account ?? ''}`);
+    if (target) {
+      for (const t of sTrades) t.sessionId = target.id;
+      const all = [...(existingBySession.get(target.id) ?? []), ...sTrades];
+      existingBySession.set(target.id, all);
+      toPutSessions.push({ ...target, ...summarizeTrades(all), updatedAt: Date.now() });
+      merged++;
+    } else {
+      if (existing.length + toAddSessions.length >= SESSION_CAPACITY) {
+        result.warnings.push(tr(
+          `Capacité atteinte (${SESSION_CAPACITY} séances) : certaines séances n'ont pas été ajoutées. Exportez le coffre (Métrique › Sauvegarde) avant d'importer davantage.`,
+          `Capacity reached (${SESSION_CAPACITY} sessions): some sessions were not added. Export the vault (Metrics › Backup) before importing more.`,
+          `Capacidad alcanzada (${SESSION_CAPACITY} sesiones): algunas sesiones no se añadieron. Exporte la caja (Métrica › Copia) antes de importar más.`,
+        ));
+        break;
+      }
+      toAddSessions.push(s);
+      byKey.set(`${s.date}|${s.account ?? ''}`, s);
+      existingBySession.set(s.id, sTrades);
+      added++;
+    }
+    toAddTrades.push(...sTrades);
+  }
+  if (toAddTrades.length) {
+    const importedAt = Date.now();
+    const execRows = toAddTrades.flatMap((t) =>
+      (incomingKeys.get(t) ?? []).map((key) => ({
+        key,
+        account: t.account ?? '',
+        executionId: key.includes('\0') ? key.slice(key.indexOf('\0') + 1) : key,
+        sessionId: t.sessionId,
+        importedAt,
+      })),
+    );
+    await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions], async () => {
+      if (toAddSessions.length) await db.sessions.bulkAdd(toAddSessions);
+      if (toPutSessions.length) await db.sessions.bulkPut(toPutSessions);
+      await db.trades.bulkAdd(toAddTrades);
+      if (execRows.length) await db.importedExecutions.bulkPut(execRows);
+    });
+    await useJournal.getState().load();
+  }
+  return { ...result, added, merged, newTrades: toAddTrades.length };
+}

@@ -56,14 +56,34 @@ export function orchMethodAllowed(method: string, allowWrites: boolean): boolean
   return false;
 }
 
-export function clampToolArgs(args: Record<string, unknown>): { ok: true; args: Record<string, unknown> } | { ok: false; reason: string } {
-  if (typeof args.body === 'string' && args.body.length > BODY_MAX) return { ok: false, reason: 'args_too_large' };
-  if (typeof args.note === 'string' && args.note.length > BODY_MAX) return { ok: false, reason: 'args_too_large' };
-  if (Array.isArray(args.tags)) {
-    if (args.tags.length > TAGS_MAX) return { ok: false, reason: 'args_too_large' };
-    if (args.tags.some((t) => String(t).length > TAG_LEN_MAX)) return { ok: false, reason: 'args_too_large' };
+export const TITLE_MAX = 200;
+export const SHORT_ARG_MAX = 64;
+const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId'] as const;
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Borne les arguments d'outil : corps/note ≤ 20 000, titre ≤ 200, identifiants/dates/requête ≤ 64,
+ * tags ≤ 20 × 40. Avec `allowedKeys` (propriétés déclarées par l'outil), tout argument non déclaré est retiré.
+ */
+export function clampToolArgs(args: Record<string, unknown>, allowedKeys?: readonly string[]): { ok: true; args: Record<string, unknown> } | { ok: false; reason: string } {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (FORBIDDEN_KEYS.has(k)) continue;
+    if (allowedKeys && !allowedKeys.includes(k)) continue;
+    out[k] = v;
   }
-  return { ok: true, args };
+  if (typeof out.body === 'string' && out.body.length > BODY_MAX) return { ok: false, reason: 'args_too_large' };
+  if (typeof out.note === 'string' && out.note.length > BODY_MAX) return { ok: false, reason: 'args_too_large' };
+  if (typeof out.title === 'string' && out.title.length > TITLE_MAX) return { ok: false, reason: 'args_too_large' };
+  for (const k of SHORT_ARGS) {
+    const v = out[k];
+    if (typeof v === 'string' && v.length > SHORT_ARG_MAX) return { ok: false, reason: 'args_too_large' };
+  }
+  if (Array.isArray(out.tags)) {
+    if (out.tags.length > TAGS_MAX) return { ok: false, reason: 'args_too_large' };
+    if (out.tags.some((t) => String(t).length > TAG_LEN_MAX)) return { ok: false, reason: 'args_too_large' };
+  }
+  return { ok: true, args: out };
 }
 
 export function takeToolCalls<T extends { name: string }>(calls: T[], kindOf: (name: string) => 'read' | 'write'): T[] {

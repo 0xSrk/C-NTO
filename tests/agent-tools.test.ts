@@ -60,6 +60,62 @@ describe('agent tools', () => {
     expect(log.writes).toBe(0);
   });
 
+  it('cap titre ≤ 200 et arguments courts ≤ 64', () => {
+    expect(clampToolArgs({ title: 'x'.repeat(201) })).toEqual({ ok: false, reason: 'args_too_large' });
+    expect(clampToolArgs({ title: 'x'.repeat(200) }).ok).toBe(true);
+    for (const k of ['query', 'id', 'date', 'from', 'to', 'planId']) {
+      expect(clampToolArgs({ [k]: 'x'.repeat(65) }).ok, k).toBe(false);
+      expect(clampToolArgs({ [k]: 'x'.repeat(64) }).ok, k).toBe(true);
+    }
+  });
+
+  it('retire les arguments non déclarés par l’outil (et le prototype)', async () => {
+    const r = clampToolArgs({ title: 'T', body: 'B', evil: 1 }, ['title', 'body']);
+    expect(r).toEqual({ ok: true, args: { title: 'T', body: 'B' } });
+    const proto = clampToolArgs(JSON.parse('{"__proto__":{"x":1},"constructor":{},"title":"T"}') as Record<string, unknown>);
+    expect(proto.ok && Object.keys(proto.args)).toEqual(['title']);
+    let seen: string[] = [];
+    const ports: DeskPorts = {
+      ...mockPorts({ writes: 0 }),
+      createNote: async (title, body, tags) => {
+        seen = [title, body, String(tags.length)];
+        return { id: 'n1', title };
+      },
+    };
+    await executeDeskTool(ports, 'create_note', { title: 'T', body: 'B', pinned: true, sessionId: 'x' }, { source: 'orch', allowWrite: true });
+    expect(seen).toEqual(['T', 'B', '0']);
+  });
+
+  it('calendar_events rejette les dates hors YYYY-MM-DD', async () => {
+    const ports = mockPorts({ writes: 0 });
+    const bad = (await executeDeskTool(ports, 'calendar_events', { from: '2026/09/01', to: '2026-09-30' }, { source: 'llm' })) as { error?: string };
+    expect(typeof bad.error).toBe('string');
+    const bad2 = (await executeDeskTool(ports, 'calendar_events', { from: '2026-09-01', to: 'next week' }, { source: 'orch' })) as { error?: string };
+    expect(typeof bad2.error).toBe('string');
+    const missing = (await executeDeskTool(ports, 'calendar_events', {}, { source: 'llm' })) as { error?: string };
+    expect(typeof missing.error).toBe('string');
+    const ok = (await executeDeskTool(ports, 'calendar_events', { from: '2026-09-01', to: '2026-09-30' }, { source: 'llm' })) as { events?: unknown[]; error?: string };
+    expect(ok.error).toBeUndefined();
+    expect(Array.isArray(ok.events)).toBe(true);
+  });
+
+  it('aperçu de confirmation : titre, tags, séance cible et corps tronqué explicitement', async () => {
+    let detail = '';
+    const confirmFn = async (_title: string, d: string) => {
+      detail = d;
+      return false;
+    };
+    await executeDeskTool(mockPorts({ writes: 0 }), 'create_note', { title: 'Plan', body: 'x'.repeat(5000), tags: ['a', 'b'] }, { source: 'llm', confirmFn });
+    expect(detail).toContain('Plan');
+    expect(detail).toContain('a, b');
+    expect(detail).toMatch(/tronqué|truncated|truncado/);
+    expect(detail.length).toBeLessThan(2600);
+    await executeDeskTool(mockPorts({ writes: 0 }), 'annotate_session', { id: 's_42', note: 'courte' }, { source: 'llm', confirmFn });
+    expect(detail).toContain('s_42');
+    expect(detail).toContain('courte');
+    expect(detail).not.toMatch(/tronqué|truncated|truncado/);
+  });
+
   it('write tools ont kind write', () => {
     expect(toolKind('create_note')).toBe('write');
     expect(toolKind('annotate_session')).toBe('write');
