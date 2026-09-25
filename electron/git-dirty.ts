@@ -22,15 +22,30 @@ export function porcelainPaths(porcelain: string): string[] {
 export interface DirtyState {
   /** Fichiers générés modifiés, à restaurer sans demander. */
   generated: string[];
-  /** Vrais changements de l'utilisateur : stash confirmé obligatoire. */
+  /** Fichiers suivis modifiés par l'utilisateur : stash confirmé obligatoire. */
   user: string[];
+  /**
+   * Fichiers non suivis (capture, export, note posée dans le dossier) : ils ne bloquent
+   * pas un `git pull`, sauf collision avec un fichier entrant — git le signale alors lui-même.
+   */
+  untracked: string[];
 }
 
 export function classifyDirty(porcelain: string): DirtyState {
-  const generated: string[] = [];
-  const user: string[] = [];
-  for (const p of porcelainPaths(porcelain)) {
-    ((GENERATED_FILES as readonly string[]).includes(p) ? generated : user).push(p);
+  const state: DirtyState = { generated: [], user: [], untracked: [] };
+  for (const line of porcelain.split(/\r?\n/)) {
+    if (line.trim().length < 4) continue;
+    const bucket = line.startsWith('??') ? state.untracked : null;
+    for (const p of porcelainPaths(line)) {
+      if (bucket) bucket.push(p);
+      else ((GENERATED_FILES as readonly string[]).includes(p) ? state.generated : state.user).push(p);
+    }
   }
-  return { generated, user };
+  return state;
+}
+
+/** Résumé court pour l'interface : trois chemins, puis « +N ». */
+export function summarizePaths(paths: readonly string[], max = 3): string {
+  const head = paths.slice(0, max).join(', ');
+  return paths.length > max ? `${head} +${paths.length - max}` : head;
 }
