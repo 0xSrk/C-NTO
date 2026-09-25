@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 REM CΛNTO — lanceur Lab (double-clic)
 setlocal
 cd /d "%~dp0"
