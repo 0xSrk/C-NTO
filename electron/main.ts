@@ -10,6 +10,7 @@ import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './
 import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, type UiZoomMode } from './ui-scale';
 import { defaultNinjaExportFolder } from './bridge-folder';
 import { hardwareAccelerationEnabled, hasDrmRenderNode } from './gpu-fallback';
+import { parseLocale, readLocaleFile, uiText, writeLocaleFile, type AppLocale } from './locale';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 const LAUNCHER_MODE = process.argv.includes('--launcher');
@@ -101,6 +102,10 @@ const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolea
   return (!!win && s === win.webContents) || (!!launcherWin && s === launcherWin.webContents);
 };
 
+function ui(fr: string, en: string, es: string): string {
+  return uiText(readLocaleFile(app.getPath('userData')), fr, en, es);
+}
+
 const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
 
 /** Préférence zoom envoyée par le renderer (persistée dans IndexedDB). */
@@ -161,7 +166,7 @@ function zoomSnapshot(winRef: BrowserWindow | null = win) {
 function createLauncherWindow(): void {
   launcherWin = new BrowserWindow({
     width: 420,
-    height: 560,
+    height: 620,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -187,7 +192,7 @@ function createLauncherWindow(): void {
     launcherWin = null;
     if (!win) app.quit();
   });
-  void launcherWin.loadFile(path.join(__dirname, 'launcher.html'));
+  void launcherWin.loadFile(path.join(__dirname, 'launcher.html'), { query: { lang: readLocaleFile(app.getPath('userData')) } });
 }
 
 function createWindow(opts: { fromLauncher?: boolean } = {}): void {
@@ -269,17 +274,18 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     if (!allowed) event.preventDefault();
   });
 
+  const lang = readLocaleFile(app.getPath('userData'));
   const hash = opts.fromLauncher ? '#from-launcher' : '';
   if (DEV_URL) {
     const base = DEV_URL.replace(/\/$/, '');
     const tryLoad = (attempt: number) => {
-      win?.loadURL(`${base}/${hash}`).catch(() => {
+      win?.loadURL(`${base}/?lang=${lang}${hash}`).catch(() => {
         if (attempt < 40) setTimeout(() => tryLoad(attempt + 1), 500);
       });
     };
     tryLoad(0);
   } else {
-    void win.loadFile(indexFile, { hash: opts.fromLauncher ? 'from-launcher' : '' });
+    void win.loadFile(indexFile, { query: { lang }, hash: opts.fromLauncher ? 'from-launcher' : '' });
   }
 
   orchestrator.attach(win);
@@ -288,7 +294,8 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
 }
 
 app.setName('CΛNTO');
-app.commandLine.appendSwitch('lang', 'fr-FR');
+const chromiumLang: Record<AppLocale, string> = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' };
+app.commandLine.appendSwitch('lang', chromiumLang[readLocaleFile(app.getPath('userData'))]);
 app.on('child-process-gone', (_event, details) => {
   if (details.type !== 'GPU' || details.reason === 'clean-exit') return;
   console.error('[CΛNTO] processus GPU arrêté', details.reason);
@@ -336,6 +343,14 @@ ipcMain.on('window:close', (e) => {
 });
 
 ipcMain.handle('app:version', (e) => (trusted(e) ? app.getVersion() : ''));
+ipcMain.handle('locale:get', (e) => (trusted(e) ? readLocaleFile(app.getPath('userData')) : 'fr'));
+ipcMain.handle('locale:set', (e, value: unknown) => {
+  if (!trusted(e)) return 'fr';
+  const locale = parseLocale(value);
+  if (!locale) return readLocaleFile(app.getPath('userData'));
+  writeLocaleFile(app.getPath('userData'), locale);
+  return locale;
+});
 
 /* ─── Zoom / calibrage écran ─── */
 ipcMain.handle('zoom:get', (e) => (trusted(e) ? zoomSnapshot(BrowserWindow.fromWebContents(e.sender) ?? win) : null));
@@ -383,7 +398,7 @@ ipcMain.handle('update:check', async (e): Promise<UpdateStatus | null> => {
       latest: null,
       available: false,
       busy: false,
-      error: err instanceof Error ? err.message : 'Contrôle impossible',
+      error: err instanceof Error ? err.message : ui('Contrôle impossible', 'Check failed', 'Comprobación imposible'),
       source: 'none',
     };
   }
@@ -426,12 +441,12 @@ ipcMain.handle('update:start-desk', (e) => {
 
 /* ─── Calendrier macro (Investing.com → Forex Factory) ─── */
 ipcMain.handle('calendar:macro', async (e, fromDate: unknown, toDate: unknown) => {
-  if (!trusted(e) || !isDateKey(fromDate) || !isDateKey(toDate)) return { releases: [], source: 'none' as const, error: 'Plage invalide' };
-  if (fromDate > toDate) return { releases: [], source: 'none' as const, error: 'Plage inversée' };
+  if (!trusted(e) || !isDateKey(fromDate) || !isDateKey(toDate)) return { releases: [], source: 'none' as const, error: ui('Plage invalide', 'Invalid range', 'Rango inválido') };
+  if (fromDate > toDate) return { releases: [], source: 'none' as const, error: ui('Plage inversée', 'Reversed range', 'Rango invertido') };
   try {
-    return await fetchMacroReleases(fromDate, toDate);
+    return await fetchMacroReleases(fromDate, toDate, readLocaleFile(app.getPath('userData')));
   } catch (err) {
-    return { releases: [], source: 'none' as const, error: err instanceof Error ? err.message : 'Sync macro impossible' };
+    return { releases: [], source: 'none' as const, error: err instanceof Error ? err.message : ui('Sync macro impossible', 'Macro sync failed', 'Sincronización macro imposible') };
   }
 });
 
@@ -451,7 +466,7 @@ ipcMain.handle('files:open-text', async (e, filters: unknown) => {
   const filePath = filePaths[0];
   if (!filePath) return null;
   const st = await fs.stat(filePath);
-  if (st.size > MAX_TEXT) throw new Error('Fichier trop volumineux (limite 50 Mo)');
+  if (st.size > MAX_TEXT) throw new Error(ui('Fichier trop volumineux (limite 50 Mo)', 'File too large (50 MB limit)', 'Archivo demasiado grande (límite 50 MB)'));
   const text = await fs.readFile(filePath, 'utf8');
   return { name: path.basename(filePath), text };
 });
@@ -459,7 +474,7 @@ const MAX_TEXT = 50 * 1024 * 1024;
 
 ipcMain.handle('files:pick-folder', async (e) => {
   if (!trusted(e) || !win) return null;
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: 'Dossier de sauvegarde du coffre' });
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: ui('Dossier de sauvegarde du coffre', 'Vault backup folder', 'Carpeta de copia de la caja') });
   return canceled || filePaths.length === 0 ? null : filePaths[0];
 });
 
@@ -550,17 +565,17 @@ async function sseData(res: Response, signal: AbortSignal, onData: (data: string
 }
 
 ipcMain.handle('llm:probe', async (e, config: unknown) => {
-  if (!trusted(e) || !config || typeof config !== 'object') return { ok: false, detail: 'Requête invalide' };
+  if (!trusted(e) || !config || typeof config !== 'object') return { ok: false, detail: ui('Requête invalide', 'Invalid request', 'Solicitud inválida') };
   const c = config as { provider?: unknown; baseUrl?: unknown; apiKeyEncrypted?: unknown; allowedHosts?: unknown };
-  if (!isString(c.baseUrl, 2048) || !llmHostOk(c.baseUrl, c.allowedHosts)) return { ok: false, detail: 'Hôte LLM non autorisé.' };
+  if (!isString(c.baseUrl, 2048) || !llmHostOk(c.baseUrl, c.allowedHosts)) return { ok: false, detail: ui('Hôte LLM non autorisé.', 'LLM host not allowed.', 'Host LLM no autorizado.') };
   const key = decryptLlmKey(c.apiKeyEncrypted);
   try {
     if (c.provider === 'anthropic') {
-      if (!key) return { ok: false, detail: 'Clé API requise.' };
+      if (!key) return { ok: false, detail: ui('Clé API requise.', 'API key required.', 'Clave API requerida.') };
       const res = await fetch(joinLlmUrl(c.baseUrl, 'v1/models'), { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
       if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
       const j = (await res.json()) as { data?: { id: string }[] };
-      return { ok: true, detail: `${j.data?.length ?? 0} modèle(s) disponibles`, models: j.data?.map((m) => m.id) };
+      return { ok: true, detail: ui(`${j.data?.length ?? 0} modèle(s) disponibles`, `${j.data?.length ?? 0} model(s) available`, `${j.data?.length ?? 0} modelo(s) disponibles`), models: j.data?.map((m) => m.id) };
     }
     const headers: Record<string, string> = {};
     if (key) headers.Authorization = `Bearer ${key}`;
@@ -568,7 +583,7 @@ ipcMain.handle('llm:probe', async (e, config: unknown) => {
     if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
     const j = (await res.json()) as { data?: { id: string }[] };
     const models = j.data?.map((m) => m.id) ?? [];
-    return { ok: true, detail: `${models.length} modèle(s) disponibles`, models };
+    return { ok: true, detail: ui(`${models.length} modèle(s) disponibles`, `${models.length} model(s) available`, `${models.length} modelo(s) disponibles`), models };
   } catch (err) {
     return { ok: false, detail: err instanceof Error ? err.message : String(err) };
   }
@@ -593,7 +608,7 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
   const requestId = p.requestId;
   const sender = e.sender;
   if (!llmHostOk(p.config.baseUrl, p.allowedHosts)) {
-    sender.send('llm:error', { requestId, error: 'Hôte LLM non autorisé.' });
+    sender.send('llm:error', { requestId, error: ui('Hôte LLM non autorisé.', 'LLM host not allowed.', 'Host LLM no autorizado.') });
     return;
   }
   const ac = new AbortController();
@@ -734,7 +749,7 @@ async function streamAnthropicMain(
     } catch {
       return;
     }
-    if (ev.type === 'error') throw new Error((ev as unknown as { error?: { message?: string } }).error?.message ?? 'Erreur du fournisseur pendant le flux');
+    if (ev.type === 'error') throw new Error((ev as unknown as { error?: { message?: string } }).error?.message ?? ui('Erreur du fournisseur pendant le flux', 'Provider error during the stream', 'Error del proveedor durante el flujo'));
     if (ev.type === 'content_block_start' && ev.content_block?.type === 'tool_use' && ev.index !== undefined) {
       blocks.set(ev.index, { id: ev.content_block.id ?? `toolu_${ev.index}`, name: ev.content_block.name ?? '', args: '' });
     } else if (ev.type === 'content_block_delta' && ev.delta) {
@@ -768,7 +783,7 @@ ipcMain.handle('bridge:configure', (e, cfg: unknown) => {
 });
 ipcMain.handle('bridge:pick-folder', async (e) => {
   if (!trusted(e) || !win) return null;
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: 'Dossier surveillé par le pont NinjaTrader' });
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: ui('Dossier surveillé par le pont NinjaTrader', 'Folder watched by the NinjaTrader bridge', 'Carpeta vigilada por el puente NinjaTrader') });
   return canceled || filePaths.length === 0 ? null : filePaths[0];
 });
 ipcMain.handle('bridge:default-folder', async (e) => {

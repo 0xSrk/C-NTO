@@ -1,4 +1,4 @@
-const PLACEHOLDER = /^nouvelle note(?: \d+)?$/i;
+const PLACEHOLDER = /^(?:nouvelle note|new note|nueva nota)(?: \d+)?$/i;
 
 /** Première ligne utile, si le titre est encore le placeholder. */
 export function suggestNoteTitle(current: string, body: string): string | null {

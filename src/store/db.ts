@@ -3,6 +3,7 @@ import type { BarSeries } from '@/engine/bars';
 import type { IndicatorInstance } from '@/engine/indicators';
 import type { Session, Trade } from '@/engine/types';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
+import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
 import pkg from '../../package.json';
 
@@ -215,8 +216,8 @@ const isStrArray = (v: unknown) => Array.isArray(v) && v.every(isStr);
 /** Ne conserve que des objets simples, porteurs d'une clé chaîne et conformes à leur table. */
 function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string, check: Check = () => true): T[] {
   if (input === undefined) return [];
-  if (!Array.isArray(input)) throw new Error(`Sauvegarde invalide : « ${label} » doit être une liste.`);
-  if (input.length > MAX_ROWS) throw new Error(`Sauvegarde invalide : « ${label} » dépasse ${MAX_ROWS} lignes.`);
+  if (!Array.isArray(input)) throw new Error(tr(`Sauvegarde invalide : « ${label} » doit être une liste.`, `Invalid backup: “${label}” must be a list.`, `Copia inválida: « ${label} » debe ser una lista.`));
+  if (input.length > MAX_ROWS) throw new Error(tr(`Sauvegarde invalide : « ${label} » dépasse ${MAX_ROWS} lignes.`, `Invalid backup: “${label}” exceeds ${MAX_ROWS} rows.`, `Copia inválida: « ${label} » supera ${MAX_ROWS} filas.`));
   const out: T[] = [];
   for (const item of input) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;

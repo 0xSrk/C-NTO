@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('canto', {
   isDesk: true,
   platform: process.platform,
   version: () => ipcRenderer.invoke('app:version') as Promise<string>,
+  locale: {
+    get: () => ipcRenderer.invoke('locale:get') as Promise<'fr' | 'en' | 'es'>,
+    set: (locale: 'fr' | 'en' | 'es') => ipcRenderer.invoke('locale:set', locale) as Promise<'fr' | 'en' | 'es'>,
+  },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),

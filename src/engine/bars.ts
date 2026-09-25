@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { gaussian, mulberry32 } from '@/lib/rng';
 import { detectDayFirst, parseFlexibleDateTime, zonedToUtc, ET_ZONE } from '@/lib/time';
@@ -111,7 +112,7 @@ export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] }
     iVol = 5;
   }
   if (iTime === -1 || iOpen === -1 || iHigh === -1 || iLow === -1 || iClose === -1) {
-    return { bars: [], warnings: ['Colonnes attendues : Time/Date, Open, High, Low, Close, (Volume).'] };
+    return { bars: [], warnings: [tr('Colonnes attendues : Time/Date, Open, High, Low, Close, (Volume).', 'Expected columns: Time/Date, Open, High, Low, Close, (Volume).', 'Columnas esperadas: Time/Date, Open, High, Low, Close, (Volume).')] };
   }
   const dec = detectDecimalSeparator(rows.slice(0, 80).map((r) => r[iClose] ?? '')) ?? (table.delimiter === ';' ? ',' : undefined);
   const dayFirst = detectDayFirst(rows.slice(0, 50).map((r) => r[iTime] ?? ''));
@@ -141,6 +142,6 @@ export function importBarsCsv(text: string): { bars: Bar[]; warnings: string[] }
     if (last && last.time === b.time) dedup[dedup.length - 1] = b;
     else dedup.push(b);
   }
-  if (skipped) warnings.push(`${skipped} ligne(s) ignorée(s).`);
+  if (skipped) warnings.push(tr(`${skipped} ligne(s) ignorée(s).`, `${skipped} row(s) skipped.`, `${skipped} fila(s) ignorada(s).`));
   return { bars: dedup, warnings };
 }

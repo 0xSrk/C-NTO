@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { create } from 'zustand';
 import { uid } from '@/lib/id';
 import { db, type Note } from './db';
@@ -45,7 +46,6 @@ export function extractTags(body: string): string[] {
   return [...out];
 }
 
-const WELCOME_TITLE = 'Bienvenue dans le coffre';
 const WELCOME_BODY = `# Bienvenue dans le coffre
 
 Ce coffre fonctionne comme **Obsidian** : des notes en Markdown, reliées par des liens \`[[double crochet]]\`.
@@ -79,6 +79,72 @@ const PLAN_BODY = `# Plan de trading
 - Ré-entrer après 2 pertes consécutives #discipline
 `;
 
+const WELCOME_BODY_EN = `# Welcome to the vault
+
+This vault works like **Obsidian**: Markdown notes linked with \`[[double brackets]]\`.
+
+- Type \`[[\` to link an existing note or create one: [[Trading plan]]
+- Hash words become tags: #method #discipline
+- The *Backlinks* panel shows what points at the current note.
+- The **Graph** view draws your note network.
+
+## Session ritual
+
+1. Before the open: reread [[Trading plan]] and today's calendar.
+2. After the session: create the daily note from **Metrics** (*Journal* button).
+3. On the weekend: weekly review → [[Weekly review]].
+
+> The daily note is one click: **Note of the day** button.
+`;
+
+const WELCOME_BODY_ES = `# Bienvenida a la caja
+
+Esta caja funciona como **Obsidian**: notas Markdown unidas por enlaces \`[[doble corchete]]\`.
+
+- Escribe \`[[\` para enlazar una nota o crear una: [[Plan de trading]]
+- Las palabras con almohadilla son etiquetas: #método #disciplina
+- El panel *Enlaces entrantes* muestra quién apunta a la nota actual.
+- La vista **Grafo** dibuja la red de tus notas.
+
+## Ritual de sesión
+
+1. Antes de la apertura: releer [[Plan de trading]] y el calendario del día.
+2. Después de la sesión: crear la nota del día desde **Métrica** (botón *Diario*).
+3. El fin de semana: revisión semanal → [[Revisión semanal]].
+
+> La nota del día se crea en un clic: botón **Nota del día**.
+`;
+
+const PLAN_BODY_EN = `# Trading plan
+
+**Instrument**: NQ / MNQ (CME Globex)
+**Window**: 15:30 → 17:30 Paris (9:30 → 11:30 ET)
+**Max risk / trade**: 0.5% · **Max loss / day**: 1.5%
+
+## Allowed setups
+- Opening Range Breakout 15 min (see [[Welcome to the vault]])
+- VWAP reclaim in trend
+
+## Forbidden
+- Trading 10 min around a release #calendar
+- Re-entering after 2 consecutive losses #discipline
+`;
+
+const PLAN_BODY_ES = `# Plan de trading
+
+**Instrumento**: NQ / MNQ (CME Globex)
+**Ventana**: 15:30 → 17:30 París (9:30 → 11:30 ET)
+**Riesgo máx. / trade**: 0,5 % · **Pérdida máx. / día**: 1,5 %
+
+## Setups permitidos
+- Opening Range Breakout 15 min (ver [[Bienvenida a la caja]])
+- Recuperación del VWAP en tendencia
+
+## Prohibido
+- Operar 10 min alrededor de una publicación #calendario
+- Reentrar tras 2 pérdidas seguidas #disciplina
+`;
+
 interface NotesState {
   ready: boolean;
   notes: Note[];
@@ -107,9 +173,13 @@ export const useNotes = create<NotesState>((set, get) => ({
       const existing = await db.notes.toArray();
       if (existing.length > 0) return existing;
       const now = Date.now();
+      const welcomeTitle = tr('Bienvenue dans le coffre', 'Welcome to the vault', 'Bienvenida a la caja');
+      const welcomeBody = tr(WELCOME_BODY, WELCOME_BODY_EN, WELCOME_BODY_ES);
+      const planTitle = tr('Plan de trading', 'Trading plan', 'Plan de trading');
+      const planBody = tr(PLAN_BODY, PLAN_BODY_EN, PLAN_BODY_ES);
       const seed: Note[] = [
-        { id: uid('n'), title: WELCOME_TITLE, body: WELCOME_BODY, tags: extractTags(WELCOME_BODY), pinned: true, createdAt: now, updatedAt: now },
-        { id: uid('n'), title: 'Plan de trading', body: PLAN_BODY, tags: extractTags(PLAN_BODY), pinned: true, createdAt: now - 1, updatedAt: now - 1 },
+        { id: uid('n'), title: welcomeTitle, body: welcomeBody, tags: extractTags(welcomeBody), pinned: true, createdAt: now, updatedAt: now },
+        { id: uid('n'), title: planTitle, body: planBody, tags: extractTags(planBody), pinned: true, createdAt: now - 1, updatedAt: now - 1 },
       ];
       await db.notes.bulkAdd(seed);
       return seed;
@@ -119,7 +189,7 @@ export const useNotes = create<NotesState>((set, get) => ({
     set({ notes, ready: true, activeId: current && notes.some((n) => n.id === current) ? current : notes[0]?.id ?? null });
   },
 
-  async create(title = 'Nouvelle note', body = '', tags = []) {
+  async create(title = tr('Nouvelle note', 'New note', 'Nueva nota'), body = '', tags = []) {
     const now = Date.now();
     let finalTitle = title;
     let i = 2;
@@ -163,7 +233,7 @@ export const useNotes = create<NotesState>((set, get) => ({
       set({ activeId: existing.id });
       return existing;
     }
-    const body = seed ?? `# ${title}\n\n## Contexte\n\n\n## Exécution\n\n\n## Leçon du jour\n\n\n#journal`;
+    const body = seed ?? tr(`# ${title}\n\n## Contexte\n\n\n## Exécution\n\n\n## Leçon du jour\n\n\n#journal`, `# ${title}\n\n## Context\n\n\n## Execution\n\n\n## Lesson of the day\n\n\n#journal`, `# ${title}\n\n## Contexto\n\n\n## Ejecución\n\n\n## Lección del día\n\n\n#journal`);
     return get().create(title, body);
   },
 }));

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { generateDemoJournal } from '@/engine/demo';
 import { CSV_WORKER_MIN_LINES, csvLineCount, importCsvAuto, type ImportOptions, type ImportResult } from '@/engine/import';
+import { tr } from '@/i18n';
 import { listenWorker } from '@/lib/worker';
 import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { summarizeTrades } from '@/engine/metrics';
@@ -111,7 +112,11 @@ export const useJournal = create<JournalState>((set, get) => ({
         merged++;
       } else {
         if (existing.length + toAddSessions.length >= SESSION_CAPACITY) {
-          result.warnings.push(`Capacité atteinte (${SESSION_CAPACITY} séances) : certaines séances n'ont pas été ajoutées. Exportez le coffre (Métrique › Sauvegarde) avant d'importer davantage.`);
+          result.warnings.push(tr(
+            `Capacité atteinte (${SESSION_CAPACITY} séances) : certaines séances n'ont pas été ajoutées. Exportez le coffre (Métrique › Sauvegarde) avant d'importer davantage.`,
+            `Capacity reached (${SESSION_CAPACITY} sessions): some sessions were not added. Export the vault (Metrics › Backup) before importing more.`,
+            `Capacidad alcanzada (${SESSION_CAPACITY} sesiones): algunas sesiones no se añadieron. Exporte la caja (Métrica › Copia) antes de importar más.`,
+          ));
           break;
         }
         toAddSessions.push(s);
@@ -158,11 +163,30 @@ export const useJournal = create<JournalState>((set, get) => ({
 
   async addManualSession(input) {
     if (get().sessions.length >= SESSION_CAPACITY) {
-      useUi.getState().toast(`Capacité atteinte (${SESSION_CAPACITY} séances) : ajout manuel refusé.`, 'warn');
-      throw new Error(`Capacité atteinte (${SESSION_CAPACITY} séances).`);
+      useUi.getState().toast(
+        tr(
+          `Capacité atteinte (${SESSION_CAPACITY} séances) : ajout manuel refusé.`,
+          `Capacity reached (${SESSION_CAPACITY} sessions): manual add refused.`,
+          `Capacidad alcanzada (${SESSION_CAPACITY} sesiones): alta manual rechazada.`,
+        ),
+        'warn',
+      );
+      throw new Error(
+        tr(
+          `Capacité atteinte (${SESSION_CAPACITY} séances).`,
+          `Capacity reached (${SESSION_CAPACITY} sessions).`,
+          `Capacidad alcanzada (${SESSION_CAPACITY} sesiones).`,
+        ),
+      );
     }
     if (get().sessions.some((s) => s.date === input.date && (s.account ?? '') === (input.account?.trim() ?? ''))) {
-      throw new Error('Une séance existe déjà pour cette date et ce compte : éditez-la depuis la liste.');
+      throw new Error(
+        tr(
+          'Une séance existe déjà pour cette date et ce compte : éditez-la depuis la liste.',
+          'A session already exists for this date and account: edit it from the list.',
+          'Ya existe una sesión para esta fecha y esta cuenta: edítela desde la lista.',
+        ),
+      );
     }
     const now = Date.now();
     const s: Session = {

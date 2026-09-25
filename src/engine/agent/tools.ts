@@ -1,4 +1,5 @@
 import { generateNasdaqEvents } from '@/engine/calendar';
+import { tr } from '@/i18n';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
 import type { ToolSchema } from './llm';
@@ -95,7 +96,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const id = str(args.id);
         const date = str(args.date);
         const s = sessions.find((x) => x.id === id) ?? sessions.find((x) => x.date === date);
-        if (!s) return { error: 'Séance introuvable' };
+        if (!s) return { error: tr('Séance introuvable', 'Session not found', 'Sesión no encontrada') };
         const own = trades.filter((t) => t.sessionId === s.id).sort((a, b) => a.exitTime - b.exitTime);
         const stats = computeTradeStats(own);
         return {
@@ -153,7 +154,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const id = str(args.id);
         const title = str(args.title).toLowerCase();
         const n = notes.find((x) => x.id === id) ?? notes.find((x) => x.title.toLowerCase() === title);
-        return n ? { id: n.id, title: n.title, tags: n.tags, body: n.body, updatedAt: new Date(n.updatedAt).toISOString() } : { error: 'Note introuvable' };
+        return n ? { id: n.id, title: n.title, tags: n.tags, body: n.body, updatedAt: new Date(n.updatedAt).toISOString() } : { error: tr('Note introuvable', 'Note not found', 'Nota no encontrada') };
       },
     },
     {
@@ -192,7 +193,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const sessions = ports.sessions();
         const trades = ports.trades();
         const plan = findPlan(str(args.planId) || ports.planId());
-        if (!plan) return { error: 'Plan inconnu' };
+        if (!plan) return { error: tr('Plan inconnu', 'Unknown plan', 'Plan desconocido') };
         const r = evaluatePlan(plan, sessions, trades);
         return { plan, status: r.status, reason: r.reason, failedOn: r.failedOn, balance: round(r.balance), highWater: round(r.highWater), floor: round(r.floor), buffer: round(r.buffer), targetProgress: round(r.targetProgress, 4), remainingToTarget: round(r.remainingToTarget), daysTraded: r.daysTraded, consistency: r.consistency, dailyLossBreaches: r.dailyLossBreaches };
       },
@@ -214,8 +215,34 @@ const EMPTY_PORTS: DeskPorts = {
 /** Catalogue (affichage UI) — les `run` de ce tableau ne touchent pas les stores. */
 export const DESK_TOOLS: DeskTool[] = createDeskTools(EMPTY_PORTS);
 
+/** Description d'outil dans la langue active (le catalogue stocke le français). */
+export function toolBlurb(name: string, fallback: string): string {
+  switch (name) {
+    case 'desk_overview':
+      return tr(fallback, 'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status.', 'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido.');
+    case 'list_sessions':
+      return tr(fallback, 'Lists trading sessions (date, PnL, trade count, tags, note), newest first. Optional YYYY-MM-DD date bounds.', 'Lista las sesiones (fecha, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtro opcional por fechas YYYY-MM-DD.');
+    case 'get_session':
+      return tr(fallback, 'Detail of a session and its trades (by id or YYYY-MM-DD date).', 'Detalle de una sesión y sus trades (por id o por fecha YYYY-MM-DD).');
+    case 'annotate_session':
+      return tr(fallback, 'Adds or replaces a session note and/or its tags.', 'Añade o sustituye la nota de una sesión y/o sus etiquetas.');
+    case 'search_notes':
+      return tr(fallback, 'Full-text search in the note vault (title, body, tags). Returns excerpts.', 'Búsqueda de texto en la caja de notas (título, cuerpo, etiquetas). Devuelve extractos.');
+    case 'read_note':
+      return tr(fallback, 'Reads a full note by exact title or id.', 'Lee una nota completa por título exacto o id.');
+    case 'create_note':
+      return tr(fallback, 'Creates a Markdown note in the vault ([[links]] and #tags are recognized).', 'Crea una nota Markdown en la caja (se reconocen [[enlaces]] y #tags).');
+    case 'calendar_events':
+      return tr(fallback, 'Nasdaq events (FOMC, NFP, CPI, expirations, holidays…) and personal entries between two dates.', 'Eventos Nasdaq (FOMC, NFP, CPI, vencimientos, festivos…) y entradas personales entre dos fechas.');
+    case 'propfirm_status':
+      return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia.');
+    default:
+      return fallback;
+  }
+}
+
 export function toolSchemas(): ToolSchema[] {
-  return DESK_TOOLS.map(({ name, description, parameters }) => ({ name, description, parameters }));
+  return DESK_TOOLS.map(({ name, description, parameters }) => ({ name, description: toolBlurb(name, description), parameters }));
 }
 
 export function toolKind(name: string): 'read' | 'write' {
@@ -224,13 +251,13 @@ export function toolKind(name: string): 'read' | 'write' {
 
 async function runTool(ports: DeskPorts, name: string, rawArgs: string | Record<string, unknown>): Promise<unknown> {
   const tool = createDeskTools(ports).find((t) => t.name === name);
-  if (!tool) return { error: `Outil inconnu : ${name}` };
+  if (!tool) return { error: tr(`Outil inconnu : ${name}`, `Unknown tool: ${name}`, `Herramienta desconocida: ${name}`) };
   let args: Record<string, unknown> = {};
   if (typeof rawArgs === 'string') {
     try {
       args = rawArgs ? (JSON.parse(rawArgs) as Record<string, unknown>) : {};
     } catch {
-      return { error: 'Arguments JSON invalides' };
+      return { error: tr('Arguments JSON invalides', 'Invalid JSON arguments', 'Argumentos JSON inválidos') };
     }
   } else args = rawArgs ?? {};
   const clamped = clampToolArgs(args);
@@ -265,10 +292,10 @@ function parseArgs(args: string | Record<string, unknown>): { ok: true; args: Re
   if (typeof args === 'string') {
     try {
       const parsed = args ? (JSON.parse(args) as unknown) : {};
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, error: 'Arguments JSON invalides' };
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, error: tr('Arguments JSON invalides', 'Invalid JSON arguments', 'Argumentos JSON inválidos') };
       return { ok: true, args: parsed as Record<string, unknown> };
     } catch {
-      return { ok: false, error: 'Arguments JSON invalides' };
+      return { ok: false, error: tr('Arguments JSON invalides', 'Invalid JSON arguments', 'Argumentos JSON inválidos') };
     }
   }
   return { ok: true, args: args ?? {} };
@@ -284,7 +311,12 @@ export async function executeDeskTool(ports: DeskPorts, name: string, args: stri
   if (toolKind(name) === 'write') {
     if (ctx.source === 'orch' && ctx.allowWrite !== true) return { ok: false, reason: 'write_disabled' };
     if (ctx.source === 'llm') {
-      const ok = ctx.confirmFn ? await ctx.confirmFn(`L’agent veut exécuter « ${name} »`, `Arguments : ${previewArgs(clamped.args)}`) : false;
+      const ok = ctx.confirmFn
+        ? await ctx.confirmFn(
+            tr(`L’agent veut exécuter « ${name} »`, `The agent wants to run “${name}”`, `El agente quiere ejecutar « ${name} »`),
+            tr(`Arguments : ${previewArgs(clamped.args)}`, `Arguments: ${previewArgs(clamped.args)}`, `Argumentos: ${previewArgs(clamped.args)}`),
+          )
+        : false;
       if (!ok) return { ok: false, reason: 'operator_denied' };
     }
   }

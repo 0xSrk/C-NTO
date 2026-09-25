@@ -81,6 +81,10 @@ export interface DeskApi {
   platform: string;
   /** Version locale (package.json / app.getVersion) */
   version: () => Promise<string>;
+  locale?: {
+    get: () => Promise<'fr' | 'en' | 'es'>;
+    set: (locale: 'fr' | 'en' | 'es') => Promise<'fr' | 'en' | 'es'>;
+  };
   update: {
     check: () => Promise<UpdateStatus | null>;
     apply: (opts?: { channel?: string; confirmStash?: boolean }) => Promise<UpdateStatus | null>;
@@ -196,7 +200,9 @@ export async function saveTextFile(defaultName: string, text: string, mime = 'te
 export function openTextFile(accept = '.csv,.txt,.json'): Promise<{ name: string; text: string } | null> {
   if (desk) {
     const ext = accept.split(',').map((e) => e.trim().replace(/^\./, ''));
-    return desk.files.openText([{ name: 'Fichiers', extensions: ext }]);
+    const lang = document.documentElement.lang;
+    const name = lang === 'en' ? 'Files' : lang === 'es' ? 'Archivos' : 'Fichiers';
+    return desk.files.openText([{ name, extensions: ext }]);
   }
   return new Promise((resolve) => {
     const input = document.createElement('input');

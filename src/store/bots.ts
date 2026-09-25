@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { create } from 'zustand';
 import type { CalEvent } from '@/engine/calendar';
 import type { PropPlan } from '@/engine/propfirm';
@@ -44,14 +45,59 @@ export const BOT_TEMPLATES: { id: string; name: string; description: string; rul
 ];
 
 /** Garde-fous dérivés du plan prop firm et du calendrier : imposés à tout automate. */
+function ruleText(text: string): string {
+  const copy: Record<string, [string, string]> = {
+    'Heure entre 09:45 et 11:30 ET': ['Time between 09:45 and 11:30 ET', 'Hora entre 09:45 y 11:30 ET'],
+    'Clôture 1 min au-dessus du OR High (long) ou sous le OR Low (short)': ['1-min close above the OR High (long) or below the OR Low (short)', 'Cierre de 1 min por encima del OR High (largo) o bajo el OR Low (corto)'],
+    'Prix du même côté que le VWAP de séance': ['Price on the same side as the session VWAP', 'Precio del mismo lado que el VWAP de la sesión'],
+    'Entrée stop-limit à la cassure, 1 contrat MNQ': ['Stop-limit entry on the breakout, 1 MNQ contract', 'Entrada stop-limit en la ruptura, 1 contrato MNQ'],
+    'Stop initial = milieu de l’opening range · objectif = 1,5 × risque': ['Initial stop = midpoint of the opening range · target = 1.5 × risk', 'Stop inicial = punto medio del opening range · objetivo = 1,5 × riesgo'],
+    'Maximum 2 tentatives par séance': ['Maximum 2 attempts per session', 'Máximo 2 intentos por sesión'],
+    'EMA 21 > EMA 55 sur 5 min': ['EMA 21 > EMA 55 on 5 min', 'EMA 21 > EMA 55 en 5 min'],
+    'Bougie 1 min clôture au-dessus du VWAP après avoir touché −1σ': ['1-min candle closes above the VWAP after touching −1σ', 'Vela de 1 min cierra por encima del VWAP tras tocar −1σ'],
+    'Entrée au marché, stop sous le plus bas de la bougie de reprise': ['Market entry, stop under the low of the reclaim candle', 'Entrada a mercado, stop bajo el mínimo de la vela de recuperación'],
+    'Sortie partielle à +1σ, solde au trailing EMA 21': ['Partial exit at +1σ, remainder on a trailing EMA 21', 'Salida parcial en +1σ, resto en trailing EMA 21'],
+    'Pas d’entrée après 15:30 ET': ['No entry after 15:30 ET', 'Sin entrada después de las 15:30 ET'],
+    'Cassure de l’opening range des 15 premières minutes RTH, dans le sens de la tendance VWAP.': ['Breakout of the opening range from the first 15 RTH minutes, in the direction of the VWAP trend.', 'Ruptura del opening range de los primeros 15 minutos RTH, en el sentido de la tendencia VWAP.'],
+    'Reprise du VWAP après une excursion sous la bande −1σ, en tendance haussière.': ['VWAP reclaim after an excursion below the −1σ band, in an uptrend.', 'Recuperación del VWAP tras una excursión bajo la banda −1σ, en tendencia alcista.'],
+  };
+  const row = copy[text];
+  return row ? tr(text, row[0], row[1]) : text;
+}
+
 export function deriveGuards(plan: PropPlan | undefined, events: CalEvent[], horizonDays = 7): string[] {
   const out: string[] = [];
   if (plan) {
-    out.push(`Coupe-circuit drawdown : arrêt total si la marge au plancher passe sous 30 % du DD max (${Math.round(plan.maxDrawdown * 0.3)} $)`);
-    if (plan.dailyLossLimit) out.push(`Perte journalière : fermeture de toutes les positions à −${Math.round(plan.dailyLossLimit * 0.8)} $ (80 % de la limite ${plan.dailyLossLimit} $)`);
-    else out.push(`Perte journalière interne : −${Math.round(plan.maxDrawdown * 0.4)} $ (40 % du DD max, la firme n’impose pas de limite)`);
-    if (plan.consistencyPct) out.push(`Consistance : plafonner le gain journalier à ${Math.round(plan.consistencyPct * 100)} % du profit cumulé visé`);
-    out.push('Flat obligatoire avant 16:59 ET (pas de position overnight)');
+    const floor = Math.round(plan.maxDrawdown * 0.3);
+    out.push(tr(
+      `Coupe-circuit drawdown : arrêt total si la marge au plancher passe sous 30 % du DD max (${floor} $)`,
+      `Drawdown circuit breaker: full stop if the buffer to the floor drops under 30% of max DD (${floor} $)`,
+      `Cortacircuitos de drawdown: parada total si el margen al suelo baja del 30 % del DD máx. (${floor} $)`,
+    ));
+    if (plan.dailyLossLimit) {
+      const stop = Math.round(plan.dailyLossLimit * 0.8);
+      out.push(tr(
+        `Perte journalière : fermeture de toutes les positions à −${stop} $ (80 % de la limite ${plan.dailyLossLimit} $)`,
+        `Daily loss: close every position at −${stop} $ (80% of the ${plan.dailyLossLimit} $ limit)`,
+        `Pérdida diaria: cierre de todas las posiciones en −${stop} $ (80 % del límite de ${plan.dailyLossLimit} $)`,
+      ));
+    } else {
+      const stop = Math.round(plan.maxDrawdown * 0.4);
+      out.push(tr(
+        `Perte journalière interne : −${stop} $ (40 % du DD max, la firme n’impose pas de limite)`,
+        `Internal daily loss: −${stop} $ (40% of max DD, the firm sets no limit)`,
+        `Pérdida diaria interna: −${stop} $ (40 % del DD máx., la firma no impone límite)`,
+      ));
+    }
+    if (plan.consistencyPct) {
+      const pct = Math.round(plan.consistencyPct * 100);
+      out.push(tr(
+        `Consistance : plafonner le gain journalier à ${pct} % du profit cumulé visé`,
+        `Consistency: cap the daily gain at ${pct}% of the target cumulative profit`,
+        `Consistencia: limitar la ganancia diaria al ${pct} % del beneficio acumulado objetivo`,
+      ));
+    }
+    out.push(tr('Flat obligatoire avant 16:59 ET (pas de position overnight)', 'Must be flat before 16:59 ET (no overnight position)', 'Flat obligatorio antes de las 16:59 ET (sin posición overnight)'));
   }
   const today = new Date();
   const end = new Date(today);
@@ -60,7 +106,9 @@ export function deriveGuards(plan: PropPlan | undefined, events: CalEvent[], hor
   const from = key(today);
   const to = key(end);
   for (const e of events.filter((ev) => ev.impact === 3 && ev.date >= from && ev.date <= to)) {
-    out.push(e.timeET ? `Blackout ${e.date} ${e.timeET} ET ± 15 min · ${e.title}` : `Journée à risque ${e.date} · ${e.title}`);
+    out.push(e.timeET
+      ? tr(`Blackout ${e.date} ${e.timeET} ET ± 15 min · ${e.title}`, `Blackout ${e.date} ${e.timeET} ET ± 15 min · ${e.title}`, `Blackout ${e.date} ${e.timeET} ET ± 15 min · ${e.title}`)
+      : tr(`Journée à risque ${e.date} · ${e.title}`, `Risk day ${e.date} · ${e.title}`, `Jornada de riesgo ${e.date} · ${e.title}`));
   }
   return out;
 }
@@ -98,11 +146,11 @@ export const useBots = create<BotsState>((set, get) => ({
     const now = Date.now();
     const bot: BotBlueprint = {
       id: uid('bot'),
-      name: tpl?.name ?? 'Nouvel automate',
+      name: tpl?.name ?? tr('Nouvel automate', 'New automaton', 'Nuevo autómata'),
       instrument: 'MNQ',
       status: 'brouillon',
-      description: tpl?.description ?? '',
-      rules: (tpl?.rules ?? []).map((r) => ({ ...r, id: uid('r') })),
+      description: tpl ? ruleText(tpl.description) : '',
+      rules: (tpl?.rules ?? []).map((r) => ({ ...r, id: uid('r'), text: ruleText(r.text) })),
       createdAt: now,
       updatedAt: now,
     };

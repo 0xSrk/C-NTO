@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconGraph, IconPlus, IconSearch, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Empty, Segmented, Tag, cx } from '@/design/primitives';
+import { intlTag, tr, useI18n } from '@/i18n';
 import { saveTextFile } from '@/lib/desk';
 import { plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr } from '@/lib/time';
@@ -15,9 +16,12 @@ import s from './note.module.css';
 
 type Mode = 'editer' | 'scinde' | 'apercu';
 
-const fmtUpdated = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+function formatUpdated(ms: number): string {
+  return new Intl.DateTimeFormat(intlTag(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(ms);
+}
 
 export default function Note() {
+  useI18n((s) => s.locale);
   const { notes, activeId, setActive, create, update, remove, openByTitle, dailyNote } = useNotes();
   const toast = useUi((u) => u.toast);
   const confirmDialog = useUi((u) => u.confirm);
@@ -65,13 +69,13 @@ export default function Note() {
         actions={
           <>
             <Button variant="gold" onClick={() => create()}>
-              <IconPlus size={14} /> Nouvelle note
+              <IconPlus size={14} /> {tr('Nouvelle note', 'New note', 'Nueva nota')}
             </Button>
-            <Button onClick={() => dailyNote(dateKeyLocal(new Date()))}>Note du jour</Button>
+            <Button onClick={() => dailyNote(dateKeyLocal(new Date()))}>{tr('Note du jour', 'Daily note', 'Nota del día')}</Button>
             <Button variant="ghost" active={graph} onClick={() => setGraph((g) => !g)}>
-              <IconGraph size={14} /> Graphe
+              <IconGraph size={14} /> {tr('Graphe', 'Graph', 'Grafo')}
             </Button>
-            {!graph && <Segmented value={mode} onChange={setMode} options={[{ value: 'editer', label: 'Éditer' }, { value: 'scinde', label: 'Scindé' }, { value: 'apercu', label: 'Aperçu' }]} />}
+            {!graph && <Segmented value={mode} onChange={setMode} options={[{ value: 'editer', label: tr('Éditer', 'Edit', 'Editar') }, { value: 'scinde', label: tr('Scindé', 'Split', 'Dividido') }, { value: 'apercu', label: tr('Aperçu', 'Preview', 'Vista previa') }]} />}
           </>
         }
       />
@@ -81,25 +85,25 @@ export default function Note() {
             <div className={s.listHead}>
               <div className={s.search}>
                 <IconSearch size={13} />
-                <input placeholder="Rechercher dans le coffre…" value={query} onChange={(e) => setQuery(e.target.value)} />
+                <input placeholder={tr('Rechercher dans le coffre…', 'Search the vault…', 'Buscar en la caja…')} value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
               <span className="micro">
-                {plural(notes.length, 'note')} · {plural(allTags.length, 'tag')}
+                {plural(notes.length, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))} · {plural(allTags.length, tr('tag', 'tag', 'etiqueta'), tr('tags', 'tags', 'etiquetas'))}
               </span>
             </div>
             <div className={s.listBody}>
-              {pinned.length > 0 && <div className={s.group}>Épinglées</div>}
+              {pinned.length > 0 && <div className={s.group}>{tr('Épinglées', 'Pinned', 'Fijadas')}</div>}
               {pinned.map((n) => (
                 <NoteItem key={n.id} note={n} on={n.id === activeId} onClick={() => setActive(n.id)} />
               ))}
-              {others.length > 0 && <div className={s.group}>Récentes</div>}
+              {others.length > 0 && <div className={s.group}>{tr('Récentes', 'Recent', 'Recientes')}</div>}
               {others.map((n) => (
                 <NoteItem key={n.id} note={n} on={n.id === activeId} onClick={() => setActive(n.id)} />
               ))}
-              {filtered.length === 0 && <div className={s.empty}>Aucune note ne correspond.</div>}
+              {filtered.length === 0 && <div className={s.empty}>{tr('Aucune note ne correspond.', 'No notes match.', 'Ninguna nota coincide.')}</div>}
               {allTags.length > 0 && (
                 <>
-                  <div className={s.group}>Tags</div>
+                  <div className={s.group}>{tr('Tags', 'Tags', 'Etiquetas')}</div>
                   <div className={s.tagCloud}>
                     {allTags.map(([t, c]) => (
                       <button key={t} className={cx(s.tagBtn, tagFilter === t && s.on)} onClick={() => setTagFilter(tagFilter === t ? null : t)}>
@@ -118,19 +122,19 @@ export default function Note() {
             </div>
           ) : active ? (
             <Editor key={active.id} note={active} mode={mode} notes={notes} onChange={(patch) => update(active.id, patch)} onOpenTitle={(t) => openByTitle(t)} onTag={(t) => setTagFilter(t)} onDelete={async () => {
-              if (await confirmDialog(`Supprimer « ${active.title} » ?`, 'La note et ses liens entrants seront perdus.')) {
+              if (await confirmDialog(tr(`Supprimer « ${active.title} » ?`, `Delete “${active.title}”?`, `¿Eliminar « ${active.title} »?`), tr('La note et ses liens entrants seront perdus.', 'The note and its incoming links will be lost.', 'La nota y sus enlaces entrantes se perderán.'))) {
                 await remove(active.id);
-                toast('Note supprimée.', 'warn');
+                toast(tr('Note supprimée.', 'Note deleted.', 'Nota eliminada.'), 'warn');
               }
             }} onExport={() => saveTextFile(`${active.title.replace(/[\\/:*?"<>|]/g, '-')}.md`, active.body, 'text/markdown')} />
           ) : (
             <div className={s.editor} style={{ padding: 24 }}>
               <Empty
-                title="Aucune note ouverte"
-                text="Sélectionnez une note dans le coffre ou créez-en une nouvelle (Ctrl+N)."
+                title={tr('Aucune note ouverte', 'No note open', 'Ninguna nota abierta')}
+                text={tr('Sélectionnez une note dans le coffre ou créez-en une nouvelle (Ctrl+N).', 'Select a note from the vault or create a new one (Ctrl+N).', 'Seleccione una nota en la caja o cree una nueva (Ctrl+N).')}
                 action={
                   <Button variant="gold" onClick={() => create()}>
-                    Nouvelle note
+                    {tr('Nouvelle note', 'New note', 'Nueva nota')}
                   </Button>
                 }
               />
@@ -145,11 +149,12 @@ export default function Note() {
 }
 
 function NoteItem({ note, on, onClick }: { note: NoteType; on: boolean; onClick: () => void }) {
+  useI18n((s) => s.locale);
   return (
     <button className={cx(s.item, on && s.on)} onClick={onClick}>
       <span className={s.itemTitle}>{note.title}</span>
       <span className={s.itemMeta}>
-        {fmtUpdated.format(note.updatedAt)}
+        {formatUpdated(note.updatedAt)}
         {note.tags.length ? ` · ${note.tags.slice(0, 3).map((t) => `#${t}`).join(' ')}` : ''}
       </span>
     </button>
@@ -157,6 +162,7 @@ function NoteItem({ note, on, onClick }: { note: NoteType; on: boolean; onClick:
 }
 
 function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onExport }: { note: NoteType; mode: Mode; notes: NoteType[]; onChange: (patch: { title?: string; body?: string; pinned?: boolean }) => void; onOpenTitle: (t: string) => void; onTag: (t: string) => void; onDelete: () => void; onExport: () => void }) {
+  useI18n((s) => s.locale);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body);
   const timer = useRef<number | null>(null);
@@ -210,7 +216,7 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
         <input
           className={s.titleInput}
           value={title}
-          placeholder="Titre — sinon la première ligne du texte"
+          placeholder={tr('Titre — sinon la première ligne du texte', 'Title — otherwise the first line of text', 'Título — si no, la primera línea del texto')}
           onChange={(e) => {
             titleLocked.current = true;
             setTitle(e.target.value);
@@ -218,12 +224,12 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
           }}
         />
         <Button size="sm" variant="ghost" active={!!note.pinned} onClick={() => onChange({ pinned: !note.pinned })}>
-          {note.pinned ? 'Épinglée' : 'Épingler'}
+          {note.pinned ? tr('Épinglée', 'Pinned', 'Fijada') : tr('Épingler', 'Pin', 'Fijar')}
         </Button>
         <Button size="sm" variant="ghost" onClick={onExport}>
           .md
         </Button>
-        <Button size="sm" variant="ghost" onClick={onDelete} aria-label="Supprimer la note" title="Supprimer la note">
+        <Button size="sm" variant="ghost" onClick={onDelete} aria-label={tr('Supprimer la note', 'Delete note', 'Eliminar la nota')} title={tr('Supprimer la note', 'Delete note', 'Eliminar la nota')}>
           <IconTrash size={13} />
         </Button>
       </div>
@@ -236,13 +242,14 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
               const nextBody = e.target.value;
               setBody(nextBody);
               if (!titleLocked.current) {
-                const suggested = suggestNoteTitle('Nouvelle note', nextBody) ?? 'Nouvelle note';
+                const blank = tr('Nouvelle note', 'New note', 'Nueva nota');
+                const suggested = suggestNoteTitle(blank, nextBody) ?? blank;
                 setTitle(suggested);
                 schedule({ body: nextBody, title: suggested });
               } else schedule({ body: nextBody });
             }}
             onKeyDown={onKeyDown}
-            placeholder="Markdown · [[lien vers une note]] · #tag"
+            placeholder={tr('Markdown · [[lien vers une note]] · #tag', 'Markdown · [[link to a note]] · #tag', 'Markdown · [[enlace a una nota]] · #tag')}
             spellCheck={false}
           />
         )}
@@ -253,6 +260,7 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
 }
 
 function Meta({ note, notes, onOpen, onOpenTitle }: { note: NoteType; notes: NoteType[]; onOpen: (id: string) => void; onOpenTitle: (t: string) => void }) {
+  useI18n((s) => s.locale);
   const outgoing = extractLinks(note.body);
   const backlinks = notes.filter((n) => n.id !== note.id && extractLinks(n.body).includes(note.title.toLowerCase()));
   const context = (n: NoteType) => {
@@ -263,10 +271,10 @@ function Meta({ note, notes, onOpen, onOpenTitle }: { note: NoteType; notes: Not
     <>
       <div className={s.metaSection}>
         <div className={s.metaTitle}>
-          <span>Liens entrants</span>
+          <span>{tr('Liens entrants', 'Incoming links', 'Enlaces entrantes')}</span>
           <span>{backlinks.length}</span>
         </div>
-        {backlinks.length === 0 && <small>Aucune note ne pointe vers celle-ci. Écrivez [[{note.title}]] ailleurs pour créer un lien.</small>}
+        {backlinks.length === 0 && <small>{tr(`Aucune note ne pointe vers celle-ci. Écrivez [[${note.title}]] ailleurs pour créer un lien.`, `No note points here. Write [[${note.title}]] elsewhere to create a link.`, `Ninguna nota apunta aquí. Escriba [[${note.title}]] en otro sitio para crear un enlace.`)}</small>}
         {backlinks.map((n) => (
           <div key={n.id}>
             <button className={s.linkItem} onClick={() => onOpen(n.id)}>
@@ -278,22 +286,22 @@ function Meta({ note, notes, onOpen, onOpenTitle }: { note: NoteType; notes: Not
       </div>
       <div className={s.metaSection}>
         <div className={s.metaTitle}>
-          <span>Liens sortants</span>
+          <span>{tr('Liens sortants', 'Outgoing links', 'Enlaces salientes')}</span>
           <span>{outgoing.length}</span>
         </div>
-        {outgoing.length === 0 && <small>Aucun lien [[…]] dans cette note.</small>}
+        {outgoing.length === 0 && <small>{tr('Aucun lien [[…]] dans cette note.', 'No [[…]] link in this note.', 'Ningún enlace [[…]] en esta nota.')}</small>}
         {outgoing.map((t) => {
           const target = byTitle(notes, t);
           return (
             <button key={t} className={cx(s.linkItem, !target && s.missing)} onClick={() => onOpenTitle(target?.title ?? t)}>
-              {target?.title ?? `${t} (à créer)`}
+              {target?.title ?? `${t} ${tr('(à créer)', '(to create)', '(por crear)')}`}
             </button>
           );
         })}
       </div>
       <div className={s.metaSection}>
         <div className={s.metaTitle}>
-          <span>Tags</span>
+          <span>{tr('Tags', 'Tags', 'Etiquetas')}</span>
           <span>{note.tags.length}</span>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -306,12 +314,12 @@ function Meta({ note, notes, onOpen, onOpenTitle }: { note: NoteType; notes: Not
       </div>
       <div className={s.metaSection}>
         <div className={s.metaTitle}>
-          <span>Propriétés</span>
+          <span>{tr('Propriétés', 'Properties', 'Propiedades')}</span>
         </div>
         <small>
-          Créée le {formatDateFr(dateKeyLocal(new Date(note.createdAt)), { short: true })} · modifiée {fmtUpdated.format(note.updatedAt)}
+          {tr('Créée le', 'Created', 'Creada el')} {formatDateFr(dateKeyLocal(new Date(note.createdAt)), { short: true })} · {tr('modifiée', 'updated', 'modificada')} {formatUpdated(note.updatedAt)}
           <br />
-          {note.body.length} caractères · {note.body.split(/\s+/).filter(Boolean).length} mots
+          {note.body.length} {tr('caractères', 'characters', 'caracteres')} · {note.body.split(/\s+/).filter(Boolean).length} {tr('mots', 'words', 'palabras')}
         </small>
       </div>
     </>

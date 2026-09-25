@@ -1,3 +1,5 @@
+import { intlTag, tr } from '@/i18n';
+
 export const ET_ZONE = 'America/New_York';
 
 export function pad2(n: number): string {
@@ -134,7 +136,7 @@ export function formatTimeLocal(ms: number, withSeconds = false): string {
 
 export function formatDateFr(key: string, opts: { weekday?: boolean; short?: boolean } = {}): string {
   const d = parseDateKey(key);
-  return d.toLocaleDateString('fr-FR', {
+  return d.toLocaleDateString(intlTag(), {
     weekday: opts.weekday ? (opts.short ? 'short' : 'long') : undefined,
     day: 'numeric',
     month: opts.short ? 'short' : 'long',
@@ -151,7 +153,7 @@ export function formatDuration(ms: number): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ${pad2(m % 60)}m`;
   const d = Math.floor(h / 24);
-  return `${d}j ${h % 24}h`;
+  return `${d}${tr('j', 'd', 'd')} ${h % 24}h`;
 }
 
 /**

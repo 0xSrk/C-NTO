@@ -206,6 +206,46 @@
       .meta.err {
         color: #e07070;
       }
+      .lang {
+        -webkit-app-region: no-drag;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .lang-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-2);
+        text-align: center;
+      }
+      .lang-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+      }
+      .lang-row button {
+        height: 36px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--text-1);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .lang-row button:hover {
+        border-color: rgba(255, 255, 255, 0.22);
+        color: var(--text-0);
+      }
+      .lang-row button.on {
+        background: var(--text-0);
+        color: #000;
+        border-color: var(--text-0);
+      }
 
       /* ─── Transition : traits symétriques + nano-circuit ─── */
       .xfer {
@@ -304,6 +344,14 @@
           </g>
         </svg>
         <div class="lab">SIΞRRΛSKΛ—LAB · <b>Artefact 002</b></div>
+      </div>
+      <div class="lang" id="lang">
+        <div class="lang-label" id="lang-label">Langue du desk</div>
+        <div class="lang-row" role="radiogroup" id="lang-row">
+          <button type="button" data-locale="fr" role="radio">Français</button>
+          <button type="button" data-locale="en" role="radio">English</button>
+          <button type="button" data-locale="es" role="radio">Español</button>
+        </div>
       </div>
       <div class="actions">
         <button type="button" class="btn primary" id="btn-launch">Lancer le desk</button>

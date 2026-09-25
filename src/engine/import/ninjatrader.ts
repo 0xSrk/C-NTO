@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { uid } from '@/lib/id';
 import { detectDayFirst, ET_ZONE, parseFlexibleDateTime, tradingDayKey } from '@/lib/time';
@@ -107,7 +108,7 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   const warnings: string[] = [];
   const format = detectFormat(table.headers);
   if (format === 'inconnu' || format === 'ninjatrader-executions') {
-    return { sessions: [], trades: [], warnings: ['Colonnes non reconnues : export NinjaTrader « Trades » attendu (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).'], format, skipped: table.rows.length };
+    return { sessions: [], trades: [], warnings: [tr('Colonnes non reconnues : export NinjaTrader « Trades » attendu (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).', 'Unrecognized columns: a NinjaTrader “Trades” export is expected (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).', 'Columnas no reconocidas: se espera un export NinjaTrader « Trades » (Instrument, Market pos., Qty, Entry price, Exit price, Entry time, Exit time…).')], format, skipped: table.rows.length };
   }
   const col = buildColumnIndex(table.headers);
   const sample = table.rows.slice(0, 80);
@@ -135,7 +136,7 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   const expectedCols = table.headers.length;
 
   if (table.delimiter === ',' && decimalSep === ',') {
-    warnings.push('Délimiteur « , » et décimale « , » : les champs décimaux doivent être quotés ; les lignes au mauvais nombre de colonnes seront rejetées.');
+    warnings.push(tr('Délimiteur « , » et décimale « , » : les champs décimaux doivent être quotés ; les lignes au mauvais nombre de colonnes seront rejetées.', 'Delimiter “,” and decimal “,”: decimal fields must be quoted; rows with the wrong column count will be rejected.', 'Delimitador « , » y decimal « , »: los campos decimales deben ir entre comillas; las filas con un número de columnas incorrecto se rechazan.'));
   }
 
   const trades: Trade[] = [];
@@ -234,9 +235,9 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
     });
   }
 
-  if (profitMismatch > 0) warnings.push(`${profitMismatch} trade(s) : la colonne Profit diffère du PnL recalculé (prix × valeur du point). Le PnL recalculé est conservé.`);
-  if (widthMismatch > 0) warnings.push(`${widthMismatch} ligne(s) rejetée(s) : nombre de colonnes incohérent ou décimale/délimiteur conflictuels (intégrité du journal).`);
-  else if (skipped > 0) warnings.push(`${skipped} ligne(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`);
+  if (profitMismatch > 0) warnings.push(tr(`${profitMismatch} trade(s) : la colonne Profit diffère du PnL recalculé (prix × valeur du point). Le PnL recalculé est conservé.`, `${profitMismatch} trade(s): the Profit column differs from the recomputed PnL (price × point value). The recomputed PnL is kept.`, `${profitMismatch} trade(s): la columna Profit difiere del PnL recalculado (precio × valor del punto). Se conserva el PnL recalculado.`));
+  if (widthMismatch > 0) warnings.push(tr(`${widthMismatch} ligne(s) rejetée(s) : nombre de colonnes incohérent ou décimale/délimiteur conflictuels (intégrité du journal).`, `${widthMismatch} row(s) rejected: inconsistent column count or conflicting decimal/delimiter (journal integrity).`, `${widthMismatch} fila(s) rechazada(s): número de columnas incoherente o decimal/delimitador en conflicto (integridad del diario).`));
+  else if (skipped > 0) warnings.push(tr(`${skipped} ligne(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`, `${skipped} row(s) skipped (instrument other than NQ/MNQ or invalid fields).`, `${skipped} fila(s) ignorada(s) (instrumento distinto de NQ/MNQ o campos inválidos).`));
 
   return { sessions: groupIntoSessions(trades, boundary, source), trades, warnings, format, skipped };
 }

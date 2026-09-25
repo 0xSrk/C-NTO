@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron';
+import { readLocaleFile, uiText } from './locale';
 import { createHash } from 'node:crypto';
 import { promises as fs, watch, type FSWatcher } from 'node:fs';
 import path from 'node:path';
@@ -83,11 +84,17 @@ export class NinjaBridge {
   private fileCount = 0;
   private seq = 0;
   private readonly stateFile: string;
+  private readonly userDataDir: string;
   private loaded: Promise<void>;
 
   constructor(userDataDir: string) {
+    this.userDataDir = userDataDir;
     this.stateFile = path.join(userDataDir, 'bridge-state.json');
     this.loaded = this.load();
+  }
+
+  private ui(fr: string, en: string, es: string): string {
+    return uiText(readLocaleFile(this.userDataDir), fr, en, es);
   }
 
   attach(win: BrowserWindow): void {
@@ -197,7 +204,7 @@ export class NinjaBridge {
       await fs.mkdir(path.dirname(this.stateFile), { recursive: true });
       await fs.writeFile(this.stateFile, JSON.stringify(this.state), 'utf8');
     } catch (e) {
-      this.error = `Impossible d'enregistrer l'état du pont : ${(e as Error).message}`;
+      this.error = this.ui(`Impossible d'enregistrer l'état du pont : ${(e as Error).message}`, `Could not save bridge state: ${(e as Error).message}`, `No se pudo guardar el estado del puente: ${(e as Error).message}`);
     }
   }
 
@@ -206,10 +213,10 @@ export class NinjaBridge {
     if (!folder) return;
     try {
       const st = await fs.lstat(folder);
-      if (st.isSymbolicLink()) throw new Error('Le chemin surveillé est un lien symbolique');
-      if (!st.isDirectory()) throw new Error('Le chemin surveillé n’est pas un dossier');
+      if (st.isSymbolicLink()) throw new Error(this.ui('Le chemin surveillé est un lien symbolique', 'The watched path is a symbolic link', 'La ruta vigilada es un enlace simbólico'));
+      if (!st.isDirectory()) throw new Error(this.ui('Le chemin surveillé n’est pas un dossier', 'The watched path is not a folder', 'La ruta vigilada no es una carpeta'));
     } catch (e) {
-      this.error = `Dossier inaccessible : ${(e as Error).message}`;
+      this.error = this.ui(`Dossier inaccessible : ${(e as Error).message}`, `Folder unreachable: ${(e as Error).message}`, `Carpeta inaccesible: ${(e as Error).message}`);
       this.emitStatus();
       return;
     }
@@ -218,11 +225,11 @@ export class NinjaBridge {
         if (filename) this.schedule(path.join(folder, filename.toString()));
       });
       this.watcher.on('error', (err) => {
-        this.error = `Surveillance interrompue : ${err.message}`;
+        this.error = this.ui(`Surveillance interrompue : ${err.message}`, `Watch interrupted: ${err.message}`, `Vigilancia interrumpida: ${err.message}`);
         this.emitStatus();
       });
     } catch (e) {
-      this.error = `Surveillance impossible : ${(e as Error).message}`;
+      this.error = this.ui(`Surveillance impossible : ${(e as Error).message}`, `Could not watch the folder: ${(e as Error).message}`, `Vigilancia imposible: ${(e as Error).message}`);
     }
     // fs.watch réagit instantanément ; le balayage périodique n'est qu'un filet de sécurité.
     this.poll = setInterval(() => void this.scan(), this.watcher ? POLL_WATCHED_MS : POLL_MS);
@@ -259,7 +266,7 @@ export class NinjaBridge {
       names = await fs.readdir(folder);
       this.error = undefined;
     } catch (e) {
-      this.error = `Dossier inaccessible : ${(e as Error).message}`;
+      this.error = this.ui(`Dossier inaccessible : ${(e as Error).message}`, `Folder unreachable: ${(e as Error).message}`, `Carpeta inaccesible: ${(e as Error).message}`);
       this.emitStatus();
       return;
     }
@@ -299,7 +306,7 @@ export class NinjaBridge {
     try {
       text = await fs.readFile(file, 'utf8');
     } catch (e) {
-      this.error = `Lecture impossible (${path.basename(file)}) : ${(e as Error).message}`;
+      this.error = this.ui(`Lecture impossible (${path.basename(file)}) : ${(e as Error).message}`, `Could not read ${path.basename(file)}: ${(e as Error).message}`, `Lectura imposible (${path.basename(file)}): ${(e as Error).message}`);
       this.emitStatus();
       return;
     }

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { tr } from '@/i18n';
 import { generateDemoBars, importBarsCsv, type Bar, type BarSeries } from '@/engine/bars';
 import { CSV_WORKER_MIN_LINES, csvLineCount } from '@/engine/import';
 import { defaultParams, indicatorById, type IndicatorInstance } from '@/engine/indicators';
@@ -50,7 +51,7 @@ export const useBars = create<BarsState>((set, get) => ({
       const series = await db.transaction('rw', db.barSeries, async () => {
         const existing = await db.barSeries.toArray();
         if (existing.length > 0) return existing;
-        const demo: BarSeries = { id: uid('b'), instrument: 'NQ', timeframe: 5, label: 'NQ · 5 min · démo synthétique', source: 'demo', bars: generateDemoBars({ days: 12, timeframe: 5, seed: 42 }), createdAt: Date.now() };
+        const demo: BarSeries = { id: uid('b'), instrument: 'NQ', timeframe: 5, label: tr('NQ · 5 min · démo synthétique', 'NQ · 5 min · synthetic demo', 'NQ · 5 min · demo sintética'), source: 'demo', bars: generateDemoBars({ days: 12, timeframe: 5, seed: 42 }), createdAt: Date.now() };
         await db.barSeries.add(demo);
         return [demo];
       });
@@ -72,8 +73,8 @@ export const useBars = create<BarsState>((set, get) => ({
     const existing = get().series.find((sr) => sr.source === 'demo');
     const bars = generateDemoBars({ days: opts.days ?? 12, timeframe: opts.timeframe ?? 5, seed: seedFromDate(opts.endDate), endDate: opts.endDate });
     const demo: BarSeries = existing
-      ? { ...existing, bars, timeframe: opts.timeframe ?? existing.timeframe, label: `NQ · ${opts.timeframe ?? existing.timeframe} min · démo synthétique${opts.endDate ? ` · ${opts.endDate}` : ''}` }
-      : { id: uid('b'), instrument: 'NQ', timeframe: opts.timeframe ?? 5, label: 'NQ · 5 min · démo synthétique', source: 'demo', bars, createdAt: Date.now() };
+      ? { ...existing, bars, timeframe: opts.timeframe ?? existing.timeframe, label: tr(`NQ · ${opts.timeframe ?? existing.timeframe} min · démo synthétique${opts.endDate ? ` · ${opts.endDate}` : ''}`, `NQ · ${opts.timeframe ?? existing.timeframe} min · synthetic demo${opts.endDate ? ` · ${opts.endDate}` : ''}`, `NQ · ${opts.timeframe ?? existing.timeframe} min · demo sintética${opts.endDate ? ` · ${opts.endDate}` : ''}`) }
+      : { id: uid('b'), instrument: 'NQ', timeframe: opts.timeframe ?? 5, label: tr('NQ · 5 min · démo synthétique', 'NQ · 5 min · synthetic demo', 'NQ · 5 min · demo sintética'), source: 'demo', bars, createdAt: Date.now() };
     await db.barSeries.put(demo);
     set({ series: existing ? get().series.map((sr) => (sr.id === demo.id ? demo : sr)) : [...get().series, demo], activeId: demo.id });
     await setSetting('chart.active', demo.id);
@@ -96,7 +97,7 @@ export const useBars = create<BarsState>((set, get) => ({
       parsed = importBarsCsv(text);
     }
     const { bars, warnings } = parsed;
-    if (bars.length === 0) return { bars: 0, warnings: warnings.length ? warnings : ['Aucune barre reconnue.'] };
+    if (bars.length === 0) return { bars: 0, warnings: warnings.length ? warnings : [tr('Aucune barre reconnue.', 'No bars recognized.', 'Ninguna barra reconocida.')] };
     const sr: BarSeries = { id: uid('b'), instrument, timeframe, label: `${instrument} · ${timeframe} min · ${name}`, source: 'csv', bars, createdAt: Date.now() };
     await db.barSeries.add(sr);
     set({ series: [...get().series, sr], activeId: sr.id });

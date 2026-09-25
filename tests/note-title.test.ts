@@ -4,6 +4,8 @@ import { suggestNoteTitle } from '../src/modules/note/title';
 describe('titre de note', () => {
   it('prend la première ligne tant que le titre est le placeholder', () => {
     expect(suggestNoteTitle('Nouvelle note', '# Plan\n\ncorps')).toBe('Plan');
+    expect(suggestNoteTitle('New note', '# Plan')).toBe('Plan');
+    expect(suggestNoteTitle('Nueva nota 2', 'Sesgo')).toBe('Sesgo');
     expect(suggestNoteTitle('Nouvelle note 2', 'Biais du jour')).toBe('Biais du jour');
   });
 

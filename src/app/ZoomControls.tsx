@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { tr, useI18n } from '@/i18n';
 import { computeAutoZoom, formatZoomPercent, UI_ZOOM_MAX, UI_ZOOM_MIN } from '@/engine/uiScale';
 import { desk, isDesk, type ZoomSnapshot } from '@/lib/desk';
 import { useSettings } from '@/store/settings';
@@ -7,6 +8,7 @@ import s from './shell.module.css';
 
 /** Contrôles zoom + calibrage écran (barre d’état). */
 export function ZoomControls() {
+  useI18n((s) => s.locale);
   const uiZoom = useSettings((st) => st.settings.uiZoom);
   const uiZoomAuto = useSettings((st) => st.settings.uiZoomAuto);
   const update = useSettings((st) => st.update);
@@ -62,7 +64,7 @@ export function ZoomControls() {
         if (next) {
           setSnap(next);
           await update({ uiZoom: next.user, uiZoomAuto: false });
-          toast(`Zoom ${formatZoomPercent(next.factor)}`, 'info');
+          toast(`${tr('Zoom', 'Zoom', 'Zoom')} ${formatZoomPercent(next.factor)}`, 'info');
         }
         return;
       }
@@ -70,7 +72,7 @@ export function ZoomControls() {
       const next = Math.min(UI_ZOOM_MAX, Math.max(UI_ZOOM_MIN, Math.round((base + dir * 0.05) * 20) / 20));
       await update({ uiZoom: next, uiZoomAuto: false });
       applyBrowser(next, false);
-      toast(`Zoom ${formatZoomPercent(next)}`, 'info');
+      toast(`${tr('Zoom', 'Zoom', 'Zoom')} ${formatZoomPercent(next)}`, 'info');
     },
     [applyBrowser, snap?.factor, toast, uiZoom, update],
   );
@@ -81,13 +83,13 @@ export function ZoomControls() {
       if (next) {
         setSnap(next);
         await update({ uiZoom: 1, uiZoomAuto: true });
-        toast(`Calibrage auto · ${next.display.label} · ${formatZoomPercent(next.factor)}`, 'ok');
+        toast(`${tr('Calibrage auto', 'Auto calibration', 'Calibrado automático')} · ${next.display.label} · ${formatZoomPercent(next.factor)}`, 'ok');
       }
       return;
     }
     await update({ uiZoom: 1, uiZoomAuto: true });
     applyBrowser(1, true);
-    toast('Calibrage automatique', 'ok');
+    toast(tr('Calibrage automatique', 'Automatic calibration', 'Calibrado automático'), 'ok');
   }, [applyBrowser, toast, update]);
 
   const toggleAuto = useCallback(async () => {
@@ -98,14 +100,14 @@ export function ZoomControls() {
         const next = await desk.zoom.set({ user: factor, auto: false });
         if (next) setSnap(next);
       } else applyBrowser(factor, false);
-      toast(`Zoom manuel · ${formatZoomPercent(factor)}`, 'info');
+      toast(`${tr('Zoom manuel', 'Manual zoom', 'Zoom manual')} · ${formatZoomPercent(factor)}`, 'info');
     } else {
       await update({ uiZoom: 1, uiZoomAuto: true });
       if (desk?.zoom) {
         const next = await desk.zoom.set({ user: 1, auto: true });
         if (next) setSnap(next);
       } else applyBrowser(1, true);
-      toast('Calibrage automatique', 'ok');
+      toast(tr('Calibrage automatique', 'Automatic calibration', 'Calibrado automático'), 'ok');
     }
   }, [applyBrowser, snap?.factor, toast, uiZoom, uiZoomAuto, update]);
 
@@ -131,19 +133,19 @@ export function ZoomControls() {
   const mode = snap?.mode ?? (uiZoomAuto ? 'auto' : 'manual');
   const label = formatZoomPercent(factor);
   const tip = snap
-    ? `${mode === 'auto' ? 'Auto' : 'Manuel'} · écran ${snap.display.label} · OS ×${snap.display.scaleFactor} · Ctrl+± / Ctrl+0`
-    : 'Zoom interface · Ctrl+± / Ctrl+0';
+    ? `${mode === 'auto' ? tr('Auto', 'Auto', 'Auto') : tr('Manuel', 'Manual', 'Manual')} · ${tr('écran', 'screen', 'pantalla')} ${snap.display.label} · OS ×${snap.display.scaleFactor} · Ctrl+± / Ctrl+0`
+    : tr('Zoom interface · Ctrl+± / Ctrl+0', 'Interface zoom · Ctrl+± / Ctrl+0', 'Zoom de la interfaz · Ctrl+± / Ctrl+0');
 
   return (
     <div className={s.zoom} title={tip}>
-      <button type="button" className={s.zoomBtn} onClick={() => void step(-1)} aria-label="Réduire le zoom" disabled={factor <= UI_ZOOM_MIN + 0.001}>
+      <button type="button" className={s.zoomBtn} onClick={() => void step(-1)} aria-label={tr('Réduire le zoom', 'Zoom out', 'Reducir el zoom')} disabled={factor <= UI_ZOOM_MIN + 0.001}>
         −
       </button>
-      <button type="button" className={s.zoomPct} onClick={() => void toggleAuto()} onDoubleClick={() => void reset()} aria-label="Basculer auto / manuel">
-        <span className={s.zoomMode}>{mode === 'auto' ? 'AUTO' : 'FIXE'}</span>
+      <button type="button" className={s.zoomPct} onClick={() => void toggleAuto()} onDoubleClick={() => void reset()} aria-label={tr('Basculer auto / manuel', 'Toggle auto / manual', 'Alternar auto / manual')}>
+        <span className={s.zoomMode}>{mode === 'auto' ? 'AUTO' : tr('FIXE', 'FIXED', 'FIJO')}</span>
         {label}
       </button>
-      <button type="button" className={s.zoomBtn} onClick={() => void step(1)} aria-label="Augmenter le zoom" disabled={factor >= UI_ZOOM_MAX - 0.001}>
+      <button type="button" className={s.zoomBtn} onClick={() => void step(1)} aria-label={tr('Augmenter le zoom', 'Zoom in', 'Aumentar el zoom')} disabled={factor >= UI_ZOOM_MAX - 0.001}>
         +
       </button>
       {!isDesk && <span className={s.zoomHint}>nav</span>}

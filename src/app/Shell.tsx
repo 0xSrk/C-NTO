@@ -15,7 +15,8 @@ import { useAgent } from '@/store/agent';
 import { useBridge } from '@/store/bridge';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
-import { TABS } from './tabs';
+import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
+import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
 function useClock(everyMs = 1000) {
@@ -27,8 +28,11 @@ function useClock(everyMs = 1000) {
   return now;
 }
 
-const fmtLocal = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
-const fmtEt = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: ET_ZONE });
+function clockFormat(locale: string, zone?: string): Intl.DateTimeFormat {
+  const base: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+  if (zone) return new Intl.DateTimeFormat(locale, { ...base, timeZone: zone });
+  return new Intl.DateTimeFormat(locale, { ...base, second: '2-digit' });
+}
 
 const fmtPhase = new Intl.DateTimeFormat('en-US', { timeZone: ET_ZONE, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
@@ -38,14 +42,15 @@ function marketPhase(now: Date): { label: string; tone: 'ok' | 'warn' | 'off' } 
   const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
   const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
   const t = h * 60 + m;
-  if (wd === 'Sat' || (wd === 'Sun' && t < 18 * 60) || (wd === 'Fri' && t >= 17 * 60)) return { label: 'Globex fermé · week-end', tone: 'off' };
-  if (t >= 17 * 60 && t < 18 * 60) return { label: 'Maintenance Globex', tone: 'off' };
-  if (t >= 9 * 60 + 30 && t < 16 * 60) return { label: 'RTH ouvert', tone: 'ok' };
-  if (t >= 8 * 60 && t < 9 * 60 + 30) return { label: 'Pré-ouverture', tone: 'warn' };
-  return { label: 'Globex · hors RTH', tone: 'warn' };
+  if (wd === 'Sat' || (wd === 'Sun' && t < 18 * 60) || (wd === 'Fri' && t >= 17 * 60)) return { label: tr('Globex fermé · week-end', 'Globex closed · weekend', 'Globex cerrado · fin de semana'), tone: 'off' };
+  if (t >= 17 * 60 && t < 18 * 60) return { label: tr('Maintenance Globex', 'Globex maintenance', 'Mantenimiento Globex'), tone: 'off' };
+  if (t >= 9 * 60 + 30 && t < 16 * 60) return { label: tr('RTH ouvert', 'RTH open', 'RTH abierto'), tone: 'ok' };
+  if (t >= 8 * 60 && t < 9 * 60 + 30) return { label: tr('Pré-ouverture', 'Pre-open', 'Preapertura'), tone: 'warn' };
+  return { label: tr('Globex · hors RTH', 'Globex · outside RTH', 'Globex · fuera de RTH'), tone: 'warn' };
 }
 
 export function Shell({ children }: { children: ReactNode }) {
+  const locale = useI18n((s) => s.locale);
   const tab = useUi((u) => u.tab);
   const setTab = useUi((u) => u.setTab);
   const toasts = useUi((u) => u.toasts);
@@ -56,6 +61,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const bridgeStatus = useBridge((b) => b.status);
   const bridgeLive = !!bridgeStatus?.enabled && !!bridgeStatus.folder && !bridgeStatus.error;
   const active = TABS.find((t) => t.id === tab);
+  const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
   const [appVersion, setAppVersion] = useState(APP_VERSION);
 
@@ -84,7 +90,7 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [setTab]);
 
   const live = bridgeLive || orchestrator.running;
-  const liveLabel = bridgeLive && orchestrator.running ? 'Pont · Lien' : bridgeLive ? 'Pont NT8' : orchestrator.running ? 'Lien IA' : isDesk ? 'Veille' : 'Navigateur';
+  const liveLabel = bridgeLive && orchestrator.running ? tr('Pont · Lien', 'Bridge · Link', 'Puente · Enlace') : bridgeLive ? tr('Pont NT8', 'NT8 bridge', 'Puente NT8') : orchestrator.running ? tr('Lien IA', 'AI link', 'Enlace IA') : isDesk ? tr('Veille', 'Idle', 'En espera') : tr('Navigateur', 'Browser', 'Navegador');
 
   return (
     <div className={s.shell}>
@@ -104,7 +110,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <div className={s.titleCenter}>
           <span>
-            <b>{active?.code}</b> <span className={s.sep}>·</span> {active?.label}
+            <b>{active?.code}</b> <span className={s.sep}>·</span> {activeCopy?.label}
           </span>
           <span>
             NQ <span className={s.sep}>·</span> CME
@@ -118,12 +124,12 @@ export function Shell({ children }: { children: ReactNode }) {
           </span>
           {isDesk && (
             <div className={s.winControls}>
-              <button onClick={() => desk?.window.minimize()} aria-label="Réduire" title="Réduire">
+              <button onClick={() => desk?.window.minimize()} aria-label={tr('Réduire', 'Minimize', 'Minimizar')} title={tr('Réduire', 'Minimize', 'Minimizar')}>
                 <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1">
                   <path d="M0 5h10" />
                 </svg>
               </button>
-              <button onClick={() => desk?.window.toggleMaximize()} aria-label="Agrandir" title="Agrandir">
+              <button onClick={() => desk?.window.toggleMaximize()} aria-label={tr('Agrandir', 'Maximize', 'Maximizar')} title={tr('Agrandir', 'Maximize', 'Maximizar')}>
                 {maximized ? (
                   <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1" fill="none">
                     <path d="M2 3h5v5H2zM3.5 3V1.5h5v5H7" />
@@ -134,7 +140,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   </svg>
                 )}
               </button>
-              <button className={s.close} onClick={() => desk?.window.close()} aria-label="Fermer" title="Fermer">
+              <button className={s.close} onClick={() => desk?.window.close()} aria-label={tr('Fermer', 'Close', 'Cerrar')} title={tr('Fermer', 'Close', 'Cerrar')}>
                 <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1">
                   <path d="M0 0l10 10M10 0L0 10" />
                 </svg>
@@ -146,22 +152,23 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <aside className={s.rail}>
         <div className={s.railHead}>
-          <span className="micro">Indicatif</span>
+          <span className="micro">{tr('Indicatif', 'Callsign', 'Indicativo')}</span>
           <span className={s.railCallsign}>{callsign}</span>
         </div>
         <nav className={s.nav}>
-          {TABS.map((t) => {
-            const Icon = t.icon;
+          {TABS.map((item) => {
+            const Icon = item.icon;
+            const copy = tabCopy(item);
             return (
-              <button key={t.id} className={cx(s.navItem, tab === t.id && s.on)} onClick={() => setTab(t.id)} title={`${t.label} — Ctrl+${t.index.slice(-1)}`} aria-current={tab === t.id ? 'page' : undefined}>
-                <span className={s.navIndex}>{t.index}</span>
+              <button key={item.id} className={cx(s.navItem, tab === item.id && s.on)} onClick={() => setTab(item.id)} title={`${copy.label} — Ctrl+${item.index.slice(-1)}`} aria-current={tab === item.id ? 'page' : undefined}>
+                <span className={s.navIndex}>{item.index}</span>
                 <Icon size={14} />
-                <span className={s.navLabel}>{t.label}</span>
+                <span className={s.navLabel}>{copy.label}</span>
                 <span className={s.navBadge}>
-                  {t.id === 'metrique' && sessionsCount > 0 ? sessionsCount : ''}
-                  {t.id === 'agent' && orchestrator.running ? <span className={s.lienBadge}>LIEN</span> : null}
-                  {(t.id === 'bot' || t.id === 'copieur') && (
-                    <i className={s.protoPill} title="Prototypage · déploiement à venir">
+                  {item.id === 'metrique' && sessionsCount > 0 ? sessionsCount : ''}
+                  {item.id === 'agent' && orchestrator.running ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
+                  {(item.id === 'bot' || item.id === 'copieur') && (
+                    <i className={s.protoPill} title={tr('Prototypage · déploiement à venir', 'Prototype · deployment coming', 'Prototipo · despliegue pendiente')}>
                       PROTO
                     </i>
                   )}
@@ -174,7 +181,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className={s.hatch} aria-hidden />
           <div className={s.capacity}>
             <div className={s.capacityRow}>
-              <span>Séances</span>
+              <span>{tr('Séances', 'Sessions', 'Sesiones')}</span>
               <b>
                 {sessionsCount} / {SESSION_CAPACITY}
               </b>
@@ -193,15 +200,22 @@ export function Shell({ children }: { children: ReactNode }) {
         <MarketPhase />
         <span className={s.statusItem}>
           <i className={cx(s.statusDot, orchestrator.running && s.gold, orchestrator.running && s.live)} />
-          Passerelle {orchestrator.running ? `active · ${plural(orchestrator.clients, 'lien')}` : 'en veille'}
+          {tr('Passerelle', 'Gateway', 'Pasarela')} {orchestrator.running ? `${tr('active', 'active', 'activa')} · ${plural(orchestrator.clients, tr('lien', 'link', 'enlace'), tr('liens', 'links', 'enlaces'))}` : tr('en veille', 'idle', 'en espera')}
         </span>
         <span className={s.statusItem} title={bridgeStatus?.folder ?? undefined}>
           <i className={cx(s.statusDot, bridgeLive && s.gold, bridgeLive && s.live, !!bridgeStatus?.error && s.warn)} />
-          Pont NinjaTrader {bridgeStatus?.error ? 'en erreur' : bridgeLive ? `actif · ${plural(bridgeStatus.files, 'fichier')}` : isDesk ? 'non configuré' : 'import manuel'}
+          {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')} {bridgeStatus?.error ? tr('en erreur', 'in error', 'en error') : bridgeLive ? `${tr('actif', 'active', 'activo')} · ${plural(bridgeStatus.files, tr('fichier', 'file', 'archivo'), tr('fichiers', 'files', 'archivos'))}` : isDesk ? tr('non configuré', 'not configured', 'no configurado') : tr('import manuel', 'manual import', 'importación manual')}
         </span>
         <div className={s.statusRight}>
+          <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
+            {LOCALES.map((item) => (
+              <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
           <ZoomControls />
-          <Clocks />
+          <Clocks locale={locale} />
         </div>
       </footer>
 
@@ -237,32 +251,34 @@ function ConfirmDialog() {
   return (
     <Modal
       title={pending.title}
-      sub="confirmation requise"
+      sub={tr('confirmation requise', 'confirmation required', 'confirmación requerida')}
       onClose={() => resolve(false)}
       width={460}
       footer={
         <>
           <Button variant="ghost" onClick={() => resolve(false)} autoFocus>
-            Annuler
+            {tr('Annuler', 'Cancel', 'Cancelar')}
           </Button>
           <Button variant={pending.danger ? 'danger' : 'gold'} onClick={() => resolve(true)}>
-            Confirmer
+            {tr('Confirmer', 'Confirm', 'Confirmar')}
           </Button>
         </>
       }
     >
-      <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>{pending.text ?? 'Cette action ne peut pas être annulée.'}</p>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>{pending.text ?? tr('Cette action ne peut pas être annulée.', 'This action cannot be undone.', 'Esta acción no se puede deshacer.')}</p>
     </Modal>
   );
 }
 
 /** Horloges isolées : seules ces cellules se rafraîchissent chaque seconde. */
-function Clocks() {
+function Clocks({ locale }: { locale: string }) {
   const now = useClock();
+  const fmtLocal = clockFormat(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR');
+  const fmtEt = clockFormat(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR', ET_ZONE);
   return (
     <>
       <span className={s.statusItem}>
-        Local <b>{fmtLocal.format(now)}</b>
+        {tr('Local', 'Local', 'Local')} <b>{fmtLocal.format(now)}</b>
       </span>
       <span className={s.statusItem}>
         New York <b>{fmtEt.format(now)} ET</b>
@@ -285,6 +301,7 @@ function MarketPhase() {
 export function ModuleHeader({ tab, actions }: { tab: TabId; actions?: ReactNode }) {
   const def = TABS.find((t) => t.id === tab);
   if (!def) return null;
+  const copy = tabCopy(def);
   return (
     <div className={s.moduleHead}>
       <span className={s.watermark} aria-hidden>
@@ -292,12 +309,12 @@ export function ModuleHeader({ tab, actions }: { tab: TabId; actions?: ReactNode
       </span>
       <div className={s.moduleTitle}>
         <h1>
-          {def.label}
+          {copy.label}
           <small>
             <b>{def.index}</b> · {def.code} · v{APP_VERSION}
           </small>
         </h1>
-        <span className={s.moduleTagline}>{def.tagline}</span>
+        <span className={s.moduleTagline}>{copy.tagline}</span>
       </div>
       {actions && <div className={s.moduleActions}>{actions}</div>}
     </div>

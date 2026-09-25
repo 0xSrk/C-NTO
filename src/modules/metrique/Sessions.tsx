@@ -3,6 +3,7 @@ import { IconTrash } from '@/app/icons';
 import { Button, Empty, Panel, Tag, cx, tableClass } from '@/design/primitives';
 import { computeTradeStats } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
+import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtPrice, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import { formatDuration, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { db } from '@/store/db';
@@ -11,9 +12,15 @@ import { useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
 import s from './metrique.module.css';
 
-const SOURCE_LABEL: Record<Session['source'], string> = { ninjatrader: 'NinjaTrader', csv: 'CSV', manuel: 'Manuel', demo: 'Démo' };
+function sourceLabel(source: Session['source']): string {
+  if (source === 'ninjatrader') return 'NinjaTrader';
+  if (source === 'csv') return 'CSV';
+  if (source === 'manuel') return tr('Manuel', 'Manual', 'Manual');
+  return tr('Démo', 'Demo', 'Demo');
+}
 
 export function Sessions() {
+  useI18n((s) => s.locale);
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
   const deleteSessions = useJournal((j) => j.deleteSessions);
@@ -84,8 +91,12 @@ export function Sessions() {
     const ids = [...checked];
     if (!ids.length) return;
     const ok = await confirmDialog(
-      `Effacer ${plural(ids.length, 'séance')} ?`,
-      `${ids.length} séance(s) et leurs trades seront retirés du journal. Vous pourrez annuler juste après.`,
+      tr(`Effacer ${plural(ids.length, 'séance')} ?`, `Delete ${plural(ids.length, 'session', 'sessions')}?`, `¿Borrar ${plural(ids.length, 'sesión', 'sesiones')}?`),
+      tr(
+        `${ids.length} séance(s) et leurs trades seront retirés du journal. Vous pourrez annuler juste après.`,
+        `${ids.length} session(s) and their trades will be removed from the journal. You can undo right after.`,
+        `${ids.length} sesión(es) y sus trades se quitarán del diario. Podrá deshacer justo después.`,
+      ),
     );
     if (!ok) return;
     const idSet = new Set(ids);
@@ -95,40 +106,55 @@ export function Sessions() {
     await deleteSessions(ids);
     setChecked(new Set());
     if (selected && ids.includes(selected)) setSelected(null);
-    toast(`${plural(ids.length, 'séance')} effacée${ids.length > 1 ? 's' : ''}`, 'warn', {
-      label: 'Annuler',
-      run: () => {
-        void restoreSessions(snapSessions, snapTrades, snapExec).then(() => toast('Séances restaurées.', 'ok'));
+    toast(
+      tr(
+        `${plural(ids.length, 'séance')} effacée${ids.length > 1 ? 's' : ''}`,
+        `${plural(ids.length, 'session', 'sessions')} deleted`,
+        `${plural(ids.length, 'sesión', 'sesiones')} eliminada${ids.length > 1 ? 's' : ''}`,
+      ),
+      'warn',
+      {
+        label: tr('Annuler', 'Undo', 'Deshacer'),
+        run: () => {
+          void restoreSessions(snapSessions, snapTrades, snapExec).then(() => toast(tr('Séances restaurées.', 'Sessions restored.', 'Sesiones restauradas.'), 'ok'));
+        },
       },
-    });
+    );
   };
 
-  if (sessions.length === 0) return <Empty title="Aucune séance" text="Importez vos trades ou créez une séance manuelle." />;
+  if (sessions.length === 0) return <Empty title={tr('Aucune séance', 'No sessions', 'Ninguna sesión')} text={tr('Importez vos trades ou créez une séance manuelle.', 'Import your trades or create a manual session.', 'Importe sus trades o cree una sesión manual.')} />;
 
   return (
     <div className={cx(s.split, s.splitWide)}>
       <Panel
-        title="Séances"
-        sub={plural(list.length, 'affichée')}
+        title={tr('Séances', 'Sessions', 'Sesiones')}
+        sub={plural(list.length, tr('affichée', 'shown', 'mostrada'), tr('affichées', 'shown', 'mostradas'))}
         tight
         actions={
           <>
-            <input placeholder="Filtrer : date, compte, tag, note…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 220 }} />
+            <input placeholder={tr('Filtrer : date, compte, tag, note…', 'Filter: date, account, tag, note…', 'Filtrar: fecha, cuenta, tag, nota…')} value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 220 }} />
             <Button size="sm" variant="ghost" active={sort === 'date'} onClick={() => setSort('date')}>
-              Date
+              {tr('Date', 'Date', 'Fecha')}
             </Button>
             <Button size="sm" variant="ghost" active={sort === 'pnl'} onClick={() => setSort('pnl')}>
               PnL
             </Button>
-            {checkedCount > 0 && <span className={s.selCount}>{checkedCount} cochée{checkedCount > 1 ? 's' : ''}</span>}
+            {checkedCount > 0 && (
+              <span className={s.selCount}>
+                {checkedCount} {checkedCount > 1 ? tr('cochées', 'checked', 'marcadas') : tr('cochée', 'checked', 'marcada')}
+              </span>
+            )}
           </>
         }
       >
         {checkedCount > 0 && (
           <div className={s.bulkBar}>
-            <span>{plural(checkedCount, 'séance cochée', 'séances cochées')}. L’effacement demande une confirmation, puis peut être annulé.</span>
+            <span>
+              {plural(checkedCount, tr('séance cochée', 'checked session', 'sesión marcada'), tr('séances cochées', 'checked sessions', 'sesiones marcadas'))}.{' '}
+              {tr('L’effacement demande une confirmation, puis peut être annulé.', 'Deletion requires confirmation, then can be undone.', 'El borrado pide confirmación y luego puede deshacerse.')}
+            </span>
             <Button size="sm" variant="danger" onClick={() => void bulkDelete()}>
-              <IconTrash size={12} /> Effacer la sélection
+              <IconTrash size={12} /> {tr('Effacer la sélection', 'Delete selection', 'Borrar la selección')}
             </Button>
           </div>
         )}
@@ -137,17 +163,17 @@ export function Sessions() {
             <thead>
               <tr>
                 <th className={s.checkCol}>
-                  <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} aria-label="Tout sélectionner" />
+                  <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} aria-label={tr('Tout sélectionner', 'Select all', 'Seleccionar todo')} />
                 </th>
-                <th>Date</th>
-                <th>Compte</th>
+                <th>{tr('Date', 'Date', 'Fecha')}</th>
+                <th>{tr('Compte', 'Account', 'Cuenta')}</th>
                 <th className="num">Trades</th>
-                <th className="num">PnL net</th>
-                <th className="num">Réussite</th>
-                <th className="num">Comm.</th>
+                <th className="num">{tr('PnL net', 'Net PnL', 'PnL neto')}</th>
+                <th className="num">{tr('Réussite', 'Win rate', 'Acierto')}</th>
+                <th className="num">{tr('Comm.', 'Comm.', 'Com.')}</th>
                 <th>Tags</th>
-                <th>Éval.</th>
-                <th>Source</th>
+                <th>{tr('Éval.', 'Rating', 'Eval.')}</th>
+                <th>{tr('Source', 'Source', 'Fuente')}</th>
               </tr>
             </thead>
             <tbody>
@@ -164,7 +190,7 @@ export function Sessions() {
                     onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelected(x.id)}
                   >
                     <td className={s.checkCol} onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={isChecked} onChange={() => undefined} onClick={(e) => toggleOne(x.id, e)} aria-label={`Sélectionner ${x.date}`} />
+                      <input type="checkbox" checked={isChecked} onChange={() => undefined} onClick={(e) => toggleOne(x.id, e)} aria-label={`${tr('Sélectionner', 'Select', 'Seleccionar')} ${x.date}`} />
                     </td>
                     <td className="mono">{formatDateFr(x.date, { weekday: true, short: true })}</td>
                     <td className="muted">{x.account ?? '—'}</td>
@@ -180,7 +206,7 @@ export function Sessions() {
                       </div>
                     </td>
                     <td className="gold">{x.rating ? '★'.repeat(x.rating) : ''}</td>
-                    <td className="muted">{SOURCE_LABEL[x.source]}</td>
+                    <td className="muted">{sourceLabel(x.source)}</td>
                   </tr>
                 );
               })}
@@ -203,8 +229,8 @@ export function Sessions() {
           }}
         />
       ) : (
-        <Panel title="Détail" sub="sélectionnez une séance">
-          <p className={s.note}>Cliquez sur une séance pour afficher ses trades. Cochez une ou plusieurs lignes pour les effacer en lot.</p>
+        <Panel title={tr('Détail', 'Detail', 'Detalle')} sub={tr('sélectionnez une séance', 'select a session', 'seleccione una sesión')}>
+          <p className={s.note}>{tr('Cliquez sur une séance pour afficher ses trades. Cochez une ou plusieurs lignes pour les effacer en lot.', 'Click a session to show its trades. Check one or more rows to delete them in bulk.', 'Haga clic en una sesión para ver sus trades. Marque una o varias filas para borrarlas en lote.')}</p>
         </Panel>
       )}
     </div>
@@ -212,6 +238,7 @@ export function Sessions() {
 }
 
 function SessionDetail({ session, trades, onDeleted }: { session: Session; trades: Trade[]; onDeleted: () => void }) {
+  useI18n((s) => s.locale);
   const updateSession = useJournal((j) => j.updateSession);
   const deleteSession = useJournal((j) => j.deleteSession);
   const setTab = useUi((u) => u.setTab);
@@ -238,39 +265,39 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
   };
   const openJournal = async () => {
     const lines = [
-      `# Journal ${session.date}`,
+      `# ${tr('Journal', 'Journal', 'Diario')} ${session.date}`,
       '',
-      `**PnL net** : ${fmtUsd(session.pnl, { sign: true, cents: true })} · **Trades** : ${session.tradeCount} · **Réussite** : ${fmtPct(stats.winRate, 0)}`,
-      `**Compte** : ${session.account ?? '—'} · **Profit factor** : ${fmtRatio(stats.profitFactor)}`,
+      `**${tr('PnL net', 'Net PnL', 'PnL neto')}** : ${fmtUsd(session.pnl, { sign: true, cents: true })} · **Trades** : ${session.tradeCount} · **${tr('Réussite', 'Win rate', 'Acierto')}** : ${fmtPct(stats.winRate, 0)}`,
+      `**${tr('Compte', 'Account', 'Cuenta')}** : ${session.account ?? '—'} · **Profit factor** : ${fmtRatio(stats.profitFactor)}`,
       '',
-      '## Contexte',
+      `## ${tr('Contexte', 'Context', 'Contexto')}`,
       '',
       '',
-      '## Exécution',
+      `## ${tr('Exécution', 'Execution', 'Ejecución')}`,
       '',
       ...sorted.map((t) => `- ${formatTimeLocal(t.entryTime)} ${t.direction === 'long' ? 'Long' : 'Short'} ${t.qty} ${t.instrument} @ ${fmtPrice(t.entryPrice)} → ${fmtPrice(t.exitPrice)} : ${fmtUsd(t.pnl, { sign: true, cents: true })}${t.strategy ? ` (${t.strategy})` : ''}`),
       '',
-      '## Leçon du jour',
+      `## ${tr('Leçon du jour', 'Lesson of the day', 'Lección del día')}`,
       '',
       '',
       session.note ? `> ${session.note}` : '',
       '',
-      '#journal [[Plan de trading]]',
+      `#journal [[${tr('Plan de trading', 'Trading plan', 'Plan de trading')}]]`,
     ];
     await dailyNote(session.date, lines.join('\n'));
     setTab('note');
-    toast(`Note « Journal ${session.date} » ouverte.`, 'ok');
+    toast(tr(`Note « Journal ${session.date} » ouverte.`, `Note “Journal ${session.date}” opened.`, `Nota « Diario ${session.date} » abierta.`), 'ok');
   };
 
   return (
     <Panel
       title={formatDateFr(session.date, { weekday: true })}
-      sub={session.account ?? SOURCE_LABEL[session.source]}
+      sub={session.account ?? sourceLabel(session.source)}
       accent
       actions={
         <>
           <Button size="sm" variant="ghost" onClick={openJournal}>
-            Note du jour
+            {tr('Note du jour', 'Daily note', 'Nota del día')}
           </Button>
           <Button
             size="sm"
@@ -280,19 +307,28 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
               setTab('visual');
             }}
           >
-            Voir dans Visual
+            {tr('Voir dans Visual', 'View in Visual', 'Ver en Visual')}
           </Button>
           <Button
             size="sm"
             variant="ghost"
             onClick={async () => {
-              if (await confirmDialog(`Supprimer la séance du ${formatDateFr(session.date)} ?`, `${session.tradeCount} trade(s) seront retirés du journal. Cette action est irréversible.`)) {
+              if (
+                await confirmDialog(
+                  tr(`Supprimer la séance du ${formatDateFr(session.date)} ?`, `Delete the session of ${formatDateFr(session.date)}?`, `¿Eliminar la sesión del ${formatDateFr(session.date)}?`),
+                  tr(
+                    `${session.tradeCount} trade(s) seront retirés du journal. Cette action est irréversible.`,
+                    `${session.tradeCount} trade(s) will be removed from the journal. This action cannot be undone.`,
+                    `${session.tradeCount} trade(s) se quitarán del diario. Esta acción es irreversible.`,
+                  ),
+                )
+              ) {
                 await deleteSession(session.id);
                 onDeleted();
               }
             }}
-            aria-label="Supprimer la séance"
-            title="Supprimer la séance"
+            aria-label={tr('Supprimer la séance', 'Delete session', 'Eliminar la sesión')}
+            title={tr('Supprimer la séance', 'Delete session', 'Eliminar la sesión')}
           >
             <IconTrash size={13} />
           </Button>
@@ -303,11 +339,11 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
         <div className={s.detailHead}>
           <span className={cx(s.detailPnl, signClass(net))}>{fmtUsd(net, { sign: true, cents: true })}</span>
           <span className="muted">
-            net {fmtUsd(net, { cents: true })} · brut {fmtUsd(brut, { cents: true })} · comm. {fmtUsd(-comm, { cents: true })}
+            {tr('net', 'net', 'neto')} {fmtUsd(net, { cents: true })} · {tr('brut', 'gross', 'bruto')} {fmtUsd(brut, { cents: true })} · {tr('comm.', 'comm.', 'com.')} {fmtUsd(-comm, { cents: true })}
           </span>
           <span className={s.stars} style={{ marginLeft: 'auto' }}>
             {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} className={cx(!!session.rating && session.rating >= n && s.on)} onClick={() => updateSession(session.id, { rating: session.rating === n ? undefined : n })} title={`Auto-évaluation ${n}/5`}>
+              <button key={n} className={cx(!!session.rating && session.rating >= n && s.on)} onClick={() => updateSession(session.id, { rating: session.rating === n ? undefined : n })} title={tr(`Auto-évaluation ${n}/5`, `Self-rating ${n}/5`, `Autoevaluación ${n}/5`)}>
                 ★
               </button>
             ))}
@@ -315,12 +351,12 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
         </div>
 
         <div className={s.miniStats}>
-          <MiniKv k="Réussite" v={fmtPct(stats.winRate, 0)} />
+          <MiniKv k={tr('Réussite', 'Win rate', 'Acierto')} v={fmtPct(stats.winRate, 0)} />
           <MiniKv k="Profit factor" v={fmtRatio(stats.profitFactor)} />
-          <MiniKv k="Espérance" v={fmtUsd(stats.expectancy, { cents: true })} />
-          <MiniKv k="Drawdown intra" v={fmtUsd(-stats.maxDrawdown)} />
-          <MiniKv k="Durée moy." v={formatDuration(stats.avgDurationMs)} />
-          <MiniKv k="Volume" v={`${fmtInt(stats.totalVolume)} ct`} />
+          <MiniKv k={tr('Espérance', 'Expectancy', 'Esperanza')} v={fmtUsd(stats.expectancy, { cents: true })} />
+          <MiniKv k={tr('Drawdown intra', 'Intraday drawdown', 'Drawdown intra')} v={fmtUsd(-stats.maxDrawdown)} />
+          <MiniKv k={tr('Durée moy.', 'Avg duration', 'Dur. media')} v={formatDuration(stats.avgDurationMs)} />
+          <MiniKv k={tr('Volume', 'Volume', 'Volumen')} v={`${fmtInt(stats.totalVolume)} ct`} />
         </div>
 
         <div>
@@ -331,7 +367,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
             {session.tags.map((t) => (
               <Tag key={t} tone="gold">
                 {t}
-                <button onClick={() => updateSession(session.id, { tags: session.tags.filter((x) => x !== t) })} style={{ color: 'inherit', opacity: 0.7 }} aria-label={`Retirer ${t}`}>
+                <button onClick={() => updateSession(session.id, { tags: session.tags.filter((x) => x !== t) })} style={{ color: 'inherit', opacity: 0.7 }} aria-label={`${tr('Retirer', 'Remove', 'Quitar')} ${t}`}>
                   ×
                 </button>
               </Tag>
@@ -341,7 +377,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addTag()}
               onBlur={addTag}
-              placeholder="+ tag"
+              placeholder={tr('+ tag', '+ tag', '+ etiqueta')}
               style={{ height: 28, padding: '0 6px', fontSize: 11, width: 90 }}
             />
           </div>
@@ -349,9 +385,16 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
 
         <div>
           <div className="micro" style={{ marginBottom: 6 }}>
-            Note de séance
+            {tr('Note de séance', 'Session note', 'Nota de sesión')}
           </div>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={saveNote} rows={3} placeholder="Contexte, état d’esprit, erreurs, ce qui a marché…" style={{ width: '100%', resize: 'vertical' }} />
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={saveNote}
+            rows={3}
+            placeholder={tr('Contexte, état d’esprit, erreurs, ce qui a marché…', 'Context, mindset, mistakes, what worked…', 'Contexto, estado de ánimo, errores, lo que funcionó…')}
+            style={{ width: '100%', resize: 'vertical' }}
+          />
         </div>
 
         {sorted.length > 0 ? (
@@ -359,9 +402,9 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
             <table className={tableClass}>
               <thead>
                 <tr>
-                  <th>Entrée</th>
-                  <th>Sens · qté</th>
-                  <th className="num">Prix</th>
+                  <th>{tr('Entrée', 'Entry', 'Entrada')}</th>
+                  <th>{tr('Sens · qté', 'Side · qty', 'Sentido · cant.')}</th>
+                  <th className="num">{tr('Prix', 'Price', 'Precio')}</th>
                   <th className="num">PnL</th>
                   <th className="num">MAE / MFE</th>
                 </tr>
@@ -395,7 +438,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
             </table>
           </div>
         ) : (
-          <p className={s.note}>Séance saisie manuellement : pas de détail par trade.</p>
+          <p className={s.note}>{tr('Séance saisie manuellement : pas de détail par trade.', 'Manually entered session: no per-trade detail.', 'Sesión introducida manualmente: sin detalle por trade.')}</p>
         )}
       </div>
     </Panel>

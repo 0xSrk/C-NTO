@@ -478,6 +478,31 @@
   color: var(--text-0);
   font-weight: 500;
 }
+.langRow {
+  display: flex;
+  gap: 4px;
+}
+.langBtn {
+  height: 26px;
+  border: 1px solid var(--line-1);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.langBtn:hover {
+  color: var(--text-0);
+  border-color: var(--line-2);
+}
+.langBtn.on {
+  background: var(--text-0);
+  color: #000;
+  border-color: var(--text-0);
+}
 .railMeta {
   display: flex;
   flex-direction: column;

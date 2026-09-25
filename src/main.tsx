@@ -11,6 +11,7 @@ import { useBridge } from '@/store/bridge';
 import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
 import { useSettings } from '@/store/settings';
+import { tr } from '@/i18n';
 import { useUi } from '@/store/ui';
 
 Object.assign(window, { __cantoPerf: bootTimings });
@@ -22,13 +23,17 @@ function paintFatal(message: string): void {
   el.setAttribute('role', 'alert');
   el.style.cssText =
     'position:fixed;inset:0;z-index:2147483647;background:#0a0a0a;color:#f2f2f2;padding:32px;font:14px/1.5 ui-sans-serif,sans-serif;white-space:pre-wrap';
-  el.textContent = `CΛNTO — affichage interrompu\n\n${message}\n\nLes données du coffre ne sont pas modifiées. Relancez le desk.`;
+  el.textContent = tr(
+    `CΛNTO — affichage interrompu\n\n${message}\n\nLes données du coffre ne sont pas modifiées. Relancez le desk.`,
+    `CΛNTO — display interrupted\n\n${message}\n\nVault data is unchanged. Relaunch the desk.`,
+    `CΛNTO — visualización interrumpida\n\n${message}\n\nLos datos de la caja no cambian. Reinicie el desk.`,
+  );
   document.body.appendChild(el);
 }
 
 window.addEventListener('error', (event) => {
   if (event.target !== window) return;
-  const message = event.message || 'Erreur de rendu';
+  const message = event.message || tr('Erreur de rendu', 'Render error', 'Error de renderizado');
   if (message.includes('ResizeObserver')) return;
   paintFatal(message);
 });
@@ -40,7 +45,7 @@ window.addEventListener('unhandledrejection', (e) => {
   const reason = e.reason as { message?: string } | undefined;
   const detail = reason?.message ?? String(e.reason);
   logLine('error', `unhandledrejection: ${detail}`);
-  useUi.getState().toast(`Opération interrompue : ${detail}`, 'error');
+  useUi.getState().toast(`${tr('Opération interrompue', 'Operation interrupted', 'Operación interrumpida')} : ${detail}`, 'error');
 });
 if (import.meta.env.DEV) {
   Object.assign(window, { __canto: { useAgent, useBridge, useJournal, useNotes, useSettings, useUi } });

@@ -3,6 +3,7 @@ import { probeProvider, streamChat, type ChatMessage } from '@/engine/agent/llm'
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { takeToolCalls, type DeskPorts } from '@/engine/agent/ports';
+import { tr } from '@/i18n';
 import { desk, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
 import { APP_VERSION } from '@/lib/version';
@@ -10,7 +11,7 @@ import { useCalendar } from './calendar';
 import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
 import { useNotes } from './notes';
-import { useSettings } from './settings';
+import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings } from './settings';
 import { useUi } from './ui';
 
 export interface LinkLogEntry {
@@ -141,7 +142,13 @@ export const useAgent = create<AgentState>((set, get) => ({
 
     try {
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        const history: ChatMessage[] = [{ role: 'system', content: `${settings.agent.systemPrompt}\n\nDate locale : ${new Date().toISOString()}. Opérateur : ${settings.callsign}.` }, ...toChat(get().messages)];
+        const prompt = isDefaultAgentPrompt(settings.agent.systemPrompt) ? defaultAgentPrompt() : settings.agent.systemPrompt;
+        const stamp = tr(
+          `Date locale : ${new Date().toISOString()}. Opérateur : ${settings.callsign}.`,
+          `Local date: ${new Date().toISOString()}. Operator: ${settings.callsign}.`,
+          `Fecha local: ${new Date().toISOString()}. Operador: ${settings.callsign}.`,
+        );
+        const history: ChatMessage[] = [{ role: 'system', content: `${prompt}\n\n${stamp}` }, ...toChat(get().messages)];
         set({ streamText: '' });
         const result = await streamChat({
           config: settings.agent,

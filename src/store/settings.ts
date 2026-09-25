@@ -1,10 +1,28 @@
 import { create } from 'zustand';
+import { tr } from '@/i18n';
 import { desk, saveTextFile } from '@/lib/desk';
 import { setUserPlans, type PropPlan } from '@/engine/propfirm';
 import { db, exportVault, setSetting } from './db';
 import { useUi } from './ui';
 
 export type AgentProvider = 'openai-compatible' | 'anthropic';
+
+const AGENT_PROMPT_FR =
+  'Tu es l’agent embarqué de CΛNTO, desk de trading Nasdaq (NQ/MNQ, CME) forgé par SIΞRRΛSKΛ. Tu réponds en français, avec précision, et tu utilises les outils du desk pour lire les métriques, les séances, les notes et le calendrier du trader avant de conclure. Tu ne donnes jamais de conseil d’investissement personnalisé : tu analyses, tu structures, tu proposes des pistes de travail.';
+const AGENT_PROMPT_EN =
+  'You are the embedded agent of CΛNTO, a Nasdaq trading desk (NQ/MNQ, CME) forged by SIΞRRΛSKΛ. You reply in English, with precision, and you use desk tools to read the trader’s metrics, sessions, notes, and calendar before concluding. You never give personalized investment advice: you analyze, structure, and suggest lines of work.';
+const AGENT_PROMPT_ES =
+  'Eres el agente integrado de CΛNTO, un desk de trading Nasdaq (NQ/MNQ, CME) forjado por SIΞRRΛSKΛ. Respondes en español, con precisión, y usas las herramientas del desk para leer las métricas, sesiones, notas y el calendario del trader antes de concluir. Nunca das consejo de inversión personalizado: analizas, estructuras y propones pistas de trabajo.';
+
+/** Consigne système par défaut selon la langue active. */
+export function defaultAgentPrompt(): string {
+  return tr(AGENT_PROMPT_FR, AGENT_PROMPT_EN, AGENT_PROMPT_ES);
+}
+
+/** Vrai si le texte stocké est encore l’une des consignes par défaut (FR / EN / ES). */
+export function isDefaultAgentPrompt(prompt: string): boolean {
+  return prompt === AGENT_PROMPT_FR || prompt === AGENT_PROMPT_EN || prompt === AGENT_PROMPT_ES;
+}
 
 export interface AgentConfig {
   provider: AgentProvider;
@@ -70,8 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
     baseUrl: 'http://localhost:11434/v1',
     model: 'llama3.1',
     apiKey: '',
-    systemPrompt:
-      'Tu es l’agent embarqué de CΛNTO, desk de trading Nasdaq (NQ/MNQ, CME) forgé par SIΞRRΛSKΛ. Tu réponds en français, avec précision, et tu utilises les outils du desk pour lire les métriques, les séances, les notes et le calendrier du trader avant de conclure. Tu ne donnes jamais de conseil d’investissement personnalisé : tu analyses, tu structures, tu proposes des pistes de travail.',
+    systemPrompt: AGENT_PROMPT_FR,
     temperature: 0.3,
     toolsEnabled: true,
   },
@@ -208,7 +225,12 @@ export const useSettings = create<SettingsState>((set, get) => ({
     const r = await writeBackupFile(folder, get().settings.backupEncrypted, includeHeavy);
     if (r.ok) {
       await get().update({ lastBackupAt: Date.now() });
-      if (get().settings.backupEncrypted && !r.encrypted) useUi.getState().toast('Chiffrement indisponible : sauvegarde écrite en clair.', 'warn');
+      if (get().settings.backupEncrypted && !r.encrypted) {
+        useUi.getState().toast(
+          tr('Chiffrement indisponible : sauvegarde écrite en clair.', 'Encryption unavailable: backup written in cleartext.', 'Cifrado no disponible: copia de seguridad escrita en claro.'),
+          'warn',
+        );
+      }
     }
     return r;
   },
@@ -221,5 +243,10 @@ async function maybeDailyBackup(settings: Settings): Promise<void> {
   const r = await writeBackupFile(settings.backupFolder, settings.backupEncrypted, settings.backupIncludeHeavy === true);
   if (!r.ok) return;
   await useSettings.getState().update({ lastBackupAt: Date.now() });
-  if (settings.backupEncrypted && !r.encrypted) useUi.getState().toast('Chiffrement indisponible : sauvegarde écrite en clair.', 'warn');
+  if (settings.backupEncrypted && !r.encrypted) {
+    useUi.getState().toast(
+      tr('Chiffrement indisponible : sauvegarde écrite en clair.', 'Encryption unavailable: backup written in cleartext.', 'Cifrado no disponible: copia de seguridad escrita en claro.'),
+      'warn',
+    );
+  }
 }

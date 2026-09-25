@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { FORMAT_LABEL } from '@/engine/import';
+import { tr } from '@/i18n';
 import { desk, type BridgeFilePayload, type BridgeStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
 import { useJournal } from './journal';
@@ -65,11 +66,35 @@ export const useBridge = create<BridgeState>((set, get) => ({
           entry.warnings = r.warnings;
           acceptedIds = (r.tradeExecutionKeys ?? []).flat();
           skipped = r.skipped + Math.max(0, r.trades.length - r.newTrades);
-          if (r.newTrades > 0) useUi.getState().toast(`Pont NinjaTrader · ${r.newTrades} trade(s) importé(s) depuis ${file.name} (${r.added} séance(s) créée(s), ${r.merged} fusionnée(s)).`, 'ok');
-          else if (r.format === 'inconnu') useUi.getState().toast(`Pont NinjaTrader · ${file.name} ignoré : format non reconnu.`, 'warn');
+          if (r.newTrades > 0) {
+            useUi.getState().toast(
+              tr(
+                `Pont NinjaTrader · ${r.newTrades} trade(s) importé(s) depuis ${file.name} (${r.added} séance(s) créée(s), ${r.merged} fusionnée(s)).`,
+                `NinjaTrader bridge · ${r.newTrades} trade(s) imported from ${file.name} (${r.added} session(s) created, ${r.merged} merged).`,
+                `Puente NinjaTrader · ${r.newTrades} trade(s) importado(s) desde ${file.name} (${r.added} sesión(es) creada(s), ${r.merged} fusionada(s)).`,
+              ),
+              'ok',
+            );
+          } else if (r.format === 'inconnu') {
+            useUi.getState().toast(
+              tr(
+                `Pont NinjaTrader · ${file.name} ignoré : format non reconnu.`,
+                `NinjaTrader bridge · ${file.name} ignored: unrecognized format.`,
+                `Puente NinjaTrader · ${file.name} ignorado: formato no reconocido.`,
+              ),
+              'warn',
+            );
+          }
         } catch (e) {
           entry.error = e instanceof Error ? e.message : String(e);
-          useUi.getState().toast(`Pont NinjaTrader · échec sur ${file.name} : ${entry.error}`, 'error');
+          useUi.getState().toast(
+            tr(
+              `Pont NinjaTrader · échec sur ${file.name} : ${entry.error}`,
+              `NinjaTrader bridge · failure on ${file.name}: ${entry.error}`,
+              `Puente NinjaTrader · fallo en ${file.name}: ${entry.error}`,
+            ),
+            'error',
+          );
         }
         api.result(file.id, {
           format: entry.format,

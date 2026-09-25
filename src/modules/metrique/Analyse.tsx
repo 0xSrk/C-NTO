@@ -6,6 +6,7 @@ import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, histogram, WEEKDAY_KEYS } from '@/engine/metrics';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import type { Trade } from '@/engine/types';
+import { tr, useI18n } from '@/i18n';
 import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import s from './metrique.module.css';
 import { useStats } from './useStats';
@@ -37,24 +38,50 @@ function groupBy(trades: Trade[], keyOf: (t: Trade) => string[]): GroupRow[] {
     .sort((a, b) => b.pnl - a.pnl);
 }
 
+function weekdayLabel(key: string): string {
+  const map: Record<string, [string, string, string]> = {
+    dim: ['dim', 'Sun', 'dom'],
+    lun: ['lun', 'Mon', 'lun'],
+    mar: ['mar', 'Tue', 'mar'],
+    mer: ['mer', 'Wed', 'mié'],
+    jeu: ['jeu', 'Thu', 'jue'],
+    ven: ['ven', 'Fri', 'vie'],
+    sam: ['sam', 'Sat', 'sáb'],
+  };
+  const t = map[key];
+  return t ? tr(t[0], t[1], t[2]) : key;
+}
+
+function displayGroupKey(key: string): string {
+  if (key === 'Sans stratégie') return tr('Sans stratégie', 'No strategy', 'Sin estrategia');
+  if (['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'].includes(key)) return weekdayLabel(key);
+  return key;
+}
+
 /** Bandes d’encre proportionnelles — lecture visuelle du PnL sans tableau. */
 function InkRank({ rows, label }: { rows: GroupRow[]; label: string }) {
-  if (rows.length === 0) return <p className={s.note}>Aucune donnée pour {label.toLowerCase()}.</p>;
+  useI18n((s) => s.locale);
+  if (rows.length === 0)
+    return (
+      <p className={s.note}>
+        {tr(`Aucune donnée pour ${label.toLowerCase()}.`, `No data for ${label.toLowerCase()}.`, `Sin datos para ${label.toLowerCase()}.`)}
+      </p>
+    );
   const max = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
   return (
     <div className={s.inkRank}>
       <header className={s.inkHead}>
         <span>{label}</span>
-        <span>PnL · part</span>
+        <span>{tr('PnL · part', 'PnL · share', 'PnL · parte')}</span>
       </header>
       {rows.slice(0, 10).map((r, i) => {
         const w = (Math.abs(r.pnl) / max) * 100;
         return (
           <div key={r.key} className={s.inkRow} style={{ '--i': i } as CSSProperties}>
             <div className={s.inkMeta}>
-              <b>{r.key}</b>
+              <b>{displayGroupKey(r.key)}</b>
               <small>
-                {plural(r.count, 'trade')} · {fmtPct(r.winRate, 0)} · PF {fmtRatio(r.profitFactor)}
+                {plural(r.count, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · {fmtPct(r.winRate, 0)} · PF {fmtRatio(r.profitFactor)}
               </small>
             </div>
             <div className={s.inkTrack}>
@@ -70,13 +97,14 @@ function InkRank({ rows, label }: { rows: GroupRow[]; label: string }) {
 
 /** Anneau polar : contribution PnL par jour de semaine. */
 function WeekRing({ byDow }: { byDow: { key: string; pnl: number; n: number }[] }) {
+  useI18n((s) => s.locale);
   const max = Math.max(1, ...byDow.map((d) => Math.abs(d.pnl)));
   const cx0 = 110;
   const cy0 = 110;
   const r0 = 38;
   const r1 = 88;
   return (
-    <svg viewBox="0 0 220 220" className={s.weekRing} aria-label="PnL par jour de semaine">
+    <svg viewBox="0 0 220 220" className={s.weekRing} aria-label={tr('PnL par jour de semaine', 'PnL by weekday', 'PnL por día de la semana')}>
       <circle cx={cx0} cy={cy0} r={r0} fill="none" stroke="var(--line-1)" strokeWidth={1} />
       <circle cx={cx0} cy={cy0} r={r1} fill="none" stroke="var(--line-0)" strokeWidth={1} />
       {byDow.map((d, i) => {
@@ -105,16 +133,16 @@ function WeekRing({ byDow }: { byDow: { key: string; pnl: number; n: number }[] 
               strokeWidth={1}
             />
             <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className={s.ringLabel}>
-              {d.key}
+              {weekdayLabel(d.key)}
             </text>
           </g>
         );
       })}
       <text x={cx0} y={cy0 - 6} textAnchor="middle" className={s.ringCenter}>
-        SEMAINE
+        {tr('SEMAINE', 'WEEK', 'SEMANA')}
       </text>
       <text x={cx0} y={cy0 + 10} textAnchor="middle" className={s.ringSub}>
-        trame PnL
+        {tr('trame PnL', 'PnL frame', 'trama PnL')}
       </text>
     </svg>
   );
@@ -162,6 +190,7 @@ function ExcursionField({ pts, max }: { pts: { mae: number; mfe: number; pnl: nu
 }
 
 export function Analyse() {
+  const locale = useI18n((s) => s.locale);
   const { trades, tradeStats: t } = useStats();
   const [rankMode, setRankMode] = useState<'strategie' | 'tag' | 'taille'>('strategie');
 
@@ -185,9 +214,14 @@ export function Analyse() {
     }
     return labels.map((label, i) => {
       const cell = acc[i] ?? { n: 0, wins: 0, pnl: 0 };
-      return { key: label, value: cell.pnl, label, hint: `${plural(cell.n, 'trade')} · ${cell.n ? fmtPct(cell.wins / cell.n, 0) : '—'} réussite` };
+      return {
+        key: label,
+        value: cell.pnl,
+        label,
+        hint: `${plural(cell.n, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · ${cell.n ? fmtPct(cell.wins / cell.n, 0) : '—'} ${tr('réussite', 'win rate', 'acierto')}`,
+      };
     });
-  }, [trades]);
+  }, [trades, locale]);
 
   const heat = useMemo(() => {
     const acc = new Map<number, { pnl: number; n: number }>();
@@ -211,13 +245,13 @@ export function Analyse() {
     rows.forEach((dow, ri) => {
       hours.forEach((h, ci) => {
         const cur = acc.get(dow * 24 + h);
-        cells.push({ row: ri, col: ci, value: cur ? cur.pnl : null, hint: plural(cur?.n ?? 0, 'trade') });
+        cells.push({ row: ri, col: ci, value: cur ? cur.pnl : null, hint: plural(cur?.n ?? 0, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades')) });
         if (cur) candidates.push({ dow, h, pnl: cur.pnl });
       });
     });
     const best = candidates.reduce<{ dow: number; h: number; pnl: number } | null>((accBest, c) => (!accBest || c.pnl > accBest.pnl ? c : accBest), null);
-    return { rows: rows.map((d) => WEEKDAY_KEYS[d] ?? ''), cols: hours.map((h) => `${h}h`), cells, best, hours };
-  }, [trades]);
+    return { rows: rows.map((d) => weekdayLabel(WEEKDAY_KEYS[d] ?? '')), cols: hours.map((h) => `${h}h`), cells, best, hours };
+  }, [trades, locale]);
 
   const byDow = useMemo(() => {
     const acc = new Map<number, { pnl: number; n: number }>();
@@ -252,48 +286,58 @@ export function Analyse() {
     const bestStrat = byStrategy[0];
     const edge = t.expectancy;
     return {
-      bestHour: heat.best ? `${WEEKDAY_KEYS[heat.best.dow]} ${heat.best.h}h` : '—',
+      bestHour: heat.best ? `${weekdayLabel(WEEKDAY_KEYS[heat.best.dow] ?? '')} ${heat.best.h}h` : '—',
       bestHourPnl: heat.best?.pnl ?? 0,
       bestDur: bestDur?.key ?? '—',
       bestDurPnl: bestDur?.value ?? 0,
-      bestStrat: bestStrat?.key ?? '—',
+      bestStrat: bestStrat ? displayGroupKey(bestStrat.key) : '—',
       bestStratPnl: bestStrat?.pnl ?? 0,
       edge,
       wr: t.winRate,
       pf: t.profitFactor,
     };
-  }, [heat, durationBuckets, byStrategy, t]);
+  }, [heat, durationBuckets, byStrategy, t, locale]);
 
   const rankRows = rankMode === 'strategie' ? byStrategy : rankMode === 'tag' ? byTag : byQty;
-  const rankLabel = rankMode === 'strategie' ? 'Stratégie' : rankMode === 'tag' ? 'Tag' : 'Taille';
+  const rankLabel = rankMode === 'strategie' ? tr('Stratégie', 'Strategy', 'Estrategia') : rankMode === 'tag' ? 'Tag' : tr('Taille', 'Size', 'Tamaño');
 
-  if (trades.length === 0) return <Empty title="Analyse indisponible" text="L’analyse détaillée nécessite des trades (import NinjaTrader ou jeu de démonstration)." />;
+  if (trades.length === 0)
+    return (
+      <Empty
+        title={tr('Analyse indisponible', 'Analysis unavailable', 'Análisis no disponible')}
+        text={tr(
+          'L’analyse détaillée nécessite des trades (import NinjaTrader ou jeu de démonstration).',
+          'Detailed analysis requires trades (NinjaTrader import or demo dataset).',
+          'El análisis detallado requiere trades (importación NinjaTrader o juego de demostración).',
+        )}
+      />
+    );
 
   return (
     <div className={s.analyse}>
-      <p className={s.note}>Sharpe : rf = 0, annualisation √252, séances agrégées par date Globex.</p>
+      <p className={s.note}>{tr('Sharpe : rf = 0, annualisation √252, séances agrégées par date Globex.', 'Sharpe: rf = 0, √252 annualization, sessions aggregated by Globex date.', 'Sharpe: rf = 0, anualización √252, sesiones agregadas por fecha Globex.')}</p>
       {/* Rail d’insights — lecture immédiate */}
-      <section className={s.insightRail} aria-label="Repères d’analyse">
+      <section className={s.insightRail} aria-label={tr('Repères d’analyse', 'Analysis markers', 'Referencias de análisis')}>
         <div className={s.insight}>
-          <span className={s.insightK}>Créneau fort</span>
+          <span className={s.insightK}>{tr('Créneau fort', 'Strong slot', 'Franja fuerte')}</span>
           <b>{insights.bestHour}</b>
           <em className={signClass(insights.bestHourPnl)}>{fmtUsd(insights.bestHourPnl, { sign: true })}</em>
         </div>
         <i className={s.insightSep} />
         <div className={s.insight}>
-          <span className={s.insightK}>Durée fertile</span>
+          <span className={s.insightK}>{tr('Durée fertile', 'Fertile duration', 'Duración fértil')}</span>
           <b>{insights.bestDur}</b>
           <em className={signClass(insights.bestDurPnl)}>{fmtUsd(insights.bestDurPnl, { sign: true })}</em>
         </div>
         <i className={s.insightSep} />
         <div className={s.insight}>
-          <span className={s.insightK}>Vecteur</span>
+          <span className={s.insightK}>{tr('Vecteur', 'Vector', 'Vector')}</span>
           <b title={insights.bestStrat}>{insights.bestStrat.length > 18 ? `${insights.bestStrat.slice(0, 16)}…` : insights.bestStrat}</b>
           <em className={signClass(insights.bestStratPnl)}>{fmtUsd(insights.bestStratPnl, { sign: true })}</em>
         </div>
         <i className={s.insightSep} />
         <div className={s.insight}>
-          <span className={s.insightK}>Espérance</span>
+          <span className={s.insightK}>{tr('Espérance', 'Expectancy', 'Esperanza')}</span>
           <b className={signClass(insights.edge)}>{fmtUsd(insights.edge, { cents: true })}</b>
           <em>
             WR {fmtPct(insights.wr, 0)} · PF {fmtRatio(insights.pf)}
@@ -301,9 +345,9 @@ export function Analyse() {
         </div>
         <i className={s.insightSep} />
         <div className={s.insight}>
-          <span className={s.insightK}>Instruments</span>
+          <span className={s.insightK}>{tr('Instruments', 'Instruments', 'Instrumentos')}</span>
           <b>{byInstrument.map((r) => r.key).join(' · ') || '—'}</b>
-          <em>{plural(trades.length, 'trade')}</em>
+          <em>{plural(trades.length, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}</em>
         </div>
       </section>
 
@@ -312,11 +356,11 @@ export function Analyse() {
         <div className={s.trame}>
           <header className={s.trameHead}>
             <div>
-              <h3>Trame horaire</h3>
-              <p>PnL par jour × heure ET d’entrée — densité d’avantage</p>
+              <h3>{tr('Trame horaire', 'Hourly frame', 'Trama horaria')}</h3>
+              <p>{tr('PnL par jour × heure ET d’entrée — densité d’avantage', 'PnL by day × ET entry hour — edge density', 'PnL por día × hora ET de entrada — densidad de ventaja')}</p>
             </div>
             <span className={s.trameLegend}>
-              <i className={s.legNeg} /> perte <i className={s.legPos} /> gain
+              <i className={s.legNeg} /> {tr('perte', 'loss', 'pérdida')} <i className={s.legPos} /> {tr('gain', 'win', 'ganancia')}
             </span>
           </header>
           <Heatmap rows={heat.rows} cols={heat.cols} cells={heat.cells} height={220} formatValue={(v) => fmtUsd(v)} colLabelEvery={heat.cols.length > 14 ? 2 : 1} />
@@ -324,15 +368,15 @@ export function Analyse() {
         <aside className={s.ringPane}>
           <header className={s.trameHead}>
             <div>
-              <h3>Anneau semaine</h3>
-              <p>Amplitude relative</p>
+              <h3>{tr('Anneau semaine', 'Week ring', 'Anillo semanal')}</h3>
+              <p>{tr('Amplitude relative', 'Relative amplitude', 'Amplitud relativa')}</p>
             </div>
           </header>
           <WeekRing byDow={byDow} />
           <ul className={s.ringStats}>
             {byDow.map((d) => (
               <li key={d.key}>
-                <span>{d.key}</span>
+                <span>{weekdayLabel(d.key)}</span>
                 <b className={signClass(d.pnl)}>{fmtUsd(d.pnl, { sign: true })}</b>
                 <small>{plural(d.n, 't')}</small>
               </li>
@@ -346,8 +390,8 @@ export function Analyse() {
         <div className={s.midBlock}>
           <header className={s.trameHead}>
             <div>
-              <h3>Spectre de durée</h3>
-              <p>PnL agrégé par temps en position</p>
+              <h3>{tr('Spectre de durée', 'Duration spectrum', 'Espectro de duración')}</h3>
+              <p>{tr('PnL agrégé par temps en position', 'PnL aggregated by time in trade', 'PnL agregado por tiempo en posición')}</p>
             </div>
           </header>
           <Bars data={durationBuckets} height={200} formatY={(v) => fmtUsd(v)} />
@@ -355,24 +399,24 @@ export function Analyse() {
         <div className={s.midBlock}>
           <header className={s.trameHead}>
             <div>
-              <h3>Champ d’excursion</h3>
-              <p>MAE × MFE — au-dessus de la diagonale = asymétrie favorable</p>
+              <h3>{tr('Champ d’excursion', 'Excursion field', 'Campo de excursion')}</h3>
+              <p>{tr('MAE × MFE — au-dessus de la diagonale = asymétrie favorable', 'MAE × MFE — above the diagonal = favorable asymmetry', 'MAE × MFE — por encima de la diagonal = asimetría favorable')}</p>
             </div>
           </header>
           {scatter ? (
             <ExcursionField pts={scatter.pts} max={scatter.max} />
           ) : (
-            <p className={s.note}>MAE/MFE absents : activez leur export dans NinjaTrader.</p>
+            <p className={s.note}>{tr('MAE/MFE absents : activez leur export dans NinjaTrader.', 'MAE/MFE missing: enable their export in NinjaTrader.', 'MAE/MFE ausentes: active su exportación en NinjaTrader.')}</p>
           )}
         </div>
         <div className={s.midBlock}>
           <header className={s.trameHead}>
             <div>
-              <h3>Multiples de R</h3>
-              <p>{t.rMultiples.length ? plural(t.rMultiples.length, 'trade') : 'risque non renseigné'}</p>
+              <h3>{tr('Multiples de R', 'R multiples', 'Múltiplos de R')}</h3>
+              <p>{t.rMultiples.length ? plural(t.rMultiples.length, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades')) : tr('risque non renseigné', 'risk not set', 'riesgo no indicado')}</p>
             </div>
           </header>
-          {rHist ? <Histogram bins={rHist} height={200} formatX={(v) => `${fmtRatio(v, 1)} R`} /> : <p className={s.note}>Définissez un risque par contrat pour la distribution en R.</p>}
+          {rHist ? <Histogram bins={rHist} height={200} formatX={(v) => `${fmtRatio(v, 1)} R`} /> : <p className={s.note}>{tr('Définissez un risque par contrat pour la distribution en R.', 'Set a risk per contract for the R distribution.', 'Defina un riesgo por contrato para la distribución en R.')}</p>}
         </div>
       </section>
 
@@ -380,16 +424,16 @@ export function Analyse() {
       <section className={s.analyseRank}>
         <header className={s.trameHead}>
           <div>
-            <h3>Classement d’encre</h3>
-            <p>Contribution relative — largeur = |PnL|</p>
+            <h3>{tr('Classement d’encre', 'Ink ranking', 'Clasificación de tinta')}</h3>
+            <p>{tr('Contribution relative — largeur = |PnL|', 'Relative contribution — width = |PnL|', 'Contribución relativa — anchura = |PnL|')}</p>
           </div>
           <Segmented
             value={rankMode}
             onChange={setRankMode}
             options={[
-              { value: 'strategie', label: 'Stratégie' },
+              { value: 'strategie', label: tr('Stratégie', 'Strategy', 'Estrategia') },
               { value: 'tag', label: 'Tag' },
-              { value: 'taille', label: 'Taille' },
+              { value: 'taille', label: tr('Taille', 'Size', 'Tamaño') },
             ]}
           />
         </header>

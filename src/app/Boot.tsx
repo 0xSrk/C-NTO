@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { tr, useI18n } from '@/i18n';
 import { InvertedTab, Sigil } from '@/design/primitives';
 import { Wordmark } from '@/design/Wordmark';
 import s from './boot.module.css';
@@ -25,6 +26,7 @@ function fromLauncherHash(): boolean {
 }
 
 export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: boolean; onFinished: () => void }) {
+  useI18n((s) => s.locale);
   const [startedAt] = useState(() => Date.now());
   const [fromLauncher] = useState(fromLauncherHash);
   const [leaving, setLeaving] = useState(false);
@@ -140,7 +142,7 @@ export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: b
               <span className={s.lineLabel}>{st.label}</span>
               <span className={s.lineDots} />
               <span className={s.lineStatus}>
-                {st.status === 'pending' ? '…' : st.status === 'ok' ? 'OK' : st.status === 'warn' ? 'ATTENTION' : 'VEILLE'}
+                {st.status === 'pending' ? '…' : st.status === 'ok' ? 'OK' : st.status === 'warn' ? tr('ATTENTION', 'WARNING', 'ATENCIÓN') : tr('VEILLE', 'IDLE', 'ESPERA')}
                 {st.detail ? ` · ${st.detail}` : ''}
               </span>
             </div>
@@ -152,7 +154,7 @@ export function Boot({ steps, ready, onFinished }: { steps: BootStep[]; ready: b
         <div className={s.footer}>
           <InvertedTab>CΛNTO · Artefact 002</InvertedTab>
           <span>Design Unit · SIΞRRΛSKΛ Lab · Rev. A</span>
-          <span className={ready ? s.granted : undefined}>{ready ? 'Accès accordé' : fromLauncher ? 'Circuit engagé' : 'Initialisation'}</span>
+          <span className={ready ? s.granted : undefined}>{ready ? tr('Accès accordé', 'Access granted', 'Acceso concedido') : fromLauncher ? tr('Circuit engagé', 'Circuit engaged', 'Circuito en marcha') : tr('Initialisation', 'Initializing', 'Inicialización')}</span>
         </div>
       </div>
     </div>

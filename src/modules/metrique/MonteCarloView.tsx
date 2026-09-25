@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Fan } from '@/design/charts/Fan';
 import { Button, Empty, Field, Panel, Progress, Segmented, Stat, cx } from '@/design/primitives';
 import { clampMonteCarlo, MAX_HORIZON, MAX_RUNS, monteCarlo, type MonteCarloOptions, type MonteCarloResult } from '@/engine/montecarlo';
+import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
 import { listenWorker } from '@/lib/worker';
 import s from './metrique.module.css';
@@ -23,6 +24,7 @@ async function monteCarloOffthread(input: number[], opts: MonteCarloOptions = {}
 }
 
 export function MonteCarloView() {
+  useI18n((s) => s.locale);
   const { sessions, trades, plan } = useStats();
   const [level, setLevel] = useState<'seances' | 'trades'>('seances');
   const [runs, setRuns] = useState(2000);
@@ -68,44 +70,75 @@ export function MonteCarloView() {
     return () => ac.abort();
   }, [sample, params]);
 
-  if (sample.length < 5) return <Empty title="Échantillon insuffisant" text="La simulation Monte-Carlo nécessite au moins 5 séances (ou trades)." />;
+  if (sample.length < 5)
+    return (
+      <Empty
+        title={tr('Échantillon insuffisant', 'Insufficient sample', 'Muestra insuficiente')}
+        text={tr('La simulation Monte-Carlo nécessite au moins 5 séances (ou trades).', 'Monte-Carlo simulation requires at least 5 sessions (or trades).', 'La simulación Monte-Carlo requiere al menos 5 sesiones (o trades).')}
+      />
+    );
 
   return (
     <div className={cx(s.grid, s.gridTop)}>
       <Panel
         className={s.c4}
-        title="Paramètres"
-        sub="bootstrap avec remise"
+        title={tr('Paramètres', 'Parameters', 'Parámetros')}
+        sub={tr('bootstrap avec remise', 'bootstrap with replacement', 'bootstrap con reemplazo')}
         actions={
           busy ? (
-            <Button size="sm" variant="ghost" onClick={() => { abortRef.current?.abort(); setBusy(false); }}>
-              Annuler
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                abortRef.current?.abort();
+                setBusy(false);
+              }}
+            >
+              {tr('Annuler', 'Cancel', 'Cancelar')}
             </Button>
           ) : undefined
         }
       >
         <div className={s.rows}>
           {busy && <Progress value={progress} tone="gold" />}
-          <Segmented value={level} onChange={setLevel} options={[{ value: 'seances', label: `Séances · ${sessions.length}` }, { value: 'trades', label: `Trades · ${trades.length}` }]} />
+          <Segmented
+            value={level}
+            onChange={setLevel}
+            options={[
+              { value: 'seances', label: `${tr('Séances', 'Sessions', 'Sesiones')} · ${sessions.length}` },
+              { value: 'trades', label: `Trades · ${trades.length}` },
+            ]}
+          />
           <div className={s.formGrid}>
-            <Field label="Simulations" hint={effective.runs !== params.runs ? `ramené à ${effective.runs} (budget de calcul)` : `max ${MAX_RUNS}`}>
+            <Field
+              label={tr('Simulations', 'Simulations', 'Simulaciones')}
+              hint={
+                effective.runs !== params.runs
+                  ? tr(`ramené à ${effective.runs} (budget de calcul)`, `clamped to ${effective.runs} (compute budget)`, `ajustado a ${effective.runs} (presupuesto de cálculo)`)
+                  : tr(`max ${MAX_RUNS}`, `max ${MAX_RUNS}`, `máx. ${MAX_RUNS}`)
+              }
+            >
               <input type="number" min={100} max={MAX_RUNS} step={100} value={runs} onChange={(e) => setRuns(Number(e.target.value) || 100)} />
             </Field>
-            <Field label="Horizon (périodes)" hint={`vide = ${sample.length} · max ${MAX_HORIZON}`}>
+            <Field label={tr('Horizon (périodes)', 'Horizon (periods)', 'Horizonte (periodos)')} hint={tr(`vide = ${sample.length} · max ${MAX_HORIZON}`, `empty = ${sample.length} · max ${MAX_HORIZON}`, `vacío = ${sample.length} · máx. ${MAX_HORIZON}`)}>
               <input type="number" min={1} max={MAX_HORIZON} value={horizon} onChange={(e) => setHorizon(e.target.value === '' ? '' : Number(e.target.value))} placeholder={String(sample.length)} />
             </Field>
-            <Field label="Drawdown de ruine ($)" hint={plan ? `${plan.firm} ${plan.label} : ${fmtUsd(plan.maxDrawdown)}` : undefined}>
+            <Field label={tr('Drawdown de ruine ($)', 'Ruin drawdown ($)', 'Drawdown de ruina ($)')} hint={plan ? `${plan.firm} ${plan.label} : ${fmtUsd(plan.maxDrawdown)}` : undefined}>
               <input type="number" min={0} step={100} value={ruin} onChange={(e) => setRuin(e.target.value === '' ? '' : Number(e.target.value))} />
             </Field>
-            <Field label="Objectif ($)">
+            <Field label={tr('Objectif ($)', 'Target ($)', 'Objetivo ($)')}>
               <input type="number" min={0} step={100} value={target} onChange={(e) => setTarget(e.target.value === '' ? '' : Number(e.target.value))} />
             </Field>
-            <Field label="Graine" hint="reproductibilité">
+            <Field label={tr('Graine', 'Seed', 'Semilla')} hint={tr('reproductibilité', 'reproducibility', 'reproducibilidad')}>
               <input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value) || 0)} />
             </Field>
           </div>
           <p className={s.note}>
-            Chaque trajectoire tire {result?.horizon ?? sample.length} résultats au hasard, avec remise, dans votre historique réel (bootstrap i.i.d. : l’autocorrélation n’est pas modélisée). Le résultat ne suppose aucune loi de distribution : il ne fait que réordonner votre propre passé pour mesurer la part de chance dans votre courbe actuelle.
+            {tr(
+              `Chaque trajectoire tire ${result?.horizon ?? sample.length} résultats au hasard, avec remise, dans votre historique réel (bootstrap i.i.d. : l’autocorrélation n’est pas modélisée). Le résultat ne suppose aucune loi de distribution : il ne fait que réordonner votre propre passé pour mesurer la part de chance dans votre courbe actuelle.`,
+              `Each path draws ${result?.horizon ?? sample.length} results at random, with replacement, from your real history (i.i.d. bootstrap: autocorrelation is not modeled). The result assumes no distribution law: it only reshuffles your own past to measure how much luck is in your current curve.`,
+              `Cada trayectoria extrae ${result?.horizon ?? sample.length} resultados al azar, con reemplazo, de su historial real (bootstrap i.i.d.: la autocorrelación no se modela). El resultado no supone ninguna ley de distribución: solo reordena su propio pasado para medir la parte de azar en su curva actual.`,
+            )}
           </p>
         </div>
       </Panel>
@@ -114,18 +147,30 @@ export function MonteCarloView() {
         {result && (
           <>
             <div className={s.miniStats}>
-              <Stat small label="PnL final médian" value={fmtUsd(result.finalPnl.p50)} hint={`p5 ${fmtUsd(result.finalPnl.p5)} · p95 ${fmtUsd(result.finalPnl.p95)}`} tone={result.finalPnl.p50 >= 0 ? 'pos' : 'neg'} />
-              <Stat small label="Drawdown max médian" value={fmtUsd(-result.maxDrawdown.p50)} hint={`p95 ${fmtUsd(-result.maxDrawdown.p95)}`} tone="neg" />
-              <Stat small label="Probabilité de ruine" value={result.ruinProbability === null ? '—' : fmtPct(result.ruinProbability)} hint={ruin === '' ? 'seuil non défini' : `toucher −${fmtUsd(ruin)}`} tone={result.ruinProbability !== null && result.ruinProbability > 0.2 ? 'neg' : 'flat'} />
-              <Stat small label="Probabilité objectif" value={result.targetProbability === null ? '—' : fmtPct(result.targetProbability)} hint={target === '' ? 'objectif non défini' : `atteindre +${fmtUsd(target)} avant ruine`} tone={result.targetProbability !== null && result.targetProbability > 0.6 ? 'pos' : 'flat'} />
+              <Stat small label={tr('PnL final médian', 'Median final PnL', 'PnL final mediano')} value={fmtUsd(result.finalPnl.p50)} hint={`p5 ${fmtUsd(result.finalPnl.p5)} · p95 ${fmtUsd(result.finalPnl.p95)}`} tone={result.finalPnl.p50 >= 0 ? 'pos' : 'neg'} />
+              <Stat small label={tr('Drawdown max médian', 'Median max drawdown', 'Drawdown máx. mediano')} value={fmtUsd(-result.maxDrawdown.p50)} hint={`p95 ${fmtUsd(-result.maxDrawdown.p95)}`} tone="neg" />
+              <Stat
+                small
+                label={tr('Probabilité de ruine', 'Ruin probability', 'Probabilidad de ruina')}
+                value={result.ruinProbability === null ? '—' : fmtPct(result.ruinProbability)}
+                hint={ruin === '' ? tr('seuil non défini', 'threshold not set', 'umbral no definido') : `${tr('toucher', 'hit', 'tocar')} −${fmtUsd(ruin)}`}
+                tone={result.ruinProbability !== null && result.ruinProbability > 0.2 ? 'neg' : 'flat'}
+              />
+              <Stat
+                small
+                label={tr('Probabilité objectif', 'Target probability', 'Probabilidad objetivo')}
+                value={result.targetProbability === null ? '—' : fmtPct(result.targetProbability)}
+                hint={target === '' ? tr('objectif non défini', 'target not set', 'objetivo no definido') : `${tr('atteindre', 'reach', 'alcanzar')} +${fmtUsd(target)} ${tr('avant ruine', 'before ruin', 'antes de la ruina')}`}
+                tone={result.targetProbability !== null && result.targetProbability > 0.6 ? 'pos' : 'flat'}
+              />
             </div>
-            <Panel title="Éventail des trajectoires" sub={`${fmtInt(result.runs)} simulations · ${result.horizon} périodes`}>
+            <Panel title={tr('Éventail des trajectoires', 'Path fan', 'Abanico de trayectorias')} sub={`${fmtInt(result.runs)} ${tr('simulations', 'simulations', 'simulaciones')} · ${result.horizon} ${tr('périodes', 'periods', 'periodos')}`}>
               <Fan result={result} height={300} formatY={(v) => fmtUsd(v)} ruin={ruin === '' ? undefined : ruin} target={target === '' ? undefined : target} />
             </Panel>
-            <Panel title="Percentiles" sub="distribution des résultats">
+            <Panel title={tr('Percentiles', 'Percentiles', 'Percentiles')} sub={tr('distribution des résultats', 'result distribution', 'distribución de resultados')}>
               <div className={s.formGrid}>
                 <dl className={s.kv}>
-                  <dt>PnL final · p5</dt>
+                  <dt>{tr('PnL final · p5', 'Final PnL · p5', 'PnL final · p5')}</dt>
                   <dd className="neg">{fmtUsd(result.finalPnl.p5)}</dd>
                   <dt>p25</dt>
                   <dd>{fmtUsd(result.finalPnl.p25)}</dd>
@@ -135,11 +180,11 @@ export function MonteCarloView() {
                   <dd>{fmtUsd(result.finalPnl.p75)}</dd>
                   <dt>p95</dt>
                   <dd className="pos">{fmtUsd(result.finalPnl.p95)}</dd>
-                  <dt>Moyenne</dt>
+                  <dt>{tr('Moyenne', 'Mean', 'Media')}</dt>
                   <dd>{fmtUsd(result.finalPnl.mean)}</dd>
                 </dl>
                 <dl className={s.kv}>
-                  <dt>Drawdown max · p5</dt>
+                  <dt>{tr('Drawdown max · p5', 'Max drawdown · p5', 'Drawdown máx. · p5')}</dt>
                   <dd>{fmtUsd(-result.maxDrawdown.p5)}</dd>
                   <dt>p25</dt>
                   <dd>{fmtUsd(-result.maxDrawdown.p25)}</dd>
@@ -149,7 +194,7 @@ export function MonteCarloView() {
                   <dd>{fmtUsd(-result.maxDrawdown.p75)}</dd>
                   <dt>p95</dt>
                   <dd className="neg">{fmtUsd(-result.maxDrawdown.p95)}</dd>
-                  <dt>Moyenne</dt>
+                  <dt>{tr('Moyenne', 'Mean', 'Media')}</dt>
                   <dd>{fmtUsd(-result.maxDrawdown.mean)}</dd>
                 </dl>
               </div>

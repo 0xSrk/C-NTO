@@ -1,4 +1,5 @@
 import { app, shell } from 'electron';
+import { readLocaleFile, uiText } from './locale';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
@@ -22,6 +23,10 @@ function canApplyGitUpdate(input: { isGitCheckout: boolean; dirty: boolean }): {
 
 function canStash(input: { confirmStash: boolean }): boolean {
   return input.confirmStash === true;
+}
+
+function ui(fr: string, en: string, es: string): string {
+  return uiText(readLocaleFile(app.getPath('userData')), fr, en, es);
 }
 
 async function gitDirty(root: string): Promise<boolean> {
@@ -162,13 +167,13 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
         source: 'git',
       };
     } catch (e) {
-      return { ...base, error: e instanceof Error ? e.message : 'Contrôle git impossible', source: 'git' };
+      return { ...base, error: e instanceof Error ? e.message : ui('Contrôle git impossible', 'Git check failed', 'Comprobación git imposible'), source: 'git' };
     }
   }
 
   const latest = await fetchGithubPackageVersion();
   if (!latest) {
-    return { ...base, error: 'Impossible de joindre GitHub', source: 'github' };
+    return { ...base, error: ui('Impossible de joindre GitHub', 'Could not reach GitHub', 'No se pudo contactar GitHub'), source: 'github' };
   }
   return {
     current,
@@ -193,7 +198,7 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
       available: true,
       busy: false,
       applied: false,
-      error: 'Dépôt git introuvable — page des versions ouverte.',
+      error: ui('Dépôt git introuvable — page des versions ouverte.', 'Git repository not found — releases page opened.', 'Repositorio git no encontrado — página de versiones abierta.'),
       source: 'none',
     };
   }
@@ -204,7 +209,7 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
     if (gitOk.reason === 'dirty' && canStash({ confirmStash: opts.confirmStash === true })) {
       const stash = await run('git', ['stash', 'push', '-u', '-m', 'canto-auto-update'], root);
       if (stash.code !== 0) {
-        return { current, latest: latest ?? null, available: true, busy: false, error: stash.err || 'git stash a échoué', source: 'git' };
+        return { current, latest: latest ?? null, available: true, busy: false, error: stash.err || ui('git stash a échoué', 'git stash failed', 'git stash falló'), source: 'git' };
       }
     } else if (gitOk.reason === 'dirty') {
       return { current, latest: latest ?? null, available: true, busy: false, error: 'dirty_needs_stash', source: 'git' };
@@ -216,12 +221,12 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
 
   const fetch = await run('git', ['fetch', 'origin', GITHUB_BRANCH], root);
   if (fetch.code !== 0) {
-    return { current, latest: latest ?? null, available: true, busy: false, error: fetch.err || 'git fetch a échoué', source: 'git' };
+    return { current, latest: latest ?? null, available: true, busy: false, error: fetch.err || ui('git fetch a échoué', 'git fetch failed', 'git fetch falló'), source: 'git' };
   }
 
   const pull = await run('git', ['pull', '--ff-only', 'origin', GITHUB_BRANCH], root);
   if (pull.code !== 0) {
-    return { current, latest: latest ?? null, available: true, busy: false, error: pull.err || pull.out || 'git pull a échoué', source: 'git' };
+    return { current, latest: latest ?? null, available: true, busy: false, error: pull.err || pull.out || ui('git pull a échoué', 'git pull failed', 'git pull falló'), source: 'git' };
   }
 
   const install = await runNpm(['install', '--legacy-peer-deps'], root);
@@ -231,7 +236,7 @@ export async function applyUpdate(opts: { channel?: string; confirmStash?: boole
       latest: latest ?? null,
       available: false,
       busy: false,
-      error: install.err || 'npm install a échoué',
+      error: install.err || ui('npm install a échoué', 'npm install failed', 'npm install falló'),
       source: 'git',
     };
   }

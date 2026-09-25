@@ -6,6 +6,7 @@ import { exportTradesCsv } from '@/engine/import';
 import { openTextFile, saveTextFile } from '@/lib/desk';
 import { exportVault, restoreVault } from '@/store/db';
 import { plural } from '@/lib/format';
+import { tr, useI18n } from '@/i18n';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
 import { useBots } from '@/store/bots';
@@ -28,6 +29,7 @@ import s from './metrique.module.css';
 type View = 'bord' | 'seances' | 'analyse' | 'prop' | 'mc';
 
 export default function Metrique() {
+  useI18n((s) => s.locale);
   const [view, setView] = useState<View>('bord');
   const [modal, setModal] = useState<null | 'import' | 'manuel' | 'reglages' | 'pont'>(null);
   const sessions = useJournal((j) => j.sessions);
@@ -42,21 +44,35 @@ export default function Metrique() {
   const backupIncludeHeavy = useSettings((st) => st.settings.backupIncludeHeavy);
 
   const onExportCsv = async () => {
-    if (trades.length === 0) return toast('Aucun trade à exporter.', 'warn');
+    if (trades.length === 0) return toast(tr('Aucun trade à exporter.', 'No trade to export.', 'Ningún trade que exportar.'), 'warn');
     const saved = await saveTextFile(`canto-trades-${new Date().toISOString().slice(0, 10)}.csv`, exportTradesCsv(trades), 'text/csv');
-    if (saved) toast(`${plural(trades.length, 'trade exporté', 'trades exportés')} (CSV réimportable).`, 'ok');
+    if (saved)
+      toast(
+        `${plural(trades.length, tr('trade exporté', 'exported trade', 'trade exportado'), tr('trades exportés', 'exported trades', 'trades exportados'))} (${tr('CSV réimportable', 're-importable CSV', 'CSV reimportable')}).`,
+        'ok',
+      );
   };
   const onExportVault = async () => {
     const saved = await saveTextFile(`canto-coffre-${new Date().toISOString().slice(0, 10)}.json`, await exportVault({ includeHeavy: backupIncludeHeavy === true }), 'application/json');
-    if (saved) toast(backupIncludeHeavy ? 'Coffre exporté (barres et messages agent inclus, clé API exclue).' : 'Sauvegarde du coffre exportée (clé API et blob chiffré exclus).', 'ok');
+    if (saved)
+      toast(
+        backupIncludeHeavy
+          ? tr('Coffre exporté (barres et messages agent inclus, clé API exclue).', 'Vault exported (bars and agent messages included, API key excluded).', 'Caja exportada (barras y mensajes del agente incluidos, clave API excluida).')
+          : tr('Sauvegarde du coffre exportée (clé API et blob chiffré exclus).', 'Vault backup exported (API key and encrypted blob excluded).', 'Copia de la caja exportada (clave API y blob cifrado excluidos).'),
+        'ok',
+      );
   };
   const onRestore = async () => {
     const f = await openTextFile('.json');
     if (!f) return;
     if (
       !(await confirmDialog(
-        'Restaurer cette sauvegarde ?',
-        'Les séances, trades, notes, calendrier, automates et comptes du copieur présents dans le fichier remplacent ceux du coffre. Une clé API en clair (coffre navigateur) est reprise puis chiffrée immédiatement sous le shell.',
+        tr('Restaurer cette sauvegarde ?', 'Restore this backup?', '¿Restaurar esta copia?'),
+        tr(
+          'Les séances, trades, notes, calendrier, automates et comptes du copieur présents dans le fichier remplacent ceux du coffre. Une clé API en clair (coffre navigateur) est reprise puis chiffrée immédiatement sous le shell.',
+          'Sessions, trades, notes, calendar, bots and copier accounts in the file replace those in the vault. A plaintext API key (browser vault) is taken then encrypted immediately under the shell.',
+          'Las sesiones, trades, notas, calendario, autómatas y cuentas del copiador presentes en el archivo reemplazan las de la caja. Una clave API en claro (caja del navegador) se retoma y se cifra de inmediato bajo el shell.',
+        ),
       ))
     )
       return;
@@ -64,16 +80,25 @@ export default function Metrique() {
       const r = await restoreVault(f.text);
       await Promise.all([reload(), reloadSettings(), useNotes.getState().load(), useCalendar.getState().load(), useBots.getState().load(), useCopier.getState().load()]);
       toast(
-        `Coffre restauré : ${plural(r.sessions, 'séance')}, ${plural(r.trades, 'trade')}, ${plural(r.notes, 'note')}.${r.apiKeyReencrypted ? ' Clé API re-chiffrée.' : ''}`,
+        `${tr('Coffre restauré', 'Vault restored', 'Caja restaurada')} : ${plural(r.sessions, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}, ${plural(r.trades, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}, ${plural(r.notes, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))}.${r.apiKeyReencrypted ? ` ${tr('Clé API re-chiffrée.', 'API key re-encrypted.', 'Clave API cifrada de nuevo.')}` : ''}`,
         'ok',
       );
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Restauration impossible.', 'error');
+      toast(e instanceof Error ? e.message : tr('Restauration impossible.', 'Restore failed.', 'Restauración imposible.'), 'error');
     }
   };
   const onDemo = async () => {
     const n = await loadDemo();
-    toast(n > 0 ? `${plural(n, 'séance')} de démonstration chargées.` : 'Capacité atteinte.', n > 0 ? 'ok' : 'warn');
+    toast(
+      n > 0
+        ? tr(
+            `${plural(n, 'séance')} de démonstration chargées.`,
+            `${plural(n, 'session', 'sessions')} of demo data loaded.`,
+            `${plural(n, 'sesión', 'sesiones')} de demostración cargadas.`,
+          )
+        : tr('Capacité atteinte.', 'Capacity reached.', 'Capacidad alcanzada.'),
+      n > 0 ? 'ok' : 'warn',
+    );
   };
 
   return (
@@ -83,27 +108,27 @@ export default function Metrique() {
         actions={
           <>
             <Button variant="gold" onClick={() => setModal('pont')}>
-              <IconLink size={14} /> Pont NinjaTrader
+              <IconLink size={14} /> {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
               <Tag tone={bridgeLive ? 'mint' : undefined} dot live={bridgeLive}>
-                {bridgeLive ? 'actif' : 'inactif'}
+                {bridgeLive ? tr('actif', 'active', 'activo') : tr('inactif', 'inactive', 'inactivo')}
               </Tag>
             </Button>
             <Button onClick={() => setModal('import')}>
-              <IconImport size={14} /> Importer un CSV
+              <IconImport size={14} /> {tr('Importer un CSV', 'Import a CSV', 'Importar un CSV')}
             </Button>
             <Button onClick={() => setModal('manuel')}>
-              <IconPlus size={14} /> Séance manuelle
+              <IconPlus size={14} /> {tr('Séance manuelle', 'Manual session', 'Sesión manual')}
             </Button>
-            <Button variant="ghost" onClick={onExportCsv} title="Exporter les trades en CSV">
+            <Button variant="ghost" onClick={onExportCsv} title={tr('Exporter les trades en CSV', 'Export trades as CSV', 'Exportar los trades en CSV')}>
               <IconExport size={14} /> CSV
             </Button>
-            <Button variant="ghost" onClick={onExportVault} title="Sauvegarde complète du coffre (JSON)">
-              <IconExport size={14} /> Coffre
+            <Button variant="ghost" onClick={onExportVault} title={tr('Sauvegarde complète du coffre (JSON)', 'Full vault backup (JSON)', 'Copia completa de la caja (JSON)')}>
+              <IconExport size={14} /> {tr('Coffre', 'Vault', 'Caja')}
             </Button>
-            <Button variant="ghost" onClick={onRestore} title="Restaurer une sauvegarde JSON">
-              Restaurer
+            <Button variant="ghost" onClick={onRestore} title={tr('Restaurer une sauvegarde JSON', 'Restore a JSON backup', 'Restaurar una copia JSON')}>
+              {tr('Restaurer', 'Restore', 'Restaurar')}
             </Button>
-            <Button variant="ghost" onClick={() => setModal('reglages')} aria-label="Réglages" title="Réglages du desk">
+            <Button variant="ghost" onClick={() => setModal('reglages')} aria-label={tr('Réglages', 'Settings', 'Ajustes')} title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}>
               <IconSettings size={14} />
             </Button>
           </>
@@ -115,17 +140,17 @@ export default function Metrique() {
             value={view}
             onChange={setView}
             options={[
-              { value: 'bord', label: 'Tableau de bord' },
-              { value: 'seances', label: `Séances · ${sessions.length}` },
-              { value: 'analyse', label: 'Analyse' },
-              { value: 'prop', label: 'Firme prop' },
+              { value: 'bord', label: tr('Tableau de bord', 'Dashboard', 'Tablero') },
+              { value: 'seances', label: `${tr('Séances', 'Sessions', 'Sesiones')} · ${sessions.length}` },
+              { value: 'analyse', label: tr('Analyse', 'Analysis', 'Análisis') },
+              { value: 'prop', label: tr('Firme prop', 'Prop firm', 'Firma prop') },
               { value: 'mc', label: 'Monte-Carlo' },
             ]}
           />
           <span className="spacer" style={{ flex: 1 }} />
           {sessions.length === 0 && (
             <Button size="sm" variant="ghost" onClick={onDemo}>
-              Charger un jeu de démonstration
+              {tr('Charger un jeu de démonstration', 'Load a demo dataset', 'Cargar un juego de demostración')}
             </Button>
           )}
         </div>

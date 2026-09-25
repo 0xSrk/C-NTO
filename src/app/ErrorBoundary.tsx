@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { tr } from '@/i18n';
 import { Button } from '@/design/primitives';
 import { logLine } from '@/lib/log';
 
@@ -36,14 +37,14 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 720 }}>
         <span className="micro" style={{ color: 'var(--ember)' }}>
-          Module interrompu
+          {tr('Module interrompu', 'Module interrupted', 'Módulo interrumpido')}
         </span>
-        <h2 style={{ fontSize: 16, color: 'var(--text-0)' }}>Une erreur a interrompu l’affichage de ce module.</h2>
+        <h2 style={{ fontSize: 16, color: 'var(--text-0)' }}>{tr('Une erreur a interrompu l’affichage de ce module.', 'An error interrupted this module.', 'Un error interrumpió este módulo.')}</h2>
         <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-2)', whiteSpace: 'pre-wrap', border: '1px solid var(--line-1)', padding: 10, background: 'var(--bg-0)' }}>{this.state.error.message}</pre>
-        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)' }}>Les données du coffre ne sont pas affectées. Réessayez, ou changez d’onglet puis revenez.</p>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)' }}>{tr('Les données du coffre ne sont pas affectées. Réessayez, ou changez d’onglet puis revenez.', 'Vault data is unaffected. Try again, or switch tabs and come back.', 'Los datos de la caja no se ven afectados. Reintente, o cambie de pestaña y vuelva.')}</p>
         <div>
           <Button variant="gold" onClick={() => this.setState({ error: null })}>
-            Réessayer
+            {tr('Réessayer', 'Retry', 'Reintentar')}
           </Button>
         </div>
       </div>

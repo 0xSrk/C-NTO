@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { tr, useI18n } from '@/i18n';
 import { generateNasdaqEvents } from '@/engine/calendar';
 import { isDesk } from '@/lib/desk';
 import { plural } from '@/lib/format';
@@ -23,15 +24,17 @@ const Agent = lazy(() => import('@/modules/agent/Agent'));
 const Bot = lazy(() => import('@/modules/bot/Bot'));
 const Copieur = lazy(() => import('@/modules/copieur/Copieur'));
 
-const INITIAL_STEPS: BootStep[] = [
-  { id: 'core', label: 'Noyau CΛNTO', status: 'pending' },
-  { id: 'vault', label: 'Persistance', status: 'pending' },
-  { id: 'engine', label: 'Moteur métrique', status: 'pending' },
-  { id: 'calendar', label: 'Calendrier Nasdaq', status: 'pending' },
-  { id: 'notes', label: 'Coffre de notes', status: 'pending' },
-  { id: 'agent', label: 'Passerelle agent', status: 'pending' },
-  { id: 'bridge', label: 'Pont NinjaTrader', status: 'pending' },
-];
+function initialSteps(): BootStep[] {
+  return [
+    { id: 'core', label: tr('Noyau CΛNTO', 'CΛNTO core', 'Núcleo CΛNTO'), status: 'pending' },
+    { id: 'vault', label: tr('Persistance', 'Persistence', 'Persistencia'), status: 'pending' },
+    { id: 'engine', label: tr('Moteur métrique', 'Metrics engine', 'Motor métrico'), status: 'pending' },
+    { id: 'calendar', label: tr('Calendrier Nasdaq', 'Nasdaq calendar', 'Calendario Nasdaq'), status: 'pending' },
+    { id: 'notes', label: tr('Coffre de notes', 'Note vault', 'Caja de notas'), status: 'pending' },
+    { id: 'agent', label: tr('Passerelle agent', 'Agent gateway', 'Pasarela del agente'), status: 'pending' },
+    { id: 'bridge', label: tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader'), status: 'pending' },
+  ];
+}
 
 type Mark = (id: string, status: BootStep['status'], detail?: string) => void;
 
@@ -58,7 +61,7 @@ async function step(id: string, run: () => Promise<[BootStep['status'], string |
     const [status, detail] = await run();
     mark(id, status, detail);
   } catch (e) {
-    mark(id, 'warn', e instanceof Error ? e.message : 'indisponible');
+    mark(id, 'warn', e instanceof Error ? e.message : tr('indisponible', 'unavailable', 'no disponible'));
   }
 }
 
@@ -66,7 +69,7 @@ function boot(): Promise<void> {
   if (bootPromise) return bootPromise;
   bootTimings.bootStart = performance.now();
   bootPromise = (async () => {
-    mark('core', 'ok', isDesk ? 'shell Electron' : 'navigateur');
+    mark('core', 'ok', isDesk ? tr('shell Electron', 'Electron shell', 'shell Electron') : tr('navigateur', 'browser', 'navegador'));
     // Précharge le module d'accueil pendant l'écran de chargement.
     void import('@/modules/metrique/Metrique');
     void requestPersistence();
@@ -76,27 +79,27 @@ function boot(): Promise<void> {
       await useSettings.getState().load();
       await useJournal.getState().load();
       const j = useJournal.getState();
-      return ['ok', `${plural(j.sessions.length, 'séance')} · ${plural(j.trades.length, 'trade')}`];
+      return ['ok', `${plural(j.sessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · ${plural(j.trades.length, 'trade')}`];
     });
     await Promise.all([
-      step('engine', async () => ['ok', 'ratios · Monte Carlo · prop firm']),
-      step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} repères ${year}`]),
+      step('engine', async () => ['ok', tr('ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm')]),
+      step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} ${tr('repères', 'markers', 'referencias')} ${year}`]),
       step('notes', async () => {
         await Promise.all([useNotes.getState().load(), useCalendar.getState().load(), useMacro.getState().load()]);
         void useMacro.getState().sync();
-        return ['ok', plural(useNotes.getState().notes.length, 'note')];
+        return ['ok', plural(useNotes.getState().notes.length, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))];
       }),
       step('agent', async () => {
         await useAgent.getState().load();
         const o = useAgent.getState().orchestrator;
-        return [o.running ? 'ok' : 'off', o.running ? `port ${o.port}` : 'en veille'];
+        return [o.running ? 'ok' : 'off', o.running ? `port ${o.port}` : tr('en veille', 'idle', 'en espera')];
       }),
       step('bridge', async () => {
         await useBridge.getState().load();
         const b = useBridge.getState().status;
-        if (!isDesk) return ['off', 'navigateur · import manuel'];
-        if (b?.enabled && b.folder) return [b.error ? 'warn' : 'ok', b.error ?? `dossier surveillé · ${plural(b.files, 'fichier')}`];
-        return ['off', 'non configuré'];
+        if (!isDesk) return ['off', tr('navigateur · import manuel', 'browser · manual import', 'navegador · importación manual')];
+        if (b?.enabled && b.folder) return [b.error ? 'warn' : 'ok', b.error ?? `${tr('dossier surveillé', 'watched folder', 'carpeta vigilada')} · ${plural(b.files, tr('fichier', 'file', 'archivo'), tr('fichiers', 'files', 'archivos'))}`];
+        return ['off', tr('non configuré', 'not configured', 'no configurado')];
       }),
     ]);
     bootTimings.bootReady = performance.now();
@@ -105,7 +108,8 @@ function boot(): Promise<void> {
 }
 
 export function App() {
-  const [steps, setSteps] = useState<BootStep[]>(INITIAL_STEPS);
+  const locale = useI18n((s) => s.locale);
+  const [steps, setSteps] = useState<BootStep[]>(initialSteps);
   const [ready, setReady] = useState(false);
   const [booted, setBooted] = useState(false);
   const tab = useUi((u) => u.tab);
@@ -140,7 +144,7 @@ export function App() {
       {(ready || booted) && (
         <Shell>
           <ErrorBoundary resetKey={tab}>
-            <Suspense fallback={<div className="micro" style={{ padding: 24 }}>Chargement du module…</div>}>
+            <Suspense fallback={<div className="micro" style={{ padding: 24 }} data-locale={locale}>{tr('Chargement du module…', 'Loading module…', 'Cargando el módulo…')}</div>}>
               {tab === 'metrique' && <Metrique />}
               {tab === 'visual' && <Visual />}
               {tab === 'calendrier' && <Calendrier />}

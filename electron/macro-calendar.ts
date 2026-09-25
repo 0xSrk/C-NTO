@@ -4,6 +4,7 @@
  */
 
 import { net } from 'electron';
+import { uiText, type AppLocale } from './locale';
 
 export interface MacroRelease {
   id: string;
@@ -62,7 +63,7 @@ function etParts(iso: string): { date: string; timeET: string } | null {
 
 const FETCH_TIMEOUT_MS = 8_000;
 
-async function getJson(url: string): Promise<unknown> {
+async function getJson(url: string, locale: AppLocale): Promise<unknown> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -72,7 +73,7 @@ async function getJson(url: string): Promise<unknown> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
-    if (!text || text[0] === '<' || text === '403') throw new Error('Réponse non JSON');
+    if (!text || text[0] === '<' || text === '403') throw new Error(uiText(locale, 'Réponse non JSON', 'Response is not JSON', 'La respuesta no es JSON'));
     return JSON.parse(text) as unknown;
   } finally {
     clearTimeout(timer);
@@ -155,7 +156,7 @@ function parseForexFactory(raw: unknown): MacroRelease[] {
   return out;
 }
 
-export async function fetchMacroReleases(fromDate: string, toDate: string): Promise<{
+export async function fetchMacroReleases(fromDate: string, toDate: string, locale: AppLocale = 'fr'): Promise<{
   releases: MacroRelease[];
   source: 'investing' | 'forexfactory' | 'none';
   error?: string;
@@ -163,36 +164,37 @@ export async function fetchMacroReleases(fromDate: string, toDate: string): Prom
   const start = `${fromDate}T00:00:00.000Z`.replace(/:/g, '%3A');
   const end = `${toDate}T23:59:59.999Z`.replace(/:/g, '%3A');
   const investingUrl = `${INVESTING}?domain_id=1&limit=200&start_date=${start}&end_date=${end}`;
+  const t = (fr: string, en: string, es: string) => uiText(locale, fr, en, es);
 
   try {
-    const data = await getJson(investingUrl);
+    const data = await getJson(investingUrl, locale);
     const releases = parseInvesting(data).filter((r) => r.date >= fromDate && r.date <= toDate);
     if (releases.length) return { releases, source: 'investing' };
   } catch (e) {
-    const investingErr = e instanceof Error ? e.message : 'Investing indisponible';
+    const investingErr = e instanceof Error ? e.message : t('Investing indisponible', 'Investing unavailable', 'Investing no disponible');
     try {
-      const data = await getJson(FF_WEEK);
+      const data = await getJson(FF_WEEK, locale);
       const releases = parseForexFactory(data).filter((r) => r.date >= fromDate && r.date <= toDate);
       return {
         releases,
         source: releases.length ? 'forexfactory' : 'none',
-        error: releases.length ? `Investing : ${investingErr} · repli Forex Factory` : investingErr,
+        error: releases.length ? t(`Investing : ${investingErr} · repli Forex Factory`, `Investing: ${investingErr} · Forex Factory fallback`, `Investing: ${investingErr} · respaldo Forex Factory`) : investingErr,
       };
     } catch (e2) {
       return {
         releases: [],
         source: 'none',
-        error: `${investingErr} · FF : ${e2 instanceof Error ? e2.message : 'échec'}`,
+        error: `${investingErr} · FF : ${e2 instanceof Error ? e2.message : t('échec', 'failed', 'fallo')}`,
       };
     }
   }
 
   // Investing OK mais vide → tenter FF pour la semaine courante
   try {
-    const data = await getJson(FF_WEEK);
+    const data = await getJson(FF_WEEK, locale);
     const releases = parseForexFactory(data).filter((r) => r.date >= fromDate && r.date <= toDate);
     return { releases, source: releases.length ? 'forexfactory' : 'none' };
   } catch {
-    return { releases: [], source: 'none', error: 'Aucune donnée macro' };
+    return { releases: [], source: 'none', error: t('Aucune donnée macro', 'No macro data', 'Sin datos macro') };
   }
 }

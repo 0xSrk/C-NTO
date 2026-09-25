@@ -1,6 +1,7 @@
 import { Modal } from '@/design/Modal';
 import { Button, Field, Toggle } from '@/design/primitives';
 import { PROP_FIRMS } from '@/engine/propfirm';
+import { tr, useI18n } from '@/i18n';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -9,6 +10,7 @@ import { copyTechJournal } from '@/lib/log';
 import s from './metrique.module.css';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
+  useI18n((s) => s.locale);
   const settings = useSettings((st) => st.settings);
   const update = useSettings((st) => st.update);
   const backupNow = useSettings((st) => st.backupNow);
@@ -19,8 +21,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="Réglages du desk"
-      sub="opérateur · capital · plan suivi"
+      title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}
+      sub={tr('opérateur · capital · plan suivi', 'operator · capital · tracked plan', 'operador · capital · plan seguido')}
       onClose={onClose}
       width={560}
       footer={
@@ -29,30 +31,36 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             variant="danger"
             size="sm"
             onClick={async () => {
-              if (count && (await confirmDialog(`Effacer les ${count} séances et tous les trades ?`, 'Cette action est irréversible : exportez le coffre avant si nécessaire.'))) {
+              if (
+                count &&
+                (await confirmDialog(
+                  tr(`Effacer les ${count} séances et tous les trades ?`, `Delete the ${count} sessions and all trades?`, `¿Borrar las ${count} sesiones y todos los trades?`),
+                  tr('Cette action est irréversible : exportez le coffre avant si nécessaire.', 'This action cannot be undone: export the vault first if needed.', 'Esta acción es irreversible: exporte la caja antes si es necesario.'),
+                ))
+              ) {
                 await clearAll();
-                toast('Journal effacé.', 'warn');
+                toast(tr('Journal effacé.', 'Journal cleared.', 'Diario borrado.'), 'warn');
                 onClose();
               }
             }}
           >
-            Effacer le journal
+            {tr('Effacer le journal', 'Clear journal', 'Borrar el diario')}
           </Button>
           <span style={{ flex: 1 }} />
           <Button variant="gold" onClick={onClose}>
-            Fermer
+            {tr('Fermer', 'Close', 'Cerrar')}
           </Button>
         </>
       }
     >
       <div className={s.formGrid}>
-        <Field label="Indicatif opérateur" hint="affiché dans le rail">
+        <Field label={tr('Indicatif opérateur', 'Operator callsign', 'Indicativo del operador')} hint={tr('affiché dans le rail', 'shown in the rail', 'mostrado en el rail')}>
           <input value={settings.callsign} onChange={(e) => update({ callsign: e.target.value.toUpperCase().slice(0, 18) })} />
         </Field>
-        <Field label="Capital de référence ($)" hint="base des ratios Sharpe / Calmar">
+        <Field label={tr('Capital de référence ($)', 'Reference capital ($)', 'Capital de referencia ($)')} hint={tr('base des ratios Sharpe / Calmar', 'base for Sharpe / Calmar ratios', 'base de los ratios Sharpe / Calmar')}>
           <input type="number" min={1000} step={1000} value={settings.startingBalance} onChange={(e) => update({ startingBalance: Number(e.target.value) || 50_000 })} />
         </Field>
-        <Field label="Plan prop firm suivi" className={s.full}>
+        <Field label={tr('Plan prop firm suivi', 'Tracked prop firm plan', 'Plan prop firm seguido')} className={s.full}>
           <select value={settings.planId} onChange={(e) => update({ planId: e.target.value })}>
             {PROP_FIRMS.map((f) => (
               <optgroup key={f.id} label={f.name}>
@@ -65,26 +73,26 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label="Bascule de journée (heure locale)">
+        <Field label={tr('Bascule de journée (heure locale)', 'Day boundary (local hour)', 'Cambio de jornada (hora local)')}>
           <select value={settings.boundaryHour} onChange={(e) => update({ boundaryHour: Number(e.target.value) })}>
-            <option value={0}>00:00 — date civile</option>
-            <option value={18}>18:00 — Globex (heure ET)</option>
+            <option value={0}>{tr('00:00 — date civile', '00:00 — calendar date', '00:00 — fecha civil')}</option>
+            <option value={18}>{tr('18:00 — Globex (heure ET)', '18:00 — Globex (ET hour)', '18:00 — Globex (hora ET)')}</option>
             <option value={17}>17:00</option>
             <option value={23}>23:00</option>
           </select>
         </Field>
-        <Field label="Risque par contrat ($)" hint="pour les multiples de R à l'import">
+        <Field label={tr('Risque par contrat ($)', 'Risk per contract ($)', 'Riesgo por contrato ($)')} hint={tr("pour les multiples de R à l'import", 'for R multiples on import', 'para los múltiplos de R en la importación')}>
           <input type="number" min={0} step={5} value={settings.riskPerContract} onChange={(e) => update({ riskPerContract: Number(e.target.value) || 0 })} />
         </Field>
-        <Field label="Canal de mise à jour" className={s.full} hint="un clone git tire origin/main et relance ; sans git, page GitHub">
+        <Field label={tr('Canal de mise à jour', 'Update channel', 'Canal de actualización')} className={s.full} hint={tr('un clone git tire origin/main et relance ; sans git, page GitHub', 'a git clone pulls origin/main and restarts; without git, GitHub page', 'un clon git tira origin/main y reinicia; sin git, página GitHub')}>
           <select value={settings.updateChannel} onChange={(e) => update({ updateChannel: e.target.value === 'dev' ? 'dev' : 'release' })}>
-            <option value="release">release — installeur (page GitHub)</option>
-            <option value="dev">dev — clone git (pull + relancer)</option>
+            <option value="release">{tr('release — installeur (page GitHub)', 'release — installer (GitHub page)', 'release — instalador (página GitHub)')}</option>
+            <option value="dev">{tr('dev — clone git (pull + relancer)', 'dev — git clone (pull + restart)', 'dev — clon git (pull + reiniciar)')}</option>
           </select>
         </Field>
-        <Field label="Dossier de sauvegarde" className={s.full} hint="copie quotidienne canto-vault-AAAA-MM-JJ.json">
+        <Field label={tr('Dossier de sauvegarde', 'Backup folder', 'Carpeta de copia')} className={s.full} hint={tr('copie quotidienne canto-vault-AAAA-MM-JJ.json', 'daily copy canto-vault-YYYY-MM-DD.json', 'copia diaria canto-vault-AAAA-MM-DD.json')}>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input readOnly value={settings.backupFolder ?? ''} placeholder="aucun (dialogue à chaque sauvegarde)" style={{ flex: 1 }} />
+            <input readOnly value={settings.backupFolder ?? ''} placeholder={tr('aucun (dialogue à chaque sauvegarde)', 'none (dialog on each backup)', 'ninguno (diálogo en cada copia)')} style={{ flex: 1 }} />
             <Button
               size="sm"
               onClick={async () => {
@@ -92,38 +100,38 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 if (folder) await update({ backupFolder: folder });
               }}
             >
-              Choisir
+              {tr('Choisir', 'Choose', 'Elegir')}
             </Button>
           </div>
         </Field>
-        <Field label="Chiffrer la sauvegarde" className={s.full}>
-          <Toggle on={settings.backupEncrypted} onChange={(v) => update({ backupEncrypted: v })} label="trousseau système si disponible" />
+        <Field label={tr('Chiffrer la sauvegarde', 'Encrypt backup', 'Cifrar la copia')} className={s.full}>
+          <Toggle on={settings.backupEncrypted} onChange={(v) => update({ backupEncrypted: v })} label={tr('trousseau système si disponible', 'system keychain if available', 'llavero del sistema si está disponible')} />
         </Field>
-        <Field label="Sauvegarde quotidienne" className={s.full} hint="si un dossier est choisi, au boot Electron">
-          <Toggle on={settings.backupDaily} onChange={(v) => update({ backupDaily: v })} label="écrire canto-vault-AAAA-MM-JJ.json" />
+        <Field label={tr('Sauvegarde quotidienne', 'Daily backup', 'Copia diaria')} className={s.full} hint={tr('si un dossier est choisi, au boot Electron', 'if a folder is chosen, on Electron boot', 'si se elige una carpeta, al arrancar Electron')}>
+          <Toggle on={settings.backupDaily} onChange={(v) => update({ backupDaily: v })} label={tr('écrire canto-vault-AAAA-MM-JJ.json', 'write canto-vault-YYYY-MM-DD.json', 'escribir canto-vault-AAAA-MM-DD.json')} />
         </Field>
-        <Field label="Coffre lourd" className={s.full} hint="barres et messages agent — fichier beaucoup plus gros">
-          <Toggle on={settings.backupIncludeHeavy} onChange={(v) => update({ backupIncludeHeavy: v })} label="inclure barSeries et agentMessages" />
+        <Field label={tr('Coffre lourd', 'Heavy vault', 'Caja pesada')} className={s.full} hint={tr('barres et messages agent — fichier beaucoup plus gros', 'bars and agent messages — much larger file', 'barras y mensajes del agente — archivo mucho más grande')}>
+          <Toggle on={settings.backupIncludeHeavy} onChange={(v) => update({ backupIncludeHeavy: v })} label={tr('inclure barSeries et agentMessages', 'include barSeries and agentMessages', 'incluir barSeries y agentMessages')} />
         </Field>
-        <Field label="Sauvegarde" className={s.full}>
+        <Field label={tr('Sauvegarde', 'Backup', 'Copia')} className={s.full}>
           <Button
             onClick={async () => {
               const r = await backupNow();
-              if (r.ok) toast(r.encrypted ? 'Coffre sauvegardé (chiffré).' : 'Coffre sauvegardé.', 'ok');
-              else toast('Sauvegarde annulée ou impossible.', 'warn');
+              if (r.ok) toast(r.encrypted ? tr('Coffre sauvegardé (chiffré).', 'Vault backed up (encrypted).', 'Caja guardada (cifrada).') : tr('Coffre sauvegardé.', 'Vault backed up.', 'Caja guardada.'), 'ok');
+              else toast(tr('Sauvegarde annulée ou impossible.', 'Backup cancelled or failed.', 'Copia cancelada o imposible.'), 'warn');
             }}
           >
-            Sauvegarder maintenant
+            {tr('Sauvegarder maintenant', 'Back up now', 'Guardar ahora')}
           </Button>
         </Field>
-        <Field label="Journal technique" className={s.full} hint="anneau local, 200 lignes · pas d’envoi">
+        <Field label={tr('Journal technique', 'Technical journal', 'Diario técnico')} className={s.full} hint={tr('anneau local, 200 lignes · pas d’envoi', 'local ring, 200 lines · no upload', 'anillo local, 200 líneas · sin envío')}>
           <Button
             onClick={async () => {
               const ok = await copyTechJournal();
-              toast(ok ? 'Journal technique copié.' : 'Copie impossible.', ok ? 'ok' : 'warn');
+              toast(ok ? tr('Journal technique copié.', 'Technical journal copied.', 'Diario técnico copiado.') : tr('Copie impossible.', 'Copy failed.', 'Copia imposible.'), ok ? 'ok' : 'warn');
             }}
           >
-            Copier le journal technique
+            {tr('Copier le journal technique', 'Copy technical journal', 'Copiar el diario técnico')}
           </Button>
         </Field>
       </div>

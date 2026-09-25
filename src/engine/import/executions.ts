@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { detectDecimalSeparator, inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { detectDayFirst, parseFlexibleDateTime } from '@/lib/time';
 import { INSTRUMENTS, type Instrument, type SessionSource, type Trade } from '../types';
@@ -155,7 +156,7 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
     });
   });
   const warnings: string[] = [];
-  if (skipped) warnings.push(`${skipped} exécution(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`);
+  if (skipped) warnings.push(tr(`${skipped} exécution(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`, `${skipped} execution(s) skipped (instrument other than NQ/MNQ or invalid fields).`, `${skipped} ejecución(es) ignorada(s) (instrumento distinto de NQ/MNQ o campos inválidos).`));
   return { executions, skipped, warnings };
 }
 
@@ -265,7 +266,7 @@ export function importExecutionsCsv(text: string, opts: ImportOptions = {}): Exe
   const { executions, skipped, warnings } = parseExecutionsCsv(text);
   const { trades, openLots, tradeExecutionKeys } = pairExecutions(executions);
   if (opts.riskPerContract) for (const t of trades) t.risk = opts.riskPerContract * t.qty;
-  if (openLots.length) warnings.push(`${openLots.length} position(s) encore ouverte(s) en fin de fichier — non importée(s) tant qu'elles ne sont pas clôturées.`);
+  if (openLots.length) warnings.push(tr(`${openLots.length} position(s) encore ouverte(s) en fin de fichier — non importée(s) tant qu'elles ne sont pas clôturées.`, `${openLots.length} position(s) still open at end of file — not imported until they are closed.`, `${openLots.length} posición(es) aún abierta(s) al final del archivo — no importada(s) hasta que se cierren.`));
   const source: SessionSource = opts.source ?? 'ninjatrader';
   return {
     sessions: groupIntoSessions(trades, opts.sessionBoundaryHour ?? 0, source),
