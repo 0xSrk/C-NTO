@@ -32,6 +32,11 @@ export const DEFAULT_COPIER: CopierConfig = {
 
 export const COPIER_CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '2.0.1',
+    date: '2026-09-25',
+    items: ['Langue du desk au lanceur : Français, English, Español — le choix est conservé'],
+  },
+  {
     version: '2.0.0',
     date: '2026-09-23',
     items: [

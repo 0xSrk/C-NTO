@@ -21,6 +21,11 @@ function bridgeSteps(): [string, string][] {
 
 function changelogItem(it: string): string {
   const map: Record<string, [string, string, string]> = {
+    'Langue du desk au lanceur : Français, English, Español — le choix est conservé': [
+      'Langue du desk au lanceur : Français, English, Español — le choix est conservé',
+      'Desk language on the launcher: Français, English, Español — the choice is kept',
+      'Idioma del desk en el lanzador: Français, English, Español — la elección se conserva',
+    ],
     'Desk natif macOS, Windows et Linux — installeurs DMG, NSIS et AppImage / deb': [
       'Desk natif macOS, Windows et Linux — installeurs DMG, NSIS et AppImage / deb',
       'Native desk for macOS, Windows and Linux — DMG, NSIS and AppImage / deb installers',
