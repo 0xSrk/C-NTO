@@ -1,4 +1,5 @@
 /** API exposée par le shell Electron (preload). Absente lorsque CΛNTO tourne dans un navigateur. */
+import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEvents';
 export interface OrchestratorRequest {
   id: string;
   clientId: string;
@@ -148,25 +149,9 @@ export interface DeskApi {
     onEvent: (cb: (event: { kind: string }) => void) => () => void;
   };
   calendar?: {
-    fetchMacro: (
-      fromDate: string,
-      toDate: string,
-    ) => Promise<{
-      releases: {
-        id: string;
-        date: string;
-        timeET?: string;
-        title: string;
-        currency: string;
-        impact: 1 | 2 | 3;
-        forecast?: string;
-        previous?: string;
-        actual?: string;
-        period?: string;
-        source: 'investing' | 'forexfactory';
-        at: string;
-      }[];
-      source: 'investing' | 'forexfactory' | 'none';
+    fetchMacro: (fromDate: string, toDate: string) => Promise<{
+      events: CalendarEventRow[];
+      sources: CalendarSourceStatus[];
       error?: string;
     }>;
   };

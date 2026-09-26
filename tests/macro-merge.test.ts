@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { categoryFromTitle, mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
-import type { MacroReleaseRow } from '@/store/db';
+import type { CalendarEventRow } from '@/engine/calendarEvents';
 
 describe('macroMerge', () => {
-  it('classe les titres Investing vers les catégories Lab', () => {
+  it('classe les titres vers les catégories', () => {
     expect(categoryFromTitle('U.S. Nonfarm Payrolls')).toBe('emploi');
     expect(categoryFromTitle('U.S. Consumer Price Index (CPI) YoY')).toBe('inflation');
-    expect(categoryFromTitle('Fed Interest Rate Decision')).toBe('fed');
+    expect(categoryFromTitle('Fed Interest Rate Decision')).toBe('banque-centrale');
     expect(categoryFromTitle('U.S. ISM Manufacturing PMI')).toBe('croissance');
   });
 
@@ -18,62 +18,60 @@ describe('macroMerge', () => {
     expect(surpriseTone(undefined, '50')).toBeUndefined();
   });
 
-  it('conserve les FOMC bundled et ajoute les publications Investing', () => {
-    const local = generateNasdaqEvents(2026).filter((e) => e.date === '2026-09-16' && /FOMC|emploi|CPI/i.test(e.title));
-    const macros: MacroReleaseRow[] = [
+  it('ajoute la publication officielle à côté des repères locaux', () => {
+    const local = generateNasdaqEvents(2026).filter((e) => e.date === '2026-09-16');
+    const macros: CalendarEventRow[] = [
       {
-        id: 'inv_1',
+        id: 'fed:fomc-2026-09-16',
+        sourceId: 'fed',
         date: '2026-09-16',
         timeET: '14:00',
-        title: 'Fed Interest Rate Decision',
-        currency: 'USD',
+        title: 'Décision FOMC · taux directeurs',
+        category: 'banque-centrale',
         impact: 3,
-        forecast: '4.00%',
+        instruments: [],
         previous: '3.75%',
         actual: '4.00%',
-        source: 'investing',
-        at: '2026-09-16T18:00:00Z',
+        estimated: false,
         syncedAt: 1,
       },
     ];
     const merged = mergeCalendarEvents(local, macros);
-    expect(merged.some((e) => e.id === 'inv_1' && e.actual === '4.00%')).toBe(true);
-    expect(merged.filter((e) => e.date === '2026-09-16' && e.category === 'fed' && e.source !== 'investing').length).toBeGreaterThan(0);
+    expect(merged.some((e) => e.id === 'fed:fomc-2026-09-16' && e.actual === '4.00%')).toBe(true);
   });
 
-  it('remplace le NFP estimé par la ligne Investing du même jour', () => {
+  it('remplace le CPI estimé du même jour par la ligne officielle', () => {
     const local: CalEvent[] = [
       {
-        id: 'ev_nfp_2026-04-03',
-        date: '2026-04-03',
+        id: 'ev_cpi_2026-04-10',
+        date: '2026-04-10',
         timeET: '08:30',
-        title: 'Rapport emploi US (NFP)',
-        category: 'emploi',
+        title: 'Inflation CPI',
+        category: 'inflation',
         impact: 3,
         estimated: true,
         description: 'estimé',
       },
     ];
-    const macros: MacroReleaseRow[] = [
+    const macros: CalendarEventRow[] = [
       {
-        id: 'inv_nfp',
-        date: '2026-04-03',
+        id: 'bls:cpi-2026-04-10',
+        sourceId: 'bls',
+        date: '2026-04-10',
         timeET: '08:30',
-        title: 'U.S. Nonfarm Payrolls',
-        currency: 'USD',
+        title: 'Inflation CPI',
+        category: 'inflation',
         impact: 3,
-        forecast: '180K',
-        previous: '150K',
-        actual: '175K',
-        source: 'investing',
-        at: '2026-04-03T12:30:00Z',
+        instruments: [],
+        actual: '0.3%',
+        estimated: false,
         syncedAt: 1,
       },
     ];
     const merged = mergeCalendarEvents(local, macros);
-    const nfp = merged.filter((e) => e.category === 'emploi');
-    expect(nfp).toHaveLength(1);
-    expect(nfp[0]!.id).toBe('inv_nfp');
-    expect(nfp[0]!.estimated).toBe(false);
+    const cpi = merged.filter((e) => e.category === 'inflation');
+    expect(cpi).toHaveLength(1);
+    expect(cpi[0]!.id).toBe('bls:cpi-2026-04-10');
+    expect(cpi[0]!.estimated).toBe(false);
   });
 });

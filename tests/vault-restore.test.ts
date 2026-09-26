@@ -62,7 +62,7 @@ function fakeTable(key: 'id' | 'key', seed: Record<string, unknown>[] = []): Fak
   return t;
 }
 
-const TABLES = ['sessions', 'trades', 'importedExecutions', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'macroReleases', 'barSeries', 'agentMessages'] as const;
+const TABLES = ['sessions', 'trades', 'importedExecutions', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'calendarEvents', 'barSeries', 'agentMessages'] as const;
 type Tables = Record<(typeof TABLES)[number], FakeTable>;
 
 function installFakeDb(): Tables {
@@ -191,7 +191,7 @@ describe('prepareVaultRestore (validation pure)', () => {
     expect(v.notes.map((n) => n.id)).toEqual(['n1']);
     expect(v.bots.map((b) => b.id)).toEqual(['b1']);
     expect(v.copierAccounts.map((c) => c.id)).toEqual(['c1']);
-    expect(v.macroReleases.map((m) => m.id)).toEqual(['m1']);
+    expect(v.calendarEvents).toEqual([]);
     expect(v.barSeries.map((b) => b.id)).toEqual(['bs1']);
     expect(v.agentMessages.map((a) => a.id)).toEqual(['a1']);
     expect(v.skipped).toEqual({ sessions: 4, trades: 8, notes: 1, bots: 3, copierAccounts: 2, macroReleases: 2, barSeries: 1, agentMessages: 3 });

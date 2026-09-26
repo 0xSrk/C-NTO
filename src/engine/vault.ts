@@ -13,6 +13,7 @@ export interface VaultV2 {
   copier?: unknown[];
   settings?: unknown;
   macroReleases?: unknown[];
+  calendarEvents?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
 }
@@ -28,6 +29,7 @@ export interface VaultParts {
   copier?: unknown[];
   settings?: unknown;
   macroReleases?: unknown[];
+  calendarEvents?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
   includeHeavy?: boolean;
@@ -43,6 +45,7 @@ export interface ParsedVault {
   settings: unknown;
   settingsIsObject: boolean;
   macroReleases: unknown;
+  calendarEvents: unknown;
   barSeries: unknown;
   agentMessages: unknown;
 }
@@ -77,6 +80,7 @@ export function buildVaultV2(input: VaultParts): VaultV2 {
   if (input.copier) vault.copier = input.copier;
   if (input.settings !== undefined) vault.settings = stripSecrets(input.settings);
   if (input.macroReleases) vault.macroReleases = input.macroReleases;
+  vault.calendarEvents = input.calendarEvents ?? [];
   if (input.includeHeavy === true) {
     if (input.barSeries) vault.barSeries = input.barSeries;
     if (input.agentMessages) vault.agentMessages = input.agentMessages;
@@ -119,6 +123,7 @@ export function parseVaultJson(json: string): ParsedVault {
     settings,
     settingsIsObject: !!settings && typeof settings === 'object' && !Array.isArray(settings),
     macroReleases: rec.macroReleases,
+    calendarEvents: rec.calendarEvents,
     barSeries: rec.barSeries,
     agentMessages: rec.agentMessages,
   };

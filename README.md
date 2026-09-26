@@ -203,7 +203,7 @@ Three formats are recognized automatically: **NinjaTrader · Trades**, **NinjaTr
 
 ### Vault
 
-JSON export `canto-vault-v2` (v1 read still supported). Always included: sessions, trades, notes, calendar, settings (API key **and** encrypted blob excluded), copier accounts, automations, `macroReleases`. **Heavy vault** option (`backupIncludeHeavy`, off by default): bars + agent messages. Daily save into a chosen folder when `backupDaily` is checked. Under Electron, a key restored from a browser vault is re-encrypted immediately.
+JSON export `canto-vault-v2` (v1 read still supported). Always included: sessions, trades, notes, calendar, settings (API key **and** encrypted blob excluded), copier accounts, automations, `calendarEvents`. An old `macroReleases` array (Investing / Forex Factory) is accepted on restore and dropped. **Heavy vault** option (`backupIncludeHeavy`, off by default): bars + agent messages. Daily save into a chosen folder when `backupDaily` is checked. Under Electron, a key restored from a browser vault is re-encrypted immediately.
 
 <div align="center">
 

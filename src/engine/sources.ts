@@ -65,7 +65,7 @@ export const SOURCES: DataSourceSpec[] = [
     id: 'bls',
     name: 'Bureau of Labor Statistics',
     kind: 'calendar',
-    hosts: ['api.bls.gov'],
+    hosts: ['www.bls.gov', 'api.bls.gov'],
     auth: 'byok',
     freshness: 'scheduled',
     rateLimit: { requests: 500, perSeconds: 86_400 },
@@ -80,7 +80,7 @@ export const SOURCES: DataSourceSpec[] = [
     id: 'bea',
     name: 'Bureau of Economic Analysis',
     kind: 'calendar',
-    hosts: ['apps.bea.gov'],
+    hosts: ['www.bea.gov', 'apps.bea.gov'],
     auth: 'byok',
     freshness: 'scheduled',
     terms: {
@@ -107,7 +107,7 @@ export const SOURCES: DataSourceSpec[] = [
     id: 'ecb',
     name: 'Banque centrale européenne',
     kind: 'calendar',
-    hosts: ['data-api.ecb.europa.eu'],
+    hosts: ['www.ecb.europa.eu'],
     auth: 'none',
     freshness: 'scheduled',
     terms: {
@@ -133,26 +133,25 @@ export const SOURCES: DataSourceSpec[] = [
     id: 'eia',
     name: 'Energy Information Administration',
     kind: 'calendar',
-    hosts: ['api.eia.gov'],
-    auth: 'byok',
-    freshness: 'scheduled',
-    terms: {
-      url: 'https://www.eia.gov/opendata/',
-      summary: 'Données EIA, domaine public des États-Unis. L’API ouverte exige une clé d’enregistrement.',
-    },
-    redistributable: true,
-    byokLabel: 'Clé API EIA',
-  },
-  {
-    id: 'treasury',
-    name: 'U.S. Treasury Fiscal Data',
-    kind: 'calendar',
-    hosts: ['api.fiscaldata.treasury.gov'],
+    hosts: ['www.eia.gov'],
     auth: 'none',
     freshness: 'scheduled',
     terms: {
-      url: 'https://fiscaldata.treasury.gov/api-documentation/',
-      summary: 'Fiscal Data du Trésor américain, domaine public. API ouverte, sans clé.',
+      url: 'https://www.eia.gov/petroleum/supply/weekly/schedule.php',
+      summary: 'Calendrier du Weekly Petroleum Status Report, domaine public des États-Unis. Page HTML, sans clé.',
+    },
+    redistributable: true,
+  },
+  {
+    id: 'treasury',
+    name: 'TreasuryDirect',
+    kind: 'calendar',
+    hosts: ['www.treasurydirect.gov'],
+    auth: 'none',
+    freshness: 'scheduled',
+    terms: {
+      url: 'https://www.treasurydirect.gov/TA_WS/securities/announced?format=json',
+      summary: 'Adjudications annoncées, JSON public du Trésor, domaine public. Sans clé.',
     },
     redistributable: true,
   },
@@ -180,20 +179,7 @@ export const SOURCES: DataSourceSpec[] = [
     freshness: 'scheduled',
     terms: {
       url: 'https://www.investing.com/about-us/terms-and-conditions',
-      summary: 'Pas d’API publique. Les conditions interdisent l’extraction automatisée et la redistribution. Conservé tel quel jusqu’à la tâche 3, inactivable en production.',
-    },
-    redistributable: false,
-  },
-  {
-    id: 'forexfactory',
-    name: 'Forex Factory',
-    kind: 'calendar',
-    hosts: ['nfs.faireconomy.media'],
-    auth: 'none',
-    freshness: 'scheduled',
-    terms: {
-      url: 'https://www.forexfactory.com/notices',
-      summary: 'Fair Economy publie un JSON hebdomadaire (nfs.faireconomy.media), mais les notices interdisent la copie et la redistribution du calendrier et de la base FEED sans accord écrit. Non redistribuable ; le repli actuel reste en place jusqu’à la tâche 3.',
+      summary: 'Pas d’API publique. Les conditions interdisent l’extraction automatisée et la redistribution. redistributable: false. Retiré du calendrier (tâche 3) ; ligne documentaire, jamais contactée.',
     },
     redistributable: false,
   },
@@ -227,11 +213,7 @@ export function allowedHosts(): string[] {
   return [...set].sort();
 }
 
-/**
- * Fetch de données du process principal.
- * Production : `allowedHosts()`. Investing et Forex Factory restent joignables
- * (déclarés, non redistribuables) jusqu’à la tâche 3 — leur hôte n’est pas recopié ici.
- */
+/** Fetch de données du process principal. Seuls les hôtes de `allowedHosts()` (sources redistribuables). */
 export function dataFetchAllowed(url: string): boolean {
   let host: string;
   try {
@@ -241,10 +223,5 @@ export function dataFetchAllowed(url: string): boolean {
   } catch {
     return false;
   }
-  if (allowedHosts().includes(host)) return true;
-  for (const id of ['investing', 'forexfactory']) {
-    const spec = SOURCES.find((s) => s.id === id);
-    if (spec && !spec.redistributable && spec.hosts.some((h) => h.toLowerCase() === host)) return true;
-  }
-  return false;
+  return allowedHosts().includes(host);
 }

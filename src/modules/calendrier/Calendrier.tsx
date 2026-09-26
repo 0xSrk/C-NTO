@@ -17,11 +17,14 @@ import s from './calendrier.module.css';
 
 const CAT_COLOR: Record<EventCategory, string> = {
   fed: '#c41e3a',
+  'banque-centrale': '#c41e3a',
   emploi: '#e0776c',
   inflation: '#d8b45a',
   croissance: '#8fc7e8',
   sentiment: '#8a8a8a',
   resultats: '#a996e0',
+  energie: '#e0a060',
+  adjudication: '#9bb0c9',
   cme: '#7fcf9a',
   horaire: '#6c6c6c',
   perso: '#ffffff',
@@ -52,6 +55,8 @@ function trCatLabel(c: EventCategory): string {
   switch (c) {
     case 'fed':
       return tr('Réserve fédérale', 'Federal Reserve', 'Reserva Federal');
+    case 'banque-centrale':
+      return tr('Banque centrale', 'Central bank', 'Banco central');
     case 'emploi':
       return tr('Emploi', 'Employment', 'Empleo');
     case 'inflation':
@@ -62,6 +67,10 @@ function trCatLabel(c: EventCategory): string {
       return tr('Sentiment', 'Sentiment', 'Sentimiento');
     case 'resultats':
       return tr('Résultats', 'Earnings', 'Resultados');
+    case 'energie':
+      return tr('Énergie', 'Energy', 'Energía');
+    case 'adjudication':
+      return tr('Adjudication', 'Auction', 'Subasta');
     case 'cme':
       return tr('CME · contrats', 'CME · contracts', 'CME · contratos');
     case 'horaire':
@@ -85,7 +94,7 @@ function trCatHelp(c: EventCategory): { lead: string; points: string[] } {
       };
     case 'emploi':
       return {
-        lead: tr('Chiffres sur le marché du travail américain (NFP, chômage, ADP…). Ils font réagir le dollar et donc le NQ.', 'US labor-market figures (NFP, unemployment, ADP…). They move the dollar and therefore NQ.', 'Cifras del mercado laboral estadounidense (NFP, desempleo, ADP…). Hacen reaccionar al dólar y por tanto al NQ.'),
+        lead: tr('Chiffres sur le marché du travail américain (NFP, chômage). Ils font réagir le dollar et les indices.', 'US labor-market figures (NFP, unemployment). They move the dollar and the indexes.', 'Cifras del mercado laboral estadounidense (NFP, desempleo). Hacen reaccionar al dólar y a los índices.'),
         points: [
           tr('Publication typique : 8:30 ET (14:30 Paris en hiver).', 'Typical release: 8:30 ET (14:30 Paris in winter).', 'Publicación típica: 8:30 ET (14:30 París en invierno).'),
           tr('Attendez la clôture de la première bougie 5 minutes avant de décider.', 'Wait for the first 5-minute candle to close before deciding.', 'Espere el cierre de la primera vela de 5 minutos antes de decidir.'),
@@ -130,7 +139,7 @@ function trCatHelp(c: EventCategory): { lead: string; points: string[] } {
       };
     case 'cme':
       return {
-        lead: tr('Repères liés aux contrats à terme CME (expiration, rollover du contrat NQ).', 'Markers tied to CME futures (expiration, NQ contract rollover).', 'Hitos ligados a los futuros CME (vencimiento, rollover del contrato NQ).'),
+        lead: tr('Repères liés aux contrats à terme CME : expiration et rollover, une ligne par future.', 'Markers tied to CME futures: expiration and rollover, one line per future.', 'Hitos ligados a los futuros CME: vencimiento y rollover, una línea por futuro.'),
         points: [
           tr('Rollover : passer au contrat suivant dans NinjaTrader quand le volume migre.', 'Rollover: switch to the next contract in NinjaTrader when volume migrates.', 'Rollover: pase al contrato siguiente en NinjaTrader cuando migre el volumen.'),
           tr('Expiration trimestrielle : volumes et niveaux parfois « étranges » autour de 9:30 ET.', 'Quarterly expiration: volumes and levels can look “odd” around 9:30 ET.', 'Vencimiento trimestral: volúmenes y niveles a veces « raros » alrededor de las 9:30 ET.'),
@@ -150,7 +159,7 @@ function trCatHelp(c: EventCategory): { lead: string; points: string[] } {
       return {
         lead: tr('Vos propres notes et rappels du jour (coaching, revue, niveaux personnels).', 'Your own notes and reminders for the day (coaching, review, personal levels).', 'Sus propias notas y recordatorios del día (coaching, revisión, niveles personales).'),
         points: [
-          tr('Ils n’arrivent pas d’Investing : c’est votre journal de bord.', 'They do not come from Investing: this is your logbook.', 'No llegan de Investing: es su cuaderno de bitácora.'),
+          tr('Ils n’arrivent pas d’un fil externe : c’est votre journal de bord.', 'They do not come from an external feed: this is your logbook.', 'No llegan de un feed externo: es su cuaderno de bitácora.'),
           tr('Utilisez-les pour figer une intention avant la séance.', 'Use them to lock an intention before the session.', 'Úselos para fijar una intención antes de la sesión.'),
           tr('Visibles uniquement sur votre machine.', 'Visible only on your machine.', 'Visibles solo en su máquina.'),
         ],
@@ -258,7 +267,7 @@ const EVENT_DESC: Record<string, [string, string]> = {
   'Jour de bascule conventionnel (jeudi précédant la semaine d’expiration) : le volume migre vers l’échéance suivante.': ['Conventional roll day (Thursday before expiration week): volume migrates to the next expiry.', 'Día de cambio convencional (jueves anterior a la semana de vencimiento): el volumen migra al vencimiento siguiente.'],
   'Troisième vendredi : expiration des options sur indices et actions, flux de couverture en fin de séance.': ['Third Friday: index and equity options expire, hedging flows into the close.', 'Tercer viernes: vencen las opciones sobre índices y acciones, flujos de cobertura al cierre.'],
   'Marchés américains fermés. Pas de séance RTH ; Globex fermé ou très partiel.': ['US markets closed. No RTH session; Globex closed or very thin.', 'Mercados estadounidenses cerrados. Sin sesión RTH; Globex cerrado o muy parcial.'],
-  'Good Friday : les futures sur indices Nasdaq cotent en séance écourtée, pas une journée fermée. L’horaire exact dépend du produit — vérifier le calendrier CME. Un NFP peut tomber le même jour.': ['Good Friday: Nasdaq index futures trade a shortened session, not a closed day. Exact hours depend on the product — check the CME calendar. An NFP can fall the same day.', 'Good Friday: los futuros sobre índices Nasdaq cotizan en sesión corta, no es un día cerrado. El horario exacto depende del producto — compruebe el calendario CME. Un NFP puede caer el mismo día.'],
+  'Good Friday : les futures sur indices cotent en séance écourtée, pas une journée fermée. L’horaire exact dépend du produit — vérifier le calendrier CME. Un NFP peut tomber le même jour.': ['Good Friday: index futures trade a shortened session, not a closed day. Exact hours depend on the product — check the CME calendar. An NFP can fall the same day.', 'Good Friday: los futuros sobre índices cotizan en sesión corta, no es un día cerrado. El horario exacto depende del producto — compruebe el calendario CME. Un NFP puede caer el mismo día.'],
   'Jour férié américain : les futures sur indices cotent avec une clôture anticipée vers 13:00 ET. Vérifier les horaires publiés par le CME.': ['US holiday: index futures trade with an early close around 13:00 ET. Check the hours published by the CME.', 'Festivo estadounidense: los futuros sobre índices cotizan con cierre anticipado hacia las 13:00 ET. Compruebe los horarios publicados por el CME.'],
   'Séance écourtée, volumes très faibles.': ['Shortened session, very light volume.', 'Sesión corta, volúmenes muy bajos.'],
   'Retour au décalage habituel : ouverture RTH à 15:30 Paris.': ['Back to the usual offset: RTH open at 15:30 Paris.', 'Vuelta al desfase habitual: apertura RTH a las 15:30 París.'],
@@ -271,8 +280,10 @@ function holidayLabel(name: string): string {
 
 /** Titres du calendrier moteur, affichés dans la langue active. Les rappels saisis restent tels quels. */
 function trEventTitle(title: string): string {
-  const expiry = /^Expiration trimestrielle NQ \((.+)\) · Quad witching$/.exec(title);
-  if (expiry) return tr(title, `Quarterly NQ expiration (${expiry[1]}) · Quad witching`, `Vencimiento trimestral NQ (${expiry[1]}) · Quad witching`);
+  const expiry = /^Expiration trimestrielle ([A-Z0-9]+) \((.+)\)$/.exec(title);
+  if (expiry) return tr(title, `Quarterly expiration ${expiry[1]} (${expiry[2]})`, `Vencimiento trimestral ${expiry[1]} (${expiry[2]})`);
+  const roll = /^Rollover ([A-Z0-9]+) → contrat suivant$/.exec(title);
+  if (roll) return tr(title, `Rollover ${roll[1]} → next contract`, `Rollover ${roll[1]} → contrato siguiente`);
   const closed = /^(.+) · CME fermé$/.exec(title);
   if (closed?.[1]) return `${holidayLabel(closed[1])} · ${tr('CME fermé', 'CME closed', 'CME cerrado')}`;
   const early = /^(.+) · séance écourtée \(clôture 13:00 ET\)$/.exec(title);
@@ -284,8 +295,8 @@ function trEventTitle(title: string): string {
 }
 
 function trEventDesc(desc: string): string {
-  if (desc === 'Publication macro USD (fil Investing / FF).') {
-    return tr(desc, 'USD macro release (Investing / FF feed).', 'Publicación macro USD (feed Investing / FF).');
+  if (desc.startsWith('Publication ')) {
+    return desc;
   }
   if (desc.includes('Attendu ') || desc.includes('Préc. ') || desc.includes('Publié ')) {
     return desc
@@ -339,9 +350,9 @@ export default function Calendrier() {
   const sessions = useJournal((j) => j.sessions);
   const entries = useCalendar((c) => c.entries);
   const toast = useUi((u) => u.toast);
-  const releases = useMacro((m) => m.releases);
+  const eventsMacro = useMacro((m) => m.events);
+  const sources = useMacro((m) => m.sources);
   const syncing = useMacro((m) => m.syncing);
-  const lastSource = useMacro((m) => m.lastSource);
   const lastError = useMacro((m) => m.lastError);
   const loadMacro = useMacro((m) => m.load);
   const syncMacro = useMacro((m) => m.sync);
@@ -368,8 +379,8 @@ export default function Calendrier() {
   const events = useMemo(() => {
     const years = new Set([year - 1, year, year + 1]);
     const local = [...years].flatMap((y) => generateNasdaqEvents(y));
-    return mergeCalendarEvents(local, releases);
-  }, [year, releases]);
+    return mergeCalendarEvents(local, eventsMacro);
+  }, [year, eventsMacro]);
 
   const visible = useMemo(() => events.filter((e) => !hidden.has(e.category) && (showEstimated || !e.estimated) && e.impact >= minImpact), [events, hidden, showEstimated, minImpact]);
 
@@ -396,11 +407,11 @@ export default function Calendrier() {
 
   const history = useMemo(
     () =>
-      releases
+      eventsMacro
         .filter((r) => r.actual != null && r.actual !== '' && r.date <= today)
         .sort((a, b) => b.date.localeCompare(a.date) || (b.timeET ?? '').localeCompare(a.timeET ?? ''))
         .slice(0, 40),
-    [releases, today],
+    [eventsMacro, today],
   );
 
   const gridDays = useMemo(() => {
@@ -428,7 +439,18 @@ export default function Calendrier() {
     setCursor(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
 
-  const sourceLabel = lastSource === 'investing' ? 'Investing.com' : lastSource === 'forexfactory' ? 'Forex Factory' : tr('hors ligne', 'offline', 'sin conexión');
+  const sourceLabel = sources.length
+    ? sources
+        .map((src) => {
+          const name = src.sourceId.toUpperCase();
+          const state = src.state === 'ok' ? '' : src.state === 'stale' ? tr(' périmé', ' stale', ' desactualizado') : tr(' erreur', ' error', ' error');
+          const when = src.syncedAt
+            ? ` ${new Date(src.syncedAt).toLocaleString(intlTag(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+            : '';
+          return `${name}${state}${when}`;
+        })
+        .join(' · ')
+    : tr('hors ligne', 'offline', 'sin conexión');
 
   return (
     <>
@@ -444,13 +466,13 @@ export default function Calendrier() {
               variant="ghost"
               disabled={syncing}
               onClick={async () => {
-                await syncMacro(addDays(`${cursor}-01`, -10), addDays(`${cursor}-28`, 20));
+                await syncMacro(addDays(`${cursor}-01`, -10), addDays(`${cursor}-28`, 40), true);
                 const st = useMacro.getState();
-                if (st.lastError && st.lastSource === 'none') toast(st.lastError, 'warn');
-                else toast(tr(`Macro · ${st.lastSource === 'investing' ? 'Investing.com' : st.lastSource === 'forexfactory' ? 'Forex Factory' : '—'} · ${st.releases.length} publications`, `Macro · ${st.lastSource === 'investing' ? 'Investing.com' : st.lastSource === 'forexfactory' ? 'Forex Factory' : '—'} · ${st.releases.length} releases`, `Macro · ${st.lastSource === 'investing' ? 'Investing.com' : st.lastSource === 'forexfactory' ? 'Forex Factory' : '—'} · ${st.releases.length} publicaciones`), 'ok');
+                if (st.lastError && st.events.length === 0) toast(st.lastError, 'warn');
+                else toast(tr(`Calendrier · ${st.events.length} publications`, `Calendar · ${st.events.length} releases`, `Calendario · ${st.events.length} publicaciones`), 'ok');
               }}
             >
-              {syncing ? tr('Sync…', 'Sync…', 'Sync…') : tr('Sync Investing', 'Sync Investing', 'Sync Investing')}
+              {syncing ? tr('Sync…', 'Sync…', 'Sync…') : tr('Synchroniser', 'Sync', 'Sincronizar')}
             </Button>
           </>
         }
@@ -477,7 +499,7 @@ export default function Calendrier() {
                 {tr('Aujourd’hui', 'Today', 'Hoy')}
               </Button>
               <span className={s.feedStatus} title={lastError ?? undefined}>
-                {tr('Fil', 'Feed', 'Feed')} {sourceLabel}
+                {tr('Sources', 'Sources', 'Fuentes')} {sourceLabel}
                 {lastError ? tr(' · partiel', ' · partial', ' · parcial') : ''}
               </span>
               <div className={s.filters}>
@@ -688,7 +710,7 @@ function DaySide({
 }: {
   date: string;
   events: CalEvent[];
-  history: ReturnType<typeof useMacro.getState>['releases'];
+  history: ReturnType<typeof useMacro.getState>['events'];
   onSelectDate: (d: string) => void;
   onHelp: (c: EventCategory) => void;
 }) {
@@ -805,6 +827,7 @@ function DaySide({
                 </button>
                 {e.actual != null && e.actual !== '' && <Tag tone="mint">{tr('publié', 'actual', 'publicado')}</Tag>}
                 {e.estimated && <Tag tone="amber">{tr('estimé', 'estimated', 'estimado')}</Tag>}
+                {e.source && e.source !== 'local' && <span className="mono">{e.source}</span>}
               </div>
               <Prints e={e} />
               {e.description && !e.actual && !e.forecast && <div className={s.evDesc}>{trEventDesc(e.description)}</div>}
@@ -858,7 +881,7 @@ function DaySide({
           <span>{tr('fil macro', 'macro feed', 'feed macro')}</span>
         </header>
         <div className={s.history}>
-          {history.length === 0 && <div className={s.evDesc}>{tr('Sync Investing pour l’historique.', 'Sync Investing for history.', 'Sincronice Investing para el historial.')}</div>}
+          {history.length === 0 && <div className={s.evDesc}>{tr('Synchroniser pour l’historique, ou consulter le dernier calendrier en cache.', 'Sync for history, or read the last cached calendar.', 'Sincronice para el historial, o consulte el último calendario en caché.')}</div>}
           {history.slice(0, 18).map((r) => {
             const tone = surpriseTone(r.actual, r.forecast);
             return (

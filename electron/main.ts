@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
 import { llmHostOk } from './llm-host';
 import { Orchestrator } from './orchestrator';
-import { fetchMacroReleases } from './macro-calendar';
+import { syncOfficialCalendar } from './calendar';
 import { allowedHosts, dataFetchAllowed } from './sources';
 import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
 import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, type UiZoomMode } from './ui-scale';
@@ -595,14 +595,14 @@ ipcMain.handle('marketdata:unsubscribe', (e) => {
   return { ok: false as const, detail: 'aucune source live' };
 });
 
-/* ─── Calendrier macro (Investing.com → Forex Factory) ─── */
+/* ─── Calendrier macro (sources officielles) ─── */
 ipcMain.handle('calendar:macro', async (e, fromDate: unknown, toDate: unknown) => {
-  if (!trusted(e) || !isDateKey(fromDate) || !isDateKey(toDate)) return { releases: [], source: 'none' as const, error: ui('Plage invalide', 'Invalid range', 'Rango inválido') };
-  if (fromDate > toDate) return { releases: [], source: 'none' as const, error: ui('Plage inversée', 'Reversed range', 'Rango invertido') };
+  if (!trusted(e) || !isDateKey(fromDate) || !isDateKey(toDate)) return { events: [], sources: [], error: ui('Plage invalide', 'Invalid range', 'Rango inválido') };
+  if (fromDate > toDate) return { events: [], sources: [], error: ui('Plage inversée', 'Reversed range', 'Rango invertido') };
   try {
-    return await fetchMacroReleases(fromDate, toDate, readLocaleFile(app.getPath('userData')), dataFetchAllowed);
+    return await syncOfficialCalendar({ from: fromDate, to: toDate }, readLocaleFile(app.getPath('userData')), dataFetchAllowed);
   } catch (err) {
-    return { releases: [], source: 'none' as const, error: err instanceof Error ? err.message : ui('Sync macro impossible', 'Macro sync failed', 'Sincronización macro imposible') };
+    return { events: [], sources: [], error: err instanceof Error ? err.message : ui('Sync macro impossible', 'Macro sync failed', 'Sincronización macro imposible') };
   }
 });
 

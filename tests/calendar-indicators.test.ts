@@ -1,16 +1,36 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { generateDemoBars, importBarsCsv } from '@/engine/bars';
 import { CATEGORY_HELP, CATEGORY_LABEL, generateNasdaqEvents } from '@/engine/calendar';
+import { listInstruments } from '@/engine/instruments';
+import { parseFedSchedule } from '../electron/calendar/fed';
+import { parseBlsSchedule } from '../electron/calendar/bls';
 import { INDICATORS, indicatorById, defaultParams, sessionKeyOf } from '@/engine/indicators';
 import { monteCarlo } from '@/engine/montecarlo';
 import { generateDemoJournal } from '@/engine/demo';
 import { easterSunday, nthWeekdayOfMonth, zonedToUtc, ET_ZONE } from '@/lib/time';
 
 describe('calendrier Nasdaq', () => {
+  const fedHtml = readFileSync('tests/fixtures/calendar/fed.html', 'utf8');
+  const nfpHtml = readFileSync('tests/fixtures/calendar/bls-empsit.html', 'utf8');
+
   it('place les 8 décisions FOMC 2026 aux dates officielles', () => {
-    const ev = generateNasdaqEvents(2026).filter((e) => e.title.startsWith('Décision FOMC'));
+    const fed = parseFedSchedule(fedHtml);
+    const ev = fed.filter((e) => e.title.startsWith('Décision FOMC') && e.date.startsWith('2026'));
     expect(ev.map((e) => e.date)).toEqual(['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09']);
-    expect(ev.every((e) => !e.estimated && e.impact === 3)).toBe(true);
+    expect(ev.every((e) => !e.estimated && e.impact === 3 && e.timeET === '14:00')).toBe(true);
+    expect(generateNasdaqEvents(2026).some((e) => e.title.startsWith('Décision FOMC'))).toBe(false);
+    for (const year of [2024, 2025] as const) {
+      const dates = fed.filter((e) => e.title.startsWith('Décision FOMC') && e.date.startsWith(String(year)) && !e.estimated).map((e) => e.date);
+      expect(dates).toHaveLength(8);
+    }
+    const y2024 = fed.filter((e) => e.title.startsWith('Décision FOMC') && e.date.startsWith('2024')).map((e) => e.date);
+    expect(y2024).toEqual(['2024-01-31', '2024-03-20', '2024-05-01', '2024-06-12', '2024-07-31', '2024-09-18', '2024-11-07', '2024-12-18']);
+    const y2025 = fed.filter((e) => e.title.startsWith('Décision FOMC') && e.date.startsWith('2025')).map((e) => e.date);
+    expect(y2025).toEqual(['2025-01-29', '2025-03-19', '2025-05-07', '2025-06-18', '2025-07-30', '2025-09-17', '2025-10-29', '2025-12-10']);
+    const y2027 = fed.filter((e) => e.title.startsWith('Décision FOMC') && e.date.startsWith('2027'));
+    expect(y2027.length).toBeGreaterThan(0);
+    expect(y2027.every((e) => e.estimated)).toBe(true);
   });
 
   it('expose une aide débutant pour chaque catégorie', () => {
@@ -20,33 +40,26 @@ describe('calendrier Nasdaq', () => {
     }
   });
 
-  it('aligne les NFP 2024–2026 sur le calendrier BLS', () => {
-    const bls: Record<number, string[]> = {
-      2024: ['2024-01-05', '2024-02-02', '2024-03-08', '2024-04-05', '2024-05-03', '2024-06-07', '2024-07-05', '2024-08-02', '2024-09-06', '2024-10-04', '2024-11-01', '2024-12-06'],
-      2025: ['2025-01-10', '2025-02-07', '2025-03-07', '2025-04-04', '2025-05-02', '2025-06-06', '2025-07-03', '2025-08-01', '2025-09-05', '2025-11-20', '2025-12-16'],
-      2026: ['2026-01-09', '2026-02-11', '2026-03-06', '2026-04-03', '2026-05-08', '2026-06-05', '2026-07-02', '2026-08-07', '2026-09-04', '2026-10-02', '2026-11-06', '2026-12-04'],
-    };
-    for (const year of [2024, 2025, 2026]) {
-      const nfp = generateNasdaqEvents(year).filter((e) => e.title.includes('NFP'));
-      expect(nfp.map((e) => e.date)).toEqual(bls[year]);
-      expect(nfp.every((e) => !e.estimated && e.impact === 3)).toBe(true);
-    }
-    const july4 = generateNasdaqEvents(2025).filter((e) => e.date === '2025-07-04' && e.title.includes('NFP'));
-    expect(july4).toEqual([]);
-    const guessed = generateNasdaqEvents(2027).filter((e) => e.title.includes('NFP'));
-    expect(guessed.length).toBe(12);
-    expect(guessed.every((e) => e.estimated && e.impact <= 2)).toBe(true);
+  it('aligne les NFP 2026 sur le calendrier BLS et n’en invente plus localement', () => {
+    const bls2026 = ['2026-01-09', '2026-02-11', '2026-03-06', '2026-04-03', '2026-05-08', '2026-06-05', '2026-07-02', '2026-08-07', '2026-09-04', '2026-10-02', '2026-11-06', '2026-12-04'];
+    const nfp = parseBlsSchedule(nfpHtml, 'empsit').filter((e) => e.date.startsWith('2026'));
+    expect(nfp.map((e) => e.date)).toEqual(bls2026);
+    expect(nfp.every((e) => !e.estimated && e.impact === 3 && e.timeET === '08:30')).toBe(true);
+    expect(generateNasdaqEvents(2026).filter((e) => e.title.includes('NFP'))).toEqual([]);
+    expect(generateNasdaqEvents(2027).filter((e) => e.title.includes('NFP'))).toEqual([]);
+    expect(generateNasdaqEvents(2025).filter((e) => e.date === '2025-07-04' && e.title.includes('NFP'))).toEqual([]);
   });
 
-  it('marque le Good Friday 2026 comme séance écourtée et conserve le NFP', () => {
+  it('marque le Good Friday 2026 comme séance écourtée et conserve le NFP BLS', () => {
     const day = generateNasdaqEvents(2026).filter((e) => e.date === '2026-04-03');
     const gf = day.find((e) => e.title.includes('Good Friday'));
-    const nfp = day.find((e) => e.title.includes('NFP'));
+    const nfp = parseBlsSchedule(nfpHtml, 'empsit').find((e) => e.date === '2026-04-03');
     expect(gf).toBeDefined();
     expect(gf!.title).toMatch(/écourtée/);
     expect(gf!.title).not.toMatch(/fermé/);
     expect(nfp).toBeDefined();
     expect(nfp!.estimated).toBe(false);
+    expect(nfp!.timeET).toBe('08:30');
   });
 
   it('calcule fêtes, expirations et rollovers', () => {
@@ -56,9 +69,16 @@ describe('calendrier Nasdaq', () => {
     expect(titles('Good Friday')[0]!.date).toBe('2026-04-03');
     expect(titles('Thanksgiving')[0]!.date).toBe('2026-11-26');
     expect(titles('Independence Day')[0]!.date).toBe('2026-07-03');
-    expect(titles('Expiration trimestrielle').map((e) => e.date)).toEqual(['2026-03-20', '2026-06-19', '2026-09-18', '2026-12-18']);
-    expect(titles('Rollover').map((e) => e.date)).toEqual(['2026-03-12', '2026-06-11', '2026-09-10', '2026-12-10']);
-    expect(titles('NFP').length).toBe(12);
+    const futures = listInstruments({ assetClass: 'future' });
+    const expiries = titles('Expiration trimestrielle');
+    expect([...new Set(expiries.map((e) => e.date))]).toEqual(['2026-03-20', '2026-06-19', '2026-09-18', '2026-12-18']);
+    expect(expiries).toHaveLength(4 * futures.length);
+    expect(expiries.every((e) => e.estimated)).toBe(true);
+    const rolls = titles('Rollover');
+    expect([...new Set(rolls.map((e) => e.date))]).toEqual(['2026-03-12', '2026-06-11', '2026-09-10', '2026-12-10']);
+    expect(rolls).toHaveLength(4 * futures.length);
+    expect(rolls.every((e) => e.estimated)).toBe(true);
+    expect(titles('NFP').length).toBe(0);
     expect(nthWeekdayOfMonth(2026, 3, 0, 2)).toBe('2026-03-08');
     expect(nthWeekdayOfMonth(2026, 3, 0, -1)).toBe('2026-03-29');
   });
