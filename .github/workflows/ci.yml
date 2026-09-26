@@ -16,7 +16,31 @@ jobs:
           node-version: "22"
       - run: npm ci
       - name: Avis de sécurité (dépendances embarquées)
-        run: npm audit --omit=dev --audit-level=high
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Le point d'audit rapide de npm renvoie parfois un 400 « Invalid package tree »
+          # alors que le lockfile est valide (l'endpoint est en cours de retrait).
+          # On réessaie seulement cette erreur de registre ; une vraie alerte reste fatale.
+          for attempt in 1 2 3; do
+            set +e
+            log=$(npm audit --omit=dev --audit-level=high 2>&1)
+            code=$?
+            set -e
+            printf '%s\n' "$log"
+            if [ "$code" -eq 0 ]; then
+              exit 0
+            fi
+            if printf '%s\n' "$log" | grep -Eq "audit endpoint returned an error|Invalid package tree"; then
+              echo "Registre npm injoignable ou arbre rejeté (tentative ${attempt}/3)."
+              if [ "$attempt" -lt 3 ]; then
+                sleep $((attempt * 10))
+              fi
+              continue
+            fi
+            exit "$code"
+          done
+          exit 1
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
