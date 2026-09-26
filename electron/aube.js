@@ -462,7 +462,7 @@ void main() {
 
   function initGL() {
     try {
-      gl = glCanvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+      gl = glCanvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'default' });
       if (!gl) return false;
       const dbg = gl.getExtension('WEBGL_debug_renderer_info');
       const renderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
@@ -1158,6 +1158,10 @@ void main() {
   function stop() {
     running = false;
     cancelAnimationFrame(raf);
+    if (resolveLaunch) {
+      resolveLaunch();
+      resolveLaunch = null;
+    }
   }
 
   /** Immersion + formation du cœur. Résout quand le circuit doit prendre la main. */
@@ -1190,9 +1194,23 @@ void main() {
       return Promise.resolve();
     }
     if (!running) start();
-    return new Promise((res) => {
+    const animation = new Promise((res) => {
       resolveLaunch = res;
     });
+    // Filet : si aucune image n'a résolu la promesse, on rend la main au circuit
+    // au plus tard CFG.pre + 400 ms après l'appel, en fixant handoffAt pour que
+    // le rendu reste cohérent si la boucle reprend.
+    const guard = new Promise((res) =>
+      setTimeout(() => {
+        if (handoffAt < 0) handoffAt = performance.now();
+        if (resolveLaunch) {
+          resolveLaunch();
+          resolveLaunch = null;
+        }
+        res();
+      }, CFG.pre + 400),
+    );
+    return Promise.race([animation, guard]);
   }
 
   /* ── Entrées ── */
@@ -1217,6 +1235,16 @@ void main() {
   glOK = initGL();
   resize();
   host.classList.add(glOK ? 'gl' : 'flat');
-  window.cantoAube = { launch, start, stop, isRunning: () => running };
+  const api = {
+    launch,
+    start,
+    stop,
+    isRunning: () => running,
+    get handoffAt() {
+      return handoffAt;
+    },
+  };
+  window.cantoAube = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
   start();
 })();
