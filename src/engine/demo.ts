@@ -2,7 +2,8 @@ import { uid } from '@/lib/id';
 import { gaussian, mulberry32 } from '@/lib/rng';
 import { dateKeyLocal, zonedToUtc, ET_ZONE } from '@/lib/time';
 import { summarizeTrades } from './metrics';
-import { INSTRUMENTS, type Instrument, type Session, type Trade } from './types';
+import { getInstrument } from './instruments';
+import type { Instrument, Session, Trade } from './types';
 
 const STRATEGIES = ['ORB 15m', 'VWAP reclaim', 'Liquidity sweep', 'Trend pullback', 'Range fade'];
 const TAGS = ['A+', 'discipline', 'FOMO', 'revenge', 'news', 'plan respecté', 'sur-trading', 'patience'];
@@ -43,7 +44,7 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
     const rthOpen = zonedToUtc(date, '09:30', ET_ZONE);
     let cursorMs = rthOpen + (rand() < 0.25 ? -60 : 2 + rand() * 20) * 60_000;
     const instrument: Instrument = rand() < 0.65 ? 'MNQ' : 'NQ';
-    const spec = INSTRUMENTS[instrument];
+    const spec = getInstrument(instrument);
 
     for (let i = 0; i < nTrades; i++) {
       const qty = instrument === 'MNQ' ? 2 + Math.floor(rand() * 4) : 1;
@@ -56,9 +57,9 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
       const riskPts = 8 + rand() * 14;
       const rewardPts = riskPts * (1.0 + rand() * 1.2);
       const movePts = win ? rewardPts * (0.5 + rand() * 0.6) : -riskPts * (0.8 + Math.pow(rand(), 2) * 1.1);
-      const entryPrice = Math.round((price + gaussian(rand) * 40) / 0.25) * 0.25;
-      const exitPrice = Math.round((entryPrice + (direction === 'long' ? movePts : -movePts)) / 0.25) * 0.25;
-      const commission = qty * (instrument === 'MNQ' ? 0.74 : 2.5) * 2;
+      const entryPrice = Math.round((price + gaussian(rand) * 40) / spec.tickSize) * spec.tickSize;
+      const exitPrice = Math.round((entryPrice + (direction === 'long' ? movePts : -movePts)) / spec.tickSize) * spec.tickSize;
+      const commission = qty * (spec.defaultCommission ?? 0);
       const gross = (exitPrice - entryPrice) * (direction === 'long' ? 1 : -1) * qty * spec.pointValue;
       const pnl = Math.round((gross - commission) * 100) / 100;
       const mae = Math.round((win ? riskPts * rand() * 0.7 : Math.abs(movePts) * (1 + rand() * 0.2)) * spec.pointValue * qty * 100) / 100;

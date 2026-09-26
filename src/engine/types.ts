@@ -1,35 +1,7 @@
-export type Instrument = 'NQ' | 'MNQ';
+/** Identifiant canonique du registre (`src/engine/instruments.ts`). */
+export type Instrument = string;
 
-export interface InstrumentSpec {
-  symbol: Instrument;
-  name: string;
-  exchange: 'CME';
-  currency: 'USD';
-  pointValue: number;
-  tickSize: number;
-  tickValue: number;
-}
-
-export const INSTRUMENTS: Record<Instrument, InstrumentSpec> = {
-  NQ: {
-    symbol: 'NQ',
-    name: 'E-mini Nasdaq-100',
-    exchange: 'CME',
-    currency: 'USD',
-    pointValue: 20,
-    tickSize: 0.25,
-    tickValue: 5,
-  },
-  MNQ: {
-    symbol: 'MNQ',
-    name: 'Micro E-mini Nasdaq-100',
-    exchange: 'CME',
-    currency: 'USD',
-    pointValue: 2,
-    tickSize: 0.25,
-    tickValue: 0.5,
-  },
-};
+export type { AssetClass, Exchange, InstrumentSpec, SessionTemplate } from './instruments';
 
 export type Direction = 'long' | 'short';
 

@@ -5,7 +5,15 @@ vi.mock('dexie', () => {
   class FakeDexie {
     constructor(_name: string) {}
     version() {
-      return { stores: () => this };
+      const chain = {
+        stores() {
+          return chain;
+        },
+        upgrade() {
+          return chain;
+        },
+      };
+      return chain;
     }
     on() {}
     close() {}
@@ -187,6 +195,30 @@ describe('prepareVaultRestore (validation pure)', () => {
     expect(v.barSeries.map((b) => b.id)).toEqual(['bs1']);
     expect(v.agentMessages.map((a) => a.id)).toEqual(['a1']);
     expect(v.skipped).toEqual({ sessions: 4, trades: 8, notes: 1, bots: 3, copierAccounts: 2, macroReleases: 2, barSeries: 1, agentMessages: 3 });
+  });
+
+  it('accepte un instrument hors registre et convertit les anciennes symbolMap', () => {
+    const v = prepareVaultRestore(
+      JSON.stringify(
+        buildVaultV2({
+          appVersion: 't',
+          sessions: [session('s1', '2026-09-15'), { ...session('s2', '2026-09-16'), instruments: ['SIL'] }],
+          trades: [trade('t1', 's1', { instrument: 'SIL', pnl: 42 })],
+          notes: [],
+          copier: [
+            { id: 'cMicro', name: 'S', role: 'suiveur', ntAccount: 'Sim', enabled: true, sizing: { mode: 'ratio', value: 1, maxContracts: 2 }, symbolMap: 'NQ→MNQ', createdAt: now },
+            { id: 'cStandard', name: 'S', role: 'suiveur', ntAccount: 'Sim', enabled: true, sizing: { mode: 'ratio', value: 1, maxContracts: 2 }, symbolMap: 'MNQ→NQ', createdAt: now },
+            { id: 'cSame', name: 'S', role: 'suiveur', ntAccount: 'Sim', enabled: true, sizing: { mode: 'ratio', value: 1, maxContracts: 2 }, symbolMap: 'identique', createdAt: now },
+          ],
+        }),
+      ),
+    );
+    expect(v.trades.map((t) => t.id)).toEqual(['t1']);
+    expect(v.trades[0]!.instrument).toBe('SIL');
+    expect(v.trades[0]!.pnl).toBe(42);
+    expect(v.sessions.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(v.copierAccounts.map((c) => c.symbolMap)).toEqual([{ mode: 'micro' }, { mode: 'standard' }, { mode: 'identique' }]);
+    expect(v.skipped.trades).toBeUndefined();
   });
 
   it('erreurs structurelles → exception', () => {

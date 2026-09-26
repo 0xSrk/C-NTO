@@ -2,8 +2,9 @@ import { tr } from '@/i18n';
 import { inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { uid } from '@/lib/id';
 import { detectDayFirst, ET_ZONE, parseFlexibleDateTime, tradingDayKey } from '@/lib/time';
+import { getInstrument, hasInstrument, resolveSymbol, tradingDayOf } from '../instruments';
 import { summarizeTrades } from '../metrics';
-import { INSTRUMENTS, type Direction, type Instrument, type Session, type SessionSource, type Trade } from '../types';
+import type { Direction, Instrument, Session, SessionSource, Trade } from '../types';
 
 export interface ImportOptions {
   /** Heure locale à laquelle la journée de trading bascule (0 = date civile) */
@@ -69,14 +70,28 @@ function buildColumnIndex(headers: string[]): Record<string, number> {
   return idx;
 }
 
-/** Reconnaît « NQ 12-26 », « MNQ SEP26 », « NQZ6 », « MNQZ26 » (symbologies NinjaTrader, Rithmic, Tradovate). */
+/** Reconnaît une racine du registre, avec mois de contrat optionnel (NinjaTrader, Rithmic, Tradovate). */
 export function detectInstrument(raw: string): Instrument | null {
-  const s = raw.trim().toUpperCase();
-  const m = /^(M?NQ)(?=$|[\s\-_/]|[FGHJKMNQUVXZ]\d{1,2}$)/.exec(s);
-  if (m) return m[1] === 'MNQ' ? 'MNQ' : 'NQ';
-  if (/\bMNQ\b/.test(s)) return 'MNQ';
-  if (/\bNQ\b/.test(s)) return 'NQ';
-  return null;
+  return resolveSymbol(raw)?.symbol ?? null;
+}
+
+/** Libellés d'import : une ligne par racine absente du registre. */
+export function unknownInstrumentWarnings(counts: Map<string, number>): string[] {
+  return [...counts.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([sym, n]) =>
+      tr(
+        `instrument non reconnu : ${sym} (${n} lignes)`,
+        `unrecognized instrument: ${sym} (${n} rows)`,
+        `instrumento no reconocido: ${sym} (${n} líneas)`,
+      ),
+    );
+}
+
+function noteUnknown(counts: Map<string, number>, raw: string): void {
+  const key = raw.trim().toUpperCase();
+  if (!key) return;
+  counts.set(key, (counts.get(key) ?? 0) + 1);
 }
 
 function parseDirection(raw: string): Direction | null {
@@ -150,6 +165,7 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
   let profitMismatch = 0;
   let widthMismatch = 0;
   let outOfBounds = 0;
+  const unknownCounts = new Map<string, number>();
 
   for (const row of table.rows) {
     if (expectedCols > 0 && row.length !== expectedCols) {
@@ -161,11 +177,14 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
       const i = col[k];
       return i !== undefined ? (row[i] ?? '').trim() : '';
     };
-    const instrument = detectInstrument(get('instrument'));
-    if (!instrument) {
+    const rawInstrument = get('instrument');
+    const resolved = resolveSymbol(rawInstrument);
+    if (!resolved) {
       skipped++;
+      noteUnknown(unknownCounts, rawInstrument);
       continue;
     }
+    const instrument = resolved.symbol;
     const direction = parseDirection(get('direction'));
     const qty = Math.abs(parseLocaleNumber(get('qty'), decimalSep));
     const entryPrice = parseLocaleNumber(get('entryPrice'), decimalSep);
@@ -188,7 +207,7 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
       outOfBounds++;
       continue;
     }
-    const spec = INSTRUMENTS[instrument];
+    const spec = getInstrument(instrument);
     const commissionRaw = get('commission');
     const commission = commissionRaw ? Math.abs(parseLocaleNumber(commissionRaw, decimalSep)) || 0 : 0;
     if (!Number.isFinite(commission) || commission > MONEY_MAX) {
@@ -263,24 +282,29 @@ export function importTradesCsv(text: string, opts: ImportOptions = {}): ImportR
       exitName: get('exitName') || undefined,
       tags: tagsRaw ? tagsRaw.split(/[;,|]/).map((t) => t.trim()).filter(Boolean) : undefined,
       risk,
+      contractMonth: resolved.contractMonth,
     });
   }
 
+  const unknownRows = [...unknownCounts.values()].reduce((sum, n) => sum + n, 0);
   if (profitMismatch > 0) warnings.push(tr(`${profitMismatch} trade(s) : la colonne Profit diffère du PnL recalculé (prix × valeur du point). Le PnL recalculé est conservé.`, `${profitMismatch} trade(s): the Profit column differs from the recomputed PnL (price × point value). The recomputed PnL is kept.`, `${profitMismatch} trade(s): la columna Profit difiere del PnL recalculado (precio × valor del punto). Se conserva el PnL recalculado.`));
   if (outOfBounds > 0) warnings.push(tr(`${outOfBounds} ligne(s) rejetée(s) : quantité, prix, commission ou PnL hors bornes (qty entière 1–${QTY_MAX}, prix 0–${PRICE_MAX}, PnL fini).`, `${outOfBounds} row(s) rejected: quantity, price, commission or PnL out of bounds (integer qty 1–${QTY_MAX}, price 0–${PRICE_MAX}, finite PnL).`, `${outOfBounds} fila(s) rechazada(s): cantidad, precio, comisión o PnL fuera de límites (qty entera 1–${QTY_MAX}, precio 0–${PRICE_MAX}, PnL finito).`));
+  warnings.push(...unknownInstrumentWarnings(unknownCounts));
   if (widthMismatch > 0) warnings.push(tr(`${widthMismatch} ligne(s) rejetée(s) : nombre de colonnes incohérent ou décimale/délimiteur conflictuels (intégrité du journal).`, `${widthMismatch} row(s) rejected: inconsistent column count or conflicting decimal/delimiter (journal integrity).`, `${widthMismatch} fila(s) rechazada(s): número de columnas incoherente o decimal/delimitador en conflicto (integridad del diario).`));
-  else if (skipped > 0) warnings.push(tr(`${skipped} ligne(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`, `${skipped} row(s) skipped (instrument other than NQ/MNQ or invalid fields).`, `${skipped} fila(s) ignorada(s) (instrumento distinto de NQ/MNQ o campos inválidos).`));
+  else if (skipped - unknownRows > 0) warnings.push(tr(`${skipped - unknownRows} ligne(s) ignorée(s) (champs invalides).`, `${skipped - unknownRows} row(s) skipped (invalid fields).`, `${skipped - unknownRows} fila(s) ignorada(s) (campos inválidos).`));
 
   return { sessions: groupIntoSessions(trades, boundary, source), trades, warnings, format, skipped };
 }
 
 /** Regroupe des trades en séances (journée de trading × compte) et leur affecte un sessionId. */
 export function groupIntoSessions(trades: Trade[], boundaryHour: number, source: SessionSource): Session[] {
-  // La convention Globex (bascule à 18:00) s'exprime en heure de New York quel que soit le poste.
+  // Instrument connu : journée du registre (Globex 18:00 ET). La bascule opérateur ne s'applique
+  // qu'à une racine absente du registre.
   const zone = boundaryHour === 18 ? ET_ZONE : undefined;
   const byDay = new Map<string, Trade[]>();
   for (const t of trades) {
-    const key = `${tradingDayKey(t.exitTime, boundaryHour, zone)}|${t.account ?? ''}`;
+    const day = hasInstrument(t.instrument) ? tradingDayOf(t.exitTime, getInstrument(t.instrument)) : tradingDayKey(t.exitTime, boundaryHour, zone);
+    const key = `${day}|${t.account ?? ''}`;
     const arr = byDay.get(key);
     if (arr) arr.push(t);
     else byDay.set(key, [t]);

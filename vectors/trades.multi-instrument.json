@@ -1,0 +1,82 @@
+{
+  "trades": [
+    {
+      "id": "nq-win",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "long",
+      "qty": 1,
+      "entryTime": 1752571800000,
+      "exitTime": 1752572400000,
+      "entryPrice": 20000,
+      "exitPrice": 20010,
+      "pnl": 195.5,
+      "commission": 4.5
+    },
+    {
+      "id": "nq-loss",
+      "sessionId": "s1",
+      "instrument": "NQ",
+      "direction": "short",
+      "qty": 1,
+      "entryTime": 1752573000000,
+      "exitTime": 1752573600000,
+      "entryPrice": 20000,
+      "exitPrice": 20005,
+      "pnl": -104.5,
+      "commission": 4.5
+    },
+    {
+      "id": "es-win",
+      "sessionId": "s1",
+      "instrument": "ES",
+      "direction": "long",
+      "qty": 2,
+      "entryTime": 1752574200000,
+      "exitTime": 1752574800000,
+      "entryPrice": 5000,
+      "exitPrice": 5002,
+      "pnl": 195,
+      "commission": 5
+    },
+    {
+      "id": "es-win-2",
+      "sessionId": "s1",
+      "instrument": "ES",
+      "direction": "short",
+      "qty": 1,
+      "entryTime": 1752575400000,
+      "exitTime": 1752576000000,
+      "entryPrice": 5100,
+      "exitPrice": 5090,
+      "pnl": 497.5,
+      "commission": 2.5
+    },
+    {
+      "id": "cl-win",
+      "sessionId": "s1",
+      "instrument": "CL",
+      "direction": "long",
+      "qty": 1,
+      "entryTime": 1752576600000,
+      "exitTime": 1752577200000,
+      "entryPrice": 70,
+      "exitPrice": 70.5,
+      "pnl": 498,
+      "commission": 2
+    },
+    {
+      "id": "cl-loss",
+      "sessionId": "s1",
+      "instrument": "CL",
+      "direction": "short",
+      "qty": 1,
+      "entryTime": 1752577800000,
+      "exitTime": 1752578400000,
+      "entryPrice": 71,
+      "exitPrice": 71.2,
+      "pnl": -202,
+      "commission": 2
+    }
+  ]
+}

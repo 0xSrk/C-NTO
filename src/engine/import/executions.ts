@@ -1,9 +1,10 @@
 import { tr } from '@/i18n';
 import { detectDecimalSeparator, inferDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { detectDayFirst, parseFlexibleDateTime } from '@/lib/time';
-import { INSTRUMENTS, type Instrument, type SessionSource, type Trade } from '../types';
+import { getInstrument, resolveSymbol } from '../instruments';
+import type { Instrument, SessionSource, Trade } from '../types';
 import { executionIdentityKey, executionTimeIso } from './identity';
-import { detectInstrument, groupIntoSessions, MONEY_MAX, PRICE_MAX, QTY_MAX, type ImportOptions, type ImportResult } from './ninjatrader';
+import { detectInstrument, groupIntoSessions, MONEY_MAX, PRICE_MAX, QTY_MAX, unknownInstrumentWarnings, type ImportOptions, type ImportResult } from './ninjatrader';
 
 /**
  * Exécution brute telle qu'exportée par NinjaTrader 8 (onglet Executions › Export) ou écrite en
@@ -108,6 +109,7 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
   const executions: Execution[] = [];
   let skipped = 0;
   let outOfBounds = 0;
+  const unknownCounts = new Map<string, number>();
   const expectedCols = table.headers.length;
   table.rows.forEach((row) => {
     if (expectedCols > 0 && row.length !== expectedCols) {
@@ -119,7 +121,8 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
       return i !== undefined ? (row[i] ?? '').trim() : '';
     };
     const instrumentName = get('instrument');
-    const instrument = detectInstrument(instrumentName);
+    const resolved = resolveSymbol(instrumentName);
+    const instrument = resolved?.symbol ?? null;
     const actionRaw = get('action').toLowerCase();
     const action = /^(buy|achat|b)/.test(actionRaw) ? 'buy' : /^(sell|vente|s)/.test(actionRaw) ? 'sell' : null;
     const quantity = Math.abs(parseLocaleNumber(get('quantity'), dec));
@@ -127,6 +130,10 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
     const time = parseFlexibleDateTime(get('time'), dayFirst);
     if (!instrument || !action || !quantity || Number.isNaN(quantity) || Number.isNaN(price) || !Number.isFinite(time)) {
       skipped++;
+      if (!instrument) {
+        const key = instrumentName.trim().toUpperCase();
+        if (key) unknownCounts.set(key, (unknownCounts.get(key) ?? 0) + 1);
+      }
       return;
     }
     // Bornes : quantité entière 1..10 000, prix 0..1 000 000 — sinon PnL/identités absurdes (Infinity, 1e300).
@@ -168,7 +175,9 @@ export function parseExecutionsCsv(text: string): { executions: Execution[]; ski
     });
   });
   const warnings: string[] = [...table.warnings];
-  if (skipped) warnings.push(tr(`${skipped} exécution(s) ignorée(s) (instrument hors NQ/MNQ ou champs invalides).`, `${skipped} execution(s) skipped (instrument other than NQ/MNQ or invalid fields).`, `${skipped} ejecución(es) ignorada(s) (instrumento distinto de NQ/MNQ o campos inválidos).`));
+  const unknownRows = [...unknownCounts.values()].reduce((sum, n) => sum + n, 0);
+  warnings.push(...unknownInstrumentWarnings(unknownCounts));
+  if (skipped - unknownRows > 0) warnings.push(tr(`${skipped - unknownRows} exécution(s) ignorée(s) (champs invalides).`, `${skipped - unknownRows} execution(s) skipped (invalid fields).`, `${skipped - unknownRows} ejecución(es) ignorada(s) (campos inválidos).`));
   if (outOfBounds) warnings.push(tr(`${outOfBounds} exécution(s) rejetée(s) : quantité, prix ou commission hors bornes (qty entière 1–${QTY_MAX}, prix 0–${PRICE_MAX}).`, `${outOfBounds} execution(s) rejected: quantity, price or commission out of bounds (integer qty 1–${QTY_MAX}, price 0–${PRICE_MAX}).`, `${outOfBounds} ejecución(es) rechazada(s): cantidad, precio o comisión fuera de límites (qty entera 1–${QTY_MAX}, precio 0–${PRICE_MAX}).`));
   return { executions, skipped, warnings };
 }
@@ -213,7 +222,7 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
     const side: 'long' | 'short' = e.action === 'buy' ? 'long' : 'short';
     const cpc = e.quantity > 0 ? e.commission / e.quantity : 0;
     let remaining = e.quantity;
-    const spec = INSTRUMENTS[e.instrument];
+    const spec = getInstrument(e.instrument);
 
     while (remaining > 0 && lots.length > 0) {
       const lot = lots[0];
@@ -247,6 +256,7 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
         exitName: e.name,
         executionIds: uniqIds([lot.executionId, e.executionId]),
         orderIds: uniqIds([lot.orderId, e.orderId]),
+        contractMonth: resolveSymbol(e.instrumentName)?.contractMonth,
       });
       tradeExecutionKeys.push([lot.identityKey, e.identityKey]);
     }
