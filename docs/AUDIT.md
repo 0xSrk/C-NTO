@@ -249,4 +249,30 @@ Surface d'attaque du serveur `electron/nt-bridge/` :
 
 L'AddOn C# n'a pas été compilé sur ce dépôt (Windows + NinjaTrader 8 requis). `scripts/fake-addon.mjs` couvre le protocole côté tests.
 
+## Ontologie (v3, tâche 6)
+
+Couche de liens typés dans le moteur (`src/engine/ontology/`), stockée dans Dexie `version(6)`, table `links`. Pas de triple store. L'Agent ne consomme pas ce graphe.
+
+**Schéma.** `EntityRef` : `note`, `session`, `trade`, `instrument`, `strategie`, `evenement`, `compte`. L'identifiant est la clé de la table source (symbole pour un instrument, nom pour un compte, `note.id` pour une stratégie). Prédicats : `mentionne`, `pendant`, `de-la-seance`, `applique`, `soutient`, `contredit`, `raffine`, `partie-de`, `cause`, `relie`. Genre : `structurel` (moteur), `affirme` (utilisateur), `hypothese` (similarité), `rejete` (tombe, ne revient pas). Identifiant : `type:id|prédicat|type:id`.
+
+**Stratégie.** Une note portant le tag `#strategie`. Alias optionnel d'en-tête `tag: orb` ; à défaut, titre slugifié. `#orb` sur une séance, un trade ou une note la désigne. Le statut épistémique (`statut: fait | modele | chiffre-non-verifie | opinion`, défaut `opinion`) est lu dans l'en-tête Markdown et stocké sur `Note.statut`, sans index.
+
+**Règles structurelles** (`by: moteur`, `kind: structurel`), pures et idempotentes via `reconcileStructural` — un `affirme`, une `hypothese` ou un `rejete` n'est jamais modifié ni supprimé par le moteur :
+
+- Note titrée `YYYY-MM-DD…` ou en-tête `date:` → `de-la-seance` vers chaque séance de cette journée, et `pendant` chaque événement d'impact ≥ 2 du jour (instruments vides, ou intersection avec les symboles cités ; sans symbole cité, tous les événements du jour).
+- Symbole du registre hors blocs de code, via `resolveSymbol` (`NQ`, `MNQ 12-26`, `NQZ6`) → `mentionne` instrument.
+- Tag qui désigne une stratégie → `mentionne` ; séance ou trade portant ce tag → `applique`.
+- Trade → `de-la-seance` sa séance (`sessionId`) ; trade et séance → `pendant` chaque événement d'impact ≥ 2 de la journée dont les instruments sont vides ou contiennent l'instrument du trade.
+- Corps (hors code) contenant un nom de compte connu des séances, en limite de mot → `mentionne` compte. Sous 3 caractères, la casse est respectée.
+
+Recalcul après écriture de note, séance, trade ou synchro calendrier, debounce 500 ms. Au-delà de 2 000 notes ou 20 000 trades, le calcul passe par `ontology.worker.ts`.
+
+**Similarité.** Hypothèses seulement, prédicat `relie`, une paire non ordonnée. `S = 0,7·cosinus TF-IDF + 0,3·Jaccard des tags`. Le titre pèse ×3 (`TITLE_TF_WEIGHT`). Mots vides FR/EN/ES courts, tokenisation Unicode, blocs de code ignorés, en-tête YAML écarté du TF. Plancher 0,35, 5 voisins par note (`SUGGEST_MIN`, `SUGGEST_TOP_K`). Les liens structurels portent la vérité ; le lexical ne fait que suggérer — l'inverse d'un wiki de prose. Une paire déjà `affirme` ou `rejete` n'est jamais resuggérée. Deux passages sur le même coffre donnent les mêmes scores.
+
+**Confiance.** `claimConfidence` sur une note qui `soutient`, `contredit` ou `applique`. Périmètre : séances et trades atteints, plus les séances `applique` de la stratégie visée. Si la note est `pendant` un type d'événement (FOMC, CPI, NFP…), seuls les trades `pendant` ce type comptent. Sortie : N, expectancy en R (`mean`), taux de gain et facteur de profit (`computeTradeStats`), échantillon. Seuils : &lt; 10 insuffisant, &lt; 30 faible, &lt; 100 moyen, sinon solide. `R = PnL / risque` si le trade porte un risque, sinon `PnL / (pointValue × tickSize × 4)` et `rMode: approx`. Aucun texte généré. `contredit` ne change pas le signe.
+
+**Coffre.** Format `canto-vault-v2` inchangé (`schemaVersion: 2`), champ optionnel `links`. Un coffre 2.1.0 sans `links` est accepté et ne remplace pas la table. À la restauration, les liens `structurel` sont ignorés (pas comptés comme lignes invalides) puis recalculés ; `affirme`, `hypothese` et `rejete` sont repris. Validateur : `EntityRef` bien formé, prédicat et genre dans l'énumération, `score` dans [0, 1] s'il est présent. Les secrets restent exclus.
+
+**Interface.** Panneau Meta : section Relations (groupée par prédicat ; une hypothèse se confirme avec un prédicat ou se rejette) et section Confiance. Le graphe : trait plein = wiki ou `affirme`, pointillé = `hypothese`, filet gris (`--text-4`) = `structurel`. Le bouton Entités, éteint par défaut, ajoute instruments, stratégies et événements comme petits nœuds. Jetons existants, pas de nouveau composant dans `src/design/`.
+
 

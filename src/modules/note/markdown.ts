@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { splitCode, TAG_RE, WIKILINK_RE } from '@/store/notes';
+import { bodyWithoutHeader } from './title';
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -30,7 +31,7 @@ export function renderMarkdown(md: string): string {
 
 /** Rend le Markdown d'une note : liens [[wiki]], #tags, puis assainissement. */
 export function renderNote(body: string, knownTitles: Set<string>): string {
-  const pre = splitCode(body)
+  const pre = splitCode(bodyWithoutHeader(body))
     .map((part) =>
       part.code
         ? part.text

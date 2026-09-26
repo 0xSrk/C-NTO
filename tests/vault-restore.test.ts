@@ -62,7 +62,7 @@ function fakeTable(key: 'id' | 'key', seed: Record<string, unknown>[] = []): Fak
   return t;
 }
 
-const TABLES = ['sessions', 'trades', 'importedExecutions', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'calendarEvents', 'barSeries', 'agentMessages'] as const;
+const TABLES = ['sessions', 'trades', 'importedExecutions', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'calendarEvents', 'links', 'barSeries', 'agentMessages'] as const;
 type Tables = Record<(typeof TABLES)[number], FakeTable>;
 
 function installFakeDb(): Tables {
@@ -221,6 +221,41 @@ describe('prepareVaultRestore (validation pure)', () => {
     expect(v.skipped.trades).toBeUndefined();
   });
 
+  it('coffre 2.1.0 sans links accepté ; avec links, seuls les non-structurels sont gardés', () => {
+    const sans = prepareVaultRestore(JSON.stringify(buildVaultV2({ appVersion: '2.1.0', sessions: [], trades: [], notes: [] })));
+    const brut = JSON.parse(JSON.stringify(buildVaultV2({ appVersion: '2.1.0', sessions: [], trades: [], notes: [] }))) as Record<string, unknown>;
+    delete brut.links;
+    const ancien = prepareVaultRestore(JSON.stringify(brut));
+    expect(sans.linksProvided).toBe(true);
+    expect(sans.links).toEqual([]);
+    expect(ancien.linksProvided).toBe(false);
+    expect(ancien.links).toEqual([]);
+
+    const lien = (kind: string, id: string) => ({
+      id,
+      from: { type: 'note', id: 'n1' },
+      to: { type: 'strategie', id: 's1' },
+      predicate: 'soutient',
+      kind,
+      by: 'utilisateur',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const avec = prepareVaultRestore(
+      JSON.stringify(
+        buildVaultV2({
+          appVersion: '2.1.0',
+          sessions: [],
+          trades: [],
+          notes: [],
+          links: [lien('structurel', 'struct'), lien('affirme', 'aff'), lien('hypothese', 'hyp'), lien('rejete', 'rej'), { ...lien('affirme', 'bad'), score: 2 }, { ...lien('affirme', 'ok'), score: 0.5 }],
+        }),
+      ),
+    );
+    expect(avec.links.map((l) => l.id).sort()).toEqual(['aff', 'hyp', 'ok', 'rej']);
+    expect(avec.skipped.links).toBe(1);
+  });
+
   it('erreurs structurelles → exception', () => {
     expect(() => prepareVaultRestore(JSON.stringify({ sessions: 'nope' }))).toThrow(/liste|list/);
     expect(() => prepareVaultRestore(JSON.stringify({ sessions: [], bots: { id: 'x' } }))).toThrow(/liste|list/);
@@ -275,6 +310,34 @@ describe('restoreVault (tables simulées)', () => {
     expect(stored.agent.model).toBe('restored');
     expect(stored.agent.apiKeyEncrypted).toBe('blob-local');
     expect(stored.agent.apiKey).toBe('');
+  });
+
+  it('restaure les liens non structurels et ignore un coffre sans champ links', async () => {
+    await tables.links.bulkPut([{ id: 'deja', kind: 'affirme' }]);
+    await restoreVault(JSON.stringify(buildVaultV2({ appVersion: '2.1.0', sessions: [], trades: [], notes: [{ id: 'n1', title: 't', body: 'b', tags: [], updatedAt: now }] })));
+    expect(tables.links.rows.size).toBe(0);
+
+    const brut = JSON.parse(JSON.stringify(buildVaultV2({ appVersion: '2.1.0', sessions: [], trades: [], notes: [] }))) as Record<string, unknown>;
+    delete brut.links;
+    await tables.links.bulkPut([{ id: 'garde', from: { type: 'note', id: 'n1' }, to: { type: 'note', id: 'n2' }, predicate: 'soutient', kind: 'affirme', by: 'utilisateur', createdAt: now, updatedAt: now }]);
+    await restoreVault(JSON.stringify(brut));
+    expect([...tables.links.rows.keys()]).toEqual(['garde']);
+
+    await restoreVault(
+      JSON.stringify(
+        buildVaultV2({
+          appVersion: '2.1.0',
+          sessions: [],
+          trades: [],
+          notes: [],
+          links: [
+            { id: 'struct', from: { type: 'note', id: 'n1' }, to: { type: 'session', id: 's1' }, predicate: 'de-la-seance', kind: 'structurel', by: 'moteur', createdAt: now, updatedAt: now },
+            { id: 'aff', from: { type: 'note', id: 'n1' }, to: { type: 'strategie', id: 'st' }, predicate: 'soutient', kind: 'affirme', by: 'utilisateur', createdAt: now, updatedAt: now },
+          ],
+        }),
+      ),
+    );
+    expect([...tables.links.rows.keys()]).toEqual(['aff']);
   });
 
   it('coffre v1 avec clé en clair (navigateur) : reprise en clair hors shell', async () => {

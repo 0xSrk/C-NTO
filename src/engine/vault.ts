@@ -14,6 +14,8 @@ export interface VaultV2 {
   settings?: unknown;
   macroReleases?: unknown[];
   calendarEvents?: unknown[];
+  /** Liens typés. Absent sur un coffre 2.1.0 ou antérieur : la restauration l'accepte. */
+  links?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
 }
@@ -30,6 +32,7 @@ export interface VaultParts {
   settings?: unknown;
   macroReleases?: unknown[];
   calendarEvents?: unknown[];
+  links?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
   includeHeavy?: boolean;
@@ -46,6 +49,7 @@ export interface ParsedVault {
   settingsIsObject: boolean;
   macroReleases: unknown;
   calendarEvents: unknown;
+  links: unknown;
   barSeries: unknown;
   agentMessages: unknown;
 }
@@ -81,6 +85,7 @@ export function buildVaultV2(input: VaultParts): VaultV2 {
   if (input.settings !== undefined) vault.settings = stripSecrets(input.settings);
   if (input.macroReleases) vault.macroReleases = input.macroReleases;
   vault.calendarEvents = input.calendarEvents ?? [];
+  vault.links = input.links ?? [];
   if (input.includeHeavy === true) {
     if (input.barSeries) vault.barSeries = input.barSeries;
     if (input.agentMessages) vault.agentMessages = input.agentMessages;
@@ -124,6 +129,7 @@ export function parseVaultJson(json: string): ParsedVault {
     settingsIsObject: !!settings && typeof settings === 'object' && !Array.isArray(settings),
     macroReleases: rec.macroReleases,
     calendarEvents: rec.calendarEvents,
+    links: rec.links,
     barSeries: rec.barSeries,
     agentMessages: rec.agentMessages,
   };
