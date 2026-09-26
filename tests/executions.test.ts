@@ -10,7 +10,7 @@ NQ 12-26,Sell,1,20010.00,9/15/2026 9:40:00 AM,e2,Exit,1 L,o2,Target1,2.25,1,Sim1
 NQ 12-26,Sell,1,20005.00,9/15/2026 9:42:00 AM,e3,Exit,-,o3,Stop1,2.25,1,Sim101,Playback
 MNQ 12-26,Sell,5,20100.00,9/15/2026 10:05:00 AM,e4,Entry,5 S,o4,Short,3.70,1,Sim101,Playback
 MNQ 12-26,Buy,5,20090.00,9/15/2026 10:15:00 AM,e5,Exit,-,o5,Cover,3.70,1,Sim101,Playback
-ES 12-26,Buy,1,5000.00,9/15/2026 10:20:00 AM,e6,Entry,1 L,o6,Entry,2.00,1,Sim101,Playback
+ZB 12-26,Buy,1,5000.00,9/15/2026 10:20:00 AM,e6,Entry,1 L,o6,Entry,2.00,1,Sim101,Playback
 NQ 12-26,Sell,1,20200.00,9/16/2026 9:31:00 AM,e7,Entry,1 S,o7,Short,2.25,1,Sim101,Playback
 `;
 

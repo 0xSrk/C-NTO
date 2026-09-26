@@ -84,6 +84,14 @@ export function buildVaultV2(input: VaultParts): VaultV2 {
   return vault;
 }
 
+/**
+ * Lit un coffre v1 (`artefact: CΛNTO`) ou v2 (`canto-vault-v2`).
+ * `trades.instrument` est une chaîne : un identifiant absent du registre (coffre d'une version
+ * future, ou spec utilisateur) n'est pas un motif de rejet. La ligne est conservée telle quelle —
+ * l'identifiant lui-même est la marque. Le moteur de métriques n'applique pas de `pointValue`
+ * manquant : il utilise le `pnl` déjà porté par le trade. La conversion des anciennes `symbolMap`
+ * (`'NQ→MNQ'`, `'MNQ→NQ'`, `'identique'`) se fait à la restauration, pas ici.
+ */
 export function parseVaultJson(json: string): ParsedVault {
   let data: unknown;
   try {

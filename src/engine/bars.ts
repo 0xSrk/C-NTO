@@ -2,6 +2,7 @@ import { tr } from '@/i18n';
 import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { gaussian, mulberry32 } from '@/lib/rng';
 import { detectDayFirst, parseFlexibleDateTime, zonedToUtc, ET_ZONE } from '@/lib/time';
+import { DEFAULT_FUTURE, getInstrument } from './instruments';
 import type { Instrument } from './types';
 
 export interface Bar {
@@ -34,7 +35,7 @@ export function generateDemoBars(opts: { days?: number; timeframe?: number; seed
   const tf = opts.timeframe ?? 5;
   const rand = mulberry32(opts.seed ?? 42);
   let price = opts.startPrice ?? 24_180;
-  const tick = 0.25;
+  const tick = getInstrument(DEFAULT_FUTURE).tickSize;
   const bars: Bar[] = [];
   const end = opts.endDate ? new Date(`${opts.endDate}T12:00:00`) : new Date();
   const dayKeys: string[] = [];

@@ -50,6 +50,20 @@ describe('computeTradeStats', () => {
     expect(s.kelly).toBeCloseTo(expected.kelly);
   });
 
+  it('agrège NQ, ES et CL sur le PnL stocké (vecteur multi-instrument)', () => {
+    const { trades } = loadVector<{ trades: Trade[] }>('trades.multi-instrument.json');
+    const expected = loadVector<{ netProfit: number; grossProfit: number; grossLoss: number }>('trades.multi-instrument.expected.json');
+    // NQ 195,50 − 104,50 ; ES 195 + 497,50 ; CL 498 − 202.
+    const hand = 195.5 - 104.5 + 195 + 497.5 + 498 - 202;
+    expect(hand).toBe(expected.netProfit);
+    expect(trades.reduce((sum, t) => sum + t.pnl, 0)).toBe(expected.netProfit);
+    const s = computeTradeStats(trades);
+    expect(s.netPnl).toBe(expected.netProfit);
+    expect(s.grossProfit).toBe(expected.grossProfit);
+    expect(s.grossLoss).toBe(expected.grossLoss);
+    expect(s.byInstrument.map((b) => b.key)).toEqual(['NQ', 'ES', 'CL']);
+  });
+
   it('gère un journal vide', () => {
     const s = computeTradeStats([]);
     expect(s.count).toBe(0);

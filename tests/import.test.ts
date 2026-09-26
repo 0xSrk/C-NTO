@@ -79,7 +79,7 @@ const NT_EN = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,E
 1,NQ 12-26,Sim101,,Long,1,20000.00,20010.00,9/15/2026 9:35:00 AM,9/15/2026 9:42:00 AM,Entry,Exit,$200.00,$200.00,$4.50,$45.00,$220.00,$20.00,7
 2,NQ 12-26,Sim101,,Short,2,20050.00,20060.00,9/15/2026 10:05:00 AM,9/15/2026 10:15:00 AM,Entry,Exit,($400.00),($200.00),$9.00,$400.00,$40.00,$440.00,10
 3,MNQ 12-26,Sim101,,Long,5,20100.00,20120.00,9/16/2026 9:40:00 AM,9/16/2026 9:50:00 AM,Entry,Exit,$200.00,$0.00,$3.70,$50.00,$210.00,$10.00,10
-4,ES 12-26,Sim101,,Long,1,5000.00,5010.00,9/16/2026 9:40:00 AM,9/16/2026 9:50:00 AM,Entry,Exit,$500.00,$500.00,$4.50,$50.00,$210.00,$10.00,10
+4,ZB 12-26,Sim101,,Long,1,5000.00,5010.00,9/16/2026 9:40:00 AM,9/16/2026 9:50:00 AM,Entry,Exit,$500.00,$500.00,$4.50,$50.00,$210.00,$10.00,10
 `;
 
 const NT_FR = `Trade-#;Instrument;Account;Strategy;Market pos.;Qty;Entry price;Exit price;Entry time;Exit time;Entry name;Exit name;Profit;Cum. net profit;Commission;MAE;MFE;ETD;Bars
@@ -180,11 +180,12 @@ describe('unités et réconciliation', () => {
     expect(p.mfe).toBeCloseTo(220);
   });
 
-  it('reconnaît les symbologies NQZ6 / MNQZ26 et ignore les autres racines', () => {
+  it('reconnaît les symbologies du registre et ignore une racine inconnue', () => {
     expect(detectInstrument('NQZ6')).toBe('NQ');
     expect(detectInstrument('MNQZ26')).toBe('MNQ');
     expect(detectInstrument('NQ 12-26')).toBe('NQ');
-    expect(detectInstrument('ES 12-26')).toBeNull();
+    expect(detectInstrument('ES 12-26')).toBe('ES');
+    expect(detectInstrument('ZB 12-26')).toBeNull();
     expect(detectInstrument('NQD')).toBeNull();
   });
 });
@@ -223,5 +224,31 @@ describe('intégrité import (audit F-02 / F-03 / F-04)', () => {
     const d = new Date(r.trades[0]!.entryTime);
     expect(d.getMonth()).toBe(0);
     expect(d.getDate()).toBe(2);
+  });
+});
+
+describe('import multi-instruments', () => {
+  it('calcule le PnL ES / MNQ / MCL depuis le registre et signale une racine inconnue', () => {
+    const csv = `Trade-#,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
+1,MNQ 12-26,Sim101,,Long,5,20100.00,20120.00,9/15/2026 9:40:00 AM,9/15/2026 9:50:00 AM,Entry,Exit,$196.30,$196.30,$3.70,$50.00,$210.00,$10.00,10
+2,ES 12-26,Sim101,,Long,1,5000.00,5010.00,9/15/2026 10:05:00 AM,9/15/2026 10:15:00 AM,Entry,Exit,$495.50,$691.80,$4.50,$50.00,$510.00,$10.00,10
+3,MCL 11-26,Sim101,,Short,2,70.50,70.00,9/15/2026 11:05:00 AM,9/15/2026 11:20:00 AM,Entry,Exit,$98.80,$790.60,$1.20,$20.00,$110.00,$10.00,15
+4,ZB 12-26,Sim101,,Long,1,110.00,111.00,9/15/2026 11:30:00 AM,9/15/2026 11:40:00 AM,Entry,Exit,$100.00,$890.60,$2.00,$10.00,$110.00,$10.00,8
+`;
+    const r = importTradesCsv(csv);
+    expect(r.trades.length).toBe(3);
+    expect(r.skipped).toBe(1);
+    const [mnq, es, mcl] = r.trades;
+    // MNQ : (20120 − 20100) × 5 × 2 $ = 200 brut − 3,70
+    expect(mnq!.pnl).toBeCloseTo(200 - 3.7);
+    expect(mnq!.contractMonth).toBe('12-26');
+    // ES : (5010 − 5000) × 1 × 50 $ = 500 brut − 4,50
+    expect(es!.pnl).toBeCloseTo(500 - 4.5);
+    expect(es!.instrument).toBe('ES');
+    // MCL short : (70,50 − 70,00) × 2 × 100 $ = 100 brut − 1,20
+    expect(mcl!.pnl).toBeCloseTo(100 - 1.2);
+    expect(mcl!.instrument).toBe('MCL');
+    expect(mcl!.contractMonth).toBe('11-26');
+    expect(r.warnings).toEqual(['instrument non reconnu : ZB 12-26 (1 lignes)']);
   });
 });

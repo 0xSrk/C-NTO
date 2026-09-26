@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { generateDemoJournal } from '@/engine/demo';
+import { DEFAULT_FUTURE } from '@/engine/instruments';
 import { CSV_WORKER_MIN_LINES, csvLineCount, importCsvAuto, type ImportOptions, type ImportResult } from '@/engine/import';
 import { tr } from '@/i18n';
 import { listenWorker } from '@/lib/worker';
@@ -109,7 +110,7 @@ export const useJournal = create<JournalState>((set, get) => ({
       id: uid('s'),
       date: input.date,
       account: input.account || undefined,
-      instruments: ['NQ'],
+      instruments: [DEFAULT_FUTURE],
       source: 'manuel',
       tradeCount: input.tradeCount,
       pnl: input.pnl,

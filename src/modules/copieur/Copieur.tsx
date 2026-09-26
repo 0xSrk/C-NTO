@@ -95,7 +95,7 @@ export default function Copieur() {
 
   const add = async () => {
     if (!newName.trim()) return;
-    await addAccount({ name: newName.trim(), ntAccount: newNt.trim() || newName.trim(), role: newRole, enabled: true, sizing: { mode: 'ratio', value: 1, maxContracts: 5 }, symbolMap: 'identique' });
+    await addAccount({ name: newName.trim(), ntAccount: newNt.trim() || newName.trim(), role: newRole, enabled: true, sizing: { mode: 'ratio', value: 1, maxContracts: 5 }, symbolMap: { mode: 'identique' } });
     setNewName('');
     setNewNt('');
   };
@@ -318,10 +318,21 @@ function AccountCard({ acc, onChange, onRemove, sample }: { acc: CopierAccount; 
               <input type="number" min={1} value={acc.sizing.maxContracts} onChange={(e) => onChange({ sizing: { ...acc.sizing, maxContracts: Math.max(1, Number(e.target.value) || 1) } })} />
             </Field>
             <Field label={tr('Instrument', 'Instrument', 'Instrumento')}>
-              <select value={acc.symbolMap} onChange={(e) => onChange({ symbolMap: e.target.value as CopierAccount['symbolMap'] })}>
-                <option value="identique">{tr('Identique au maître', 'Same as master', 'Idéntico al maestro')}</option>
-                <option value="NQ→MNQ">NQ → MNQ (×10)</option>
-                <option value="MNQ→NQ">MNQ → NQ (÷10)</option>
+              <select
+                value={acc.symbolMap.mode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  if (mode === 'identique' || mode === 'micro' || mode === 'standard') onChange({ symbolMap: { mode } });
+                }}
+              >
+                <option value="identique">{tr('Identique', 'Identical', 'Idéntico')}</option>
+                <option value="micro">{tr('Vers micro', 'To micro', 'Hacia micro')}</option>
+                <option value="standard">{tr('Vers standard', 'To standard', 'Hacia estándar')}</option>
+                {acc.symbolMap.mode === 'explicite' && (
+                  <option value="explicite">
+                    {acc.symbolMap.from} → {acc.symbolMap.to}
+                  </option>
+                )}
               </select>
             </Field>
           </>

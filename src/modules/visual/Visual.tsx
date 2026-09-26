@@ -5,6 +5,7 @@ import { Modal } from '@/design/Modal';
 import { Button, Empty, Field, Progress, Tag, Toggle, cx } from '@/design/primitives';
 import { INDICATORS, indicatorById, type IndicatorInstance, type IndicatorLine, type IndicatorParam } from '@/engine/indicators';
 import type { Bar } from '@/engine/bars';
+import { listInstruments } from '@/engine/instruments';
 import type { Instrument } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { openTextFile } from '@/lib/desk';
@@ -521,9 +522,12 @@ function ImportBarsModal({ onClose, onImport }: { onClose: () => void; onImport:
       {busy && <Progress value={progress} tone="gold" />}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Field label={tr('Instrument', 'Instrument', 'Instrumento')}>
-          <select value={instrument} onChange={(e) => setInstrument(e.target.value as Instrument)}>
-            <option value="NQ">NQ</option>
-            <option value="MNQ">MNQ</option>
+          <select value={instrument} onChange={(e) => setInstrument(e.target.value)}>
+            {listInstruments({ assetClass: 'future' }).map((spec) => (
+              <option key={spec.symbol} value={spec.symbol}>
+                {spec.symbol}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label={tr('Unité (minutes)', 'Unit (minutes)', 'Unidad (minutos)')}>

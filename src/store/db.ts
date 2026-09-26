@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { BarSeries } from '@/engine/bars';
 import type { IndicatorInstance } from '@/engine/indicators';
-import type { Session, Trade } from '@/engine/types';
+import type { Instrument, Session, Trade } from '@/engine/types';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
@@ -63,6 +63,12 @@ export interface AgentMessage {
   createdAt: number;
 }
 
+export type SymbolMap =
+  | { mode: 'identique' }
+  | { mode: 'micro' }
+  | { mode: 'standard' }
+  | { mode: 'explicite'; from: string; to: string };
+
 export interface CopierAccount {
   id: string;
   name: string;
@@ -73,14 +79,14 @@ export interface CopierAccount {
   enabled: boolean;
   /** multiplicateur de taille pour les suiveurs */
   sizing: { mode: 'fixe' | 'ratio' | 'risque'; value: number; maxContracts: number };
-  symbolMap: 'identique' | 'NQ→MNQ' | 'MNQ→NQ';
+  symbolMap: SymbolMap;
   createdAt: number;
 }
 
 export interface BotBlueprint {
   id: string;
   name: string;
-  instrument: 'NQ' | 'MNQ';
+  instrument: Instrument;
   account?: string;
   status: 'brouillon' | 'backtest' | 'papier' | 'verrouille';
   description: string;
@@ -144,6 +150,24 @@ class CantoDb extends Dexie {
     this.version(3).stores({
       importedExecutions: 'key, account, sessionId',
     });
+    this.version(4).stores({
+      sessions: 'id, date, account, source',
+      trades: 'id, sessionId, exitTime, instrument',
+      notes: 'id, title, updatedAt, *tags',
+      calendar: 'id, date, kind',
+      macroReleases: 'id, date, source, impact',
+      settings: 'key',
+      agentMessages: 'id, conversationId, createdAt',
+      barSeries: 'id, instrument, createdAt',
+      copierAccounts: 'id, role',
+      bots: 'id, status, updatedAt',
+      importedExecutions: 'key, account, sessionId',
+    }).upgrade((tx) =>
+      tx.table('copierAccounts').toCollection().modify((row: { symbolMap: unknown }) => {
+        const next = coerceSymbolMap(row.symbolMap);
+        if (next) row.symbolMap = next;
+      }),
+    );
   }
 }
 
@@ -215,6 +239,7 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 
 type Check = (rec: Record<string, unknown>) => boolean;
 const isStr = (v: unknown, max = Infinity): v is string => typeof v === 'string' && v.length <= max;
+const isInstrumentId = (v: unknown): v is string => isStr(v, 32) && /^[A-Za-z0-9][A-Za-z0-9.]{0,31}$/.test(v);
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
 const inRange = (v: unknown, min: number, max: number): v is number => isNum(v) && v >= min && v <= max;
@@ -225,14 +250,28 @@ const isEnum = <T extends string>(v: unknown, values: readonly T[]): v is T => t
 const opt = (v: unknown, check: (x: unknown) => boolean): boolean => v === undefined || check(v);
 const isDate = (v: unknown): v is string => isStr(v, 10) && DATE_RE.test(v);
 
-const INSTRUMENT_VALUES = ['NQ', 'MNQ'] as const;
+/**
+ * Anciennes chaînes du coffre v1/v2 : `'NQ→MNQ'` vers le micro, `'MNQ→NQ'` vers le standard.
+ * Un objet déjà au nouveau format est repris tel quel.
+ */
+export function coerceSymbolMap(raw: unknown): SymbolMap | null {
+  if (raw === 'identique') return { mode: 'identique' };
+  if (raw === 'NQ→MNQ') return { mode: 'micro' };
+  if (raw === 'MNQ→NQ') return { mode: 'standard' };
+  if (!isRec(raw)) return null;
+  if (raw.mode === 'identique' || raw.mode === 'micro' || raw.mode === 'standard') return { mode: raw.mode };
+  if (raw.mode === 'explicite' && isStr(raw.from, 32) && isStr(raw.to, 32) && raw.from.length > 0 && raw.to.length > 0) {
+    return { mode: 'explicite', from: raw.from, to: raw.to };
+  }
+  return null;
+}
+
 const SESSION_SOURCES = ['ninjatrader', 'csv', 'manuel', 'demo'] as const;
 const BOT_STATUSES = ['brouillon', 'backtest', 'papier', 'verrouille'] as const;
 const RULE_KINDS = ['condition', 'action', 'garde'] as const;
 const MESSAGE_ROLES = ['user', 'assistant', 'system', 'tool'] as const;
 const MACRO_SOURCES = ['investing', 'forexfactory'] as const;
 const SIZING_MODES = ['fixe', 'ratio', 'risque'] as const;
-const SYMBOL_MAPS = ['identique', 'NQ→MNQ', 'MNQ→NQ'] as const;
 
 export type SkippedRows = Record<string, number>;
 
@@ -282,13 +321,13 @@ const CHECKS: Record<string, Check> = {
     opt(r.note, (v) => isStr(v, 20_000)) &&
     opt(r.rating, (v) => isInt(v, 1, 5)) &&
     opt(r.source, (v) => isEnum(v, SESSION_SOURCES)) &&
-    opt(r.instruments, (v) => Array.isArray(v) && v.length <= 8 && v.every((x) => isEnum(x, INSTRUMENT_VALUES))) &&
+    opt(r.instruments, (v) => Array.isArray(v) && v.length <= 32 && v.every(isInstrumentId)) &&
     opt(r.executionIds, (v) => isStrArray(v, 10_000, 200)) &&
     opt(r.contractMonth, (v) => isStr(v, 16)),
   trades: (r) =>
     isStr(r.sessionId, 200) &&
     isEnum(r.direction, ['long', 'short'] as const) &&
-    isEnum(r.instrument, INSTRUMENT_VALUES) &&
+    isInstrumentId(r.instrument) &&
     isInt(r.qty, 1, 10_000) &&
     inRange(r.entryPrice, 0, 1e6) &&
     inRange(r.exitPrice, 0, 1e6) &&
@@ -320,13 +359,13 @@ const CHECKS: Record<string, Check> = {
     isEnum(r.sizing.mode, SIZING_MODES) &&
     inRange(r.sizing.value, 0, 1e6) &&
     inRange(r.sizing.maxContracts, 0, 10_000) &&
-    isEnum(r.symbolMap, SYMBOL_MAPS) &&
+    coerceSymbolMap(r.symbolMap) !== null &&
     opt(r.firm, (v) => isStr(v, 120)) &&
     opt(r.planId, (v) => isStr(v, 64)),
   bots: (r) =>
     isStr(r.name, 120) &&
     isEnum(r.status, BOT_STATUSES) &&
-    isEnum(r.instrument, INSTRUMENT_VALUES) &&
+    isInstrumentId(r.instrument) &&
     isStr(r.description, 20_000) &&
     Array.isArray(r.rules) &&
     r.rules.length <= 200 &&
@@ -343,7 +382,7 @@ const CHECKS: Record<string, Check> = {
     isStr(r.at, 64) &&
     opt(r.timeET, (v) => isStr(v, 16)),
   barSeries: (r) =>
-    isEnum(r.instrument, INSTRUMENT_VALUES) &&
+    isInstrumentId(r.instrument) &&
     inRange(r.timeframe, 1, 100_000) &&
     isStr(r.label, 200) &&
     isEnum(r.source, ['demo', 'csv'] as const) &&
@@ -458,7 +497,8 @@ export function prepareVaultRestore(json: string): PreparedVault {
       otherSettings.push({ key: row.key, value });
     }
   }
-  const copierAccounts = rows<CopierAccount>(parsed.copier, 'id', 'copierAccounts', CHECKS.copierAccounts!, skipped);
+  const copierRaw = rows<Omit<CopierAccount, 'symbolMap'> & { symbolMap: unknown }>(parsed.copier, 'id', 'copierAccounts', CHECKS.copierAccounts!, skipped);
+  const copierAccounts: CopierAccount[] = copierRaw.map((acc) => ({ ...acc, symbolMap: coerceSymbolMap(acc.symbolMap)! }));
   const bots = rows<BotBlueprint>(parsed.bots, 'id', 'bots', CHECKS.bots!, skipped);
   const macroReleases = rows<MacroReleaseRow>(parsed.macroReleases, 'id', 'macroReleases', CHECKS.macroReleases!, skipped);
   const barSeries = rows<BarSeries>(parsed.barSeries, 'id', 'barSeries', CHECKS.barSeries!, skipped);

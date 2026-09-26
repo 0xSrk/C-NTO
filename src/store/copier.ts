@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import { microCounterpart, standardCounterpart } from '@/engine/instruments';
 import { uid } from '@/lib/id';
-import { db, getSetting, setSetting, type CopierAccount } from './db';
+import { coerceSymbolMap, db, getSetting, setSetting, type CopierAccount } from './db';
 
 export interface CopierConfig {
   enabled: boolean;
@@ -82,7 +83,12 @@ export const useCopier = create<CopierState>((set, get) => ({
   accounts: [],
   config: DEFAULT_COPIER,
   async load() {
-    const [accounts, config] = await Promise.all([db.copierAccounts.toArray(), getSetting<Partial<CopierConfig>>('copier.config', {})]);
+    const [stored, config] = await Promise.all([db.copierAccounts.toArray(), getSetting<Partial<CopierConfig>>('copier.config', {})]);
+    const accounts: CopierAccount[] = [];
+    for (const row of stored) {
+      const symbolMap = coerceSymbolMap(row.symbolMap);
+      if (symbolMap) accounts.push({ ...row, symbolMap });
+    }
     set({ accounts, config: { ...DEFAULT_COPIER, ...config }, ready: true });
   },
   async addAccount(input) {
@@ -111,15 +117,24 @@ export const useCopier = create<CopierState>((set, get) => ({
 }));
 
 /** Taille répliquée pour un suiveur à partir d'un ordre maître. */
-export function replicatedQty(master: { qty: number; instrument: 'NQ' | 'MNQ' }, follower: CopierAccount): { qty: number; instrument: 'NQ' | 'MNQ'; note?: string } {
+export function replicatedQty(master: { qty: number; instrument: string }, follower: CopierAccount): { qty: number; instrument: string; note?: string } {
   let qty = master.qty;
   let instrument = master.instrument;
-  if (follower.symbolMap === 'NQ→MNQ' && instrument === 'NQ') {
-    instrument = 'MNQ';
-    qty *= 10;
-  } else if (follower.symbolMap === 'MNQ→NQ' && instrument === 'MNQ') {
-    instrument = 'NQ';
-    qty = Math.floor(qty / 10);
+  const map = coerceSymbolMap(follower.symbolMap);
+  if (map?.mode === 'micro') {
+    const micro = microCounterpart(instrument);
+    if (micro) {
+      instrument = micro.symbol;
+      qty *= micro.ratio;
+    }
+  } else if (map?.mode === 'standard') {
+    const standard = standardCounterpart(instrument);
+    if (standard) {
+      instrument = standard.symbol;
+      qty = Math.floor(qty / standard.ratio);
+    }
+  } else if (map?.mode === 'explicite' && instrument === map.from) {
+    instrument = map.to;
   }
   if (follower.sizing.mode === 'fixe') qty = follower.sizing.value;
   else if (follower.sizing.mode === 'ratio') qty = Math.round(qty * follower.sizing.value);
