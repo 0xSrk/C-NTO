@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Modal } from '@/design/Modal';
-import { Button, Stat, Tag, Toggle, cx } from '@/design/primitives';
+import { Button, Field, Stat, Tag, Toggle, cx } from '@/design/primitives';
 import { tr, useI18n } from '@/i18n';
 import { isDesk } from '@/lib/desk';
 import { dateTimeFormatter } from '@/lib/time';
@@ -18,8 +19,16 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
   const setEnabled = useBridge((b) => b.setEnabled);
   const rescan = useBridge((b) => b.rescan);
   const openFolder = useBridge((b) => b.openFolder);
+  const nt = useBridge((b) => b.nt);
+  const rotateToken = useBridge((b) => b.rotateToken);
+  const writeNtConfig = useBridge((b) => b.writeNtConfig);
+  const allowRealAccount = useBridge((b) => b.allowRealAccount);
+  const setMaxContracts = useBridge((b) => b.setMaxContracts);
   const live = isBridgeLive(status);
   const fmtTime = dateTimeFormatter(TIME_OPTS);
+  const [accountDraft, setAccountDraft] = useState('');
+  const [confirmAccount, setConfirmAccount] = useState<string | null>(null);
+  const linkLabel = ntLinkLabel(nt?.link);
 
   return (
     <Modal
@@ -104,6 +113,75 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
                 </Button>
               )}
             </div>
+
+            {isDesk && (
+              <div className={cx(s.statusBanner, nt?.link === 'live' && s.objectif, (nt?.link === 'lost' || nt?.link === 'stale') && s.echec)}>
+                <div style={{ flex: 1 }}>
+                  <h4>
+                    {tr('WebSocket', 'WebSocket', 'WebSocket')} · {linkLabel}
+                  </h4>
+                  <p>
+                    {tr('Port', 'Port', 'Puerto')} <span className="mono">{nt?.port ?? 48231}</span>
+                    {' · '}
+                    {tr('AddOn', 'AddOn', 'AddOn')} <span className="mono">{nt?.addonVersion ?? '—'}</span>
+                    {nt?.ntVersion ? <span className="mono"> · NT {nt.ntVersion}</span> : null}
+                    {' · '}
+                    {tr('comptes', 'accounts', 'cuentas')} <span className="mono">{nt?.accountNames.length ? nt.accountNames.join(', ') : '—'}</span>
+                    {' · '}
+                    {tr('latence', 'latency', 'latencia')} <span className="mono">{nt?.heartbeatLatencyMs === null || nt?.heartbeatLatencyMs === undefined ? '—' : `${nt.heartbeatLatencyMs} ms`}</span>
+                  </p>
+                  <p className="dim">
+                    {tr('Raccourci kill switch', 'Kill switch shortcut', 'Atajo kill switch')}{' '}
+                    <span className="mono">{nt?.killSwitchShortcut ?? 'CommandOrControl+Shift+K'}</span>
+                    {' · '}
+                    {tr(`plafond ${nt?.maxContractsPerOrder ?? 20} contrats / ordre`, `ceiling ${nt?.maxContractsPerOrder ?? 20} contracts / order`, `tope ${nt?.maxContractsPerOrder ?? 20} contratos / orden`)}
+                    {nt?.ordersOpen === false && nt?.link === 'live' ? ` · ${tr('canal d’ordres fermé', 'order channel closed', 'canal de órdenes cerrado')}` : ''}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isDesk && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
+                <Button onClick={() => void rotateToken()} disabled={busy}>
+                  {tr('Régénérer le jeton', 'Regenerate token', 'Regenerar el token')}
+                </Button>
+                <Button variant="gold" onClick={() => void writeNtConfig()} disabled={busy}>
+                  {tr('Écrire la configuration pour NinjaTrader', 'Write the NinjaTrader configuration', 'Escribir la configuración para NinjaTrader')}
+                </Button>
+                <Field label={tr('Plafond', 'Ceiling', 'Tope')}>
+                  <input
+                    className="mono"
+                    type="number"
+                    min={1}
+                    max={1000}
+                    defaultValue={nt?.maxContractsPerOrder ?? 20}
+                    key={nt?.maxContractsPerOrder ?? 20}
+                    style={{ width: 72 }}
+                    onBlur={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isInteger(n)) void setMaxContracts(n);
+                    }}
+                  />
+                </Field>
+                <Field label={tr('Compte réel', 'Live account', 'Cuenta real')}>
+                  <input className="mono" value={accountDraft} onChange={(e) => setAccountDraft(e.target.value)} placeholder="APEX-50K" style={{ width: 140 }} />
+                </Field>
+                <Button
+                  onClick={() => {
+                    const name = accountDraft.trim();
+                    if (!name) return;
+                    if (name.startsWith('Sim')) {
+                      setAccountDraft('');
+                      return;
+                    }
+                    setConfirmAccount(name);
+                  }}
+                >
+                  {tr('Autoriser', 'Allow', 'Autorizar')}
+                </Button>
+              </div>
+            )}
 
             {status?.folder && (
               <div className={s.miniStats}>
@@ -203,6 +281,55 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
           </div>
         )}
       </div>
+      {confirmAccount && (
+        <Modal
+          title={tr('Autoriser un compte réel', 'Allow a live account', 'Autorizar una cuenta real')}
+          sub={confirmAccount}
+          onClose={() => setConfirmAccount(null)}
+          width={480}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setConfirmAccount(null)}>
+                {tr('Annuler', 'Cancel', 'Cancelar')}
+              </Button>
+              <Button
+                variant="gold"
+                onClick={() => {
+                  const name = confirmAccount;
+                  setConfirmAccount(null);
+                  setAccountDraft('');
+                  void allowRealAccount(name);
+                }}
+              >
+                {tr('Autoriser les ordres', 'Allow orders', 'Autorizar órdenes')}
+              </Button>
+            </>
+          }
+        >
+          <p>
+            {tr(
+              `Les ordres du desk pourront partir vers « ${confirmAccount} ». Ce n’est pas un compte Sim. Le plafond et le kill switch restent en vigueur.`,
+              `Desk orders will be allowed on “${confirmAccount}”. This is not a Sim account. The ceiling and the kill switch still apply.`,
+              `Las órdenes del desk podrán salir hacia « ${confirmAccount} ». No es una cuenta Sim. El tope y el kill switch siguen vigentes.`,
+            )}
+          </p>
+        </Modal>
+      )}
     </Modal>
   );
+}
+
+function ntLinkLabel(link: string | undefined): string {
+  switch (link) {
+    case 'connecting':
+      return tr('connexion', 'connecting', 'conexión');
+    case 'live':
+      return tr('en ligne', 'live', 'en línea');
+    case 'stale':
+      return tr('périmé', 'stale', 'caducado');
+    case 'lost':
+      return tr('perdu', 'lost', 'perdido');
+    default:
+      return tr('absent', 'absent', 'ausente');
+  }
 }

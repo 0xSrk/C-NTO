@@ -7,7 +7,7 @@ Il existe en deux étages :
 | Étage | État | Rôle |
 | --- | --- | --- |
 | **Transport fichier (CSV)** | **implémenté** | import automatique des exécutions et des exports NinjaTrader vers le journal Métrique |
-| Transport WebSocket JSON-RPC | spécifié (section B) | réplication d'ordres (copieur), exécution des automates, état des comptes |
+| **Transport WebSocket JSON-RPC** | **implémenté** (section B) | exécutions, comptes, barres / ticks / quotes, ordres vers NinjaTrader (Sim par défaut) |
 
 ---
 
@@ -56,11 +56,102 @@ Control Center › **Trade Performance › Trades** (ou onglet **Executions**) �
 
 ---
 
-## B. Transport WebSocket — spécification (à venir)
+## B. Transport WebSocket — serveur dédié (implémenté)
 
-Le transport WebSocket implémentera `MarketDataPort` sous l'identifiant `nt8-bridge`.
+Le pont a **son propre** serveur WebSocket, dans `electron/nt-bridge/`. Il ne réutilise pas l'orchestrateur IA (`electron/orchestrator.ts` reste un prototype, autre cycle de vie, autre niveau de confiance).
 
-Le second étage réutilise le serveur WebSocket JSON-RPC 2.0 ouvert par le shell Electron sur `ws://127.0.0.1:<port>` (module *Agent IA › Orchestrateur externe*). Le même serveur accepte l'orchestrateur IA et le pont, différenciés par la méthode `hello`.
+Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par les canaux IPC `marketdata:*` et alimentent `MarketDataPort` (`sourceId: 'nt8-bridge'`). Les ordres passent par `ntbridge:order`, après `guards.ts`. La réplication du copieur (sizing, filtres, politique prop firm) n'est pas dans ce transport.
+
+### Installation de l'AddOn
+
+1. Copier `ninjatrader/CantoBridge.cs` dans `Documents\NinjaTrader 8\bin\Custom\AddOns\`, compiler dans le NinjaScript Editor (F5).
+2. Dans le desk, Métrique › Pont NinjaTrader : **Régénérer le jeton** si besoin, puis **Écrire la configuration pour NinjaTrader**. Le desk écrit `Documents\NinjaTrader 8\export\CANTO\bridge.json` (ou le dossier surveillé) :
+
+```json
+{ "port": 48231, "token": "…" }
+```
+
+Le fichier est en mode `0600`. Le jeton n'est plus affiché après génération. L'AddOn le relit, se connecte à `ws://127.0.0.1:<port>/?token=<jeton>`, et se reconnecte avec un repli de 1 s à 30 s.
+
+La compilation de l'AddOn exige Windows et NinjaTrader 8. Elle n'est pas faite sur le poste de développement Linux du dépôt.
+
+## 1. Serveur
+
+- Hôte **uniquement** `127.0.0.1`. Port par défaut **48231**, configurable dans `userData/nt-bridge.json` (hors coffre).
+- Jeton de session : 18 octets `base64url`, comparé avec `tokensMatch`. Sans jeton valide : fermeture **4401**.
+- Une seule connexion AddOn. Une seconde connexion valide ferme la première en **4409**.
+- Premier message obligatoirement `bridge.hello` (`kind: "ninjatrader"`, `protocol: 1`), sinon fermeture **4400**.
+- Trame plafonnée à **256 Ko**, sinon fermeture **1009**.
+- Battement toutes les **2 s**. À 4 s le lien passe `stale` (flux marché périmés). À **6 s** le lien passe `lost`, notification `bridge.lost`, abonnements `stale`, canal d'ordres fermé jusqu'au retour d'un battement. Un ordre en vol n'est pas réémis.
+
+## 2. Enveloppe
+
+JSON-RPC 2.0, UTF-8, une trame par message. L'`id` (nombre ou chaîne) est conservé. Une notification n'a pas d'`id`.
+
+```json
+{ "jsonrpc": "2.0", "id": 12, "method": "order.submit", "params": { } }
+{ "jsonrpc": "2.0", "id": 12, "result": { } }
+{ "jsonrpc": "2.0", "id": 12, "error": { "code": -32010, "message": "…" } }
+{ "jsonrpc": "2.0", "method": "bridge.lost", "params": { "at": 1789000000000 } }
+```
+
+Les barres sont en epoch **secondes** UTC. Les ticks, quotes et exécutions sont en epoch **millisecondes**. Les instruments circulent sous le nom NinjaTrader complet (`MNQ 12-26`) ; le desk résout le symbole via `resolveSymbol`.
+
+## 3. NinjaTrader → desk (notifications)
+
+| Méthode | Charge |
+| --- | --- |
+| `bridge.hello` | `{ kind: "ninjatrader", ntVersion, addonVersion, accounts: string[], protocol: 1 }` |
+| `bridge.heartbeat` | `{ at }` |
+| `bridge.accounts` | `{ accounts: [{ name, cashValue, realizedPnl, unrealizedPnl, positions: [{ instrument, quantity, avgPrice }] }] }` toutes les 5 s et sur changement |
+| `bridge.execution` | mêmes champs que l'export CSV « Executions » (`Instrument`, `Action`, `Quantity`, `Price`, `Time`, `ID`, `E/X`, `Position`, `Order ID`, `Name`, `Commission`, `Rate`, `Account`, `Connection`), culture invariante. `Time` en epoch ms |
+| `bridge.order` | `{ account, orderId, instrument, action, type, quantity, limitPrice?, stopPrice?, state, tag? }` |
+| `marketdata.bar` | `{ instrument, timeframe, bar: { time, open, high, low, close, volume }, final }` |
+| `marketdata.tick` | `{ instrument, time, price, size, side? }` |
+| `marketdata.quote` | `{ instrument, time, bid, ask, last? }` |
+
+## 4. Desk → NinjaTrader (requêtes)
+
+| Méthode | Paramètres | Réponse |
+| --- | --- | --- |
+| `bridge.snapshot` | `{}` | charge de `bridge.accounts` |
+| `marketdata.subscribe` | `{ instrument, kind: "bars" \| "tick" \| "quote", timeframe? }` | `{ subscriptionId }` |
+| `marketdata.unsubscribe` | `{ subscriptionId }` | `{ ok }` |
+| `marketdata.history` | `{ instrument, timeframe, from, to }` | `{ bars }` (plafond 50 000) |
+| `order.submit` | `{ account, instrument, action, quantity, type, limitPrice?, stopPrice?, oco?, tag }` | `{ orderId, latencyMs }` |
+| `order.cancel` | `{ account, orderId }` | `{ ok }` |
+| `order.flatten` | `{ account }` | `{ closed }` |
+
+`action` ∈ `Buy` | `Sell` | `BuyToCover` | `SellShort`. `type` ∈ `Market` | `Limit` | `StopMarket` | `StopLimit`. `Order.Name = tag`. `order.flatten` appelle `account.Flatten`. Compte non connecté : erreur explicite.
+
+Le CSV continue d'être écrit en parallèle, avec le même `ID`. Le journal dédoublonne par l'empreinte existante (`account + ID`).
+
+## 5. Garde-fous (défauts)
+
+Réglables dans le panneau. Persistés dans `userData/nt-bridge.json`, pas dans le coffre.
+
+| Garde-fou | Défaut | Refus |
+| --- | --- | --- |
+| Comptes autorisés | nom commençant par `Sim`, plus une liste explicite vide | `-32010` |
+| Coupe-circuit | lien autre que `live` (dont `lost` après 6 s) | `-32011`, ordre non réémis |
+| Kill switch | `Ctrl+Shift+K` / `Cmd+Shift+K` (`CommandOrControl+Shift+K`) : `order.flatten` sur chaque compte autorisé connu, puis canal fermé jusqu'au redémarrage du desk | `-32011` ensuite |
+| Plafond | `maxContractsPerOrder` = **20** | `-32012` si `quantity` est supérieure |
+| Tag | obligatoire sur `order.submit` | `-32013` |
+
+Un compte réel s'ajoute depuis le panneau, après un dialogue CΛNTO (pas `confirm()`). Chaque ordre émis est écrit dans `main.log` avec tag, compte, instrument, quantité, latence et résultat.
+
+## 6. Matrice de secours CSV ↔ WebSocket
+
+| État du socket | Rôle du dossier surveillé |
+| --- | --- |
+| `live` ou `stale` | la surveillance continue ; un export Executions ne transmet que les `ID` pas encore vus par le WebSocket |
+| `lost` ou `absent` | le CSV redevient la voie principale, sans action de l'utilisateur ; le journal dédoublonne quand même |
+
+`scripts/fake-addon.mjs` simule l'AddOn (barres, exécution, `order.submit` sur Sim101) sans NinjaTrader.
+
+## 7. Hors de ce transport
+
+La logique de copie (sizing, filtres, fenêtre horaire, blackout, marge prop firm) est la tâche 5. Elle consommera `ntbridge:order`. Les méthodes `copy.order` / `copy.cancel` / `copy.flatten` de l'ancienne spécification ne sont pas le protocole du serveur.
 
 ## 1. Enveloppe
 

@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { readLocaleFile, uiText } from './locale';
+import { omitKnownExecutionRows } from './nt-bridge/csv-fallback';
 import { createHash } from 'node:crypto';
 import { promises as fs, watch, type FSWatcher } from 'node:fs';
 import path from 'node:path';
@@ -83,6 +84,9 @@ export class NinjaBridge {
   private lastEvent: BridgeStatus['lastEvent'];
   private fileCount = 0;
   private seq = 0;
+  /** Vrai tant que le WebSocket est `live` ou `stale` : le CSV ne réimporte que l'inconnu. */
+  private wsLive = false;
+  private knownExecutionIds = new Set<string>();
   private readonly stateFile: string;
   private readonly userDataDir: string;
   private loaded: Promise<void>;
@@ -179,6 +183,17 @@ export class NinjaBridge {
     };
     await this.save();
     this.emitStatus();
+  }
+
+  /** Bascule le secours fichier. `lost` / `absent` : le CSV redevient la voie principale. */
+  setSocketLive(live: boolean): void {
+    this.wsLive = live;
+  }
+
+  /** ID d'exécution déjà reçu par le WebSocket (même champ que la colonne CSV `ID`). */
+  noteExecution(id: string): void {
+    const trimmed = id.trim();
+    if (trimmed) this.knownExecutionIds.add(trimmed);
   }
 
   dispose(): void {
@@ -316,11 +331,21 @@ export class NinjaBridge {
       await this.save();
       return;
     }
+    let outgoing = text;
+    if (this.wsLive) {
+      const filtered = omitKnownExecutionRows(text, this.knownExecutionIds);
+      if (filtered === null) {
+        this.state.processed[file] = { size: st2.size, mtimeMs: st2.mtimeMs, sha256 };
+        await this.save();
+        return;
+      }
+      outgoing = filtered;
+    }
     const id = `f${++this.seq}`;
     const kind: BridgeFilePayload['kind'] = forced ?? (done ? 'modifié' : 'nouveau');
     this.inflight.set(id, { path: file, size: st2.size, mtimeMs: st2.mtimeMs, sha256 });
     this.lastEvent = { at: Date.now(), file: path.basename(file), kind };
-    const payload: BridgeFilePayload = { id, name: path.basename(file), path: file, size: st2.size, text, kind };
+    const payload: BridgeFilePayload = { id, name: path.basename(file), path: file, size: Buffer.byteLength(outgoing), text: outgoing, kind };
     this.win.webContents.send('bridge:file', payload);
     this.emitStatus();
     setTimeout(() => {

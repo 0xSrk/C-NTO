@@ -1,8 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, safeStorage, screen, session, shell } from 'electron';
 import { existsSync, mkdirSync, promises as fs, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
+import { KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
 import { Orchestrator } from './orchestrator';
 import { syncOfficialCalendar } from './calendar';
@@ -156,6 +157,7 @@ let win: BrowserWindow | null = null;
 let launcherWin: BrowserWindow | null = null;
 const orchestrator = new Orchestrator();
 let bridge: NinjaBridge | null = null;
+let ntBridge: NtBridgeHost | null = null;
 let updateBusy = false;
 /** Dossiers accordés par un dialogue système : seuls ceux-là sont accessibles en écriture / surveillance. */
 const grants = new FolderGrants(gpuDir);
@@ -396,6 +398,7 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   orchestrator.attach(win);
   bridge = bridge ?? new NinjaBridge(app.getPath('userData'));
   bridge.attach(win);
+  ntBridge?.attach(win, bridge);
 }
 
 const chromiumLang: Record<AppLocale, string> = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' };
@@ -429,6 +432,12 @@ app.on('web-contents-created', (_event, contents) => {
 app.whenReady().then(() => {
   if (!primaryInstance) return;
   mainLog('info', `prêt · GPU ${gpuHardware ? 'matériel' : 'logiciel'}`);
+  ntBridge = new NtBridgeHost(app.getPath('userData'), () => defaultNinjaExportFolder(app.getPath('documents')));
+  void ntBridge.start();
+  const shortcut = globalShortcut.register(KILL_SWITCH_SHORTCUT, () => {
+    ntBridge?.killSwitch();
+  });
+  if (!shortcut) mainLog('warn', `raccourci kill switch non enregistré (${KILL_SWITCH_SHORTCUT})`);
   // Aucune permission navigateur (caméra, notifications, géoloc…) ; seule l'écriture presse-papiers
   // assainie reste possible (bouton « Copier le jeton », « Copier le journal »).
   const PERMISSIONS_ALLOWED = new Set(['clipboard-sanitized-write']);
@@ -453,6 +462,11 @@ app.on('window-all-closed', () => {
   orchestrator.stop();
   bridge?.dispose();
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  void ntBridge?.dispose();
 });
 
 /* ─── Fenêtre ─── */
@@ -585,15 +599,27 @@ ipcMain.handle('update:start-desk', (e) => {
   return true;
 });
 
-/* ─── Données de marché : canal déclaré, aucun adaptateur live dans cette tâche ─── */
-ipcMain.handle('marketdata:subscribe', (e) => {
-  if (!trusted(e)) return { ok: false as const, detail: 'aucune source live' };
-  return { ok: false as const, detail: 'aucune source live' };
+/* ─── Données de marché : pont NT8, sinon aucune source live ─── */
+ipcMain.handle('marketdata:subscribe', (e, req: unknown) => {
+  if (!trusted(e) || !ntBridge) return { ok: false as const, detail: 'aucune source live' };
+  return ntBridge.subscribe(req);
 });
-ipcMain.handle('marketdata:unsubscribe', (e) => {
-  if (!trusted(e)) return { ok: false as const, detail: 'aucune source live' };
-  return { ok: false as const, detail: 'aucune source live' };
+ipcMain.handle('marketdata:unsubscribe', (e, id: unknown) => {
+  if (!trusted(e) || !ntBridge) return { ok: false as const, detail: 'aucune source live' };
+  return ntBridge.unsubscribe(id);
 });
+ipcMain.handle('marketdata:history', (e, req: unknown) => {
+  if (!trusted(e) || !ntBridge) return { ok: false as const, detail: 'aucune source live' };
+  return ntBridge.history(req);
+});
+
+ipcMain.handle('ntbridge:status', (e) => (trusted(e) ? ntBridge?.publicStatus() ?? null : null));
+ipcMain.handle('ntbridge:rotate-token', (e) => (trusted(e) && ntBridge ? ntBridge.rotateToken() : { hasToken: false }));
+ipcMain.handle('ntbridge:write-config', (e) => (trusted(e) && ntBridge ? ntBridge.writeConfig() : { ok: false, error: 'pont indisponible' }));
+ipcMain.handle('ntbridge:allow-account', (e, name: unknown) => (trusted(e) && ntBridge && typeof name === 'string' ? ntBridge.allowAccount(name) : null));
+ipcMain.handle('ntbridge:max-contracts', (e, n: unknown) => (trusted(e) && ntBridge && typeof n === 'number' ? ntBridge.setMaxContracts(n) : null));
+ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
+ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitch() : { accounts: [] }));
 
 /* ─── Calendrier macro (sources officielles) ─── */
 ipcMain.handle('calendar:macro', async (e, fromDate: unknown, toDate: unknown) => {

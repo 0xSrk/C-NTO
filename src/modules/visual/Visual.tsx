@@ -176,6 +176,7 @@ export default function Visual() {
   const updateIndicator = useBars((b) => b.updateIndicator);
   const toggleIndicator = useBars((b) => b.toggleIndicator);
   const removeIndicator = useBars((b) => b.removeIndicator);
+  const ntFeed = useBars((b) => b.ntFeed);
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
   const focusSessionId = useUi((u) => u.focusSessionId);
@@ -250,6 +251,8 @@ export default function Visual() {
         tab="visual"
         actions={
           <>
+            {active?.source === 'nt8-bridge' && ntFeed === 'stale' && <Tag tone="ember">{tr('données périmées', 'stale data', 'datos caducados')}</Tag>}
+            {active?.source === 'nt8-bridge' && ntFeed === 'live' && <Tag tone="mint">{tr('direct', 'live', 'directo')}</Tag>}
             <select value={activeId ?? ''} onChange={(e) => setActive(e.target.value)} style={{ minWidth: 260 }}>
               {series.map((sr) => (
                 <option key={sr.id} value={sr.id}>

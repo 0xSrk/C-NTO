@@ -38,9 +38,22 @@ contextBridge.exposeInMainWorld('canto', {
   },
   marketdata: {
     subscribe: (req: { instrument: string; kind: 'bars' | 'quote' | 'tick'; timeframe?: number; contractMonth?: string }) =>
-      ipcRenderer.invoke('marketdata:subscribe', req) as Promise<{ ok: false; detail: string }>,
-    unsubscribe: (id: string) => ipcRenderer.invoke('marketdata:unsubscribe', id) as Promise<{ ok: false; detail: string }>,
+      ipcRenderer.invoke('marketdata:subscribe', req) as Promise<{ ok: true; subscriptionId: string } | { ok: false; detail: string; code?: number }>,
+    unsubscribe: (id: string) => ipcRenderer.invoke('marketdata:unsubscribe', id) as Promise<{ ok: boolean; detail?: string }>,
+    history: (req: { instrument: string; timeframe: number; from: number; to: number }) =>
+      ipcRenderer.invoke('marketdata:history', req) as Promise<{ ok: true; bars: unknown[] } | { ok: false; detail: string }>,
     onEvent: (cb: (event: { kind: string }) => void) => subscribe('marketdata:event', cb),
+  },
+  ntbridge: {
+    status: () => ipcRenderer.invoke('ntbridge:status'),
+    rotateToken: () => ipcRenderer.invoke('ntbridge:rotate-token'),
+    writeConfig: () => ipcRenderer.invoke('ntbridge:write-config'),
+    allowAccount: (name: string) => ipcRenderer.invoke('ntbridge:allow-account', name),
+    setMaxContracts: (n: number) => ipcRenderer.invoke('ntbridge:max-contracts', n),
+    order: (payload: unknown) => ipcRenderer.invoke('ntbridge:order', payload),
+    killSwitch: () => ipcRenderer.invoke('ntbridge:killswitch'),
+    onStatus: (cb: (status: unknown) => void) => subscribe('ntbridge:status', cb),
+    onExecution: (cb: (payload: { csv: string; executionId: string }) => void) => subscribe('ntbridge:execution', cb),
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
