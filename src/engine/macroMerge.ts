@@ -28,6 +28,8 @@ const OFFICIAL_RANK: Record<string, number> = {
   fred: 7,
   user: 8,
   forexfactory: 9,
+  /** Sous toute source vivante : un BLS direct remplace toujours sa copie embarquée. */
+  bundle: 10,
 };
 
 /**
@@ -92,7 +94,27 @@ const SOURCE_NOTE: Partial<Record<CalendarSourceId, string>> = {
   fred: 'FRED',
   user: 'saisie',
   forexfactory: 'Forex Factory',
+  bundle: 'Calendrier embarqué',
 };
+
+const BUNDLE_ORIGIN_LABEL: Record<string, string> = {
+  bls: 'BLS',
+  bea: 'BEA',
+  fed: 'Fed',
+  ecb: 'BCE',
+  eia: 'EIA',
+  treasury: 'Trésor',
+};
+
+/** Provenance affichée. L'instantané cite l'institution : « Calendrier embarqué · BLS ». */
+export function eventProvenance(source?: string, origin?: string): string | null {
+  if (!source || source === 'local') return null;
+  if (source === 'bundle') {
+    const who = origin ? BUNDLE_ORIGIN_LABEL[origin] : undefined;
+    return who ? `Calendrier embarqué · ${who}` : 'Calendrier embarqué (2026)';
+  }
+  return source;
+}
 
 export function rowToCalEvent(r: CalendarEventRow): CalEvent {
   const bits = [
@@ -100,7 +122,7 @@ export function rowToCalEvent(r: CalendarEventRow): CalEvent {
     r.previous != null ? `Préc. ${r.previous}` : null,
     r.actual != null ? `Publié ${r.actual}` : null,
   ].filter(Boolean);
-  const who = SOURCE_NOTE[r.sourceId] ?? r.sourceId;
+  const who = eventProvenance(r.sourceId, r.origin) ?? SOURCE_NOTE[r.sourceId] ?? r.sourceId;
   return {
     id: r.id,
     date: r.date,
@@ -115,6 +137,7 @@ export function rowToCalEvent(r: CalendarEventRow): CalEvent {
     actual: r.actual,
     period: r.period,
     source: r.sourceId,
+    origin: r.origin,
     instruments: r.instruments,
   };
 }

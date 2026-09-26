@@ -1,8 +1,8 @@
 {
   "name": "canto",
   "productName": "CΛNTO",
-  "version": "2.0.2",
-  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v2.0.2 · macOS, Windows, Linux",
+  "version": "2.1.0",
+  "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v2.1.0 · macOS, Windows, Linux",
   "private": true,
   "author": "SIΞRRΛSKΛ",
   "license": "UNLICENSED",
@@ -20,6 +20,7 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm test && npm run build",
     "hash-release": "node scripts/hash-release.mjs",
+    "calendar:snapshot": "node scripts/calendar-snapshot.mjs",
     "electron:compile": "tsc -p electron/tsconfig.json && tsc -p electron/tsconfig.sources.json && node scripts/copy-electron-assets.mjs",
     "launch": "node scripts/launch.mjs",
     "desk:dev": "npm run electron:compile && concurrently -k -n vite,desk -c cyan,white \"vite --strictPort\" \"cross-env CANTO_DEV_URL=http://localhost:5173 electron .\"",

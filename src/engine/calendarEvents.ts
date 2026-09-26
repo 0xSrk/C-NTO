@@ -13,7 +13,11 @@ export type CalendarSourceId =
   | 'treasury'
   | 'fred'
   | 'forexfactory'
-  | 'user';
+  | 'user'
+  | 'bundle';
+
+/** Institution citée par une ligne `sourceId: 'bundle'`. */
+export type CalendarOrigin = 'bls' | 'bea' | 'fed' | 'ecb' | 'eia' | 'treasury';
 
 export type CalendarCategory =
   | 'emploi'
@@ -50,6 +54,8 @@ export interface CalendarEventRow {
   /** Vrai si la date est déduite, pas encore publiée par l'institution. */
   estimated: boolean;
   syncedAt: number;
+  /** Présent quand la ligne vient de l'instantané embarqué. */
+  origin?: CalendarOrigin;
 }
 
 export interface CalendarSourceStatus {

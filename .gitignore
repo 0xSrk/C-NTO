@@ -4,6 +4,7 @@ dist-electron/
 release/
 coverage/
 .vite/
+.cache/
 *.log
 .DS_Store
 .env

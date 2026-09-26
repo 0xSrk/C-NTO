@@ -30,6 +30,12 @@ describe('registre de sources', () => {
     expect(allowed.includes('api.bls.gov')).toBe(true);
     expect(allowed.includes('www.bls.gov')).toBe(true);
     expect(getSource('investing').redistributable).toBe(false);
+    expect(getSource('bundle').kind).toBe('calendar');
+    expect(getSource('bundle').hosts).toEqual([]);
+    expect(getSource('bundle').auth).toBe('none');
+    expect(getSource('bundle').freshness).toBe('static');
+    expect(getSource('bundle').redistributable).toBe(true);
+    expect(getSource('bundle').terms.summary).toMatch(/Banque centrale européenne/);
     expect(getSource('nt8-bridge').redistributable).toBe(true);
     expect(getSource('nt8-bridge').hosts).toEqual([]);
     expect(() => getSource('inexistante')).toThrow(/inconnue/);

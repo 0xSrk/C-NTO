@@ -1,0 +1,1635 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-26T13:58:01.069Z",
+  "coverage": {
+    "from": "2026-01-01",
+    "to": "2027-03-31"
+  },
+  "attribution": {
+    "ecb": "Source : Banque centrale européenne, réutilisation avec attribution"
+  },
+  "events": [
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-01-07",
+      "date": "2026-01-07",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-01-09",
+      "date": "2026-01-09",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "December 2025",
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-01-13",
+      "date": "2026-01-13",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "December 2025",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-01-14",
+      "date": "2026-01-14",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-01-22",
+      "date": "2026-01-22",
+      "timeET": "12:00",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "period": "2026-01-16",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-01-28",
+      "date": "2026-01-28",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-01-28",
+      "date": "2026-01-28",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-02-04",
+      "date": "2026-02-04",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-02-11",
+      "date": "2026-02-11",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "January 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-02-11",
+      "date": "2026-02-11",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-02-13",
+      "date": "2026-02-13",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "January 2026",
+      "estimated": false
+    },
+    {
+      "origin": "fed",
+      "key": "minutes-2026-02-18",
+      "date": "2026-02-18",
+      "title": "Minutes du FOMC",
+      "category": "banque-centrale",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-02-19",
+      "date": "2026-02-19",
+      "timeET": "12:00",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "period": "2026-02-13",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-02-25",
+      "date": "2026-02-25",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-03-04",
+      "date": "2026-03-04",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-03-06",
+      "date": "2026-03-06",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "February 2026",
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-03-11",
+      "date": "2026-03-11",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "February 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-03-11",
+      "date": "2026-03-11",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-03-18",
+      "date": "2026-03-18",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-03-18",
+      "date": "2026-03-18",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-03-25",
+      "date": "2026-03-25",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-04-01",
+      "date": "2026-04-01",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-04-03",
+      "date": "2026-04-03",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "March 2026",
+      "estimated": false
+    },
+    {
+      "origin": "fed",
+      "key": "minutes-2026-04-08",
+      "date": "2026-04-08",
+      "title": "Minutes du FOMC",
+      "category": "banque-centrale",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-04-08",
+      "date": "2026-04-08",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-04-10",
+      "date": "2026-04-10",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "March 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-04-15",
+      "date": "2026-04-15",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-04-22",
+      "date": "2026-04-22",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-04-29",
+      "date": "2026-04-29",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-04-29",
+      "date": "2026-04-29",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-05-06",
+      "date": "2026-05-06",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-05-08",
+      "date": "2026-05-08",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "April 2026",
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-05-12",
+      "date": "2026-05-12",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "April 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-05-13",
+      "date": "2026-05-13",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "minutes-2026-05-20",
+      "date": "2026-05-20",
+      "title": "Minutes du FOMC",
+      "category": "banque-centrale",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-05-20",
+      "date": "2026-05-20",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-05-28",
+      "date": "2026-05-28",
+      "timeET": "12:00",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "period": "2026-05-22",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-06-03",
+      "date": "2026-06-03",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-06-05",
+      "date": "2026-06-05",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "May 2026",
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-06-10",
+      "date": "2026-06-10",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "May 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-06-10",
+      "date": "2026-06-10",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-06-17",
+      "date": "2026-06-17",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-06-17",
+      "date": "2026-06-17",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-06-24",
+      "date": "2026-06-24",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-07-01",
+      "date": "2026-07-01",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-07-02",
+      "date": "2026-07-02",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "June 2026",
+      "estimated": false
+    },
+    {
+      "origin": "fed",
+      "key": "minutes-2026-07-08",
+      "date": "2026-07-08",
+      "title": "Minutes du FOMC",
+      "category": "banque-centrale",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-07-08",
+      "date": "2026-07-08",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-07-14",
+      "date": "2026-07-14",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "June 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-07-15",
+      "date": "2026-07-15",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-07-22",
+      "date": "2026-07-22",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-07-29",
+      "date": "2026-07-29",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-07-29",
+      "date": "2026-07-29",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-08-05",
+      "date": "2026-08-05",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-08-07",
+      "date": "2026-08-07",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "July 2026",
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-08-12",
+      "date": "2026-08-12",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "July 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-08-12",
+      "date": "2026-08-12",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "minutes-2026-08-19",
+      "date": "2026-08-19",
+      "title": "Minutes du FOMC",
+      "category": "banque-centrale",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-08-19",
+      "date": "2026-08-19",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-08-26",
+      "date": "2026-08-26",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-09-02",
+      "date": "2026-09-02",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-09-04",
+      "date": "2026-09-04",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "previous": "4.1",
+      "actual": "4.1",
+      "period": "August 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-09-10",
+      "date": "2026-09-10",
+      "timeET": "12:00",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "period": "2026-09-04",
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-09-11",
+      "date": "2026-09-11",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "August 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-09-16",
+      "date": "2026-09-16",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-09-16",
+      "date": "2026-09-16",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-09-23",
+      "date": "2026-09-23",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "treasury",
+      "key": "912797UY1",
+      "date": "2026-09-29",
+      "timeET": "11:30",
+      "title": "Adjudication 6-Week Bill",
+      "category": "adjudication",
+      "impact": 1,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "treasury",
+      "key": "912797WJ2",
+      "date": "2026-09-29",
+      "timeET": "11:30",
+      "title": "Adjudication 52-Week Bill",
+      "category": "adjudication",
+      "impact": 1,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "bea",
+      "key": "gdp-third-estimate-industries-corporate-profits-state-gdp-and-state-personal-inc-2026-09-30",
+      "date": "2026-09-30",
+      "timeET": "08:30",
+      "title": "GDP (Third Estimate), Industries, Corporate Profits, State GDP, and State Personal Income, 2nd Quarter 2026; State PCE, 2025",
+      "category": "croissance",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "bea",
+      "key": "personal-income-and-outlays-august-2026-2026-09-30",
+      "date": "2026-09-30",
+      "timeET": "08:30",
+      "title": "Personal Income and Outlays, August 2026",
+      "category": "inflation",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-09-30",
+      "date": "2026-09-30",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-10-02",
+      "date": "2026-10-02",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "September 2026",
+      "estimated": false
+    },
+    {
+      "origin": "bea",
+      "key": "u-s-international-trade-in-goods-and-services-august-2026-2026-10-06",
+      "date": "2026-10-06",
+      "timeET": "08:30",
+      "title": "U.S. International Trade in Goods and Services, August 2026",
+      "category": "croissance",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "bea",
+      "key": "services-supplied-through-affiliates-2024-2026-10-06",
+      "date": "2026-10-06",
+      "timeET": "10:00",
+      "title": "Services Supplied Through Affiliates, 2024",
+      "category": "croissance",
+      "impact": 1,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-10-07",
+      "date": "2026-10-07",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-10-14",
+      "date": "2026-10-14",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "September 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-10-15",
+      "date": "2026-10-15",
+      "timeET": "12:00",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "period": "2026-10-09",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-10-21",
+      "date": "2026-10-21",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-10-28",
+      "date": "2026-10-28",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-10-28",
+      "date": "2026-10-28",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "ecb",
+      "key": "gc-2026-10-29",
+      "date": "2026-10-29",
+      "title": "Décision de politique monétaire BCE",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "EUR",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "bea",
+      "key": "gdp-advance-estimate-3rd-quarter-2026-2026-10-29",
+      "date": "2026-10-29",
+      "timeET": "08:30",
+      "title": "GDP (Advance Estimate), 3rd Quarter 2026",
+      "category": "croissance",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "bea",
+      "key": "personal-income-and-outlays-september-2026-2026-10-29",
+      "date": "2026-10-29",
+      "timeET": "08:30",
+      "title": "Personal Income and Outlays, September 2026",
+      "category": "inflation",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "bea",
+      "key": "u-s-international-trade-in-goods-and-services-september-2026-2026-11-04",
+      "date": "2026-11-04",
+      "timeET": "08:30",
+      "title": "U.S. International Trade in Goods and Services, September 2026",
+      "category": "croissance",
+      "impact": 2,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-11-04",
+      "date": "2026-11-04",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-11-06",
+      "date": "2026-11-06",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "October 2026",
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-11-10",
+      "date": "2026-11-10",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "October 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-11-12",
+      "date": "2026-11-12",
+      "timeET": "12:00",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "period": "2026-11-06",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-11-18",
+      "date": "2026-11-18",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-11-25",
+      "date": "2026-11-25",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-12-02",
+      "date": "2026-12-02",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "bls",
+      "key": "nfp-2026-12-04",
+      "date": "2026-12-04",
+      "timeET": "08:30",
+      "title": "Rapport emploi US (NFP)",
+      "category": "emploi",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "November 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-12-09",
+      "date": "2026-12-09",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2026-12-09",
+      "date": "2026-12-09",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "bls",
+      "key": "cpi-2026-12-10",
+      "date": "2026-12-10",
+      "timeET": "08:30",
+      "title": "Inflation CPI",
+      "category": "inflation",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "period": "November 2026",
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-12-16",
+      "date": "2026-12-16",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "ecb",
+      "key": "gc-2026-12-17",
+      "date": "2026-12-17",
+      "title": "Décision de politique monétaire BCE",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "EUR",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-12-23",
+      "date": "2026-12-23",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2026-12-30",
+      "date": "2026-12-30",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-01-06",
+      "date": "2027-01-06",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-01-13",
+      "date": "2027-01-13",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-01-20",
+      "date": "2027-01-20",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-01-27",
+      "date": "2027-01-27",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2027-01-27",
+      "date": "2027-01-27",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-02-03",
+      "date": "2027-02-03",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "ecb",
+      "key": "gc-2027-02-04",
+      "date": "2027-02-04",
+      "title": "Décision de politique monétaire BCE",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "EUR",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-02-10",
+      "date": "2027-02-10",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-02-17",
+      "date": "2027-02-17",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-02-24",
+      "date": "2027-02-24",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-03-03",
+      "date": "2027-03-03",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-03-10",
+      "date": "2027-03-10",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-03-17",
+      "date": "2027-03-17",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "fed",
+      "key": "fomc-2027-03-17",
+      "date": "2027-03-17",
+      "timeET": "14:00",
+      "title": "Décision FOMC · taux directeurs",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [],
+      "estimated": true
+    },
+    {
+      "origin": "ecb",
+      "key": "gc-2027-03-18",
+      "date": "2027-03-18",
+      "title": "Décision de politique monétaire BCE",
+      "category": "banque-centrale",
+      "impact": 3,
+      "currency": "EUR",
+      "instruments": [],
+      "estimated": false
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-03-24",
+      "date": "2027-03-24",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    },
+    {
+      "origin": "eia",
+      "key": "wpsr-2027-03-31",
+      "date": "2027-03-31",
+      "timeET": "10:30",
+      "title": "Stocks pétrole EIA",
+      "category": "energie",
+      "impact": 3,
+      "currency": "USD",
+      "instruments": [
+        "CL",
+        "MCL"
+      ],
+      "estimated": true
+    }
+  ]
+}

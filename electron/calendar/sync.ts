@@ -7,6 +7,7 @@
 import type { AppLocale } from '../locale';
 import { blsAdapter } from './bls';
 import { beaAdapter } from './bea';
+import { bundleAdapter, bundleCoverage, bundleYear } from './bundle';
 import { cmeAdapter } from './cme';
 import { ecbAdapter } from './ecb';
 import { eiaAdapter } from './eia';
@@ -47,6 +48,26 @@ interface Runnable {
 }
 
 export const OFFICIAL_ADAPTERS: Runnable[] = [blsAdapter, beaAdapter, fedAdapter, ecbAdapter, eiaAdapter, treasuryAdapter, fredAdapter, cmeAdapter];
+
+/** Le bundle est le socle : il passe avant toute source réseau. */
+export const CALENDAR_ADAPTERS: Runnable[] = [bundleAdapter, ...OFFICIAL_ADAPTERS];
+
+/**
+ * La fenêtre demandée est élargie à toute la couverture embarquée.
+ * Le store remplace toutes les lignes `bundle` à chaque synchro : une fenêtre
+ * étroite effacerait le reste de l'année.
+ */
+function bundleRange(range: { from: string; to: string }): { from: string; to: string } {
+  const cov = bundleCoverage();
+  return {
+    from: range.from < cov.from ? range.from : cov.from,
+    to: range.to > cov.to ? range.to : cov.to,
+  };
+}
+
+function withoutBundleOrigin(events: CalendarEventRow[], origin: string, range: { from: string; to: string }): CalendarEventRow[] {
+  return events.filter((event) => event.sourceId !== 'bundle' || event.origin !== origin || event.date < range.from || event.date > range.to);
+}
 
 export function cacheKeyFor(url: string): string {
   return url.replace(/[^a-z0-9]+/gi, '_').slice(0, 140);
@@ -113,12 +134,23 @@ export async function runCalendarSync(opts: {
   byok?: Partial<Record<string, string>>;
   adapters?: Runnable[];
 }): Promise<CalendarSyncResult> {
-  const adapters = opts.adapters ?? OFFICIAL_ADAPTERS;
+  const requested = opts.adapters ?? CALENDAR_ADAPTERS;
+  const adapters = [...requested.filter((adapter) => adapter.sourceId === 'bundle'), ...requested.filter((adapter) => adapter.sourceId !== 'bundle')];
   const events: CalendarEventRow[] = [];
   const sources: CalendarSourceStatus[] = [];
   let fredPatch: ReturnType<typeof parseFredObservations> = null;
 
   for (const adapter of adapters) {
+    if (adapter.sourceId === 'bundle') {
+      try {
+        const rows = await adapter.fetch(bundleRange(opts.range), { fetch: opts.fetchImpl, locale: opts.locale });
+        events.push(...rows.map((row) => ({ ...row, syncedAt: opts.now })));
+      } catch {
+        /* le socle ne bloque pas les sources réseau */
+      }
+      sources.push({ sourceId: 'bundle', state: 'ok', syncedAt: opts.now, detail: bundleYear() });
+      continue;
+    }
     if (adapter.sourceId === 'cme') {
       sources.push({
         sourceId: 'cme',
@@ -153,7 +185,9 @@ export async function runCalendarSync(opts: {
         continue;
       }
       const rows = await adapter.fetch(opts.range, { fetch, locale: opts.locale, byok: opts.byok?.[adapter.sourceId] });
-      events.push(...rows.map((row) => ({ ...row, syncedAt: opts.now })));
+      const kept = withoutBundleOrigin(events, adapter.sourceId, opts.range);
+      events.length = 0;
+      events.push(...kept, ...rows.map((row) => ({ ...row, syncedAt: opts.now })));
       sources.push({
         sourceId: adapter.sourceId,
         state: staleDetail ? 'stale' : 'ok',
@@ -161,10 +195,13 @@ export async function runCalendarSync(opts: {
         detail: staleDetail || undefined,
       });
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'échec';
+      const covered = events.some((event) => event.sourceId === 'bundle' && event.origin === adapter.sourceId);
       sources.push({
         sourceId: adapter.sourceId,
-        state: 'error',
-        detail: err instanceof Error ? err.message : 'échec',
+        state: covered ? 'stale' : 'error',
+        syncedAt: covered ? opts.now : undefined,
+        detail: covered ? `${message} · instantané embarqué` : message,
       });
     }
   }
