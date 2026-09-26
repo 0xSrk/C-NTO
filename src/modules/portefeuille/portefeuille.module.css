@@ -1,0 +1,75 @@
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.heart {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -24px -24px 0;
+  padding: 24px 24px 12px;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.heartStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 8px;
+}
+
+.excluded {
+  margin: 10px 0 0;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.tableWrap input,
+.tableWrap select {
+  width: 100%;
+  min-width: 72px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.archived {
+  opacity: 0.62;
+}
+
+.bars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}

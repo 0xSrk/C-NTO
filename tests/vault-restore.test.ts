@@ -38,19 +38,26 @@ interface FakeTable {
   toArray: () => Promise<Record<string, unknown>[]>;
 }
 
-function fakeTable(key: 'id' | 'key', seed: Record<string, unknown>[] = []): FakeTable {
+function rowKey(table: string, row: Record<string, unknown>): string {
+  if (table === 'settings' || table === 'importedExecutions') return String(row.key);
+  if (table === 'fxRates') return String(row.pair);
+  if (table === 'equityPoints') return `${row.pocketId}|${row.date}`;
+  return String(row.id);
+}
+
+function fakeTable(table: string, seed: Record<string, unknown>[] = []): FakeTable {
   const t: FakeTable = {
-    rows: new Map(seed.map((r) => [r[key] as string, r])),
+    rows: new Map(seed.map((r) => [rowKey(table, r), r])),
     cleared: 0,
     async clear() {
       t.cleared++;
       t.rows.clear();
     },
     async bulkPut(list) {
-      for (const r of list) t.rows.set(r[key] as string, r);
+      for (const r of list) t.rows.set(rowKey(table, r), r);
     },
     async put(row) {
-      t.rows.set(row[key] as string, row);
+      t.rows.set(rowKey(table, row), row);
     },
     async get(k) {
       return t.rows.get(k);
@@ -62,12 +69,12 @@ function fakeTable(key: 'id' | 'key', seed: Record<string, unknown>[] = []): Fak
   return t;
 }
 
-const TABLES = ['sessions', 'trades', 'importedExecutions', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'calendarEvents', 'links', 'barSeries', 'agentMessages'] as const;
+const TABLES = ['sessions', 'trades', 'importedExecutions', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'calendarEvents', 'links', 'barSeries', 'agentMessages', 'pockets', 'positions', 'cashBalances', 'fxRates', 'equityPoints'] as const;
 type Tables = Record<(typeof TABLES)[number], FakeTable>;
 
 function installFakeDb(): Tables {
   const tables = {} as Tables;
-  for (const name of TABLES) tables[name] = fakeTable(name === 'settings' || name === 'importedExecutions' ? 'key' : 'id');
+  for (const name of TABLES) tables[name] = fakeTable(name);
   Object.assign(db as unknown as Record<string, unknown>, tables);
   return tables;
 }
@@ -256,6 +263,31 @@ describe('prepareVaultRestore (validation pure)', () => {
     expect(avec.skipped.links).toBe(1);
   });
 
+  it('coffre 2.2.1 sans portefeuille : champs absents, tables non remplacées', () => {
+    const json = JSON.stringify(buildVaultV2({ appVersion: '2.2.1', sessions: [], trades: [], notes: [] }));
+    expect(json).not.toContain('equityPoints');
+    expect(json).not.toContain('pockets');
+    const v = prepareVaultRestore(json);
+    expect(v.pocketsProvided).toBe(false);
+    expect(v.positionsProvided).toBe(false);
+    expect(v.cashProvided).toBe(false);
+    expect(v.fxProvided).toBe(false);
+    expect(v.pockets).toEqual([]);
+  });
+
+  it('poche crypto refusée', () => {
+    const json = JSON.stringify(
+      buildVaultV2({
+        appVersion: '2.2.1',
+        sessions: [],
+        trades: [],
+        notes: [],
+        pockets: [{ id: 'c1', name: 'BTC', kind: 'crypto', currency: 'USD', createdAt: now }],
+      }),
+    );
+    expect(() => prepareVaultRestore(json)).toThrow(/crypto/);
+  });
+
   it('erreurs structurelles → exception', () => {
     expect(() => prepareVaultRestore(JSON.stringify({ sessions: 'nope' }))).toThrow(/liste|list/);
     expect(() => prepareVaultRestore(JSON.stringify({ sessions: [], bots: { id: 'x' } }))).toThrow(/liste|list/);
@@ -338,6 +370,24 @@ describe('restoreVault (tables simulées)', () => {
       ),
     );
     expect([...tables.links.rows.keys()]).toEqual(['aff']);
+  });
+
+  it('coffre 2.2.1 sans portefeuille laisse les poches ; un coffre avec poche prop reconstruit equityPoints', async () => {
+    await tables.pockets.bulkPut([{ id: 'keep', name: 'Cash', kind: 'liquidites', currency: 'USD', createdAt: now }]);
+    const brut = JSON.parse(JSON.stringify(buildVaultV2({ appVersion: '2.2.1', sessions: [], trades: [], notes: [] }))) as Record<string, unknown>;
+    delete brut.pockets;
+    delete brut.positions;
+    delete brut.cashBalances;
+    delete brut.fxRates;
+    await restoreVault(JSON.stringify(brut));
+    expect([...tables.pockets.rows.keys()]).toEqual(['keep']);
+    expect(JSON.stringify(brut)).not.toContain('equityPoints');
+
+    const pocket = { id: 'p1', name: 'Apex', kind: 'propfirm', currency: 'USD', account: 'Sim', planId: 'apex-50', createdAt: now };
+    const json = JSON.stringify(buildVaultV2({ appVersion: '2.2.1', sessions: [session('s1', '2026-09-15')], trades: [], notes: [], pockets: [pocket] }));
+    expect(json).not.toContain('equityPoints');
+    await restoreVault(json);
+    expect(await tables.equityPoints.toArray()).toEqual([{ pocketId: 'p1', date: '2026-09-15', equity: 50100, pnl: 100, currency: 'USD' }]);
   });
 
   it('coffre v1 avec clé en clair (navigateur) : reprise en clair hors shell', async () => {

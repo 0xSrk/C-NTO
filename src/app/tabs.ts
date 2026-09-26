@@ -1,7 +1,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import { tr } from '@/i18n';
 import type { TabId } from '@/store/ui';
-import { IconAgent, IconBot, IconCalendar, IconCopier, IconMetric, IconNote, IconVisual } from './icons';
+import { IconAgent, IconBot, IconCalendar, IconCopier, IconMetric, IconNote, IconPortfolio, IconVisual } from './icons';
 
 export interface TabDef {
   id: TabId;
@@ -20,6 +20,7 @@ export const TABS: TabDef[] = [
   { id: 'agent', index: '05', label: 'Agent IA', code: 'AGT', tagline: 'Passerelle native · orchestrateur', icon: IconAgent },
   { id: 'bot', index: '06', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates · CONCEPTION', icon: IconBot },
   { id: 'copieur', index: '07', label: 'Copieur', code: 'CPY', tagline: 'Réplication de comptes · CONCEPTION', icon: IconCopier },
+  { id: 'portefeuille', index: '08', label: 'Portefeuille', code: 'PTF', tagline: 'Synthèse · cœur · projection', icon: IconPortfolio },
 ];
 
 const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
@@ -30,6 +31,7 @@ const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
   agent: { label: 'AI Agent', tagline: 'Native gateway · orchestrator' },
   bot: { label: 'Bot', tagline: 'Automaton workshop · DESIGN' },
   copieur: { label: 'Copier', tagline: 'Account replication · DESIGN' },
+  portefeuille: { label: 'Portfolio', tagline: 'Synthesis · heart · projection' },
 };
 
 const TAB_ES: Record<TabId, { label: string; tagline: string }> = {
@@ -40,6 +42,7 @@ const TAB_ES: Record<TabId, { label: string; tagline: string }> = {
   agent: { label: 'Agente IA', tagline: 'Pasarela nativa · orquestador' },
   bot: { label: 'Bot', tagline: 'Taller de autómatas · DISEÑO' },
   copieur: { label: 'Copiador', tagline: 'Réplica de cuentas · DISEÑO' },
+  portefeuille: { label: 'Cartera', tagline: 'Síntesis · corazón · proyección' },
 };
 
 /** Libellé et baseline de l'onglet dans la langue active. */

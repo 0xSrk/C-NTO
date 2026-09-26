@@ -78,7 +78,7 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // e.code est indépendant de la disposition clavier (AZERTY : Ctrl+& = Digit1).
-      const m = /^Digit([1-7])$/.exec(e.code);
+      const m = /^Digit([1-8])$/.exec(e.code);
       if ((e.ctrlKey || e.metaKey) && m && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         const tab = TABS[Number(m[1]) - 1];
