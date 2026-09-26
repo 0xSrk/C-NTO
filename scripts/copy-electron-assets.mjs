@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dest = path.join(root, 'dist-electron');
 mkdirSync(dest, { recursive: true });
-for (const f of ['launcher.html', 'launcher-ui.js']) {
+for (const f of ['launcher.html', 'launcher-ui.js', 'aube.js']) {
   cpSync(path.join(root, 'electron', f), path.join(dest, f));
 }
 cpSync(path.join(root, 'build', 'logo.svg'), path.join(dest, 'logo.svg'));

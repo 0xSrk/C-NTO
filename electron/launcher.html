@@ -81,6 +81,22 @@
         -webkit-app-region: drag;
       }
 
+      /* ─── Aube : lever de Terre en pixels, sous tout le reste ─── */
+      .sky {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background: var(--bg);
+      }
+      .sky canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        image-rendering: pixelated;
+      }
+
       /* ─── Réticule fixe : cadre à encoches, règles, repères de coin ─── */
       .reticle {
         position: fixed;
@@ -806,6 +822,7 @@
     </style>
   </head>
   <body>
+    <div class="sky" aria-hidden="true"><canvas id="sky"></canvas></div>
     <div class="light" aria-hidden="true"></div>
     <div class="reticle" aria-hidden="true">
       <!-- Cadre 420 × 620 : chanfreins 8 px aux angles, encoches d'axe, règle basse -->
@@ -896,6 +913,7 @@
         <p class="meta" id="meta"><span class="txt" id="meta-text">Contrôle de version…</span></p>
       </div>
     </div>
+    <script src="./aube.js"></script>
     <script src="./launcher-ui.js"></script>
   </body>
 </html>
