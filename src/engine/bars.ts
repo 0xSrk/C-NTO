@@ -21,7 +21,8 @@ export interface BarSeries {
   /** en minutes */
   timeframe: number;
   label: string;
-  source: 'demo' | 'csv';
+  /** Identifiant du registre de sources (`demo`, `csv`, …). */
+  source: string;
   bars: Bar[];
   createdAt: number;
 }
@@ -30,12 +31,12 @@ export interface BarSeries {
  * Génère des bougies synthétiques réalistes du Nasdaq (E-mini) : séance Globex 18:00→17:00 ET,
  * volatilité accrue sur RTH (9:30–16:00 ET) et pics à l'ouverture / clôture, dérive faible.
  */
-export function generateDemoBars(opts: { days?: number; timeframe?: number; seed?: number; startPrice?: number; endDate?: string } = {}): Bar[] {
+export function generateDemoBars(opts: { days?: number; timeframe?: number; seed?: number; startPrice?: number; endDate?: string; instrument?: string } = {}): Bar[] {
   const days = opts.days ?? 12;
   const tf = opts.timeframe ?? 5;
   const rand = mulberry32(opts.seed ?? 42);
   let price = opts.startPrice ?? 24_180;
-  const tick = getInstrument(DEFAULT_FUTURE).tickSize;
+  const tick = getInstrument(opts.instrument ?? DEFAULT_FUTURE).tickSize;
   const bars: Bar[] = [];
   const end = opts.endDate ? new Date(`${opts.endDate}T12:00:00`) : new Date();
   const dayKeys: string[] = [];

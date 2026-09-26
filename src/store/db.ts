@@ -240,6 +240,8 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 type Check = (rec: Record<string, unknown>) => boolean;
 const isStr = (v: unknown, max = Infinity): v is string => typeof v === 'string' && v.length <= max;
 const isInstrumentId = (v: unknown): v is string => isStr(v, 32) && /^[A-Za-z0-9][A-Za-z0-9.]{0,31}$/.test(v);
+/** `demo` et `csv` restent valides. Pas de migration Dexie : l'identifiant est déjà une chaîne. */
+const isBarSource = (v: unknown): v is string => typeof v === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(v);
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
 const inRange = (v: unknown, min: number, max: number): v is number => isNum(v) && v >= min && v <= max;
@@ -385,7 +387,7 @@ const CHECKS: Record<string, Check> = {
     isInstrumentId(r.instrument) &&
     inRange(r.timeframe, 1, 100_000) &&
     isStr(r.label, 200) &&
-    isEnum(r.source, ['demo', 'csv'] as const) &&
+    isBarSource(r.source) &&
     isNum(r.createdAt) &&
     Array.isArray(r.bars) &&
     r.bars.length <= MAX_BARS &&

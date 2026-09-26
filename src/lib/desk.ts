@@ -142,6 +142,11 @@ export interface DeskApi {
     /** `reason: 'not_granted'` = dossier jamais accordé par un dialogue sur ce poste (à rechoisir). */
     writeInFolder?: (folder: string, name: string, text: string, encrypt: boolean) => Promise<{ ok: boolean; encrypted: boolean; path?: string; reason?: 'invalid' | 'not_granted' }>;
   };
+  marketdata?: {
+    subscribe: (req: { instrument: string; kind: 'bars' | 'quote' | 'tick'; timeframe?: number; contractMonth?: string }) => Promise<{ ok: false; detail: string }>;
+    unsubscribe: (id: string) => Promise<{ ok: false; detail: string }>;
+    onEvent: (cb: (event: { kind: string }) => void) => () => void;
+  };
   calendar?: {
     fetchMacro: (
       fromDate: string,
