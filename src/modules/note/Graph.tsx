@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { CalendarEventRow } from '@/engine/calendarEvents';
+import type { Link } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
 import type { Note } from '@/store/db';
 import { extractLinks } from '@/store/notes';
@@ -13,6 +15,15 @@ interface Node {
   vy: number;
   degree: number;
   tags: number;
+  kind: 'note' | 'instrument' | 'strategie' | 'evenement';
+  /** Identifiant de note à ouvrir. Null pour un instrument ou un événement. */
+  openId: string | null;
+}
+
+interface Edge {
+  i: number;
+  j: number;
+  style: 'wiki' | 'affirme' | 'hypothese' | 'structurel';
 }
 
 const MAX_FRAMES = 600;
@@ -89,38 +100,99 @@ function repelGrid(nodes: Node[]): void {
   });
 }
 
-/** Graphe de force minimaliste (canvas) : nœuds = notes, arêtes = liens [[wiki]]. */
-export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: string | null; onOpen: (id: string) => void }) {
+function token(canvas: HTMLCanvasElement, name: string, fallback: string): string {
+  const value = getComputedStyle(canvas).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+/** Graphe de force : nœuds = notes, arêtes = liens [[wiki]] et liens typés. */
+export function Graph({ notes, activeId, onOpen, links = [], events = [] }: { notes: Note[]; activeId: string | null; onOpen: (id: string) => void; links?: Link[]; events?: CalendarEventRow[] }) {
   useI18n((st) => st.locale);
   const ref = useRef<HTMLCanvasElement>(null);
-  const state = useRef<{ nodes: Node[]; edges: [number, number][]; hover: number | null; drag: number | null; offset: { x: number; y: number }; scale: number; frame: number; wake: (() => void) | null }>({ nodes: [], edges: [], hover: null, drag: null, offset: { x: 0, y: 0 }, scale: 1, frame: 0, wake: null });
+  const [entities, setEntities] = useState(false);
+  const state = useRef<{ nodes: Node[]; edges: Edge[]; hover: number | null; drag: number | null; offset: { x: number; y: number }; scale: number; frame: number; wake: (() => void) | null }>({ nodes: [], edges: [], hover: null, drag: null, offset: { x: 0, y: 0 }, scale: 1, frame: 0, wake: null });
 
   useEffect(() => {
     const byTitle = new Map(notes.map((n, i) => [n.title.toLowerCase(), i]));
     const prev = new Map(state.current.nodes.map((n) => [n.id, n]));
-    const nodes: Node[] = notes.map((n, i) => {
-      const p = prev.get(n.id);
-      const angle = (i / Math.max(1, notes.length)) * Math.PI * 2;
-      return { id: n.id, title: n.title, x: p?.x ?? Math.cos(angle) * 160, y: p?.y ?? Math.sin(angle) * 160, vx: 0, vy: 0, degree: 0, tags: n.tags.length };
-    });
-    const edges: [number, number][] = [];
+    const place = (id: string, index: number, total: number): Pick<Node, 'x' | 'y' | 'vx' | 'vy'> => {
+      const p = prev.get(id);
+      const angle = (index / Math.max(1, total)) * Math.PI * 2;
+      return { x: p?.x ?? Math.cos(angle) * 160, y: p?.y ?? Math.sin(angle) * 160, vx: 0, vy: 0 };
+    };
+    const nodes: Node[] = notes.map((n, i) => ({
+      id: n.id,
+      title: n.title,
+      ...place(n.id, i, notes.length),
+      degree: 0,
+      tags: n.tags.length,
+      kind: 'note',
+      openId: n.id,
+    }));
+    const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
+    const edges: Edge[] = [];
+    const bump = (edge: Edge) => {
+      edges.push(edge);
+      const a = nodes[edge.i];
+      const b = nodes[edge.j];
+      if (a) a.degree++;
+      if (b) b.degree++;
+    };
     notes.forEach((n, i) => {
       for (const l of extractLinks(n.body)) {
         const j = byTitle.get(l);
-        if (j !== undefined && j !== i) {
-          edges.push([i, j]);
-          const ni = nodes[i];
-          const nj = nodes[j];
-          if (ni) ni.degree++;
-          if (nj) nj.degree++;
-        }
+        if (j !== undefined && j !== i) bump({ i, j, style: 'wiki' });
       }
     });
+    const resolve = (type: Link['from']['type'], id: string): number | undefined => {
+      if (type === 'note') return indexOf.get(id);
+      if (type === 'strategie') {
+        if (!entities) return indexOf.get(id);
+        return indexOf.get(`strategie:${id}`);
+      }
+      if (!entities) return undefined;
+      if (type === 'instrument' || type === 'evenement') return indexOf.get(`${type}:${id}`);
+      return undefined;
+    };
+    if (entities) {
+      const extra = new Map<string, Node>();
+      const titles = new Map(notes.map((n) => [n.id, n.title]));
+      const eventTitle = new Map(events.map((e) => [e.id, e.title]));
+      for (const link of links) {
+        for (const ref of [link.from, link.to]) {
+          if (ref.type !== 'instrument' && ref.type !== 'evenement' && ref.type !== 'strategie') continue;
+          const id = `${ref.type}:${ref.id}`;
+          if (extra.has(id) || (ref.type === 'strategie' && !titles.has(ref.id))) continue;
+          const title = ref.type === 'instrument' ? ref.id : ref.type === 'strategie' ? (titles.get(ref.id) ?? ref.id) : (eventTitle.get(ref.id) ?? ref.id);
+          extra.set(id, {
+            id,
+            title,
+            ...place(id, extra.size + notes.length, notes.length + 8),
+            degree: 0,
+            tags: 0,
+            kind: ref.type,
+            openId: ref.type === 'strategie' ? ref.id : null,
+          });
+        }
+      }
+      for (const node of extra.values()) {
+        indexOf.set(node.id, nodes.length);
+        nodes.push(node);
+      }
+    }
+    for (const link of links) {
+      if (link.kind === 'rejete') continue;
+      const i = resolve(link.from.type, link.from.id);
+      const j = resolve(link.to.type, link.to.id);
+      if (i === undefined || j === undefined || i === j) continue;
+      const style = link.kind === 'hypothese' ? 'hypothese' : link.kind === 'structurel' ? 'structurel' : 'affirme';
+      bump({ i, j, style });
+    }
     state.current.nodes = nodes;
     state.current.edges = edges;
     state.current.frame = 0;
     state.current.wake?.();
-  }, [notes]);
+  }, [notes, links, events, entities]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -155,9 +227,9 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
           a.vx -= a.x * 0.004;
           a.vy -= a.y * 0.004;
         }
-        for (const [i, j] of edges) {
-          const a = nodes[i];
-          const b = nodes[j];
+        for (const edge of edges) {
+          const a = nodes[edge.i];
+          const b = nodes[edge.j];
           if (!a || !b) continue;
           const dx = b.x - a.x;
           const dy = b.y - a.y;
@@ -189,25 +261,34 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(st.scale, st.scale);
-      ctx.lineWidth = 1 / st.scale;
-      for (const [i, j] of edges) {
-        const a = nodes[i];
-        const b = nodes[j];
+      const gold = token(canvas, '--gold', '#c41e3a');
+      const ice = token(canvas, '--ice', '#8fc7e8');
+      const text2 = token(canvas, '--text-2', '#8a8a8a');
+      const text3 = token(canvas, '--text-3', '#6c6c6c');
+      const text4 = token(canvas, '--text-4', '#4a4a4a');
+      for (const edge of edges) {
+        const a = nodes[edge.i];
+        const b = nodes[edge.j];
         if (!a || !b) continue;
-        const hot = st.hover === i || st.hover === j;
-        ctx.strokeStyle = hot ? 'rgba(196,30,58,0.7)' : 'rgba(255,255,255,0.12)';
+        const hot = st.hover === edge.i || st.hover === edge.j;
+        ctx.setLineDash(edge.style === 'hypothese' ? [4 / st.scale, 4 / st.scale] : []);
+        ctx.lineWidth = (edge.style === 'structurel' ? 0.6 : 1) / st.scale;
+        ctx.strokeStyle = hot ? gold : edge.style === 'structurel' ? text4 : edge.style === 'hypothese' ? text3 : 'rgba(255,255,255,0.12)';
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
         ctx.stroke();
       }
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1 / st.scale;
       nodes.forEach((n, i) => {
-        const r = 3 + Math.min(9, n.degree * 1.4);
-        const active = n.id === activeId;
+        const r = n.kind === 'note' ? 3 + Math.min(9, n.degree * 1.4) : 2.5;
+        const active = n.kind === 'note' && n.id === activeId;
         const hot = st.hover === i;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = active ? '#c41e3a' : hot ? '#ffffff' : n.title.startsWith('Journal ') ? '#8fc7e8' : '#8a8a8a';
+        const entityFill = n.kind === 'evenement' ? ice : n.kind === 'strategie' ? gold : text3;
+        ctx.fillStyle = active ? gold : hot ? '#ffffff' : n.kind === 'note' ? (n.title.startsWith('Journal ') ? ice : text2) : entityFill;
         ctx.fill();
         if (active || hot) {
           ctx.beginPath();
@@ -291,7 +372,7 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
         st.drag = null;
         const p = toWorld(e);
         const node = st.nodes[i];
-        if (node && Math.hypot(node.x - p.x, node.y - p.y) < 2) onOpen(node.id);
+        if (node?.openId && Math.hypot(node.x - p.x, node.y - p.y) < 2) onOpen(node.openId);
       }
       panning = null;
     };
@@ -319,6 +400,9 @@ export function Graph({ notes, activeId, onOpen }: { notes: Note[]; activeId: st
   return (
     <div className={s.graphWrap}>
       <canvas ref={ref} className={s.graphCanvas} />
+      <button type="button" className={`${s.graphEntities} ${entities ? s.on : ''}`} aria-pressed={entities} onClick={() => setEntities((v) => !v)}>
+        {tr('Entités', 'Entities', 'Entidades')}
+      </button>
       <div className={s.graphHint}>{tr('glisser · molette pour zoomer · clic pour ouvrir', 'drag · wheel to zoom · click to open', 'arrastrar · rueda para zoom · clic para abrir')}</div>
     </div>
   );

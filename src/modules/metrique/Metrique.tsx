@@ -5,6 +5,7 @@ import { Button, Segmented, Tag } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
 import { openTextFile, saveTextFile } from '@/lib/desk';
 import { exportVault, restoreVault } from '@/store/db';
+import { useLinks } from '@/store/links';
 import { plural } from '@/lib/format';
 import { tr, useI18n } from '@/i18n';
 import { useJournal } from '@/store/journal';
@@ -90,6 +91,7 @@ export default function Metrique() {
         useBots.getState().load(),
         useCopier.getState().load(),
         useMacro.getState().load(),
+        useLinks.getState().load(),
         useAgent.getState().load(),
         useBars.getState().load(),
       ]);

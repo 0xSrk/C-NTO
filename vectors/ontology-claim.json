@@ -1,0 +1,16 @@
+{
+  "description": "Stratégie ORB, 40 trades dont 12 pendant FOMC. La note soutient la stratégie et est pendant FOMC : seuls ces 12 comptent.",
+  "day": "2026-09-30",
+  "otherDay": "2026-09-29",
+  "fomc": { "wins": 8, "winPnl": 200, "losses": 4, "lossPnl": -100, "risk": 100 },
+  "other": { "count": 28, "pnl": 50, "risk": 100 },
+  "expected": {
+    "n": 12,
+    "expectancyR": 1,
+    "winRate": 0.6666666666666666,
+    "profitFactor": 4,
+    "sample": "faible",
+    "rMode": "risque",
+    "hand": "8×(200/100) + 4×(−100/100) = 16 − 4 = 12 ; moyenne 12/12 = 1 ; taux de gain 8/12 ; profit factor 1600/400 = 4 ; 12 < 30 donc échantillon faible"
+  }
+}

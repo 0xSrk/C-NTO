@@ -2,11 +2,14 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
 import type { BarSeries } from '@/engine/bars';
 import type { IndicatorInstance } from '@/engine/indicators';
+import { NOTE_STATUTS, type NoteStatut } from '@/engine/ontology/header';
+import { ENTITY_TYPES, LINK_AUTHORS, LINK_KINDS, PREDICATES, type Link } from '@/engine/ontology/schema';
 import type { Instrument, Session, Trade } from '@/engine/types';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { withJournalLock } from './lock';
+import { scheduleOntologyRecompute } from './ontology-schedule';
 import { mergeRestoredSettings, pickRestorableSettings } from './settings';
 import pkg from '../../package.json';
 
@@ -16,6 +19,8 @@ export interface Note {
   body: string;
   tags: string[];
   pinned?: boolean;
+  /** Statut épistémique. Absent = opinion. */
+  statut?: NoteStatut;
   createdAt: number;
   updatedAt: number;
 }
@@ -124,6 +129,7 @@ class CantoDb extends Dexie {
   copierAccounts!: EntityTable<CopierAccount, 'id'>;
   bots!: EntityTable<BotBlueprint, 'id'>;
   importedExecutions!: EntityTable<ImportedExecution, 'key'>;
+  links!: EntityTable<Link, 'id'>;
 
   constructor() {
     super('canto');
@@ -188,6 +194,9 @@ class CantoDb extends Dexie {
       // Migration v5 : suppression des publications source investing (scraping) et forexfactory.
       await tx.table('macroReleases').clear();
     });
+    this.version(6).stores({
+      links: 'id, [from.type+from.id], [to.type+to.id], predicate, kind',
+    });
   }
 }
 
@@ -221,7 +230,7 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
 /** Sauvegarde coffre JSON v2. `includeHeavy` (défaut false) ajoute barres + messages agent. */
 export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<string> {
   const includeHeavy = opts?.includeHeavy === true;
-  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, calendarEvents, barSeries, agentMessages] = await Promise.all([
+  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, calendarEvents, links, barSeries, agentMessages] = await Promise.all([
     db.sessions.toArray(),
     db.trades.toArray(),
     db.notes.toArray(),
@@ -230,6 +239,7 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
     db.copierAccounts.toArray(),
     db.bots.toArray(),
     db.calendarEvents.toArray(),
+    db.links.toArray(),
     includeHeavy ? db.barSeries.toArray() : Promise.resolve([]),
     includeHeavy ? db.agentMessages.toArray() : Promise.resolve([]),
   ]);
@@ -245,6 +255,7 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
       copier: copierAccounts,
       settings: settingsObj,
       calendarEvents,
+      links,
       includeHeavy,
       barSeries: includeHeavy ? barSeries : undefined,
       agentMessages: includeHeavy ? agentMessages : undefined,
@@ -337,6 +348,11 @@ function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string
 const isBar = (b: unknown): boolean => isRec(b) && isNum(b.time) && isNum(b.open) && isNum(b.high) && isNum(b.low) && isNum(b.close) && isNum(b.volume);
 const isRule = (r: unknown): boolean => isRec(r) && isStr(r.id, 200) && isEnum(r.kind, RULE_KINDS) && isStr(r.text, 500);
 const isToolCall = (c: unknown): boolean => isRec(c) && isStr(c.id, 200) && isStr(c.name, 100) && isStr(c.args, 100_000);
+const isEntityRef = (v: unknown): boolean => {
+  if (!isRec(v)) return false;
+  if (Object.prototype.hasOwnProperty.call(v, '__proto__') || Object.prototype.hasOwnProperty.call(v, 'constructor')) return false;
+  return isEnum(v.type, ENTITY_TYPES) && isStr(v.id, 200) && v.id.length > 0;
+};
 
 const CHECKS: Record<string, Check> = {
   sessions: (r) =>
@@ -372,7 +388,7 @@ const CHECKS: Record<string, Check> = {
     opt(r.executionIds, (v) => isStrArray(v, 64, 200)) &&
     opt(r.orderIds, (v) => isStrArray(v, 64, 200)) &&
     opt(r.contractMonth, (v) => isStr(v, 16)),
-  notes: (r) => isStr(r.title, 200) && isStr(r.body, 1_000_000) && isStrArray(r.tags, 100, 80) && isNum(r.updatedAt) && opt(r.createdAt, isNum) && opt(r.pinned, isBool),
+  notes: (r) => isStr(r.title, 200) && isStr(r.body, 1_000_000) && isStrArray(r.tags, 100, 80) && isNum(r.updatedAt) && opt(r.createdAt, isNum) && opt(r.pinned, isBool) && opt(r.statut, (v) => isEnum(v, NOTE_STATUTS)),
   calendar: (r) => isDate(r.date) && isStr(r.title, 200) && isEnum(r.kind, ['note', 'event'] as const) && opt(r.time, (v) => isStr(v, 5) && TIME_RE.test(v)) && opt(r.body, (v) => isStr(v, 20_000)),
   settings: (r) => r.key !== 'settings' || isRec(r.value),
   copierAccounts: (r) =>
@@ -441,6 +457,15 @@ const CHECKS: Record<string, Check> = {
     isNum(r.createdAt) &&
     opt(r.toolName, (v) => isStr(v, 100)) &&
     opt(r.toolCalls, (v) => Array.isArray(v) && v.length <= 64 && v.every(isToolCall)),
+  links: (r) =>
+    isEntityRef(r.from) &&
+    isEntityRef(r.to) &&
+    isEnum(r.predicate, PREDICATES) &&
+    isEnum(r.kind, LINK_KINDS) &&
+    isEnum(r.by, LINK_AUTHORS) &&
+    isNum(r.createdAt) &&
+    isNum(r.updatedAt) &&
+    opt(r.score, (v) => inRange(v, 0, 1)),
 };
 
 /**
@@ -502,6 +527,10 @@ export interface PreparedVault {
   copierAccounts: CopierAccount[];
   bots: BotBlueprint[];
   calendarEvents: CalendarEventRow[];
+  /** Liens `affirme`, `hypothese`, `rejete`. Les `structurel` sont écartés : ils seront recalculés. */
+  links: Link[];
+  /** Faux si le coffre n'a pas de champ `links` (2.1.0 et antérieurs) : la table n'est pas remplacée. */
+  linksProvided: boolean;
   barSeries: BarSeries[];
   agentMessages: AgentMessage[];
   skipped: SkippedRows;
@@ -547,12 +576,15 @@ export function prepareVaultRestore(json: string): PreparedVault {
   // Anciennes lignes investing / forexfactory : acceptées (coffre v1/v2 non rejeté) puis écartées.
   rows<MacroReleaseRow>(parsed.macroReleases, 'id', 'macroReleases', CHECKS.macroReleases!, skipped);
   const calendarEvents = rows<CalendarEventRow>(parsed.calendarEvents, 'id', 'calendarEvents', CHECKS.calendarEvents!, skipped);
+  const linksProvided = parsed.links !== undefined && parsed.links !== null;
+  const linksAll = rows<Link>(parsed.links, 'id', 'links', CHECKS.links!, skipped);
+  const links = linksAll.filter((l) => l.kind !== 'structurel');
   const barSeries = rows<BarSeries>(parsed.barSeries, 'id', 'barSeries', CHECKS.barSeries!, skipped);
   const agentMessages = rows<AgentMessage>(parsed.agentMessages, 'id', 'agentMessages', CHECKS.agentMessages!, skipped);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
   if (consistentTrades.length !== trades.length) skipped.trades = (skipped.trades ?? 0) + (trades.length - consistentTrades.length);
-  return { sessions, trades: consistentTrades, notes, calendar, settingsPatch, pendingApiKey, otherSettings, copierAccounts, bots, calendarEvents, barSeries, agentMessages, skipped };
+  return { sessions, trades: consistentTrades, notes, calendar, settingsPatch, pendingApiKey, otherSettings, copierAccounts, bots, calendarEvents, links, linksProvided, barSeries, agentMessages, skipped };
 }
 
 export interface RestoreSummary {
@@ -572,7 +604,7 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
     let apiKeyReencrypted = false;
     await db.transaction(
       'rw',
-      [db.sessions, db.trades, db.importedExecutions, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots, db.calendarEvents, db.barSeries, db.agentMessages],
+      [db.sessions, db.trades, db.importedExecutions, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots, db.calendarEvents, db.links, db.barSeries, db.agentMessages],
       async () => {
         if (v.sessions.length) {
           await db.sessions.clear();
@@ -626,6 +658,10 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
           await db.calendarEvents.clear();
           await db.calendarEvents.bulkPut(v.calendarEvents);
         }
+        if (v.linksProvided) {
+          await db.links.clear();
+          if (v.links.length) await db.links.bulkPut(v.links);
+        }
         if (v.barSeries.length) {
           await db.barSeries.clear();
           await db.barSeries.bulkPut(v.barSeries);
@@ -636,6 +672,7 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
         }
       },
     );
+    scheduleOntologyRecompute();
     const skipped = Object.values(v.skipped).reduce((a, b) => a + b, 0);
     return { sessions: v.sessions.length, trades: v.trades.length, notes: v.notes.length, apiKeyReencrypted, skipped, skippedByTable: v.skipped };
   });

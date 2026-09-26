@@ -1,3 +1,6 @@
+export { NOTE_STATUTS, bodyWithoutHeader, parseNoteHeader, slugifyTitle, writeNoteStatut } from '@/engine/ontology/header';
+export type { NoteHeader, NoteStatut } from '@/engine/ontology/header';
+
 const PLACEHOLDER = /^(?:nouvelle note|new note|nueva nota)(?: \d+)?$/i;
 
 /** Première ligne utile, si le titre est encore le placeholder. */

@@ -2,16 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconGraph, IconPlus, IconSearch, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Empty, Segmented, Tag, cx } from '@/design/primitives';
+import type { CalendarEventRow } from '@/engine/calendarEvents';
+import { NOTE_STATUTS, claimConfidence, type EntityRef, type Link, type NoteStatut, type Predicate } from '@/engine/ontology';
+import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { saveTextFile } from '@/lib/desk';
-import { plural } from '@/lib/format';
+import { fmtPct, fmtRatio, plural } from '@/lib/format';
 import { dateKeyLocal, dateTimeFormatter, formatDateFr } from '@/lib/time';
 import type { Note as NoteType } from '@/store/db';
+import { useJournal } from '@/store/journal';
+import { useLinks } from '@/store/links';
+import { useMacro } from '@/store/macro';
 import { byTitle, extractLinks, useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
 import { Graph } from './Graph';
 import { renderNote } from './markdown';
-import { suggestNoteTitle } from './title';
+import { parseNoteHeader, suggestNoteTitle } from './title';
 import s from './note.module.css';
 
 type Mode = 'editer' | 'scinde' | 'apercu';
@@ -25,6 +31,7 @@ function formatUpdated(ms: number): string {
 export default function Note() {
   useI18n((s) => s.locale);
   const { notes, activeId, setActive, create, update, remove, openByTitle, dailyNote } = useNotes();
+  const loadLinks = useLinks((st) => st.load);
   const toast = useUi((u) => u.toast);
   const confirmDialog = useUi((u) => u.confirm);
   const [query, setQuery] = useState('');
@@ -44,6 +51,10 @@ export default function Note() {
     for (const n of notes) for (const t of n.tags) m.set(t, (m.get(t) ?? 0) + 1);
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24);
   }, [notes]);
+
+  useEffect(() => {
+    void loadLinks();
+  }, [loadLinks]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -120,7 +131,7 @@ export default function Note() {
 
           {graph ? (
             <div className={s.editor}>
-              <Graph notes={notes} activeId={activeId} onOpen={openGraphNode} />
+              <NoteGraph notes={notes} activeId={activeId} onOpen={openGraphNode} />
             </div>
           ) : active ? (
             <Editor key={active.id} note={active} mode={mode} notes={notes} onChange={(patch) => update(active.id, patch)} onOpenTitle={(t) => openByTitle(t)} onTag={(t) => setTagFilter(t)} onDelete={async () => {
@@ -143,7 +154,7 @@ export default function Note() {
             </div>
           )}
 
-          <aside className={s.meta}>{active && <Meta note={active} notes={notes} onOpen={(id) => setActive(id)} onOpenTitle={(t) => openByTitle(t)} />}</aside>
+          <aside className={s.meta}>{active && <Meta note={active} notes={notes} onOpen={(id) => setActive(id)} onOpenTitle={(t) => openByTitle(t)} onStatut={(statut) => update(active.id, { statut })} />}</aside>
         </div>
       </ModuleContent>
     </>
@@ -261,9 +272,86 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
   );
 }
 
-function Meta({ note, notes, onOpen, onOpenTitle }: { note: NoteType; notes: NoteType[]; onOpen: (id: string) => void; onOpenTitle: (t: string) => void }) {
+function NoteGraph({ notes, activeId, onOpen }: { notes: NoteType[]; activeId: string | null; onOpen: (id: string) => void }) {
+  const links = useLinks((st) => st.links);
+  const events = useMacro((m) => m.events);
+  return <Graph notes={notes} activeId={activeId} onOpen={onOpen} links={links} events={events} />;
+}
+
+const PREDICATE_LABEL: Record<Predicate, [string, string, string]> = {
+  mentionne: ['Mentionne', 'Mentions', 'Menciona'],
+  pendant: ['Pendant', 'During', 'Durante'],
+  'de-la-seance': ['De la séance', 'Of the session', 'De la sesión'],
+  applique: ['Applique', 'Applies', 'Aplica'],
+  soutient: ['Soutient', 'Supports', 'Respalda'],
+  contredit: ['Contredit', 'Contradicts', 'Contradice'],
+  raffine: ['Raffine', 'Refines', 'Refina'],
+  'partie-de': ['Partie de', 'Part of', 'Parte de'],
+  cause: ['Cause', 'Causes', 'Causa'],
+  relie: ['Relie', 'Links', 'Relaciona'],
+};
+
+const CONFIRM_PREDICATES: Predicate[] = ['soutient', 'contredit', 'raffine', 'partie-de', 'cause', 'mentionne', 'relie', 'applique', 'pendant', 'de-la-seance'];
+
+const STATUT_LABEL: Record<NoteStatut, [string, string, string]> = {
+  fait: ['Fait', 'Fact', 'Hecho'],
+  modele: ['Modèle', 'Model', 'Modelo'],
+  'chiffre-non-verifie': ['Chiffre non vérifié', 'Unverified figure', 'Cifra no verificada'],
+  opinion: ['Opinion', 'Opinion', 'Opinión'],
+};
+
+const SAMPLE_LABEL: Record<'insuffisant' | 'faible' | 'moyen' | 'solide', [string, string, string]> = {
+  insuffisant: ['Insuffisant', 'Insufficient', 'Insuficiente'],
+  faible: ['Faible', 'Weak', 'Débil'],
+  moyen: ['Moyen', 'Moderate', 'Medio'],
+  solide: ['Solide', 'Solid', 'Sólido'],
+};
+
+function predicateLabel(predicate: Predicate): string {
+  const row = PREDICATE_LABEL[predicate];
+  return tr(row[0], row[1], row[2]);
+}
+
+function noteHit(ref: EntityRef, noteId: string): boolean {
+  return (ref.type === 'note' || ref.type === 'strategie') && ref.id === noteId;
+}
+
+function entityLabel(ref: EntityRef, notes: NoteType[], sessions: Session[], trades: Trade[], events: CalendarEventRow[]): string {
+  if (ref.type === 'note' || ref.type === 'strategie') return notes.find((n) => n.id === ref.id)?.title ?? ref.id;
+  if (ref.type === 'session') {
+    const session = sessions.find((row) => row.id === ref.id);
+    return session ? `${session.date}${session.account ? ` · ${session.account}` : ''}` : ref.id;
+  }
+  if (ref.type === 'trade') {
+    const trade = trades.find((row) => row.id === ref.id);
+    return trade ? `${trade.instrument}` : ref.id;
+  }
+  if (ref.type === 'evenement') return events.find((event) => event.id === ref.id)?.title ?? ref.id;
+  return ref.id;
+}
+
+function Meta({ note, notes, onOpen, onOpenTitle, onStatut }: { note: NoteType; notes: NoteType[]; onOpen: (id: string) => void; onOpenTitle: (t: string) => void; onStatut: (statut: NoteStatut) => void }) {
   useI18n((s) => s.locale);
+  const links = useLinks((st) => st.links);
+  const promote = useLinks((st) => st.promote);
+  const reject = useLinks((st) => st.reject);
+  const removeLink = useLinks((st) => st.remove);
+  const sessions = useJournal((j) => j.sessions);
+  const trades = useJournal((j) => j.trades);
+  const events = useMacro((m) => m.events);
+  const [choice, setChoice] = useState<Record<string, Predicate>>({});
   const outgoing = extractLinks(note.body);
+  const related = links.filter((link) => link.kind !== 'rejete' && (noteHit(link.from, note.id) || noteHit(link.to, note.id)));
+  const grouped = new Map<Predicate, Link[]>();
+  for (const link of related) {
+    const list = grouped.get(link.predicate);
+    if (list) list.push(link);
+    else grouped.set(link.predicate, [link]);
+  }
+  const predicates = [...grouped.keys()].sort((a, b) => CONFIRM_PREDICATES.indexOf(a) - CONFIRM_PREDICATES.indexOf(b));
+  const claimed = links.some((link) => link.from.type === 'note' && link.from.id === note.id && (link.predicate === 'soutient' || link.predicate === 'contredit') && (link.kind === 'affirme' || link.kind === 'structurel'));
+  const confidence = claimed ? claimConfidence({ type: 'note', id: note.id }, links, trades, sessions, events) : null;
+  const statut = note.statut ?? parseNoteHeader(note.body).statut ?? 'opinion';
   const backlinks = notes.filter((n) => n.id !== note.id && extractLinks(n.body).includes(note.title.toLowerCase()));
   const context = (n: NoteType) => {
     const idx = n.body.toLowerCase().indexOf(`[[${note.title.toLowerCase()}`);
@@ -316,8 +404,85 @@ function Meta({ note, notes, onOpen, onOpenTitle }: { note: NoteType; notes: Not
       </div>
       <div className={s.metaSection}>
         <div className={s.metaTitle}>
+          <span>{tr('Relations', 'Relations', 'Relaciones')}</span>
+          <span>{related.length}</span>
+        </div>
+        {related.length === 0 && <small>{tr('Aucun lien typé pour cette note.', 'No typed link for this note.', 'Ningún enlace tipado para esta nota.')}</small>}
+        {predicates.map((predicate) => (
+          <div key={predicate} className={s.relRow}>
+            <span className="micro">{predicateLabel(predicate)}</span>
+            {(grouped.get(predicate) ?? []).map((link) => {
+              const incoming = !noteHit(link.from, note.id);
+              const ref = incoming ? link.from : link.to;
+              const label = entityLabel(ref, notes, sessions, trades, events);
+              const openable = ref.type === 'note' || ref.type === 'strategie';
+              return (
+                <div key={link.id}>
+                  {openable ? (
+                    <button className={s.linkItem} onClick={() => onOpen(ref.id)}>
+                      {incoming ? '← ' : ''}
+                      {label}
+                    </button>
+                  ) : (
+                    <div className={s.linkItem}>{label}</div>
+                  )}
+                  {link.kind === 'hypothese' && (
+                    <div className={s.relActions}>
+                      <small>{Math.round((link.score ?? 0) * 100)} %</small>
+                      <select className={s.metaSelect} aria-label={tr('Prédicat', 'Predicate', 'Predicado')} value={choice[link.id] ?? 'soutient'} onChange={(e) => setChoice((cur) => ({ ...cur, [link.id]: e.target.value as Predicate }))}>
+                        {CONFIRM_PREDICATES.map((item) => (
+                          <option key={item} value={item}>
+                            {predicateLabel(item)}
+                          </option>
+                        ))}
+                      </select>
+                      <Button size="sm" variant="ghost" onClick={() => promote(link.id, choice[link.id] ?? 'soutient')}>
+                        {tr('Confirmer', 'Confirm', 'Confirmar')}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => reject(link.id)}>
+                        {tr('Rejeter', 'Reject', 'Rechazar')}
+                      </Button>
+                    </div>
+                  )}
+                  {link.kind === 'affirme' && (
+                    <Button size="sm" variant="ghost" onClick={() => removeLink(link.id)}>
+                      {tr('Retirer', 'Remove', 'Quitar')}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      {confidence && (
+        <div className={s.metaSection}>
+          <div className={s.metaTitle}>
+            <span>{tr('Confiance', 'Confidence', 'Confianza')}</span>
+            <span>{tr(SAMPLE_LABEL[confidence.sample][0], SAMPLE_LABEL[confidence.sample][1], SAMPLE_LABEL[confidence.sample][2])}</span>
+          </div>
+          <small>
+            {confidence.n} trades · {tr('espérance', 'expectancy', 'esperanza')} {fmtRatio(confidence.expectancyR)} R · {tr('taux de gain', 'win rate', 'tasa de acierto')} {fmtPct(confidence.winRate)}
+            <br />
+            {tr('facteur de profit', 'profit factor', 'factor de beneficio')} {Number.isFinite(confidence.profitFactor) ? fmtRatio(confidence.profitFactor) : '∞'} ·{' '}
+            {confidence.rMode === 'risque' ? tr('R sur risque', 'R on risk', 'R sobre riesgo') : tr('R approximé (4 ticks)', 'Approximate R (4 ticks)', 'R aproximada (4 ticks)')}
+          </small>
+        </div>
+      )}
+      <div className={s.metaSection}>
+        <div className={s.metaTitle}>
           <span>{tr('Propriétés', 'Properties', 'Propiedades')}</span>
         </div>
+        <label className={s.relActions}>
+          <span className="micro">{tr('Statut', 'Status', 'Estado')}</span>
+          <select className={s.metaSelect} aria-label={tr('Statut épistémique', 'Epistemic status', 'Estado epistémico')} value={statut} onChange={(e) => onStatut(e.target.value as NoteStatut)}>
+            {NOTE_STATUTS.map((item) => (
+              <option key={item} value={item}>
+                {tr(STATUT_LABEL[item][0], STATUT_LABEL[item][1], STATUT_LABEL[item][2])}
+              </option>
+            ))}
+          </select>
+        </label>
         <small>
           {tr('Créée le', 'Created', 'Creada el')} {formatDateFr(dateKeyLocal(new Date(note.createdAt)), { short: true })} · {tr('modifiée', 'updated', 'modificada')} {formatUpdated(note.updatedAt)}
           <br />

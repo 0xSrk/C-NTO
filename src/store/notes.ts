@@ -1,25 +1,15 @@
+import { parseNoteHeader, writeNoteStatut } from '@/engine/ontology/header';
+import { splitCode } from '@/engine/ontology/text';
 import { tr } from '@/i18n';
 import { create } from 'zustand';
 import { uid } from '@/lib/id';
 import { db, type Note } from './db';
+import { scheduleOntologyRecompute } from './ontology-schedule';
+
+export { splitCode };
 
 export const WIKILINK_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g;
 export const TAG_RE = /(^|\s)#([\p{L}\p{N}_\-/]+)/gu;
-
-/** Segmente un Markdown en parties texte / code (blocs ``` et `inline`) pour ne transformer que le texte. */
-export function splitCode(body: string): { text: string; code: boolean }[] {
-  const parts: { text: string; code: boolean }[] = [];
-  const re = /(```[\s\S]*?```|`[^`\n]*`)/g;
-  let last = 0;
-  for (const m of body.matchAll(re)) {
-    const i = m.index ?? 0;
-    if (i > last) parts.push({ text: body.slice(last, i), code: false });
-    parts.push({ text: m[0], code: true });
-    last = i + m[0].length;
-  }
-  if (last < body.length) parts.push({ text: body.slice(last), code: false });
-  return parts;
-}
 
 function prose(body: string): string {
   return splitCode(body)
@@ -151,7 +141,7 @@ interface NotesState {
   activeId: string | null;
   load: () => Promise<void>;
   create: (title?: string, body?: string, tags?: string[]) => Promise<Note>;
-  update: (id: string, patch: Partial<Pick<Note, 'title' | 'body' | 'pinned'>>) => Promise<void>;
+  update: (id: string, patch: Partial<Pick<Note, 'title' | 'body' | 'pinned' | 'statut'>>) => Promise<void>;
   remove: (id: string) => Promise<void>;
   setActive: (id: string | null) => void;
   openByTitle: (title: string) => Promise<Note>;
@@ -194,9 +184,19 @@ export const useNotes = create<NotesState>((set, get) => ({
     let finalTitle = title;
     let i = 2;
     while (byTitle(get().notes, finalTitle)) finalTitle = `${title} ${i++}`;
-    const note: Note = { id: uid('n'), title: finalTitle, body, tags: [...new Set([...tags, ...extractTags(body)])], createdAt: now, updatedAt: now };
+    const header = parseNoteHeader(body);
+    const note: Note = {
+      id: uid('n'),
+      title: finalTitle,
+      body,
+      tags: [...new Set([...tags, ...extractTags(body)])],
+      ...(header.statut ? { statut: header.statut } : {}),
+      createdAt: now,
+      updatedAt: now,
+    };
     await db.notes.add(note);
     set({ notes: [note, ...get().notes], activeId: note.id });
+    scheduleOntologyRecompute();
     return note;
   },
 
@@ -205,7 +205,19 @@ export const useNotes = create<NotesState>((set, get) => ({
     // Mise à jour partielle : aucun instantané pris avant l'attente n'est réécrit, donc deux
     // patches entrelacés (épingle + corps différé) se cumulent au lieu de s'écraser.
     const delta: Partial<Note> = { ...patch, updatedAt: Date.now() };
-    if (patch.body !== undefined) delta.tags = extractTags(patch.body);
+    if (patch.statut !== undefined && patch.body === undefined) {
+      const cur = get().notes.find((n) => n.id === id);
+      if (cur) delta.body = writeNoteStatut(cur.body, patch.statut);
+    } else if (patch.body !== undefined && patch.statut !== undefined) {
+      delta.body = writeNoteStatut(patch.body, patch.statut);
+    }
+    if (delta.body !== undefined) {
+      delta.tags = extractTags(delta.body);
+      if (patch.statut === undefined) {
+        const header = parseNoteHeader(delta.body);
+        if (header.statut) delta.statut = header.statut;
+      }
+    }
     await db.notes.update(id, delta);
     set((s) => {
       const cur = s.notes.find((n) => n.id === id);
@@ -213,12 +225,14 @@ export const useNotes = create<NotesState>((set, get) => ({
       const next: Note = { ...cur, ...delta };
       return { notes: [next, ...s.notes.filter((n) => n.id !== id)] };
     });
+    scheduleOntologyRecompute();
   },
 
   async remove(id) {
     await db.notes.delete(id);
     const notes = get().notes.filter((n) => n.id !== id);
     set({ notes, activeId: get().activeId === id ? notes[0]?.id ?? null : get().activeId });
+    scheduleOntologyRecompute();
   },
 
   setActive: (id) => set({ activeId: id }),

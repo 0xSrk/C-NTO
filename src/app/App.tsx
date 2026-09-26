@@ -8,7 +8,9 @@ import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
+import { useLinks } from '@/store/links';
 import { useNotes } from '@/store/notes';
+import { scheduleOntologyRecompute } from '@/store/ontology-schedule';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { requestPersistence } from '@/store/db';
@@ -85,7 +87,8 @@ function boot(): Promise<void> {
       step('engine', async () => ['ok', tr('ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm')]),
       step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} ${tr('repères', 'markers', 'referencias')} ${year}`]),
       step('notes', async () => {
-        await Promise.all([useNotes.getState().load(), useCalendar.getState().load(), useMacro.getState().load()]);
+        await Promise.all([useNotes.getState().load(), useCalendar.getState().load(), useMacro.getState().load(), useLinks.getState().load()]);
+        scheduleOntologyRecompute();
         void useMacro.getState().sync();
         return ['ok', plural(useNotes.getState().notes.length, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))];
       }),

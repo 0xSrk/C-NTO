@@ -10,6 +10,7 @@ import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '
 import { uid } from '@/lib/id';
 import { db, type ImportedExecution } from './db';
 import { withJournalLock } from './lock';
+import { scheduleOntologyRecompute } from './ontology-schedule';
 import { useUi } from './ui';
 
 interface JournalState {
@@ -75,6 +76,7 @@ export const useJournal = create<JournalState>((set, get) => ({
       await db.trades.bulkAdd(trades);
     });
     await get().load();
+    scheduleOntologyRecompute();
     return sessions.length;
   },
 
@@ -125,12 +127,14 @@ export const useJournal = create<JournalState>((set, get) => ({
     };
     await db.sessions.add(s);
     set({ sessions: sortSessions([...get().sessions, s]) });
+    scheduleOntologyRecompute();
     return s;
   },
 
   async updateSession(id, patch) {
     await db.sessions.update(id, { ...patch, updatedAt: Date.now() });
     set({ sessions: get().sessions.map((s) => (s.id === id ? { ...s, ...patch, updatedAt: Date.now() } : s)) });
+    scheduleOntologyRecompute();
   },
 
   async deleteSession(id) {
@@ -150,6 +154,7 @@ export const useJournal = create<JournalState>((set, get) => ({
       sessions: get().sessions.filter((s) => !idSet.has(s.id)),
       trades: get().trades.filter((t) => !idSet.has(t.sessionId)),
     });
+    scheduleOntologyRecompute();
   },
 
   async restoreSessions(sessions, trades, executions = []) {
@@ -165,11 +170,13 @@ export const useJournal = create<JournalState>((set, get) => ({
       sessions: sortSessions([...get().sessions, ...sessions.filter((s) => !sessionIds.has(s.id))]),
       trades: [...get().trades, ...trades.filter((t) => !tradeIds.has(t.id))],
     });
+    scheduleOntologyRecompute();
   },
 
   async updateTrade(id, patch) {
     await db.trades.update(id, patch);
     set({ trades: get().trades.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+    scheduleOntologyRecompute();
   },
 
   async clearAll() {
@@ -179,6 +186,7 @@ export const useJournal = create<JournalState>((set, get) => ({
       await db.importedExecutions.clear();
     });
     set({ sessions: [], trades: [] });
+    scheduleOntologyRecompute();
   },
 }));
 
@@ -270,6 +278,7 @@ async function mergeImport(result: ImportResult): Promise<ImportResult & { added
       if (execRows.length) await db.importedExecutions.bulkPut(execRows);
     });
     await useJournal.getState().load();
+    scheduleOntologyRecompute();
   }
   return { ...result, added, merged, newTrades: toAddTrades.length };
 }

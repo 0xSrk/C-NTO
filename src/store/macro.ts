@@ -4,6 +4,7 @@ import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { addDays, dateKeyLocal } from '@/lib/time';
 import { db } from './db';
+import { scheduleOntologyRecompute } from './ontology-schedule';
 
 /** Au lancement, on ne retélécharge pas si la dernière synchro a moins de 12 h. */
 const LAUNCH_STALE_MS = 12 * 60 * 60 * 1000;
@@ -86,6 +87,7 @@ export const useMacro = create<MacroState>((set, get) => ({
         lastError,
         lastSyncedAt: events.length ? Math.max(syncedAt, events.reduce((m, r) => Math.max(m, r.syncedAt), 0)) : cachedAt,
       });
+      scheduleOntologyRecompute();
     } catch (e) {
       set({
         syncing: false,
