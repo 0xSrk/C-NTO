@@ -4,6 +4,8 @@ import type { BarSeries } from '@/engine/bars';
 import type { IndicatorInstance } from '@/engine/indicators';
 import { NOTE_STATUTS, type NoteStatut } from '@/engine/ontology/header';
 import { ENTITY_TYPES, LINK_AUTHORS, LINK_KINDS, PREDICATES, type Link } from '@/engine/ontology/schema';
+import { buildEquityPoints } from '@/engine/portfolio/equity';
+import { CREATABLE_POCKET_KINDS, assertNoCryptoPockets, type CashBalance, type EquityPoint, type FxRate, type Pocket, type Position } from '@/engine/portfolio/types';
 import type { Instrument, Session, Trade } from '@/engine/types';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { tr } from '@/i18n';
@@ -130,6 +132,11 @@ class CantoDb extends Dexie {
   bots!: EntityTable<BotBlueprint, 'id'>;
   importedExecutions!: EntityTable<ImportedExecution, 'key'>;
   links!: EntityTable<Link, 'id'>;
+  pockets!: EntityTable<Pocket, 'id'>;
+  positions!: EntityTable<Position, 'id'>;
+  cashBalances!: EntityTable<CashBalance, 'id'>;
+  fxRates!: EntityTable<FxRate, 'pair'>;
+  equityPoints!: EntityTable<EquityPoint, 'pocketId'>;
 
   constructor() {
     super('canto');
@@ -197,6 +204,13 @@ class CantoDb extends Dexie {
     this.version(6).stores({
       links: 'id, [from.type+from.id], [to.type+to.id], predicate, kind',
     });
+    this.version(7).stores({
+      pockets: 'id, kind, account',
+      positions: 'id, pocketId, symbol, closedAt',
+      cashBalances: 'id, pocketId',
+      fxRates: 'pair',
+      equityPoints: '[pocketId+date], date',
+    });
   }
 }
 
@@ -230,7 +244,7 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
 /** Sauvegarde coffre JSON v2. `includeHeavy` (défaut false) ajoute barres + messages agent. */
 export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<string> {
   const includeHeavy = opts?.includeHeavy === true;
-  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, calendarEvents, links, barSeries, agentMessages] = await Promise.all([
+  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, calendarEvents, links, pockets, positions, cashBalances, fxRates, barSeries, agentMessages] = await Promise.all([
     db.sessions.toArray(),
     db.trades.toArray(),
     db.notes.toArray(),
@@ -240,6 +254,10 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
     db.bots.toArray(),
     db.calendarEvents.toArray(),
     db.links.toArray(),
+    db.pockets.toArray(),
+    db.positions.toArray(),
+    db.cashBalances.toArray(),
+    db.fxRates.toArray(),
     includeHeavy ? db.barSeries.toArray() : Promise.resolve([]),
     includeHeavy ? db.agentMessages.toArray() : Promise.resolve([]),
   ]);
@@ -256,6 +274,10 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
       settings: settingsObj,
       calendarEvents,
       links,
+      pockets,
+      positions,
+      cashBalances,
+      fxRates,
       includeHeavy,
       barSeries: includeHeavy ? barSeries : undefined,
       agentMessages: includeHeavy ? agentMessages : undefined,
@@ -312,7 +334,7 @@ const SIZING_MODES = ['fixe', 'ratio', 'risque'] as const;
 export type SkippedRows = Record<string, number>;
 
 /** Ne conserve que des objets simples, porteurs d'une clé chaîne et conformes à leur table. Les lignes invalides sont comptées, pas levées. */
-function rows<T extends object>(input: unknown, key: 'id' | 'key', label: string, check: Check, skipped: SkippedRows): T[] {
+function rows<T extends object>(input: unknown, key: 'id' | 'key' | 'pair', label: string, check: Check, skipped: SkippedRows): T[] {
   if (input === undefined || input === null) return [];
   if (!Array.isArray(input)) throw new Error(tr(`Sauvegarde invalide : « ${label} » doit être une liste.`, `Invalid backup: “${label}” must be a list.`, `Copia inválida: « ${label} » debe ser una lista.`));
   if (input.length > MAX_ROWS) throw new Error(tr(`Sauvegarde invalide : « ${label} » dépasse ${MAX_ROWS} lignes.`, `Invalid backup: “${label}” exceeds ${MAX_ROWS} rows.`, `Copia inválida: « ${label} » supera ${MAX_ROWS} filas.`));
@@ -466,6 +488,34 @@ const CHECKS: Record<string, Check> = {
     isNum(r.createdAt) &&
     isNum(r.updatedAt) &&
     opt(r.score, (v) => inRange(v, 0, 1)),
+  pockets: (r) =>
+    isStr(r.name, 120) &&
+    r.name.length > 0 &&
+    isEnum(r.kind, CREATABLE_POCKET_KINDS) &&
+    isStr(r.currency, 3) &&
+    /^[A-Z]{3}$/.test(r.currency) &&
+    isNum(r.createdAt) &&
+    opt(r.account, (v) => isStr(v, 64)) &&
+    opt(r.planId, (v) => isStr(v, 64)) &&
+    opt(r.venue, (v) => isStr(v, 120)) &&
+    opt(r.archivedAt, isNum),
+  positions: (r) =>
+    isStr(r.pocketId, 200) &&
+    isStr(r.symbol, 32) &&
+    r.symbol.length > 0 &&
+    isNum(r.quantity) &&
+    isNum(r.avgPrice) &&
+    isStr(r.currency, 3) &&
+    /^[A-Z]{3}$/.test(r.currency) &&
+    isNum(r.openedAt) &&
+    opt(r.label, (v) => isStr(v, 120)) &&
+    opt(r.lastPrice, isNum) &&
+    opt(r.lastPriceAt, isNum) &&
+    opt(r.multiplier, isNum) &&
+    opt(r.closedAt, isNum) &&
+    opt(r.realizedPnl, isNum),
+  cashBalances: (r) => isStr(r.pocketId, 200) && isStr(r.currency, 3) && /^[A-Z]{3}$/.test(r.currency) && isNum(r.amount) && isNum(r.at),
+  fxRates: (r) => isStr(r.pair, 6) && /^[A-Z]{6}$/.test(r.pair) && isNum(r.rate) && r.rate > 0 && isNum(r.at) && r.by === 'utilisateur',
 };
 
 /**
@@ -533,6 +583,15 @@ export interface PreparedVault {
   linksProvided: boolean;
   barSeries: BarSeries[];
   agentMessages: AgentMessage[];
+  pockets: Pocket[];
+  positions: Position[];
+  cashBalances: CashBalance[];
+  fxRates: FxRate[];
+  /** Faux si le coffre n'a pas le champ : la table n'est pas remplacée (coffre 2.2.x). */
+  pocketsProvided: boolean;
+  positionsProvided: boolean;
+  cashProvided: boolean;
+  fxProvided: boolean;
   skipped: SkippedRows;
 }
 
@@ -540,6 +599,7 @@ export interface PreparedVault {
 export function prepareVaultRestore(json: string): PreparedVault {
   if (json.length > 400 * 1024 * 1024) throw new Error(tr('Sauvegarde trop volumineuse.', 'Backup too large.', 'Copia demasiado grande.'));
   const parsed = parseVaultJson(json);
+  assertNoCryptoPockets(parsed.pockets);
   const skipped: SkippedRows = {};
   const sessions = coerceSessions(rows<Session>(parsed.sessions, 'id', 'sessions', CHECKS.sessions!, skipped));
   const trades = rows<Trade>(parsed.trades, 'id', 'trades', CHECKS.trades!, skipped);
@@ -581,10 +641,42 @@ export function prepareVaultRestore(json: string): PreparedVault {
   const links = linksAll.filter((l) => l.kind !== 'structurel');
   const barSeries = rows<BarSeries>(parsed.barSeries, 'id', 'barSeries', CHECKS.barSeries!, skipped);
   const agentMessages = rows<AgentMessage>(parsed.agentMessages, 'id', 'agentMessages', CHECKS.agentMessages!, skipped);
+  const pocketsProvided = parsed.pockets !== undefined && parsed.pockets !== null;
+  const positionsProvided = parsed.positions !== undefined && parsed.positions !== null;
+  const cashProvided = parsed.cashBalances !== undefined && parsed.cashBalances !== null;
+  const fxProvided = parsed.fxRates !== undefined && parsed.fxRates !== null;
+  const pockets = rows<Pocket>(parsed.pockets, 'id', 'pockets', CHECKS.pockets!, skipped);
+  const positions = rows<Position>(parsed.positions, 'id', 'positions', CHECKS.positions!, skipped);
+  const cashBalances = rows<CashBalance>(parsed.cashBalances, 'id', 'cashBalances', CHECKS.cashBalances!, skipped);
+  const fxRates = rows<FxRate>(parsed.fxRates, 'pair', 'fxRates', CHECKS.fxRates!, skipped);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
   if (consistentTrades.length !== trades.length) skipped.trades = (skipped.trades ?? 0) + (trades.length - consistentTrades.length);
-  return { sessions, trades: consistentTrades, notes, calendar, settingsPatch, pendingApiKey, otherSettings, copierAccounts, bots, calendarEvents, links, linksProvided, barSeries, agentMessages, skipped };
+  return {
+    sessions,
+    trades: consistentTrades,
+    notes,
+    calendar,
+    settingsPatch,
+    pendingApiKey,
+    otherSettings,
+    copierAccounts,
+    bots,
+    calendarEvents,
+    links,
+    linksProvided,
+    barSeries,
+    agentMessages,
+    pockets,
+    positions,
+    cashBalances,
+    fxRates,
+    pocketsProvided,
+    positionsProvided,
+    cashProvided,
+    fxProvided,
+    skipped,
+  };
 }
 
 export interface RestoreSummary {
@@ -604,7 +696,25 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
     let apiKeyReencrypted = false;
     await db.transaction(
       'rw',
-      [db.sessions, db.trades, db.importedExecutions, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots, db.calendarEvents, db.links, db.barSeries, db.agentMessages],
+      [
+        db.sessions,
+        db.trades,
+        db.importedExecutions,
+        db.notes,
+        db.calendar,
+        db.settings,
+        db.copierAccounts,
+        db.bots,
+        db.calendarEvents,
+        db.links,
+        db.barSeries,
+        db.agentMessages,
+        db.pockets,
+        db.positions,
+        db.cashBalances,
+        db.fxRates,
+        db.equityPoints,
+      ],
       async () => {
         if (v.sessions.length) {
           await db.sessions.clear();
@@ -670,6 +780,33 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
           await db.agentMessages.clear();
           await db.agentMessages.bulkPut(v.agentMessages);
         }
+        if (v.pocketsProvided) {
+          await db.pockets.clear();
+          if (v.pockets.length) await db.pockets.bulkPut(v.pockets);
+        }
+        if (v.positionsProvided) {
+          await db.positions.clear();
+          if (v.positions.length) await db.positions.bulkPut(v.positions);
+        }
+        if (v.cashProvided) {
+          await db.cashBalances.clear();
+          if (v.cashBalances.length) await db.cashBalances.bulkPut(v.cashBalances);
+        }
+        if (v.fxProvided) {
+          await db.fxRates.clear();
+          if (v.fxRates.length) await db.fxRates.bulkPut(v.fxRates);
+        }
+        // equityPoints n'est pas dans le coffre : on le reconstruit sur l'état écrit.
+        const [sessionsNow, pocketsNow, positionsNow, cashNow, fxNow] = await Promise.all([
+          db.sessions.toArray(),
+          db.pockets.toArray(),
+          db.positions.toArray(),
+          db.cashBalances.toArray(),
+          db.fxRates.toArray(),
+        ]);
+        const points = buildEquityPoints(pocketsNow, { sessions: sessionsNow, positions: positionsNow, cash: cashNow, fx: fxNow });
+        await db.equityPoints.clear();
+        if (points.length) await db.equityPoints.bulkPut(points);
       },
     );
     scheduleOntologyRecompute();

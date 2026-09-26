@@ -55,6 +55,14 @@ export const IconBot = (p: P) => (
   </svg>
 );
 
+export const IconPortfolio = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M2.5 3.5h11v10h-11z" />
+    <path d="M2.5 6.5h11M2.5 9.5h11" />
+    <path d="M6 3.5v10" opacity=".45" />
+  </svg>
+);
+
 export const IconCopier = (p: P) => (
   <svg {...base(p)}>
     <rect x="2" y="2" width="8" height="8" />

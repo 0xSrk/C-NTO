@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { uid } from '@/lib/id';
 
-export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur';
+export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur' | 'portefeuille';
 
 export interface Toast {
   id: string;

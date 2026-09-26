@@ -65,6 +65,8 @@ export interface Settings {
   /** `dev` : clone git (pull + relance). Conservé pour l’UI ; un checkout git tire toujours origin/main. */
   updateChannel: 'release' | 'dev';
   llmAllowedHosts: string[];
+  /** Devise de base du portefeuille (ISO 4217). */
+  portfolio: { baseCurrency: string };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -96,6 +98,7 @@ export const DEFAULT_SETTINGS: Settings = {
   orchestratorAllowWrite: false,
   updateChannel: 'release',
   llmAllowedHosts: [],
+  portfolio: { baseCurrency: 'USD' },
 };
 
 interface SettingsState {
@@ -199,11 +202,18 @@ export function coerceSettings(raw: unknown, base: Settings): Settings {
     orchestratorAllowWrite: pickBool(r.orchestratorAllowWrite, base.orchestratorAllowWrite),
     updateChannel: pickEnum(r.updateChannel, ['release', 'dev'] as const, base.updateChannel),
     llmAllowedHosts: hosts,
+    portfolio: coercePortfolio(r.portfolio, base.portfolio),
   };
 }
 
+function coercePortfolio(raw: unknown, base: Settings['portfolio']): Settings['portfolio'] {
+  const r = asRecord(raw);
+  const code = typeof r?.baseCurrency === 'string' ? r.baseCurrency.trim().toUpperCase() : '';
+  return { baseCurrency: /^[A-Z]{3}$/.test(code) ? code : base.baseCurrency };
+}
+
 /** Clés d'un coffre autorisées à écraser les réglages locaux (jamais orchestrateur, sauvegarde, hôtes LLM, secrets). */
-export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto'] as const;
+export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
 export const RESTORABLE_AGENT_KEYS = ['provider', 'baseUrl', 'model', 'systemPrompt', 'temperature', 'toolsEnabled'] as const;
 
 /** Ne garde d'un objet `settings` de coffre que les clés restaurables (typées ensuite par `coerceSettings`). */

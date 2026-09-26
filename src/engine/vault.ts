@@ -16,6 +16,11 @@ export interface VaultV2 {
   calendarEvents?: unknown[];
   /** Liens typés. Absent sur un coffre 2.1.0 ou antérieur : la restauration l'accepte. */
   links?: unknown[];
+  /** Portefeuille. Absents sur un coffre 2.2.x antérieur : la restauration les accepte. */
+  pockets?: unknown[];
+  positions?: unknown[];
+  cashBalances?: unknown[];
+  fxRates?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
 }
@@ -33,6 +38,10 @@ export interface VaultParts {
   macroReleases?: unknown[];
   calendarEvents?: unknown[];
   links?: unknown[];
+  pockets?: unknown[];
+  positions?: unknown[];
+  cashBalances?: unknown[];
+  fxRates?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
   includeHeavy?: boolean;
@@ -50,6 +59,10 @@ export interface ParsedVault {
   macroReleases: unknown;
   calendarEvents: unknown;
   links: unknown;
+  pockets: unknown;
+  positions: unknown;
+  cashBalances: unknown;
+  fxRates: unknown;
   barSeries: unknown;
   agentMessages: unknown;
 }
@@ -86,6 +99,10 @@ export function buildVaultV2(input: VaultParts): VaultV2 {
   if (input.macroReleases) vault.macroReleases = input.macroReleases;
   vault.calendarEvents = input.calendarEvents ?? [];
   vault.links = input.links ?? [];
+  if (input.pockets) vault.pockets = input.pockets;
+  if (input.positions) vault.positions = input.positions;
+  if (input.cashBalances) vault.cashBalances = input.cashBalances;
+  if (input.fxRates) vault.fxRates = input.fxRates;
   if (input.includeHeavy === true) {
     if (input.barSeries) vault.barSeries = input.barSeries;
     if (input.agentMessages) vault.agentMessages = input.agentMessages;
@@ -130,6 +147,10 @@ export function parseVaultJson(json: string): ParsedVault {
     macroReleases: rec.macroReleases,
     calendarEvents: rec.calendarEvents,
     links: rec.links,
+    pockets: rec.pockets,
+    positions: rec.positions,
+    cashBalances: rec.cashBalances,
+    fxRates: rec.fxRates,
     barSeries: rec.barSeries,
     agentMessages: rec.agentMessages,
   };

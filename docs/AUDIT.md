@@ -279,4 +279,34 @@ Recalcul après écriture de note, séance, trade ou synchro calendrier, debounc
 
 Le transfert vers le desk ne dépend jamais d'une image rendue : filet à `CFG.pre + 400 ms`, `stop()` résout l'attente, `finally` dans `playTransfer`.
 
+## Portefeuille (v3, tâche 7)
+
+Module 08 · PTF. Synthèse locale : ce que le desk vaut, ce qu'il risque, ce que ça projette. Pas de montée de version (la 3.0.0 est la tâche 8). Aucune source réseau nouvelle.
+
+**Modèle.** Dexie `version(7)`, tables additives seulement : `pockets` (`id, kind, account`), `positions` (`id, pocketId, symbol, closedAt`), `cashBalances` (`id, pocketId`), `fxRates` (`pair`), `equityPoints` (`[pocketId+date], date`). `PocketKind` inclut `'crypto'`, réservé : le formulaire ne le propose pas, la création lève, et la restauration d'un coffre qui porte `kind: 'crypto'` lève « Poche crypto refusée : la crypto est hors périmètre de CΛNTO. » Les poches possibles : prop firm, futures, actions, indices, forex, commodités, CFD, liquidités. Réglage `portfolio.baseCurrency`, défaut `USD`, devise ISO sur 3 lettres.
+
+**Valorisation** (`valuePocket`, pur). La journée est celle de Globex : `tradingDayKey` à 18:00 America/New_York. La date d'une séance n'est pas re-découpée.
+
+- Prop firm : `plan.accountSize + Σ pnl` des séances du compte. Si un instantané du pont pour ce compte a moins de 60 s, l'équité devient `cashValue + unrealizedPnl` et **remplace** le journal (le réalisé n'est pas compté deux fois). Marque « pont » ou « journal ». Distances via `evaluatePlan` : drawdown restant, objectif restant, perte journalière, jours. Alerte si le drawdown restant est à 25 % ou moins du drawdown maximal du plan.
+- Futures sans plan : cash saisi + Σ pnl des séances, même remplacement par le pont vivant.
+- Traditionnel : `Σ quantity × (dernier prix ?? prix de revient) × multiplicateur` + cash de la poche. Le dernier prix est saisi, ou lu d'un `MarketDataPort` déjà ouvert. Le module n'en crée pas, et aucun n'est branché aujourd'hui : la marque reste le prix saisi, ou le prix de revient. `unrealized` est `null` dès qu'une position ouverte n'a pas de dernier prix — affiché « au prix de revient », jamais 0.
+- Liquidités : somme des cash.
+- Change : taux saisis (`EURUSD` = 1 EUR pour `rate` USD). L'inverse est déduit. Pas de triangulation. Taux manquant : la poche est exclue du total, raison `taux EUR/USD manquant`, jamais convertie à 1.
+
+**Exposition.** Notionnel `|quantity| × prix × multiplicateur`, converti en base. Les séances futures et prop sont clôturées : l'exposition intrajournalière vient de `bridgeSnapshot.positions` quand le pont est vivant, sinon 0 et la mention « pont hors ligne ». Concentration = plus grosse ligne / notionnel total. Levier brut = notionnel total / valeur nette, null si la valeur nette n'est pas strictement positive.
+
+**Courbe et risque.** `buildEquityPoints` est idempotent : un point par poche et par journée qui porte une séance (prop / futures) ou un mouvement (ouverture, clôture, dernier prix, cash). La courbe consolidée somme par date en devise de base et reporte la dernière équité d'une poche sans point ce jour-là. `drawdownSeries` de `metrics.ts` est appliqué aux variations d'équité (solde de départ = première valeur nette) : drawdown courant, max, durée. Les points sont persistés pour ne pas les recalculer à chaque rendu.
+
+**Projection et bilan.** Série d'entrée : PnL quotidien consolidé, dernières N journées (défaut 120, état local). Ruine = somme des drawdowns restants des poches prop convertis en base ; s'il n'y en a pas, le drawdown max historique consolidé, indiqué comme tel. Objectif optionnel. Exécution par `montecarlo.worker.ts` existant. Le bilan (7 j, 30 j, trimestre, année, personnalisée) donne le PnL par poche en base, les commissions des séances prop / futures, les jours gagnants et perdants, le meilleur et le pire jour, la part de chaque poche (les parts portent sur des contributions qui somment au total) et la variation de valeur nette. Export CSV et JSON local.
+
+**Saisi.** Poches, positions (quantité signée, prix de revient, dernier prix), liquidités, taux, devise de base, fenêtre de journées, objectif optionnel de la projection, ruine si l'utilisateur l'écrase.
+
+**Calculé.** Valeur nette, exposition, concentration, levier, courbe, drawdown, distances prop, alerte à 25 %, bilan, Monte Carlo.
+
+**Non couvert.** Cotations live (pas de flux, pas de port créé), courtiers, crypto (valeur d'énumération seulement).
+
+**Hypothèses.** Deux poches sur le même compte additionnent deux fois les mêmes séances. Le PnL réalisé d'une position clôturée n'est pas versé en cash : l'utilisateur saisit le cash. Il n'y a pas d'historique de change : le taux saisi courant convertit toute la courbe. Un cash est un niveau à partir de sa journée, pas un grand livre des soldes passés. Le pont est « vivant » dans l'interface quand `link === 'live'` ; l'horodatage de l'instantané est celui de la lecture, pour que le seuil de 60 s reste vrai tant que le lien l'est.
+
+**Coffre.** Format `canto-vault-v2` inchangé (`schemaVersion: 2`). Champs optionnels `pockets`, `positions`, `cashBalances`, `fxRates`. Un coffre 2.2.x sans eux est accepté et ne remplace pas les tables. `equityPoints` n'est pas exporté : il est reconstruit à la restauration. Validateurs `CHECKS` : devises ISO, quantités finies, `kind` dans les types créables (`'crypto'` ne passe pas), taux strictement positif, `by: 'utilisateur'`.
+
 
