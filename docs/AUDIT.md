@@ -235,4 +235,18 @@ Dexie `version(5)` supprime la table `macroReleases` (lignes `investing` et `for
 
 Régénération, à faire à chaque Release : `npm run calendar:snapshot` (réseau, mêmes parseurs que `electron/calendar/`). `npm run calendar:snapshot --from-fixtures` lit `tests/fixtures/calendar/` à la place. Une source en échec n'écrit pas un fichier partiel, sauf `--allow-partial`, qui reprend cette institution depuis le fichier précédent et le dit dans le résumé. L'instantané de la 2.1.0 a été produit avec `--from-fixtures` (fixtures capturées le 2026-09-26) parce que le fetch BLS répond 403 depuis le desk. Le process principal compile le même module via le lien `electron/calendar-bundle`. La page BLS capturée s'arrête à la publication du 4 décembre 2026 : le premier trimestre 2027 n'a pas de NFP embarqué. BEA, BCE et Trésor reflètent ce que ces pages montraient ce jour-là, pas une année reconstruite. Les mercredis EIA déduits restent `estimated: true`. Attribution BCE, dans le fichier : « Source : Banque centrale européenne, réutilisation avec attribution ».
 
+## Pont WebSocket (v3, tâche 4)
+
+Surface d'attaque du serveur `electron/nt-bridge/` :
+
+- Écoute **uniquement** `127.0.0.1` (port par défaut 48231). Toute autre interface est refusée au démarrage. Pas de fetch, pas d'hôte ajouté à `allowedHosts`.
+- Jeton de session (18 octets, `base64url`) exigé en query `?token=`, comparé par `tokensMatch` (SHA-256 puis `timingSafeEqual`). Échec : fermeture 4401. Le jeton est dans `userData/nt-bridge.json` (mode 0600) et recopié dans `bridge.json` du dossier d'export à la demande. Il n'est pas renvoyé au renderer après génération, ni inclus dans le coffre exporté.
+- Une seule connexion AddOn. La suivante, si le jeton est bon, ferme la précédente (4409).
+- Premier message : `bridge.hello` ou fermeture 4400. Trame > 256 Ko : fermeture 1009.
+- Chemin d'ordres après `guards.ts` : comptes `Sim*` par défaut (`-32010`), coupe-circuit si le lien n'est pas `live` (`-32011`, pas de réémission), kill switch global `CommandOrControl+Shift+K` qui aplatit les comptes autorisés puis ferme le canal jusqu'au redémarrage, plafond 20 contrats (`-32012`), `tag` obligatoire (`-32013`). Chaque ordre est journalisé dans `main.log`.
+- Le CSV reste le secours : socket `live` → seules les exécutions d'ID inconnu sont importées ; socket `lost` → le fichier redevient la voie principale. Le dédoublonnage du journal (compte + ID) couvre les deux voies.
+- CSP, `contextIsolation`, `sandbox`, liste blanche IPC : les canaux ajoutés sont `ntbridge:*` et `marketdata:history`. Le renderer ne parle pas au socket.
+
+L'AddOn C# n'a pas été compilé sur ce dépôt (Windows + NinjaTrader 8 requis). `scripts/fake-addon.mjs` couvre le protocole côté tests.
+
 

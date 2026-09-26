@@ -1,8 +1,10 @@
 import { create } from 'zustand';
+import type { Bar } from '@/engine/bars';
 import { FORMAT_LABEL } from '@/engine/import';
 import { tr } from '@/i18n';
-import { desk, type BridgeFilePayload, type BridgeStatus } from '@/lib/desk';
+import { desk, type BridgeFilePayload, type BridgeStatus, type NtBridgeStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
+import { useBars } from './bars';
 import { useJournal } from './journal';
 import { useSettings } from './settings';
 import { useUi } from './ui';
@@ -24,6 +26,7 @@ interface BridgeState {
   ready: boolean;
   available: boolean;
   status: BridgeStatus | null;
+  nt: NtBridgeStatus | null;
   log: BridgeLogEntry[];
   busy: boolean;
   load: () => Promise<void>;
@@ -32,9 +35,30 @@ interface BridgeState {
   setEnabled: (enabled: boolean) => Promise<void>;
   rescan: () => Promise<void>;
   openFolder: () => Promise<void>;
+  rotateToken: () => Promise<void>;
+  writeNtConfig: () => Promise<void>;
+  allowRealAccount: (name: string) => Promise<void>;
+  setMaxContracts: (n: number) => Promise<void>;
+  killSwitch: () => Promise<void>;
 }
 
 let unsubscribeFile: (() => void) | null = null;
+let unsubscribeNt: (() => void) | null = null;
+
+async function importExecutionCsv(csv: string, fileName: string): Promise<void> {
+  const { settings } = useSettings.getState();
+  const r = await useJournal.getState().importCsv(csv, { boundaryHour: settings.boundaryHour, riskPerContract: settings.riskPerContract || undefined, source: 'ninjatrader' });
+  if (r.newTrades > 0) {
+    useUi.getState().toast(
+      tr(
+        `Pont NinjaTrader · ${r.newTrades} trade(s) importé(s) (${fileName}).`,
+        `NinjaTrader bridge · ${r.newTrades} trade(s) imported (${fileName}).`,
+        `Puente NinjaTrader · ${r.newTrades} trade(s) importado(s) (${fileName}).`,
+      ),
+      'ok',
+    );
+  }
+}
 
 const IDLE: BridgeStatus = { enabled: false, folder: null, watching: false, files: 0, pending: 0, processed: 0 };
 
@@ -47,6 +71,7 @@ export const useBridge = create<BridgeState>((set, get) => ({
   ready: false,
   available: !!desk,
   status: null,
+  nt: null,
   log: [],
   busy: false,
 
@@ -115,7 +140,25 @@ export const useBridge = create<BridgeState>((set, get) => ({
       });
       api.onStatus((status) => set({ status }));
     }
-    set({ status: (await api.status()) ?? IDLE, ready: true });
+    const ntApi = desk?.ntbridge;
+    if (ntApi && !unsubscribeNt) {
+      unsubscribeNt = ntApi.onStatus((nt) => set({ nt }));
+      ntApi.onExecution((payload) => {
+        void importExecutionCsv(payload.csv, payload.executionId || 'ws').catch((e) => {
+          useUi.getState().toast(e instanceof Error ? e.message : String(e), 'error');
+        });
+      });
+      desk?.marketdata?.onEvent((event) => {
+        const row = event as { kind: string; instrument?: string; timeframe?: number; bar?: Bar; final?: boolean; state?: string };
+        if (row.kind === 'bar' && row.instrument && row.bar && typeof row.timeframe === 'number') {
+          useBars.getState().applyNtBar(row.instrument, row.timeframe, row.bar, row.final === true);
+        }
+        if (row.kind === 'status') {
+          useBars.getState().setNtFeed(row.state === 'live' ? 'live' : row.state === 'stale' ? 'stale' : 'closed');
+        }
+      });
+    }
+    set({ status: (await api.status()) ?? IDLE, nt: (await ntApi?.status()) ?? null, ready: true });
   },
 
   async pickFolder() {
@@ -152,5 +195,48 @@ export const useBridge = create<BridgeState>((set, get) => ({
   async openFolder() {
     const folder = get().status?.folder;
     if (folder && desk?.bridge) await desk.bridge.openFolder(folder);
+  },
+
+  async rotateToken() {
+    const api = desk?.ntbridge;
+    if (!api) return;
+    await api.rotateToken();
+    set({ nt: (await api.status()) ?? get().nt });
+    useUi.getState().toast(tr('Jeton régénéré. Écrivez la configuration pour NinjaTrader.', 'Token regenerated. Write the NinjaTrader configuration.', 'Token regenerado. Escriba la configuración para NinjaTrader.'), 'ok');
+  },
+
+  async writeNtConfig() {
+    const api = desk?.ntbridge;
+    if (!api) return;
+    const res = await api.writeConfig();
+    useUi.getState().toast(
+      res.ok
+        ? tr('Configuration écrite pour NinjaTrader.', 'Configuration written for NinjaTrader.', 'Configuración escrita para NinjaTrader.')
+        : (res.error ?? tr('Écriture impossible.', 'Could not write the file.', 'Escritura imposible.')),
+      res.ok ? 'ok' : 'error',
+    );
+  },
+
+  async allowRealAccount(name) {
+    const api = desk?.ntbridge;
+    if (!api) return;
+    set({ nt: (await api.allowAccount(name)) ?? get().nt });
+  },
+
+  async setMaxContracts(n) {
+    const api = desk?.ntbridge;
+    if (!api) return;
+    set({ nt: (await api.setMaxContracts(n)) ?? get().nt });
+  },
+
+  async killSwitch() {
+    const api = desk?.ntbridge;
+    if (!api) return;
+    const res = await api.killSwitch();
+    set({ nt: (await api.status()) ?? get().nt });
+    useUi.getState().toast(
+      tr(`Kill switch · ${res.accounts.length} compte(s) aplati(s). Canal d'ordres fermé.`, `Kill switch · ${res.accounts.length} account(s) flattened. Order channel closed.`, `Kill switch · ${res.accounts.length} cuenta(s) aplanada(s). Canal de órdenes cerrado.`),
+      'warn',
+    );
   },
 }));

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { tr } from '@/i18n';
 import type { Bar, BarSeries } from '@/engine/bars';
-import { DEFAULT_FUTURE } from '@/engine/instruments';
+import { DEFAULT_FUTURE, resolveSymbol } from '@/engine/instruments';
 import { createPort, portWarnings, type MarketDataPort } from '@/engine/marketdata';
 import { CSV_WORKER_MIN_LINES, csvLineCount } from '@/engine/import';
 import { defaultParams, indicatorById, type IndicatorInstance } from '@/engine/indicators';
@@ -15,7 +15,11 @@ interface BarsState {
   series: BarSeries[];
   activeId: string | null;
   indicators: IndicatorInstance[];
+  /** Flux live du pont NT8, pour l'état `stale` de Visual. */
+  ntFeed: 'closed' | 'live' | 'stale';
   load: () => Promise<void>;
+  applyNtBar: (instrumentName: string, timeframe: number, bar: Bar, final: boolean) => void;
+  setNtFeed: (state: 'closed' | 'live' | 'stale') => void;
   setActive: (id: string) => Promise<void>;
   saveDemoSeries: (bars: Bar[], timeframe: number, endDate?: string) => Promise<BarSeries>;
   importCsv: (port: MarketDataPort, text: string, name: string, instrument: Instrument, timeframe: number, opts?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<{ bars: number; warnings: string[] }>;
@@ -33,6 +37,17 @@ const DEFAULT_INDICATORS: IndicatorInstance[] = [
 ];
 
 const HISTORY_SPAN = { from: 0, to: Number.MAX_SAFE_INTEGER } as const;
+const ntFinal = new Set<string>();
+
+function mergeNtBar(bars: Bar[], seriesId: string, bar: Bar, final: boolean): Bar[] | null {
+  const key = `${seriesId}:${bar.time}`;
+  if (ntFinal.has(key)) return null;
+  if (final) ntFinal.add(key);
+  const next = bars.filter((row) => row.time !== bar.time);
+  next.push(bar);
+  next.sort((a, b) => a.time - b.time);
+  return next;
+}
 
 let loading: Promise<void> | null = null;
 
@@ -41,6 +56,7 @@ export const useBars = create<BarsState>((set, get) => ({
   series: [],
   activeId: null,
   indicators: DEFAULT_INDICATORS,
+  ntFeed: 'closed',
 
   load() {
     if (loading) return loading;
@@ -65,11 +81,37 @@ export const useBars = create<BarsState>((set, get) => ({
       })();
       const activeId = (await getSetting<string | null>('chart.active', null)) ?? series[0]?.id ?? null;
       const indicators = await getSetting<IndicatorInstance[]>('chart.indicators', DEFAULT_INDICATORS);
-      set({ series, activeId: series.some((sr) => sr.id === activeId) ? activeId : series[0]?.id ?? null, indicators, ready: true });
+      set((cur) => {
+        const live = cur.series.filter((sr) => sr.source === 'nt8-bridge');
+        const merged = [...series.filter((sr) => sr.source !== 'nt8-bridge'), ...live];
+        const preferred = merged.some((sr) => sr.id === activeId) ? activeId : merged[0]?.id ?? null;
+        return { series: merged, activeId: preferred, indicators, ready: true };
+      });
     })().finally(() => {
       loading = null;
     });
     return loading;
+  },
+
+  applyNtBar(instrumentName, timeframe, bar, final) {
+    const resolved = resolveSymbol(instrumentName);
+    if (!resolved) return;
+    const id = `nt8:${resolved.symbol}:${timeframe}`;
+    set((state) => {
+      const existing = state.series.find((sr) => sr.id === id);
+      const bars = mergeNtBar(existing?.bars ?? [], id, bar, final);
+      if (!bars) return state;
+      const label = `${instrumentName} · ${timeframe} min · NinjaTrader`;
+      const sr: BarSeries = existing
+        ? { ...existing, bars, label }
+        : { id, instrument: resolved.symbol, timeframe, label, source: 'nt8-bridge', bars, createdAt: Date.now() };
+      const series = existing ? state.series.map((row) => (row.id === id ? sr : row)) : [...state.series, sr];
+      return { series, activeId: state.activeId && state.series.some((row) => row.source === 'nt8-bridge' && row.id === state.activeId) ? state.activeId : id };
+    });
+  },
+
+  setNtFeed(ntFeed) {
+    set({ ntFeed });
   },
 
   async setActive(id) {

@@ -54,6 +54,7 @@ describe('port de données de marché', () => {
 
   it('refuse une source inconnue', () => {
     expect(() => createPort('nt8-bridge')).toThrow(/inconnue/);
+    expect(() => createPort('broker-x')).toThrow(/inconnue/);
     expect(() => createPort('')).toThrow(/inconnue/);
   });
 });

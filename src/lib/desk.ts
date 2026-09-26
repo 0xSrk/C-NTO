@@ -35,6 +35,33 @@ export interface BridgeFilePayload {
   kind: 'nouveau' | 'modifié' | 'rescan';
 }
 
+export interface NtBridgeStatus {
+  link: 'absent' | 'connecting' | 'live' | 'stale' | 'lost';
+  port: number;
+  addonVersion: string | null;
+  ntVersion: string | null;
+  accounts: { name: string; cashValue: number; realizedPnl: number; unrealizedPnl: number; positions: { instrument: string; quantity: number; avgPrice: number }[] }[];
+  accountNames: string[];
+  heartbeatLatencyMs: number | null;
+  ordersOpen: boolean;
+  hasToken: boolean;
+  extraAccounts: string[];
+  maxContractsPerOrder: number;
+  killSwitchShortcut: string;
+}
+
+export interface NtBridgeApi {
+  status: () => Promise<NtBridgeStatus | null>;
+  rotateToken: () => Promise<{ hasToken: boolean }>;
+  writeConfig: () => Promise<{ ok: boolean; path?: string; error?: string }>;
+  allowAccount: (name: string) => Promise<NtBridgeStatus | null>;
+  setMaxContracts: (n: number) => Promise<NtBridgeStatus | null>;
+  order: (payload: { op: 'submit' | 'cancel' | 'flatten'; [key: string]: unknown }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number; closed?: number }>;
+  killSwitch: () => Promise<{ accounts: string[] }>;
+  onStatus: (cb: (status: NtBridgeStatus) => void) => () => void;
+  onExecution: (cb: (payload: { csv: string; executionId: string }) => void) => () => void;
+}
+
 export interface BridgeApi {
   status: () => Promise<BridgeStatus | null>;
   configure: (cfg: { folder?: string | null; enabled?: boolean }) => Promise<BridgeStatus | null>;
@@ -98,6 +125,7 @@ export interface DeskApi {
     onProgress?: (cb: (p: { received: number; total: number }) => void) => () => void;
   };
   bridge: BridgeApi;
+  ntbridge?: NtBridgeApi;
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
     encrypt: (text: string) => Promise<string | null>;
@@ -144,8 +172,9 @@ export interface DeskApi {
     writeInFolder?: (folder: string, name: string, text: string, encrypt: boolean) => Promise<{ ok: boolean; encrypted: boolean; path?: string; reason?: 'invalid' | 'not_granted' }>;
   };
   marketdata?: {
-    subscribe: (req: { instrument: string; kind: 'bars' | 'quote' | 'tick'; timeframe?: number; contractMonth?: string }) => Promise<{ ok: false; detail: string }>;
-    unsubscribe: (id: string) => Promise<{ ok: false; detail: string }>;
+    subscribe: (req: { instrument: string; kind: 'bars' | 'quote' | 'tick'; timeframe?: number; contractMonth?: string }) => Promise<{ ok: true; subscriptionId: string } | { ok: false; detail: string; code?: number }>;
+    unsubscribe: (id: string) => Promise<{ ok: boolean; detail?: string }>;
+    history?: (req: { instrument: string; timeframe: number; from: number; to: number }) => Promise<{ ok: true; bars: unknown[] } | { ok: false; detail: string }>;
     onEvent: (cb: (event: { kind: string }) => void) => () => void;
   };
   calendar?: {
