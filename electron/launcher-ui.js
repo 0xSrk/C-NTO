@@ -542,13 +542,17 @@
     });
   }
 
-  function playTransfer() {
+  async function playTransfer() {
     frame.classList.add('leaving');
-    xfer.classList.add('on');
     hudText.textContent = L().linking;
-    // AUBE : le soleil franchit le limbe sur la timeline du circuit (T_RING / T_COLLAPSE / T_LED / T_DONE).
-    window.cantoAube?.launch();
-    if (reducedMotion) return new Promise((resolve) => setTimeout(resolve, 160));
+    if (reducedMotion) {
+      xfer.classList.add('on');
+      return new Promise((resolve) => setTimeout(resolve, 160));
+    }
+    // AUBE II : immersion dans le lever, le graticule terrestre se referme en cœur ;
+    // le circuit prend la main exactement quand le cœur est formé.
+    if (window.cantoAube) await window.cantoAube.launch();
+    xfer.classList.add('on');
     return runTransfer();
   }
 

@@ -81,20 +81,19 @@
         -webkit-app-region: drag;
       }
 
-      /* ─── Aube : lever de Terre en pixels, sous tout le reste ─── */
-      .sky {
+      /* ─── AUBE II : scène 3D (WebGL2) + calque vectoriel, sous toute l'interface ─── */
+      .aube {
         position: fixed;
         inset: 0;
         z-index: 0;
         pointer-events: none;
         background: var(--bg);
       }
-      .sky canvas {
+      .aube canvas {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
-        image-rendering: pixelated;
       }
 
       /* ─── Réticule fixe : cadre à encoches, règles, repères de coin ─── */
@@ -822,7 +821,7 @@
     </style>
   </head>
   <body>
-    <div class="sky" aria-hidden="true"><canvas id="sky"></canvas></div>
+    <div class="aube" id="aube" aria-hidden="true"><canvas id="aube-gl"></canvas><canvas id="aube-vec"></canvas></div>
     <div class="light" aria-hidden="true"></div>
     <div class="reticle" aria-hidden="true">
       <!-- Cadre 420 × 620 : chanfreins 8 px aux angles, encoches d'axe, règle basse -->
