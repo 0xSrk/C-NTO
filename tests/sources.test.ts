@@ -28,16 +28,36 @@ describe('registre de sources', () => {
     expect(allowed.includes('nfs.faireconomy.media')).toBe(false);
     expect(allowed.includes('www.cmegroup.com')).toBe(false);
     expect(allowed.includes('api.bls.gov')).toBe(true);
+    expect(allowed.includes('www.bls.gov')).toBe(true);
+    expect(getSource('investing').redistributable).toBe(false);
     expect(getSource('nt8-bridge').redistributable).toBe(true);
     expect(getSource('nt8-bridge').hosts).toEqual([]);
     expect(() => getSource('inexistante')).toThrow(/inconnue/);
     expect(listSources('marketdata').map((s) => s.id).sort()).toEqual(['csv', 'demo', 'nt8-bridge']);
   });
 
-  it('autorise le repli calendrier actuel et refuse le reste', () => {
-    expect(dataFetchAllowed('https://endpoints.investing.com/pd-instruments/v1/calendars/economic/events/occurrences')).toBe(true);
-    expect(dataFetchAllowed('https://nfs.faireconomy.media/ff_calendar_thisweek.json')).toBe(true);
+  it('n’autorise que les hôtes des adaptateurs redistribuables', () => {
+    const allowed = allowedHosts();
+    expect(allowed).toEqual([
+      'api.bls.gov',
+      'api.stlouisfed.org',
+      'apps.bea.gov',
+      'www.bea.gov',
+      'www.bls.gov',
+      'www.ecb.europa.eu',
+      'www.eia.gov',
+      'www.federalreserve.gov',
+      'www.treasurydirect.gov',
+    ]);
+    expect(allowed.includes('endpoints.investing.com')).toBe(false);
+    expect(dataFetchAllowed('https://endpoints.investing.com/pd-instruments/v1/calendars/economic/events/occurrences')).toBe(false);
+    expect(dataFetchAllowed('https://nfs.faireconomy.media/ff_calendar_thisweek.json')).toBe(false);
     expect(dataFetchAllowed('https://api.bls.gov/publicAPI/v2/timeseries/data/')).toBe(true);
+    expect(dataFetchAllowed('https://www.bls.gov/schedule/news_release/empsit.htm')).toBe(true);
+    expect(dataFetchAllowed('https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm')).toBe(true);
+    expect(dataFetchAllowed('https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html')).toBe(true);
+    expect(dataFetchAllowed('https://www.eia.gov/petroleum/supply/weekly/schedule.php')).toBe(true);
+    expect(dataFetchAllowed('https://www.treasurydirect.gov/TA_WS/securities/announced')).toBe(true);
     expect(dataFetchAllowed('https://www.cmegroup.com/markets.html')).toBe(false);
     expect(dataFetchAllowed('https://api.openai.com/v1/models')).toBe(false);
     expect(dataFetchAllowed('http://api.bls.gov/publicAPI')).toBe(false);

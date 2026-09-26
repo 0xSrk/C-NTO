@@ -1,6 +1,19 @@
+import { listInstruments } from '@/engine/instruments';
 import { addDays, easterSunday, nthWeekdayOfMonth, pad2, weekday } from '@/lib/time';
 
-export type EventCategory = 'fed' | 'emploi' | 'inflation' | 'croissance' | 'sentiment' | 'resultats' | 'cme' | 'horaire' | 'perso';
+export type EventCategory =
+  | 'fed'
+  | 'banque-centrale'
+  | 'emploi'
+  | 'inflation'
+  | 'croissance'
+  | 'sentiment'
+  | 'resultats'
+  | 'energie'
+  | 'adjudication'
+  | 'cme'
+  | 'horaire'
+  | 'perso';
 
 export interface CalEvent {
   id: string;
@@ -16,7 +29,7 @@ export interface CalEvent {
   /** Date déduite d'une règle de récurrence (non confirmée) */
   estimated: boolean;
   allDay?: boolean;
-  /** Consensus / attendu (Investing) */
+  /** Consensus, seulement si une source autorisée le fournit. */
   forecast?: string;
   /** Lecture précédente */
   previous?: string;
@@ -24,16 +37,21 @@ export interface CalEvent {
   actual?: string;
   /** Période de référence (ex. Jul) */
   period?: string;
-  source?: 'local' | 'investing' | 'forexfactory';
+  source?: 'local' | 'bls' | 'bea' | 'fed' | 'ecb' | 'cme' | 'eia' | 'treasury' | 'fred' | 'forexfactory' | 'user';
+  /** Vide = tous les instruments. */
+  instruments?: string[];
 }
 
 export const CATEGORY_LABEL: Record<EventCategory, string> = {
   fed: 'Réserve fédérale',
+  'banque-centrale': 'Banque centrale',
   emploi: 'Emploi',
   inflation: 'Inflation',
   croissance: 'Croissance',
   sentiment: 'Sentiment',
   resultats: 'Résultats',
+  energie: 'Énergie',
+  adjudication: 'Adjudication',
   cme: 'CME · contrats',
   horaire: 'Horaires',
   perso: 'Personnel',
@@ -42,15 +60,23 @@ export const CATEGORY_LABEL: Record<EventCategory, string> = {
 /** Aide courte débutant — pastille « ? » des filtres calendrier. */
 export const CATEGORY_HELP: Record<EventCategory, { lead: string; points: string[] }> = {
   fed: {
-    lead: 'Décisions de la banque centrale américaine (Fed). C’est souvent le moment le plus violent de l’année sur le Nasdaq.',
+    lead: 'Décisions de la banque centrale américaine (Fed). C’est souvent le moment le plus violent de l’année sur les indices.',
     points: [
       'La décision de taux tombe en général à 14:00 ET, la conférence de presse juste après.',
       'Débutant : n’ouvrez pas de trade 15 minutes avant. Observez d’abord.',
       'Le vrai mouvement arrive souvent pendant la conférence, pas à la seconde de l’annonce.',
     ],
   },
+  'banque-centrale': {
+    lead: 'Décisions de taux des banques centrales (Fed, BCE). Elles concernent tous les indices, pas un seul contrat.',
+    points: [
+      'Fed : communiqué en général à 14:00 ET, conférence juste après.',
+      'BCE : le jour 2 de la réunion, suivi de la conférence. L’heure n’est pas sur le calendrier officiel.',
+      'Débutant : pas de position 15 minutes avant. Observer d’abord.',
+    ],
+  },
   emploi: {
-    lead: 'Chiffres sur le marché du travail américain (NFP, chômage, ADP…). Ils font réagir le dollar et donc le NQ.',
+    lead: 'Chiffres sur le marché du travail américain (NFP, chômage). Ils font réagir le dollar et les indices.',
     points: [
       'Publication typique : 8:30 ET (14:30 Paris en hiver).',
       'Attendez la clôture de la première bougie 5 minutes avant de décider.',
@@ -85,12 +111,28 @@ export const CATEGORY_HELP: Record<EventCategory, { lead: string; points: string
     lead: 'Publications de résultats des grandes entreprises tech (mégacaps) qui pèsent lourd dans le Nasdaq-100.',
     points: [
       'Souvent après la clôture : le gap se voit à la réouverture du lendemain.',
-      'Une surprise sur Apple, Nvidia, Microsoft… peut déplacer tout le NQ.',
+      'Une surprise sur Apple, Nvidia, Microsoft… peut déplacer tout le Nasdaq-100.',
       'Prudence sur les positions overnight autour de ces dates.',
     ],
   },
+  energie: {
+    lead: 'Stocks de pétrole hebdomadaires (EIA). Ils concernent le brut CL et le micro MCL.',
+    points: [
+      'Publication habituelle : mercredi après 10:30 ET, reportée les semaines fériées.',
+      'Le mouvement est sur le pétrole ; les indices ne font que l’accompagner.',
+      'La règle du mercredi est estimée tant que la date n’est pas dans le tableau des reports.',
+    ],
+  },
+  adjudication: {
+    lead: 'Adjudications du Trésor américain. Elles pèsent sur les taux, donc sur tous les contrats.',
+    points: [
+      'L’heure est celle de clôture des offres compétitives (souvent 11:30 ET).',
+      'Un bon du Trésor n’est pas un chiffre d’inflation : l’impact est en général moindre.',
+      'Utile comme contexte de séance, rarement un trade à la seconde.',
+    ],
+  },
   cme: {
-    lead: 'Repères liés aux contrats à terme CME (expiration, rollover du contrat NQ).',
+    lead: 'Repères liés aux contrats à terme CME : expiration et rollover, une ligne par future du registre.',
     points: [
       'Rollover : passer au contrat suivant dans NinjaTrader quand le volume migre.',
       'Expiration trimestrielle : volumes et niveaux parfois « étranges » autour de 9:30 ET.',
@@ -108,51 +150,27 @@ export const CATEGORY_HELP: Record<EventCategory, { lead: string; points: string
   perso: {
     lead: 'Vos propres notes et rappels du jour (coaching, revue, niveaux personnels).',
     points: [
-      'Ils n’arrivent pas d’Investing : c’est votre journal de bord.',
+      'Ils n’arrivent pas d’un fil externe : c’est votre journal de bord.',
       'Utilisez-les pour figer une intention avant la séance.',
       'Visibles uniquement sur votre machine.',
     ],
   },
 };
 
-/** Réunions FOMC connues (jour de décision = second jour). */
-const FOMC_DECISIONS: Record<number, string[]> = {
-  2024: ['2024-01-31', '2024-03-20', '2024-05-01', '2024-06-12', '2024-07-31', '2024-09-18', '2024-11-07', '2024-12-18'],
-  2025: ['2025-01-29', '2025-03-19', '2025-05-07', '2025-06-18', '2025-07-30', '2025-09-17', '2025-10-29', '2025-12-10'],
-  2026: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09'],
-};
-
-/**
- * Dates de publication BLS « Employment Situation » (NFP), 8:30 ET.
- * 2024 : calendrier BLS. 2025 : calendrier + reports du shutdown (sept. → 20 nov., nov. → 16 déc. ; octobre annulé).
- * 2026 : bls.gov/schedule/news_release/empsit.htm, y compris le report du 11 février.
- * 2027 n'est pas encore publié : heuristique, `estimated`, impact plafonné à 2.
- */
-const NFP_RELEASES: Record<number, string[]> = {
-  2024: ['2024-01-05', '2024-02-02', '2024-03-08', '2024-04-05', '2024-05-03', '2024-06-07', '2024-07-05', '2024-08-02', '2024-09-06', '2024-10-04', '2024-11-01', '2024-12-06'],
-  2025: ['2025-01-10', '2025-02-07', '2025-03-07', '2025-04-04', '2025-05-02', '2025-06-06', '2025-07-03', '2025-08-01', '2025-09-05', '2025-11-20', '2025-12-16'],
-  2026: ['2026-01-09', '2026-02-11', '2026-03-06', '2026-04-03', '2026-05-08', '2026-06-05', '2026-07-02', '2026-08-07', '2026-09-04', '2026-10-02', '2026-11-06', '2026-12-04'],
-};
-
-/** 1er vendredi du mois, reporté au 2e si le jour tombe le 1er ou le 2. Hors table BLS seulement. */
-function heuristicNfp(year: number, month1: number): string {
-  const firstFriday = nthWeekdayOfMonth(year, month1, 5, 1);
-  return Number(firstFriday.slice(-2)) <= 2 ? nthWeekdayOfMonth(year, month1, 5, 2) : firstFriday;
-}
-
-const TIPS = {
-  fed: 'Fenêtre la plus volatile de l’année sur NQ. Pas de position 15 min avant la décision ; le vrai mouvement arrive souvent pendant la conférence de presse (14:30 ET). Débutant : observer, ne pas trader.',
-  nfp: 'Publication à 8:30 ET (14:30 Paris). Mèches de 100+ points possibles en quelques secondes. Attendre la clôture de la première bougie 5 min avant toute décision.',
-  cpi: 'Chiffre d’inflation le plus suivi. Réaction violente à 8:30 ET puis souvent retournement dans l’heure. Réduire la taille ou rester à plat.',
-  macro: 'Publication pré-ouverture : le marché intègre la nouvelle avant 9:30 ET. Vérifier le consensus la veille pour comprendre la réaction.',
-  ism: 'Publication à 10:00 ET, 30 min après l’ouverture RTH. Un pic de volatilité qui casse souvent l’opening range.',
-  claims: 'Impact généralement modéré, sauf surprise. Peut colorer la première heure de cotation européenne.',
-  earnings: 'Les mégacaps pèsent >40 % du Nasdaq-100 : leurs résultats (après clôture) font gapper NQ à la réouverture. Prudence sur les positions overnight.',
-  expiry: 'Expiration trimestrielle : volumes et manipulations de niveaux autour de 9:30 ET. Vérifier le contrat actif dans NinjaTrader.',
-  roll: 'Passer au contrat suivant dans NinjaTrader (Instruments → Rollover). Le volume migre vers le nouveau contrat ; les niveaux se décalent du spread entre les deux échéances.',
-  holiday: 'Séance fériée ou écourtée : liquidité faible, spreads élargis, mouvements erratiques. Beaucoup de traders financés ne tradent pas ces jours.',
-  dst: 'Pendant ces semaines, New York et Paris ne sont décalés que de 5 h : l’ouverture RTH passe à 14:30 Paris et les publications à 13:30 Paris.',
+/** Un repère débutant par catégorie, pas par instrument. */
+const TIPS: Record<EventCategory, string> = {
+  fed: 'Fenêtre la plus volatile de l’année sur les indices. Pas de position 15 min avant la décision ; le vrai mouvement arrive souvent pendant la conférence de presse. Débutant : observer, ne pas trader.',
+  'banque-centrale': 'Décision de banque centrale : tous les indices sont concernés. Pas de position 15 min avant. Le vrai mouvement arrive souvent pendant la conférence.',
+  emploi: 'Publication à 8:30 ET. Mèches très longues possibles en quelques secondes sur les indices. Attendre la clôture de la première bougie 5 min avant toute décision.',
+  inflation: 'Chiffre d’inflation le plus suivi. Réaction violente à 8:30 ET puis souvent retournement dans l’heure. Réduire la taille ou rester à plat.',
+  croissance: 'Publication pré-ouverture ou à 10:00 ET : le marché intègre la nouvelle avant de choisir un sens. Utile pour le biais du jour.',
   sentiment: 'Publication à 10:00 ET. Impact modéré, mais sensible aux anticipations d’inflation des ménages.',
+  resultats: 'Les mégacaps pèsent lourd dans le Nasdaq-100 : leurs résultats (après clôture) font gapper l’indice à la réouverture. Prudence sur les positions overnight.',
+  energie: 'Stocks EIA : CL et MCL. Mercredi après 10:30 ET, sauf report férié publié par l’EIA.',
+  adjudication: 'Adjudication du Trésor. Heure de clôture des offres compétitives. Contexte de taux pour tous les contrats.',
+  cme: 'Expiration ou rollover estimé (3e vendredi) tant que le calendrier CME n’a pas confirmé la date. Vérifier le contrat actif.',
+  horaire: 'Séance fériée ou écourtée : liquidité faible, spreads élargis. Pendant le décalage d’heure, New York et Paris ne sont plus à 6 h d’écart.',
+  perso: 'Note ou rappel personnel. Il ne vient pas d’un fil externe.',
 };
 
 function id(...parts: (string | number)[]): string {
@@ -205,52 +223,32 @@ function usHolidays(year: number): { date: string; title: string; closed: boolea
   ];
 }
 
-/** Génère les événements structurels de l'année pour un trader Nasdaq. */
+/**
+ * Repères locaux : fériés, séances, résultats estimés, expirations.
+ * FOMC et NFP ne sont plus codés ici : ils viennent des adaptateurs `fed` et `bls`.
+ * Expirations et rollovers : une ligne par future du registre, 3e vendredi, `estimated: true`
+ * tant que CME Group ne confirme pas (page fériés en 403 le 2026-09-26).
+ */
 export function generateNasdaqEvents(year: number): CalEvent[] {
   const events: CalEvent[] = [];
-
-  const fomc = FOMC_DECISIONS[year];
-  if (fomc) {
-    for (const date of fomc) {
-      events.push({ id: id('fomc', date), date, timeET: '14:00', title: 'Décision FOMC · taux directeurs', category: 'fed', impact: 3, estimated: false, description: 'Communiqué du comité de politique monétaire puis conférence de presse du président de la Fed à 14:30 ET. Projections économiques (dot plot) en mars, juin, septembre et décembre.', beginnerTip: TIPS.fed });
-      const minutes = addDays(date, 21);
-      events.push({ id: id('fomc-min', date), date: minutes, timeET: '14:00', title: 'Minutes du FOMC', category: 'fed', impact: 2, estimated: true, description: 'Compte rendu détaillé de la réunion précédente, publié trois semaines après. Peut réévaluer la trajectoire des taux.', beginnerTip: TIPS.macro });
-    }
-  } else {
-    for (const m of [1, 3, 4, 6, 7, 9, 10, 12]) {
-      const date = nthWeekdayOfMonth(year, m, 3, m === 1 || m === 12 ? 4 : 3);
-      events.push({ id: id('fomc-est', date), date, timeET: '14:00', title: 'Décision FOMC (estimée)', category: 'fed', impact: 3, estimated: true, description: 'Réunion FOMC estimée par récurrence : vérifier le calendrier officiel de la Réserve fédérale.', beginnerTip: TIPS.fed });
-    }
-  }
-
-  const nfpDates = NFP_RELEASES[year];
-  if (nfpDates) {
-    for (const nfp of nfpDates) {
-      events.push({ id: id('nfp', nfp), date: nfp, timeET: '08:30', title: 'Rapport emploi US (NFP)', category: 'emploi', impact: 3, estimated: false, description: 'Créations d’emplois non agricoles, taux de chômage et salaires horaires. Date de publication BLS (Employment Situation, 8:30 ET).', beginnerTip: TIPS.nfp });
-    }
-  } else {
-    for (let m = 1; m <= 12; m++) {
-      const nfp = heuristicNfp(year, m);
-      events.push({ id: id('nfp', nfp), date: nfp, timeET: '08:30', title: 'Rapport emploi US (NFP)', category: 'emploi', impact: 2, estimated: true, description: 'Date estimée hors calendrier BLS publié. Vérifier bls.gov avant un blackout : l’impact est plafonné tant que la date n’est pas confirmée.', beginnerTip: TIPS.nfp });
-    }
-  }
+  const futures = listInstruments({ assetClass: 'future' });
 
   for (let m = 1; m <= 12; m++) {
     const cpi = businessDayOnOrBefore(nthWeekdayOfMonth(year, m, 3, 2));
-    events.push({ id: id('cpi', cpi), date: cpi, timeET: '08:30', title: 'Inflation CPI', category: 'inflation', impact: 3, estimated: true, description: 'Indice des prix à la consommation (headline et core). Publié par le BLS autour de la deuxième semaine du mois.', beginnerTip: TIPS.cpi });
+    events.push({ id: id('cpi', cpi), date: cpi, timeET: '08:30', title: 'Inflation CPI', category: 'inflation', impact: 3, estimated: true, description: 'Indice des prix à la consommation (headline et core). Publié par le BLS autour de la deuxième semaine du mois.', beginnerTip: TIPS.inflation });
     const ppi = addDays(cpi, 1);
-    events.push({ id: id('ppi', ppi), date: businessDayOnOrBefore(weekday(ppi) === 6 ? addDays(ppi, 2) : ppi), timeET: '08:30', title: 'Prix à la production (PPI)', category: 'inflation', impact: 2, estimated: true, description: 'Inflation côté producteurs, souvent publiée le lendemain du CPI.', beginnerTip: TIPS.macro });
+    events.push({ id: id('ppi', ppi), date: businessDayOnOrBefore(weekday(ppi) === 6 ? addDays(ppi, 2) : ppi), timeET: '08:30', title: 'Prix à la production (PPI)', category: 'inflation', impact: 2, estimated: true, description: 'Inflation côté producteurs, souvent publiée le lendemain du CPI.', beginnerTip: TIPS.inflation });
 
     const pce = businessDayOnOrBefore(nthWeekdayOfMonth(year, m, 5, -1));
-    events.push({ id: id('pce', pce), date: pce, timeET: '08:30', title: 'Inflation PCE · revenus & dépenses', category: 'inflation', impact: 2, estimated: true, description: 'Mesure d’inflation privilégiée par la Fed, publiée en fin de mois avec les revenus et dépenses des ménages.', beginnerTip: TIPS.macro });
+    events.push({ id: id('pce', pce), date: pce, timeET: '08:30', title: 'Inflation PCE · revenus & dépenses', category: 'inflation', impact: 2, estimated: true, description: 'Mesure d’inflation privilégiée par la Fed, publiée en fin de mois avec les revenus et dépenses des ménages.', beginnerTip: TIPS.inflation });
 
     const ism = nthBusinessDay(year, m, 1);
-    events.push({ id: id('ism-m', ism), date: ism, timeET: '10:00', title: 'ISM Manufacturier', category: 'croissance', impact: 2, estimated: true, description: 'PMI manufacturier : activité, nouvelles commandes, prix payés. Premier jour ouvré du mois.', beginnerTip: TIPS.ism });
+    events.push({ id: id('ism-m', ism), date: ism, timeET: '10:00', title: 'ISM Manufacturier', category: 'croissance', impact: 2, estimated: true, description: 'PMI manufacturier : activité, nouvelles commandes, prix payés. Premier jour ouvré du mois.', beginnerTip: TIPS.croissance });
     const isms = nthBusinessDay(year, m, 3);
-    events.push({ id: id('ism-s', isms), date: isms, timeET: '10:00', title: 'ISM Services', category: 'croissance', impact: 2, estimated: true, description: 'PMI des services, secteur dominant de l’économie américaine. Troisième jour ouvré du mois.', beginnerTip: TIPS.ism });
+    events.push({ id: id('ism-s', isms), date: isms, timeET: '10:00', title: 'ISM Services', category: 'croissance', impact: 2, estimated: true, description: 'PMI des services, secteur dominant de l’économie américaine. Troisième jour ouvré du mois.', beginnerTip: TIPS.croissance });
 
     const retail = businessDayOnOrBefore(`${year}-${pad2(m)}-16`);
-    events.push({ id: id('retail', retail), date: retail, timeET: '08:30', title: 'Ventes au détail', category: 'croissance', impact: 2, estimated: true, description: 'Consommation des ménages, publiée vers le milieu du mois.', beginnerTip: TIPS.macro });
+    events.push({ id: id('retail', retail), date: retail, timeET: '08:30', title: 'Ventes au détail', category: 'croissance', impact: 2, estimated: true, description: 'Consommation des ménages, publiée vers le milieu du mois.', beginnerTip: TIPS.croissance });
 
     const mich1 = nthWeekdayOfMonth(year, m, 5, 2);
     events.push({ id: id('mich-p', mich1), date: mich1, timeET: '10:00', title: 'Confiance Michigan (préliminaire)', category: 'sentiment', impact: 1, estimated: true, description: 'Sentiment des consommateurs et anticipations d’inflation à 1 an / 5 ans.', beginnerTip: TIPS.sentiment });
@@ -259,22 +257,47 @@ export function generateNasdaqEvents(year: number): CalEvent[] {
 
     if ([1, 4, 7, 10].includes(m)) {
       const gdp = businessDayOnOrBefore(nthWeekdayOfMonth(year, m, 4, -1));
-      events.push({ id: id('gdp', gdp), date: gdp, timeET: '08:30', title: 'PIB US (première estimation)', category: 'croissance', impact: 2, estimated: true, description: 'Croissance trimestrielle annualisée, première lecture, fin de mois suivant le trimestre.', beginnerTip: TIPS.macro });
+      events.push({ id: id('gdp', gdp), date: gdp, timeET: '08:30', title: 'PIB US (première estimation)', category: 'croissance', impact: 2, estimated: true, description: 'Croissance trimestrielle annualisée, première lecture, fin de mois suivant le trimestre.', beginnerTip: TIPS.croissance });
       const mega = nthWeekdayOfMonth(year, m, 3, 4);
-      events.push({ id: id('mega', mega), date: mega, title: 'Fenêtre résultats mégacaps (MSFT · GOOGL · META · AAPL · AMZN)', category: 'resultats', impact: 3, estimated: true, allDay: true, description: 'Semaine où la majorité des poids lourds du Nasdaq-100 publient, après la clôture. Gaps fréquents à la réouverture Globex 18:00 ET.', beginnerTip: TIPS.earnings });
+      events.push({ id: id('mega', mega), date: mega, title: 'Fenêtre résultats mégacaps (MSFT · GOOGL · META · AAPL · AMZN)', category: 'resultats', impact: 3, estimated: true, allDay: true, description: 'Semaine où la majorité des poids lourds du Nasdaq-100 publient, après la clôture. Gaps fréquents à la réouverture Globex 18:00 ET.', beginnerTip: TIPS.resultats });
     }
     if ([2, 5, 8, 11].includes(m)) {
       const nvda = nthWeekdayOfMonth(year, m, 3, 4);
-      events.push({ id: id('nvda', nvda), date: nvda, timeET: '16:20', title: 'Résultats NVIDIA (fenêtre estimée)', category: 'resultats', impact: 3, estimated: true, description: 'Premier poids du Nasdaq-100 par capitalisation : publication après clôture, réaction immédiate sur NQ en Globex.', beginnerTip: TIPS.earnings });
+      events.push({ id: id('nvda', nvda), date: nvda, timeET: '16:20', title: 'Résultats NVIDIA (fenêtre estimée)', category: 'resultats', impact: 3, estimated: true, description: 'Premier poids du Nasdaq-100 par capitalisation : publication après clôture, réaction immédiate sur l’indice en Globex.', beginnerTip: TIPS.resultats });
     }
 
     const thirdFriday = nthWeekdayOfMonth(year, m, 5, 3);
     if ([3, 6, 9, 12].includes(m)) {
-      events.push({ id: id('expiry', thirdFriday), date: thirdFriday, timeET: '09:30', title: `Expiration trimestrielle NQ (${['H', 'M', 'U', 'Z'][[3, 6, 9, 12].indexOf(m)]}${String(year).slice(-1)}) · Quad witching`, category: 'cme', impact: 3, estimated: false, description: 'Règlement final du contrat E-mini Nasdaq-100 à l’ouverture (prix spécial d’ouverture). Expiration simultanée des options et futures sur indices.', beginnerTip: TIPS.expiry });
+      const code = `${['H', 'M', 'U', 'Z'][[3, 6, 9, 12].indexOf(m)]}${String(year).slice(-1)}`;
       const roll = addDays(thirdFriday, -8);
-      events.push({ id: id('roll', roll), date: roll, title: 'Rollover NQ / MNQ → contrat suivant', category: 'cme', impact: 2, estimated: false, allDay: true, description: 'Jour de bascule conventionnel (jeudi précédant la semaine d’expiration) : le volume migre vers l’échéance suivante.', beginnerTip: TIPS.roll });
+      for (const spec of futures) {
+        events.push({
+          id: id('expiry', spec.symbol, thirdFriday),
+          date: thirdFriday,
+          timeET: '09:30',
+          title: `Expiration trimestrielle ${spec.symbol} (${code})`,
+          category: 'cme',
+          impact: 2,
+          estimated: true,
+          instruments: [spec.symbol],
+          description: 'Date déduite de la règle du 3e vendredi des futures sur indices, appliquée à chaque racine du registre. Non confirmée par CME Group.',
+          beginnerTip: TIPS.cme,
+        });
+        events.push({
+          id: id('roll', spec.symbol, roll),
+          date: roll,
+          title: `Rollover ${spec.symbol} → contrat suivant`,
+          category: 'cme',
+          impact: 2,
+          estimated: true,
+          allDay: true,
+          instruments: [spec.symbol],
+          description: 'Jour de bascule conventionnel (jeudi précédant la semaine d’expiration) : le volume migre vers l’échéance suivante. Date estimée.',
+          beginnerTip: TIPS.cme,
+        });
+      }
     } else {
-      events.push({ id: id('opex', thirdFriday), date: thirdFriday, timeET: '16:00', title: 'Expiration mensuelle des options', category: 'cme', impact: 1, estimated: false, description: 'Troisième vendredi : expiration des options sur indices et actions, flux de couverture en fin de séance.', beginnerTip: TIPS.macro });
+      events.push({ id: id('opex', thirdFriday), date: thirdFriday, timeET: '16:00', title: 'Expiration mensuelle des options', category: 'cme', impact: 1, estimated: true, description: 'Troisième vendredi : expiration des options sur indices et actions, flux de couverture en fin de séance. Date estimée.', beginnerTip: TIPS.cme });
     }
   }
 
@@ -284,21 +307,21 @@ export function generateNasdaqEvents(year: number): CalEvent[] {
     const description = h.closed
       ? 'Marchés américains fermés. Pas de séance RTH ; Globex fermé ou très partiel.'
       : earlyFriday
-        ? 'Good Friday : les futures sur indices Nasdaq cotent en séance écourtée, pas une journée fermée. L’horaire exact dépend du produit — vérifier le calendrier CME. Un NFP peut tomber le même jour.'
+        ? 'Good Friday : les futures sur indices cotent en séance écourtée, pas une journée fermée. L’horaire exact dépend du produit — vérifier le calendrier CME. Un NFP peut tomber le même jour.'
         : 'Jour férié américain : les futures sur indices cotent avec une clôture anticipée vers 13:00 ET. Vérifier les horaires publiés par le CME.';
-    events.push({ id: id('hol', h.date), date: h.date, title, category: 'horaire', impact: 2, estimated: false, allDay: true, description, beginnerTip: TIPS.holiday });
+    events.push({ id: id('hol', h.date), date: h.date, title, category: 'horaire', impact: 2, estimated: false, allDay: true, description, beginnerTip: TIPS.horaire });
   }
   const thanksgiving = nthWeekdayOfMonth(year, 11, 4, 4);
-  events.push({ id: id('bf', thanksgiving), date: addDays(thanksgiving, 1), title: 'Lendemain de Thanksgiving · clôture 13:15 ET', category: 'horaire', impact: 1, estimated: false, allDay: true, description: 'Séance écourtée, volumes très faibles.', beginnerTip: TIPS.holiday });
+  events.push({ id: id('bf', thanksgiving), date: addDays(thanksgiving, 1), title: 'Lendemain de Thanksgiving · clôture 13:15 ET', category: 'horaire', impact: 1, estimated: false, allDay: true, description: 'Séance écourtée, volumes très faibles.', beginnerTip: TIPS.horaire });
 
   const usDstStart = nthWeekdayOfMonth(year, 3, 0, 2);
   const euDstStart = nthWeekdayOfMonth(year, 3, 0, -1);
   const euDstEnd = nthWeekdayOfMonth(year, 10, 0, -1);
   const usDstEnd = nthWeekdayOfMonth(year, 11, 0, 1);
-  events.push({ id: id('dst1', usDstStart), date: usDstStart, title: 'New York passe à l’heure d’été · décalage Paris 5 h', category: 'horaire', impact: 2, estimated: false, allDay: true, description: `Jusqu’au ${euDstStart}, ouverture RTH à 14:30 Paris, publications 8:30 ET à 13:30 Paris.`, beginnerTip: TIPS.dst });
-  events.push({ id: id('dst2', euDstStart), date: euDstStart, title: 'Europe passe à l’heure d’été · décalage Paris 6 h', category: 'horaire', impact: 1, estimated: false, allDay: true, description: 'Retour au décalage habituel : ouverture RTH à 15:30 Paris.', beginnerTip: TIPS.dst });
-  events.push({ id: id('dst3', euDstEnd), date: euDstEnd, title: 'Europe repasse à l’heure d’hiver · décalage Paris 5 h', category: 'horaire', impact: 2, estimated: false, allDay: true, description: `Jusqu’au ${usDstEnd}, ouverture RTH à 14:30 Paris.`, beginnerTip: TIPS.dst });
-  events.push({ id: id('dst4', usDstEnd), date: usDstEnd, title: 'New York repasse à l’heure d’hiver · décalage Paris 6 h', category: 'horaire', impact: 1, estimated: false, allDay: true, description: 'Retour au décalage habituel : ouverture RTH à 15:30 Paris.', beginnerTip: TIPS.dst });
+  events.push({ id: id('dst1', usDstStart), date: usDstStart, title: 'New York passe à l’heure d’été · décalage Paris 5 h', category: 'horaire', impact: 2, estimated: false, allDay: true, description: `Jusqu’au ${euDstStart}, ouverture RTH à 14:30 Paris, publications 8:30 ET à 13:30 Paris.`, beginnerTip: TIPS.horaire });
+  events.push({ id: id('dst2', euDstStart), date: euDstStart, title: 'Europe passe à l’heure d’été · décalage Paris 6 h', category: 'horaire', impact: 1, estimated: false, allDay: true, description: 'Retour au décalage habituel : ouverture RTH à 15:30 Paris.', beginnerTip: TIPS.horaire });
+  events.push({ id: id('dst3', euDstEnd), date: euDstEnd, title: 'Europe repasse à l’heure d’hiver · décalage Paris 5 h', category: 'horaire', impact: 2, estimated: false, allDay: true, description: `Jusqu’au ${usDstEnd}, ouverture RTH à 14:30 Paris.`, beginnerTip: TIPS.horaire });
+  events.push({ id: id('dst4', usDstEnd), date: usDstEnd, title: 'New York repasse à l’heure d’hiver · décalage Paris 6 h', category: 'horaire', impact: 1, estimated: false, allDay: true, description: 'Retour au décalage habituel : ouverture RTH à 15:30 Paris.', beginnerTip: TIPS.horaire });
 
   events.sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
   return events;

@@ -50,7 +50,7 @@ describe('coffre canto-vault-v2', () => {
     expect(stripped.agent).not.toHaveProperty('apiKeyEncrypted');
   });
 
-  it('macroReleases toujours exportées ; barSeries/agentMessages seulement si includeHeavy', () => {
+  it('calendarEvents toujours exportées ; macroReleases seulement si le coffre les porte encore', () => {
     const light = buildVaultV2({
       appVersion: '1.1.2',
       sessions: [],
@@ -60,6 +60,7 @@ describe('coffre canto-vault-v2', () => {
       barSeries: [{ id: 'b1' }],
       agentMessages: [{ id: 'a1' }],
     });
+    expect(light.calendarEvents).toEqual([]);
     expect(light.macroReleases).toEqual([{ id: 'm1', date: '2026-09-17', title: 'FOMC' }]);
     expect(light.barSeries).toBeUndefined();
     expect(light.agentMessages).toBeUndefined();

@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import type { CalendarEventRow } from '@/engine/calendarEvents';
 import type { BarSeries } from '@/engine/bars';
 import type { IndicatorInstance } from '@/engine/indicators';
 import type { Instrument, Session, Trade } from '@/engine/types';
@@ -31,7 +32,7 @@ export interface CalendarEntry {
   updatedAt: number;
 }
 
-/** Publication macro (Investing / FF) persistée pour historique. */
+/** Ancienne publication Investing / Forex Factory. Acceptée à la lecture d'un coffre, puis écartée. */
 export interface MacroReleaseRow {
   id: string;
   date: string;
@@ -47,6 +48,8 @@ export interface MacroReleaseRow {
   at: string;
   syncedAt: number;
 }
+
+export type { CalendarEventRow };
 
 export interface Setting<T = unknown> {
   key: string;
@@ -114,7 +117,7 @@ class CantoDb extends Dexie {
   trades!: EntityTable<Trade, 'id'>;
   notes!: EntityTable<Note, 'id'>;
   calendar!: EntityTable<CalendarEntry, 'id'>;
-  macroReleases!: EntityTable<MacroReleaseRow, 'id'>;
+  calendarEvents!: EntityTable<CalendarEventRow, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
   agentMessages!: EntityTable<AgentMessage, 'id'>;
   barSeries!: EntityTable<BarSeries, 'id'>;
@@ -168,6 +171,23 @@ class CantoDb extends Dexie {
         if (next) row.symbolMap = next;
       }),
     );
+    this.version(5).stores({
+      sessions: 'id, date, account, source',
+      trades: 'id, sessionId, exitTime, instrument',
+      notes: 'id, title, updatedAt, *tags',
+      calendar: 'id, date, kind',
+      calendarEvents: 'id, date, sourceId, category, impact',
+      macroReleases: null,
+      settings: 'key',
+      agentMessages: 'id, conversationId, createdAt',
+      barSeries: 'id, instrument, createdAt',
+      copierAccounts: 'id, role',
+      bots: 'id, status, updatedAt',
+      importedExecutions: 'key, account, sessionId',
+    }).upgrade(async (tx) => {
+      // Migration v5 : suppression des publications source investing (scraping) et forexfactory.
+      await tx.table('macroReleases').clear();
+    });
   }
 }
 
@@ -201,7 +221,7 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
 /** Sauvegarde coffre JSON v2. `includeHeavy` (défaut false) ajoute barres + messages agent. */
 export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<string> {
   const includeHeavy = opts?.includeHeavy === true;
-  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, macroReleases, barSeries, agentMessages] = await Promise.all([
+  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, calendarEvents, barSeries, agentMessages] = await Promise.all([
     db.sessions.toArray(),
     db.trades.toArray(),
     db.notes.toArray(),
@@ -209,7 +229,7 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
     db.settings.toArray(),
     db.copierAccounts.toArray(),
     db.bots.toArray(),
-    db.macroReleases.toArray(),
+    db.calendarEvents.toArray(),
     includeHeavy ? db.barSeries.toArray() : Promise.resolve([]),
     includeHeavy ? db.agentMessages.toArray() : Promise.resolve([]),
   ]);
@@ -224,7 +244,7 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
       bots,
       copier: copierAccounts,
       settings: settingsObj,
-      macroReleases,
+      calendarEvents,
       includeHeavy,
       barSeries: includeHeavy ? barSeries : undefined,
       agentMessages: includeHeavy ? agentMessages : undefined,
@@ -273,6 +293,8 @@ const BOT_STATUSES = ['brouillon', 'backtest', 'papier', 'verrouille'] as const;
 const RULE_KINDS = ['condition', 'action', 'garde'] as const;
 const MESSAGE_ROLES = ['user', 'assistant', 'system', 'tool'] as const;
 const MACRO_SOURCES = ['investing', 'forexfactory'] as const;
+const CAL_SOURCES = ['bls', 'bea', 'fed', 'ecb', 'cme', 'eia', 'treasury', 'fred', 'forexfactory', 'user'] as const;
+const CAL_CATS = ['emploi', 'inflation', 'croissance', 'banque-centrale', 'energie', 'adjudication', 'cme', 'resultats', 'autre'] as const;
 const SIZING_MODES = ['fixe', 'ratio', 'risque'] as const;
 
 export type SkippedRows = Record<string, number>;
@@ -383,6 +405,24 @@ const CHECKS: Record<string, Check> = {
     isEnum(r.source, MACRO_SOURCES) &&
     isStr(r.at, 64) &&
     opt(r.timeET, (v) => isStr(v, 16)),
+  calendarEvents: (r) =>
+    isDate(r.date) &&
+    isStr(r.title, 300) &&
+    isEnum(r.sourceId, CAL_SOURCES) &&
+    isEnum(r.category, CAL_CATS) &&
+    (r.impact === 1 || r.impact === 2 || r.impact === 3) &&
+    isBool(r.estimated) &&
+    isNum(r.syncedAt) &&
+    Array.isArray(r.instruments) &&
+    r.instruments.length <= 32 &&
+    r.instruments.every((s) => isInstrumentId(s)) &&
+    opt(r.timeET, (v) => isStr(v, 8)) &&
+    opt(r.at, (v) => isStr(v, 64)) &&
+    opt(r.currency, (v) => isStr(v, 16)) &&
+    opt(r.previous, (v) => isStr(v, 64)) &&
+    opt(r.actual, (v) => isStr(v, 64)) &&
+    opt(r.forecast, (v) => isStr(v, 64)) &&
+    opt(r.period, (v) => isStr(v, 80)),
   barSeries: (r) =>
     isInstrumentId(r.instrument) &&
     inRange(r.timeframe, 1, 100_000) &&
@@ -459,7 +499,7 @@ export interface PreparedVault {
   otherSettings: Setting[];
   copierAccounts: CopierAccount[];
   bots: BotBlueprint[];
-  macroReleases: MacroReleaseRow[];
+  calendarEvents: CalendarEventRow[];
   barSeries: BarSeries[];
   agentMessages: AgentMessage[];
   skipped: SkippedRows;
@@ -502,13 +542,15 @@ export function prepareVaultRestore(json: string): PreparedVault {
   const copierRaw = rows<Omit<CopierAccount, 'symbolMap'> & { symbolMap: unknown }>(parsed.copier, 'id', 'copierAccounts', CHECKS.copierAccounts!, skipped);
   const copierAccounts: CopierAccount[] = copierRaw.map((acc) => ({ ...acc, symbolMap: coerceSymbolMap(acc.symbolMap)! }));
   const bots = rows<BotBlueprint>(parsed.bots, 'id', 'bots', CHECKS.bots!, skipped);
-  const macroReleases = rows<MacroReleaseRow>(parsed.macroReleases, 'id', 'macroReleases', CHECKS.macroReleases!, skipped);
+  // Anciennes lignes investing / forexfactory : acceptées (coffre v1/v2 non rejeté) puis écartées.
+  rows<MacroReleaseRow>(parsed.macroReleases, 'id', 'macroReleases', CHECKS.macroReleases!, skipped);
+  const calendarEvents = rows<CalendarEventRow>(parsed.calendarEvents, 'id', 'calendarEvents', CHECKS.calendarEvents!, skipped);
   const barSeries = rows<BarSeries>(parsed.barSeries, 'id', 'barSeries', CHECKS.barSeries!, skipped);
   const agentMessages = rows<AgentMessage>(parsed.agentMessages, 'id', 'agentMessages', CHECKS.agentMessages!, skipped);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
   if (consistentTrades.length !== trades.length) skipped.trades = (skipped.trades ?? 0) + (trades.length - consistentTrades.length);
-  return { sessions, trades: consistentTrades, notes, calendar, settingsPatch, pendingApiKey, otherSettings, copierAccounts, bots, macroReleases, barSeries, agentMessages, skipped };
+  return { sessions, trades: consistentTrades, notes, calendar, settingsPatch, pendingApiKey, otherSettings, copierAccounts, bots, calendarEvents, barSeries, agentMessages, skipped };
 }
 
 export interface RestoreSummary {
@@ -528,7 +570,7 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
     let apiKeyReencrypted = false;
     await db.transaction(
       'rw',
-      [db.sessions, db.trades, db.importedExecutions, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots, db.macroReleases, db.barSeries, db.agentMessages],
+      [db.sessions, db.trades, db.importedExecutions, db.notes, db.calendar, db.settings, db.copierAccounts, db.bots, db.calendarEvents, db.barSeries, db.agentMessages],
       async () => {
         if (v.sessions.length) {
           await db.sessions.clear();
@@ -578,9 +620,9 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
           await db.bots.clear();
           await db.bots.bulkPut(v.bots);
         }
-        if (v.macroReleases.length) {
-          await db.macroReleases.clear();
-          await db.macroReleases.bulkPut(v.macroReleases);
+        if (v.calendarEvents.length) {
+          await db.calendarEvents.clear();
+          await db.calendarEvents.bulkPut(v.calendarEvents);
         }
         if (v.barSeries.length) {
           await db.barSeries.clear();
