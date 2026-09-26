@@ -546,6 +546,8 @@
     frame.classList.add('leaving');
     xfer.classList.add('on');
     hudText.textContent = L().linking;
+    // AUBE : le soleil franchit le limbe sur la timeline du circuit (T_RING / T_COLLAPSE / T_LED / T_DONE).
+    window.cantoAube?.launch();
     if (reducedMotion) return new Promise((resolve) => setTimeout(resolve, 160));
     return runTransfer();
   }
