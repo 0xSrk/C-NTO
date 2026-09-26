@@ -293,7 +293,8 @@ const BOT_STATUSES = ['brouillon', 'backtest', 'papier', 'verrouille'] as const;
 const RULE_KINDS = ['condition', 'action', 'garde'] as const;
 const MESSAGE_ROLES = ['user', 'assistant', 'system', 'tool'] as const;
 const MACRO_SOURCES = ['investing', 'forexfactory'] as const;
-const CAL_SOURCES = ['bls', 'bea', 'fed', 'ecb', 'cme', 'eia', 'treasury', 'fred', 'forexfactory', 'user'] as const;
+const CAL_SOURCES = ['bls', 'bea', 'fed', 'ecb', 'cme', 'eia', 'treasury', 'fred', 'forexfactory', 'user', 'bundle'] as const;
+const CAL_ORIGINS = ['bls', 'bea', 'fed', 'ecb', 'eia', 'treasury'] as const;
 const CAL_CATS = ['emploi', 'inflation', 'croissance', 'banque-centrale', 'energie', 'adjudication', 'cme', 'resultats', 'autre'] as const;
 const SIZING_MODES = ['fixe', 'ratio', 'risque'] as const;
 
@@ -422,7 +423,8 @@ const CHECKS: Record<string, Check> = {
     opt(r.previous, (v) => isStr(v, 64)) &&
     opt(r.actual, (v) => isStr(v, 64)) &&
     opt(r.forecast, (v) => isStr(v, 64)) &&
-    opt(r.period, (v) => isStr(v, 80)),
+    opt(r.period, (v) => isStr(v, 80)) &&
+    opt(r.origin, (v) => isEnum(v, CAL_ORIGINS)),
   barSeries: (r) =>
     isInstrumentId(r.instrument) &&
     inRange(r.timeframe, 1, 100_000) &&

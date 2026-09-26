@@ -37,7 +37,9 @@ export interface CalEvent {
   actual?: string;
   /** Période de référence (ex. Jul) */
   period?: string;
-  source?: 'local' | 'bls' | 'bea' | 'fed' | 'ecb' | 'cme' | 'eia' | 'treasury' | 'fred' | 'forexfactory' | 'user';
+  source?: 'local' | 'bls' | 'bea' | 'fed' | 'ecb' | 'cme' | 'eia' | 'treasury' | 'fred' | 'forexfactory' | 'user' | 'bundle';
+  /** Institution d'origine d'une ligne embarquée. */
+  origin?: 'bls' | 'bea' | 'fed' | 'ecb' | 'eia' | 'treasury';
   /** Vide = tous les instruments. */
   instruments?: string[];
 }

@@ -4,7 +4,7 @@ import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Modal } from '@/design/Modal';
 import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
 import { CATEGORY_HELP, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
-import { mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
+import { eventProvenance, mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
 import { intlTag, tr, useI18n } from '@/i18n';
 import { fmtUsd, plural, signClass } from '@/lib/format';
 import { addDays, dateKeyLocal, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
@@ -442,7 +442,7 @@ export default function Calendrier() {
   const sourceLabel = sources.length
     ? sources
         .map((src) => {
-          const name = src.sourceId.toUpperCase();
+          const name = src.sourceId === 'bundle' ? `Calendrier embarqué (${/^\d{4}$/.test(src.detail ?? '') ? src.detail : '2026'})` : src.sourceId.toUpperCase();
           const state = src.state === 'ok' ? '' : src.state === 'stale' ? tr(' périmé', ' stale', ' desactualizado') : tr(' erreur', ' error', ' error');
           const when = src.syncedAt
             ? ` ${new Date(src.syncedAt).toLocaleString(intlTag(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
@@ -827,7 +827,7 @@ function DaySide({
                 </button>
                 {e.actual != null && e.actual !== '' && <Tag tone="mint">{tr('publié', 'actual', 'publicado')}</Tag>}
                 {e.estimated && <Tag tone="amber">{tr('estimé', 'estimated', 'estimado')}</Tag>}
-                {e.source && e.source !== 'local' && <span className="mono">{e.source}</span>}
+                {eventProvenance(e.source, e.origin) && <span className="mono">{eventProvenance(e.source, e.origin)}</span>}
               </div>
               <Prints e={e} />
               {e.description && !e.actual && !e.forecast && <div className={s.evDesc}>{trEventDesc(e.description)}</div>}

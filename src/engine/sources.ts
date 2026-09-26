@@ -171,6 +171,19 @@ export const SOURCES: DataSourceSpec[] = [
     byokLabel: 'Clé API FRED',
   },
   {
+    id: 'bundle',
+    name: 'Calendrier embarqué',
+    kind: 'calendar',
+    hosts: [],
+    auth: 'none',
+    freshness: 'static',
+    terms: {
+      summary:
+        'Instantané annuel des calendriers BLS, BEA, Réserve fédérale, EIA et TreasuryDirect (œuvres fédérales, domaine public) et de la BCE. Source : Banque centrale européenne, réutilisation avec attribution. Aucun hôte : le fichier est dans l’application et se régénère à chaque Release.',
+    },
+    redistributable: true,
+  },
+  {
     id: 'investing',
     name: 'Investing.com',
     kind: 'calendar',

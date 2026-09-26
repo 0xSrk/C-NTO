@@ -43,6 +43,50 @@ describe('fusion calendrier', () => {
     expect(merged[0]?.forecast).toBe('180K');
   });
 
+  it('même NFP vu par le bundle et par BLS : la ligne BLS gagne', () => {
+    const merged = mergeOfficialRows([
+      row({
+        id: 'bundle:bls:nfp-2026-04-03',
+        sourceId: 'bundle',
+        origin: 'bls',
+        date: '2026-04-03',
+        timeET: '08:30',
+        title: 'Rapport emploi US (NFP)',
+        previous: '1',
+      }),
+      row({
+        id: 'bls:nfp-2026-04-03',
+        sourceId: 'bls',
+        date: '2026-04-03',
+        timeET: '08:30',
+        title: 'Rapport emploi US (NFP)',
+        actual: '175K',
+        previous: '150K',
+      }),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.id).toBe('bls:nfp-2026-04-03');
+    expect(merged[0]?.actual).toBe('175K');
+    expect(merged[0]?.sourceId).toBe('bls');
+  });
+
+  it('un NFP seulement embarqué est servi tel quel', () => {
+    const merged = mergeOfficialRows([
+      row({
+        id: 'bundle:bls:nfp-2026-04-03',
+        sourceId: 'bundle',
+        origin: 'bls',
+        date: '2026-04-03',
+        timeET: '08:30',
+        title: 'Rapport emploi US (NFP)',
+      }),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.id).toBe('bundle:bls:nfp-2026-04-03');
+    expect(merged[0]?.sourceId).toBe('bundle');
+    expect(merged[0]?.origin).toBe('bls');
+  });
+
   it('un consensus Forex Factory seul ne crée pas d’événement', () => {
     const merged = mergeOfficialRows([
       row({

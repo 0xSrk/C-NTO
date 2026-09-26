@@ -7,7 +7,7 @@ import { app, net } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { AppLocale } from '../locale';
-import { runCalendarSync, type CacheStore, type CalendarSyncResult, type RawCacheEntry } from './sync';
+import { CALENDAR_ADAPTERS, runCalendarSync, type CacheStore, type CalendarSyncResult, type RawCacheEntry } from './sync';
 
 function diskCache(dir: string): CacheStore {
   return {
@@ -43,5 +43,6 @@ export async function syncOfficialCalendar(
     now: Date.now(),
     hostOk,
     byok,
+    adapters: CALENDAR_ADAPTERS,
   });
 }

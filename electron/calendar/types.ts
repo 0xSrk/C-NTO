@@ -14,7 +14,10 @@ export type CalendarSourceId =
   | 'treasury'
   | 'fred'
   | 'forexfactory'
-  | 'user';
+  | 'user'
+  | 'bundle';
+
+export type CalendarOrigin = 'bls' | 'bea' | 'fed' | 'ecb' | 'eia' | 'treasury';
 
 export type CalendarCategory =
   | 'emploi'
@@ -44,6 +47,7 @@ export interface CalendarEventRow {
   period?: string;
   estimated: boolean;
   syncedAt: number;
+  origin?: CalendarOrigin;
 }
 
 export interface CalendarSourceStatus {
