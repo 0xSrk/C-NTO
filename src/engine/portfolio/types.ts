@@ -1,6 +1,6 @@
 import type { PropEvaluation } from '@/engine/propfirm';
 
-/** `'crypto'` est réservé : aucune poche de ce type ne se crée ni ne se restaure. */
+/** `'crypto'` est radiée. Le littéral reste pour refuser un coffre qui le porte encore. Aucune poche de ce type ne se crée. */
 export const POCKET_KINDS = ['propfirm', 'futures', 'actions', 'indices', 'forex', 'commodites', 'cfd', 'liquidites', 'crypto'] as const;
 export type PocketKind = (typeof POCKET_KINDS)[number];
 

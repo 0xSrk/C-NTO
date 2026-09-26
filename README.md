@@ -17,7 +17,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — quantitative journal, NinjaTrader 8 br
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-253%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-289%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=c41e3a&label=version)](package.json)
 [![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
@@ -30,7 +30,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — quantitative journal, NinjaTrader 8 br
 
 <br/>
 
-**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 AGT` · `06 BOT` · `07 CPY`**
+**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 AGT` · `06 BOT` · `07 CPY` · `08 PTF`**
 
 <br/><br/>
 
@@ -48,15 +48,16 @@ An artefact from **SIΞRRΛSKΛ Lab** — quantitative journal, NinjaTrader 8 br
 5. [`05 · AGT` AI agent](#ai-agent)
 6. [`06 · BOT` Bot](#bot)
 7. [`07 · CPY` Copier](#copier)
-8. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
-9. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
-10. [Versions](#versions) · [Roadmap](#roadmap) · [Disclaimer](#disclaimer)
+8. [`08 · PTF` Portfolio](#portfolio)
+9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
+10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
+11. [Versions](#versions) · [Roadmap](#roadmap) · [Disclaimer](#disclaimer)
 
 ---
 
 ## In short
 
-CΛNTO is the Lab’s **local desk** for **CME Group futures** and prop-firm accounts, next to NinjaTrader 8. One Electron window, seven modules, one IndexedDB vault — nothing leaves the machine. Crypto is out of scope.
+CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules, one IndexedDB vault — nothing leaves the machine. Crypto is struck: no pocket, no instrument, no exchange. A vault that still carries a crypto pocket is refused.
 
 | | |
 |---|---|
@@ -67,7 +68,8 @@ CΛNTO is the Lab’s **local desk** for **CME Group futures** and prop-firm acc
 | **Context** | Official calendars (BLS, BEA, Fed, ECB, EIA, Treasury) plus an embedded 2026 snapshot · CME expirations computed locally · day’s notes |
 | **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph |
 | **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · its own JSON-RPC WebSocket, separate from the NT bridge |
-| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (live account only after an explicit confirmation, 20-contract cap, kill switch). Bot stays **DESIGN**. Copier replication is not wired |
+| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). Bot stays **DESIGN**. Copier replication is not wired |
+| **Synthesize** | Module 08 · portfolio: net value in a base currency, exposure, distance to prop thresholds, Monte Carlo on the consolidated daily PnL. A missing FX rate excludes the pocket. Crypto is struck |
 
 ---
 
@@ -435,6 +437,34 @@ Persisted prototype (accounts, rules, filters). The WebSocket **order channel** 
 
 ---
 
+<a id="portfolio"></a>
+<a id="portefeuille"></a>
+<a id="08-ptf"></a>
+
+<div align="center">
+
+**`08 · PTF · PORTEFEUILLE · SYNTHÈSE · CŒUR · PROJECTION`**
+
+## Portfolio
+
+### What the desk is worth · what it risks · what it projects — local, no new feed
+
+</div>
+
+Eighth module. It reads the journal, the prop plans, a live NinjaTrader snapshot when the link is up, and positions or cash you enter. It does not open a quote feed and it does not talk to a broker.
+
+| Question | Answer |
+|---|---|
+| Worth | Consolidated net value in a base currency (default USD), by pocket |
+| Risk | Drawdown, exposure by class and instrument, concentration, distance to the prop plan (`evaluatePlan`) |
+| Projection | Monte Carlo on the consolidated daily PnL. Ruin defaults to the sum of remaining prop drawdowns |
+
+Traditional marks use the last price you entered, otherwise cost. `unrealized` stays empty when a price is missing — it is never forced to 0. FX is a rate you type (`EURUSD` = dollars per euro). The inverse is derived. There is no triangulation. A missing rate excludes the whole pocket (`taux EUR/USD manquant`) and never converts at 1. Futures and prop exposure during the session come from a fresh bridge snapshot (under 60 seconds); otherwise the note is `pont hors ligne`.
+
+The published installer is still **v2.2.1**. This module is in the source. Cutting **3.0.0** is the freeze, not this module.
+
+---
+
 <a id="ninjatrader-8-bridge"></a>
 <a id="pont"></a>
 
@@ -448,7 +478,7 @@ Persisted prototype (accounts, rules, filters). The WebSocket **order channel** 
 
 </div>
 
-Two transports, both local. The **WebSocket** (`127.0.0.1`, default port **48231**) is a server of its own in `electron/nt-bridge/` — not the AI orchestrator. The AddOn connects with the token written to `bridge.json` (**Write the NinjaTrader configuration** in the panel; the token is not shown again). It sends executions, accounts, bars, ticks, and quotes, and accepts `order.submit` / `order.cancel` / `order.flatten`. Defaults: accounts whose name starts with `Sim`, 20 contracts per order, mandatory tag, circuit breaker after 6 s of silence, kill switch `Ctrl+Shift+K` / `Cmd+Shift+K`. A live account is added only after an explicit CΛNTO dialog.
+Two transports, both local. The **WebSocket** (`127.0.0.1`, default port **48231**) is a server of its own in `electron/nt-bridge/` — not the AI orchestrator. The AddOn connects with the token written to `bridge.json` (**Write the NinjaTrader configuration** in the panel; the token is not shown again). It sends executions, accounts, bars, ticks, and quotes, and accepts `order.submit` / `order.cancel` / `order.flatten`. Defaults: accounts whose name starts with `Sim`, 20 contracts per order, mandatory tag, circuit breaker after 6 s of silence, kill switch `Ctrl+Shift+K` / `Cmd+Shift+K`. A live account is added only after an explicit CΛNTO dialog. The contract ceiling defaults to 20 and can be set from 1 to 1000 in the panel; the main process rejects anything else.
 
 The **CSV file** stays the fallback. While the socket is live, a watched executions file imports only IDs the WebSocket has not already seen. If the socket is lost, the folder becomes the main path again, with no action from you. The journal dedupes on account + execution ID either way.
 
@@ -484,12 +514,13 @@ CANTO.command     Finder double-click (macOS) → launcher
 build/            Lab icon (LED)
 src/app/          boot, shell (title bar 56 · rail 232 · status 28), tabs
 src/design/       tokens, primitives, CΛNTO wordmark, SVG charts
-src/engine/       metrics, Monte Carlo, NT import, prop firm, instrument registry,
-                  market-data ports, official calendar, indicators, agent tools
-src/store/        Dexie (IndexedDB) + Zustand
-src/modules/      one folder per tab (01…07)
-tests/            Vitest — 253 tests (engine, import, vault, calendar, bridge, agent, shell)
-vectors/          shared JSON vectors (metrics / prop firm)
+src/engine/       metrics, Monte Carlo, NT import, prop firm, portfolio,
+                  instrument registry, market-data ports, official calendar,
+                  indicators, agent tools
+src/store/        Dexie (IndexedDB) + Zustand — schema version 7 on this line
+src/modules/      one folder per tab (01…08)
+tests/            Vitest — 289 tests (engine, import, vault, calendar, bridge, agent, portfolio, shell)
+vectors/          shared JSON vectors (metrics / prop firm / portfolio)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
 
@@ -510,7 +541,7 @@ npm install
 npm run launch         # user path (launcher + desk)
 npm run desk:dev       # Electron + Vite, no launcher
 npm run typecheck      # tsc app + electron
-npm test               # Vitest (253)
+npm test               # Vitest (289)
 npm run build          # production bundle
 npm run check          # typecheck + test + build
 npm run dist:mac       # universal DMG + zip (macOS)
@@ -548,9 +579,21 @@ Lithographic grammar — **[docs/DESIGN.md](docs/DESIGN.md)**:
 - 2.2.1 — Lanceur : AUBE II (lever orbital, cœur vectoriel, voile de ville) ; transfert vers le desk garanti même fenêtre masquée
 - 2.2.0 — Notes : ontologie (liens typés, suggestions, confiance calculée)
 
+**3.0.0 is not released.** Module 08 is in this source. The freeze (plan task 8) is the cut that will carry that version. This line does not bump `package.json`.
+
 ---
 
 ## Roadmap
+
+Toward the **3.0.0** freeze, still on package **2.2.1**:
+
+| Step | State |
+|---|---|
+| Instruments, market-data port, official calendar, embedded snapshot, NT8 WebSocket, notes ontology | Shipped on the 2.2.x line |
+| Portfolio (module 08) | In this source. Dexie schema version 7. No version bump |
+| Freeze and tag `v3.0.0` | Not started. The pre-freeze audit is in `docs/AUDIT.md` |
+
+Still outside that freeze:
 
 - Copier replication (sizing, filters, prop-firm policy) on the order channel that already exists
 - Backtest automations on imported bars
@@ -560,7 +603,7 @@ Lithographic grammar — **[docs/DESIGN.md](docs/DESIGN.md)**:
 
 ## Disclaimer
 
-The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier does not replicate. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a 20-contract ceiling and a global kill switch.
+The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier does not replicate. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it up to 1000; the main process refuses anything outside 1–1000) and a global kill switch. Crypto is struck from the desk.
 
 License: `UNLICENSED`. All rights reserved, SIΞRRΛSKΛ. The repository may be read. Reuse, a published fork, or commercial use are not allowed without agreement.
 

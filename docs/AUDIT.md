@@ -283,7 +283,7 @@ Le transfert vers le desk ne dépend jamais d'une image rendue : filet à `CFG.p
 
 Module 08 · PTF. Synthèse locale : ce que le desk vaut, ce qu'il risque, ce que ça projette. Pas de montée de version (la 3.0.0 est la tâche 8). Aucune source réseau nouvelle.
 
-**Modèle.** Dexie `version(7)`, tables additives seulement : `pockets` (`id, kind, account`), `positions` (`id, pocketId, symbol, closedAt`), `cashBalances` (`id, pocketId`), `fxRates` (`pair`), `equityPoints` (`[pocketId+date], date`). `PocketKind` inclut `'crypto'`, réservé : le formulaire ne le propose pas, la création lève, et la restauration d'un coffre qui porte `kind: 'crypto'` lève « Poche crypto refusée : la crypto est hors périmètre de CΛNTO. » Les poches possibles : prop firm, futures, actions, indices, forex, commodités, CFD, liquidités. Réglage `portfolio.baseCurrency`, défaut `USD`, devise ISO sur 3 lettres.
+**Modèle.** Dexie `version(7)`, tables additives seulement : `pockets` (`id, kind, account`), `positions` (`id, pocketId, symbol, closedAt`), `cashBalances` (`id, pocketId`), `fxRates` (`pair`), `equityPoints` (`[pocketId+date], date`). `PocketKind` inclut `'crypto'`, radiée : le formulaire ne le propose pas, la création lève, et la restauration d'un coffre qui porte `kind: 'crypto'` lève « Poche crypto refusée : la crypto est hors périmètre de CΛNTO. » Le littéral reste pour ce refus. `AssetClass` ne contient plus `'crypto'`. Les poches possibles : prop firm, futures, actions, indices, forex, commodités, CFD, liquidités. Réglage `portfolio.baseCurrency`, défaut `USD`, devise ISO sur 3 lettres.
 
 **Valorisation** (`valuePocket`, pur). La journée est celle de Globex : `tradingDayKey` à 18:00 America/New_York. La date d'une séance n'est pas re-découpée.
 
@@ -303,10 +303,44 @@ Module 08 · PTF. Synthèse locale : ce que le desk vaut, ce qu'il risque, ce qu
 
 **Calculé.** Valeur nette, exposition, concentration, levier, courbe, drawdown, distances prop, alerte à 25 %, bilan, Monte Carlo.
 
-**Non couvert.** Cotations live (pas de flux, pas de port créé), courtiers, crypto (valeur d'énumération seulement).
+**Non couvert.** Cotations live (pas de flux, pas de port créé), courtiers. La crypto est radiée : pas de poche, pas d'instrument. Le littéral `kind: 'crypto'` ne sert qu'à refuser un coffre.
 
 **Hypothèses.** Deux poches sur le même compte additionnent deux fois les mêmes séances. Le PnL réalisé d'une position clôturée n'est pas versé en cash : l'utilisateur saisit le cash. Il n'y a pas d'historique de change : le taux saisi courant convertit toute la courbe. Un cash est un niveau à partir de sa journée, pas un grand livre des soldes passés. Le pont est « vivant » dans l'interface quand `link === 'live'` ; l'horodatage de l'instantané est celui de la lecture, pour que le seuil de 60 s reste vrai tant que le lien l'est.
 
 **Coffre.** Format `canto-vault-v2` inchangé (`schemaVersion: 2`). Champs optionnels `pockets`, `positions`, `cashBalances`, `fxRates`. Un coffre 2.2.x sans eux est accepté et ne remplace pas les tables. `equityPoints` n'est pas exporté : il est reconstruit à la restauration. Validateurs `CHECKS` : devises ISO, quantités finies, `kind` dans les types créables (`'crypto'` ne passe pas), taux strictement positif, `by: 'utilisateur'`.
+
+## Pré-gel 3.0.0
+
+Audit de rapprochement avant la tâche 8. Le paquet reste **2.2.1**. Pas de tag, pas de gel. CΛNTO est un desk local pour les traders prop firm (futures CME, pont NinjaTrader 8). La crypto est radiée.
+
+**Trame.** Le README décrit huit modules, 289 tests, le module 08, et la distance à la 3.0.0. `docs/AGENT-HARDENING.md` porte un bandeau : brief du 2026-09-17 (`1.1.1`), plus la vérité courante. On ne réécrit pas ce brief pour le faire coller au desk.
+
+**Crypto.** Aucune poche à l'écran (`CREATABLE_POCKET_KINDS`). Aucun instrument. `AssetClass` ne contient plus `'crypto'`. `PocketKind` garde le littéral pour `assertNoCryptoPockets` : un coffre qui porte `kind: 'crypto'` lève « Poche crypto refusée : la crypto est hors périmètre de CΛNTO. » `valuePocket` exclut encore ce type avec `crypto hors périmètre`. `crypto.getRandomValues` dans `src/lib/id.ts` est l'API Web, pas un marché.
+
+**Sécurité relue, tenue.**
+
+- Fenêtres desk et lanceur : `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false` (`electron/main.ts`).
+- `trusted()` : l'IPC n'accepte que la fenêtre du desk ou celle du lanceur.
+- CSP de `index.html` : `script-src 'self'` ; `connect-src` limité à `'self'`, `ws://127.0.0.1:*` et `ws://localhost:*`. Le lanceur a `connect-src 'none'`. `style-src 'unsafe-inline'` reste (feuille critique). Pas de `script-src 'unsafe-inline'`.
+- Markdown : `renderNote` et `renderMarkdown` passent par DOMPurify. URI `http(s)` et ancres. `script`, `iframe`, `form`, `svg` interdits.
+- Navigation : `will-navigate` borné au document chargé. `setWindowOpenHandler` refuse toute fenêtre enfant. `openExternalSafe` n'ouvre que `https:` ou `http://127.0.0.1`.
+- Ordres : `NtBridgeServer.submit` appelle `validateOrderSubmit` puis `guardSubmit` (tag, compte `Sim*` ou liste explicite, lien `live`, canal ouvert, quantité ≤ plafond). `NtBridgeHost.setMaxContracts` n'accepte qu'un entier de 1 à 1000. Défaut `DEFAULT_MAX_CONTRACTS` = 20. Annulation et flatten passent par `guardAccountCommand`.
+- `llmHostOk` ignore le paramètre `extra` : le renderer n'élargit pas les hôtes. Hors loopback, `https` seulement.
+- Calendrier : `syncOfficialCalendar` reçoit `dataFetchAllowed` (`https` et hôtes des sources redistribuables). Investing.com est documenté, `redistributable: false`, jamais contacté.
+- Fichiers : `files:write-in-folder` exige un dossier accordé et `isSafeBackupName`. `shell:open-path` n'ouvre que le dossier du pont (`path.resolve` égal).
+- Coffre : `stripSecrets`. `schemaVersion` 2. La crypto est refusée avant les validateurs de lignes.
+- Permissions de session : `clipboard-sanitized-write` seulement.
+
+**Consigné, pas corrigé dans cette passe.**
+
+- La confirmation d'un compte réel vit dans `BridgeModal`. `allowAccount` fait confiance à la fenêtre du desk. Un script qui tourne déjà dans cette fenêtre peut autoriser un compte puis soumettre, dans les gardes (plafond, tag, lien vivant). La CSP et DOMPurify sont la barrière en amont. La confirmation n'est pas déplacée dans le process main.
+- Le champ « Plafond » du panneau est non contrôlé. Une saisie hors 1–1000 est refusée par l'hôte ; le champ peut garder le chiffre tapé jusqu'au prochain statut. L'ordre utilise le plafond persisté.
+- Le registre ne contient que des futures. `forex`, `equity`, `index`, `commodity` et `cfd` sont des classes vides (`listInstruments` renvoie `[]`). Les poches traditionnelles ne inventent pas un contrat CME.
+- Le copieur ne réplique pas (tâche 5 reportée). Le bot reste en conception : aucun ordre.
+- Deux poches sur le même compte additionnent deux fois les mêmes séances (hypothèse déjà écrite en tâche 7).
+
+**Distance à la 3.0.0.** Tâches 1 à 6 : ligne publiée 2.2.x. Tâche 7 : module 08 dans cette branche, Dexie `version(7)`, pas de montée de version. Tâche 8 : gel, version `3.0.0`, tag — non commencée. Après le gel, hors de cette passe : réplication du copieur, backtest des automates, mémoire longue de l'agent.
+
+**Vérification.** `npm run check` : typecheck, 289 tests, build. Aucune nouvelle dépendance. Aucune nouvelle version Dexie. Le coffre reste `canto-vault-v2`.
 
 
