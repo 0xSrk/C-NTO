@@ -5,7 +5,8 @@ import { Modal } from '@/design/Modal';
 import { Button, Empty, Field, Progress, Tag, Toggle, cx } from '@/design/primitives';
 import { INDICATORS, indicatorById, type IndicatorInstance, type IndicatorLine, type IndicatorParam } from '@/engine/indicators';
 import type { Bar } from '@/engine/bars';
-import { listInstruments } from '@/engine/instruments';
+import { DEFAULT_FUTURE, listInstruments } from '@/engine/instruments';
+import { createPort } from '@/engine/marketdata';
 import type { Instrument } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { openTextFile } from '@/lib/desk';
@@ -16,6 +17,18 @@ import { useJournal } from '@/store/journal';
 import { useUi } from '@/store/ui';
 import { Chart, type HoverInfo } from './Chart';
 import s from './visual.module.css';
+
+const HISTORY_SPAN = { from: 0, to: Number.MAX_SAFE_INTEGER } as const;
+
+async function demoBars(timeframe: number, opts?: { days?: number; endDate?: string }): Promise<Bar[]> {
+  const port = createPort('demo', { demo: { days: opts?.days ?? 12, endDate: opts?.endDate } });
+  try {
+    if (!port.history) throw new Error('Port démo sans historique');
+    return await port.history({ instrument: DEFAULT_FUTURE, timeframe, ...HISTORY_SPAN });
+  } finally {
+    port.dispose();
+  }
+}
 
 function seriesLabel(label: string): string {
   return label.replaceAll('démo synthétique', tr('démo synthétique', 'synthetic demo', 'demo sintética'));
@@ -156,7 +169,7 @@ export default function Visual() {
   const indicators = useBars((b) => b.indicators);
   const load = useBars((b) => b.load);
   const setActive = useBars((b) => b.setActive);
-  const regenerateDemo = useBars((b) => b.regenerateDemo);
+  const saveDemoSeries = useBars((b) => b.saveDemoSeries);
   const importCsv = useBars((b) => b.importCsv);
   const remove = useBars((b) => b.remove);
   const addIndicator = useBars((b) => b.addIndicator);
@@ -195,17 +208,19 @@ export default function Visual() {
     if (session.date >= firstKey && session.date <= lastKey) return;
     if (regeneratedFor.current === session.date) return;
     regeneratedFor.current = session.date;
-    regenerateDemo({ endDate: session.date, days: 6, timeframe: active.timeframe }).then(() =>
-      toast(
-        tr(
-          `Barres de démonstration régénérées autour du ${formatDateFr(session.date, { short: true })}.`,
-          `Demo bars regenerated around ${formatDateFr(session.date, { short: true })}.`,
-          `Barras de demostración regeneradas en torno al ${formatDateFr(session.date, { short: true })}.`,
+    demoBars(active.timeframe, { endDate: session.date, days: 6 })
+      .then((bars) => saveDemoSeries(bars, active.timeframe, session.date))
+      .then(() =>
+        toast(
+          tr(
+            `Barres de démonstration régénérées autour du ${formatDateFr(session.date, { short: true })}.`,
+            `Demo bars regenerated around ${formatDateFr(session.date, { short: true })}.`,
+            `Barras de demostración regeneradas en torno al ${formatDateFr(session.date, { short: true })}.`,
+          ),
+          'info',
         ),
-        'info',
-      ),
-    );
-  }, [session, active, regenerateDemo, toast]);
+      );
+  }, [session, active, saveDemoSeries, toast]);
 
   const lines = useIndicatorLines(active?.bars ?? null, indicators);
 
@@ -245,7 +260,7 @@ export default function Visual() {
             <Button variant="gold" onClick={() => setImportOpen(true)}>
               <IconImport size={14} /> {tr('Importer des barres', 'Import bars', 'Importar barras')}
             </Button>
-            <Button variant="ghost" onClick={() => regenerateDemo({ days: 12, timeframe: 5 }).then(() => toast(tr('Démo régénérée.', 'Demo regenerated.', 'Demo regenerada.'), 'ok'))} title={tr('Régénérer des barres synthétiques', 'Regenerate synthetic bars', 'Regenerar barras sintéticas')}>
+            <Button variant="ghost" onClick={() => demoBars(5, { days: 12 }).then((bars) => saveDemoSeries(bars, 5)).then(() => toast(tr('Démo régénérée.', 'Demo regenerated.', 'Demo regenerada.'), 'ok'))} title={tr('Régénérer des barres synthétiques', 'Regenerate synthetic bars', 'Regenerar barras sintéticas')}>
               {tr('Démo', 'Demo', 'Demo')}
             </Button>
             {active && active.source !== 'demo' && (
@@ -265,7 +280,7 @@ export default function Visual() {
                   title={tr('Aucune série de barres', 'No bar series', 'Ninguna serie de barras')}
                   text={tr('Importez un export OHLCV NinjaTrader ou régénérez le jeu synthétique pour afficher le graphique.', 'Import a NinjaTrader OHLCV export or regenerate the synthetic set to display the chart.', 'Importe una exportación OHLCV de NinjaTrader o regenere el juego sintético para mostrar el gráfico.')}
                   action={
-                    <Button variant="gold" onClick={() => regenerateDemo({ days: 12, timeframe: 5 })}>
+                    <Button variant="gold" onClick={() => demoBars(5, { days: 12 }).then((bars) => saveDemoSeries(bars, 5))}>
                       {tr('Générer la démo', 'Generate demo', 'Generar la demo')}
                     </Button>
                   }
@@ -448,9 +463,14 @@ export default function Visual() {
         <ImportBarsModal
           onClose={() => setImportOpen(false)}
           onImport={async (text, name, instrument, timeframe, opts) => {
-            const r = await importCsv(text, name, instrument, timeframe, opts);
-            toast(r.bars ? tr(`${fmtInt(r.bars)} barres importées.`, `${fmtInt(r.bars)} bars imported.`, `${fmtInt(r.bars)} barras importadas.`) : r.warnings.join(' '), r.bars ? 'ok' : 'warn');
-            if (r.bars) setImportOpen(false);
+            const port = createPort('csv', { csvText: text });
+            try {
+              const r = await importCsv(port, text, name, instrument, timeframe, opts);
+              toast(r.bars ? tr(`${fmtInt(r.bars)} barres importées.`, `${fmtInt(r.bars)} bars imported.`, `${fmtInt(r.bars)} barras importadas.`) : r.warnings.join(' '), r.bars ? 'ok' : 'warn');
+              if (r.bars) setImportOpen(false);
+            } finally {
+              port.dispose();
+            }
           }}
         />
       )}

@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld('canto', {
   calendar: {
     fetchMacro: (fromDate: string, toDate: string) => ipcRenderer.invoke('calendar:macro', fromDate, toDate),
   },
+  marketdata: {
+    subscribe: (req: { instrument: string; kind: 'bars' | 'quote' | 'tick'; timeframe?: number; contractMonth?: string }) =>
+      ipcRenderer.invoke('marketdata:subscribe', req) as Promise<{ ok: false; detail: string }>,
+    unsubscribe: (id: string) => ipcRenderer.invoke('marketdata:unsubscribe', id) as Promise<{ ok: false; detail: string }>,
+    onEvent: (cb: (event: { kind: string }) => void) => subscribe('marketdata:event', cb),
+  },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     apply: (opts?: { channel?: string; confirmStash?: boolean }) => ipcRenderer.invoke('update:apply', opts),

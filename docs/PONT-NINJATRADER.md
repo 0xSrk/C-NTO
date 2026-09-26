@@ -58,6 +58,8 @@ Control Center › **Trade Performance › Trades** (ou onglet **Executions**) �
 
 ## B. Transport WebSocket — spécification (à venir)
 
+Le transport WebSocket implémentera `MarketDataPort` sous l'identifiant `nt8-bridge`.
+
 Le second étage réutilise le serveur WebSocket JSON-RPC 2.0 ouvert par le shell Electron sur `ws://127.0.0.1:<port>` (module *Agent IA › Orchestrateur externe*). Le même serveur accepte l'orchestrateur IA et le pont, différenciés par la méthode `hello`.
 
 ## 1. Enveloppe

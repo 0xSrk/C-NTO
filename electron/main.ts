@@ -6,6 +6,7 @@ import { NinjaBridge } from './bridge';
 import { llmHostOk } from './llm-host';
 import { Orchestrator } from './orchestrator';
 import { fetchMacroReleases } from './macro-calendar';
+import { allowedHosts, dataFetchAllowed } from './sources';
 import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
 import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, type UiZoomMode } from './ui-scale';
 import { defaultNinjaExportFolder } from './bridge-folder';
@@ -187,6 +188,12 @@ function ui(fr: string, en: string, es: string): string {
 }
 
 const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
+
+/** Hôtes des fetch de données (calendrier, cotations). Distincts de `llmHostOk`. */
+const dataHosts = allowedHosts();
+for (const host of dataHosts) {
+  if (host.includes('://') || host.includes('/') || host.includes(':')) throw new Error(`Hôte de données invalide : ${host}`);
+}
 
 /** Préférence zoom envoyée par le renderer (persistée dans IndexedDB). */
 let zoomUser = 1;
@@ -578,12 +585,22 @@ ipcMain.handle('update:start-desk', (e) => {
   return true;
 });
 
+/* ─── Données de marché : canal déclaré, aucun adaptateur live dans cette tâche ─── */
+ipcMain.handle('marketdata:subscribe', (e) => {
+  if (!trusted(e)) return { ok: false as const, detail: 'aucune source live' };
+  return { ok: false as const, detail: 'aucune source live' };
+});
+ipcMain.handle('marketdata:unsubscribe', (e) => {
+  if (!trusted(e)) return { ok: false as const, detail: 'aucune source live' };
+  return { ok: false as const, detail: 'aucune source live' };
+});
+
 /* ─── Calendrier macro (Investing.com → Forex Factory) ─── */
 ipcMain.handle('calendar:macro', async (e, fromDate: unknown, toDate: unknown) => {
   if (!trusted(e) || !isDateKey(fromDate) || !isDateKey(toDate)) return { releases: [], source: 'none' as const, error: ui('Plage invalide', 'Invalid range', 'Rango inválido') };
   if (fromDate > toDate) return { releases: [], source: 'none' as const, error: ui('Plage inversée', 'Reversed range', 'Rango invertido') };
   try {
-    return await fetchMacroReleases(fromDate, toDate, readLocaleFile(app.getPath('userData')));
+    return await fetchMacroReleases(fromDate, toDate, readLocaleFile(app.getPath('userData')), dataFetchAllowed);
   } catch (err) {
     return { releases: [], source: 'none' as const, error: err instanceof Error ? err.message : ui('Sync macro impossible', 'Macro sync failed', 'Sincronización macro imposible') };
   }

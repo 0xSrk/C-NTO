@@ -63,7 +63,8 @@ function etParts(iso: string): { date: string; timeET: string } | null {
 
 const FETCH_TIMEOUT_MS = 8_000;
 
-async function getJson(url: string, locale: AppLocale): Promise<unknown> {
+async function getJson(url: string, locale: AppLocale, hostOk: (url: string) => boolean): Promise<unknown> {
+  if (!hostOk(url)) throw new Error(uiText(locale, 'Hôte de données non autorisé', 'Data host not allowed', 'Host de datos no autorizado'));
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -156,7 +157,7 @@ function parseForexFactory(raw: unknown): MacroRelease[] {
   return out;
 }
 
-export async function fetchMacroReleases(fromDate: string, toDate: string, locale: AppLocale = 'fr'): Promise<{
+export async function fetchMacroReleases(fromDate: string, toDate: string, locale: AppLocale = 'fr', hostOk: (url: string) => boolean = () => false): Promise<{
   releases: MacroRelease[];
   source: 'investing' | 'forexfactory' | 'none';
   error?: string;
@@ -167,13 +168,13 @@ export async function fetchMacroReleases(fromDate: string, toDate: string, local
   const t = (fr: string, en: string, es: string) => uiText(locale, fr, en, es);
 
   try {
-    const data = await getJson(investingUrl, locale);
+    const data = await getJson(investingUrl, locale, hostOk);
     const releases = parseInvesting(data).filter((r) => r.date >= fromDate && r.date <= toDate);
     if (releases.length) return { releases, source: 'investing' };
   } catch (e) {
     const investingErr = e instanceof Error ? e.message : t('Investing indisponible', 'Investing unavailable', 'Investing no disponible');
     try {
-      const data = await getJson(FF_WEEK, locale);
+      const data = await getJson(FF_WEEK, locale, hostOk);
       const releases = parseForexFactory(data).filter((r) => r.date >= fromDate && r.date <= toDate);
       return {
         releases,
@@ -191,7 +192,7 @@ export async function fetchMacroReleases(fromDate: string, toDate: string, local
 
   // Investing OK mais vide → tenter FF pour la semaine courante
   try {
-    const data = await getJson(FF_WEEK, locale);
+    const data = await getJson(FF_WEEK, locale, hostOk);
     const releases = parseForexFactory(data).filter((r) => r.date >= fromDate && r.date <= toDate);
     return { releases, source: releases.length ? 'forexfactory' : 'none' };
   } catch {
