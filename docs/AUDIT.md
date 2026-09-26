@@ -275,4 +275,8 @@ Recalcul après écriture de note, séance, trade ou synchro calendrier, debounc
 
 **Interface.** Panneau Meta : section Relations (groupée par prédicat ; une hypothèse se confirme avec un prédicat ou se rejette) et section Confiance. Le graphe : trait plein = wiki ou `affirme`, pointillé = `hypothese`, filet gris (`--text-4`) = `structurel`. Le bouton Entités, éteint par défaut, ajoute instruments, stratégies et événements comme petits nœuds. Jetons existants, pas de nouveau composant dans `src/design/`.
 
+## AUBE II — lanceur
+
+Le transfert vers le desk ne dépend jamais d'une image rendue : filet à `CFG.pre + 400 ms`, `stop()` résout l'attente, `finally` dans `playTransfer`.
+
 

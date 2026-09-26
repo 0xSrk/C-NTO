@@ -551,8 +551,14 @@
     }
     // AUBE II : immersion dans le lever, le graticule terrestre se referme en cœur ;
     // le circuit prend la main exactement quand le cœur est formé.
-    if (window.cantoAube) await window.cantoAube.launch();
-    xfer.classList.add('on');
+    // Le filet de launch() et ce finally couvrent une fenêtre masquée : le desk s'ouvre quand même.
+    try {
+      if (window.cantoAube) await window.cantoAube.launch();
+    } catch (e) {
+      console.warn('[lanceur] AUBE launch:', e);
+    } finally {
+      xfer.classList.add('on');
+    }
     return runTransfer();
   }
 
