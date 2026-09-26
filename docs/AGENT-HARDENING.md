@@ -1,3 +1,7 @@
+> Brief historique du 2026-09-17, paquet `1.1.1`. Il ne décrit pas le desk actuel.
+> La CSP n'est plus `connect-src *`, Dexie est en `version(7)` sur la ligne portefeuille, le WebSocket NinjaTrader 8 est écrit.
+> La vérité courante est le code et [`docs/AUDIT.md`](AUDIT.md). Ne pas « réparer » le produit pour coller à ce brief.
+
 # Brief agent — durcissement CΛNTO
 
 Date : 2026-09-17  
