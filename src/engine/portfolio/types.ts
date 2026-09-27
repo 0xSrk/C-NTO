@@ -1,6 +1,6 @@
 import type { PropEvaluation } from '@/engine/propfirm';
 
-/** `'crypto'` est réservé : aucune poche de ce type ne se crée ni ne se restaure. */
+/** La crypto n'est pas une classe de CΛNTO. Le littéral `'crypto'` reste pour refuser la création et la restauration d'une poche. */
 export const POCKET_KINDS = ['propfirm', 'futures', 'actions', 'indices', 'forex', 'commodites', 'cfd', 'liquidites', 'crypto'] as const;
 export type PocketKind = (typeof POCKET_KINDS)[number];
 
@@ -142,6 +142,11 @@ export function isCreatableKind(kind: string): kind is CreatablePocketKind {
 
 export function isTraditionalKind(kind: PocketKind): boolean {
   return (TRADITIONAL_KINDS as readonly string[]).includes(kind);
+}
+
+/** Message si `kind` est la poche crypto radiée, sinon `null`. */
+export function cryptoPocketRefusal(kind: string): string | null {
+  return kind === 'crypto' ? CRYPTO_POCKET_ERROR : null;
 }
 
 /** Lève si une ligne de coffre porte `kind: 'crypto'`. Les autres formes invalides restent au validateur. */

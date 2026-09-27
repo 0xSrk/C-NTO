@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { mapPositionCsv } from '@/engine/portfolio/csvPositions';
 import {
-  CRYPTO_POCKET_ERROR,
+  cryptoPocketRefusal,
   isCreatableKind,
   isIsoCurrency,
   isTraditionalKind,
@@ -74,9 +74,10 @@ export const usePortfolio = create<PortfolioState>((set, get) => ({
 
   async savePocket(input) {
     if (!isCreatableKind(input.kind)) {
-      const message = input.kind === 'crypto' ? CRYPTO_POCKET_ERROR : tr('Type de poche refusé.', 'Pocket type refused.', 'Tipo de bolsa rechazado.');
+      const refused = cryptoPocketRefusal(input.kind);
+      const message = refused ?? tr('Type de poche refusé.', 'Pocket type refused.', 'Tipo de bolsa rechazado.');
       toast(message, 'error');
-      if (input.kind === 'crypto') throw new Error(CRYPTO_POCKET_ERROR);
+      if (refused) throw new Error(refused);
       return null;
     }
     const currency = currencyOf(input.currency);

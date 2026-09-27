@@ -2,6 +2,55 @@
 
 Cinq auditeurs indépendants ont relu le dépôt en lecture seule, chacun sur un axe : **moteur quantitatif**, **robustesse de l'interface**, **performance & lancement**, **sécurité**, **design & UX**. Chaque constat a été vérifié dans le code (et, pour le moteur, par calcul), puis corrigé ou consigné ci-dessous. Tests : 30 → **49** (Vitest).
 
+## Gel 3.0.0
+
+Gel du desk prop firm. Paquet **3.0.0** après le commit de release. Aucune fonctionnalité nouvelle. La crypto n'est pas une classe de CΛNTO. `npm run check` sur cette branche : typecheck, **292** tests, build.
+
+**Périmètre livré.** Registre d'instruments (futures CME), port de données de marché, calendrier officiel et instantané embarqué, pont WebSocket NinjaTrader 8, ontologie des notes, portefeuille, lanceur AUBE II.
+
+**Conception ou prototype.** Agent : prototype (outils du desk, confirmation d'écriture, LLM par le process principal). Bot : conception, aucun ordre. Copieur : conception, la réplication n'est pas branchée. Le canal d'ordres du pont, lui, est livré.
+
+**Hors périmètre définitif.** Crypto (ni classe d'actif, ni poche créable ; le littéral `'crypto'` ne sert qu'à refuser création et restauration). Explorateur. Tweets. Investing.com et Forex Factory (sources documentées, `redistributable: false` pour Investing, aucun adaptateur actif).
+
+### Vérifications 2.1
+
+- **Pont, écoute.** `grep -n "host" electron/nt-bridge/server.ts` : `WebSocketServer` est construit avec `host: '127.0.0.1'` ; tout autre hôte lève. Test `tests/nt-bridge-server.test.ts` « refuse un autre hôte que 127.0.0.1 ».
+- **Jeton.** `tokensMatch` (`electron/secure-token.ts`) hash SHA-256 puis `timingSafeEqual`. Test `tests/orchestrator-token.test.ts`.
+- **Trame.** `MAX_FRAME_BYTES = 256 * 1024`, fermeture `CLOSE.TOO_BIG` = 1009. Test `tests/nt-bridge-protocol.test.ts` « refuse une trame au-delà de 256 Ko ». Le serveur ferme aussi au-delà de ce plafond (`server.ts`, `onMessage`).
+- **`bridge.hello`.** `validateAddonCall` refuse toute méthode avant hello (fermeture 4400). Test « refuse toute méthode avant bridge.hello ».
+- **`order.submit`.** Sans tag : `-32013`. Compte hors `Sim*` et hors liste : `-32010`. Au-delà du plafond : `-32012`. Lien non `live` (dont `lost`) : `-32011`. Test `tests/nt-bridge-guards.test.ts` « refuse compte, plafond, tag et lien perdu ».
+- **Kill switch.** `tests/nt-bridge-e2e.test.ts` « bars, ordre Sim101, exécution, trade, kill switch < 200 ms » : `performance.now()` autour de `killSwitch()` est sous 200 ms.
+- **`bridge.json`.** `writeAddonConfig` écrit en `mode: 0o600` puis `chmod 0o600`. Test `tests/nt-bridge-config.test.ts` : le mode POSIX est `0600`. Sur Windows, ce mode est ignoré par Node ; le fichier est le dossier d'export sous Documents (`defaultNinjaExportFolder`). Les ACL Windows n'ont pas été mesurées sur ce poste Linux.
+- **Journal.** `NtBridgeHost.writeConfig` journalise le nom de fichier, pas le jeton. `logOrder` écrit tag, compte, instrument, quantité, résultat. Le test de config connecte un jeton faux et vérifie que les lignes du `log` ne contiennent ni le jeton ni le mot de passe d'essai.
+- **Calendrier.** `allowedHosts()` (`src/engine/sources.ts`) est la liste passée à `syncOfficialCalendar` via `dataFetchAllowed` (`electron/main.ts`, canal `calendar:macro`). `runCalendarSync` enveloppe chaque URL réseau dans `guardedFetch`, qui appelle `hostOk` avant `fetchImpl`. Le bundle est un fichier local. CME (`redistributable: false`) est court-circuité avant tout `fetch` (expirations locales). Investing.com n'a pas d'adaptateur. User-Agent calendrier : `CANTO-Desk/2.0 (calendar)` dans `guardedFetch`. Les `net.fetch` de mise à jour (`electron/updater.ts`, `electron/native-update.ts`) visent l'API GitHub avec `User-Agent: CANTO-Desk`, pas `allowedHosts()`. Les `fetch` LLM (`electron/main.ts`) passent par `llmHostOk`, qui ignore la liste envoyée par le renderer.
+- **Cache.** Le cache disque est le corps HTTP des pages officielles (`url`, `body`, `etag`, `lastModified`, `fetchedAt`) sous `userData/calendar-cache`. `cacheIdentity` retire `api_key` avant le nom de fichier et avant l'écriture : une clé FRED ne reste pas sur le disque. Test « la clé FRED n’entre pas dans le cache disque ».
+- **IPC.** `electron/preload.ts` n'expose pas `ipcRenderer`. `contextBridge.exposeInMainWorld('canto', …)` ne publie que des méthodes nommées. Comparaison des 47 canaux `ipcRenderer.(invoke|send|on)` et `ipcMain.(handle|on)` : ensembles égaux. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` sur le lanceur et le desk (`electron/main.ts`).
+- **Coffre.** Fixtures reconstituées selon `buildVaultV2` de chaque tag : `tests/fixtures/vault-2.0.1.json` (sans `links`, `calendarEvents`, `pockets`), `vault-2.1.0.json` (`calendarEvents`, sans `links`), `vault-2.2.1.json` (`links: []`, sans `pockets`). Test « fixtures 2.0.1, 2.1.0 et 2.2.1 se restaurent ». Un JSON illisible ou une liste qui n'est pas une liste lève avant toute écriture (`cleared` inchangé). Les lignes individuellement invalides sont comptées et écartées (`rows` dans `src/store/db.ts`) : le reste du coffre est importé. Ce n'est pas un import partiel d'un fichier structurellement cassé.
+- **Secrets d'export.** `tests/vault.test.ts` « export v2 ne contient aucune des clés apiKey|apiKeyBlob|orchToken|token » : `stripSecrets` avant l'écriture des réglages. Clé API du desk : `safeStorage.encryptString` (`secrets:encrypt`, `src/store/settings.ts`). Le jeton du pont vit dans `userData/nt-bridge.json` (mode `0600`), pas dans `safeStorage` et pas dans le coffre. Le jeton d'orchestrateur est en mémoire seulement.
+- **`localStorage`.** `grep -rn localStorage src` : uniquement `canto.locale` (`src/i18n/index.ts`). Le mode discret du portefeuille est en `sessionStorage` (`canto.ptf.discrete`). Pas d'onglet ni de thème dans `localStorage`.
+- **CSP.** `git diff 9cf59d3 -- index.html launcher.html` est vide. Inchangée depuis ce commit (2.2.0).
+
+### Vérifications 2.2
+
+- `npm audit --omit=dev --audit-level=high` : 0 vulnérabilité haute ou critique.
+- `git diff 1129c93 -- package.json` : vide. Aucune dépendance ajoutée depuis la 2.2.1.
+- Versions installées (`npm ls --depth=0`), sans montée majeure dans cette tâche : Electron **43.7.1**, Vite **7.3.6**, Vitest **4.1.11**, Dexie **4.4.6**.
+
+### Reporté après 3.0.0
+
+`grep -rn -E 'TODO|FIXME|XXX' src electron ninjatrader` : aucune occurrence. Rien d'orphelin dans le code.
+
+Reporté comme travail, pas comme commentaire oublié :
+
+- Réplication du copieur (sizing, filtres, politique prop) sur le canal d'ordres déjà là.
+- Backtest des automates sur des barres importées.
+- Mémoire longue de l'agent.
+- La confirmation d'un compte réel est dans le panneau. `allowAccount` fait confiance à la fenêtre du desk (`trusted`).
+- Le champ « Plafond » du panneau est non contrôlé : une saisie hors 1–1000 est refusée par l'hôte, le champ peut garder le chiffre jusqu'au prochain statut. L'ordre utilise le plafond persisté.
+- ACL Windows de `bridge.json` : non mesurées ici (poste Linux, mode POSIX `0600` testé).
+- Une exécution WebSocket est importée seule. Une entrée et une sortie dans deux messages ne forment pas un trade au journal : les lots ouverts ne sont pas repris d'un fichier à l'autre. Le test e2e apparie les deux lignes dans un seul CSV.
+
+
 ## 1. Moteur quantitatif (`src/engine`, `src/lib`)
 
 | Sévérité | Constat | Correctif |

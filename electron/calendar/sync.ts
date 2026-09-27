@@ -69,8 +69,21 @@ function withoutBundleOrigin(events: CalendarEventRow[], origin: string, range: 
   return events.filter((event) => event.sourceId !== 'bundle' || event.origin !== origin || event.date < range.from || event.date > range.to);
 }
 
+/** Retire `api_key` avant de nommer ou d'écrire le cache : la clé FRED ne reste pas sur le disque. */
+function cacheIdentity(url: string): string {
+  try {
+    const u = new URL(url);
+    if (!u.searchParams.has('api_key') && !u.searchParams.has('apiKey')) return url;
+    u.searchParams.delete('api_key');
+    u.searchParams.delete('apiKey');
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 export function cacheKeyFor(url: string): string {
-  return url.replace(/[^a-z0-9]+/gi, '_').slice(0, 140);
+  return cacheIdentity(url).replace(/[^a-z0-9]+/gi, '_').slice(0, 140);
 }
 
 function blsAllowed(now: number): boolean {
@@ -108,7 +121,7 @@ async function guardedFetch(url: string, init: RequestInit | undefined, opts: {
     const body = await res.text();
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await opts.cache.write(key, {
-      url,
+      url: cacheIdentity(url),
       body,
       etag: res.headers.get('etag') ?? undefined,
       lastModified: res.headers.get('last-modified') ?? undefined,

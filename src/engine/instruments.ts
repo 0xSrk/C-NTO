@@ -1,6 +1,7 @@
 import { tradingDayKey } from '@/lib/time';
 
-export type AssetClass = 'future' | 'forex' | 'equity' | 'index' | 'commodity' | 'cfd' | 'crypto';
+/** La crypto n'est pas une classe de CΛNTO. */
+export type AssetClass = 'future' | 'forex' | 'equity' | 'index' | 'commodity' | 'cfd';
 export type Exchange = 'CME' | 'CBOT' | 'NYMEX' | 'COMEX' | 'OTC' | 'OTHER';
 
 export interface SessionTemplate {
