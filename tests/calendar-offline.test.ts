@@ -5,6 +5,30 @@ import { cacheKeyFor, runCalendarSync, type RawCacheEntry } from '../electron/ca
 import { eventProvenance } from '@/engine/macroMerge';
 
 describe('calendrier hors ligne', () => {
+  it('la clé FRED n’entre pas dans le cache disque', async () => {
+    const written: RawCacheEntry[] = [];
+    await runCalendarSync({
+      range: { from: '2026-01-01', to: '2026-01-31' },
+      locale: 'fr',
+      now: 1,
+      hostOk: () => true,
+      byok: { fred: 'SECRETKEY99' },
+      adapters: [{ sourceId: 'fred', fetch: async () => [] }],
+      fetchImpl: async () => new Response('{"observations":[]}', { status: 200 }),
+      cache: {
+        async read() {
+          return null;
+        },
+        async write(_key, entry) {
+          written.push(entry);
+        },
+      },
+    });
+    const blob = JSON.stringify(written);
+    expect(blob).not.toContain('SECRETKEY99');
+    expect(cacheKeyFor('https://api.stlouisfed.org/fred/series/observations?series_id=PAYEMS&api_key=SECRETKEY99')).not.toContain('SECRETKEY99');
+  });
+
   it('renvoie le cache et l’état périmé, sans exception', async () => {
     const html = readFileSync('tests/fixtures/calendar/bls-empsit.html', 'utf8');
     const cpi = readFileSync('tests/fixtures/calendar/bls-cpi.html', 'utf8');

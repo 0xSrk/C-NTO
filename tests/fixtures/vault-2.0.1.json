@@ -1,0 +1,26 @@
+{
+  "format": "canto-vault-v2",
+  "schemaVersion": 2,
+  "appVersion": "2.0.1",
+  "exportedAt": 1750000000000,
+  "sessions": [
+    {
+      "id": "s201",
+      "date": "2026-03-12",
+      "account": "Sim101",
+      "instruments": ["NQ"],
+      "source": "ninjatrader",
+      "tradeCount": 1,
+      "pnl": 40,
+      "grossProfit": 40,
+      "grossLoss": 0,
+      "commission": 0,
+      "tags": [],
+      "createdAt": 1750000000000,
+      "updatedAt": 1750000000000
+    }
+  ],
+  "trades": [],
+  "notes": [],
+  "settings": { "callsign": "GEL" }
+}

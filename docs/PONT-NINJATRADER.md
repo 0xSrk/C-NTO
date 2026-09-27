@@ -73,7 +73,7 @@ Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par l
 
 Le fichier est en mode `0600`. Le jeton n'est plus affiché après génération. L'AddOn le relit, se connecte à `ws://127.0.0.1:<port>/?token=<jeton>`, et se reconnecte avec un repli de 1 s à 30 s.
 
-La compilation de l'AddOn exige Windows et NinjaTrader 8. Elle n'est pas faite sur le poste de développement Linux du dépôt.
+La compilation de l'AddOn exige Windows et NinjaTrader 8. L'AddOn C# n'a pas été compilé dans NinjaTrader 8 par ce dépôt : l'ADMIN le compile sur Windows (NinjaScript Editor, F5).
 
 ## 1. Serveur
 
@@ -135,7 +135,7 @@ Réglables dans le panneau. Persistés dans `userData/nt-bridge.json`, pas dans 
 | Comptes autorisés | nom commençant par `Sim`, plus une liste explicite vide | `-32010` |
 | Coupe-circuit | lien autre que `live` (dont `lost` après 6 s) | `-32011`, ordre non réémis |
 | Kill switch | `Ctrl+Shift+K` / `Cmd+Shift+K` (`CommandOrControl+Shift+K`) : `order.flatten` sur chaque compte autorisé connu, puis canal fermé jusqu'au redémarrage du desk | `-32011` ensuite |
-| Plafond | `maxContractsPerOrder` = **20** | `-32012` si `quantity` est supérieure |
+| Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle) | `-32012` si `quantity` est supérieure |
 | Tag | obligatoire sur `order.submit` | `-32013` |
 
 Un compte réel s'ajoute depuis le panneau, après un dialogue CΛNTO (pas `confirm()`). Chaque ordre émis est écrit dans `main.log` avec tag, compte, instrument, quantité, latence et résultat.

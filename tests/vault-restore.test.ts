@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Dexie est remplacé par une coquille : `db.<table>` est injecté ci-dessous avec des tables en mémoire.
@@ -370,6 +372,43 @@ describe('restoreVault (tables simulées)', () => {
       ),
     );
     expect([...tables.links.rows.keys()]).toEqual(['aff']);
+  });
+
+  it('fixtures 2.0.1, 2.1.0 et 2.2.1 se restaurent ; un fichier malformé n’écrit rien', async () => {
+    const load = (name: string) => readFileSync(path.join(process.cwd(), 'tests/fixtures', name), 'utf8');
+    const v201 = load('vault-2.0.1.json');
+    const v210 = load('vault-2.1.0.json');
+    const v221 = load('vault-2.2.1.json');
+    expect(v201).not.toContain('links');
+    expect(v201).not.toContain('calendarEvents');
+    expect(v201).not.toContain('pockets');
+    expect(JSON.parse(v210)).not.toHaveProperty('links');
+    expect(JSON.parse(v210).calendarEvents).toEqual([]);
+    expect(JSON.parse(v221).links).toEqual([]);
+    expect(JSON.parse(v221)).not.toHaveProperty('pockets');
+
+    await tables.pockets.bulkPut([{ id: 'keep', name: 'Cash', kind: 'liquidites', currency: 'USD', createdAt: now }]);
+    await tables.links.bulkPut([{ id: 'garde', from: { type: 'note', id: 'n1' }, to: { type: 'note', id: 'n2' }, predicate: 'soutient', kind: 'affirme', by: 'utilisateur', createdAt: now, updatedAt: now }]);
+    await restoreVault(v201);
+    expect([...tables.sessions.rows.keys()]).toEqual(['s201']);
+    expect([...tables.pockets.rows.keys()]).toEqual(['keep']);
+    expect([...tables.links.rows.keys()]).toEqual(['garde']);
+
+    await restoreVault(v210);
+    expect([...tables.sessions.rows.keys()]).toEqual(['s210']);
+    expect([...tables.links.rows.keys()]).toEqual(['garde']);
+
+    await restoreVault(v221);
+    expect([...tables.sessions.rows.keys()]).toEqual(['s221']);
+    expect([...tables.pockets.rows.keys()]).toEqual(['keep']);
+    expect(tables.links.rows.size).toBe(0);
+
+    await tables.sessions.bulkPut([session('keep-session', '2026-01-01')]);
+    const clearedBefore = tables.sessions.cleared;
+    expect(() => restoreVault('{')).toThrow(/illisible/);
+    expect(() => restoreVault(JSON.stringify({ sessions: 'nope' }))).toThrow(/liste|list/);
+    expect(tables.sessions.cleared).toBe(clearedBefore);
+    expect(tables.sessions.rows.has('keep-session')).toBe(true);
   });
 
   it('coffre 2.2.1 sans portefeuille laisse les poches ; un coffre avec poche prop reconstruit equityPoints', async () => {

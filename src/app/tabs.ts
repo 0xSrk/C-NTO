@@ -15,7 +15,7 @@ export interface TabDef {
 export const TABS: TabDef[] = [
   { id: 'metrique', index: '01', label: 'Métrique', code: 'MET', tagline: 'Journal ultime · moteur quantitatif', icon: IconMetric },
   { id: 'visual', index: '02', label: 'Visual', code: 'VIS', tagline: 'Graphique avancé · indicateurs', icon: IconVisual },
-  { id: 'calendrier', index: '03', label: 'Calendrier', code: 'CAL', tagline: 'Catalyseurs Nasdaq · repères', icon: IconCalendar },
+  { id: 'calendrier', index: '03', label: 'Calendrier', code: 'CAL', tagline: 'Sources officielles · repères', icon: IconCalendar },
   { id: 'note', index: '04', label: 'Note', code: 'NTE', tagline: 'Coffre de notes · liens', icon: IconNote },
   { id: 'agent', index: '05', label: 'Agent IA', code: 'AGT', tagline: 'Passerelle native · orchestrateur', icon: IconAgent },
   { id: 'bot', index: '06', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates · CONCEPTION', icon: IconBot },
@@ -26,7 +26,7 @@ export const TABS: TabDef[] = [
 const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
   metrique: { label: 'Metrics', tagline: 'Ultimate journal · quantitative engine' },
   visual: { label: 'Visual', tagline: 'Advanced chart · indicators' },
-  calendrier: { label: 'Calendar', tagline: 'Nasdaq catalysts · markers' },
+  calendrier: { label: 'Calendar', tagline: 'Official sources · markers' },
   note: { label: 'Note', tagline: 'Note vault · links' },
   agent: { label: 'AI Agent', tagline: 'Native gateway · orchestrator' },
   bot: { label: 'Bot', tagline: 'Automaton workshop · DESIGN' },
@@ -37,7 +37,7 @@ const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
 const TAB_ES: Record<TabId, { label: string; tagline: string }> = {
   metrique: { label: 'Métrica', tagline: 'Diario definitivo · motor cuantitativo' },
   visual: { label: 'Visual', tagline: 'Gráfico avanzado · indicadores' },
-  calendrier: { label: 'Calendario', tagline: 'Catalizadores Nasdaq · referencias' },
+  calendrier: { label: 'Calendario', tagline: 'Fuentes oficiales · referencias' },
   note: { label: 'Nota', tagline: 'Caja de notas · enlaces' },
   agent: { label: 'Agente IA', tagline: 'Pasarela nativa · orquestador' },
   bot: { label: 'Bot', tagline: 'Taller de autómatas · DISEÑO' },
