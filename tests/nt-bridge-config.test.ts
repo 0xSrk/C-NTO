@@ -21,8 +21,11 @@ describe('bridge.json et journal du pont', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'canto-bridge-'));
     dirs.push(dir);
     const written = await writeAddonConfig(dir, 48231, TOKEN);
-    expect((await stat(written.path)).mode & 0o777).toBe(0o600);
-    expect(written.aclRestricted).toBe(true);
+    // Node ignore le mode POSIX sur Windows : stat renvoie 0666. L'ACL est prouvée à part, avec un execFile factice.
+    if (process.platform !== 'win32') {
+      expect((await stat(written.path)).mode & 0o777).toBe(0o600);
+      expect(written.aclRestricted).toBe(true);
+    }
     expect(await readFile(written.path, 'utf8')).toContain(TOKEN);
 
     const lines: string[] = [];
