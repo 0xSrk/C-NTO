@@ -276,10 +276,22 @@ export function resolveSymbol(raw: string): { symbol: string; contractMonth?: st
   return null;
 }
 
+/** `HH:mm` de la bascule. Sans minutes (`18`), la minute vaut 0 — comportement antérieur. */
+function boundaryClock(boundary: string): { hour: number; minute: number } {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(boundary.trim());
+  if (match) {
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) return { hour, minute };
+  }
+  const hour = Number(boundary.slice(0, 2));
+  return { hour: Number.isFinite(hour) && hour >= 0 && hour <= 23 ? hour : 0, minute: 0 };
+}
+
 /** Journée de trading de l'instrument (bascule et fuseau de sa session). */
 export function tradingDayOf(ms: number, spec: InstrumentSpec): string {
-  const hour = Number(spec.session.boundary.slice(0, 2));
-  return tradingDayKey(ms, Number.isFinite(hour) ? hour : 0, spec.session.zone);
+  const clock = boundaryClock(spec.session.boundary);
+  return tradingDayKey(ms, clock.hour, spec.session.zone, clock.minute);
 }
 
 /** Micro listé pour un contrat standard (`NQ` → MNQ ×10). `null` si déjà micro ou sans micro. */

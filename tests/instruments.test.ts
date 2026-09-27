@@ -96,6 +96,22 @@ describe('registre d’instruments', () => {
     expect(tradingDayOf(zonedToUtc('2026-01-15', '18:00', ET_ZONE), cl)).toBe('2026-01-16');
   });
 
+  it('une bascule 17:30 sépare 17:29 et 17:31 ET', () => {
+    const spec = registerInstrument({
+      symbol: 'BD1730',
+      name: 'Bascule 17:30',
+      assetClass: 'future',
+      exchange: 'OTHER',
+      currency: 'USD',
+      pointValue: 1,
+      tickSize: 1,
+      tickValue: 0,
+      session: { zone: ET_ZONE, boundary: '17:30', days: [0, 1, 2, 3, 4] },
+    });
+    expect(tradingDayOf(zonedToUtc('2026-07-15', '17:29', ET_ZONE), spec)).toBe('2026-07-15');
+    expect(tradingDayOf(zonedToUtc('2026-07-15', '17:31', ET_ZONE), spec)).toBe('2026-07-16');
+  });
+
   it('la séance d’un instrument connu ignore la bascule civile', () => {
     const exit = zonedToUtc('2026-07-15', '18:00', ET_ZONE);
     const trade: Trade = {

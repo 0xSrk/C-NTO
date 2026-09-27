@@ -119,6 +119,24 @@ export interface ImportedExecution {
   importedAt: number;
 }
 
+/** Lot encore ouvert. `key` = `account|instrument|contractMonth|executionId`. */
+export interface StoredOpenLot {
+  key: string;
+  account: string;
+  instrument: string;
+  instrumentName: string;
+  contractMonth: string;
+  direction: 'long' | 'short';
+  quantity: number;
+  price: number;
+  commissionPerContract: number;
+  executionId: string;
+  openedAt: number;
+  identityKey: string;
+  orderId?: string;
+  name?: string;
+}
+
 class CantoDb extends Dexie {
   sessions!: EntityTable<Session, 'id'>;
   trades!: EntityTable<Trade, 'id'>;
@@ -131,6 +149,7 @@ class CantoDb extends Dexie {
   copierAccounts!: EntityTable<CopierAccount, 'id'>;
   bots!: EntityTable<BotBlueprint, 'id'>;
   importedExecutions!: EntityTable<ImportedExecution, 'key'>;
+  openLots!: EntityTable<StoredOpenLot, 'key'>;
   links!: EntityTable<Link, 'id'>;
   pockets!: EntityTable<Pocket, 'id'>;
   positions!: EntityTable<Position, 'id'>;
@@ -211,6 +230,10 @@ class CantoDb extends Dexie {
       fxRates: 'pair',
       equityPoints: '[pocketId+date], date',
     });
+    // v8 : lots ouverts repris d'un import à l'autre (WebSocket, CSV). Table neuve, rien à migrer.
+    this.version(8).stores({
+      openLots: 'key, account, instrument',
+    });
   }
 }
 
@@ -244,7 +267,7 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
 /** Sauvegarde coffre JSON v2. `includeHeavy` (défaut false) ajoute barres + messages agent. */
 export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<string> {
   const includeHeavy = opts?.includeHeavy === true;
-  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, calendarEvents, links, pockets, positions, cashBalances, fxRates, barSeries, agentMessages] = await Promise.all([
+  const [sessions, trades, notes, calendar, settings, copierAccounts, bots, calendarEvents, links, pockets, positions, cashBalances, fxRates, openLots, barSeries, agentMessages] = await Promise.all([
     db.sessions.toArray(),
     db.trades.toArray(),
     db.notes.toArray(),
@@ -258,6 +281,7 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
     db.positions.toArray(),
     db.cashBalances.toArray(),
     db.fxRates.toArray(),
+    db.openLots.toArray(),
     includeHeavy ? db.barSeries.toArray() : Promise.resolve([]),
     includeHeavy ? db.agentMessages.toArray() : Promise.resolve([]),
   ]);
@@ -278,6 +302,7 @@ export async function exportVault(opts?: { includeHeavy?: boolean }): Promise<st
       positions,
       cashBalances,
       fxRates,
+      openLots,
       includeHeavy,
       barSeries: includeHeavy ? barSeries : undefined,
       agentMessages: includeHeavy ? agentMessages : undefined,
@@ -516,6 +541,21 @@ const CHECKS: Record<string, Check> = {
     opt(r.realizedPnl, isNum),
   cashBalances: (r) => isStr(r.pocketId, 200) && isStr(r.currency, 3) && /^[A-Z]{3}$/.test(r.currency) && isNum(r.amount) && isNum(r.at),
   fxRates: (r) => isStr(r.pair, 6) && /^[A-Z]{6}$/.test(r.pair) && isNum(r.rate) && r.rate > 0 && isNum(r.at) && r.by === 'utilisateur',
+  openLots: (r) =>
+    isStr(r.account, 64) &&
+    isInstrumentId(r.instrument) &&
+    isStr(r.instrumentName, 64) &&
+    isStr(r.contractMonth, 16) &&
+    isEnum(r.direction, ['long', 'short'] as const) &&
+    isInt(r.quantity, 1, 10_000) &&
+    inRange(r.price, 0, 1e6) &&
+    inRange(r.commissionPerContract, 0, 1e7) &&
+    isStr(r.executionId, 200) &&
+    isNum(r.openedAt) &&
+    isStr(r.identityKey, 200) &&
+    r.identityKey.length > 0 &&
+    opt(r.orderId, (v) => isStr(v, 200)) &&
+    opt(r.name, (v) => isStr(v, 200)),
 };
 
 /**
@@ -587,6 +627,9 @@ export interface PreparedVault {
   positions: Position[];
   cashBalances: CashBalance[];
   fxRates: FxRate[];
+  openLots: StoredOpenLot[];
+  /** Faux si le coffre n'a pas le champ (3.0.0) : voir la restauration. */
+  openLotsProvided: boolean;
   /** Faux si le coffre n'a pas le champ : la table n'est pas remplacée (coffre 2.2.x). */
   pocketsProvided: boolean;
   positionsProvided: boolean;
@@ -649,6 +692,8 @@ export function prepareVaultRestore(json: string): PreparedVault {
   const positions = rows<Position>(parsed.positions, 'id', 'positions', CHECKS.positions!, skipped);
   const cashBalances = rows<CashBalance>(parsed.cashBalances, 'id', 'cashBalances', CHECKS.cashBalances!, skipped);
   const fxRates = rows<FxRate>(parsed.fxRates, 'pair', 'fxRates', CHECKS.fxRates!, skipped);
+  const openLotsProvided = parsed.openLots !== undefined && parsed.openLots !== null;
+  const openLots = rows<StoredOpenLot>(parsed.openLots, 'key', 'openLots', CHECKS.openLots!, skipped);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const consistentTrades = trades.filter((t) => sessionIds.has(t.sessionId));
   if (consistentTrades.length !== trades.length) skipped.trades = (skipped.trades ?? 0) + (trades.length - consistentTrades.length);
@@ -671,6 +716,8 @@ export function prepareVaultRestore(json: string): PreparedVault {
     positions,
     cashBalances,
     fxRates,
+    openLots,
+    openLotsProvided,
     pocketsProvided,
     positionsProvided,
     cashProvided,
@@ -714,6 +761,7 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
         db.cashBalances,
         db.fxRates,
         db.equityPoints,
+        db.openLots,
       ],
       async () => {
         if (v.sessions.length) {
@@ -795,6 +843,19 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
         if (v.fxProvided) {
           await db.fxRates.clear();
           if (v.fxRates.length) await db.fxRates.bulkPut(v.fxRates);
+        }
+        // Les lots ouverts appartiennent au journal d'exécutions. Un coffre 3.0.0 ne les porte pas :
+        // s'il remplace les séances, on les retire (les empreintes viennent d'être purgées).
+        // S'il les porte, on les écrit et on réinscrit leurs empreintes pour ne pas les réapparier.
+        if (v.openLotsProvided) {
+          await db.openLots.clear();
+          if (v.openLots.length) await db.openLots.bulkPut(v.openLots);
+          const execRows = v.openLots
+            .filter((lot) => lot.identityKey.length > 0)
+            .map((lot) => ({ key: lot.identityKey, account: lot.account, executionId: lot.executionId, sessionId: '', importedAt: lot.openedAt }));
+          if (execRows.length) await db.importedExecutions.bulkPut(execRows);
+        } else if (v.sessions.length) {
+          await db.openLots.clear();
         }
         // equityPoints n'est pas dans le coffre : on le reconstruit sur l'état écrit.
         const [sessionsNow, pocketsNow, positionsNow, cashNow, fxNow] = await Promise.all([

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { importExecutionsCsv } from '@/engine/import/executions';
 import { detectFormat, detectInstrument, exportTradesCsv, importTradesCsv } from '@/engine/import/ninjatrader';
+import { loadVector } from './helpers/loadVector';
 import { CSV_WORKER_MIN_LINES, csvLineCount } from '@/engine/import';
 import { detectDecimalSeparator, parseCsv, parseLocaleNumber } from '@/lib/csv';
 import { ET_ZONE, nthWeekdayOfMonth, parseFlexibleDateTime, tradingDayKey, zonedToUtc } from '@/lib/time';
@@ -250,5 +252,78 @@ describe('import multi-instruments', () => {
     expect(mcl!.instrument).toBe('MCL');
     expect(mcl!.contractMonth).toBe('11-26');
     expect(r.warnings).toEqual(['instrument non reconnu : ZB 12-26 (1 lignes)']);
+  });
+});
+
+interface SplitLotsVector {
+  wsEntree: string;
+  wsSortie: string;
+  fichier1: string;
+  fichier2: string;
+  expected: {
+    tradeCount: number;
+    instrument: string;
+    direction: 'long' | 'short';
+    qty: number;
+    entryPrice: number;
+    exitPrice: number;
+    commission: number;
+    pnl: number;
+    openDirection: 'long' | 'short';
+    openQuantity: number;
+    openPrice: number;
+  };
+}
+
+describe('lots ouverts repris d’un message à l’autre', () => {
+  const vector = loadVector<SplitLotsVector>('trades.split-lots.json');
+
+  it('entrée dans un message WS, sortie dans le suivant → un trade', () => {
+    const entry = importExecutionsCsv(vector.wsEntree);
+    expect(entry.trades).toHaveLength(0);
+    expect(entry.openLots).toHaveLength(1);
+    const exit = importExecutionsCsv(vector.wsSortie, { carriedLots: entry.openLots, knownKeys: entry.knownKeys });
+    expect(exit.trades).toHaveLength(1);
+    expect(exit.freshExecutions).toHaveLength(1);
+  });
+
+  it('entrée dans fichier1.csv, sortie dans fichier2.csv → un trade aux chiffres du vecteur', () => {
+    const first = importExecutionsCsv(vector.fichier1);
+    expect(first.trades).toHaveLength(0);
+    const second = importExecutionsCsv(vector.fichier2, { carriedLots: first.openLots, knownKeys: first.knownKeys });
+    const want = vector.expected;
+    expect(second.trades).toHaveLength(want.tradeCount);
+    const trade = second.trades[0]!;
+    expect(trade).toMatchObject({
+      instrument: want.instrument,
+      direction: want.direction,
+      qty: want.qty,
+      entryPrice: want.entryPrice,
+      exitPrice: want.exitPrice,
+    });
+    expect(trade.commission).toBeCloseTo(want.commission);
+    expect(trade.pnl).toBeCloseTo(want.pnl);
+    expect(second.openLots).toEqual([
+      expect.objectContaining({
+        direction: want.openDirection,
+        quantity: want.openQuantity,
+        price: want.openPrice,
+      }),
+    ]);
+  });
+
+  it('rejouer fichier2.csv → zéro trade supplémentaire', () => {
+    const first = importExecutionsCsv(vector.fichier1);
+    const second = importExecutionsCsv(vector.fichier2, { carriedLots: first.openLots, knownKeys: first.knownKeys });
+    const replay = importExecutionsCsv(vector.fichier2, { carriedLots: second.openLots, knownKeys: second.knownKeys });
+    expect(replay.trades).toHaveLength(0);
+    expect(replay.freshExecutions).toHaveLength(0);
+    expect(replay.openLots).toEqual([
+      expect.objectContaining({
+        direction: vector.expected.openDirection,
+        quantity: vector.expected.openQuantity,
+        price: vector.expected.openPrice,
+      }),
+    ]);
   });
 });

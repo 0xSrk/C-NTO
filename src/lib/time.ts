@@ -29,20 +29,28 @@ function zonedParts(ms: number, timeZone: string): { year: number; month: number
   return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') % 24, minute: get('minute'), second: get('second') };
 }
 
+/** Vrai si l'heure murale est à ou après la bascule. 00:00 ne décale pas (date civile). */
+function pastBoundary(hour: number, minute: number, boundaryHour: number, boundaryMinute: number): boolean {
+  if (boundaryHour === 0 && boundaryMinute === 0) return false;
+  return hour > boundaryHour || (hour === boundaryHour && minute >= boundaryMinute);
+}
+
 /**
- * Journée de trading à partir d'un timestamp : la journée bascule à `boundaryHour`
- * (0 = date civile). Sans `zone`, l'heure locale du poste est utilisée ; avec `zone`
+ * Journée de trading à partir d'un timestamp : la journée bascule à `boundaryHour`:`minute`
+ * (0:00 = date civile). Sans `zone`, l'heure locale du poste est utilisée ; avec `zone`
  * (ex. America/New_York pour la convention Globex 18:00 ET), l'heure murale de ce fuseau.
+ * `minute` vaut 0 par défaut : les appels existants (`tradingDayKey(ms, 18, zone)`) ne changent pas.
  */
-export function tradingDayKey(ms: number, boundaryHour = 0, zone?: string): string {
+export function tradingDayKey(ms: number, boundaryHour = 0, zone?: string, minute = 0): string {
+  const boundaryMinute = Number.isInteger(minute) && minute >= 0 && minute <= 59 ? minute : 0;
   if (!zone) {
     const d = new Date(ms);
-    if (boundaryHour > 0 && d.getHours() >= boundaryHour) d.setDate(d.getDate() + 1);
+    if (pastBoundary(d.getHours(), d.getMinutes(), boundaryHour, boundaryMinute)) d.setDate(d.getDate() + 1);
     return dateKeyLocal(d);
   }
   const p = zonedParts(ms, zone);
   const d = new Date(Date.UTC(p.year, p.month - 1, p.day));
-  if (boundaryHour > 0 && p.hour >= boundaryHour) d.setUTCDate(d.getUTCDate() + 1);
+  if (pastBoundary(p.hour, p.minute, boundaryHour, boundaryMinute)) d.setUTCDate(d.getUTCDate() + 1);
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
 

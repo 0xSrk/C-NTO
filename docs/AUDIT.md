@@ -45,10 +45,62 @@ Reporté comme travail, pas comme commentaire oublié :
 - Réplication du copieur (sizing, filtres, politique prop) sur le canal d'ordres déjà là.
 - Backtest des automates sur des barres importées.
 - Mémoire longue de l'agent.
-- La confirmation d'un compte réel est dans le panneau. `allowAccount` fait confiance à la fenêtre du desk (`trusted`).
-- Le champ « Plafond » du panneau est non contrôlé : une saisie hors 1–1000 est refusée par l'hôte, le champ peut garder le chiffre jusqu'au prochain statut. L'ordre utilise le plafond persisté.
-- ACL Windows de `bridge.json` : non mesurées ici (poste Linux, mode POSIX `0600` testé).
-- Une exécution WebSocket est importée seule. Une entrée et une sortie dans deux messages ne forment pas un trade au journal : les lots ouverts ne sont pas repris d'un fichier à l'autre. Le test e2e apparie les deux lignes dans un seul CSV.
+- Calendrier BLS : l'instantané embarqué s'arrête à la publication du 4 décembre 2026. Tentative du 2026-09-27 (`npm run calendar:snapshot`) : voir la section 3.0.1, C7.
+
+## 3.0.1
+
+Correctifs du gel. Aucune fonctionnalité. `npm run check` sur cette branche : typecheck, **303** tests, build. La montée de version, le tag `v3.0.1` et la Release suivent la fusion par l'ADMIN.
+
+### C1 — Appariement des exécutions
+
+Une exécution seule (WebSocket ou fichier) reprend les lots ouverts du même compte (`account|instrument|contractMonth`) et ignore une empreinte déjà dans `importedExecutions`. Table Dexie `openLots` (`key, account, instrument`), `this.version(8)`, sans migration de données. Le coffre exporte `openLots` s'il y en a ; un coffre 3.0.0 sans ce champ est accepté. Le panneau d'import affiche le nombre de lots encore ouverts par compte.
+
+Preuve : `tests/import.test.ts` « entrée dans un message WS, sortie dans le suivant → un trade », « entrée dans fichier1.csv, sortie dans fichier2.csv → un trade aux chiffres du vecteur », « rejouer fichier2.csv → zéro trade supplémentaire ». Vecteur `vectors/trades.split-lots.json` (NQ, 20 $/point, PnL 196, commission 4, reste long 1 @ 20000). `tests/vault-restore.test.ts` « coffre 3.0.0 sans openLots accepté ».
+
+### C2 — Compte réel
+
+`ntbridge:allow-account` affiche `dialog.showMessageBox` (warning, défaut Annuler, `noLink`) avant `allowAccount`. Le dialogue du renderer reste l'explication. Le journal `main-log` porte le compte et l'horodatage, pas le jeton.
+
+Preuve : `tests/nt-bridge-guards.test.ts` « dialogue Annuler : le compte réel n’est pas ajouté », « dialogue Autoriser : le compte est ajouté, le journal n’a pas de jeton », « un appel sans fenêtre attachée est refusé ».
+
+### C3 — ACL Windows de `bridge.json`
+
+Après l'écriture, sur `win32`, `execFile('icacls', …)` sans shell : `/inheritance:r /grant:r %USERNAME%:F`. Échec : le panneau Pont affiche « permissions du fichier de configuration non restreintes ». L'ADMIN vérifie sur son poste que le fichier n'est lisible que par son compte.
+
+Preuve : `tests/nt-bridge-config.test.ts` « sur win32, icacls retire l’héritage et n’accorde que le compte », « si icacls échoue, le fichier reste écrit et les ACL sont signalées non restreintes ».
+
+### C4 — `SHA256SUMS.txt`
+
+Non modifié. La Release `v3.0.0` porte déjà l'asset (12 installeurs, sommes conformes aux fichiers). Le workflow écrit `SHA256SUMS.txt` dans `publish/` avant `gh release create "$TAG" publish/*`. Rien à recalculer ni à rattacher.
+
+### C5 — Plafond
+
+Champ contrôlé. Une saisie hors 1–1000 revient à la valeur persistée ; un refus de l'hôte est affiché dans le panneau.
+
+Preuve : `tests/bridge-modal.test.ts` « saisir 5000 ramène l’affichage à la valeur persistée ».
+
+### C6 — Minutes de `session.boundary`
+
+`tradingDayKey` prend `minute = 0`. `tradingDayOf` parse `HH:mm`.
+
+Preuve : `tests/instruments.test.ts` « une bascule 17:30 sépare 17:29 et 17:31 ET ».
+
+### C7 — Calendrier BLS 2027
+
+Non corrigé. Tentative du 2026-09-27, `npm run calendar:snapshot` : BLS a répondu (24 événements, pas un 403) mais aucune date 2027. Dernière publication embarquée : NFP 2026-12-04, CPI 2026-12-10. `src/engine/calendar-bundle/2026.json` est laissé tel quel.
+
+### C8 — Parcours manuel (ADMIN)
+
+L'agent ne lance pas le desk et ne coche rien. L'ADMIN exécute :
+
+1. Coffre neuf. Couvert par `tests/vault.test.ts` « restore d'un objet v1 minimal sans tags ne lève pas » et `tests/vault-restore.test.ts` « coffre 3.0.0 sans openLots accepté ».
+2. Import NT multi-instruments. Couvert par `tests/import.test.ts` « calcule le PnL ES / MNQ / MCL depuis le registre et signale une racine inconnue » et `tests/executions.test.ts` « apparie en FIFO avec fractionnement, commissions réparties et position ouverte restante ».
+3. Séance. Couvert par `tests/executions.test.ts` « produit des identifiants stables et des séances par journée ».
+4. Note datée liée. Couvert par `tests/ontology-structural.test.ts` « relie la note datée, le symbole, le compte, la stratégie, la séance et les événements ».
+5. Poche prop et Cœur. Couvert par `tests/portfolio-valuation.test.ts` « prop : journal puis pont vivant, le pont remplace le réalisé » et « taux manquant : poche exclue, le total ne la convertit pas à 1 », et par `tests/portfolio-bilan.test.ts` « les contributions somment au total, la variation de valeur nette aussi ».
+6. Calendrier hors ligne. Couvert par `tests/calendar-offline.test.ts` « premier lancement sans cache : le socle embarqué, sources réseau périmées, jamais vide ».
+7. Faux AddOn, barre, ordre Sim, kill switch. Couvert par `tests/nt-bridge-e2e.test.ts` « bars, ordre Sim101, exécution, trade, kill switch < 200 ms ».
+8. Mise à jour depuis le lanceur. Couvert par `tests/launcher-transfer.test.ts` « résout le lancement sans aucune image, au filet CFG.pre + 400 ms », `tests/release-check.test.ts` « lit le tag de la dernière release publiée », `tests/updater-policy.test.ts` « sans dépôt git, refuse le pull (installeur → page GitHub) ».
 
 
 ## 1. Moteur quantitatif (`src/engine`, `src/lib`)

@@ -2,12 +2,14 @@
  * Façade du pont pour le process principal : jeton, politique, journal d'ordres.
  * Le jeton vit dans `userData/nt-bridge.json`, jamais dans le coffre exporté.
  */
+import { execFile as execFileCb } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { BrowserWindow } from 'electron';
 import type { NinjaBridge } from '../bridge';
 import { mainLog } from '../main-log';
+import { uiText, type AppLocale } from '../locale';
 import { executionPayloadToCsv } from './execution-csv';
 import { DEFAULT_MAX_CONTRACTS } from './guards';
 import { DEFAULT_PORT, type ExecutionPayload } from './protocol';
@@ -64,13 +66,98 @@ export async function savePolicy(userDataDir: string, policy: NtPolicy): Promise
   await chmod(file, 0o600).catch(() => {});
 }
 
-/** Écrit `bridge.json` (port + jeton) pour l'AddOn. Le jeton n'est pas renvoyé au renderer. */
-export async function writeAddonConfig(folder: string, port: number, token: string): Promise<string> {
+export interface AddonWriteIO {
+  platform?: NodeJS.Platform;
+  /** `execFile` sans shell. Le test injecte un faux pour vérifier les arguments. */
+  execFile?: (cmd: string, args: readonly string[], cb: (err: Error | null) => void) => void;
+  username?: string;
+  log?: (level: 'info' | 'warn', message: string) => void;
+}
+
+function runExec(exec: NonNullable<AddonWriteIO['execFile']>, cmd: string, args: readonly string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    exec(cmd, args, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+function defaultExec(cmd: string, args: readonly string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFileCb(cmd, [...args], { windowsHide: true }, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+/**
+ * Écrit `bridge.json` (port + jeton) pour l'AddOn. Le jeton n'est pas renvoyé au renderer.
+ * Sur Windows, Node ignore le mode POSIX : on retire l'héritage et on n'accorde que le compte courant.
+ */
+export async function writeAddonConfig(folder: string, port: number, token: string, io: AddonWriteIO = {}): Promise<{ path: string; aclRestricted: boolean }> {
   await mkdir(folder, { recursive: true });
   const file = path.join(folder, 'bridge.json');
   await writeFile(file, `${JSON.stringify({ port, token }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   await chmod(file, 0o600).catch(() => {});
-  return file;
+  const platform = io.platform ?? process.platform;
+  if (platform !== 'win32') return { path: file, aclRestricted: true };
+  const log = io.log ?? ((level, message) => mainLog(level, message));
+  const username = io.username ?? process.env.USERNAME;
+  if (!username) {
+    log('warn', `bridge.json ACL non restreintes (${path.basename(file)})`);
+    return { path: file, aclRestricted: false };
+  }
+  const args = [file, '/inheritance:r', '/grant:r', `${username}:F`] as const;
+  try {
+    if (io.execFile) await runExec(io.execFile, 'icacls', args);
+    else await defaultExec('icacls', args);
+    log('info', `bridge.json ACL restreintes (${path.basename(file)})`);
+    return { path: file, aclRestricted: true };
+  } catch {
+    log('warn', `bridge.json ACL non restreintes (${path.basename(file)})`);
+    return { path: file, aclRestricted: false };
+  }
+}
+
+export interface RealAccountDialogOptions {
+  type: 'warning';
+  buttons: [string, string];
+  defaultId: number;
+  cancelId: number;
+  noLink: true;
+  title: string;
+  message: string;
+}
+
+/** Libellés du dialogue d'autorisation. Annuler est le bouton par défaut (index 1). */
+export function realAccountDialog(account: string, locale: AppLocale): RealAccountDialogOptions {
+  const allow = uiText(locale, `Autoriser les ordres réels sur ${account}`, `Allow real orders on ${account}`, `Autorizar órdenes reales en ${account}`);
+  const cancel = uiText(locale, 'Annuler', 'Cancel', 'Cancelar');
+  const message = uiText(
+    locale,
+    `Les ordres réels seront autorisés sur ${account}.`,
+    `Real orders will be allowed on ${account}.`,
+    `Las órdenes reales se autorizarán en ${account}.`,
+  );
+  return { type: 'warning', title: 'CΛNTO', message, buttons: [allow, cancel], defaultId: 1, cancelId: 1, noLink: true };
+}
+
+/**
+ * N'appelle `allow` que si une fenêtre est attachée et que l'opérateur confirme dans le process principal.
+ * Le dialogue du renderer ne suffit pas. Le journal ne contient pas le jeton.
+ */
+export async function authorizeLiveAccount<T>(args: {
+  win: { isDestroyed(): boolean } | null;
+  account: string;
+  locale: AppLocale;
+  showMessageBox: (win: { isDestroyed(): boolean }, options: RealAccountDialogOptions) => Promise<{ response: number }>;
+  allow: (name: string) => Promise<T>;
+  log: (line: string) => void;
+  now?: Date;
+}): Promise<T | null> {
+  const name = args.account.trim();
+  if (!args.win || args.win.isDestroyed() || !name || name.length > 128) return null;
+  const choice = await args.showMessageBox(args.win, realAccountDialog(name, args.locale));
+  if (choice.response !== 0) return null;
+  const at = (args.now ?? new Date()).toISOString();
+  args.log(`nt-bridge compte réel autorisé ${name} ${at}`);
+  return args.allow(name);
 }
 
 export class NtBridgeHost {
@@ -140,13 +227,13 @@ export class NtBridgeHost {
     return { hasToken: true };
   }
 
-  async writeConfig(): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  async writeConfig(): Promise<{ ok: true; path: string; aclRestricted: boolean } | { ok: false; error: string }> {
     if (!this.policy) return { ok: false, error: 'pont non démarré' };
     const folder = this.fileBridge?.status().folder || this.exportFolder();
     try {
-      const file = await writeAddonConfig(folder, this.server?.status().port || this.policy.port, this.policy.token);
-      mainLog('info', `nt-bridge configuration écrite (${path.basename(file)})`);
-      return { ok: true, path: file };
+      const written = await writeAddonConfig(folder, this.server?.status().port || this.policy.port, this.policy.token);
+      mainLog('info', `nt-bridge configuration écrite (${path.basename(written.path)})`);
+      return { ok: true, path: written.path, aclRestricted: written.aclRestricted };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 import { generateDemoJournal } from '@/engine/demo';
 import { DEFAULT_FUTURE } from '@/engine/instruments';
-import { CSV_WORKER_MIN_LINES, csvLineCount, importCsvAuto, type ImportOptions, type ImportResult } from '@/engine/import';
+import { CSV_WORKER_MIN_LINES, csvLineCount, detectFormat, importCsvAuto, type ImportOptions, type ImportResult } from '@/engine/import';
+import { importExecutionsCsv, openLotKey, type OpenLot } from '@/engine/import/executions';
 import { tr } from '@/i18n';
+import { parseCsv } from '@/lib/csv';
 import { listenWorker } from '@/lib/worker';
 import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { summarizeTrades } from '@/engine/metrics';
 import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
 import { uid } from '@/lib/id';
-import { db, type ImportedExecution } from './db';
+import { db, type ImportedExecution, type StoredOpenLot } from './db';
 import { withJournalLock } from './lock';
 import { scheduleOntologyRecompute } from './ontology-schedule';
 import { useUi } from './ui';
@@ -18,7 +20,7 @@ interface JournalState {
   sessions: Session[];
   trades: Trade[];
   load: () => Promise<void>;
-  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number; source?: SessionSource; signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<ImportResult & { added: number; merged: number; newTrades: number }>;
+  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number; source?: SessionSource; signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<ImportResult & { added: number; merged: number; newTrades: number; freshExecutionKeys?: string[] }>;
   loadDemo: () => Promise<number>;
   addManualSession: (input: { date: string; account?: string; pnl: number; tradeCount: number; note?: string; tags?: string[]; rating?: number }) => Promise<Session>;
   updateSession: (id: string, patch: Partial<Pick<Session, 'note' | 'tags' | 'rating' | 'account'>>) => Promise<void>;
@@ -46,6 +48,9 @@ export const useJournal = create<JournalState>((set, get) => ({
 
   async importCsv(text, opts = {}) {
     const importOpts: ImportOptions = { sessionBoundaryHour: opts.boundaryHour ?? 0, riskPerContract: opts.riskPerContract, source: opts.source };
+    if (detectFormat(parseCsv(text.slice(0, 4000)).headers) === 'ninjatrader-executions') {
+      return withJournalLock(() => commitExecutionImport(text, importOpts));
+    }
     let result: ImportResult;
     if (typeof Worker !== 'undefined' && csvLineCount(text) > CSV_WORKER_MIN_LINES) {
       try {
@@ -180,10 +185,11 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 
   async clearAll() {
-    await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions], async () => {
+    await db.transaction('rw', [db.sessions, db.trades, db.importedExecutions, db.openLots], async () => {
       await db.trades.clear();
       await db.sessions.clear();
       await db.importedExecutions.clear();
+      await db.openLots.clear();
     });
     set({ sessions: [], trades: [] });
     scheduleOntologyRecompute();
@@ -281,4 +287,78 @@ async function mergeImport(result: ImportResult): Promise<ImportResult & { added
     scheduleOntologyRecompute();
   }
   return { ...result, added, merged, newTrades: toAddTrades.length };
+}
+
+function storedToOpenLot(row: StoredOpenLot): OpenLot {
+  return {
+    account: row.account,
+    instrumentName: row.instrumentName,
+    instrument: row.instrument,
+    contractMonth: row.contractMonth,
+    direction: row.direction,
+    quantity: row.quantity,
+    price: row.price,
+    time: row.openedAt,
+    openedAt: row.openedAt,
+    commissionPerContract: row.commissionPerContract,
+    executionId: row.executionId,
+    orderId: row.orderId,
+    name: row.name,
+    identityKey: row.identityKey,
+  };
+}
+
+function openLotToStored(lot: OpenLot, seen: Set<string>): StoredOpenLot {
+  let key = openLotKey(lot);
+  if (seen.has(key)) key = `${key}|${lot.time}`;
+  seen.add(key);
+  return {
+    key,
+    account: lot.account,
+    instrument: lot.instrument,
+    instrumentName: lot.instrumentName,
+    contractMonth: lot.contractMonth ?? '',
+    direction: lot.direction,
+    quantity: lot.quantity,
+    price: lot.price,
+    commissionPerContract: lot.commissionPerContract ?? 0,
+    executionId: lot.executionId ?? '',
+    openedAt: lot.openedAt ?? lot.time,
+    identityKey: lot.identityKey ?? '',
+    orderId: lot.orderId,
+    name: lot.name,
+  };
+}
+
+/**
+ * Import Executions (fichier, CSV de secours, message WebSocket) : les lots ouverts du compte
+ * sont repris, les exécutions déjà dans `importedExecutions` ne sont pas réappariées.
+ */
+async function commitExecutionImport(text: string, importOpts: ImportOptions): Promise<ImportResult & { added: number; merged: number; newTrades: number; freshExecutionKeys: string[] }> {
+  const [knownRows, lotRows] = await Promise.all([db.importedExecutions.toArray(), db.openLots.toArray()]);
+  const result = importExecutionsCsv(text, {
+    ...importOpts,
+    knownKeys: knownRows.map((row) => row.key),
+    carriedLots: lotRows.map(storedToOpenLot),
+  });
+  const merged = result.sessions.length === 0 ? { ...result, added: 0, merged: 0, newTrades: 0 } : await mergeImport(result);
+  const present = new Set((await db.importedExecutions.toArray()).map((row) => row.key));
+  const importedAt = Date.now();
+  const seen = new Set<string>();
+  const stored = result.openLots.map((lot) => openLotToStored(lot, seen));
+  const openingKeys = stored
+    .filter((lot) => lot.identityKey.length > 0 && !present.has(lot.identityKey))
+    .map((lot) => ({
+      key: lot.identityKey,
+      account: lot.account,
+      executionId: lot.executionId,
+      sessionId: '',
+      importedAt,
+    }));
+  await db.transaction('rw', [db.openLots, db.importedExecutions], async () => {
+    await db.openLots.clear();
+    if (stored.length) await db.openLots.bulkPut(stored);
+    if (openingKeys.length) await db.importedExecutions.bulkPut(openingKeys);
+  });
+  return { ...merged, freshExecutionKeys: result.freshExecutions.map((e) => e.identityKey) };
 }
