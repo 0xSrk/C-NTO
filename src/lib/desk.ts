@@ -53,7 +53,7 @@ export interface NtBridgeStatus {
 export interface NtBridgeApi {
   status: () => Promise<NtBridgeStatus | null>;
   rotateToken: () => Promise<{ hasToken: boolean }>;
-  writeConfig: () => Promise<{ ok: boolean; path?: string; error?: string }>;
+  writeConfig: () => Promise<{ ok: boolean; path?: string; error?: string; aclRestricted?: boolean }>;
   allowAccount: (name: string) => Promise<NtBridgeStatus | null>;
   setMaxContracts: (n: number) => Promise<NtBridgeStatus | null>;
   order: (payload: { op: 'submit' | 'cancel' | 'flatten'; [key: string]: unknown }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number; closed?: number }>;

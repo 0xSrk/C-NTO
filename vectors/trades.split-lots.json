@@ -1,0 +1,20 @@
+{
+  "note": "Attendu à la main. NQ = 20 $ par point. Buy 2 @ 20000, commission 4,00 → 2 $ / contrat. Sell 1 @ 20010, commission 2,00 → 2 $ / contrat. Brut = (20010 − 20000) × 1 × 20 = 200. Commission du trade = 1 × (2 + 2) = 4. PnL = 196. Reste long 1 @ 20000.",
+  "wsEntree": "Instrument,Action,Quantity,Price,Time,ID,Commission,Account\nNQ 12-26,Buy,1,20000.00,2026-09-15T13:35:00.000Z,ws1,2.50,Sim101\n",
+  "wsSortie": "Instrument,Action,Quantity,Price,Time,ID,Commission,Account\nNQ 12-26,Sell,1,20010.00,2026-09-15T13:40:00.000Z,ws2,2.50,Sim101\n",
+  "fichier1": "Instrument,Action,Quantity,Price,Time,ID,Commission,Account\nNQ 12-26,Buy,2,20000.00,2026-09-15T13:35:00.000Z,e1,4.00,Sim101\n",
+  "fichier2": "Instrument,Action,Quantity,Price,Time,ID,Commission,Account\nNQ 12-26,Sell,1,20010.00,2026-09-15T13:40:00.000Z,e2,2.00,Sim101\n",
+  "expected": {
+    "tradeCount": 1,
+    "instrument": "NQ",
+    "direction": "long",
+    "qty": 1,
+    "entryPrice": 20000,
+    "exitPrice": 20010,
+    "commission": 4,
+    "pnl": 196,
+    "openDirection": "long",
+    "openQuantity": 1,
+    "openPrice": 20000
+  }
+}

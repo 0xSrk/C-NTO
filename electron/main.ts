@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, promises as fs, renameSync, unlinkSync, writeFil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
-import { KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
+import { authorizeLiveAccount, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
 import { Orchestrator } from './orchestrator';
 import { syncOfficialCalendar } from './calendar';
@@ -616,7 +616,19 @@ ipcMain.handle('marketdata:history', (e, req: unknown) => {
 ipcMain.handle('ntbridge:status', (e) => (trusted(e) ? ntBridge?.publicStatus() ?? null : null));
 ipcMain.handle('ntbridge:rotate-token', (e) => (trusted(e) && ntBridge ? ntBridge.rotateToken() : { hasToken: false }));
 ipcMain.handle('ntbridge:write-config', (e) => (trusted(e) && ntBridge ? ntBridge.writeConfig() : { ok: false, error: 'pont indisponible' }));
-ipcMain.handle('ntbridge:allow-account', (e, name: unknown) => (trusted(e) && ntBridge && typeof name === 'string' ? ntBridge.allowAccount(name) : null));
+ipcMain.handle('ntbridge:allow-account', async (e, name: unknown) => {
+  if (!trusted(e) || !ntBridge || typeof name !== 'string') return null;
+  const host = ntBridge;
+  const attached = win && !win.isDestroyed() ? win : null;
+  return authorizeLiveAccount({
+    win: attached,
+    account: name,
+    locale: readLocaleFile(app.getPath('userData')),
+    showMessageBox: (target, options) => dialog.showMessageBox(target as BrowserWindow, options),
+    allow: (account) => host.allowAccount(account),
+    log: (line) => mainLog('info', line),
+  });
+});
 ipcMain.handle('ntbridge:max-contracts', (e, n: unknown) => (trusted(e) && ntBridge && typeof n === 'number' ? ntBridge.setMaxContracts(n) : null));
 ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
 ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitch() : { accounts: [] }));

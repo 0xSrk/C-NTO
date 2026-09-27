@@ -41,7 +41,7 @@ interface FakeTable {
 }
 
 function rowKey(table: string, row: Record<string, unknown>): string {
-  if (table === 'settings' || table === 'importedExecutions') return String(row.key);
+  if (table === 'settings' || table === 'importedExecutions' || table === 'openLots') return String(row.key);
   if (table === 'fxRates') return String(row.pair);
   if (table === 'equityPoints') return `${row.pocketId}|${row.date}`;
   return String(row.id);
@@ -71,7 +71,7 @@ function fakeTable(table: string, seed: Record<string, unknown>[] = []): FakeTab
   return t;
 }
 
-const TABLES = ['sessions', 'trades', 'importedExecutions', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'calendarEvents', 'links', 'barSeries', 'agentMessages', 'pockets', 'positions', 'cashBalances', 'fxRates', 'equityPoints'] as const;
+const TABLES = ['sessions', 'trades', 'importedExecutions', 'openLots', 'notes', 'calendar', 'settings', 'copierAccounts', 'bots', 'calendarEvents', 'links', 'barSeries', 'agentMessages', 'pockets', 'positions', 'cashBalances', 'fxRates', 'equityPoints'] as const;
 type Tables = Record<(typeof TABLES)[number], FakeTable>;
 
 function installFakeDb(): Tables {
@@ -300,6 +300,45 @@ describe('restoreVault (tables simulées)', () => {
   let tables: Tables;
   beforeEach(() => {
     tables = installFakeDb();
+  });
+
+  it('coffre 3.0.0 sans openLots accepté', async () => {
+    const lot = {
+      key: 'Sim101|NQ|12-26|e1',
+      account: 'Sim101',
+      instrument: 'NQ',
+      instrumentName: 'NQ 12-26',
+      contractMonth: '12-26',
+      direction: 'long',
+      quantity: 1,
+      price: 20000,
+      commissionPerContract: 2,
+      executionId: 'e1',
+      openedAt: now,
+      identityKey: 'Sim101\0e1',
+    };
+    await tables.openLots.bulkPut([lot]);
+    const sansSeances = JSON.parse(JSON.stringify(buildVaultV2({ appVersion: '3.0.0', sessions: [], trades: [], notes: [] }))) as Record<string, unknown>;
+    expect(sansSeances.openLots).toBeUndefined();
+    await restoreVault(JSON.stringify(sansSeances));
+    expect(tables.openLots.rows.size).toBe(1);
+
+    const avecSeances = JSON.parse(JSON.stringify(buildVaultV2({ appVersion: '3.0.0', sessions: [session('s1', '2026-09-15')], trades: [trade('t1', 's1')], notes: [] }))) as Record<string, unknown>;
+    expect(avecSeances.openLots).toBeUndefined();
+    const restored = await restoreVault(JSON.stringify(avecSeances));
+    expect(restored.sessions).toBe(1);
+    expect(tables.openLots.rows.size).toBe(0);
+
+    const avecLots = buildVaultV2({
+      appVersion: '3.0.1',
+      sessions: [session('s1', '2026-09-15')],
+      trades: [trade('t1', 's1')],
+      notes: [],
+      openLots: [lot],
+    });
+    await restoreVault(JSON.stringify(avecLots));
+    expect([...tables.openLots.rows.keys()]).toEqual(['Sim101|NQ|12-26|e1']);
+    expect(tables.importedExecutions.rows.has('Sim101\0e1')).toBe(true);
   });
 
   it('remplace séances + trades et purge importedExecutions', async () => {

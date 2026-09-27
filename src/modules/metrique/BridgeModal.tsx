@@ -24,10 +24,15 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
   const writeNtConfig = useBridge((b) => b.writeNtConfig);
   const allowRealAccount = useBridge((b) => b.allowRealAccount);
   const setMaxContracts = useBridge((b) => b.setMaxContracts);
+  const aclUnrestricted = useBridge((b) => b.aclUnrestricted);
   const live = isBridgeLive(status);
   const fmtTime = dateTimeFormatter(TIME_OPTS);
   const [accountDraft, setAccountDraft] = useState('');
   const [confirmAccount, setConfirmAccount] = useState<string | null>(null);
+  const [ceilingDraft, setCeilingDraft] = useState<string | null>(null);
+  const [ceilingError, setCeilingError] = useState<string | null>(null);
+  const persistedCeiling = nt?.maxContractsPerOrder ?? 20;
+  const ceilingShown = ceilingDraft ?? String(persistedCeiling);
   const linkLabel = ntLinkLabel(nt?.link);
 
   return (
@@ -149,18 +154,28 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
                 <Button variant="gold" onClick={() => void writeNtConfig()} disabled={busy}>
                   {tr('Écrire la configuration pour NinjaTrader', 'Write the NinjaTrader configuration', 'Escribir la configuración para NinjaTrader')}
                 </Button>
-                <Field label={tr('Plafond', 'Ceiling', 'Tope')}>
+                <Field label={tr('Plafond', 'Ceiling', 'Tope')} hint={ceilingError ?? undefined}>
                   <input
                     className="mono"
                     type="number"
                     min={1}
                     max={1000}
-                    defaultValue={nt?.maxContractsPerOrder ?? 20}
-                    key={nt?.maxContractsPerOrder ?? 20}
+                    value={ceilingShown}
                     style={{ width: 72 }}
-                    onBlur={(e) => {
-                      const n = Number(e.target.value);
-                      if (Number.isInteger(n)) void setMaxContracts(n);
+                    onChange={(e) => {
+                      const next = nextCeilingDraft(e.target.value);
+                      setCeilingDraft(next.draft);
+                      setCeilingError(next.error);
+                    }}
+                    onBlur={() => {
+                      const raw = ceilingDraft;
+                      setCeilingDraft(null);
+                      if (raw === null || raw === '') return;
+                      const n = Number(raw);
+                      if (!Number.isInteger(n) || n < 1 || n > 1000) return;
+                      void setMaxContracts(n).then((applied) => {
+                        if (applied !== n) setCeilingError(tr('Plafond refusé par l’hôte.', 'Ceiling refused by the host.', 'Tope rechazado por el host.'));
+                      });
                     }}
                   />
                 </Field>
@@ -181,6 +196,10 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
                   {tr('Autoriser', 'Allow', 'Autorizar')}
                 </Button>
               </div>
+            )}
+
+            {aclUnrestricted && (
+              <p className={s.note}>{tr('permissions du fichier de configuration non restreintes', 'configuration file permissions are not restricted', 'permisos del archivo de configuración no restringidos')}</p>
             )}
 
             {status?.folder && (
@@ -317,6 +336,25 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
       )}
     </Modal>
   );
+}
+
+/** Saisie du plafond : hors 1–1000, l'affichage revient à la valeur persistée. */
+export function nextCeilingDraft(typed: string): { draft: string | null; error: string | null } {
+  if (typed === '') return { draft: '', error: null };
+  if (!/^\d+$/.test(typed)) return { draft: typed, error: null };
+  const n = Number(typed);
+  if (!Number.isInteger(n) || n < 1 || n > 1000) {
+    return {
+      draft: null,
+      error: tr('Plafond refusé : entier entre 1 et 1000.', 'Ceiling refused: integer from 1 to 1000.', 'Tope rechazado: entero entre 1 y 1000.'),
+    };
+  }
+  return { draft: String(n), error: null };
+}
+
+/** Valeur affichée après une saisie : le brouillon, ou le plafond persisté s'il est refusé. */
+export function ceilingDisplay(persisted: number, typed: string): string {
+  return nextCeilingDraft(typed).draft ?? String(persisted);
 }
 
 function ntLinkLabel(link: string | undefined): string {

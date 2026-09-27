@@ -4,10 +4,19 @@ import { Button, Field, Progress, cx } from '@/design/primitives';
 import { FORMAT_LABEL } from '@/engine/import';
 import { tr, useI18n } from '@/i18n';
 import { openTextFile } from '@/lib/desk';
+import { db } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './metrique.module.css';
+
+function formatOpenLots(rows: { account: string }[]): string {
+  if (rows.length === 0) return tr('Lots encore ouverts : aucun', 'Open lots: none', 'Lotes aún abiertos: ninguno');
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.account, (counts.get(row.account) ?? 0) + 1);
+  const parts = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([account, n]) => `${account} : ${n}`).join(' · ');
+  return tr(`Lots encore ouverts : ${parts}`, `Open lots: ${parts}`, `Lotes aún abiertos: ${parts}`);
+}
 
 function trFormatLabel(format: keyof typeof FORMAT_LABEL): string {
   const fr = FORMAT_LABEL[format];
@@ -27,7 +36,18 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [report, setReport] = useState<string[] | null>(null);
+  const [openLotsText, setOpenLotsText] = useState('');
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void db.openLots.toArray().then((rows) => {
+      if (!cancelled) setOpenLotsText(formatOpenLots(rows));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [report]);
 
   const cancel = () => {
     abortRef.current?.abort();
@@ -161,6 +181,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
             <input type="number" min={0} step={5} value={settings.riskPerContract} onChange={(e) => update({ riskPerContract: Number(e.target.value) || 0 })} />
           </Field>
         </div>
+        {openLotsText && <p className={s.note}>{openLotsText}</p>}
         <p className={s.note}>
           {tr(
             'Le PnL est recalculé depuis les prix et la valeur du point du registre CME, puis diminué des commissions ; la colonne Profit sert de contrôle. Un instrument absent du registre est ignoré et signalé (instrument non reconnu). Les doublons exacts sont écartés ; une séance existante (même date, même compte) absorbe les nouveaux trades — vous pouvez empiler les exports au fil des semaines. L’export Executions ne contient pas de MAE/MFE.',

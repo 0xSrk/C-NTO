@@ -4,7 +4,7 @@ import { detectDayFirst, parseFlexibleDateTime } from '@/lib/time';
 import { getInstrument, resolveSymbol } from '../instruments';
 import type { Instrument, SessionSource, Trade } from '../types';
 import { executionIdentityKey, executionTimeIso } from './identity';
-import { detectInstrument, groupIntoSessions, MONEY_MAX, PRICE_MAX, QTY_MAX, unknownInstrumentWarnings, type ImportOptions, type ImportResult } from './ninjatrader';
+import { groupIntoSessions, MONEY_MAX, PRICE_MAX, QTY_MAX, unknownInstrumentWarnings, type ImportOptions, type ImportResult } from './ninjatrader';
 
 /**
  * Exécution brute telle qu'exportée par NinjaTrader 8 (onglet Executions › Export) ou écrite en
@@ -29,16 +29,29 @@ export interface OpenLot {
   account: string;
   instrumentName: string;
   instrument: Instrument;
+  /** Mois tel que `resolveSymbol` l'écrit (`12-26`). Vide si la racine est nue. */
+  contractMonth?: string;
   direction: 'long' | 'short';
   quantity: number;
   price: number;
   time: number;
+  /** Commission de l'exécution d'entrée, par contrat. */
+  commissionPerContract?: number;
+  executionId?: string;
+  orderId?: string;
+  name?: string;
+  identityKey?: string;
+  openedAt?: number;
 }
 
 export interface ExecutionsImportResult extends ImportResult {
   executions: number;
   openLots: OpenLot[];
   tradeExecutionKeys: string[][];
+  /** Empreintes connues après ce lot (précédentes + fraîches). */
+  knownKeys: string[];
+  /** Exécutions réellement appariées cette fois (les déjà connues sont absentes). */
+  freshExecutions: Execution[];
 }
 
 const COLS: Record<string, string[]> = {
@@ -190,30 +203,123 @@ function uniqIds(ids: (string | undefined)[]): string[] | undefined {
   return out.length ? out : undefined;
 }
 
+/** Clé de carnet : compte, racine, mois. Deux écritures du même contrat (`NQ 12-26`, `NQZ6`) ne se rejoignent que si le mois résolu est le même. */
+function bookKey(account: string, instrument: string, contractMonth: string): string {
+  return `${account}|${instrument}|${contractMonth}`;
+}
+
+function contractMonthOf(instrumentName: string): string {
+  return resolveSymbol(instrumentName)?.contractMonth ?? '';
+}
+
+/**
+ * Clé Dexie d'un lot ouvert : `account|instrument|contractMonth|executionId`.
+ * Sans identifiant d'exécution, l'empreinte remplace le dernier segment pour que deux lots vides ne s'écrasent pas.
+ */
+export function openLotKey(lot: OpenLot): string {
+  const month = lot.contractMonth ?? contractMonthOf(lot.instrumentName);
+  const id = lot.executionId?.trim() ? lot.executionId.trim() : (lot.identityKey ?? '');
+  return `${lot.account}|${lot.instrument}|${month}|${id}`;
+}
+
+interface Lot {
+  account: string;
+  instrumentName: string;
+  instrument: Instrument;
+  contractMonth: string;
+  direction: 'long' | 'short';
+  quantity: number;
+  price: number;
+  time: number;
+  executionId: string;
+  orderId?: string;
+  identityKey: string;
+  name?: string;
+  commissionPerContract: number;
+}
+
+function lotFromOpen(src: OpenLot): Lot {
+  const contractMonth = src.contractMonth ?? contractMonthOf(src.instrumentName);
+  return {
+    account: src.account,
+    instrumentName: src.instrumentName,
+    instrument: src.instrument,
+    contractMonth,
+    direction: src.direction,
+    quantity: src.quantity,
+    price: src.price,
+    time: src.time,
+    executionId: src.executionId ?? '',
+    orderId: src.orderId,
+    identityKey: src.identityKey ?? '',
+    name: src.name,
+    commissionPerContract: src.commissionPerContract ?? 0,
+  };
+}
+
+function lotFromExecution(e: Execution, quantity: number, side: 'long' | 'short', cpc: number): Lot {
+  return {
+    account: e.account,
+    instrumentName: e.instrumentName,
+    instrument: e.instrument,
+    contractMonth: contractMonthOf(e.instrumentName),
+    direction: side,
+    quantity,
+    price: e.price,
+    time: e.time,
+    executionId: e.executionId,
+    orderId: e.orderId,
+    identityKey: e.identityKey,
+    name: e.name,
+    commissionPerContract: cpc,
+  };
+}
+
+function toOpenLot(lot: Lot): OpenLot {
+  return {
+    account: lot.account,
+    instrumentName: lot.instrumentName,
+    instrument: lot.instrument,
+    contractMonth: lot.contractMonth,
+    direction: lot.direction,
+    quantity: lot.quantity,
+    price: lot.price,
+    time: lot.time,
+    openedAt: lot.time,
+    commissionPerContract: lot.commissionPerContract,
+    executionId: lot.executionId,
+    orderId: lot.orderId,
+    name: lot.name,
+    identityKey: lot.identityKey,
+  };
+}
+
 /**
  * Apparie les exécutions en trades aller-retour par compte et par contrat, méthode FIFO
  * (première entrée, première sortie), avec fractionnement des remplissages partiels.
+ * `carriedLots` (défaut vide) sont les lots déjà ouverts : ils sont en tête de file, consommés
+ * avant les nouvelles exécutions. Clé de carnet : `account|instrument|contractMonth`.
+ * Sans lots repris, le résultat est celui d'un appariement sur le seul tableau fourni.
  */
-export function pairExecutions(executions: Execution[]): { trades: Trade[]; openLots: OpenLot[]; tradeExecutionKeys: string[][] } {
+export function pairExecutions(executions: Execution[], carriedLots: OpenLot[] = []): { trades: Trade[]; openLots: OpenLot[]; tradeExecutionKeys: string[][] } {
   const sorted = executions.map((e, i) => ({ e, i })).sort((a, b) => a.e.time - b.e.time || a.i - b.i);
-  interface Lot {
-    direction: 'long' | 'short';
-    quantity: number;
-    price: number;
-    time: number;
-    executionId: string;
-    orderId?: string;
-    identityKey: string;
-    name?: string;
-    commissionPerContract: number;
-  }
   const books = new Map<string, Lot[]>();
   const trades: Trade[] = [];
   const tradeExecutionKeys: string[][] = [];
   const seenIds = new Set<string>();
 
+  const carried = [...carriedLots].filter((lot) => lot.quantity > 0).sort((a, b) => a.time - b.time || a.account.localeCompare(b.account));
+  for (const src of carried) {
+    const lot = lotFromOpen(src);
+    const key = bookKey(lot.account, lot.instrument, lot.contractMonth);
+    const queue = books.get(key);
+    if (queue) queue.push(lot);
+    else books.set(key, [lot]);
+  }
+
   for (const { e } of sorted) {
-    const key = `${e.account}|${e.instrumentName.toUpperCase()}`;
+    const month = contractMonthOf(e.instrumentName);
+    const key = bookKey(e.account, e.instrument, month);
     let lots = books.get(key);
     if (!lots) {
       lots = [];
@@ -256,52 +362,48 @@ export function pairExecutions(executions: Execution[]): { trades: Trade[]; open
         exitName: e.name,
         executionIds: uniqIds([lot.executionId, e.executionId]),
         orderIds: uniqIds([lot.orderId, e.orderId]),
-        contractMonth: resolveSymbol(e.instrumentName)?.contractMonth,
+        contractMonth: month || undefined,
       });
       tradeExecutionKeys.push([lot.identityKey, e.identityKey]);
     }
-    if (remaining > 0) {
-      lots.push({
-        direction: side,
-        quantity: remaining,
-        price: e.price,
-        time: e.time,
-        executionId: e.executionId,
-        orderId: e.orderId,
-        identityKey: e.identityKey,
-        name: e.name,
-        commissionPerContract: cpc,
-      });
-    }
+    if (remaining > 0) lots.push(lotFromExecution(e, remaining, side, cpc));
   }
 
   const openLots: OpenLot[] = [];
-  for (const [key, lots] of books) {
-    const [account, instrumentName] = key.split('|');
-    if (!account || !instrumentName) continue;
+  for (const lots of books.values()) {
     for (const lot of lots) {
-      const instrument = detectInstrument(instrumentName);
-      if (instrument) openLots.push({ account, instrumentName, instrument, direction: lot.direction, quantity: lot.quantity, price: lot.price, time: lot.time });
+      if (lot.quantity > 0) openLots.push(toOpenLot(lot));
     }
   }
   return { trades, openLots, tradeExecutionKeys };
 }
 
 /** Import complet d'un export Executions (ou du journal temps réel du pont) → séances + trades. */
-export function importExecutionsCsv(text: string, opts: ImportOptions = {}): ExecutionsImportResult {
+export function importExecutionsCsv(text: string, opts: ImportOptions & { carriedLots?: OpenLot[]; knownKeys?: readonly string[] } = {}): ExecutionsImportResult {
   const { executions, skipped, warnings } = parseExecutionsCsv(text);
-  const { trades, openLots, tradeExecutionKeys } = pairExecutions(executions);
-  if (opts.riskPerContract) for (const t of trades) t.risk = opts.riskPerContract * t.qty;
-  if (openLots.length) warnings.push(tr(`${openLots.length} position(s) encore ouverte(s) en fin de fichier — non importée(s) tant qu'elles ne sont pas clôturées.`, `${openLots.length} position(s) still open at end of file — not imported until they are closed.`, `${openLots.length} posición(es) aún abierta(s) al final del archivo — no importada(s) hasta que se cierren.`));
+  const known = new Set(opts.knownKeys ?? []);
+  const fresh = opts.knownKeys ? executions.filter((e) => !known.has(e.identityKey)) : executions;
+  const carriedAll = opts.carriedLots ?? [];
+  const accounts = new Set(fresh.map((e) => e.account));
+  // Rejeu sans exécution nouvelle : on ne touche pas aux lots des autres comptes, ni à ceux déjà ouverts.
+  const carried = accounts.size ? carriedAll.filter((lot) => accounts.has(lot.account)) : [];
+  const untouched = accounts.size ? carriedAll.filter((lot) => !accounts.has(lot.account)) : carriedAll;
+  const paired = pairExecutions(fresh, carried);
+  for (const e of fresh) known.add(e.identityKey);
+  const openLots = [...untouched, ...paired.openLots];
+  if (opts.riskPerContract) for (const t of paired.trades) t.risk = opts.riskPerContract * t.qty;
+  if (paired.openLots.length) warnings.push(tr(`${paired.openLots.length} position(s) encore ouverte(s) en fin de fichier — non importée(s) tant qu'elles ne sont pas clôturées.`, `${paired.openLots.length} position(s) still open at end of file — not imported until they are closed.`, `${paired.openLots.length} posición(es) aún abierta(s) al final del archivo — no importada(s) hasta que se cierren.`));
   const source: SessionSource = opts.source ?? 'ninjatrader';
   return {
-    sessions: groupIntoSessions(trades, opts.sessionBoundaryHour ?? 0, source),
-    trades,
+    sessions: groupIntoSessions(paired.trades, opts.sessionBoundaryHour ?? 0, source),
+    trades: paired.trades,
     warnings,
     format: 'ninjatrader-executions',
     skipped,
     executions: executions.length,
     openLots,
-    tradeExecutionKeys,
+    tradeExecutionKeys: paired.tradeExecutionKeys,
+    knownKeys: [...known],
+    freshExecutions: fresh,
   };
 }

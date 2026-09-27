@@ -71,7 +71,7 @@ Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par l
 { "port": 48231, "token": "…" }
 ```
 
-Le fichier est en mode `0600`. Le jeton n'est plus affiché après génération. L'AddOn le relit, se connecte à `ws://127.0.0.1:<port>/?token=<jeton>`, et se reconnecte avec un repli de 1 s à 30 s.
+Le fichier est en mode `0600`. Sur Windows, Node ignore ce mode : après l'écriture, le process principal lance `icacls "<fichier>" /inheritance:r /grant:r "%USERNAME%":F` (`execFile`, sans shell). Succès ou échec est journalisé (nom du fichier, pas le jeton). Si l'ACL échoue, le panneau Pont affiche « permissions du fichier de configuration non restreintes ». L'ADMIN vérifie sur son poste que le fichier n'est lisible que par son compte. Le jeton n'est plus affiché après génération. L'AddOn le relit, se connecte à `ws://127.0.0.1:<port>/?token=<jeton>`, et se reconnecte avec un repli de 1 s à 30 s.
 
 La compilation de l'AddOn exige Windows et NinjaTrader 8. L'AddOn C# n'a pas été compilé dans NinjaTrader 8 par ce dépôt : l'ADMIN le compile sur Windows (NinjaScript Editor, F5).
 
@@ -124,7 +124,7 @@ Les barres sont en epoch **secondes** UTC. Les ticks, quotes et exécutions sont
 
 `action` ∈ `Buy` | `Sell` | `BuyToCover` | `SellShort`. `type` ∈ `Market` | `Limit` | `StopMarket` | `StopLimit`. `Order.Name = tag`. `order.flatten` appelle `account.Flatten`. Compte non connecté : erreur explicite.
 
-Le CSV continue d'être écrit en parallèle, avec le même `ID`. Le journal dédoublonne par l'empreinte existante (`account + ID`).
+Le CSV continue d'être écrit en parallèle, avec le même `ID`. Le journal dédoublonne par l'empreinte existante (`account + ID`). Une exécution déjà connue n'est pas réappariée. Les lots encore ouverts sont persistés (table `openLots`, clé `account|instrument|contractMonth|executionId`) et repris au message WebSocket suivant comme au fichier CSV suivant. Le coffre les exporte ; un coffre 3.0.0 sans ce champ reste lisible.
 
 ## 5. Garde-fous (défauts)
 
@@ -138,7 +138,7 @@ Réglables dans le panneau. Persistés dans `userData/nt-bridge.json`, pas dans 
 | Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle) | `-32012` si `quantity` est supérieure |
 | Tag | obligatoire sur `order.submit` | `-32013` |
 
-Un compte réel s'ajoute depuis le panneau, après un dialogue CΛNTO (pas `confirm()`). Chaque ordre émis est écrit dans `main.log` avec tag, compte, instrument, quantité, latence et résultat.
+Un compte réel s'ajoute depuis le panneau. Le dialogue CΛNTO du renderer explique le geste ; il ne suffit pas. Le process principal affiche ensuite `dialog.showMessageBox` (type `warning`, boutons « Autoriser les ordres réels sur &lt;compte&gt; » / « Annuler », défaut Annuler, `noLink`, FR/EN/ES). Seule la réponse Autoriser appelle `allowAccount`. L'autorisation est journalisée dans `main.log` (compte, horodatage, sans jeton). Chaque ordre émis est écrit dans `main.log` avec tag, compte, instrument, quantité, latence et résultat.
 
 ## 6. Matrice de secours CSV ↔ WebSocket
 

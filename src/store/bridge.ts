@@ -29,6 +29,8 @@ interface BridgeState {
   nt: NtBridgeStatus | null;
   log: BridgeLogEntry[];
   busy: boolean;
+  /** Vrai si l'écriture de bridge.json n'a pas pu restreindre les ACL Windows. */
+  aclUnrestricted: boolean;
   load: () => Promise<void>;
   pickFolder: () => Promise<void>;
   useDefaultFolder: () => Promise<void>;
@@ -38,13 +40,14 @@ interface BridgeState {
   rotateToken: () => Promise<void>;
   writeNtConfig: () => Promise<void>;
   allowRealAccount: (name: string) => Promise<void>;
-  setMaxContracts: (n: number) => Promise<void>;
+  setMaxContracts: (n: number) => Promise<number | undefined>;
   killSwitch: () => Promise<void>;
 }
 
 let unsubscribeFile: (() => void) | null = null;
 let unsubscribeNt: (() => void) | null = null;
 
+/** Une exécution WebSocket : `importCsv` reprend les lots ouverts du compte et ignore une empreinte déjà connue. */
 async function importExecutionCsv(csv: string, fileName: string): Promise<void> {
   const { settings } = useSettings.getState();
   const r = await useJournal.getState().importCsv(csv, { boundaryHour: settings.boundaryHour, riskPerContract: settings.riskPerContract || undefined, source: 'ninjatrader' });
@@ -74,6 +77,7 @@ export const useBridge = create<BridgeState>((set, get) => ({
   nt: null,
   log: [],
   busy: false,
+  aclUnrestricted: false,
 
   async load() {
     const api = desk?.bridge;
@@ -88,13 +92,14 @@ export const useBridge = create<BridgeState>((set, get) => ({
         let acceptedIds: string[] = [];
         let skipped = 0;
         try {
+          // CSV de fichier ou de secours : même reprise des lots ouverts que le message WebSocket.
           const r = await useJournal.getState().importCsv(file.text, { boundaryHour: settings.boundaryHour, riskPerContract: settings.riskPerContract || undefined, source: 'ninjatrader' });
           entry.format = FORMAT_LABEL[r.format];
           entry.trades = r.newTrades;
           entry.sessionsAdded = r.added;
           entry.sessionsMerged = r.merged;
           entry.warnings = r.warnings;
-          acceptedIds = (r.tradeExecutionKeys ?? []).flat();
+          acceptedIds = [...new Set([...(r.tradeExecutionKeys ?? []).flat(), ...(r.freshExecutionKeys ?? [])])];
           skipped = r.skipped + Math.max(0, r.trades.length - r.newTrades);
           if (r.newTrades > 0) {
             useUi.getState().toast(
@@ -209,6 +214,12 @@ export const useBridge = create<BridgeState>((set, get) => ({
     const api = desk?.ntbridge;
     if (!api) return;
     const res = await api.writeConfig();
+    if (res.ok && res.aclRestricted === false) {
+      set({ aclUnrestricted: true });
+      useUi.getState().toast(tr('permissions du fichier de configuration non restreintes', 'configuration file permissions are not restricted', 'permisos del archivo de configuración no restringidos'), 'warn');
+      return;
+    }
+    if (res.ok) set({ aclUnrestricted: false });
     useUi.getState().toast(
       res.ok
         ? tr('Configuration écrite pour NinjaTrader.', 'Configuration written for NinjaTrader.', 'Configuración escrita para NinjaTrader.')
@@ -225,8 +236,10 @@ export const useBridge = create<BridgeState>((set, get) => ({
 
   async setMaxContracts(n) {
     const api = desk?.ntbridge;
-    if (!api) return;
-    set({ nt: (await api.setMaxContracts(n)) ?? get().nt });
+    if (!api) return get().nt?.maxContractsPerOrder;
+    const next = (await api.setMaxContracts(n)) ?? get().nt;
+    set({ nt: next });
+    return next?.maxContractsPerOrder;
   },
 
   async killSwitch() {

@@ -21,6 +21,8 @@ export interface VaultV2 {
   positions?: unknown[];
   cashBalances?: unknown[];
   fxRates?: unknown[];
+  /** Lots ouverts. Absent sur un coffre 3.0.0 : la restauration l'accepte. */
+  openLots?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
 }
@@ -42,6 +44,7 @@ export interface VaultParts {
   positions?: unknown[];
   cashBalances?: unknown[];
   fxRates?: unknown[];
+  openLots?: unknown[];
   barSeries?: unknown[];
   agentMessages?: unknown[];
   includeHeavy?: boolean;
@@ -63,6 +66,7 @@ export interface ParsedVault {
   positions: unknown;
   cashBalances: unknown;
   fxRates: unknown;
+  openLots: unknown;
   barSeries: unknown;
   agentMessages: unknown;
 }
@@ -103,6 +107,7 @@ export function buildVaultV2(input: VaultParts): VaultV2 {
   if (input.positions) vault.positions = input.positions;
   if (input.cashBalances) vault.cashBalances = input.cashBalances;
   if (input.fxRates) vault.fxRates = input.fxRates;
+  if (input.openLots !== undefined) vault.openLots = input.openLots;
   if (input.includeHeavy === true) {
     if (input.barSeries) vault.barSeries = input.barSeries;
     if (input.agentMessages) vault.agentMessages = input.agentMessages;
@@ -151,6 +156,7 @@ export function parseVaultJson(json: string): ParsedVault {
     positions: rec.positions,
     cashBalances: rec.cashBalances,
     fxRates: rec.fxRates,
+    openLots: rec.openLots,
     barSeries: rec.barSeries,
     agentMessages: rec.agentMessages,
   };

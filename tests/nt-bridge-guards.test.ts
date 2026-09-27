@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
+import { authorizeLiveAccount, realAccountDialog } from '../electron/nt-bridge/index';
 import { ERR } from '../electron/nt-bridge/protocol';
 import { NtBridgeServer } from '../electron/nt-bridge/server';
 import { DEFAULT_MAX_CONTRACTS, accountAllowed, guardSubmit } from '../electron/nt-bridge/guards';
@@ -66,5 +67,72 @@ describe('garde-fous du pont NT8', () => {
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.code).toBe(ERR.LOST);
     ws.close();
+  });
+
+  it('dialogue Annuler : le compte réel n’est pas ajouté', async () => {
+    const allow = vi.fn(async (name: string) => name);
+    const fr = realAccountDialog('APEX-50K', 'fr');
+    expect(fr).toMatchObject({ type: 'warning', defaultId: 1, cancelId: 1, noLink: true });
+    expect(fr.buttons).toEqual(['Autoriser les ordres réels sur APEX-50K', 'Annuler']);
+    expect(realAccountDialog('APEX-50K', 'en').buttons).toEqual(['Allow real orders on APEX-50K', 'Cancel']);
+    expect(realAccountDialog('APEX-50K', 'es').buttons).toEqual(['Autorizar órdenes reales en APEX-50K', 'Cancelar']);
+    const result = await authorizeLiveAccount({
+      win: { isDestroyed: () => false },
+      account: 'APEX-50K',
+      locale: 'fr',
+      showMessageBox: async () => ({ response: 1 }),
+      allow,
+      log: () => {},
+    });
+    expect(result).toBeNull();
+    expect(allow).not.toHaveBeenCalled();
+  });
+
+  it('dialogue Autoriser : le compte est ajouté, le journal n’a pas de jeton', async () => {
+    const allow = vi.fn(async (name: string) => [name]);
+    const logs: string[] = [];
+    const at = new Date('2026-09-27T07:31:00.000Z');
+    const result = await authorizeLiveAccount({
+      win: { isDestroyed: () => false },
+      account: ' APEX-50K ',
+      locale: 'fr',
+      showMessageBox: async (_win, options) => {
+        expect(options.buttons[0]).toBe('Autoriser les ordres réels sur APEX-50K');
+        expect(options.defaultId).toBe(1);
+        return { response: 0 };
+      },
+      allow,
+      log: (line) => logs.push(line),
+      now: at,
+    });
+    expect(result).toEqual(['APEX-50K']);
+    expect(allow).toHaveBeenCalledWith('APEX-50K');
+    expect(logs).toEqual(['nt-bridge compte réel autorisé APEX-50K 2026-09-27T07:31:00.000Z']);
+    expect(logs.join('\n')).not.toMatch(/token|jeton/i);
+  });
+
+  it('un appel sans fenêtre attachée est refusé', async () => {
+    const allow = vi.fn(async (name: string) => name);
+    const show = vi.fn(async () => ({ response: 0 }));
+    const absent = await authorizeLiveAccount({
+      win: null,
+      account: 'APEX-50K',
+      locale: 'fr',
+      showMessageBox: show,
+      allow,
+      log: () => {},
+    });
+    const destroyed = await authorizeLiveAccount({
+      win: { isDestroyed: () => true },
+      account: 'APEX-50K',
+      locale: 'fr',
+      showMessageBox: show,
+      allow,
+      log: () => {},
+    });
+    expect(absent).toBeNull();
+    expect(destroyed).toBeNull();
+    expect(show).not.toHaveBeenCalled();
+    expect(allow).not.toHaveBeenCalled();
   });
 });
