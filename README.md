@@ -10,7 +10,7 @@
 
 An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and the modules that are still a prototype. **v3.0.0** installs natively on **macOS, Windows, and Linux**. Data stays 100% on the machine. Crypto, tweet feeds, and Investing.com / Forex Factory are out.
 
-> License: `UNLICENSED`. Source is visible. No grant of rights. No reuse without SIΞRRΛSKΛ’s agreement.
+> The code is under the [MIT license](LICENSE). The names CΛNTO and SIΞRRΛSKΛ, and the visual identity, are not granted by this license.
 
 [![Node](https://img.shields.io/badge/Node-22.12%2B-000000?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Shell-Electron-000000?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
@@ -558,7 +558,7 @@ npm run dist:win       # NSIS + portable, x64 and ARM (Windows)
 npm run dist:linux     # AppImage + deb, x64 and ARM64 (Linux)
 ```
 
-CI: GitHub Actions on **ubuntu, Windows, and macOS** — `npm ci`, `npm audit --omit=dev --audit-level=high`, `typecheck`, `test`, `build`, then that OS’s native installer (`dist:linux`, `dist:win`, `dist:mac`). Binaries are published as workflow artifacts. A `v*` tag runs the `release` workflow and creates the GitHub Release (installers + `SHA256SUMS.txt`).
+CI: GitHub Actions on **ubuntu, Windows, and macOS** — `npm ci`, `npm audit --omit=dev --audit-level=high`, `typecheck`, `test`, `build`, then that OS’s native installer (`dist:linux`, `dist:win`, `dist:mac`). Binaries are published as workflow artifacts. A `v*` tag runs the `release` workflow and creates the GitHub Release (installers, `changelog.json`, `SHA256SUMS.txt`, release notes taken from the version journal). The tag fails if `changelog.json` has no entry for the `package.json` version, or if that entry is missing one of the three languages.
 
 Data folder (vault, bridge state, language): `%APPDATA%\CΛNTO` (Windows), `~/Library/Application Support/CΛNTO` (macOS), `~/.config/CANTO` (Linux — earlier builds wrote to the root of `~/.config`; the first launch moves the vault into `CANTO/`).
 
@@ -585,6 +585,7 @@ Lithographic grammar — **[docs/DESIGN.md](docs/DESIGN.md)**:
 
 ## Versions
 
+- 3.1.0 — Version journal and what’s new in the launcher, AUBE III, MIT license
 - 3.0.0 — Gel : registre d'instruments (la crypto n'est pas une classe), données officielles, pont NT8, ontologie, portefeuille, lanceur AUBE II
 - 2.2.1 — Lanceur : AUBE II (lever orbital, cœur vectoriel, voile de ville) ; transfert vers le desk garanti même fenêtre masquée
 - 2.2.0 — Notes : ontologie (liens typés, suggestions, confiance calculée)
@@ -607,7 +608,18 @@ After 3.0.0:
 
 The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier does not replicate. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. Crypto is not part of the desk.
 
-License: `UNLICENSED`. All rights reserved, SIΞRRΛSKΛ. The repository may be read. Reuse, a published fork, or commercial use are not allowed without agreement.
+## Licence
+
+The code is under the MIT license (`LICENSE`). Copyright (c) 2026 SIΞRRΛSKΛ. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, are not granted by this license.
+
+## Tiers
+
+Fonts shipped with the desk (copied next to the launcher at build time, license file beside each family):
+
+| Resource | License | File |
+|---|---|---|
+| Inter (variable, latin + greek) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2016 The Inter Project Authors. | `electron/fonts/OFL-Inter.txt` |
+| JetBrains Mono (variable, latin + greek) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2020 The JetBrains Mono Project Authors. | `electron/fonts/OFL-JetBrainsMono.txt` |
 
 <div align="center">
 <br/>

@@ -8,7 +8,8 @@ import { llmHostOk } from './llm-host';
 import { Orchestrator } from './orchestrator';
 import { syncOfficialCalendar } from './calendar';
 import { allowedHosts, dataFetchAllowed } from './sources';
-import { applyUpdate, checkForUpdate, relaunchDesk, type UpdateStatus } from './updater';
+import { applyUpdate, checkForUpdate, GITHUB_REPO, relaunchDesk, type UpdateStatus } from './updater';
+import { fetchReleaseChangelog } from './changelog-fetch';
 import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, type UiZoomMode } from './ui-scale';
 import { defaultNinjaExportFolder } from './bridge-folder';
 import { hardwareAccelerationEnabled, hasDrmRenderNode } from './gpu-fallback';
@@ -545,6 +546,14 @@ ipcMain.handle('update:check', async (e): Promise<UpdateStatus | null> => {
       error: err instanceof Error ? err.message : ui('Contrôle impossible', 'Check failed', 'Comprobación imposible'),
       source: 'none',
     };
+  }
+});
+ipcMain.handle('update:changelog', async (e) => {
+  if (!trusted(e)) return null;
+  try {
+    return await fetchReleaseChangelog(GITHUB_REPO);
+  } catch {
+    return null;
   }
 });
 ipcMain.handle('update:apply', async (e, payload: unknown): Promise<UpdateStatus | null> => {

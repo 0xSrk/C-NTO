@@ -113,25 +113,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
-.change {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--line-0);
-}
-.change b {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--gold);
-  font-weight: 500;
-}
-.change ul {
-  margin: 0;
-  padding-left: 16px;
-  font-size: 12px;
-  color: var(--text-2);
-}
 .bridgeRow {
   display: grid;
   grid-template-columns: 1fr auto;

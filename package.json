@@ -5,7 +5,7 @@
   "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v3.0.0 · macOS, Windows, Linux",
   "private": true,
   "author": "SIΞRRΛSKΛ",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -52,6 +52,7 @@
     "cross-env": "^10.1.0",
     "electron": "^43.7.1",
     "electron-builder": "^26.16.1",
+    "jsdom": "^29.1.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.6",
     "vitest": "^4.1.11"
@@ -79,6 +80,10 @@
       {
         "from": "docs/PONT-NINJATRADER.md",
         "to": "ninjatrader/PONT-NINJATRADER.md"
+      },
+      {
+        "from": "LICENSE",
+        "to": "LICENSE"
       }
     ],
     "electronFuses": {

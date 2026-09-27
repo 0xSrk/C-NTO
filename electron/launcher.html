@@ -237,7 +237,9 @@
 
       /* ─── Marque ─── */
       .brand {
+        position: relative;
         flex: 1;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -615,6 +617,83 @@
         animation: blink 0.9s steps(2, jump-none) infinite;
       }
 
+      /* Nouveautés : bouton texte sous #meta. Le déroulé est hors flux pour ne pas déplacer Lancer / Mettre à jour. */
+      .notes-toggle {
+        align-self: flex-start;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--text-3);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        line-height: 16px;
+        text-align: left;
+        cursor: pointer;
+      }
+      .notes-toggle:hover,
+      .notes-toggle:focus-visible {
+        color: var(--text-1);
+      }
+      .notes-toggle[hidden] {
+        display: none;
+      }
+      .notes {
+        position: absolute;
+        z-index: 4;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: min(180px, 100%);
+        overflow: auto;
+        padding: 8px 10px;
+        background: #000;
+        border: 1px solid var(--line-1);
+        color: var(--text-2);
+        font-family: var(--font);
+        font-size: 12px;
+        line-height: 1.45;
+        letter-spacing: 0;
+        text-align: left;
+        text-transform: none;
+        user-select: text;
+        -webkit-app-region: no-drag;
+      }
+      .notes[hidden] {
+        display: none;
+      }
+      .notes.open {
+        animation: notes-in 0.22s var(--ease);
+      }
+      .notes .ver {
+        margin: 8px 0 2px;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        color: var(--text-3);
+      }
+      .notes .ver:first-child {
+        margin-top: 0;
+      }
+      .notes ul {
+        margin: 0;
+        padding-left: 16px;
+      }
+      .notes li + li {
+        margin-top: 2px;
+      }
+      @keyframes notes-in {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
       /* Sortie : tout se retire sauf le logotype, qui devient la source du circuit */
       .frame.leaving .top,
       .frame.leaving .mark,
@@ -826,6 +905,10 @@
           transition-duration: 1ms !important;
           transition-delay: 0ms !important;
         }
+        .notes,
+        .notes.open {
+          animation: none !important;
+        }
       }
     </style>
   </head>
@@ -899,6 +982,7 @@
           </g>
         </svg>
         <div class="lab">SIΞRRΛSKΛ—LAB · <b>Artefact 002</b></div>
+        <div class="notes" id="notes-panel" hidden></div>
       </div>
       <div class="panel">
         <div class="rule" id="lang-label">Langue du desk</div>
@@ -919,6 +1003,9 @@
           </button>
         </div>
         <p class="meta" id="meta"><span class="txt" id="meta-text">Contrôle de version…</span></p>
+        <div class="notes-slot" id="notes-slot">
+          <button type="button" class="notes-toggle" id="notes-toggle" hidden aria-expanded="false" aria-controls="notes-panel"></button>
+        </div>
       </div>
     </div>
     <script src="./aube.js"></script>

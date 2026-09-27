@@ -570,6 +570,7 @@ const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
     const ok = v.every((i) => isRec(i) && isStr(i.id, 100) && isStr(i.definitionId, 100) && isBool(i.visible) && isRec(i.params) && Object.values(i.params).every((p) => isNum(p) || isStr(p, 100)));
     return ok ? v.map((i) => ({ id: i.id, definitionId: i.definitionId, visible: i.visible, params: { ...i.params } })) : undefined;
   },
+  'changelog.seen': (v) => (isStr(v, 32) && /^\d+\.\d+\.\d+$/.test(v) ? v : undefined),
   'copier.config': (v) => {
     if (!isRec(v)) return undefined;
     const out: Record<string, unknown> = {};
@@ -581,6 +582,7 @@ const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
     if (isStr(v.windowStart, 5) && TIME_RE.test(v.windowStart)) out.windowStart = v.windowStart;
     if (isStr(v.windowEnd, 5) && TIME_RE.test(v.windowEnd)) out.windowEnd = v.windowEnd;
     if (inRange(v.followerBufferFloor, 0, 1)) out.followerBufferFloor = v.followerBufferFloor;
+    // `channel` inutilisé depuis 3.1.0 — conservé pour les coffres déjà exportés.
     if (isEnum(v.channel, ['stable', 'beta'] as const)) out.channel = v.channel;
     return out;
   },

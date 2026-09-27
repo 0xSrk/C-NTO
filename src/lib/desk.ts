@@ -1,5 +1,6 @@
 /** API exposée par le shell Electron (preload). Absente lorsque CΛNTO tourne dans un navigateur. */
 import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEvents';
+import type { ChangelogFile } from '@/engine/changelog';
 export interface OrchestratorRequest {
   id: string;
   clientId: string;
@@ -119,6 +120,8 @@ export interface DeskApi {
   };
   update: {
     check: () => Promise<UpdateStatus | null>;
+    /** Journal de la Release disponible. `null` si l'asset manque, dépasse 64 Ko ou est invalide. */
+    changelog: () => Promise<ChangelogFile | null>;
     apply: (opts?: { channel?: string; confirmStash?: boolean }) => Promise<UpdateStatus | null>;
     relaunch: () => Promise<boolean>;
     startDesk: () => Promise<boolean>;

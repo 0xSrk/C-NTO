@@ -7,7 +7,7 @@ import { tr, useI18n } from '@/i18n';
 import { plural } from '@/lib/format';
 import { APP_VERSION } from '@/lib/version';
 import type { CopierAccount } from '@/store/db';
-import { COPIER_CHANGELOG, replicatedQty, useCopier } from '@/store/copier';
+import { replicatedQty, useCopier } from '@/store/copier';
 import s from './copieur.module.css';
 
 function bridgeSteps(): [string, string][] {
@@ -17,53 +17,6 @@ function bridgeSteps(): [string, string][] {
     ['execution', tr('Chaque exécution du compte maître, horodatée', 'Each master-account execution, timestamped', 'Cada ejecución de la cuenta maestra, con marca de tiempo')],
     ['heartbeat', tr('Battement toutes les 2 s, coupe-circuit si absent 6 s', 'Heartbeat every 2 s, circuit breaker if absent 6 s', 'Latido cada 2 s, cortocircuito si ausente 6 s')],
   ];
-}
-
-function changelogItem(it: string): string {
-  const map: Record<string, [string, string, string]> = {
-    'Langue du desk au lanceur : Français, English, Español — le choix est conservé': [
-      'Langue du desk au lanceur : Français, English, Español — le choix est conservé',
-      'Desk language on the launcher: Français, English, Español — the choice is kept',
-      'Idioma del desk en el lanzador: Français, English, Español — la elección se conserva',
-    ],
-    'Desk natif macOS, Windows et Linux — installeurs DMG, NSIS et AppImage / deb': [
-      'Desk natif macOS, Windows et Linux — installeurs DMG, NSIS et AppImage / deb',
-      'Native desk for macOS, Windows and Linux — DMG, NSIS and AppImage / deb installers',
-      'Desk nativo macOS, Windows y Linux — instaladores DMG, NSIS y AppImage / deb',
-    ],
-    'Pont fichier inclus sur chaque OS : le desk surveille l’export CANTO, l’AddOn NT8 reste compilé sous Windows': [
-      'Pont fichier inclus sur chaque OS : le desk surveille l’export CANTO, l’AddOn NT8 reste compilé sous Windows',
-      'File bridge included on every OS: the desk watches the CANTO export; the NT8 AddOn remains compiled under Windows',
-      'Puente de archivos incluido en cada SO: el desk vigila la exportación CANTO; el AddOn NT8 sigue compilado en Windows',
-    ],
-    'Alignement desk v1.1.2 — badge CONCEPTION, kill switch, aucun ordre': [
-      'Alignement desk v1.1.2 — badge CONCEPTION, kill switch, aucun ordre',
-      'Desk v1.1.2 alignment — DESIGN badge, kill switch, no orders',
-      'Alineación desk v1.1.2 — insignia CONCEPCIÓN, kill switch, sin órdenes',
-    ],
-    'Grammaire visuelle Lab — précision lithographique, LED unique': [
-      'Grammaire visuelle Lab — précision lithographique, LED unique',
-      'Lab visual grammar — lithographic precision, single LED',
-      'Gramática visual Lab — precisión litográfica, LED única',
-    ],
-    'Modèle maître / suiveurs, sizing fixe · ratio · risque, NQ ↔ MNQ': [
-      'Modèle maître / suiveurs, sizing fixe · ratio · risque, NQ ↔ MNQ',
-      'Master / follower model, fixed · ratio · risk sizing, NQ ↔ MNQ',
-      'Modelo maestro / seguidores, sizing fijo · ratio · riesgo, NQ ↔ MNQ',
-    ],
-    'Filtres : fenêtre horaire, blackout catalyseurs, marge plancher': [
-      'Filtres : fenêtre horaire, blackout catalyseurs, marge plancher',
-      'Filters: time window, catalyst blackout, floor buffer',
-      'Filtros: ventana horaria, blackout de catalizadores, margen suelo',
-    ],
-    'Spécification du pont NinjaTrader (docs/PONT-NINJATRADER.md)': [
-      'Spécification du pont NinjaTrader (docs/PONT-NINJATRADER.md)',
-      'NinjaTrader bridge specification (docs/PONT-NINJATRADER.md)',
-      'Especificación del puente NinjaTrader (docs/PONT-NINJATRADER.md)',
-    ],
-  };
-  const t = map[it];
-  return t ? tr(t[0], t[1], t[2]) : it;
 }
 
 function translateRepNote(note: string | undefined): string | undefined {
@@ -131,7 +84,7 @@ export default function Copieur() {
                 tone="ice"
               />
               <Stat small label={tr('Budget latence', 'Latency budget', 'Presupuesto de latencia')} value={`${config.latencyBudgetMs} ms`} hint={tr('alerte au-delà', 'alert beyond', 'alerta más allá')} tone="gold" />
-              <Stat small label={tr('Version', 'Version', 'Versión')} value={APP_VERSION} hint={`${tr('canal', 'channel', 'canal')} ${config.channel}`} />
+              <Stat small label={tr('Version', 'Version', 'Versión')} value={APP_VERSION} />
             </div>
 
             <div className={s.banner}>
@@ -229,37 +182,6 @@ export default function Copieur() {
                   'Le pont est un AddOn NinjaScript qui se connecte en WebSocket au shell CΛNTO (127.0.0.1). Il ne quitte jamais la machine : aucune donnée de compte ne transite par un serveur tiers.',
                   'The bridge is a NinjaScript AddOn that connects over WebSocket to the CΛNTO shell (127.0.0.1). It never leaves the machine: no account data goes through a third-party server.',
                   'El puente es un AddOn NinjaScript que se conecta por WebSocket al shell CΛNTO (127.0.0.1). Nunca sale de la máquina: ningún dato de cuenta pasa por un servidor de terceros.',
-                )}
-              </p>
-            </Panel>
-
-            <Panel
-              title={tr('Mises à jour', 'Updates', 'Actualizaciones')}
-              sub={tr('journal des versions', 'version log', 'diario de versiones')}
-              actions={
-                <select value={config.channel} onChange={(e) => updateConfig({ channel: e.target.value as 'stable' | 'beta' })} style={{ height: 28, fontSize: 11, padding: '0 6px' }}>
-                  <option value="stable">{tr('canal stable', 'stable channel', 'canal estable')}</option>
-                  <option value="beta">{tr('canal beta', 'beta channel', 'canal beta')}</option>
-                </select>
-              }
-            >
-              {COPIER_CHANGELOG.map((c) => (
-                <div key={c.version} className={s.change}>
-                  <b>
-                    v{c.version} · {c.date}
-                  </b>
-                  <ul>
-                    {c.items.map((it) => (
-                      <li key={it}>{changelogItem(it)}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-              <p className={s.hint} style={{ marginTop: 8 }}>
-                {tr(
-                  'Le copieur suivra un cycle de publication régulier ; le canal beta reçoit les règles de réplication en avance de phase.',
-                  'The copier will follow a regular release cycle; the beta channel gets replication rules ahead of schedule.',
-                  'El copiador seguirá un ciclo de publicación regular; el canal beta recibe las reglas de replicación por adelantado.',
                 )}
               </p>
             </Panel>

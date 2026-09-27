@@ -24,6 +24,7 @@
       verified: 'Vérifié (SHA-256) — installation et redémarrage…',
       installerOpened: 'Installeur ouvert — terminez l’installation puis relancez CΛNTO',
       updateFail: 'Échec de la mise à jour',
+      notes: (v) => `Nouveautés de la v${v} ▾`,
     },
     en: {
       close: 'Close',
@@ -48,6 +49,7 @@
       verified: 'Verified (SHA-256) — installing and restarting…',
       installerOpened: 'Installer opened — finish the install, then relaunch CΛNTO',
       updateFail: 'Update failed',
+      notes: (v) => `What's new in v${v} ▾`,
     },
     es: {
       close: 'Cerrar',
@@ -72,6 +74,7 @@
       verified: 'Verificado (SHA-256) — instalando y reiniciando…',
       installerOpened: 'Instalador abierto — termine la instalación y reinicie CΛNTO',
       updateFail: 'Error de la actualización',
+      notes: (v) => `Novedades de la v${v} ▾`,
     },
   };
 
@@ -93,11 +96,15 @@
   const hudFill = $('hud-fill');
   const hudCount = $('hud-count');
   const hudClock = $('hud-clock');
+  const btnNotes = $('notes-toggle');
+  const notesPanel = $('notes-panel');
 
   const LOCALES = ['fr', 'en', 'es'];
   const fromQuery = new URLSearchParams(location.search).get('lang');
   let locale = LOCALES.includes(fromQuery) ? fromQuery : 'fr';
   let status = null;
+  let notesDoc = null;
+  let notesOpen = false;
   let applying = false;
   /** Modifications locales détectées : le prochain clic confirme le stash. */
   let stashArmed = false;
@@ -136,6 +143,61 @@
     return L().dirty + (shown ? ' : ' + shown : '') + ' — ' + L().dirtyHint;
   }
 
+  function cmpVer(a, b) {
+    const pa = String(a).replace(/^v/i, '').split('.').map((x) => parseInt(x, 10) || 0);
+    const pb = String(b).replace(/^v/i, '').split('.').map((x) => parseInt(x, 10) || 0);
+    const n = Math.max(pa.length, pb.length);
+    for (let i = 0; i < n; i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0);
+      if (d !== 0) return d < 0 ? -1 : 1;
+    }
+    return 0;
+  }
+
+  /** Versions strictement après l'installée, jusqu'à la disponible incluse, la plus récente d'abord. */
+  function notesBetween() {
+    if (!status?.available || !notesDoc || !Array.isArray(notesDoc.entries)) return [];
+    const current = status.current;
+    const latest = status.latest;
+    return notesDoc.entries
+      .filter((entry) => entry && typeof entry.version === 'string' && cmpVer(entry.version, current) > 0 && (!latest || cmpVer(entry.version, latest) <= 0))
+      .sort((a, b) => cmpVer(b.version, a.version));
+  }
+
+  function paintNotes() {
+    if (!btnNotes || !notesPanel) return;
+    const rows = notesBetween();
+    if (rows.length === 0 || !status?.latest) {
+      btnNotes.hidden = true;
+      notesPanel.hidden = true;
+      notesPanel.classList.remove('open');
+      btnNotes.setAttribute('aria-expanded', 'false');
+      notesOpen = false;
+      return;
+    }
+    btnNotes.hidden = false;
+    btnNotes.textContent = L().notes(status.latest);
+    btnNotes.setAttribute('aria-expanded', notesOpen ? 'true' : 'false');
+    notesPanel.hidden = !notesOpen;
+    notesPanel.classList.toggle('open', notesOpen);
+    notesPanel.replaceChildren();
+    for (const entry of rows) {
+      const highlights = entry.highlights || {};
+      const points = highlights[locale] || highlights.fr || [];
+      const title = document.createElement('p');
+      title.className = 'ver';
+      title.textContent = 'v' + entry.version;
+      const list = document.createElement('ul');
+      for (const point of points) {
+        const item = document.createElement('li');
+        item.textContent = String(point);
+        list.appendChild(item);
+      }
+      notesPanel.appendChild(title);
+      notesPanel.appendChild(list);
+    }
+  }
+
   function setMeta(text, kind) {
     metaText.textContent = text;
     meta.className = 'meta' + (kind ? ' ' + kind : '');
@@ -147,6 +209,7 @@
     if (error && !available) {
       setMeta(error, 'err');
       btnUpdate.hidden = true;
+      paintNotes();
       return;
     }
     if (available) {
@@ -162,6 +225,7 @@
       btnLaunch.disabled = launching;
       setMeta(`${L().upToDate} · v${current}`, 'ok');
     }
+    paintNotes();
   }
 
   async function refresh() {
@@ -171,6 +235,15 @@
     }
     setMeta(L().checking, 'busy');
     status = await window.canto.update.check();
+    notesDoc = null;
+    notesOpen = false;
+    if (status?.available && window.canto.update.changelog) {
+      try {
+        notesDoc = await window.canto.update.changelog();
+      } catch {
+        notesDoc = null;
+      }
+    }
     paint();
   }
 
@@ -573,6 +646,13 @@
   }
 
   btnLaunch.addEventListener('click', () => void launch());
+  if (btnNotes) {
+    btnNotes.addEventListener('click', () => {
+      if (btnNotes.hidden) return;
+      notesOpen = !notesOpen;
+      paintNotes();
+    });
+  }
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && document.activeElement === document.body) void launch();
     if (event.key === 'Escape' && !launching) window.canto?.window.close();
