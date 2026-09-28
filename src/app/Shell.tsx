@@ -13,6 +13,7 @@ import { useSettings } from '@/store/settings';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
 import { isBridgeLive, useBridge } from '@/store/bridge';
+import { ChangelogJournal } from './ChangelogJournal';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
@@ -203,7 +204,7 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
             <Progress value={sessionsCount / SESSION_CAPACITY} tone={sessionsCount / SESSION_CAPACITY > 0.9 ? 'ember' : 'gold'} />
           </div>
           <div className={s.railMeta}>
-            <span className={s.dimmer}>v{appVersion}</span>
+            <ChangelogJournal version={appVersion} />
           </div>
         </div>
       </aside>

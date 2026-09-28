@@ -42,6 +42,8 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Release : $tag sur ${GITHUB_SHA}"
+      - name: Journal de la version
+        run: node scripts/release-notes.mjs --check
 
   build:
     needs: prepare
@@ -85,11 +87,17 @@ jobs:
     needs: [prepare, build]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - uses: actions/download-artifact@v4
         with:
           pattern: release-*
           merge-multiple: true
           path: publish
+      - name: Journal et notes
+        run: node scripts/release-notes.mjs
       - name: SHA-256
         run: |
           cd publish
@@ -104,4 +112,4 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "CΛNTO $TAG" \
-            --notes "Installeurs natifs macOS (DMG universel), Windows (NSIS et portable) et Linux (AppImage et deb). Le fichier SHA256SUMS.txt couvre chaque binaire. L’installeur n’exige pas Node.js. NinjaTrader 8 se compile sur Windows ; le pont fichier est dans chaque paquet (resources/ninjatrader)."
+            --notes-file release-notes.md

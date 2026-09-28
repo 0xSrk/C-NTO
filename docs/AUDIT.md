@@ -408,6 +408,8 @@ Module 08 · PTF. Synthèse locale : ce que le desk vaut, ce qu'il risque, ce qu
 
 **Hypothèses.** Deux poches sur le même compte additionnent deux fois les mêmes séances. Le PnL réalisé d'une position clôturée n'est pas versé en cash : l'utilisateur saisit le cash. Il n'y a pas d'historique de change : le taux saisi courant convertit toute la courbe. Un cash est un niveau à partir de sa journée, pas un grand livre des soldes passés. Le pont est « vivant » dans l'interface quand `link === 'live'` ; l'horodatage de l'instantané est celui de la lecture, pour que le seuil de 60 s reste vrai tant que le lien l'est.
 
+Licence : MIT depuis 3.1.0.
+
 **Coffre.** Format `canto-vault-v2` inchangé (`schemaVersion: 2`). Champs optionnels `pockets`, `positions`, `cashBalances`, `fxRates`. Un coffre 2.2.x sans eux est accepté et ne remplace pas les tables. `equityPoints` n'est pas exporté : il est reconstruit à la restauration. Validateurs `CHECKS` : devises ISO, quantités finies, `kind` dans les types créables (`'crypto'` ne passe pas), taux strictement positif, `by: 'utilisateur'`.
 
 

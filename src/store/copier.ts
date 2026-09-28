@@ -16,6 +16,7 @@ export interface CopierConfig {
   windowEnd: string;
   /** Rejeter une copie si le suiveur dépasse cette marge de drawdown (fraction du DD max de son plan) */
   followerBufferFloor: number;
+  /** Inutilisé depuis 3.1.0 — conservé pour les coffres déjà exportés. */
   channel: 'stable' | 'beta';
 }
 
@@ -30,42 +31,6 @@ export const DEFAULT_COPIER: CopierConfig = {
   followerBufferFloor: 0.3,
   channel: 'stable',
 };
-
-export const COPIER_CHANGELOG: { version: string; date: string; items: string[] }[] = [
-  {
-    version: '2.0.2',
-    date: '2026-09-25',
-    items: [
-      'Application installée : ouverture sur le lanceur (langue, contrôle de version, transition vers le desk)',
-      'Mise à jour native : téléchargement vérifié (SHA-256) de l’installeur puis relance automatique',
-      'Journal de démarrage et instance unique',
-    ],
-  },
-  {
-    version: '2.0.1',
-    date: '2026-09-25',
-    items: ['Langue du desk au lanceur : Français, English, Español — le choix est conservé'],
-  },
-  {
-    version: '2.0.0',
-    date: '2026-09-23',
-    items: [
-      'Desk natif macOS, Windows et Linux — installeurs DMG, NSIS et AppImage / deb',
-      'Pont fichier inclus sur chaque OS : le desk surveille l’export CANTO, l’AddOn NT8 reste compilé sous Windows',
-    ],
-  },
-  {
-    version: '1.1.2',
-    date: '2026-09-17',
-    items: [
-      'Alignement desk v1.1.2 — badge CONCEPTION, kill switch, aucun ordre',
-      'Grammaire visuelle Lab — précision lithographique, LED unique',
-      'Modèle maître / suiveurs, sizing fixe · ratio · risque, NQ ↔ MNQ',
-      'Filtres : fenêtre horaire, blackout catalyseurs, marge plancher',
-      'Spécification du pont NinjaTrader (docs/PONT-NINJATRADER.md)',
-    ],
-  },
-];
 
 interface CopierState {
   ready: boolean;

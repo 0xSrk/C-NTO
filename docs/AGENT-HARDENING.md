@@ -265,9 +265,9 @@ Puis `git ls-files` : si un csv/vault/env est tracké → `git rm --cached` uniq
 
 ### P2.7 — Licence
 
-Ne pas inventer une licence MIT si le user n’a pas tranché. Ajouter 5 lignes en tête README :
+Tranché en 3.1.0 : le code est sous MIT. Les noms CΛNTO et SIΞRRΛSKΛ, et l'identité visuelle, ne sont pas concédés.
 
-> Licence : `UNLICENSED`. Source visible. Pas de concession de droits. Pas de réutilisation sans accord SIΞRRΛSKΛ.
+> Licence : MIT depuis 3.1.0. Les noms CΛNTO et SIΞRRΛSKΛ, et l'identité visuelle, ne sont pas concédés.
 
 ---
 

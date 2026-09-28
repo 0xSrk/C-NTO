@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "version": "1.1.2",
+      "date": "2026-09-17",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Alignement du desk : badge Conception, coupe-circuit, aucun ordre.",
+          "Grammaire visuelle du Lab : précision lithographique, une seule LED.",
+          "Comptes maître et suiveurs : taille fixe, au ratio ou au risque, NQ et MNQ.",
+          "Filtres de copie : fenêtre horaire, blackout des catalyseurs, marge plancher.",
+          "Spécification du pont NinjaTrader livrée avec le desk."
+        ],
+        "en": [
+          "Desk alignment: Design badge, kill switch, no orders sent.",
+          "Lab visual grammar: lithographic precision, a single LED.",
+          "Master and follower accounts: fixed size, ratio, or risk, NQ and MNQ.",
+          "Copy filters: time window, catalyst blackout, floor buffer.",
+          "NinjaTrader bridge specification shipped with the desk."
+        ],
+        "es": [
+          "Alineación del desk: distintivo Concepción, corte de circuito, ninguna orden enviada.",
+          "Gramática visual del Lab: precisión litográfica, un solo LED.",
+          "Cuentas maestra y seguidoras: tamaño fijo, por ratio o por riesgo, NQ y MNQ.",
+          "Filtros de copia: ventana horaria, blackout de catalizadores, margen suelo.",
+          "Especificación del puente NinjaTrader entregada con el desk."
+        ]
+      }
+    },
+    {
+      "version": "2.0.0",
+      "date": "2026-09-23",
+      "kind": "majeur",
+      "highlights": {
+        "fr": [
+          "Desk natif macOS, Windows et Linux, avec installeurs.",
+          "Pont fichier NinjaTrader inclus sur chaque système."
+        ],
+        "en": [
+          "Native desk for macOS, Windows and Linux, with installers.",
+          "NinjaTrader file bridge included on every system."
+        ],
+        "es": [
+          "Desk nativo para macOS, Windows y Linux, con instaladores.",
+          "Puente de archivos NinjaTrader incluido en cada sistema."
+        ]
+      }
+    },
+    {
+      "version": "2.0.1",
+      "date": "2026-09-25",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Choix de la langue au lanceur (français, anglais, espagnol), conservé d'une session à l'autre."
+        ],
+        "en": [
+          "Language choice on the launcher (French, English, Spanish), kept from one session to the next."
+        ],
+        "es": [
+          "Elección del idioma en el lanzador (francés, inglés, español), conservada de una sesión a la siguiente."
+        ]
+      }
+    },
+    {
+      "version": "2.0.2",
+      "date": "2026-09-25",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Le desk s'ouvre sur le lanceur.",
+          "Mise à jour intégrée : téléchargement vérifié puis relance automatique."
+        ],
+        "en": [
+          "The desk opens on the launcher.",
+          "Built-in update: verified download, then automatic relaunch."
+        ],
+        "es": [
+          "El desk se abre en el lanzador.",
+          "Actualización integrada: descarga verificada y luego reinicio automático."
+        ]
+      }
+    },
+    {
+      "version": "2.1.0",
+      "date": "2026-09-26",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Quatorze contrats CME reconnus (Nasdaq, S&P, Russell, Dow, pétrole, or, euro et leurs micros).",
+          "Calendrier économique sur sources officielles (BLS, BEA, Fed, BCE, EIA, Trésor), utilisable hors ligne.",
+          "Pont NinjaTrader en connexion directe, avec le fichier en secours.",
+          "Ordres limités aux comptes de simulation par défaut, coupe-circuit clavier."
+        ],
+        "en": [
+          "Fourteen CME contracts recognized (Nasdaq, S&P, Russell, Dow, crude, gold, euro, and their micros).",
+          "Economic calendar from official sources (BLS, BEA, Fed, ECB, EIA, Treasury), usable offline.",
+          "NinjaTrader bridge over a direct connection, with the file as fallback.",
+          "Orders limited to simulation accounts by default, keyboard kill switch."
+        ],
+        "es": [
+          "Catorce contratos CME reconocidos (Nasdaq, S&P, Russell, Dow, petróleo, oro, euro y sus micros).",
+          "Calendario económico con fuentes oficiales (BLS, BEA, Fed, BCE, EIA, Tesoro), usable sin conexión.",
+          "Puente NinjaTrader en conexión directa, con el archivo como respaldo.",
+          "Órdenes limitadas por defecto a las cuentas de simulación, corte de circuito por teclado."
+        ]
+      }
+    },
+    {
+      "version": "2.2.0",
+      "date": "2026-09-26",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Notes reliées automatiquement à vos séances, trades, instruments et événements du jour.",
+          "Suggestions de liens entre notes, à confirmer ou rejeter.",
+          "Confiance chiffrée d'une idée de trading à partir de vos propres trades.",
+          "Nouveau lanceur AUBE."
+        ],
+        "en": [
+          "Notes linked automatically to your sessions, trades, instruments, and the day's events.",
+          "Suggested links between notes, to confirm or reject.",
+          "A quantified confidence for a trading idea, drawn from your own trades.",
+          "New AUBE launcher."
+        ],
+        "es": [
+          "Notas enlazadas automáticamente a sus sesiones, trades, instrumentos y eventos del día.",
+          "Sugerencias de enlaces entre notas, para confirmar o rechazar.",
+          "Confianza cuantificada de una idea de trading a partir de sus propios trades.",
+          "Nuevo lanzador AUBE."
+        ]
+      }
+    },
+    {
+      "version": "2.2.1",
+      "date": "2026-09-26",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Lanceur AUBE II.",
+          "Le desk démarre même si le lanceur passe en arrière-plan."
+        ],
+        "en": [
+          "AUBE II launcher.",
+          "The desk starts even if the launcher moves to the background."
+        ],
+        "es": [
+          "Lanzador AUBE II.",
+          "El desk arranca aunque el lanzador pase a segundo plano."
+        ]
+      }
+    },
+    {
+      "version": "3.0.0",
+      "date": "2026-09-27",
+      "kind": "majeur",
+      "highlights": {
+        "fr": [
+          "Nouveau module Portefeuille : valeur nette consolidée, risque, projection et bilan, avec mode discret.",
+          "Audit de sécurité complet du desk."
+        ],
+        "en": [
+          "New Portfolio module: consolidated net value, risk, projection and statement, with a discreet mode.",
+          "Full security audit of the desk."
+        ],
+        "es": [
+          "Nuevo módulo Cartera: valor neto consolidado, riesgo, proyección y balance, con modo discreto.",
+          "Auditoría de seguridad completa del desk."
+        ]
+      }
+    },
+    {
+      "version": "3.1.0",
+      "date": "2026-09-27",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Lanceur AUBE III.",
+          "Vos trades se forment correctement même quand l'entrée et la sortie arrivent séparément, positions ouvertes conservées entre deux sessions.",
+          "Confirmation système avant d'autoriser un compte réel.",
+          "Journal des versions et nouveautés consultables dans le lanceur et le desk.",
+          "CΛNTO devient open source (licence MIT)."
+        ],
+        "en": [
+          "AUBE III launcher.",
+          "Your trades form correctly even when the entry and the exit arrive separately, open positions kept from one session to the next.",
+          "System confirmation before a live account is allowed.",
+          "Version journal and what's new, available in the launcher and the desk.",
+          "CΛNTO becomes open source (MIT license)."
+        ],
+        "es": [
+          "Lanzador AUBE III.",
+          "Sus trades se forman correctamente aunque la entrada y la salida lleguen por separado, posiciones abiertas conservadas de una sesión a otra.",
+          "Confirmación del sistema antes de autorizar una cuenta real.",
+          "Diario de versiones y novedades consultables en el lanzador y en el desk.",
+          "CΛNTO pasa a ser open source (licencia MIT)."
+        ]
+      }
+    }
+  ]
+}

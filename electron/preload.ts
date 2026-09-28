@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import type { ChangelogFile } from './changelog';
 
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
   const handler = (_e: IpcRendererEvent, payload: T) => cb(payload);
@@ -57,6 +58,7 @@ contextBridge.exposeInMainWorld('canto', {
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
+    changelog: () => ipcRenderer.invoke('update:changelog') as Promise<ChangelogFile | null>,
     apply: (opts?: { channel?: string; confirmStash?: boolean }) => ipcRenderer.invoke('update:apply', opts),
     relaunch: () => ipcRenderer.invoke('update:relaunch'),
     startDesk: () => ipcRenderer.invoke('update:start-desk'),
