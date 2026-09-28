@@ -2,13 +2,13 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.0.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.1.0 · DESK OUTPUT`**
 
 # CΛNTO
 
 ### A local trading desk for CME Group futures (Nasdaq, S&P, Russell, Dow, crude, gold, euro FX)
 
-An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and the modules that are still a prototype. **v3.0.0** installs natively on **macOS, Windows, and Linux**. Data stays 100% on the machine. Crypto, tweet feeds, and Investing.com / Forex Factory are out.
+An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and the modules that are still a prototype. **v3.1.0** installs natively on **macOS, Windows, and Linux**. Data stays 100% on the machine. Crypto, tweet feeds, and Investing.com / Forex Factory are out.
 
 > The code is under the [MIT license](LICENSE). The names CΛNTO and SIΞRRΛSKΛ, and the visual identity, are not granted by this license.
 
@@ -90,15 +90,15 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 
 | OS | Installer | What you get |
 |---|---|---|
-| **macOS** 12+ (Apple silicon and Intel) | `CANTO-3.0.0-mac-universal.dmg` | Application in `/Applications`. The file bridge lives in the desk. |
-| **Windows** 10 / 11 (x64 and ARM) | `CANTO-3.0.0-win-x64-setup.exe` (or `arm64`) | NSIS wizard (choose the folder, shortcut). Portable: `CANTO-3.0.0-win-x64-portable.exe`. |
-| **Linux** x64 and ARM64 | `CANTO-3.0.0-linux-x86_64.AppImage` or `CANTO-3.0.0-linux-amd64.deb` | ARM64: `linux-arm64.AppImage` and `linux-arm64.deb`. |
+| **macOS** 12+ (Apple silicon and Intel) | `CANTO-3.1.0-mac-universal.dmg` | Application in `/Applications`. The file bridge lives in the desk. |
+| **Windows** 10 / 11 (x64 and ARM) | `CANTO-3.1.0-win-x64-setup.exe` (or `arm64`) | NSIS wizard (choose the folder, shortcut). Portable: `CANTO-3.1.0-win-x64-portable.exe`. |
+| **Linux** x64 and ARM64 | `CANTO-3.1.0-linux-x86_64.AppImage` or `CANTO-3.1.0-linux-amd64.deb` | ARM64: `linux-arm64.AppImage` and `linux-arm64.deb`. |
 
 <a id="installer"></a>
 
 ### macOS
 
-1. Download the DMG from the [GitHub Release v3.0.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.0.0), or run `npm run dist:mac` on a Mac.
+1. Download the DMG from the [GitHub Release v3.1.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.1.0), or run `npm run dist:mac` on a Mac.
 2. Open the DMG and drag **CΛNTO** into **Applications**.
 3. First launch: right-click the app › **Open** (the DMG is not Apple-signed; Gatekeeper asks for this confirmation once).
 4. The launcher, then the desk, open. Metrics › NinjaTrader bridge creates `~/Documents/NinjaTrader 8/export/CANTO` and watches it.
@@ -109,9 +109,9 @@ From source (development): double-click `CANTO.command`, or `chmod +x CANTO.sh &
 
 ### Windows
 
-1. Run `CANTO-3.0.0-win-x64-setup.exe` (or `arm64` on Windows ARM).
+1. Run `CANTO-3.1.0-win-x64-setup.exe` (or `arm64` on Windows ARM).
 2. Choose the folder, finish the wizard, and open **CΛNTO** from the Start menu.
-3. No-install variant: `CANTO-3.0.0-win-x64-portable.exe`.
+3. No-install variant: `CANTO-3.1.0-win-x64-portable.exe`.
 4. Metrics › NinjaTrader bridge › default folder `Documents\NinjaTrader 8\export\CANTO`.
 5. Real time: `CantoBridge.cs` ships in `resources/ninjatrader/` next to the executable (sources: `ninjatrader/CantoBridge.cs`). Copy it to `Documents\NinjaTrader 8\bin\Custom\AddOns\`, then NinjaScript Editor › Compile (F5). In the desk, **Write the NinjaTrader configuration** so the AddOn reads `bridge.json` (port and token) and opens the WebSocket. The CSV file is still written in parallel.
 
@@ -121,8 +121,8 @@ From source: double-click `CANTO.cmd`. The Electron binary is downloaded and ext
 
 ### Linux
 
-1. **AppImage** (no system install): `chmod +x CANTO-3.0.0-linux-x86_64.AppImage && ./CANTO-3.0.0-linux-x86_64.AppImage`. ARM64: `CANTO-3.0.0-linux-arm64.AppImage`.
-2. **Debian / Ubuntu**: `sudo apt install ./CANTO-3.0.0-linux-amd64.deb` (ARM64: `CANTO-3.0.0-linux-arm64.deb`), then launch `canto` or **CΛNTO** from the menu.
+1. **AppImage** (no system install): `chmod +x CANTO-3.1.0-linux-x86_64.AppImage && ./CANTO-3.1.0-linux-x86_64.AppImage`. ARM64: `CANTO-3.1.0-linux-arm64.AppImage`.
+2. **Debian / Ubuntu**: `sudo apt install ./CANTO-3.1.0-linux-amd64.deb` (ARM64: `CANTO-3.1.0-linux-arm64.deb`), then launch `canto` or **CΛNTO** from the menu.
 3. The bridge creates `~/Documents/NinjaTrader 8/export/CANTO`. Same rule as macOS: the AddOn runs inside NinjaTrader 8 on Windows; the Linux desk imports the CSVs from that folder.
 
 From source: `chmod +x CANTO.sh && ./CANTO.sh`.
@@ -171,7 +171,7 @@ Every install opens on the **launcher** — desk language, version check, and th
 
 | State | Behavior |
 |---|---|
-| Up to date | The button shows `v3.0.0` (quiet) |
+| Up to date | The button shows `v3.1.0` (quiet) |
 | Update available | The button turns **amber / yellow** — one click installs and relaunches |
 
 ---
@@ -624,6 +624,6 @@ Fonts shipped with the desk (copied next to the launcher at build time, license 
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.0.0`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.1.0`**
 
 </div>
