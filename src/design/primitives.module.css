@@ -13,21 +13,8 @@
   animation-delay: calc(var(--i, 0) * 35ms);
   transform: translateZ(0);
 }
-.panel::after {
-  content: '';
-  position: absolute;
-  inset: -1px 0 auto 0;
-  height: 1px;
-  background: var(--light-edge);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 220ms linear;
-}
 .panel:hover {
   border-color: var(--line-2);
-}
-.panel:hover::after {
-  opacity: 1;
 }
 .panel:nth-child(2) {
   --i: 1;
@@ -69,37 +56,6 @@
 .panel.accent {
   border-color: var(--line-2);
 }
-.corner {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-color: var(--gold-line);
-  border-style: solid;
-  pointer-events: none;
-  z-index: 2;
-  opacity: 0.9;
-}
-.corner.tl {
-  top: -1px;
-  left: -1px;
-  border-width: 1px 0 0 1px;
-}
-.corner.tr {
-  top: -1px;
-  right: -1px;
-  border-width: 1px 1px 0 0;
-}
-.corner.bl {
-  bottom: -1px;
-  left: -1px;
-  border-width: 0 0 1px 1px;
-}
-.corner.br {
-  bottom: -1px;
-  right: -1px;
-  border-width: 0 1px 1px 0;
-}
-
 .panelHead {
   position: relative;
   display: flex;
@@ -109,17 +65,6 @@
   padding: 12px 20px;
   border-bottom: 1px solid var(--line-0);
   min-height: 44px;
-}
-/* Encoche : amorce gravée de 12 px sur la hairline sous l'en-tête */
-.panelHead::after {
-  content: '';
-  position: absolute;
-  left: -1px;
-  bottom: -1px;
-  width: 12px;
-  height: 1px;
-  background: var(--line-3);
-  pointer-events: none;
 }
 .panelTitle {
   font-family: var(--font-mono);
@@ -214,8 +159,19 @@
   border-color: var(--text-0);
   background: var(--text-0);
   color: var(--bg-0);
-  /* Encoche : coin haut-droit chanfreiné, signature du bouton de lancement */
-  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+}
+.btn.chamfer {
+  height: 34px;
+  padding: 0 20px 0 16px;
+  border: none;
+  background: var(--text-0);
+  color: var(--bg-0);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  clip-path: var(--chamfer);
 }
 .btn.solid:hover {
   background: var(--text-1);
@@ -265,18 +221,6 @@
   border-color: var(--ember-line);
   color: var(--ember);
 }
-.tag.ice {
-  border-color: var(--ice-line);
-  color: var(--ice);
-}
-.tag.amber {
-  border-color: var(--amber-line);
-  color: var(--amber);
-}
-.tag.violet {
-  border-color: var(--violet-line);
-  color: var(--violet);
-}
 .tagDot {
   width: 6px;
   height: 6px;
@@ -287,13 +231,9 @@
 .tag.gold .tagDot.live {
   box-shadow: var(--glow-accent);
 }
-.tagDot.live {
-  animation: breathe 2.4s var(--ease-in-out) infinite;
-}
 
 /* ─── Onglet inversé : un seul par écran ─── */
 .invertedTab {
-  clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%);
   display: inline-flex;
   align-items: center;
   height: 24px;
@@ -330,27 +270,6 @@
 .stat:hover {
   border-color: var(--line-2);
 }
-/* Encoche haute : 12 px gravés sur l'arête, éclairés au survol */
-.stat::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 12px;
-  height: 1px;
-  background: var(--line-3);
-  transition: width 220ms var(--ease-out), background 160ms linear;
-}
-.stat:hover::before {
-  width: 24px;
-  background: var(--text-2);
-}
-.stat.pos::before {
-  background: var(--mint-line);
-}
-.stat.neg::before {
-  background: var(--ember-line);
-}
 .statLabel {
   font-family: var(--font-mono);
   font-size: var(--fs-label);
@@ -367,7 +286,8 @@
 .statValue {
   font-family: var(--font-ui);
   font-size: var(--fs-value);
-  font-weight: 700;
+  font-weight: 600;
+  font-stretch: 112%;
   letter-spacing: -0.01em;
   color: var(--text-0);
   line-height: 1.15;
@@ -386,9 +306,6 @@
 }
 .stat.gold .statValue {
   color: var(--text-0);
-}
-.stat.ice .statValue {
-  color: var(--ice);
 }
 .statHint {
   font-size: var(--fs-small);
@@ -564,10 +481,6 @@
 .progress.ember > span {
   background: var(--ember);
 }
-.progress.ice > span {
-  background: var(--ice);
-}
-
 /* ─── Marque : SIΞRRΛSKΛ—LAB, gravée ─── */
 .sigil {
   font-family: var(--font-mono);
@@ -639,4 +552,207 @@
 .table tbody tr:global(.clickable):focus-visible {
   outline: 1px solid var(--gold);
   outline-offset: -1px;
+}
+
+.montant {
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.groupGap {
+  margin-left: 0.22em;
+}
+.decimals {
+  font-size: 0.6em;
+  color: var(--text-2);
+}
+.masked {
+  letter-spacing: 0.08em;
+}
+
+.lecteur {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-readout);
+  font-weight: 800;
+  font-size: 66px;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-0);
+}
+.lecteurInk {
+  position: relative;
+  color: var(--text-0);
+  text-shadow: 0 0 24px rgba(237, 235, 228, 0.26), 0 0 2px rgba(237, 235, 228, 0.26);
+}
+.lecteurGhost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: rgba(237, 235, 228, 0.05);
+}
+.lecteur .decimals {
+  color: inherit;
+  opacity: 0.6;
+}
+
+.plaque {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(#1a1b20 0%, #141519 100%);
+  border: 1px solid #2b2e34;
+  box-shadow: rgba(255, 255, 255, 0.06) 0 1px 0 inset, rgba(0, 0, 0, 0.6) 0 -1px 0 inset, rgba(0, 0, 0, 0.35) 0 2px 0;
+  border-radius: 2px;
+  padding: 20px 30px 18px;
+}
+.trame {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(237, 235, 228, 0.08) 1px, transparent 1.6px);
+  background-size: 6px 6px;
+  mask-image: linear-gradient(100deg, transparent 20%, #000 75%);
+  pointer-events: none;
+}
+.vis {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #2e3036, #08090a 70%);
+  box-shadow: rgba(255, 255, 255, 0.06) 0 1px 0;
+}
+.visTl { left: 9px; top: 9px; }
+.visTr { right: 9px; top: 9px; }
+.visBl { left: 9px; bottom: 9px; }
+.visBr { right: 9px; bottom: 9px; }
+.languette {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 22px;
+  height: 4px;
+  margin-left: -11px;
+  background: var(--lab);
+}
+.plaqueBody {
+  position: relative;
+}
+
+.led {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.led i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold);
+}
+.ledOff {
+  display: inline-flex;
+  align-items: center;
+}
+
+.jauge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jaugeTrack {
+  position: relative;
+  height: 8px;
+  background: repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 10px);
+  border-bottom: 1px solid var(--line-2);
+}
+.jaugeFill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--text-1);
+}
+.jaugeHatch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: var(--hatch-neg);
+  opacity: 0.85;
+}
+.jaugeMark {
+  position: absolute;
+  top: -3px;
+  bottom: -1px;
+  width: 1px;
+}
+.jaugeCursor {
+  position: absolute;
+  top: -4px;
+  width: 0;
+  height: 0;
+  margin-left: -4px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--text-0);
+}
+.jaugeScale {
+  position: relative;
+  height: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.jaugeScale span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.jaugeScale span:first-child {
+  transform: none;
+}
+
+.etiquette {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.regle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  padding: 7px 0;
+}
+.regle i {
+  flex: 1;
+  height: 3px;
+  background: var(--rule-dots);
+}
+.regle span:last-child {
+  color: var(--text-1);
+}
+
+.barcode {
+  display: inline-block;
+  width: 64px;
+  height: 10px;
+  background-image:
+    repeating-linear-gradient(90deg, var(--text-2) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, var(--text-2) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(90deg, transparent 0 11px, var(--text-2) 11px 12px, transparent 12px 17px);
 }

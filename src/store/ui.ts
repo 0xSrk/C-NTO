@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { uid } from '@/lib/id';
 
+/** `copieur` : hors rail depuis 3.2.0, réplication reportée. */
 export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur' | 'portefeuille';
 
 export interface Toast {
@@ -13,6 +14,12 @@ export interface Toast {
 interface UiState {
   tab: TabId;
   setTab: (t: TabId) => void;
+  /** Filtre de comptes de Métrique. `null` = tous les comptes. */
+  metricAccount: string | null;
+  setMetricAccount: (account: string | null) => void;
+  /** Troisième segment du fil d'Ariane, ignoré s'il ne concerne pas l'onglet actif. */
+  crumb: { tab: TabId; label: string } | null;
+  setCrumb: (tab: TabId, label: string) => void;
   toasts: Toast[];
   toast: (text: string, tone?: Toast['tone'], action?: Toast['action']) => void;
   dismiss: (id: string) => void;
@@ -30,7 +37,11 @@ interface UiState {
 
 export const useUi = create<UiState>((set, get) => ({
   tab: 'metrique',
-  setTab: (tab) => set({ tab }),
+  setTab: (tab) => set({ tab: tab === 'copieur' ? 'metrique' : tab }),
+  metricAccount: null,
+  setMetricAccount: (metricAccount) => set({ metricAccount }),
+  crumb: null,
+  setCrumb: (tab, label) => set({ crumb: { tab, label } }),
   toasts: [],
   toast(text, tone = 'info', action) {
     const id = uid('n');

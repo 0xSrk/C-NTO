@@ -11,7 +11,8 @@ for (const f of ['launcher.html', 'launcher-ui.js', 'aube.js']) {
 cpSync(path.join(root, 'build', 'logo.svg'), path.join(dest, 'logo.svg'));
 mkdirSync(path.join(dest, 'changelog'), { recursive: true });
 cpSync(path.join(root, 'src', 'engine', 'changelog', 'changelog.json'), path.join(dest, 'changelog', 'changelog.json'));
-// Le lanceur parle la même typographie que le desk : Inter + JetBrains Mono (latin + grec pour Λ / Ξ).
+// Le lanceur garde Inter et JetBrains Mono (latin + grec pour Λ / Ξ).
+// Le desk embarque Archivo, Doto et JetBrains via le bundle Vite ; leurs licences OFL suivent le paquet.
 const fonts = path.join(dest, 'fonts');
 mkdirSync(fonts, { recursive: true });
 for (const [pkg, files] of [
@@ -20,7 +21,7 @@ for (const [pkg, files] of [
 ]) {
   for (const f of files) cpSync(path.join(root, 'node_modules', '@fontsource-variable', pkg, 'files', f), path.join(fonts, f));
 }
-for (const name of ['OFL-Inter.txt', 'OFL-JetBrainsMono.txt']) {
+for (const name of ['OFL-Inter.txt', 'OFL-JetBrainsMono.txt', 'OFL-Archivo.txt', 'OFL-Doto.txt']) {
   cpSync(path.join(root, 'electron', 'fonts', name), path.join(fonts, name));
 }
 console.log('electron assets → dist-electron/');

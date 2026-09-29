@@ -30,7 +30,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 
 <br/>
 
-**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 AGT` · `06 BOT` · `07 CPY` · `08 PTF`**
+**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 PTF` · `06 AGT` · `07 BOT`** · Copieur hors rail
 
 <br/><br/>
 
@@ -45,10 +45,10 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 2. [`02 · VIS` Visual](#visual)
 3. [`03 · CAL` Calendar](#calendar)
 4. [`04 · NTE` Notes](#notes)
-5. [`05 · AGT` AI agent](#ai-agent) — prototype
-6. [`06 · BOT` Bot](#bot) — design
-7. [`07 · CPY` Copier](#copier) — design
-8. [`08 · PTF` Portfolio](#portfolio) — shipped
+5. [`05 · PTF` Portfolio](#portfolio) — shipped
+6. [`06 · AGT` AI agent](#ai-agent) — prototype
+7. [`07 · BOT` Bot](#bot) — design
+8. Copier — off the rail, replication postponed
 9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
 10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
 11. [Versions](#versions) · [Roadmap](#roadmap) · [Disclaimer](#disclaimer)
@@ -57,7 +57,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 
 ## In short
 
-CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules, one IndexedDB vault — nothing leaves the machine. Crypto is not a class of CΛNTO: no pocket, no instrument. A vault that still carries `kind: "crypto"` is refused.
+CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, seven modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier stays in the code, off the rail, until replication ships. Crypto is not a class of CΛNTO: no pocket, no instrument. A vault that still carries `kind: "crypto"` is refused.
 
 | Module | State in 3.0.0 |
 |---|---|
@@ -65,10 +65,10 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 | `02 · VIS` Visual | Shipped. Registry candles, indicators, live bars when the NT8 bridge is connected |
 | `03 · CAL` Calendar | Shipped. Official sources: BLS, BEA, Federal Reserve, ECB, EIA, TreasuryDirect, plus an embedded snapshot. FRED only with a key you type. CME expirations are computed locally. Investing.com and Forex Factory are not called |
 | `04 · NTE` Notes | Shipped. Markdown vault and typed links (ontology) |
-| `05 · AGT` Agent | Prototype. Desk tools, write confirmation, LLM through the main process |
-| `06 · BOT` Bot | Design. No order is sent |
-| `07 · CPY` Copier | Design. Replication is not wired. The order channel exists; copying does not |
-| `08 · PTF` Portfolio | Shipped. Local net value, exposure, distance to prop thresholds, Monte Carlo on the consolidated series |
+| `05 · PTF` Portfolio | Shipped. Local net value, exposure, distance to prop thresholds, Monte Carlo on the consolidated series |
+| `06 · AGT` Agent | Prototype. Desk tools, write confirmation, LLM through the main process |
+| `07 · BOT` Bot | Design. No order is sent |
+| Copier | Off the rail since 3.2.0. Replication is not wired. The order channel exists; copying does not |
 
 | | |
 |---|---|
@@ -361,7 +361,7 @@ Obsidian-style, 100% inside the Dexie vault:
 
 <div align="center">
 
-**`05 · AGT · AGENT IA · PASSERELLE NATIVE · ORCHESTRATEUR`**
+**`06 · AGT · AGENT IA · PASSERELLE NATIVE · ORCHESTRATEUR`**
 
 ## AI agent
 
@@ -398,7 +398,7 @@ Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 cha
 
 <div align="center">
 
-**`06 · BOT · ATELIER D’AUTOMATES · CONCEPTION`**
+**`07 · BOT · ATELIER D’AUTOMATES · CONCEPTION`**
 
 ## Bot
 
@@ -426,7 +426,7 @@ Guardrails are **imposed** on every automation: circuit breaker at 30% of max DD
 
 <div align="center">
 
-**`07 · CPY · COPIEUR · RÉPLICATION DE COMPTES · CONCEPTION`**
+**`CPY · COPIEUR · HORS RAIL · RÉPLICATION REPORTÉE`**
 
 ## Copier
 
@@ -454,7 +454,7 @@ Persisted prototype (accounts, rules, filters). The WebSocket **order channel** 
 
 <div align="center">
 
-**`08 · PTF · PORTEFEUILLE · SYNTHÈSE · CŒUR · PROJECTION`**
+**`05 · PTF · PORTEFEUILLE · SYNTHÈSE · CŒUR · PROJECTION`**
 
 ## Portfolio
 
@@ -572,14 +572,13 @@ Data folder (vault, bridge state, language): `%APPDATA%\CΛNTO` (Windows), `~/Li
 
 </div>
 
-Lithographic grammar — **[docs/DESIGN.md](docs/DESIGN.md)**:
+Système 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is archived in `docs/design/archive/DESIGN-v1.md`):
 
-- Absolute black, 1 px hairlines, a strict **4 px** grid, no rounded corners
-- Inter 700 (titles / values, never &lt; 12 px) · JetBrains Mono capitals (labels, never &lt; 11 px)
-- A single Lab LED `#c41e3a` — dot, rule, keyword; never a fill
-- CΛNTO wordmark drawn as a stroke (`square` / `miter`), one inverted tab `CΛNTO · ARTEFACT 002`
-- Green / red: **direction only** (side, PnL, status)
-- Chrome: title bar 56 · rail 232 · status 28 · table rows 36
+- Carbone `#0A0B0D`, sol `#0F1013`, plaque `#16171B`. Graphite labels stay at or above 4.5:1
+- Archivo (display and UI) · Doto (one readout per screen) · JetBrains Mono capitals (labels, 10 px minimum; also the fallback that draws Λ and Ξ)
+- Lab LED `#E5263D` — a 5 px dot and its halo, never decorative. Lab orange `#ED5D0B` is the signature dot and the readout tab only
+- Chrome: title bar 44 · rail 220 · status 28 · work area `24 / 40 / 22`
+- The launcher still ships Inter. The desk does not load it
 
 ---
 
@@ -618,7 +617,9 @@ Fonts shipped with the desk (copied next to the launcher at build time, license 
 
 | Resource | License | File |
 |---|---|---|
-| Inter (variable, latin + greek) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2016 The Inter Project Authors. | `electron/fonts/OFL-Inter.txt` |
+| Inter (variable, latin + greek) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2016 The Inter Project Authors. The launcher keeps Inter; the desk no longer loads it. | `electron/fonts/OFL-Inter.txt` |
+| Archivo (variable, width axis) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2020 The Archivo Project Authors. | `electron/fonts/OFL-Archivo.txt` |
+| Doto (variable) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2024 The Doto Project Authors. | `electron/fonts/OFL-Doto.txt` |
 | JetBrains Mono (variable, latin + greek) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2020 The JetBrains Mono Project Authors. | `electron/fonts/OFL-JetBrainsMono.txt` |
 
 <div align="center">

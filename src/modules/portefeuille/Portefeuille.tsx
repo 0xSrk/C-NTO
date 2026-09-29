@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
-import { Bars } from '@/design/charts/Bars';
 import { LineArea, type LineSeries } from '@/design/charts/LineArea';
-import { Button, Empty, Field, Panel, Segmented, Stat, Tag, tableClass } from '@/design/primitives';
+import { Button, Empty, Field, Panel, Segmented, Tag, tableClass } from '@/design/primitives';
 import { PROP_FIRMS, findPlan, type PropPlan } from '@/engine/propfirm';
-import { bilan, bilanBounds, bilanToCsv, bilanToJson, projectionRuin, type BilanPreset } from '@/engine/portfolio/bilan';
-import { buildEquityPoints, consolidateEquity, portfolioDay, projectionSeries } from '@/engine/portfolio/equity';
+import { bilan, bilanBounds, bilanToCsv, projectionRuin, type BilanPreset } from '@/engine/portfolio/bilan';
+import { buildEquityPoints, consolidateEquity, projectionSeries } from '@/engine/portfolio/equity';
 import { exposure } from '@/engine/portfolio/exposure';
 import { convertAmount } from '@/engine/portfolio/fx';
 import { positionMultiplier } from '@/engine/portfolio/price';
@@ -21,18 +20,18 @@ import {
   type ValuationMark,
 } from '@/engine/portfolio/types';
 import { consolidate, valuePocket } from '@/engine/portfolio/valuation';
+import { Synthese } from './Synthese';
 import { intlTag, tr, useI18n } from '@/i18n';
 import { saveTextFile, openTextFile } from '@/lib/desk';
-import { fmtNum, fmtPct } from '@/lib/format';
+import { fmtNum } from '@/lib/format';
 import { useBridge } from '@/store/bridge';
 import { useJournal } from '@/store/journal';
 import { usePortfolio } from '@/store/portfolio';
 import { useSettings } from '@/store/settings';
 import s from './portefeuille.module.css';
-import { Projection } from './Projection';
 
 const DISCRETE_KEY = 'canto.ptf.discrete';
-const PALETTE = ['var(--mint)', 'var(--ice)', 'var(--amber)', 'var(--violet)', 'var(--text-0)'];
+const PALETTE = ['var(--mint)', 'var(--text-0)', 'var(--ember)', 'var(--text-1)', 'var(--gold)'];
 
 const moneyCache = new Map<string, Intl.NumberFormat>();
 
@@ -92,14 +91,6 @@ function markLabel(mark: ValuationMark): string {
   if (mark === 'journal') return tr('journal', 'journal', 'diario');
   if (mark === 'saisi') return tr('saisi', 'entered', 'introducido');
   return tr('au prix de revient', 'at cost', 'a precio de coste');
-}
-
-function presetLabel(preset: BilanPreset): string {
-  if (preset === '7j') return tr('7 j', '7 d', '7 d');
-  if (preset === '30j') return tr('30 j', '30 d', '30 d');
-  if (preset === 'trimestre') return tr('Trimestre', 'Quarter', 'Trimestre');
-  if (preset === 'annee') return tr('Année', 'Year', 'Año');
-  return tr('Personnalisée', 'Custom', 'Personalizada');
 }
 
 function statusLabel(status: string): string {
@@ -170,6 +161,7 @@ export default function Portefeuille() {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [windowDays, setWindowDays] = useState(120);
+  const pocketNameRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<DraftPocket>(blankPocket);
   const [focusPocket, setFocusPocket] = useState('');
   const [posSymbol, setPosSymbol] = useState('');
@@ -249,7 +241,9 @@ export default function Portefeuille() {
     [active, positions, snapshots, fx, base, now, coeur.netValue],
   );
   const bounds = useMemo(() => bilanBounds(preset, now, customFrom && customTo ? { from: customFrom, to: customTo } : undefined), [preset, now, customFrom, customTo]);
+  const bounds30 = useMemo(() => bilanBounds('30j', now), [now]);
   const report = useMemo(() => bilan(bounds, { pockets: active, points, sessions, fx, base }), [bounds, active, points, sessions, fx, base]);
+  const report30 = useMemo(() => bilan(bounds30, { pockets: active, points, sessions, fx, base }), [bounds30, active, points, sessions, fx, base]);
   const sample = useMemo(() => projectionSeries(curve.series, windowDays), [curve, windowDays]);
 
   const propDrawdowns = useMemo(() => {
@@ -270,10 +264,6 @@ export default function Portefeuille() {
     void replaceEquity(points);
   }, [ready, points, replaceEquity]);
 
-  const today = portfolioDay(now);
-  const dayPnl = curve.series.find((p) => p.date === today)?.pnl ?? 0;
-  const periodDelta = report.netEnd - report.netStart;
-  const alert = valuations.some((v) => v.prop?.alert);
   const traditional = active.filter((p) => isTraditionalKind(p.kind));
   const selected = traditional.find((p) => p.id === focusPocket) ?? traditional[0];
   const pocketName = (id: string) => pockets.find((p) => p.id === id)?.name ?? id;
@@ -393,7 +383,7 @@ export default function Portefeuille() {
       rest.push({
         id: pocket.id,
         label: pocket.name,
-        color: PALETTE[color % PALETTE.length] ?? 'var(--ice)',
+        color: PALETTE[color % PALETTE.length] ?? 'var(--text-0)',
         width: 1,
         points: pts,
       });
@@ -402,53 +392,79 @@ export default function Portefeuille() {
     return [total, ...rest];
   }, [curve, points, active, base, fx, locale]);
 
-  const leverage = expo.grossLeverage == null ? '—' : `${fmtNum(expo.grossLeverage, 2)}×`;
+  const sources = useMemo(() => new Set(valuations.map((row) => row.mark)).size, [valuations]);
 
   return (
     <>
       <ModuleHeader
         tab="portefeuille"
+        crumb={tr('SYNTHÈSE', 'SYNTHESIS', 'SÍNTESIS')}
+        meta={`${active.length} ${tr('POCHES', 'POCKETS', 'BOLSAS')} · ${sources} ${tr('SOURCES', 'SOURCES', 'FUENTES')} · ${base}`}
         actions={
-          <Button size="sm" variant={discrete ? 'gold' : 'ghost'} active={discrete} onClick={toggleDiscrete}>
-            {discrete ? tr('Afficher les montants', 'Show amounts', 'Mostrar importes') : tr('Mode discret', 'Discrete mode', 'Modo discreto')}
-          </Button>
+          <>
+            <Button size="sm" variant="ghost" active={discrete} onClick={toggleDiscrete}>
+              {discrete ? tr('Afficher les montants', 'Show amounts', 'Mostrar importes') : tr('Mode discret', 'Discrete mode', 'Modo discreto')}
+            </Button>
+            <Segmented
+              value={preset}
+              onChange={setPreset}
+              options={[
+                { value: '7j', label: '7J' },
+                { value: '30j', label: '30J' },
+                { value: 'trimestre', label: tr('TRIM.', 'QTR.', 'TRIM.') },
+                { value: 'annee', label: tr('ANNÉE', 'YEAR', 'AÑO') },
+              ]}
+            />
+            <Button
+              variant="chamfer"
+              onClick={() => {
+                pocketNameRef.current?.scrollIntoView({ block: 'center' });
+                pocketNameRef.current?.focus();
+              }}
+            >
+              {tr('Nouvelle poche', 'New pocket', 'Nueva bolsa')}
+            </Button>
+          </>
         }
       />
       <ModuleContent>
         <div className={s.frame}>
-          <div className={s.heart}>
-            <Panel
-              accent
-              title={tr('Cœur', 'Heart', 'Corazón')}
-              sub={`${base} · ${presetLabel(preset)}`}
-              actions={alert ? <Tag tone="ember">{tr('alerte drawdown', 'drawdown alert', 'alerta de drawdown')}</Tag> : undefined}
-            >
-              <div className={s.heartStats}>
-                <Stat label={tr('Valeur nette', 'Net value', 'Valor neto')} value={money(coeur.netValue, base)} />
-                <Stat label={tr('Variation du jour', 'Day change', 'Variación del día')} value={money(dayPnl, base, true)} tone={dayPnl > 0 ? 'pos' : dayPnl < 0 ? 'neg' : 'flat'} hint={today} />
-                <Stat
-                  label={tr('Variation de la période', 'Period change', 'Variación del período')}
-                  value={money(periodDelta, base, true)}
-                  tone={periodDelta > 0 ? 'pos' : periodDelta < 0 ? 'neg' : 'flat'}
-                  hint={`${report.from} → ${report.to}`}
-                />
-                <Stat label={tr('Drawdown courant', 'Current drawdown', 'Drawdown actual')} value={money(risk.currentDrawdown, base)} tone={risk.currentDrawdown > 0 ? 'neg' : 'flat'} hint={tr(`max ${money(risk.maxDrawdown, base)}`, `max ${money(risk.maxDrawdown, base)}`, `máx. ${money(risk.maxDrawdown, base)}`)} />
-                <Stat label={tr('Levier brut', 'Gross leverage', 'Apalancamiento bruto')} value={discrete ? `•••••` : leverage} hint={tr(`notionnel ${money(expo.totalNotional, base)}`, `notional ${money(expo.totalNotional, base)}`, `nocional ${money(expo.totalNotional, base)}`)} />
-                <Stat label={tr('Poches', 'Pockets', 'Bolsas')} value={String(active.length)} hint={tr(`${coeur.excluded.length} exclue(s)`, `${coeur.excluded.length} excluded`, `${coeur.excluded.length} excluida(s)`)} />
-              </div>
-              {coeur.excluded.length > 0 && (
-                <p className={s.excluded}>
-                  {coeur.excluded.map((row) => `${pocketName(row.pocketId)} · ${tr('exclue', 'excluded', 'excluida')} · ${row.reason}`).join(' — ')}
-                </p>
-              )}
-            </Panel>
-          </div>
-
+          <Synthese
+            discrete={discrete}
+            base={base}
+            now={now}
+            preset={preset}
+            coeur={coeur}
+            valuations={valuations}
+            pockets={pockets}
+            points={points}
+            fx={fx}
+            snapshots={snapshots}
+            expo={expo}
+            report={report}
+            report30={report30}
+            series={curve.series}
+            currentDrawdown={risk.currentDrawdown}
+            sample={sample}
+            money={money}
+            ruinValue={roundMoney(ruin.ruinDrawdown)}
+            ruinSource={ruin.source}
+            windowDays={windowDays}
+            onWindowDays={setWindowDays}
+            onExportCsv={() => void saveTextFile(`bilan-${report.from}-${report.to}.csv`, bilanToCsv(report), 'text/csv')}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustom={(from, to) => {
+              setCustomFrom(from);
+              setCustomTo(to);
+              if (from && to) setPreset('personnalisee');
+            }}
+          />
           <Panel title={tr('Poches', 'Pockets', 'Bolsas')} sub={tr('création, édition, archivage', 'create, edit, archive', 'creación, edición, archivo')}>
             <div className={s.stack}>
               <div className={s.form}>
                 <Field label={tr('Nom', 'Name', 'Nombre')}>
-                  <input aria-label={tr('Nom de la poche', 'Pocket name', 'Nombre de la bolsa')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                  <input ref={pocketNameRef} aria-label={tr('Nom de la poche', 'Pocket name', 'Nombre de la bolsa')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
                 </Field>
                 <Field label={tr('Type', 'Type', 'Tipo')}>
                   <select aria-label={tr('Type de poche', 'Pocket type', 'Tipo de bolsa')} value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value as CreatablePocketKind })}>
@@ -491,7 +507,7 @@ export default function Portefeuille() {
                 )}
               </div>
               <div className={s.actions}>
-                <Button variant="gold" onClick={() => void submitPocket()}>
+                <Button variant="default" onClick={() => void submitPocket()}>
                   {draft.id ? tr('Enregistrer la poche', 'Save pocket', 'Guardar la bolsa') : tr('Créer la poche', 'Create pocket', 'Crear la bolsa')}
                 </Button>
                 {draft.id && (
@@ -607,7 +623,7 @@ export default function Portefeuille() {
                   </Field>
                 </div>
                 <div className={s.actions}>
-                  <Button variant="gold" onClick={() => void submitPosition()}>
+                  <Button variant="default" onClick={() => void submitPosition()}>
                     {tr('Ajouter la position', 'Add position', 'Añadir la posición')}
                   </Button>
                   <Button variant="ghost" onClick={() => void importCsv()}>
@@ -722,7 +738,7 @@ export default function Portefeuille() {
                 </Field>
               </div>
               <div className={s.actions}>
-                <Button variant="gold" onClick={() => void submitCash()}>
+                <Button variant="default" onClick={() => void submitCash()}>
                   {tr('Ajouter la liquidité', 'Add cash', 'Añadir liquidez')}
                 </Button>
               </div>
@@ -761,7 +777,7 @@ export default function Portefeuille() {
                 </Field>
               </div>
               <div className={s.actions}>
-                <Button variant="gold" onClick={() => void submitFx()}>
+                <Button variant="default" onClick={() => void submitFx()}>
                   {tr('Enregistrer le taux', 'Save rate', 'Guardar el tipo')}
                 </Button>
               </div>
@@ -794,112 +810,12 @@ export default function Portefeuille() {
             </div>
           </Panel>
 
-          <Panel title={tr('Exposition', 'Exposure', 'Exposición')} sub={tr('classe, instrument, devise', 'class, instrument, currency', 'clase, instrumento, divisa')}>
-            <div className={s.stack}>
-              <div className={s.heartStats}>
-                <Stat label={tr('Concentration', 'Concentration', 'Concentración')} value={fmtPct(expo.concentration, 1)} hint={tr('plus grosse ligne', 'largest line', 'línea mayor')} />
-                <Stat label={tr('Levier brut', 'Gross leverage', 'Apalancamiento bruto')} value={discrete ? '•••••' : leverage} />
-                <Stat label={tr('Notionnel', 'Notional', 'Nocional')} value={money(expo.totalNotional, base)} />
-              </div>
-              <div className={s.bars}>
-                <Bars height={160} signed={false} data={expo.byClass.map((b) => ({ key: b.key, label: kindLabel(b.key as PocketKind), value: b.notional }))} formatY={(v) => money(v, base)} />
-                <Bars height={160} signed={false} data={expo.byInstrument.map((b) => ({ key: b.key, label: b.key, value: b.notional }))} formatY={(v) => money(v, base)} />
-                <Bars height={160} signed={false} data={expo.byCurrency.map((b) => ({ key: b.key, label: b.key, value: b.notional }))} formatY={(v) => money(v, base)} />
-              </div>
-              {expo.notes.length > 0 && <p className={s.note}>{expo.notes.map((n) => `${pocketName(n.pocketId)} · ${n.text}`).join(' — ')}</p>}
-            </div>
-          </Panel>
-
           <Panel title={tr('Courbe', 'Curve', 'Curva')} sub={tr('consolidée et par poche, en devise de base', 'consolidated and by pocket, in the base currency', 'consolidada y por bolsa, en la divisa base')}>
             {curve.series.length === 0 ? (
               <Empty title={tr('Pas encore de courbe', 'No curve yet', 'Aún no hay curva')} text={tr('Une séance, une position ou une liquidité crée le premier point.', 'A session, a position or a cash balance creates the first point.', 'Una sesión, una posición o una liquidez crea el primer punto.')} />
             ) : (
               <LineArea series={lineSeries} height={260} legend formatY={(v) => money(v, base)} baseline={null} />
             )}
-          </Panel>
-
-          <Panel title={tr('Projection', 'Projection', 'Proyección')} sub={ruin.source === 'prop' ? tr('ruine = drawdowns prop restants', 'ruin = remaining prop drawdowns', 'ruina = drawdowns prop restantes') : tr('ruine = drawdown max historique', 'ruin = historical max drawdown', 'ruina = drawdown máximo histórico')}>
-            <Projection sample={sample} currency={base} discrete={discrete} money={money} ruinValue={roundMoney(ruin.ruinDrawdown)} ruinSource={ruin.source} windowDays={windowDays} onWindowDays={setWindowDays} />
-          </Panel>
-
-          <Panel
-            title={tr('Bilan', 'Statement', 'Balance')}
-            sub={`${report.from} → ${report.to}`}
-            actions={
-              <div className={s.actions}>
-                <Button size="sm" variant="ghost" onClick={() => void saveTextFile(`bilan-${report.from}-${report.to}.csv`, bilanToCsv(report), 'text/csv')}>
-                  {tr('Exporter CSV', 'Export CSV', 'Exportar CSV')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => void saveTextFile(`bilan-${report.from}-${report.to}.json`, bilanToJson(report), 'application/json')}>
-                  {tr('Exporter JSON', 'Export JSON', 'Exportar JSON')}
-                </Button>
-              </div>
-            }
-          >
-            <div className={s.stack}>
-              <Segmented
-                value={preset}
-                onChange={setPreset}
-                options={(
-                  [
-                    ['7j', tr('7 j', '7 d', '7 d')],
-                    ['30j', tr('30 j', '30 d', '30 d')],
-                    ['trimestre', tr('Trimestre', 'Quarter', 'Trimestre')],
-                    ['annee', tr('Année', 'Year', 'Año')],
-                    ['personnalisee', tr('Personnalisée', 'Custom', 'Personalizada')],
-                  ] as const
-                ).map(([value, label]) => ({ value, label }))}
-              />
-              {preset === 'personnalisee' && (
-                <div className={s.form}>
-                  <Field label={tr('Du', 'From', 'Desde')}>
-                    <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-                  </Field>
-                  <Field label={tr('Au', 'To', 'Hasta')}>
-                    <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
-                  </Field>
-                </div>
-              )}
-              <div className={s.heartStats}>
-                <Stat label={tr('PnL', 'PnL', 'PnL')} value={money(report.totalPnl, base, true)} tone={report.totalPnl > 0 ? 'pos' : report.totalPnl < 0 ? 'neg' : 'flat'} />
-                <Stat label={tr('Commissions', 'Commissions', 'Comisiones')} value={money(report.commissions, base)} />
-                <Stat label={tr('Jours gagnants', 'Winning days', 'Días ganadores')} value={String(report.winningDays)} />
-                <Stat label={tr('Jours perdants', 'Losing days', 'Días perdedores')} value={String(report.losingDays)} />
-                <Stat label={tr('Meilleur jour', 'Best day', 'Mejor día')} value={report.bestDay ? money(report.bestDay.pnl, base, true) : '—'} hint={report.bestDay?.date} />
-                <Stat label={tr('Pire jour', 'Worst day', 'Peor día')} value={report.worstDay ? money(report.worstDay.pnl, base, true) : '—'} hint={report.worstDay?.date} />
-                <Stat label={tr('Valeur début', 'Opening value', 'Valor inicial')} value={money(report.netStart, base)} />
-                <Stat label={tr('Valeur fin', 'Closing value', 'Valor final')} value={money(report.netEnd, base)} />
-              </div>
-              <div className={s.tableWrap}>
-                <table className={tableClass}>
-                  <thead>
-                    <tr>
-                      <th>{tr('Poche', 'Pocket', 'Bolsa')}</th>
-                      <th>{tr('PnL', 'PnL', 'PnL')}</th>
-                      <th>{tr('Commission', 'Commission', 'Comisión')}</th>
-                      <th>{tr('Part', 'Share', 'Parte')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.byPocket.map((row) => (
-                      <tr key={row.pocketId}>
-                        <td>{pocketName(row.pocketId)}</td>
-                        <td>{money(row.pnlBase, base, true)}</td>
-                        <td>{money(row.commission, base)}</td>
-                        <td>{fmtPct(row.share, 1)}</td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td>{tr('Total', 'Total', 'Total')}</td>
-                      <td>{money(report.totalPnl, base, true)}</td>
-                      <td>{money(report.commissions, base)}</td>
-                      <td>{base}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              {report.excluded.length > 0 && <p className={s.note}>{report.excluded.map((row) => `${pocketName(row.pocketId)} · ${tr('exclue', 'excluded', 'excluida')} · ${row.reason}`).join(' — ')}</p>}
-            </div>
           </Panel>
         </div>
       </ModuleContent>

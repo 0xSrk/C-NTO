@@ -1,12 +1,13 @@
-import { startTransition, useState } from 'react';
-import { IconExport, IconImport, IconLink, IconPlus, IconSettings } from '@/app/icons';
+import { startTransition, useEffect, useMemo, useState } from 'react';
+import { IconExport, IconLink, IconPlus, IconSettings } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Segmented, Tag } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
 import { openTextFile, saveTextFile } from '@/lib/desk';
 import { exportVault, restoreVault } from '@/store/db';
 import { useLinks } from '@/store/links';
-import { plural } from '@/lib/format';
+import { fmtInt, plural } from '@/lib/format';
+import { etDateKey } from '@/lib/time';
 import { tr, useI18n } from '@/i18n';
 import { useJournal } from '@/store/journal';
 import { useSettings } from '@/store/settings';
@@ -28,13 +29,21 @@ import { MonteCarloView } from './MonteCarloView';
 import { PropFirmView } from './PropFirmView';
 import { Sessions } from './Sessions';
 import { SettingsModal } from './SettingsModal';
-import s from './metrique.module.css';
+import d from './dashboard.module.css';
+import { filterJournal, type MetricRange } from './range';
 
 type View = 'bord' | 'seances' | 'analyse' | 'prop' | 'mc';
+
+function shortDay(date: string): string {
+  return `${date.slice(8, 10)}.${date.slice(5, 7)}`;
+}
 
 export default function Metrique() {
   useI18n((s) => s.locale);
   const [view, setView] = useState<View>('bord');
+  const [range, setRange] = useState<MetricRange>('30j');
+  const metricAccount = useUi((u) => u.metricAccount);
+  const setMetricAccount = useUi((u) => u.setMetricAccount);
   const [modal, setModal] = useState<null | 'import' | 'manuel' | 'reglages' | 'pont'>(null);
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
@@ -118,60 +127,109 @@ export default function Metrique() {
     );
   };
 
+  const accounts = useMemo(() => [...new Set(sessions.map((row) => row.account).filter((name): name is string => !!name))].sort(), [sessions]);
+  useEffect(() => {
+    if (metricAccount && !accounts.includes(metricAccount)) setMetricAccount(null);
+  }, [accounts, metricAccount, setMetricAccount]);
+  const asOf = etDateKey(Date.now());
+  const filtered = useMemo(() => filterJournal(sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
+  const ordered = useMemo(() => [...filtered.sessions].sort((a, b) => a.date.localeCompare(b.date)), [filtered.sessions]);
+  const span = ordered.length > 0 ? `${shortDay(ordered[0]?.date ?? '')} → ${shortDay(ordered[ordered.length - 1]?.date ?? '')}` : '—';
+  const crumbs: Record<View, string> = {
+    bord: tr('TABLEAU DE BORD', 'DASHBOARD', 'TABLERO'),
+    seances: tr('SÉANCES', 'SESSIONS', 'SESIONES'),
+    analyse: tr('ANALYSE', 'ANALYSIS', 'ANÁLISIS'),
+    prop: tr('FIRME PROP', 'PROP FIRM', 'FIRMA PROP'),
+    mc: 'MONTE-CARLO',
+  };
+  const views: { value: View; letter: string; label: string }[] = [
+    { value: 'bord', letter: 'A', label: tr('Tableau de bord', 'Dashboard', 'Tablero') },
+    { value: 'seances', letter: 'B', label: tr('Séances', 'Sessions', 'Sesiones') },
+    { value: 'analyse', letter: 'C', label: tr('Analyse', 'Analysis', 'Análisis') },
+    { value: 'prop', letter: 'D', label: tr('Firme prop', 'Prop firm', 'Firma prop') },
+    { value: 'mc', letter: 'E', label: 'Monte-Carlo' },
+  ];
+
   return (
     <>
       <ModuleHeader
         tab="metrique"
+        crumb={crumbs[view]}
+        meta={`${span} · ${fmtInt(ordered.length)} ${tr('SÉANCES', 'SESSIONS', 'SESIONES')}`}
         actions={
           <>
-            <Button variant="gold" onClick={() => setModal('pont')}>
-              <IconLink size={14} /> {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
-              <Tag tone={bridgeLive ? 'mint' : undefined} dot live={bridgeLive}>
-                {bridgeLive ? tr('actif', 'active', 'activo') : tr('inactif', 'inactive', 'inactivo')}
-              </Tag>
-            </Button>
-            <Button onClick={() => setModal('import')}>
-              <IconImport size={14} /> {tr('Importer un CSV', 'Import a CSV', 'Importar un CSV')}
-            </Button>
-            <Button onClick={() => setModal('manuel')}>
-              <IconPlus size={14} /> {tr('Séance manuelle', 'Manual session', 'Sesión manual')}
-            </Button>
-            <Button variant="ghost" onClick={onExportCsv} title={tr('Exporter les trades en CSV', 'Export trades as CSV', 'Exportar los trades en CSV')}>
-              <IconExport size={14} /> CSV
-            </Button>
-            <Button variant="ghost" onClick={onExportVault} title={tr('Sauvegarde complète du coffre (JSON)', 'Full vault backup (JSON)', 'Copia completa de la caja (JSON)')}>
-              <IconExport size={14} /> {tr('Coffre', 'Vault', 'Caja')}
-            </Button>
-            <Button variant="ghost" onClick={onRestore} title={tr('Restaurer une sauvegarde JSON', 'Restore a JSON backup', 'Restaurar una copia JSON')}>
-              {tr('Restaurer', 'Restore', 'Restaurar')}
-            </Button>
-            <Button variant="ghost" onClick={() => setModal('reglages')} aria-label={tr('Réglages', 'Settings', 'Ajustes')} title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}>
-              <IconSettings size={14} />
+            <Segmented
+              value={range}
+              onChange={setRange}
+              options={[
+                { value: '7j', label: '7J' },
+                { value: '30j', label: '30J' },
+                { value: '90j', label: '90J' },
+                { value: 'tout', label: tr('TOUT', 'ALL', 'TODO') },
+              ]}
+            />
+            <select className={d.account} aria-label={tr('Compte', 'Account', 'Cuenta')} value={metricAccount ?? ''} onChange={(event) => setMetricAccount(event.target.value || null)}>
+              <option value="">{tr(`Tous les comptes · ${accounts.length}`, `All accounts · ${accounts.length}`, `Todas las cuentas · ${accounts.length}`)}</option>
+              {accounts.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <Button variant="chamfer" onClick={() => setModal('import')}>
+              {tr('Importer un CSV', 'Import a CSV', 'Importar un CSV')}
             </Button>
           </>
         }
       />
       <ModuleContent>
-        <div className={s.toolbar}>
-          <Segmented
-            value={view}
-            onChange={(v) => startTransition(() => setView(v))}
-            options={[
-              { value: 'bord', label: tr('Tableau de bord', 'Dashboard', 'Tablero') },
-              { value: 'seances', label: `${tr('Séances', 'Sessions', 'Sesiones')} · ${sessions.length}` },
-              { value: 'analyse', label: tr('Analyse', 'Analysis', 'Análisis') },
-              { value: 'prop', label: tr('Firme prop', 'Prop firm', 'Firma prop') },
-              { value: 'mc', label: 'Monte-Carlo' },
-            ]}
-          />
-          <span className="spacer" style={{ flex: 1 }} />
+        <div className={d.tools}>
+          <Button variant="ghost" onClick={() => setModal('pont')}>
+            <IconLink size={14} /> {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
+            <Tag tone={bridgeLive ? 'mint' : undefined} dot live={bridgeLive}>
+              {bridgeLive ? tr('actif', 'active', 'activo') : tr('inactif', 'inactive', 'inactivo')}
+            </Tag>
+          </Button>
+          <Button variant="ghost" onClick={() => setModal('manuel')}>
+            <IconPlus size={14} /> {tr('Séance manuelle', 'Manual session', 'Sesión manual')}
+          </Button>
+          <Button variant="ghost" onClick={onExportCsv} title={tr('Exporter les trades en CSV', 'Export trades as CSV', 'Exportar los trades en CSV')}>
+            <IconExport size={14} /> CSV
+          </Button>
+          <Button variant="ghost" onClick={onExportVault} title={tr('Sauvegarde complète du coffre (JSON)', 'Full vault backup (JSON)', 'Copia completa de la caja (JSON)')}>
+            <IconExport size={14} /> {tr('Coffre', 'Vault', 'Caja')}
+          </Button>
+          <Button variant="ghost" onClick={onRestore} title={tr('Restaurer une sauvegarde JSON', 'Restore a JSON backup', 'Restaurar una copia JSON')}>
+            {tr('Restaurer', 'Restore', 'Restaurar')}
+          </Button>
+          <Button variant="ghost" onClick={() => setModal('reglages')} aria-label={tr('Réglages', 'Settings', 'Ajustes')} title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}>
+            <IconSettings size={14} />
+          </Button>
           {sessions.length === 0 && (
             <Button size="sm" variant="ghost" onClick={onDemo}>
               {tr('Charger un jeu de démonstration', 'Load a demo dataset', 'Cargar un juego de demostración')}
             </Button>
           )}
         </div>
-        {view === 'bord' && <Dashboard onImport={() => setModal('import')} onDemo={onDemo} />}
+        <div className={d.subtabs} role="tablist">
+          {views.map((item) => (
+            <button key={item.value} type="button" role="tab" aria-selected={view === item.value} className={`${d.subtab} ${view === item.value ? d.on : ''}`} onClick={() => startTransition(() => setView(item.value))}>
+              <i>{item.letter}</i>
+              {item.label}
+            </button>
+          ))}
+        </div>
+        {view === 'bord' && (
+          <Dashboard
+            sessions={filtered.sessions}
+            trades={filtered.trades}
+            range={range}
+            journalEmpty={sessions.length === 0}
+            onImport={() => setModal('import')}
+            onDemo={onDemo}
+            onSessions={() => startTransition(() => setView('seances'))}
+          />
+        )}
         {view === 'seances' && <Sessions />}
         {view === 'analyse' && <Analyse />}
         {view === 'prop' && <PropFirmView />}

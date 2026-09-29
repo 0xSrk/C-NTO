@@ -110,9 +110,9 @@
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: var(--track-11);
-  color: var(--ice);
-  border: 1px solid var(--ice-line);
-  background: var(--ice-soft);
+  color: var(--text-1);
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
   padding: 2px 8px;
   border-radius: var(--radius);
 }
@@ -262,7 +262,7 @@
 .toolItem b {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--ice);
+  color: var(--text-1);
   font-weight: 500;
 }
 .toolItem span {

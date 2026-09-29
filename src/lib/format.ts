@@ -90,3 +90,39 @@ export function signClass(v: number | undefined | null): 'pos' | 'neg' | 'flat' 
 export function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
+
+export interface MontantParts {
+  sign: '+' | '−' | '';
+  groups: string[];
+  decimals: string;
+}
+
+/**
+ * Anatomie d'un montant. Les groupes de trois sont séparés au rendu par une marge,
+ * jamais par U+202F (absent d'Archivo, de Doto et de JetBrains Mono).
+ * Zéro arrondi, y compris −0,004, sans signe. Signe moins : U+2212.
+ */
+export function montantParts(v: number, decimals: number): MontantParts {
+  const places = Math.max(0, decimals);
+  const empty = '0'.repeat(places);
+  if (!Number.isFinite(v)) return { sign: '', groups: ['0'], decimals: empty };
+  const factor = 10 ** places;
+  const rounded = Math.round(Math.abs(v) * factor);
+  if (rounded === 0) return { sign: '', groups: ['0'], decimals: empty };
+  const intPart = Math.floor(rounded / factor);
+  const frac = rounded % factor;
+  const intStr = String(intPart);
+  const groups: string[] = [];
+  for (let i = intStr.length; i > 0; i -= 3) groups.unshift(intStr.slice(Math.max(0, i - 3), i));
+  return {
+    sign: v < 0 ? '−' : '+',
+    groups,
+    decimals: String(frac).padStart(places, '0'),
+  };
+}
+
+/** Chaîne complète pour `aria-label` : U+202F entre les groupes, U+2212 pour le moins. */
+export function montantAria(parts: MontantParts): string {
+  const body = `${parts.groups.join('\u202f')},${parts.decimals}`;
+  return parts.sign ? `${parts.sign}${body}` : body;
+}

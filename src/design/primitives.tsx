@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
+import { montantAria, montantParts, type MontantParts } from '@/lib/format';
 import s from './primitives.module.css';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -20,17 +21,9 @@ interface PanelProps {
   style?: CSSProperties;
 }
 
-export function Panel({ title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, corners = raised || accent, style }: PanelProps) {
+export function Panel({ title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, style }: PanelProps) {
   return (
     <section className={cx(s.panel, raised && s.raised, flush && s.flush, accent && s.accent, className)} style={style}>
-      {corners && (
-        <>
-          <i className={cx(s.corner, s.tl)} />
-          <i className={cx(s.corner, s.tr)} />
-          <i className={cx(s.corner, s.bl)} />
-          <i className={cx(s.corner, s.br)} />
-        </>
-      )}
       {(title || actions || sub) && (
         <header className={s.panelHead}>
           {title && <h3 className={s.panelTitle}>{title}</h3>}
@@ -44,7 +37,7 @@ export function Panel({ title, sub, actions, children, className, bodyClassName,
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'ghost' | 'gold' | 'solid' | 'danger';
+  variant?: 'default' | 'ghost' | 'gold' | 'solid' | 'danger' | 'chamfer';
   size?: 'md' | 'sm';
   active?: boolean;
 }
@@ -185,3 +178,152 @@ export function Sigil({ size = 11, className, style, engraved, lab = true }: { s
 }
 
 export const tableClass = s.table;
+
+export function Montant({ value, decimals = 2, discrete, className }: { value: number; decimals?: number; discrete?: boolean; className?: string }) {
+  const parts = montantParts(value, decimals);
+  const label = montantAria(parts);
+  if (discrete) return <span className={cx(s.montant, s.masked, className)} aria-label={label}>•••••</span>;
+  return (
+    <span className={cx(s.montant, className)} aria-label={label}>
+      {parts.sign ? <span>{parts.sign}</span> : null}
+      {parts.groups.map((group, index) => (
+        <span key={`${group}-${index}`} className={index > 0 ? s.groupGap : undefined}>
+          {group}
+        </span>
+      ))}
+      <span className={s.decimals}>,{parts.decimals}</span>
+    </span>
+  );
+}
+
+/** Lecteur Doto — un seul par écran, posé sur une plaque vissée. */
+export function Lecteur({ value, decimals = 2, discrete }: { value: number; decimals?: number; discrete?: boolean }) {
+  const parts = montantParts(value, decimals);
+  const label = montantAria(parts);
+  if (discrete) {
+    return (
+      <span className={s.lecteur} aria-label={label}>
+        •••••
+      </span>
+    );
+  }
+  const ghost: MontantParts = {
+    sign: parts.sign,
+    groups: parts.groups.map((group) => '8'.repeat(group.length)),
+    decimals: '8'.repeat(parts.decimals.length),
+  };
+  return (
+    <span className={s.lecteur} aria-label={label}>
+      <span className={s.lecteurGhost} aria-hidden>
+        <MontantInner parts={ghost} />
+      </span>
+      <span className={s.lecteurInk}>
+        <MontantInner parts={parts} />
+      </span>
+    </span>
+  );
+}
+
+function MontantInner({ parts }: { parts: MontantParts }) {
+  return (
+    <>
+      {parts.sign ? <span>{parts.sign}</span> : null}
+      {parts.groups.map((group, index) => (
+        <span key={`${group}-${index}`} className={index > 0 ? s.groupGap : undefined}>
+          {group}
+        </span>
+      ))}
+      <span className={s.decimals}>,{parts.decimals}</span>
+    </>
+  );
+}
+
+/** Plaque du lecteur : quatre vis, trame, languette du Lab. */
+export function PlaqueVissee({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <section className={cx(s.plaque, className)}>
+      <span className={s.trame} aria-hidden />
+      <i className={cx(s.vis, s.visTl)} aria-hidden />
+      <i className={cx(s.vis, s.visTr)} aria-hidden />
+      <i className={cx(s.vis, s.visBl)} aria-hidden />
+      <i className={cx(s.vis, s.visBr)} aria-hidden />
+      <i className={s.languette} aria-hidden />
+      <div className={s.plaqueBody}>{children}</div>
+    </section>
+  );
+}
+
+/** Point 5 px + halo. Vivant, jamais décoratif, jamais animé. */
+export function Led({ children, on = true }: { children?: ReactNode; on?: boolean }) {
+  if (!on) return children ? <span className={s.ledOff}>{children}</span> : null;
+  return (
+    <span className={s.led}>
+      <i aria-hidden />
+      {children}
+    </span>
+  );
+}
+
+export function Jauge({
+  min,
+  max,
+  value,
+  marker,
+  markerColor = 'var(--neg)',
+  hatchFrom,
+  ticks,
+}: {
+  min: number;
+  max: number;
+  value: number;
+  marker?: number | null;
+  markerColor?: string;
+  hatchFrom?: number | null;
+  ticks: { value: number; label: string; color?: string }[];
+}) {
+  const span = max - min || 1;
+  const pct = (n: number) => `${Math.min(100, Math.max(0, ((n - min) / span) * 100))}%`;
+  return (
+    <div className={s.jauge}>
+      <div className={s.jaugeTrack}>
+        {hatchFrom != null && <span className={s.jaugeHatch} style={{ left: pct(hatchFrom) }} />}
+        <span className={s.jaugeFill} style={{ width: pct(value) }} />
+        {marker != null && Number.isFinite(marker) && <span className={s.jaugeMark} style={{ left: pct(marker), background: markerColor }} />}
+        <span className={s.jaugeCursor} style={{ left: pct(value) }} aria-hidden />
+      </div>
+      <div className={s.jaugeScale}>
+        {ticks.map((tick) => (
+          <span key={`${tick.value}-${tick.label}`} style={{ left: pct(tick.value), color: tick.color }}>
+            {tick.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** `[ LIBELLÉ ]` mono, une ligne, tronqué au-delà de 14 caractères. */
+export function Etiquette({ children }: { children: string }) {
+  const raw = children.trim();
+  const long = raw.length > 14;
+  const shown = long ? `${raw.slice(0, 13)}…` : raw;
+  return (
+    <span className={s.etiquette} title={long ? raw : undefined}>
+      [ {shown} ]
+    </span>
+  );
+}
+
+export function Regle({ label, value }: { label: ReactNode; value: ReactNode }) {
+  return (
+    <div className={s.regle}>
+      <span>{label}</span>
+      <i aria-hidden />
+      <span>{value}</span>
+    </div>
+  );
+}
+
+export function Barcode({ className }: { className?: string }) {
+  return <span className={cx(s.barcode, className)} aria-hidden />;
+}

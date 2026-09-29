@@ -1,142 +1,146 @@
-import { useMemo } from 'react';
-import { Bars, Histogram } from '@/design/charts/Bars';
-import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
-import { LineArea } from '@/design/charts/LineArea';
-import { Button, Empty, Panel, Stat, Tag } from '@/design/primitives';
-import { histogram } from '@/engine/metrics';
+import { useId, useMemo } from 'react';
+import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
+import { computeDailyStats, computeTradeStats, type EquityPoint } from '@/engine/metrics';
 import { tr, useI18n } from '@/i18n';
-import { fmtInt, fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
-import { dateKeyLocal, dateTimeFormatter, formatDuration, formatDateFr, parseDateKey } from '@/lib/time';
-import s from './metrique.module.css';
-import { useStats } from './useStats';
+import { breakevenWinRate } from '@/lib/breakeven';
+import { fmtInt, fmtPct, plural } from '@/lib/format';
+import { dateTimeFormatter, parseDateKey } from '@/lib/time';
+import { useSettings } from '@/store/settings';
+import { useUi } from '@/store/ui';
+import s from './dashboard.module.css';
+import { metricDrawdownLimit } from './drawdownLimit';
+import type { MetricRange } from './range';
+import type { Session, Trade } from '@/engine/types';
 
-function tone(v: number): 'pos' | 'neg' | 'flat' {
-  return signClass(v);
+function shortDay(date: string): string {
+  if (date.length < 10) return '';
+  return `${date.slice(8, 10)}.${date.slice(5, 7)}`;
 }
 
-/** Étiquette d'un point d'équité (t = midi local de la date agrégée). */
-function equityLabel(tMs: number): string {
-  return formatDateFr(dateKeyLocal(new Date(tMs)), { short: true });
+function weekday(date: string): string {
+  return dateTimeFormatter({ weekday: 'short' }).format(parseDateKey(date)).replace('.', '').toUpperCase();
 }
 
-function trPlanStatus(status: 'en-cours' | 'objectif' | 'echec'): string {
-  if (status === 'objectif') return tr('objectif', 'passed', 'objetivo');
-  if (status === 'echec') return tr('echec', 'failed', 'fallo');
-  return tr('en-cours', 'in progress', 'en curso');
+function rangeTitle(range: MetricRange): string {
+  if (range === '7j') return tr('7 JOURS', '7 DAYS', '7 DÍAS');
+  if (range === '90j') return tr('90 JOURS', '90 DAYS', '90 DÍAS');
+  if (range === 'tout') return tr('TOUT', 'ALL', 'TODO');
+  return tr('30 JOURS', '30 DAYS', '30 DÍAS');
 }
 
-export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: () => void }) {
-  const locale = useI18n((s) => s.locale);
-  const { sessions, tradeStats: t, dailyStats: d, plan, planEval, startingBalance } = useStats();
+function EquityCurve({ points, dates }: { points: EquityPoint[]; dates: string[] }) {
+  const pid = useId().replace(/:/g, '');
+  if (points.length === 0) return null;
+  const w = 640;
+  const h = 168;
+  const pad = { l: 4, r: 8, t: 16, b: 22 };
+  const ys = points.map((p) => p.equity);
+  const min = Math.min(...ys);
+  const max = Math.max(...ys);
+  const span = max - min || 1;
+  const x = (i: number) => pad.l + (points.length === 1 ? 0.5 : i / (points.length - 1)) * (w - pad.l - pad.r);
+  const y = (v: number) => pad.t + (1 - (v - min) / span) * (h - pad.t - pad.b);
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ');
+  let trough = 0;
+  points.forEach((p, i) => {
+    if (p.drawdown < (points[trough]?.drawdown ?? 0)) trough = i;
+  });
+  let peak = 0;
+  for (let i = 0; i <= trough; i++) {
+    if ((points[i]?.equity ?? 0) >= (points[peak]?.equity ?? 0)) peak = i;
+  }
+  const dd = Math.abs(points[trough]?.drawdown ?? 0);
+  const hatch =
+    dd > 0
+      ? [
+          ...points.slice(peak, trough + 1).map((p, i) => `${i === 0 ? 'M' : 'L'}${x(peak + i).toFixed(1)},${y(p.equity).toFixed(1)}`),
+          `L${x(trough).toFixed(1)},${y(points[peak]?.equity ?? 0).toFixed(1)}`,
+          'Z',
+        ].join(' ')
+      : '';
+  const last = points[points.length - 1];
+  const ticks = [0, Math.floor((points.length - 1) / 2), points.length - 1].filter((v, i, all) => all.indexOf(v) === i);
+  return (
+    <svg className={s.equity} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={tr('Courbe d’équité', 'Equity curve', 'Curva de equidad')}>
+      <defs>
+        <pattern id={pid} patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="var(--neg)" strokeWidth="2" />
+        </pattern>
+      </defs>
+      {hatch ? <path d={hatch} fill={`url(#${pid})`} /> : null}
+      <path d={line} fill="none" stroke="var(--text-0)" strokeWidth="1.6" />
+      {last ? (
+        <text className={s.eqLabel} x={x(points.length - 1)} y={Math.max(12, y(last.equity) - 8)} textAnchor="end">
+          {fmtInt(last.equity)}
+        </text>
+      ) : null}
+      {dd > 0 ? (
+        <text className={s.eqLabel} x={x(trough)} y={Math.min(h - 24, y(points[trough]?.equity ?? 0) + 14)} fill="var(--neg)">
+          −{fmtInt(dd)}
+        </text>
+      ) : null}
+      {ticks.map((i) => {
+        const t = points[i]?.t;
+        if (!t) return null;
+        return (
+          <text key={i} className={s.eqAxis} x={x(i)} y={h - 4} textAnchor={i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'}>
+            {shortDay(dates[i] ?? '')}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
 
-  // L'équité journalière est agrégée par date (plusieurs comptes = une journée) : le point de
-  // départ est le capital initial et chaque étiquette dérive de la date du point lui-même,
-  // jamais de l'index des séances brutes.
-  const cumSeries = useMemo(
-    () => [
-      {
-        id: 'cum',
-        label: tr('PnL cumulé', 'Cumulative PnL', 'PnL acumulado'),
-        color: 'var(--mint)',
-        area: true,
-        signed: true,
-        points: d.equity.map((p) => ({ x: p.t, y: p.equity - startingBalance, label: equityLabel(p.t) })),
-      },
-    ],
-    [d.equity, startingBalance, locale],
-  );
-  const ddSeries = useMemo(() => [{ id: 'dd', label: 'Drawdown', color: 'var(--ember)', area: true, points: d.equity.map((p) => ({ x: p.t, y: p.drawdown, label: equityLabel(p.t) })) }], [d.equity, locale]);
-  const rollingSeries = useMemo(
-    () => [
-      { id: 'wr', label: tr('Taux de réussite (20 séances)', 'Win rate (20 sessions)', 'Tasa de acierto (20 sesiones)'), color: 'var(--ice)', points: d.rolling.map((r) => ({ x: r.t, y: r.winRate * 100, label: formatDateFr(r.date, { short: true }) })) },
-    ],
-    [d.rolling, locale],
-  );
-  const rollingExp = useMemo(
-    () => [{ id: 'exp', label: tr('Espérance / séance (20)', 'Expectancy / session (20)', 'Esperanza / sesión (20)'), color: 'var(--gold)', area: true, signed: true, points: d.rolling.map((r) => ({ x: r.t, y: r.expectancy, label: formatDateFr(r.date, { short: true }) })) }],
-    [d.rolling, locale],
-  );
-
-  const year = useMemo(() => {
-    if (sessions.length === 0) return null;
-    const last = sessions[sessions.length - 1]?.date;
-    if (!last) return null;
-    const end = parseDateKey(last);
-    const start = new Date(end);
-    start.setDate(start.getDate() - 7 * 51 - end.getDay());
-    const firstSess = sessions[0];
-    if (!firstSess) return null;
-    const first = parseDateKey(firstSess.date);
-    if (first > start) start.setTime(first.getTime());
-    const byDate = new Map(sessions.map((sess) => [sess.date, sess]));
-    const cells: HeatCell[] = [];
-    const cols: string[] = [];
-    const cursor = new Date(start);
-    cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
-    let col = 0;
-    while (cursor <= end) {
-      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-      const dow = (cursor.getDay() + 6) % 7;
-      if (dow === 0) cols.push(cursor.getDate() <= 7 ? dateTimeFormatter({ month: 'short' }).format(cursor) : '');
-      if (dow < 5) {
-        const sess = byDate.get(key);
-        cells.push({
-          row: dow,
-          col,
-          value: sess ? sess.pnl : null,
-          label: formatDateFr(key, { weekday: true, short: true }),
-          hint: sess ? `${sess.tradeCount} trade(s)` : tr('pas de séance', 'no session', 'sin sesión'),
-        });
-      }
-      if (dow === 6) col++;
-      cursor.setDate(cursor.getDate() + 1);
+export function Dashboard({
+  sessions,
+  trades,
+  range,
+  journalEmpty,
+  onImport,
+  onDemo,
+  onSessions,
+}: {
+  sessions: Session[];
+  trades: Trade[];
+  range: MetricRange;
+  journalEmpty: boolean;
+  onImport: () => void;
+  onDemo: () => void;
+  onSessions: () => void;
+}) {
+  useI18n((st) => st.locale);
+  const startingBalance = useSettings((st) => st.settings.startingBalance);
+  const planId = useSettings((st) => st.settings.planId);
+  const planAccount = useSettings((st) => st.settings.planAccount);
+  const metricAccount = useUi((st) => st.metricAccount);
+  const stats = useMemo(() => computeTradeStats(trades), [trades]);
+  const daily = useMemo(() => computeDailyStats(sessions, startingBalance), [sessions, startingBalance]);
+  const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount, sessions, trades });
+  const breakeven = breakevenWinRate(stats.payoffRatio);
+  const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
+  const last = ordered.slice(-5).reverse();
+  const bySession = useMemo(() => {
+    const map = new Map<string, Trade[]>();
+    for (const trade of trades) {
+      const list = map.get(trade.sessionId);
+      if (list) list.push(trade);
+      else map.set(trade.sessionId, [trade]);
     }
-    return {
-      cells,
-      cols: cols.length ? cols : [''],
-      rows: [tr('lun', 'Mon', 'lun'), tr('mar', 'Tue', 'mar'), tr('mer', 'Wed', 'mié'), tr('jeu', 'Thu', 'jue'), tr('ven', 'Fri', 'vie')],
-    };
-  }, [sessions, locale]);
+    return map;
+  }, [trades]);
+  const peak = Math.max(...ordered.map((row) => Math.abs(row.pnl)), 1);
+  const instruments = stats.byInstrument.filter((row) => row.count > 0);
+  const best = ordered.reduce<Session | null>((win, row) => (!win || row.pnl > win.pnl ? row : win), null);
+  const names = [...new Set(ordered.flatMap((row) => row.instruments))].slice(0, 3);
+  const winSessions = ordered.filter((row) => row.pnl > 0).length;
+  const winPart = Math.abs(stats.avgWin);
+  const lossPart = Math.abs(stats.avgLoss);
+  const split = winPart + lossPart || 1;
+  const ddRatio = limit && limit > 0 ? Math.min(1, daily.maxDrawdown / limit) : daily.maxDrawdown > 0 ? Math.min(1, daily.maxDrawdown / (startingBalance || daily.maxDrawdown)) : 0;
+  const pf = Number.isFinite(stats.profitFactor) ? Math.min(3, stats.profitFactor) : 3;
 
-  const hourBars = useMemo(
-    () =>
-      t.byHour
-        .filter((b) => b.count > 0)
-        .map((b) => ({
-          key: b.key,
-          value: b.pnl,
-          label: `${b.key}h`,
-          hint: `${b.count} trade(s) · ${fmtPct(b.winRate, 0)} ${tr('réussite', 'win rate', 'acierto')}`,
-        })),
-    [t.byHour, locale],
-  );
-  const weekdayBars = useMemo(
-    () =>
-      [1, 2, 3, 4, 5]
-        .map((i) => t.byWeekday[i])
-        .filter((b): b is NonNullable<typeof b> => !!b)
-        .map((b) => ({
-          key: b.key,
-          value: b.pnl,
-          label: b.key,
-          hint: `${b.count} trade(s) · ${fmtPct(b.winRate, 0)} ${tr('réussite', 'win rate', 'acierto')}`,
-        })),
-    [t.byWeekday, locale],
-  );
-  const hist = useMemo(() => histogram(t.pnls, 28), [t.pnls]);
-  const thinSample = t.count < 30 || sessions.length < 5;
-  const sqnHint = thinSample
-    ? tr('Échantillon insuffisant', 'Insufficient sample', 'Muestra insuficiente')
-    : t.sqn >= 2.5
-      ? tr('Système solide', 'Solid system', 'Sistema sólido')
-      : t.sqn >= 1.6
-        ? tr('Correct', 'Fair', 'Correcto')
-        : tr('Faible', 'Weak', 'Débil');
-  const pfHint = thinSample
-    ? `${tr('Échantillon insuffisant', 'Insufficient sample', 'Muestra insuficiente')}${Number.isFinite(t.profitFactor) ? '' : ` · ${tr('brut', 'raw', 'bruto')} ${t.profitFactor === Infinity ? '∞' : String(t.profitFactor)}`}`
-    : `${tr('Payoff', 'Payoff', 'Payoff')} ${fmtRatio(t.payoffRatio)}${Number.isFinite(t.profitFactor) ? '' : ` · ${tr('aucune perte', 'no losses', 'sin pérdidas')}`}`;
-
-  if (sessions.length === 0) {
+  if (journalEmpty) {
     return (
       <Empty
         title={tr('Le journal est vide', 'The journal is empty', 'El diario está vacío')}
@@ -147,193 +151,269 @@ export function Dashboard({ onImport, onDemo }: { onImport: () => void; onDemo: 
         )}
         action={
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="gold" onClick={onImport}>
-              {tr('Importer NinjaTrader', 'Import NinjaTrader', 'Importar NinjaTrader')}
+            <Button onClick={onImport}>{tr('Importer un CSV', 'Import a CSV', 'Importar un CSV')}</Button>
+            <Button variant="ghost" onClick={onDemo}>
+              {tr('Jeu de démonstration', 'Demo dataset', 'Juego de demostración')}
             </Button>
-            <Button onClick={onDemo}>{tr('Jeu de démonstration', 'Demo dataset', 'Juego de demostración')}</Button>
           </div>
         }
       />
     );
   }
 
+  if (ordered.length === 0) {
+    return <Empty title={tr('Aucune séance sur cette période', 'No session in this range', 'Ninguna sesión en este período')} text={tr('Élargissez la période ou le compte.', 'Widen the range or the account.', 'Amplíe el período o la cuenta.')} />;
+  }
+
   return (
-    <div className={s.rows}>
-      <div className={s.kpis}>
-        <Stat
-          label={tr('PnL net', 'Net PnL', 'PnL neto')}
-          value={fmtUsd(t.netPnl, { sign: true })}
-          num={t.netPnl}
-          format={(v) => fmtUsd(v, { sign: true })}
-          hint={`${plural(t.count, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · ${plural(sessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}`}
-          tone={tone(t.netPnl)}
-        />
-        <Stat
-          label={tr('Réussite', 'Win rate', 'Acierto')}
-          value={fmtPct(t.winRate)}
-          num={t.winRate}
-          format={(v) => fmtPct(v)}
-          hint={`${t.wins} ${tr('G', 'W', 'G')} · ${t.losses} ${tr('P', 'L', 'P')} · ${t.breakeven} ${tr('N', 'BE', 'N')}`}
-          tone={t.winRate >= 0.5 ? 'pos' : 'flat'}
-        />
-        <Stat label="Profit factor" value={fmtRatio(t.profitFactor)} num={Number.isFinite(t.profitFactor) ? t.profitFactor : undefined} format={(v) => fmtRatio(v)} hint={pfHint} tone={thinSample ? 'flat' : t.profitFactor >= 1.3 ? 'pos' : t.profitFactor < 1 ? 'neg' : 'flat'} />
-        <Stat
-          label={tr('Espérance / trade', 'Expectancy / trade', 'Esperanza / trade')}
-          value={fmtUsd(t.expectancy, { cents: true, sign: true })}
-          num={t.expectancy}
-          format={(v) => fmtUsd(v, { cents: true, sign: true })}
-          hint={t.expectancyR !== null ? `${fmtRatio(t.expectancyR)} R` : `${tr('Médiane', 'Median', 'Mediana')} ${fmtUsd(t.medianPnl, { cents: true })}`}
-          tone={tone(t.expectancy)}
-        />
-        <Stat
-          label={tr('Sharpe · séances', 'Sharpe · sessions', 'Sharpe · sesiones')}
-          value={fmtRatio(d.sharpe)}
-          num={d.sharpe}
-          format={(v) => fmtRatio(v)}
-          hint={
-            thinSample
-              ? tr('Échantillon insuffisant', 'Insufficient sample', 'Muestra insuficiente')
-              : `Sortino ${fmtRatio(d.sortino)} · Calmar ${fmtRatio(d.calmar)} (${tr('rendement linéaire annualisé / DD', 'linear annualized return / DD', 'rendimiento lineal anualizado / DD')})`
-          }
-          tone={thinSample ? 'flat' : d.sharpe >= 1 ? 'pos' : d.sharpe < 0 ? 'neg' : 'flat'}
-        />
-        <Stat
-          label={tr('Drawdown max', 'Max drawdown', 'Drawdown máx.')}
-          value={fmtUsd(-d.maxDrawdown)}
-          num={-d.maxDrawdown}
-          format={(v) => fmtUsd(v)}
-          hint={`${plural(d.maxDrawdownDays, tr('journée', 'day', 'día'), tr('journées', 'days', 'días'))} · ${tr('actuel', 'current', 'actual')} ${fmtUsd(-d.currentDrawdown)}`}
-          tone={d.currentDrawdown > 0 ? 'neg' : 'flat'}
-        />
-        <Stat label="SQN" value={fmtRatio(t.sqn)} num={thinSample ? undefined : t.sqn} format={(v) => fmtRatio(v)} hint={sqnHint} tone={thinSample ? 'flat' : t.sqn >= 2 ? 'pos' : 'flat'} />
-        <Stat
-          label={tr('Séances gagnantes', 'Winning sessions', 'Sesiones ganadoras')}
-          value={fmtPct(d.winDayRate)}
-          num={d.winDayRate}
-          format={(v) => fmtPct(v)}
-          hint={`${d.winDays} ${tr('G', 'W', 'G')} · ${d.lossDays} ${tr('P', 'L', 'P')} · ${tr('meilleur', 'best', 'mejor')} ${fmtUsd(d.bestDay)}`}
-          tone={d.winDayRate >= 0.5 ? 'pos' : 'flat'}
-        />
-      </div>
+    <div className={s.grid}>
+      <span className={`canto-plus ${s.plusL}`} aria-hidden>
+        +
+      </span>
+      <span className={`canto-plus ${s.plusR}`} aria-hidden>
+        +
+      </span>
+      <PlaqueVissee className={s.span7}>
+        <div className={s.plateBody}>
+          <div className={s.plateTop}>
+            <div>
+              <div className={s.plateLabel}>
+                <span className={s.code}>A.01 / {tr('NET P&L', 'NET P&L', 'P&L NETO')} · {rangeTitle(range)}</span>
+                <span className={s.hint}>{tr('APRÈS COMMISSIONS', 'AFTER COMMISSIONS', 'DESPUÉS DE COMISIONES')} · USD</span>
+              </div>
+              <Lecteur value={stats.netPnl} />
+            </div>
+            <div>
+              <span className={s.hint}>{tr('P&L / SÉANCE', 'P&L / SESSION', 'P&L / SESIÓN')}</span>
+              <div className={s.bars} aria-hidden>
+                {ordered.slice(-28).map((row) => (
+                  <i key={row.id} className={row.pnl >= 0 ? s.pos : s.neg} style={{ height: `${Math.max(4, (Math.abs(row.pnl) / peak) * 56)}px` }} />
+                ))}
+              </div>
+              <div className={s.legend}>
+                <span className={s.hint}>{tr('Gain', 'Gain', 'Ganancia')}</span>
+                <span className={s.hint}>{tr('Perte', 'Loss', 'Pérdida')}</span>
+              </div>
+            </div>
+          </div>
+          <div className={s.foot}>
+            <span className={s.hint}>
+              {tr('Trades', 'Trades', 'Trades')}
+              <b>{fmtInt(stats.count)}</b>
+            </span>
+            <span className={s.hint}>
+              {tr('Séances +', 'Win sessions', 'Sesiones +')}
+              <b>
+                {winSessions}/{ordered.length}
+              </b>
+            </span>
+            <span className={s.hint}>
+              {tr('Instruments', 'Instruments', 'Instrumentos')}
+              <b>{names.join(' · ') || '—'}</b>
+            </span>
+            <span className={s.hint}>
+              {tr('Meilleure', 'Best', 'Mejor')}
+              <b className={s.pos}>{best ? <Montant value={best.pnl} /> : '—'}</b>
+            </span>
+          </div>
+        </div>
+      </PlaqueVissee>
 
-      <div className={s.grid}>
-        <Panel
-          className={s.c8}
-          title={tr("Courbe d'équité", 'Equity curve', 'Curva de equity')}
-          sub={tr('PnL cumulé par séance', 'Cumulative PnL per session', 'PnL acumulado por sesión')}
-          actions={plan && planEval ? <Tag tone={planEval.status === 'objectif' ? 'mint' : planEval.status === 'echec' ? 'ember' : 'gold'} dot>{plan.firm} · {plan.label} · {trPlanStatus(planEval.status)}</Tag> : undefined}
-        >
-          <LineArea series={cumSeries} height={240} formatY={(v) => fmtUsd(v)} endValue />
-        </Panel>
-        <Panel className={s.c4} title="Drawdown" sub={tr('depuis le plus haut', 'from the peak', 'desde el máximo')}>
-          <LineArea series={ddSeries} height={240} formatY={(v) => fmtUsd(v)} />
-        </Panel>
+      <section className={`${s.card} ${s.kpis} ${s.span5}`}>
+        <div className={s.tile}>
+          <div className={s.kHead}>
+            <span>
+              <span className={s.code}>K.01 </span>
+              <span className={s.kName}>{tr('Espérance', 'Expectancy', 'Esperanza')} / {tr('TRADE', 'TRADE', 'TRADE')}</span>
+            </span>
+          </div>
+          <Montant className={s.kValue} value={stats.expectancy} />
+          <div>
+            <div className={s.split} aria-hidden>
+              <i style={{ width: `${(winPart / split) * 100}%` }} />
+              <i style={{ width: `${(lossPart / split) * 100}%` }} />
+            </div>
+            <div className={s.pair}>
+              <span className={s.hint}>
+                G̅ <Montant value={stats.avgWin} />
+              </span>
+              <span className={s.hint}>
+                P̅ <Montant value={-Math.abs(stats.avgLoss)} />
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className={s.tile}>
+          <div className={s.kHead}>
+            <span>
+              <span className={s.code}>K.02 </span>
+              <span className={s.kName}>{tr('Taux de réussite', 'Win rate', 'Tasa de acierto')}</span>
+            </span>
+            <span className={s.hint}>
+              {fmtInt(stats.wins)} / {fmtInt(stats.count)}
+            </span>
+          </div>
+          <span className={s.kValue}>{fmtPct(stats.winRate, 1)}</span>
+          <Jauge
+            min={0}
+            max={100}
+            value={stats.winRate * 100}
+            marker={breakeven == null ? null : breakeven * 100}
+            markerColor="var(--neg)"
+            ticks={[
+              { value: 0, label: '0' },
+              { value: 50, label: '50' },
+              { value: 100, label: '100' },
+            ]}
+          />
+        </div>
+        <div className={s.tile}>
+          <div className={s.kHead}>
+            <span>
+              <span className={s.code}>K.03 </span>
+              <span className={s.kName}>{tr('Profit factor', 'Profit factor', 'Profit factor')}</span>
+            </span>
+            <span className={s.hint}>{tr('BRUT', 'GROSS', 'BRUTO')}</span>
+          </div>
+          <span className={s.kValue}>{Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2).replace('.', ',') : '∞'}</span>
+          <Jauge
+            min={0}
+            max={3}
+            value={pf}
+            marker={1}
+            markerColor="var(--neg)"
+            ticks={[
+              { value: 0, label: '0' },
+              { value: 1, label: '1,0', color: 'var(--neg)' },
+              { value: 3, label: '3,0' },
+            ]}
+          />
+        </div>
+        <div className={s.tile}>
+          <div className={s.kHead}>
+            <span>
+              <span className={s.code}>K.04 </span>
+              <span className={s.kName}>{tr('Drawdown max', 'Max drawdown', 'Drawdown máx.')}</span>
+            </span>
+            {limit != null ? (
+              <span className={s.hint}>
+                / <Montant value={limit} />
+              </span>
+            ) : null}
+          </div>
+          <Montant className={`${s.kValue} ${s.neg}`} value={-daily.maxDrawdown} />
+          <div>
+            <div className={s.hatch} aria-hidden>
+              <i style={{ width: `${ddRatio * 100}%` }} />
+            </div>
+            <div className={s.pair}>
+              <span className={s.hint}>{limit != null && limit > 0 ? `${fmtPct(daily.maxDrawdown / limit, 1)} ${tr('DE LA LIMITE', 'OF THE LIMIT', 'DEL LÍMITE')}` : ''}</span>
+              <span className={s.hint}>{plural(daily.maxDrawdownDays, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <Panel className={s.c12} title={tr('Année glissante', 'Rolling year', 'Año móvil')} sub={tr('PnL par journée de trading', 'PnL per trading day', 'PnL por jornada de trading')}>
-          {year && <Heatmap rows={year.rows} cols={year.cols} cells={year.cells} height={200} formatValue={(v) => fmtUsd(v)} />}
-        </Panel>
+      <section className={`${s.card} ${s.pad} ${s.span8}`}>
+        <div className={s.cardHead}>
+          <span>
+            <span className={s.code}>A.02 </span>
+            <span className={s.kName}>{tr('Courbe d’équité', 'Equity curve', 'Curva de equidad')}</span>
+          </span>
+          <span className={s.hint}>{tr('ÉQUITÉ', 'EQUITY', 'EQUIDAD')} · {tr('DRAWDOWN', 'DRAWDOWN', 'DRAWDOWN')}</span>
+        </div>
+        <EquityCurve points={daily.equity} dates={[...new Set(ordered.map((row) => row.date))].sort()} />
+      </section>
 
-        <Panel className={s.c6} title={tr('Régularité', 'Consistency', 'Regularidad')} sub={tr('fenêtre glissante de 20 séances', '20-session rolling window', 'ventana móvil de 20 sesiones')}>
-          <LineArea series={rollingSeries} height={170} formatY={(v) => `${v.toFixed(0)} %`} baseline={50} yDomain={[0, 100]} />
-        </Panel>
-        <Panel className={s.c6} title={tr('Espérance glissante', 'Rolling expectancy', 'Esperanza móvil')} sub={tr('PnL moyen par séance · 20 séances', 'Average PnL per session · 20 sessions', 'PnL medio por sesión · 20 sesiones')}>
-          <LineArea series={rollingExp} height={170} formatY={(v) => fmtUsd(v)} />
-        </Panel>
+      <section className={`${s.card} ${s.pad} ${s.span4}`}>
+        <div className={s.cardHead}>
+          <span>
+            <span className={s.code}>A.03 </span>
+            <span className={s.kName}>{tr('Par instrument', 'By instrument', 'Por instrumento')}</span>
+          </span>
+          <span className={s.hint}>{tr('NET USD', 'NET USD', 'NETO USD')}</span>
+        </div>
+        <div>
+          {instruments.slice(0, 6).map((row) => (
+            <div key={row.key} className={s.inst}>
+              <span className={s.root}>{row.key}</span>
+              <span className={s.hint}>
+                {fmtInt(row.count)} TR · {fmtPct(stats.count ? row.count / stats.count : 0, 1)}
+              </span>
+              <span className={s.hint} style={{ gridColumn: '1 / -1', justifySelf: 'end' }}>
+                <Montant value={row.pnl} />
+              </span>
+              <div className={s.share}>
+                <i style={{ width: `${stats.count ? (row.count / stats.count) * 100 : 0}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <span className={s.hint}>{tr('RÉPARTITION DES', 'SPLIT OF', 'REPARTO DE')} {fmtInt(stats.count)} {tr('TRADES', 'TRADES', 'TRADES')}</span>
+      </section>
 
-        <Panel className={s.c4} title={tr('Distribution des trades', 'Trade distribution', 'Distribución de trades')} sub={tr('PnL par trade', 'PnL per trade', 'PnL por trade')}>
-          <Histogram bins={hist} height={170} formatX={(v) => fmtUsd(v)} />
-        </Panel>
-        <Panel className={s.c4} title={tr("Par heure d'entrée", 'By entry hour', 'Por hora de entrada')} sub={tr('heure ET', 'ET hour', 'hora ET')}>
-          <Bars data={hourBars} height={170} formatY={(v) => fmtUsd(v)} />
-        </Panel>
-        <Panel className={s.c4} title={tr('Par jour de semaine', 'By weekday', 'Por día de la semana')} sub={tr('PnL agrégé', 'Aggregated PnL', 'PnL agregado')}>
-          <Bars data={weekdayBars} height={170} formatY={(v) => fmtUsd(v)} />
-        </Panel>
-
-        <Panel className={s.c4} title="Long / Short" sub={tr('asymétrie directionnelle', 'directional asymmetry', 'asimetría direccional')}>
-          <dl className={s.kv}>
-            <dt>{tr('Long · trades', 'Long · trades', 'Long · trades')}</dt>
-            <dd>{fmtInt(t.long.count)}</dd>
-            <dt>{tr('Long · PnL', 'Long · PnL', 'Long · PnL')}</dt>
-            <dd className={signClass(t.long.pnl)}>{fmtUsd(t.long.pnl, { sign: true })}</dd>
-            <dt>{tr('Long · réussite', 'Long · win rate', 'Long · acierto')}</dt>
-            <dd>{fmtPct(t.long.winRate)}</dd>
-            <dt>{tr('Short · trades', 'Short · trades', 'Short · trades')}</dt>
-            <dd>{fmtInt(t.short.count)}</dd>
-            <dt>{tr('Short · PnL', 'Short · PnL', 'Short · PnL')}</dt>
-            <dd className={signClass(t.short.pnl)}>{fmtUsd(t.short.pnl, { sign: true })}</dd>
-            <dt>{tr('Short · réussite', 'Short · win rate', 'Short · acierto')}</dt>
-            <dd>{fmtPct(t.short.winRate)}</dd>
-          </dl>
-        </Panel>
-        <Panel className={s.c4} title={tr('Séries & dépendance', 'Streaks & dependence', 'Series y dependencia')} sub={tr('z-score des séquences', 'sequence z-score', 'z-score de las secuencias')}>
-          <dl className={s.kv}>
-            <dt>{tr('Gains consécutifs max', 'Max consecutive wins', 'Ganancias consecutivas máx.')}</dt>
-            <dd>{t.maxConsecWins}</dd>
-            <dt>{tr('Pertes consécutives max', 'Max consecutive losses', 'Pérdidas consecutivas máx.')}</dt>
-            <dd>{t.maxConsecLosses}</dd>
-            <dt>{tr('Série actuelle', 'Current streak', 'Serie actual')}</dt>
-            <dd className={signClass(t.currentStreak)}>{t.currentStreak > 0 ? `+${t.currentStreak}` : t.currentStreak}</dd>
-            <dt>Z-score</dt>
-            <dd className={Math.abs(t.zScore) > 1.96 ? 'gold' : ''}>{fmtRatio(t.zScore)}</dd>
-            <dt>Kelly</dt>
-            <dd>{fmtPct(t.kelly)}</dd>
-            <dt>{tr('Plus gros gain / perte', 'Largest win / loss', 'Mayor ganancia / pérdida')}</dt>
-            <dd>
-              <span className="pos">{fmtUsd(t.largestWin)}</span> / <span className="neg">{fmtUsd(t.largestLoss)}</span>
-            </dd>
-          </dl>
-          <p className={s.note} style={{ marginTop: 10 }}>
-            {Math.abs(t.zScore) > 1.96 ? (
-              <>
-                <b>{tr('Dépendance significative', 'Significant dependence', 'Dependencia significativa')}</b>
-                {' : '}
-                {t.zScore > 0
-                  ? tr(
-                      'les gains et pertes alternent plus que le hasard — la taille peut être modulée après une perte.',
-                      'wins and losses alternate more than chance — size can be adjusted after a loss.',
-                      'las ganancias y pérdidas alternan más que el azar — el tamaño puede modularse tras una pérdida.',
-                    )
-                  : tr(
-                      'les résultats se regroupent en séries — réduire la taille après une perte, la remonter après un gain.',
-                      'results cluster in streaks — reduce size after a loss, increase it after a win.',
-                      'los resultados se agrupan en series — reducir el tamaño tras una pérdida, subirlo tras una ganancia.',
-                    )}
-              </>
-            ) : (
-              <>
-                <b>{tr('Séquences compatibles avec le hasard', 'Sequences consistent with chance', 'Secuencias compatibles con el azar')}</b>
-                {' : '}
-                {tr(
-                  'aucun ajustement de taille fondé sur la série précédente n’est justifié.',
-                  'no size adjustment based on the previous streak is justified.',
-                  'ningún ajuste de tamaño basado en la serie anterior está justificado.',
-                )}
-              </>
-            )}
-          </p>
-        </Panel>
-        <Panel className={s.c4} title={tr('Exécution', 'Execution', 'Ejecución')} sub={tr('durée · excursions', 'duration · excursions', 'duración · excursions')}>
-          <dl className={s.kv}>
-            <dt>{tr('Durée moyenne', 'Average duration', 'Duración media')}</dt>
-            <dd>{formatDuration(t.avgDurationMs)}</dd>
-            <dt>{tr('Durée · gagnants', 'Duration · winners', 'Duración · ganadores')}</dt>
-            <dd className="pos">{formatDuration(t.avgWinDurationMs)}</dd>
-            <dt>{tr('Durée · perdants', 'Duration · losers', 'Duración · perdedores')}</dt>
-            <dd className="neg">{formatDuration(t.avgLossDurationMs)}</dd>
-            <dt>{tr('MAE moyenne', 'Average MAE', 'MAE media')}</dt>
-            <dd>{t.avgMae !== null ? fmtUsd(-t.avgMae) : '—'}</dd>
-            <dt>{tr('MFE moyenne', 'Average MFE', 'MFE media')}</dt>
-            <dd>{t.avgMfe !== null ? fmtUsd(t.avgMfe) : '—'}</dd>
-            <dt>Edge ratio (MFE/MAE)</dt>
-            <dd className={t.edgeRatio !== null && t.edgeRatio > 1 ? 'pos' : ''}>{fmtRatio(t.edgeRatio)}</dd>
-            <dt>{tr('Capture de la MFE', 'MFE capture', 'Captura de la MFE')}</dt>
-            <dd>{t.captureRatio !== null ? fmtPct(t.captureRatio) : '—'}</dd>
-            <dt>{tr('Commissions', 'Commissions', 'Comisiones')}</dt>
-            <dd>{fmtUsd(-t.commission)}</dd>
-          </dl>
-        </Panel>
-      </div>
+      <section className={`${s.card} ${s.span12}`}>
+        <div className={s.cardHead} style={{ padding: '12px 16px 10px' }}>
+          <span>
+            <span className={s.code}>A.04 </span>
+            <span className={s.kName}>{tr('Dernières séances', 'Latest sessions', 'Últimas sesiones')}</span>
+          </span>
+          <button type="button" className={s.more} onClick={onSessions}>
+            {tr('VOIR LES', 'SEE THE', 'VER LAS')} {fmtInt(ordered.length)} {tr('SÉANCES', 'SESSIONS', 'SESIONES')} →
+          </button>
+        </div>
+        <table className={s.table}>
+          <thead>
+            <tr>
+              <th>{tr('Séance', 'Session', 'Sesión')}</th>
+              <th>{tr('Instruments', 'Instruments', 'Instrumentos')}</th>
+              <th>{tr('Tr.', 'Tr.', 'Tr.')}</th>
+              <th>{tr('Gagnants', 'Winners', 'Ganadores')}</th>
+              <th>{tr('Comm. USD', 'Comm. USD', 'Com. USD')}</th>
+              <th>{tr('Tag', 'Tag', 'Etiqueta')}</th>
+              <th>{tr('Net USD', 'Net USD', 'Neto USD')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {last.map((row) => {
+              const mine = bySession.get(row.id) ?? [];
+              const wins = mine.filter((trade) => trade.pnl > 0).length;
+              const total = mine.length || row.tradeCount;
+              const squares = Math.min(total, 8);
+              const tag = row.tags[0]?.trim() || tr('HORS PLAN', 'NO PLAN', 'SIN PLAN');
+              return (
+                <tr key={row.id}>
+                  <td>
+                    <span className={s.day}>
+                      {shortDay(row.date)}
+                      <span>{weekday(row.date)}</span>
+                    </span>
+                  </td>
+                  <td>{row.instruments.join(' · ') || '—'}</td>
+                  <td>{fmtInt(total)}</td>
+                  <td>
+                    <span className={s.squares} aria-hidden>
+                      {Array.from({ length: squares }, (_, i) => (
+                        <i key={i} className={`${s.sq} ${i < Math.min(wins, squares) ? s.on : ''}`} />
+                      ))}
+                    </span>
+                    {wins}/{total}
+                  </td>
+                  <td>
+                    <Montant value={-Math.abs(row.commission)} />
+                  </td>
+                  <td>
+                    <Etiquette>{tag}</Etiquette>
+                  </td>
+                  <td>
+                    <Montant value={row.pnl} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
     </div>
   );
 }

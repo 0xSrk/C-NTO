@@ -4,7 +4,10 @@ import { evaluatePlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
 import type { ConsolidatedPoint, PropDistance } from './types';
 
-/** Distance aux seuils du plan, rejoués par `evaluatePlan`. L'alerte est à 25 % du drawdown maximal. */
+/** Part restante du drawdown maximal sous laquelle une poche prop est en alerte. */
+export const PROP_DRAWDOWN_ALERT = 0.25;
+
+/** Distance aux seuils du plan, rejoués par `evaluatePlan`. L'alerte est à `PROP_DRAWDOWN_ALERT` du drawdown maximal. */
 export function propDistance(plan: PropPlan, sessions: readonly Session[], trades: readonly Trade[], account?: string): PropDistance {
   const ev = evaluatePlan(plan, [...sessions], [...trades], account);
   const last = ev.timeline[ev.timeline.length - 1];
@@ -16,7 +19,7 @@ export function propDistance(plan: PropPlan, sessions: readonly Session[], trade
     toTarget: ev.remainingToTarget,
     daysTraded: ev.daysTraded,
     status: ev.status,
-    alert: toDrawdown <= plan.maxDrawdown * 0.25,
+    alert: toDrawdown <= plan.maxDrawdown * PROP_DRAWDOWN_ALERT,
   };
 }
 

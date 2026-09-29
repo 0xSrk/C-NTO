@@ -213,7 +213,7 @@
   margin: 8px 0 0;
   padding-left: 16px;
   font-size: 12px;
-  color: var(--amber);
+  color: var(--ember);
 }
 .scatter {
   width: 100%;
@@ -267,7 +267,7 @@
   font-size: 11px;
   letter-spacing: var(--track-11);
   text-transform: uppercase;
-  color: var(--amber);
+  color: var(--ember);
 }
 .bulkBar {
   display: flex;
@@ -277,7 +277,7 @@
   margin: 0;
   padding: 10px 16px;
   border-bottom: 1px solid var(--line-1);
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  background: var(--bg-3);
   font-size: var(--fs-small);
   color: var(--text-1);
 }
