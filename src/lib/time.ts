@@ -145,20 +145,27 @@ export function etDateKey(ms: number): string {
   return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
 }
 
+const RTH_OPEN = 9 * 60 + 30;
+const RTH_CLOSE = 16 * 60;
+const HALT = 17 * 60;
+const REOPEN = 18 * 60;
+
 /**
  * État CME Globex à l'instant `ms`, en heure de New York.
  * Fermé du vendredi 17:00 au dimanche 18:00, et pendant la pause 17:00–18:00.
  * RTH de 09:30 à 16:00 les jours ouvrés. ETH sinon.
- * `holiday` : la journée porte un événement CME « fermé » → FERMÉ · FÉRIÉ.
+ * `holiday` : fermé férié jusqu'à 18:00 ET seulement, puis les règles ordinaires.
+ * `earlyCloseMinute` : clôture anticipée (demi-séance). Après cette minute, plus de RTH.
  */
-export function globexState(ms: number, holiday = false): GlobexState {
-  if (holiday) return 'FERMÉ · FÉRIÉ';
+export function globexState(ms: number, holiday = false, earlyCloseMinute: number | null = null): GlobexState {
   const p = zonedParts(ms, ET_ZONE);
   const dow = new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay();
   const t = p.hour * 60 + p.minute;
-  if (dow === 6 || (dow === 0 && t < 18 * 60) || (dow === 5 && t >= 17 * 60)) return 'FERMÉ';
-  if (t >= 17 * 60 && t < 18 * 60) return 'FERMÉ';
-  if (t >= 9 * 60 + 30 && t < 16 * 60) return 'RTH';
+  if (holiday && t < REOPEN) return 'FERMÉ · FÉRIÉ';
+  if (dow === 6 || (dow === 0 && t < REOPEN) || (dow === 5 && t >= HALT)) return 'FERMÉ';
+  if (t >= HALT && t < REOPEN) return 'FERMÉ';
+  const early = earlyCloseMinute != null && earlyCloseMinute > RTH_OPEN && earlyCloseMinute < RTH_CLOSE ? earlyCloseMinute : RTH_CLOSE;
+  if (t >= RTH_OPEN && t < early) return 'RTH';
   return 'ETH';
 }
 

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Barcode, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee, Regle } from '@/design/primitives';
+import { Barcode, Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee, Regle } from '@/design/primitives';
 import { findPlan } from '@/engine/propfirm';
 import type { Bilan, BilanPreset } from '@/engine/portfolio/bilan';
 import type { Exposure } from '@/engine/portfolio/exposure';
@@ -92,6 +92,7 @@ export function Synthese({
   customFrom,
   customTo,
   onCustom,
+  onCreate,
 }: {
   discrete: boolean;
   base: string;
@@ -118,6 +119,7 @@ export function Synthese({
   customFrom: string;
   customTo: string;
   onCustom: (from: string, to: string) => void;
+  onCreate?: () => void;
 }) {
   useI18n((st) => st.locale);
   const today = etDateKey(now);
@@ -125,6 +127,7 @@ export function Synthese({
   const stamp = `${today.slice(8, 10)}.${today.slice(5, 7)} · ${clock} ET · ${base}`;
   const dayPoint = series.find((point) => point.date === today);
   const dayPnl = dayPoint?.pnl ?? 0;
+  const dayFlat = Math.abs(dayPnl) < 0.005;
   const prev = dayPoint ? dayPoint.equity - dayPoint.pnl : coeur.netValue;
   const dayPct = prev > 0 ? dayPnl / prev : 0;
   const included = valuations.filter((row) => row.equityBase != null && row.equityBase > 0);
@@ -136,6 +139,7 @@ export function Synthese({
     return slice.reduce((max, point) => Math.max(max, point.equity), coeur.netValue || 0);
   }, [series, report.from, report.to, coeur.netValue]);
   const currentPct = peak > 0 ? currentDrawdown / peak : 0;
+  const drawdownFlat = Math.round(currentPct * 1000) / 10 <= 0;
   const worstPct = peak > 0 ? period.worst / peak : 0;
   const gaugeMax = Math.max(5, currentPct * 100, worstPct * 100);
   const alerts = valuations.filter((row) => row.kind === 'propfirm' && row.prop?.alert);
@@ -163,8 +167,8 @@ export function Synthese({
           <Lecteur value={coeur.netValue} discrete={discrete} />
           <div className={s.dayRow}>
             <span className={s.hint}>{tr('AUJOURD’HUI', 'TODAY', 'HOY')}</span>
-            <Montant value={dayPnl} discrete={discrete} className={dayPnl < 0 ? s.neg : s.pos} />
-            <span className={dayPnl < 0 ? s.neg : s.pos}>{dayPnl > 0 ? '▲' : dayPnl < 0 ? '▼' : '·'} {discrete ? '•••••' : fmtPct(Math.abs(dayPct), 2)}</span>
+            <Montant value={dayFlat ? 0 : dayPnl} discrete={discrete} className={dayFlat ? undefined : dayPnl < 0 ? s.neg : s.pos} />
+            <span className={dayFlat ? undefined : dayPnl < 0 ? s.neg : s.pos}>{dayFlat ? '·' : dayPnl > 0 ? '▲' : '▼'} {discrete ? '•••••' : fmtPct(dayFlat ? 0 : Math.abs(dayPct), 2)}</span>
           </div>
           <div className={s.alloc} aria-hidden>
             {included.map((row, index) => (
@@ -231,7 +235,7 @@ export function Synthese({
               <span className={s.kName}>{tr('Drawdown courant', 'Current drawdown', 'Drawdown actual')}</span>
             </span>
           </div>
-          <span className={`${s.kValue} ${s.neg}`}>{discrete ? '•••••' : `−${fmtPct(currentPct, 1).replace('−', '').replace('-', '')}`}</span>
+          <span className={`${s.kValue} ${drawdownFlat ? '' : s.neg}`}>{discrete ? '•••••' : drawdownFlat ? fmtPct(0, 1) : `−${fmtPct(currentPct, 1).replace('−', '').replace('-', '')}`}</span>
           <Jauge
             min={0}
             max={gaugeMax}
@@ -302,6 +306,23 @@ export function Synthese({
             </tr>
           </thead>
           <tbody>
+            {valuations.length === 0 ? (
+              <tr>
+                <td colSpan={6}>
+                  <Empty
+                    title={tr('Aucune poche', 'No pocket', 'Ninguna bolsa')}
+                    text={tr('La synthèse se remplit dès qu’une poche a une valeur.', 'The synthesis fills in once a pocket has a value.', 'La síntesis se completa cuando una bolsa tiene un valor.')}
+                    action={
+                      onCreate ? (
+                        <Button variant="chamfer" onClick={onCreate}>
+                          {tr('Nouvelle poche', 'New pocket', 'Nueva bolsa')}
+                        </Button>
+                      ) : null
+                    }
+                  />
+                </td>
+              </tr>
+            ) : null}
             {valuations.map((row) => {
               const pocket = pockets.find((item) => item.id === row.pocketId);
               if (!pocket) return null;

@@ -459,6 +459,10 @@ export default function Portefeuille() {
               setCustomTo(to);
               if (from && to) setPreset('personnalisee');
             }}
+            onCreate={() => {
+              pocketNameRef.current?.scrollIntoView({ block: 'center' });
+              pocketNameRef.current?.focus();
+            }}
           />
           <Panel title={tr('Poches', 'Pockets', 'Bolsas')} sub={tr('création, édition, archivage', 'create, edit, archive', 'creación, edición, archivo')}>
             <div className={s.stack}>

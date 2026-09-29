@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { cmeSession } from '@/lib/cmeClosed';
 import { ET_ZONE, globexState, zonedToUtc } from '@/lib/time';
 
 const at = (date: string, time: string) => zonedToUtc(date, time, ET_ZONE);
@@ -29,7 +30,29 @@ describe('globexState', () => {
     expect(globexState(at('2026-11-01', '18:00'))).toBe('ETH');
   });
 
-  it('journée fériée', () => {
+  it('jour férié fermé jusqu’à 18:00 ET seulement', () => {
     expect(globexState(at('2026-09-23', '10:00'), true)).toBe('FERMÉ · FÉRIÉ');
+    expect(globexState(at('2026-09-23', '17:59'), true)).toBe('FERMÉ · FÉRIÉ');
+    expect(globexState(at('2026-09-23', '18:00'), true)).toBe('ETH');
+    expect(globexState(at('2026-09-25', '18:00'), true)).toBe('FERMÉ');
+  });
+
+  it('demi-séance : plus de RTH après la clôture anticipée', () => {
+    const close = 13 * 60;
+    expect(globexState(at('2026-09-23', '12:59'), false, close)).toBe('RTH');
+    expect(globexState(at('2026-09-23', '13:00'), false, close)).toBe('ETH');
+    expect(globexState(at('2026-11-27', '13:14'), false, 13 * 60 + 15)).toBe('RTH');
+    expect(globexState(at('2026-11-27', '13:15'), false, 13 * 60 + 15)).toBe('ETH');
+  });
+
+  it('le calendrier local distingue fermeture et clôture anticipée', () => {
+    expect(cmeSession('2026-12-25')).toMatchObject({ closed: true });
+    expect(globexState(at('2026-12-25', '12:00'), true)).toBe('FERMÉ · FÉRIÉ');
+    expect(globexState(at('2026-12-25', '18:00'), true)).toBe('FERMÉ');
+    expect(cmeSession('2026-11-26')).toMatchObject({ closed: false, earlyCloseMinute: 13 * 60 });
+    expect(cmeSession('2026-11-27')).toMatchObject({ closed: false, earlyCloseMinute: 13 * 60 + 15 });
+    const shortened = cmeSession('2026-11-26');
+    expect(globexState(at('2026-11-26', '12:00'), shortened.closed, shortened.earlyCloseMinute)).toBe('RTH');
+    expect(globexState(at('2026-11-26', '13:00'), shortened.closed, shortened.earlyCloseMinute)).toBe('ETH');
   });
 });

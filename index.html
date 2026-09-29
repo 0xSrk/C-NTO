@@ -4,38 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark only" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#0F1013" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none';" />
     <title>CΛNTO</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Cpath d='M8 8h4.2v16H8zm11.2 0H24v16h-4.8V14.6L14.8 24h-3.2l4.6-9.2L11.6 8h3.4l2.8 5.6z' fill='%23c41e3a'/%3E%3C/svg%3E"
     />
-    <!-- Fond critique avant le bundle : noir absolu Lab — jamais le bleu-gris prototype -->
+    <!-- Fond critique avant le bundle : Sol, le --bg-1 du système. -->
     <style>
       :root {
         color-scheme: dark only;
-        --bg-void: #000000;
-        --bg-0: #000000;
-        --bg-1: #030303;
-        --bg-2: #050505;
-        --bg-3: #0b0b0b;
-        --text-0: #ffffff;
-        --text-1: #c4c4c4;
-        --gold: #c41e3a;
+        --bg-1: #0f1013;
       }
       html,
       body,
       #root {
-        background: #000000 !important;
-        background-color: #000000 !important;
+        background: var(--bg-1);
         margin: 0;
         height: 100%;
-        color: #c4c4c4;
+        color: #a3a7af;
       }
     </style>
   </head>
-  <body class="grain">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

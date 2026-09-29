@@ -5,7 +5,7 @@ import { Modal } from '@/design/Modal';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
-import { cmeClosedOn } from '@/lib/cmeClosed';
+import { cmeSession } from '@/lib/cmeClosed';
 import { ET_ZONE, dateTimeFormatter, etDateKey, globexState, type GlobexState } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useUi, type TabId } from '@/store/ui';
@@ -112,7 +112,8 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
 
   const localeTag = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR';
   const clock = new Intl.DateTimeFormat(localeTag, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: ET_ZONE }).format(now);
-  const phase = globexState(now, cmeClosedOn(etDateKey(now)));
+  const session = cmeSession(etDateKey(now));
+  const phase = globexState(now, session.closed, session.earlyCloseMinute);
   const shortDate = dateTimeFormatter({ weekday: 'short', day: 'numeric', month: 'short', timeZone: ET_ZONE }, localeTag).format(now);
   const moduleName = (activeCopy?.label ?? '').toLocaleUpperCase(localeTag);
   const third = crumb && crumb.tab === tab ? crumb.label : '';
@@ -232,6 +233,26 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
           SIΞRRΛSKΛ LAB · DEEP TECH · ARTEFACT 002 · RÉV. 3.4
         </span>
         {children}
+        <div className={s.toasts} role="status" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={cx(s.toast, toast.tone !== 'info' && s[toast.tone])} onClick={() => dismiss(toast.id)}>
+              <span>{toast.text}</span>
+              {toast.action && (
+                <button
+                  type="button"
+                  className={s.toastAction}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toast.action?.run();
+                    dismiss(toast.id);
+                  }}
+                >
+                  {toast.action.label}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </main>
 
       <footer className={s.status}>
@@ -259,26 +280,6 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
         </div>
       </footer>
 
-      <div className={s.toasts} role="status" aria-live="polite">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={cx(s.toast, toast.tone !== 'info' && s[toast.tone])} onClick={() => dismiss(toast.id)}>
-            <span>{toast.text}</span>
-            {toast.action && (
-              <button
-                type="button"
-                className={s.toastAction}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toast.action?.run();
-                  dismiss(toast.id);
-                }}
-              >
-                {toast.action.label}
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
       <ConfirmDialog />
     </div>
   );

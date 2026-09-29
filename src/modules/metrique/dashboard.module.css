@@ -181,8 +181,9 @@
 
 .equity {
   width: 100%;
-  height: 168px;
+  height: 200px;
   display: block;
+  overflow: visible;
 }
 .eqLabel {
   font-family: var(--font-mono);
@@ -287,6 +288,8 @@
 .subtabs {
   display: flex;
   gap: 28px;
+  flex-shrink: 0;
+  margin: 0 40px;
   border-bottom: 1px solid var(--line-1);
 }
 .subtab {

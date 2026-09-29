@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { metricDrawdownLimit } from '@/modules/metrique/drawdownLimit';
 
-const base = { planId: 'apex-50', planAccount: 'PA-4471', sessions: [], trades: [] };
+const base = { planId: 'apex-50', planAccount: 'PA-4471' };
 
 describe('metricDrawdownLimit', () => {
   it('rien pour tous les comptes', () => {

@@ -3,7 +3,7 @@ import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from 
 import { computeDailyStats, computeTradeStats, type EquityPoint } from '@/engine/metrics';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
-import { fmtInt, fmtPct, plural } from '@/lib/format';
+import { fmtInt, fmtPct, montantParts, plural } from '@/lib/format';
 import { dateTimeFormatter, parseDateKey } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -28,19 +28,59 @@ function rangeTitle(range: MetricRange): string {
   return tr('30 JOURS', '30 DAYS', '30 DÍAS');
 }
 
-function EquityCurve({ points, dates }: { points: EquityPoint[]; dates: string[] }) {
+function pnlLabel(value: number): string {
+  const parts = montantParts(value, 2);
+  const body = `${parts.groups.join(' ')},${parts.decimals}`;
+  return parts.sign ? `${parts.sign}${body}` : body;
+}
+
+function axisText(value: number): string {
+  if (Math.abs(value) < 1e-9) return '0';
+  const sign = value < 0 ? '−' : '';
+  const abs = Math.abs(value);
+  if (abs >= 1000) {
+    const k = abs / 1000;
+    const body = Number.isInteger(k) ? String(k) : k.toFixed(1).replace('.', ',');
+    return `${sign}${body}K`;
+  }
+  return `${sign}${fmtInt(abs)}`;
+}
+
+/** Graduations ~4 intervalles, pas 1/2/5/10. Inclut zéro. */
+function axisSteps(lo: number, hi: number): number[] {
+  const span = Math.max(hi - lo, 1);
+  const rough = span / 4;
+  const pow = 10 ** Math.floor(Math.log10(rough));
+  const n = rough / pow;
+  const step = (n >= 7.5 ? 10 : n >= 3.5 ? 5 : n >= 1.5 ? 2 : 1) * pow;
+  const start = Math.ceil((lo - step * 1e-6) / step) * step;
+  const out: number[] = [];
+  for (let v = start; v <= hi + step * 0.01 && out.length < 8; v += step) {
+    const rounded = Math.abs(v) < step / 1000 ? 0 : Math.round(v / step) * step;
+    out.push(rounded);
+  }
+  if (lo <= 0 && hi >= 0 && !out.some((v) => v === 0)) out.push(0);
+  return [...new Set(out)].sort((a, b) => a - b);
+}
+
+function EquityCurve({ points, dates, baseline }: { points: EquityPoint[]; dates: string[]; baseline: number }) {
   const pid = useId().replace(/:/g, '');
   if (points.length === 0) return null;
   const w = 640;
-  const h = 168;
-  const pad = { l: 4, r: 8, t: 16, b: 22 };
-  const ys = points.map((p) => p.equity);
-  const min = Math.min(...ys);
-  const max = Math.max(...ys);
-  const span = max - min || 1;
-  const x = (i: number) => pad.l + (points.length === 1 ? 0.5 : i / (points.length - 1)) * (w - pad.l - pad.r);
-  const y = (v: number) => pad.t + (1 - (v - min) / span) * (h - pad.t - pad.b);
-  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ');
+  const h = 198;
+  const pad = { l: 36, r: 8, t: 18, b: 28 };
+  const values = [0, ...points.map((point) => point.equity - baseline)];
+  let yLo = Math.min(0, ...values);
+  let yHi = Math.max(0, ...values);
+  if (yHi === yLo) yHi = yLo + 1;
+  else {
+    const room = (yHi - yLo) * 0.06;
+    if (yLo < 0) yLo -= room;
+    if (yHi > 0) yHi += room;
+  }
+  const x = (i: number) => pad.l + (values.length === 1 ? 0.5 : i / (values.length - 1)) * (w - pad.l - pad.r);
+  const y = (v: number) => pad.t + (1 - (v - yLo) / (yHi - yLo)) * (h - pad.t - pad.b);
+  const line = values.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   let trough = 0;
   points.forEach((p, i) => {
     if (p.drawdown < (points[trough]?.drawdown ?? 0)) trough = i;
@@ -50,44 +90,56 @@ function EquityCurve({ points, dates }: { points: EquityPoint[]; dates: string[]
     if ((points[i]?.equity ?? 0) >= (points[peak]?.equity ?? 0)) peak = i;
   }
   const dd = Math.abs(points[trough]?.drawdown ?? 0);
+  const yAt = (index: number) => y(values[index + 1] ?? 0);
   const hatch =
     dd > 0
       ? [
-          ...points.slice(peak, trough + 1).map((p, i) => `${i === 0 ? 'M' : 'L'}${x(peak + i).toFixed(1)},${y(p.equity).toFixed(1)}`),
-          `L${x(trough).toFixed(1)},${y(points[peak]?.equity ?? 0).toFixed(1)}`,
+          ...points.slice(peak, trough + 1).map((_, i) => `${i === 0 ? 'M' : 'L'}${x(peak + 1 + i).toFixed(1)},${yAt(peak + i).toFixed(1)}`),
+          `L${x(trough + 1).toFixed(1)},${yAt(peak).toFixed(1)}`,
           'Z',
         ].join(' ')
       : '';
-  const last = points[points.length - 1];
-  const ticks = [0, Math.floor((points.length - 1) / 2), points.length - 1].filter((v, i, all) => all.indexOf(v) === i);
+  const last = values[values.length - 1] ?? 0;
+  const steps = axisSteps(Math.min(...values), Math.max(...values));
+  const step = steps.length > 1 ? (steps[1] ?? 0) - (steps[0] ?? 0) : 1;
+  const dateAt = (i: number) => (i === 0 ? dates[0] : dates[i - 1]) ?? '';
+  const dateTicks = [0, Math.floor((values.length - 1) / 2), values.length - 1].filter((v, i, all) => all.indexOf(v) === i);
   return (
-    <svg className={s.equity} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={tr('Courbe d’équité', 'Equity curve', 'Curva de equidad')}>
+    <svg className={s.equity} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={tr(`P&L cumulé ${pnlLabel(last)}`, `Cumulative P&L ${pnlLabel(last)}`, `P&L acumulado ${pnlLabel(last)}`)}>
       <defs>
         <pattern id={pid} patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="6" stroke="var(--neg)" strokeWidth="2" />
         </pattern>
       </defs>
+      {steps.map((value) => {
+        const yy = y(value);
+        const labeled = value === 0 || (step > 0 && Math.abs(value / (step * 2) - Math.round(value / (step * 2))) < 1e-6);
+        return (
+          <g key={value}>
+            <line x1={pad.l} x2={w - pad.r} y1={yy} y2={yy} stroke={value === 0 ? 'var(--line-2)' : 'var(--line-1)'} strokeDasharray={value === 0 ? undefined : '1 3'} />
+            {labeled ? (
+              <text className={s.eqAxis} x={pad.l - 6} y={yy + 3} textAnchor="end">
+                {axisText(value)}
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
       {hatch ? <path d={hatch} fill={`url(#${pid})`} /> : null}
       <path d={line} fill="none" stroke="var(--text-0)" strokeWidth="1.6" />
-      {last ? (
-        <text className={s.eqLabel} x={x(points.length - 1)} y={Math.max(12, y(last.equity) - 8)} textAnchor="end">
-          {fmtInt(last.equity)}
-        </text>
-      ) : null}
+      <text className={s.eqLabel} x={x(values.length - 1) - 8} y={Math.max(12, y(last) - 8)} textAnchor="end" fill="var(--text-0)">
+        {pnlLabel(last)}
+      </text>
       {dd > 0 ? (
-        <text className={s.eqLabel} x={x(trough)} y={Math.min(h - 24, y(points[trough]?.equity ?? 0) + 14)} fill="var(--neg)">
+        <text className={s.eqLabel} x={x(trough + 1)} y={Math.min(h - pad.b - 4, yAt(trough) + 14)} fill="var(--neg)">
           −{fmtInt(dd)}
         </text>
       ) : null}
-      {ticks.map((i) => {
-        const t = points[i]?.t;
-        if (!t) return null;
-        return (
-          <text key={i} className={s.eqAxis} x={x(i)} y={h - 4} textAnchor={i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'}>
-            {shortDay(dates[i] ?? '')}
-          </text>
-        );
-      })}
+      {dateTicks.map((i) => (
+        <text key={i} className={s.eqAxis} x={x(i)} y={h - 6} textAnchor={i === 0 ? 'start' : i === values.length - 1 ? 'end' : 'middle'}>
+          {shortDay(dateAt(i))}
+        </text>
+      ))}
     </svg>
   );
 }
@@ -116,7 +168,7 @@ export function Dashboard({
   const metricAccount = useUi((st) => st.metricAccount);
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
   const daily = useMemo(() => computeDailyStats(sessions, startingBalance), [sessions, startingBalance]);
-  const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount, sessions, trades });
+  const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount });
   const breakeven = breakevenWinRate(stats.payoffRatio);
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
   const last = ordered.slice(-5).reverse();
@@ -322,7 +374,7 @@ export function Dashboard({
           </span>
           <span className={s.hint}>{tr('ÉQUITÉ', 'EQUITY', 'EQUIDAD')} · {tr('DRAWDOWN', 'DRAWDOWN', 'DRAWDOWN')}</span>
         </div>
-        <EquityCurve points={daily.equity} dates={[...new Set(ordered.map((row) => row.date))].sort()} />
+        <EquityCurve points={daily.equity} dates={[...new Set(ordered.map((row) => row.date))].sort()} baseline={startingBalance} />
       </section>
 
       <section className={`${s.card} ${s.pad} ${s.span4}`}>

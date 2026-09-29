@@ -182,6 +182,14 @@ export default function Metrique() {
           </>
         }
       />
+      <div className={d.subtabs} role="tablist">
+        {views.map((item) => (
+          <button key={item.value} type="button" role="tab" aria-selected={view === item.value} className={`${d.subtab} ${view === item.value ? d.on : ''}`} onClick={() => startTransition(() => setView(item.value))}>
+            <i>{item.letter}</i>
+            {item.label}
+          </button>
+        ))}
+      </div>
       <ModuleContent>
         <div className={d.tools}>
           <Button variant="ghost" onClick={() => setModal('pont')}>
@@ -210,14 +218,6 @@ export default function Metrique() {
               {tr('Charger un jeu de démonstration', 'Load a demo dataset', 'Cargar un juego de demostración')}
             </Button>
           )}
-        </div>
-        <div className={d.subtabs} role="tablist">
-          {views.map((item) => (
-            <button key={item.value} type="button" role="tab" aria-selected={view === item.value} className={`${d.subtab} ${view === item.value ? d.on : ''}`} onClick={() => startTransition(() => setView(item.value))}>
-              <i>{item.letter}</i>
-              {item.label}
-            </button>
-          ))}
         </div>
         {view === 'bord' && (
           <Dashboard
