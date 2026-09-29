@@ -4,6 +4,11 @@ import { describe, expect, it } from 'vitest';
 
 const TEXT = new Set(['.ts', '.tsx', '.css', '.html', '.js', '.mjs', '.cjs', '.svg']);
 
+/** `path.relative` rend des `\` sous Windows ; les gardes comparent des chemins POSIX. */
+function posix(from: string, to: string): string {
+  return relative(from, to).split(/[/\\]/).join('/');
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (name === 'node_modules' || name === 'dist' || name === 'dist-electron') continue;
@@ -64,7 +69,7 @@ describe('garde du système visuel', () => {
     const color = /color\s*:\s*var\(\s*--(?:ghost|line-3)\s*\)/g;
     const offenders: string[] = [];
     for (const path of walk('src')) {
-      const rel = relative('src', path);
+      const rel = posix('src', path);
       if (rel === 'app/shell.module.css') continue;
       const text = readFileSync(path, 'utf8');
       if (color.test(text)) offenders.push(rel);
