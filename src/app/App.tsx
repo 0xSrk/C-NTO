@@ -24,7 +24,6 @@ const Calendrier = lazy(() => import('@/modules/calendrier/Calendrier'));
 const Note = lazy(() => import('@/modules/note/Note'));
 const Agent = lazy(() => import('@/modules/agent/Agent'));
 const Bot = lazy(() => import('@/modules/bot/Bot'));
-const Copieur = lazy(() => import('@/modules/copieur/Copieur'));
 const Portefeuille = lazy(() => import('@/modules/portefeuille/Portefeuille'));
 
 function initialSteps(): BootStep[] {
@@ -158,8 +157,8 @@ export function App() {
               {tab === 'note' && <Note />}
               {tab === 'agent' && <Agent />}
               {tab === 'bot' && <Bot />}
-              {tab === 'copieur' && <Copieur />}
-              {tab === 'portefeuille' && <Portefeuille />}
+              {(tab === 'portefeuille') && <Portefeuille />}
+              {tab === 'copieur' && <Metrique />}
             </Suspense>
           </ErrorBoundary>
         </Shell>

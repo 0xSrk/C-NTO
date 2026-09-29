@@ -192,7 +192,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
         {report && (
           <div style={{ border: '1px solid var(--line-1)', padding: 12, borderRadius: 0 }}>
             {report.map((l, i) => (
-              <div key={i} className="mono" style={{ fontSize: 11, color: i < 3 ? 'var(--text-1)' : 'var(--amber)' }}>
+              <div key={i} className="mono" style={{ fontSize: 11, color: i < 3 ? 'var(--text-1)' : 'var(--text-2)' }}>
                 {l}
               </div>
             ))}

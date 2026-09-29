@@ -137,6 +137,39 @@ export function zonedWallClock(ms: number, timeZone: string): { hour: number; we
   return { hour: p.hour, weekday };
 }
 
+export type GlobexState = 'FERMÉ' | 'RTH' | 'ETH' | 'FERMÉ · FÉRIÉ';
+
+/** Date civile `YYYY-MM-DD` en heure de New York. */
+export function etDateKey(ms: number): string {
+  const p = zonedParts(ms, ET_ZONE);
+  return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
+}
+
+const RTH_OPEN = 9 * 60 + 30;
+const RTH_CLOSE = 16 * 60;
+const HALT = 17 * 60;
+const REOPEN = 18 * 60;
+
+/**
+ * État CME Globex à l'instant `ms`, en heure de New York.
+ * Fermé du vendredi 17:00 au dimanche 18:00, et pendant la pause 17:00–18:00.
+ * RTH de 09:30 à 16:00 les jours ouvrés. ETH sinon.
+ * `holiday` : fermé férié jusqu'à 18:00 ET seulement, puis les règles ordinaires.
+ * `earlyCloseMinute` : demi-séance. FERMÉ de cette minute jusqu'à 18:00 ET, puis les règles ordinaires.
+ */
+export function globexState(ms: number, holiday = false, earlyCloseMinute: number | null = null): GlobexState {
+  const p = zonedParts(ms, ET_ZONE);
+  const dow = new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay();
+  const t = p.hour * 60 + p.minute;
+  if (holiday && t < REOPEN) return 'FERMÉ · FÉRIÉ';
+  if (dow === 6 || (dow === 0 && t < REOPEN) || (dow === 5 && t >= HALT)) return 'FERMÉ';
+  if (t >= HALT && t < REOPEN) return 'FERMÉ';
+  const early = earlyCloseMinute != null && earlyCloseMinute > RTH_OPEN && earlyCloseMinute < RTH_CLOSE ? earlyCloseMinute : null;
+  if (early != null && t >= early && t < REOPEN) return 'FERMÉ';
+  if (t >= RTH_OPEN && t < RTH_CLOSE) return 'RTH';
+  return 'ETH';
+}
+
 export function formatTimeLocal(ms: number, withSeconds = false): string {
   const d = new Date(ms);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}${withSeconds ? `:${pad2(d.getSeconds())}` : ''}`;

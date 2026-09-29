@@ -226,11 +226,10 @@
   background: var(--text-0);
 }
 .line.warn .lineStatus {
-  color: var(--amber);
+  color: var(--ember);
 }
 .line.warn .lineMark {
-  background: var(--amber);
-  box-shadow: 0 0 6px rgba(216, 180, 90, 0.5);
+  background: var(--ember);
 }
 .line.off .lineStatus {
   color: var(--text-3);

@@ -198,6 +198,34 @@
           "CΛNTO pasa a ser open source (licencia MIT)."
         ]
       }
+    },
+    {
+      "version": "3.2.0",
+      "date": "2026-09-29",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Nouvelle identité visuelle : matières plus claires, chiffres et légendes plus lisibles.",
+          "Métrique et Portefeuille redessinés : un chiffre principal par écran, jauges graduées avec leur seuil.",
+          "Montants plus nets : signe, milliers et décimales bien séparés, chiffres alignés en colonne.",
+          "Barre d'état : pont, marché CME et heure de New York d'un coup d'œil.",
+          "Portefeuille passe en 05 (Ctrl+5) ; le Copieur quitte le menu en attendant la réplication."
+        ],
+        "en": [
+          "New visual identity: lighter materials, easier-to-read figures and labels.",
+          "Metrics and Portfolio redesigned: one headline figure per screen, graduated gauges with their threshold.",
+          "Clearer amounts: sign, thousands and decimals set apart, figures aligned in columns.",
+          "Status bar: bridge, CME market and New York time at a glance.",
+          "Portfolio moves to 05 (Ctrl+5); the Copier leaves the menu until replication ships."
+        ],
+        "es": [
+          "Nueva identidad visual: materiales más claros, cifras y leyendas más legibles.",
+          "Métrica y Cartera rediseñadas: una cifra principal por pantalla, indicadores graduados con su umbral.",
+          "Importes más nítidos: signo, miles y decimales bien separados, cifras alineadas en columna.",
+          "Barra de estado: puente, mercado CME y hora de Nueva York de un vistazo.",
+          "Cartera pasa al 05 (Ctrl+5); el Copiador sale del menú hasta que llegue la réplica."
+        ]
+      }
     }
   ]
 }

@@ -101,7 +101,7 @@ export function PropFirmView() {
   const timelineSeries = useMemo(() => {
     if (!planEval || !plan) return [];
     return [
-      { id: 'balance', label: tr('Solde', 'Balance', 'Saldo'), color: 'var(--ice)', area: true, points: planEval.timeline.map((p) => ({ x: new Date(`${p.date}T12:00:00`).getTime(), y: p.balance, label: formatDateFr(p.date, { short: true }) })) },
+      { id: 'balance', label: tr('Solde', 'Balance', 'Saldo'), color: 'var(--text-0)', area: true, points: planEval.timeline.map((p) => ({ x: new Date(`${p.date}T12:00:00`).getTime(), y: p.balance, label: formatDateFr(p.date, { short: true }) })) },
       { id: 'floor', label: tr('Plancher', 'Floor', 'Suelo'), color: 'var(--ember)', dashed: true, points: planEval.timeline.map((p) => ({ x: new Date(`${p.date}T12:00:00`).getTime(), y: p.floor, label: formatDateFr(p.date, { short: true }) })) },
       { id: 'target', label: tr('Objectif', 'Target', 'Objetivo'), color: 'var(--gold)', dashed: true, points: planEval.timeline.map((p) => ({ x: new Date(`${p.date}T12:00:00`).getTime(), y: plan.accountSize + plan.profitTarget, label: formatDateFr(p.date, { short: true }) })) },
     ];

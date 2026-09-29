@@ -1,0 +1,340 @@
+.grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: minmax(206px, auto) minmax(258px, auto) auto;
+  gap: 16px;
+}
+
+.plusL {
+  left: -13px;
+  top: -11px;
+}
+.plusR {
+  right: -13px;
+  top: -11px;
+}
+
+.span7 { grid-column: span 7; }
+.span5 { grid-column: span 5; }
+.span8 { grid-column: span 8; }
+.span4 { grid-column: span 4; }
+.span12 { grid-column: span 12; }
+
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  box-shadow: rgba(255, 255, 255, 0.043) 0 1px 0 inset;
+  border-radius: 2px;
+  min-width: 0;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.tile {
+  min-width: 0;
+  padding: 13px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  border-right: 1px solid var(--line-1);
+  border-bottom: 1px solid var(--line-1);
+}
+.tile:nth-child(2n) { border-right: none; }
+.tile:nth-child(n + 3) { border-bottom: none; }
+
+.kHead,
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.cardHead {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-1);
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.kName {
+  font-size: 13px;
+  color: var(--text-1);
+}
+.kValue {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  font-stretch: 112%;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.kValue.pos { color: var(--pos); }
+.kValue.neg { color: var(--neg); }
+.hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.plateBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 168px;
+}
+.plateTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148px;
+  gap: 18px;
+  align-items: end;
+}
+.plateLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.foot {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-2);
+}
+.foot b {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  font-stretch: 112%;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+.foot .pos { color: var(--pos); }
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 56px;
+}
+.bars i {
+  flex: 1;
+  min-width: 2px;
+  max-width: 6px;
+  display: block;
+}
+.bars i.pos { background: var(--pos); }
+.bars i.neg { background: var(--neg); }
+.legend {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.split,
+.hatch {
+  height: 8px;
+  background: var(--bg-3);
+  position: relative;
+}
+.split {
+  display: flex;
+}
+.split i:first-child { background: var(--pos); }
+.split i:last-child { background: var(--neg); }
+.hatch i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--hatch-neg);
+}
+.pair {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pad {
+  padding: 14px 22px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.equity {
+  width: 100%;
+  height: 200px;
+  display: block;
+  overflow: visible;
+}
+.eqLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-1);
+}
+.eqAxis {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-2);
+  letter-spacing: 0.08em;
+}
+
+.inst {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  align-items: baseline;
+}
+.root {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 125%;
+  font-size: 18px;
+  letter-spacing: -0.015em;
+}
+.share {
+  height: 3px;
+  grid-column: 1 / -1;
+  background: var(--bg-4);
+  margin: 4px 0 8px;
+}
+.share i {
+  display: block;
+  height: 100%;
+  background: var(--text-1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  font-weight: 500;
+  padding: 8px 12px;
+}
+.table td {
+  padding: 8px 12px;
+  border-top: 1px solid var(--line-1);
+  font-size: 13px;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-0);
+  font-weight: 600;
+}
+.day span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.squares {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.sq {
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--line-2);
+  box-sizing: border-box;
+}
+.sq.on { background: var(--text-0); border-color: var(--text-0); }
+.sq.win { background: var(--pos); border-color: var(--pos); }
+.sq.loss { background: var(--neg); border-color: var(--neg); }
+
+.more {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-1);
+  background: none;
+  cursor: pointer;
+}
+.more:hover { color: var(--text-0); }
+
+.subtabs {
+  display: flex;
+  gap: 28px;
+  flex-shrink: 0;
+  margin: 0 40px;
+  border-bottom: 1px solid var(--line-1);
+}
+.subtab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 0 10px;
+  background: none;
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid transparent;
+  margin-bottom: -1px;
+}
+.subtab i {
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.subtab.on {
+  color: var(--text-0);
+  border-bottom-color: var(--text-0);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.account {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  color: var(--text-0);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .span7,
+  .span5,
+  .span8,
+  .span4,
+  .span12 { grid-column: 1 / -1; }
+  .plateTop { grid-template-columns: 1fr; }
+}

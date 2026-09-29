@@ -1,7 +1,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import { tr } from '@/i18n';
 import type { TabId } from '@/store/ui';
-import { IconAgent, IconBot, IconCalendar, IconCopier, IconMetric, IconNote, IconPortfolio, IconVisual } from './icons';
+import { IconAgent, IconBot, IconCalendar, IconMetric, IconNote, IconPortfolio, IconVisual } from './icons';
 
 export interface TabDef {
   id: TabId;
@@ -13,15 +13,20 @@ export interface TabDef {
 }
 
 export const TABS: TabDef[] = [
-  { id: 'metrique', index: '01', label: 'Métrique', code: 'MET', tagline: 'Journal ultime · moteur quantitatif', icon: IconMetric },
+  { id: 'metrique', index: '01', label: 'Métrique', code: 'MET', tagline: 'Journal quantitatif', icon: IconMetric },
   { id: 'visual', index: '02', label: 'Visual', code: 'VIS', tagline: 'Graphique avancé · indicateurs', icon: IconVisual },
   { id: 'calendrier', index: '03', label: 'Calendrier', code: 'CAL', tagline: 'Sources officielles · repères', icon: IconCalendar },
   { id: 'note', index: '04', label: 'Note', code: 'NTE', tagline: 'Coffre de notes · liens', icon: IconNote },
-  { id: 'agent', index: '05', label: 'Agent IA', code: 'AGT', tagline: 'Passerelle native · orchestrateur', icon: IconAgent },
-  { id: 'bot', index: '06', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates · CONCEPTION', icon: IconBot },
-  { id: 'copieur', index: '07', label: 'Copieur', code: 'CPY', tagline: 'Réplication de comptes · CONCEPTION', icon: IconCopier },
-  { id: 'portefeuille', index: '08', label: 'Portefeuille', code: 'PTF', tagline: 'Synthèse · cœur · projection', icon: IconPortfolio },
+  { id: 'portefeuille', index: '05', label: 'Portefeuille', code: 'PTF', tagline: 'Synthèse · cœur · projection', icon: IconPortfolio },
+  { id: 'agent', index: '06', label: 'Agent IA', code: 'AGT', tagline: 'Passerelle native · orchestrateur', icon: IconAgent },
+  { id: 'bot', index: '07', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates · CONCEPTION', icon: IconBot },
 ];
+
+const CONCEPTION = new Set<TabId>(['agent', 'bot']);
+
+export function isConception(id: TabId): boolean {
+  return CONCEPTION.has(id);
+}
 
 const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
   metrique: { label: 'Metrics', tagline: 'Ultimate journal · quantitative engine' },

@@ -12,6 +12,9 @@ export const TRADITIONAL_KINDS = ['actions', 'indices', 'forex', 'commodites', '
 /** Instantané du pont encore utilisable pour l'équité et l'exposition. */
 export const BRIDGE_MAX_AGE_MS = 60_000;
 
+/** Seuil d'affichage du levier brut (jauge). Aucun effet sur un calcul. */
+export const LEVERAGE_WARN = 4;
+
 export const CRYPTO_POCKET_ERROR = 'Poche crypto refusée : la crypto est hors périmètre de CΛNTO.';
 
 export interface Pocket {

@@ -85,10 +85,6 @@ export function Modal({
   return createPortal(
     <div className={s.backdrop} onMouseDown={(e) => e.target === e.currentTarget && dismissable && onClose()}>
       <div ref={panel} className={s.modal} style={{ width }} role="dialog" aria-modal aria-labelledby={titleId}>
-        <i className={`${s.corner} ${s.tl}`} />
-        <i className={`${s.corner} ${s.tr}`} />
-        <i className={`${s.corner} ${s.bl}`} />
-        <i className={`${s.corner} ${s.br}`} />
         <header className={s.head}>
           <div>
             <h2 id={titleId}>{title}</h2>

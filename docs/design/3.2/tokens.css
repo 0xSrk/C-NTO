@@ -1,0 +1,43 @@
+/* CΛNTO · Système 3.4 — jetons relevés sur les planches Claude Design (« CANTO Planches v2 »).
+   Valeurs exactes des planches. Aucune interprétation : c'est le référentiel de reconstitution. */
+:root {
+  /* 01 · Matières — 10 neutres, approche froide */
+  --carbone:  #0A0B0D;  /* châssis : barre de titre, rail, barre d'état */
+  --sol:      #0F1013;  /* fond de travail */
+  --plaque:   #16171B;  /* panneaux */
+  --usine:    #1E2025;  /* actif, champs */
+  --trait:    #24262B;  /* filets */
+  --arete:    #33363D;  /* contours, axes */
+  --fantome:  #4A4E55;  /* repères + et règles pointillées */
+  --graphite: #80858E;  /* légendes */
+  --acier:    #A3A7AF;  /* secondaire */
+  --encre:    #EDEBE4;  /* texte */
+
+  /* 02 · Signaux — jamais décoratifs */
+  --gain:  #74C69D;
+  --perte: #E0735F;
+  --led:   #E5263D;     /* vivant, alerte (réglage des planches ; ancienne teinte #C41E3A) */
+  --lab:   #ED5D0B;     /* point et languette du Lab uniquement */
+
+  /* 04 · Caractères — trois familles, rôles fixes */
+  --f-titre:   'Archivo', system-ui, sans-serif;           /* L125 · 700 · 44–104 px */
+  --f-ui:      'Archivo', system-ui, sans-serif;           /* L100 · 400–600 · 12–28 px */
+  --f-mono:    'JetBrains Mono', ui-monospace, monospace;  /* 400–700 · 9–13 px · repères, légendes */
+  --f-lecteur: 'Doto', 'JetBrains Mono', monospace;        /* 800 · lecteur unique par écran */
+
+  /* Lecteur (réglage « Phosphore » des planches ; réglage « Direction » = #74C69D / rgba(116,198,157,.30)) */
+  --lecteur:       #EDEBE4;
+  --lecteur-lueur: rgba(237, 235, 228, 0.26);
+
+  /* 03 · Textures */
+  --t-balayage: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+  --t-hachure:  repeating-linear-gradient(45deg, var(--perte) 0 2px, transparent 2px 6px);
+  --t-regle:    radial-gradient(circle, var(--fantome) 0.8px, transparent 1.1px) 0 50% / 5px 3px repeat-x;
+  --t-graduation: repeating-linear-gradient(90deg, var(--arete) 0 1px, transparent 1px 10px);
+
+  /* 06 · Détails */
+  --chanfrein: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+
+  /* Châssis mesuré sur les planches */
+  --h-titre: 44px;  --w-rail: 220px;  --h-etat: 28px;
+}
