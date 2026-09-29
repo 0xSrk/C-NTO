@@ -179,8 +179,8 @@ export function Sigil({ size = 11, className, style, engraved, lab = true }: { s
 
 export const tableClass = s.table;
 
-export function Montant({ value, decimals = 2, discrete, className }: { value: number; decimals?: number; discrete?: boolean; className?: string }) {
-  const parts = montantParts(value, decimals);
+export function Montant({ value, decimals = 2, discrete, sign = true, className }: { value: number; decimals?: number; discrete?: boolean; sign?: boolean; className?: string }) {
+  const parts = montantParts(value, decimals, { sign });
   const label = montantAria(parts);
   if (discrete) return <span className={cx(s.montant, s.masked, className)} aria-label={label}>•••••</span>;
   return (
@@ -197,8 +197,8 @@ export function Montant({ value, decimals = 2, discrete, className }: { value: n
 }
 
 /** Lecteur Doto — un seul par écran, posé sur une plaque vissée. */
-export function Lecteur({ value, decimals = 2, discrete }: { value: number; decimals?: number; discrete?: boolean }) {
-  const parts = montantParts(value, decimals);
+export function Lecteur({ value, decimals = 2, discrete, sign = true }: { value: number; decimals?: number; discrete?: boolean; sign?: boolean }) {
+  const parts = montantParts(value, decimals, { sign });
   const label = montantAria(parts);
   if (discrete) {
     return (

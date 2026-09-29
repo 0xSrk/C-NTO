@@ -164,7 +164,7 @@ export function Synthese({
               {tr('AU', 'AS OF', 'AL')} {stamp}
             </span>
           </div>
-          <Lecteur value={coeur.netValue} discrete={discrete} />
+          <Lecteur value={coeur.netValue} discrete={discrete} sign={false} />
           <div className={s.dayRow}>
             <span className={s.hint}>{tr('AUJOURD’HUI', 'TODAY', 'HOY')}</span>
             <Montant value={dayFlat ? 0 : dayPnl} discrete={discrete} className={dayFlat ? undefined : dayPnl < 0 ? s.neg : s.pos} />
@@ -336,7 +336,7 @@ export function Synthese({
                     <span className={s.hint}>{pocket.account || pocket.venue || pocket.currency}</span>
                   </td>
                   <td>{kindLabel(pocket.kind)}</td>
-                  <td>{row.equityBase == null ? '—' : <Montant value={row.equityBase} discrete={discrete} />}</td>
+                  <td>{row.equityBase == null ? '—' : <Montant value={row.equityBase} discrete={discrete} sign={false} />}</td>
                   <td>{converted?.ok ? <Montant value={converted.value} discrete={discrete} /> : '—'}</td>
                   <td className={s.hint}>
                     {row.prop && plan ? (

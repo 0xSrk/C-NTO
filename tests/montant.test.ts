@@ -18,6 +18,12 @@ describe('montantParts', () => {
     expect(montantParts(1234567.891, 2)).toEqual({ sign: '+', groups: ['1', '234', '567'], decimals: '89' });
   });
 
+  it('valeur de stock sans signe +/−', () => {
+    expect(montantParts(51842, 2, { sign: false })).toEqual({ sign: '', groups: ['51', '842'], decimals: '00' });
+    expect(montantParts(-12.5, 2, { sign: false })).toEqual({ sign: '', groups: ['12'], decimals: '50' });
+    expect(montantAria(montantParts(4812.5, 2, { sign: false }))).toBe('4\u202f812,50');
+  });
+
   it('aria-label contient U+202F', () => {
     const label = montantAria(montantParts(4812.5, 2));
     expect(label).toContain('\u202f');

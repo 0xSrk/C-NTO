@@ -155,7 +155,7 @@ const REOPEN = 18 * 60;
  * Fermé du vendredi 17:00 au dimanche 18:00, et pendant la pause 17:00–18:00.
  * RTH de 09:30 à 16:00 les jours ouvrés. ETH sinon.
  * `holiday` : fermé férié jusqu'à 18:00 ET seulement, puis les règles ordinaires.
- * `earlyCloseMinute` : clôture anticipée (demi-séance). Après cette minute, plus de RTH.
+ * `earlyCloseMinute` : demi-séance. FERMÉ de cette minute jusqu'à 18:00 ET, puis les règles ordinaires.
  */
 export function globexState(ms: number, holiday = false, earlyCloseMinute: number | null = null): GlobexState {
   const p = zonedParts(ms, ET_ZONE);
@@ -164,8 +164,9 @@ export function globexState(ms: number, holiday = false, earlyCloseMinute: numbe
   if (holiday && t < REOPEN) return 'FERMÉ · FÉRIÉ';
   if (dow === 6 || (dow === 0 && t < REOPEN) || (dow === 5 && t >= HALT)) return 'FERMÉ';
   if (t >= HALT && t < REOPEN) return 'FERMÉ';
-  const early = earlyCloseMinute != null && earlyCloseMinute > RTH_OPEN && earlyCloseMinute < RTH_CLOSE ? earlyCloseMinute : RTH_CLOSE;
-  if (t >= RTH_OPEN && t < early) return 'RTH';
+  const early = earlyCloseMinute != null && earlyCloseMinute > RTH_OPEN && earlyCloseMinute < RTH_CLOSE ? earlyCloseMinute : null;
+  if (early != null && t >= early && t < REOPEN) return 'FERMÉ';
+  if (t >= RTH_OPEN && t < RTH_CLOSE) return 'RTH';
   return 'ETH';
 }
 

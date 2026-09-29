@@ -53,7 +53,7 @@ Les polices sont embarquées (`@fontsource-variable`). Aucun appel à Google Fon
 
 ## 05. Chiffres
 
-`montantParts` sépare le signe (moins U+2212), les groupes de trois (marge `0.22em`, pas U+202F, absent des trois polices) et les décimales à 60 % en Graphite. Zéro arrondi sans signe. `aria-label` conserve U+202F et U+2212. Chiffres tabulaires partout.
+`montantParts` sépare le signe (moins U+2212), les groupes de trois (marge `0.22em`, pas U+202F, absent des trois polices) et les décimales à 60 % en Graphite. Zéro arrondi sans signe. Une valeur de stock passe `sign: false` : ni plus ni moins. Le signe reste réservé aux P&L, aux variations et aux écarts. `aria-label` conserve U+202F et U+2212. Chiffres tabulaires partout.
 
 ## 06. Détails
 
