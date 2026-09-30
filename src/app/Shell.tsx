@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Barcode, Button, Led, cx } from '@/design/primitives';
+import { PlaqueSignature } from '@/design/PlaqueSignature';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
@@ -31,26 +32,6 @@ function globexLabel(state: GlobexState): string {
   if (state === 'FERMÉ') return tr('FERMÉ', 'CLOSED', 'CERRADO');
   if (state === 'FERMÉ · FÉRIÉ') return tr('FERMÉ · FÉRIÉ', 'CLOSED · HOLIDAY', 'CERRADO · FESTIVO');
   return state;
-}
-
-function DotGrid() {
-  const cells = [];
-  for (let row = 0; row < 5; row++) {
-    for (let col = 0; col < 9; col++) {
-      const dx = (col - 4) / 4.2;
-      const dy = (row - 4) / 3.2;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const opacity = Math.max(0, Math.min(1, 1.05 - dist));
-      cells.push(opacity < 0.2 ? 0 : opacity);
-    }
-  }
-  return (
-    <span className={s.dotGrid} aria-hidden>
-      {cells.map((opacity, index) => (
-        <i key={index} style={{ '--o': opacity, '--d': `${opacity === 0 ? 0 : 1 + opacity * 1.8}px` } as CSSProperties} />
-      ))}
-    </span>
-  );
 }
 
 export function Shell({ children, revealed = true }: { children: ReactNode; revealed?: boolean }) {
@@ -206,25 +187,7 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
             </div>
             <ZoomControls />
           </div>
-          <div className={s.lab}>
-            <div className={s.labRow}>
-              <DotGrid />
-              <div>
-                <span className={s.labName}>
-                  SIΞRRΛSKΛ<sup>®</sup>
-                </span>
-                <span className={s.labSub}>
-                  <i className={s.labDot} />
-                  DEEP TECH LAB
-                </span>
-              </div>
-            </div>
-            <div className={s.artefact}>
-              <span>ARTEFACT</span>
-              <i />
-              <b>002 / 001 OS</b>
-            </div>
-          </div>
+          <PlaqueSignature className={s.signature} />
         </div>
       </aside>
 

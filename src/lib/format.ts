@@ -101,7 +101,7 @@ export interface MontantParts {
  * Anatomie d'un montant. Les groupes de trois sont séparés au rendu par une marge,
  * jamais par U+202F (absent d'Archivo, de Doto et de JetBrains Mono).
  * Zéro arrondi, y compris −0,004, sans signe. Signe moins : U+2212.
- * `sign: false` : valeur de stock (niveau), jamais de +/−. Les P&L gardent le signe.
+ * `sign: false` : une valeur n'a pas de plus ; un négatif garde son moins.
  */
 export function montantParts(v: number, decimals: number, opts?: { sign?: boolean }): MontantParts {
   const places = Math.max(0, decimals);
@@ -117,7 +117,7 @@ export function montantParts(v: number, decimals: number, opts?: { sign?: boolea
   const groups: string[] = [];
   for (let i = intStr.length; i > 0; i -= 3) groups.unshift(intStr.slice(Math.max(0, i - 3), i));
   return {
-    sign: signed ? (v < 0 ? '−' : '+') : '',
+    sign: v < 0 ? '−' : signed ? '+' : '',
     groups,
     decimals: String(frac).padStart(places, '0'),
   };

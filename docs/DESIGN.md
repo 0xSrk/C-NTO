@@ -53,7 +53,7 @@ Les polices sont embarquées (`@fontsource-variable`). Aucun appel à Google Fon
 
 ## 05. Chiffres
 
-`montantParts` sépare le signe (moins U+2212), les groupes de trois (marge `0.22em`, pas U+202F, absent des trois polices) et les décimales à 60 % en Graphite. Zéro arrondi sans signe. Une valeur de stock passe `sign: false` : ni plus ni moins. Le signe reste réservé aux P&L, aux variations et aux écarts. `aria-label` conserve U+202F et U+2212. Chiffres tabulaires partout.
+`montantParts` sépare le signe (moins U+2212), les groupes de trois (marge `0.22em`, pas U+202F, absent des trois polices) et les décimales à 60 % en Graphite. Zéro arrondi sans signe. Une valeur n’a pas de plus ; un négatif garde son moins. Le signe plus reste réservé aux P&L, aux variations et aux écarts. `aria-label` conserve U+202F et U+2212. Chiffres tabulaires partout.
 
 ## 06. Détails
 
@@ -61,7 +61,7 @@ Châssis : titre 44, rail 220, état 28, zone de travail `24px 40px 22px`, inter
 
 ## 07. Signature
 
-`SIΞRRΛSKΛ`, point `--lab`, `DEEP TECH LAB`, règle `ARTEFACT ······ 002 / 001 OS`. Horloge `HH:MM:SS ET`. La barre d’état affiche `v{APP_VERSION}` : « 3.4 » est la révision de ce système, pas le numéro de l’application.
+Bas du rail : plaque signature au format des plaques du desk (angles vifs, filet d’un pixel, éclat en haut, ombre en bas), sans vis ni languette. Celles-ci restent réservées au lecteur principal (D.01). Laque noire, gravure `SIΞRRΛSKΛ` en or, `ARTEFACT` en ivoire, numéro en or, repères de calage aux coins, micro-texte sur l’arête basse. Les ors (`--or-*`) restent locaux à la plaque. Horloge `HH:MM:SS ET`. La barre d’état affiche `v{APP_VERSION}` : « 3.4 » est la révision de ce système, pas le numéro de l’application. Le point orange et `ART-002` de la barre d’état ne changent pas.
 
 ## Règles de cette révision
 
