@@ -101,7 +101,15 @@ jobs:
       - name: SHA-256
         run: |
           cd publish
-          find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum | tee SHA256SUMS.txt
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > ../SHA256SUMS.tmp && mv ../SHA256SUMS.tmp SHA256SUMS.txt
+      - name: Vérifier les sommes
+        run: |
+          cd publish
+          sha256sum -c SHA256SUMS.txt
+          if grep -q 'SHA256SUMS.txt' SHA256SUMS.txt; then
+            echo "::error::SHA256SUMS.txt se liste lui-même."
+            exit 1
+          fi
       - name: Publier la Release
         env:
           GH_TOKEN: ${{ github.token }}

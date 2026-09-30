@@ -226,6 +226,28 @@
           "Cartera pasa al 05 (Ctrl+5); el Copiador sale del menú hasta que llegue la réplica."
         ]
       }
+    },
+    {
+      "version": "3.2.1",
+      "date": "2026-09-30",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Nouvelle plaque signature du Lab en bas du menu : gravure fine noir, ivoire et or, SIΞRRΛSKΛ · Artefact 002.",
+          "Une valeur négative garde désormais son signe moins.",
+          "Fichier de sommes de contrôle corrigé : la vérification des installeurs passe sans erreur."
+        ],
+        "en": [
+          "New Lab signature plate at the bottom of the menu: fine black, ivory and gold engraving, SIΞRRΛSKΛ · Artefact 002.",
+          "A negative value now keeps its minus sign.",
+          "Checksum file fixed: verifying the installers now passes cleanly."
+        ],
+        "es": [
+          "Nueva placa firma del Lab al pie del menú: grabado fino en negro, marfil y oro, SIΞRRΛSKΛ · Artefact 002.",
+          "Un valor negativo conserva ahora su signo menos.",
+          "Archivo de sumas de control corregido: la verificación de los instaladores pasa sin errores."
+        ]
+      }
     }
   ]
 }

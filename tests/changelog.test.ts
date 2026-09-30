@@ -43,13 +43,16 @@ describe('journal des versions', () => {
     expect(versions).toEqual(sorted);
   });
 
-  it('entriesSince(2.2.1) renvoie 3.0.0, 3.1.0 puis 3.2.0', () => {
-    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0']);
-    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0']);
+  it('entriesSince(2.2.1) renvoie 3.0.0, 3.1.0, 3.2.0 puis 3.2.1', () => {
+    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1']);
+    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1']);
     expect(entryFor('3.1.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.date).toBe('2026-09-29');
     expect(entryFor('3.2.0')?.highlights.fr).toHaveLength(5);
+    expect(entryFor('3.2.1')?.kind).toBe('correctif');
+    expect(entryFor('3.2.1')?.date).toBe('2026-09-30');
+    expect(entryFor('3.2.1')?.highlights.fr).toHaveLength(3);
     expect(entryFor('3.0.1')).toBeNull();
   });
 

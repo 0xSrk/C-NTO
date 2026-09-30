@@ -337,62 +337,8 @@
   color: var(--text-0);
 }
 
-.lab {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 2px 0;
-  border-top: 1px solid var(--line-0);
-}
-.labRow {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-}
-.dotGrid {
-  display: grid;
-  grid-template-columns: repeat(9, 3px);
-  gap: 1.5px;
-  width: 39px;
-}
-.dotGrid i {
-  width: 3px;
-  height: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.dotGrid i::before {
-  content: '';
-  width: var(--d, 1px);
-  height: var(--d, 1px);
-  border-radius: 50%;
-  background: var(--text-0);
-  opacity: var(--o, 0);
-}
-.labName {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1;
-  color: var(--text-0);
-}
-.labName sup {
-  font-size: 7px;
-  font-weight: 400;
-  color: var(--text-2);
-  margin-left: 2px;
-}
-.labSub {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 5px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  color: var(--text-2);
+.signature {
+  margin-top: 2px;
 }
 .labDot {
   width: 4px;
@@ -400,25 +346,6 @@
   border-radius: 50%;
   background: var(--lab);
 }
-.artefact {
-  display: flex;
-  align-items: center;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--text-2);
-}
-.artefact i {
-  flex: 1;
-  margin: 0 8px;
-  height: 3px;
-  background: var(--rule-dots);
-}
-.artefact b {
-  color: var(--text-1);
-  font-weight: 500;
-}
-
 .main {
   grid-area: main;
   position: relative;
