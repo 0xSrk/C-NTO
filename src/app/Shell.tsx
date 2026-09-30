@@ -90,6 +90,13 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
       return Math.max(trade.entryTime || 0, trade.exitTime || 0) >= cutoff;
     });
   }, [nt?.link, trades, metricAccount, now]);
+  /** Voyant du compte : allumé quand les exécutions arrivent, en veille quand le pont est ouvert, éteint sinon. */
+  const linkState = live ? 'voyantOn' : bridgeUp ? 'voyantVeille' : 'voyantOff';
+  const linkLabel = live
+    ? tr('Pont NT8 · exécutions en direct', 'NT8 bridge · live executions', 'Puente NT8 · ejecuciones en directo')
+    : bridgeUp
+      ? tr('Pont NT8 connecté · en veille', 'NT8 bridge connected · standing by', 'Puente NT8 conectado · en espera')
+      : tr('Hors ligne · import CSV', 'Offline · CSV import', 'Fuera de línea · importación CSV');
 
   const localeTag = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR';
   const clock = new Intl.DateTimeFormat(localeTag, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: ET_ZONE }).format(now);
@@ -108,7 +115,9 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
       <div className={s.texture} aria-hidden />
       <header className={s.title}>
         <div className={s.brand}>
-          <Wordmark width={76} strokeWidth={1.6} color="var(--text-0)" />
+          <span className={s.brandMark}>
+            <Wordmark width={84} ticks survol />
+          </span>
           <span className={s.brandSep} />
           <span className={s.crumb}>
             <span>{active?.index}</span>
@@ -169,13 +178,21 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
           ))}
         </nav>
         <div className={s.railFoot}>
-          <div className={s.accountCard}>
-            <div className={s.accountHead}>
-              <span>{tr('COMPTE ACTIF', 'ACTIVE ACCOUNT', 'CUENTA ACTIVA')}</span>
-              {live ? <Led>LIVE</Led> : null}
+          <div className={s.account}>
+            <span className={s.railLabel}>
+              {tr('COMPTE ACTIF', 'ACTIVE ACCOUNT', 'CUENTA ACTIVA')}
+              <i aria-hidden />
+            </span>
+            <div className={s.accountLine} title={linkLabel}>
+              <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
+              <span className={s.accountName}>{accountLine}</span>
             </div>
-            <span className={s.accountName}>{accountLine}</span>
             <span className={s.accountSource}>{source}</span>
+          </div>
+          <div className={s.versionRow}>
+            <span>{tr('VERSION', 'VERSION', 'VERSIÓN')}</span>
+            <i aria-hidden />
+            <ChangelogJournal version={appVersion} />
           </div>
           <div className={s.tools}>
             <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
@@ -236,10 +253,7 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
           <span className={s.sigEnd}>
             <Barcode />
             <span>[ SIΞRRΛSKΛ ]</span>
-            <i className={s.labDot} />
-            <span>ART-002</span>
           </span>
-          <ChangelogJournal version={appVersion} />
         </div>
       </footer>
 

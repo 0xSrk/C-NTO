@@ -28,8 +28,8 @@ export function VersionMark({ version, unseen, onOpen }: { version: string; unse
   useI18n((st) => st.locale);
   return (
     <button type="button" className={s.versionBtn} onClick={onOpen} aria-label={tr('Journal des versions', 'Version journal', 'Diario de versiones')}>
-      {unseen ? <i className={s.versionDot} data-changelog-dot="" aria-hidden="true" /> : null}
       v{version}
+      {unseen ? <i className={s.versionDot} data-changelog-dot="" aria-hidden="true" /> : null}
     </button>
   );
 }
@@ -63,7 +63,7 @@ function points(highlights: { fr: string[]; en: string[]; es: string[] }, locale
   return highlights.fr;
 }
 
-/** Pied du shell : le numéro ouvre le journal. Aucun message ne s'ouvre seul. */
+/** Rail, sous le compte actif : le numéro ouvre le journal. Aucun message ne s'ouvre seul. */
 export function ChangelogJournal({ version }: { version: string }) {
   const [seen, setSeen] = useState<string | null>(null);
   const [ready, setReady] = useState(false);

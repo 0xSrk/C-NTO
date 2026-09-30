@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { tr, useI18n } from '@/i18n';
-import { InvertedTab, Sigil } from '@/design/primitives';
-import { Wordmark } from '@/design/Wordmark';
+import { InvertedTab } from '@/design/primitives';
+import { CONSTRUCTION_END, Wordmark } from '@/design/Wordmark';
 import { runBootCircuit } from './bootCircuit';
 import s from './boot.module.css';
 
@@ -12,8 +12,14 @@ export interface BootStep {
   detail?: string;
 }
 
-const MIN_DURATION_MS = 1700;
-const MIN_FROM_LAUNCHER_MS = 2300;
+/** La construction du logotype (2,1 s) et la ligne du Lab se voient en entier avant l'ouverture. */
+const MIN_DURATION_MS = 2500;
+const MIN_FROM_LAUNCHER_MS = 2600;
+/** Décalage de la construction : la LED du lanceur attend au centre du logotype avant de monter au Λ. */
+const DELAY_S = 0.12;
+const DELAY_FROM_LAUNCHER_S = 0.22;
+/** La ligne du Lab reprend le point rouge quand la LED quitte la pointe du Λ. */
+const SOUS_AT_S = CONSTRUCTION_END - 0.3;
 /** Durée de l'ouverture sur l'axe (couture → écartement), alignée sur boot.module.css. */
 const LEAVE_MS = 760;
 const WORDMARK_W = 420;
@@ -51,7 +57,7 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
     return () => clearInterval(t);
   }, [steps.length]);
 
-  // Circuit canvas : reprend la LED du lanceur au centre du logotype et rallume la fenêtre.
+  // Circuit canvas : déplie le trait d'axe au centre du logotype et rallume la fenêtre ; la LED, elle, est portée par le logotype.
   useEffect(() => {
     const canvas = nanoRef.current;
     if (!canvas) return;
@@ -96,6 +102,7 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
     };
   }, []);
 
+  const delay = fromLauncher ? DELAY_FROM_LAUNCHER_S : DELAY_S;
   const completed = steps.filter((st) => st.status !== 'pending').length;
   const progress = steps.length ? completed / steps.length : 0;
   const statusWord = ready
@@ -120,8 +127,12 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
       </div>
 
       <div className={s.center} ref={markRef}>
-        <Wordmark width={WORDMARK_W} animated delay={fromLauncher ? 0.22 : 0.12} />
-        <Sigil size={11} className={s.sigil} engraved />
+        <Wordmark width={WORDMARK_W} animated delay={delay} />
+        <p className={s.sous} style={{ '--sous-delay': `${(delay + SOUS_AT_S).toFixed(2)}s` } as CSSProperties}>
+          SIΞRRΛSKΛ LAB
+          <i aria-hidden />
+          <b>ARTEFACT 002</b>
+        </p>
       </div>
 
       <div className={s.console} ref={consoleRef}>

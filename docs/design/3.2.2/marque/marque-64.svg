@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="64" height="64">
+<defs>
+<radialGradient id="fond" cx="50%" cy="46%" r="70%"><stop offset="0" stop-color="#16171B"/><stop offset=".55" stop-color="#0F1013"/><stop offset="1" stop-color="#0A0B0D"/></radialGradient>
+<filter id="halo" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="12.800"/></filter>
+<radialGradient id="ledHalo"><stop offset="0" stop-color="#E5263D" stop-opacity=".75"/><stop offset=".35" stop-color="#E5263D" stop-opacity=".28"/><stop offset="1" stop-color="#E5263D" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="256" height="256" fill="url(#fond)"/>
+<line x1="0" x2="256" y1="72" y2="72" stroke="#EDEBE4" stroke-opacity="0.16" stroke-width="2.400"/>
+<line x1="0" x2="256" y1="184" y2="184" stroke="#EDEBE4" stroke-opacity="0.16" stroke-width="2.400"/>
+<line x1="0" x2="256" y1="128" y2="128" stroke="#EDEBE4" stroke-opacity="0.08" stroke-width="2.400"/>
+<line x1="128" x2="128" y1="24" y2="232" stroke="#EDEBE4" stroke-opacity=".07" stroke-width="2.400"/>
+<path d="M72 44 H184 M72 38 V50 M184 38 V50" stroke="#EDEBE4" stroke-opacity=".28" stroke-width="2.400" fill="none"/>
+<path d="M72 184 L128 68 L184 184" fill="none" stroke="#EDEBE4" stroke-width="15.000" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="4" opacity=".2" filter="url(#halo)"/>
+<path d="M72 184 L128 68 L184 184" fill="none" stroke="#EDEBE4" stroke-width="5.000" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="4"/>
+<rect x="62.00" y="174.00" width="20.00" height="20.00" fill="#0A0B0D" stroke="#EDEBE4" stroke-opacity=".8" stroke-width="2.400"/>
+<rect x="174.00" y="174.00" width="20.00" height="20.00" fill="#0A0B0D" stroke="#EDEBE4" stroke-opacity=".8" stroke-width="2.400"/>
+<circle cx="128" cy="68" r="41.60" fill="url(#ledHalo)"/>
+<rect x="120.00" y="60.00" width="16.00" height="16.00" fill="#E5263D"/>
+</svg>

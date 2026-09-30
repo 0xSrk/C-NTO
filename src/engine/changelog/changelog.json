@@ -248,6 +248,31 @@
           "Archivo de sumas de control corregido: la verificación de los instaladores pasa sin errores."
         ]
       }
+    },
+    {
+      "version": "3.2.2",
+      "date": "2026-09-30",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Nouvelle icône : le Λ de CΛNTO, LED à la pointe, dans le lanceur, la barre des tâches et l'installeur.",
+          "Logotype redessiné et centré ; au lancement, il se construit sur sa grille et la LED du lanceur se pose sur la pointe du Λ. Une touche ou un clic passe l'animation.",
+          "Menu épuré : le compte actif et son voyant (direct, veille, hors ligne) sont posés à même le menu, la version juste en dessous.",
+          "Plaque signature du Lab plus fine, gravée dans le menu ; la barre d'état ne répète plus ART-002."
+        ],
+        "en": [
+          "New icon: the Λ of CΛNTO, LED at its apex, in the launcher, the taskbar and the installer.",
+          "Logotype redrawn and centred; at launch it builds itself on its grid while the launcher's LED lands on the apex of the Λ. Any key or click skips it.",
+          "Cleaner menu: the active account and its status light (live, standby, offline) sit directly in the menu, with the version just below.",
+          "Thinner Lab signature plate, engraved into the menu; the status bar no longer repeats ART-002."
+        ],
+        "es": [
+          "Nuevo icono: la Λ de CΛNTO, con el LED en el vértice, en el lanzador, la barra de tareas y el instalador.",
+          "Logotipo redibujado y centrado; al arrancar se construye sobre su cuadrícula y el LED del lanzador se posa en el vértice de la Λ. Cualquier tecla o clic omite la animación.",
+          "Menú más limpio: la cuenta activa y su piloto (en directo, en espera, sin conexión) están en el propio menú, con la versión justo debajo.",
+          "Placa firma del Lab más fina, grabada en el menú; la barra de estado ya no repite ART-002."
+        ]
+      }
     }
   ]
 }

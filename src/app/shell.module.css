@@ -47,6 +47,12 @@
   min-width: 0;
 }
 
+/* Logotype : hors de la zone de glisser, sinon le survol n'arrive pas (Electron). */
+.brandMark {
+  display: inline-flex;
+  -webkit-app-region: no-drag;
+}
+
 .brandSep {
   width: 1px;
   height: 16px;
@@ -275,43 +281,81 @@
   gap: 12px;
 }
 
-.accountCard {
-  background: var(--bg-2);
-  border: 1px solid var(--line-0);
-  box-shadow: rgba(255, 255, 255, 0.043) 0 1px 0 inset;
-  border-radius: 2px;
-  padding: 12px 14px;
+/* Compte actif, à même le rail : un intitulé à pointillés, un voyant, le nom, la source. */
+.account {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 0 2px;
 }
-.accountHead,
-.accountSource {
+.railLabel,
+.versionRow {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-2);
 }
+.railLabel > i,
+.versionRow > i {
+  flex: 1;
+  height: 3px;
+  background: var(--rule-dots);
+}
+.accountLine {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+}
 .accountName {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-0);
-  letter-spacing: 0;
-  text-transform: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .accountSource {
-  justify-content: flex-start;
+  padding-left: 18px;
   font-size: 12px;
-  letter-spacing: 0;
+  color: var(--text-1);
+}
+
+/* Voyant : LED fixe, jamais animée. Allumé = exécutions en direct, veille = pont ouvert, éteint = hors ligne. */
+.voyant {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  justify-self: center;
+}
+.voyantOn {
+  background: var(--gold);
+  box-shadow: 0 0 1.5px var(--gold), 0 0 6px color-mix(in srgb, var(--gold) 75%, transparent);
+}
+.voyantVeille {
+  background: color-mix(in srgb, var(--gold) 40%, transparent);
+}
+.voyantOff {
+  box-shadow: inset 0 0 0 1px var(--ghost);
+}
+
+/* Version, sous le compte : le numéro ouvre le journal. */
+.versionRow {
+  padding: 0 2px;
+}
+.versionRow .versionBtn {
+  flex: none;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: none;
   color: var(--text-1);
+}
+.versionRow .versionBtn:hover {
+  color: var(--text-0);
 }
 
 .tools {
@@ -339,12 +383,6 @@
 
 .signature {
   margin-top: 2px;
-}
-.labDot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--lab);
 }
 .main {
   grid-area: main;
@@ -489,6 +527,7 @@
 .versionDot {
   width: 5px;
   height: 5px;
+  border-radius: 50%;
   background: var(--gold);
   box-shadow: 0 0 6px var(--gold);
 }
@@ -497,10 +536,6 @@
   display: flex;
   align-items: center;
   gap: 10px;
-}
-.sigEnd .labDot {
-  width: 4px;
-  height: 4px;
 }
 
 .zoom {
