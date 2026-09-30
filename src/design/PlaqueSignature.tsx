@@ -1,7 +1,7 @@
 import s from './plaqueSignature.module.css';
 
 /**
- * Plaque signature du Lab, bas du rail.
+ * Plaque signature du Lab, gravée en bas du rail (3.2.2 : format nano, 40 px).
  * Même format que les plaques du desk (Système 3.4, D.01 sans vis ni languette),
  * en laque noire, ivoire et or gravés finement : lettres au burin, repères de calage
  * et une ligne de micro-texte, comme une épreuve de lithographie.
