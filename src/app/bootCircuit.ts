@@ -1,8 +1,9 @@
 /**
  * Circuit du chargement — canvas, net au pixel physique.
  *
- * Suite de la transition du lanceur : la LED laissée au centre du logotype se déplie
- * en un trait d'axe, puis l'énergie repart vers les bords de la fenêtre le long de
+ * Suite de la transition du lanceur : la LED laissée au centre du logotype est reprise par
+ * le logotype lui-même (elle monte à la pointe du Λ, voir Wordmark). Le circuit déplie un
+ * trait d'axe depuis ce centre, puis l'énergie repart vers les bords de la fenêtre le long de
  * traces à 45° (façon PCB). Chaque trace est tracée par un photon (tête + traîne),
  * les nano-pixels 1×1 s'allument à son passage, les cadres à chanfreins et leurs
  * règles se dessinent depuis l'axe. Tout est calculé à partir du temps écoulé :
@@ -268,7 +269,7 @@ export function runBootCircuit(canvas: HTMLCanvasElement, opts: BootCircuitOptio
     if (opts.reduced) raf = requestAnimationFrame(draw);
   };
 
-  // Le lanceur a laissé la LED allumée au centre du logotype : on reprend exactement là.
+  // Le lanceur a laissé la LED au centre du logotype : le circuit part de là (la LED, elle, est dans le logotype).
   const t0 = performance.now();
   const rnd = mulberry(1337);
   const pulses: { trace: Trace; start: number; speed: number }[] = [];
@@ -443,7 +444,7 @@ export function runBootCircuit(canvas: HTMLCanvasElement, opts: BootCircuitOptio
       }
     }
 
-    // LED d'origine → trait d'axe qui se déplie à la largeur du logotype, puis s'efface sous les tracés.
+    // Trait d'axe qui se déplie depuis le centre à la largeur du logotype, puis s'efface sous les tracés.
     const unfold = easeInOut(clamp01(t / T_UNFOLD));
     const lineFade = 1 - clamp01((t - T_UNFOLD - 200) / 700);
     if (lineFade > 0) {
@@ -454,18 +455,6 @@ export function runBootCircuit(canvas: HTMLCanvasElement, opts: BootCircuitOptio
       g.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.fillRect(L.cx - hw, px(L.cy), hw * 2, hair);
-    }
-    const ledFade = 1 - clamp01((t - 200) / 900);
-    if (ledFade > 0) {
-      const R = 36;
-      const g = ctx.createRadialGradient(L.cx, L.cy, 0, L.cx, L.cy, R);
-      g.addColorStop(0, `rgba(196,30,58,${0.55 * ledFade})`);
-      g.addColorStop(0.35, `rgba(196,30,58,${0.12 * ledFade})`);
-      g.addColorStop(1, 'rgba(196,30,58,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(L.cx - R, L.cy - R, R * 2, R * 2);
-      ctx.fillStyle = `rgba(255,120,140,${ledFade})`;
-      ctx.fillRect(L.cx - 1, L.cy - 1, 2, 2);
     }
 
     if (!opts.reduced) raf = requestAnimationFrame(draw);

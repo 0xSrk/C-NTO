@@ -115,7 +115,9 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
       <div className={s.texture} aria-hidden />
       <header className={s.title}>
         <div className={s.brand}>
-          <Wordmark width={76} strokeWidth={1.6} color="var(--text-0)" />
+          <span className={s.brandMark}>
+            <Wordmark width={84} ticks survol />
+          </span>
           <span className={s.brandSep} />
           <span className={s.crumb}>
             <span>{active?.index}</span>

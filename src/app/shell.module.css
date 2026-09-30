@@ -47,6 +47,12 @@
   min-width: 0;
 }
 
+/* Logotype : hors de la zone de glisser, sinon le survol n'arrive pas (Electron). */
+.brandMark {
+  display: inline-flex;
+  -webkit-app-region: no-drag;
+}
+
 .brandSep {
   width: 1px;
   height: 16px;
