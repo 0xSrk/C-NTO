@@ -57,7 +57,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 
 ## In short
 
-CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. Crypto is not a class of CΛNTO: no pocket, no instrument. A vault that still carries `kind: "crypto"` is refused. The direction of the Lab is [docs/FORGE.md](docs/FORGE.md).
+CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. Crypto is not a class of CΛNTO: no pocket, no instrument. A vault that still carries `kind: "crypto"` is refused.
 
 | Module | State in 3.0.0 |
 |---|---|
@@ -530,7 +530,7 @@ src/store/        Dexie 4 (IndexedDB) + Zustand — schema version 7
 src/modules/      one folder per tab (01…08, Copier is 08 CPY)
 tests/            Vitest — see `npm test` (engine, import, vault, calendar, bridge, agent, portfolio, shell)
 vectors/          shared JSON vectors (metrics / prop firm / portfolio)
-docs/             FORGE.md · DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
+docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
 ```
 
 The engine (`src/engine`) does not touch the UI: indicators, agent tools, and prop-firm plans are registries. Desk tools receive injected **ports** — they no longer write straight into the stores.
@@ -596,9 +596,9 @@ Système 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is a
 
 ## Roadmap
 
-The line of the Lab is **[docs/FORGE.md](docs/FORGE.md)** (revision 1, 3 October 2026). It prevails over this section. Forge 1 — the execution port and Sim replication — is specified in [docs/forges/FORGE-1.md](docs/forges/FORGE-1.md). The certified journal, the agent protocol, and the Copier licence are not part of that forge.
+This forge ships the execution port, Sim replication, and the Copier on the rail as `08 · CPY`, disarmed at launch.
 
-Shipped in **3.0.0**: instrument registry, market-data port, official calendar and embedded snapshot, NT8 WebSocket, notes ontology, portfolio, AUBE II launcher.
+Not in this forge: the certified journal, the agent protocol, and the licence.
 
 ---
 

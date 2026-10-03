@@ -52,6 +52,6 @@ L’écran `src/modules/copieur/Copieur.tsx` persiste la topologie. Il n’envoi
 | F1.5 | `replicatedQty` ne connaît pas le mois (`NQ 12-26`). `evaluatePlan` n’est pas branché. | `routeFill` dans le moteur ; le store importe les types du moteur. |
 | F1.6 | Aucun hôte de réplication. L’idempotence d’import est `.seen.txt` côté AddOn, pas un fichier `userData` du Copieur. | `copier-host.ts`, clés `executionId` + compte suiveur dans `userData/copier-seen.txt`, désarmé à chaque démarrage. |
 | F1.7 | Copieur hors rail. | Onglet `08 · CPY`, dialogue d’armement dans le process principal, Couper toujours visible. |
-| F1.8 | Le README › *Roadmap* ne renvoie pas à `docs/FORGE.md`. | Documents seulement. `package.json` reste `3.2.2` jusqu’à l’ADMIN. |
+| F1.8 | Le README › *Roadmap* décrit la brique livrée et ce qui est hors de cette forge. | Documents seulement. `package.json` reste `3.2.2` jusqu’à l’ADMIN. |
 
 `copy.order` n’existe pas dans le serveur. La réplication passe par `order.submit` / `order.cancel` / `order.flatten`.

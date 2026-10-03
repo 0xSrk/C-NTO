@@ -57,7 +57,7 @@ describe('journal des versions', () => {
     expect(entryFor('3.2.2')?.highlights.fr).toHaveLength(4);
     expect(entryFor('3.2.2')?.highlights.es).toHaveLength(4);
     expect(entryFor('3.3.0')?.kind).toBe('fonctionnalite');
-    expect(entryFor('3.3.0')?.highlights.fr).toHaveLength(5);
+    expect(entryFor('3.3.0')?.highlights.fr).toHaveLength(4);
     expect(entryFor('3.0.1')).toBeNull();
   });
 

@@ -2,11 +2,11 @@
 
 # Forge 1 — le port et le routeur
 
-Objet : livrer `FORGE.md` L.1 (`ExecutionPort`) et L.2 (réplication du Copieur, Sim seulement). Sortie : Release **3.3.0**, taguée par l'ADMIN. Branche de travail : `cursor/forge-1-port-routeur-5da4` (le nom `forge/1-execution-port` du plan d'origine est réservé au dépôt ; cette branche porte le même objet). Base : `main` à v3.2.2. La montée `package.json` et le tag `v3.3.0` restent l'acte de l'ADMIN.
+Objet : livrer l'`ExecutionPort` et la réplication du Copieur, Sim seulement. Sortie : Release **3.3.0**, taguée par l'ADMIN. Branche de travail : `cursor/forge-1-port-routeur-5da4` (le nom `forge/1-execution-port` du plan d'origine est réservé au dépôt ; cette branche porte le même objet). Base : `main` à v3.2.2. La montée `package.json` et le tag `v3.3.0` restent l'acte de l'ADMIN.
 
 Ce qui est hors de cette forge, sans discussion : compte réel pour les suiveurs (Forge 2), journal certifié (L.4, Forge 2), `PROTOCOLE-AGENT.md` (L.3, Forge 2), licence (L.6, Palier 1), tout adaptateur autre que NT8, toute refonte design, tout changement du protocole du pont vu par l'AddOn C#.
 
-Lecture obligatoire avant J1 : `CLAUDE.md`, `docs/FORGE.md` § 00, § 03, § 05, `docs/AGENT-HARDENING.md` § 0, `docs/PONT-NINJATRADER.md`, README › *Copier* et › *NinjaTrader 8 bridge*.
+Lecture obligatoire avant J1 : `CLAUDE.md`, `docs/AGENT-HARDENING.md` § 0, `docs/PONT-NINJATRADER.md`, README › *Copier* et › *NinjaTrader 8 bridge*.
 
 ---
 
@@ -28,7 +28,7 @@ Lecture obligatoire avant J1 : `CLAUDE.md`, `docs/FORGE.md` § 00, § 03, § 05,
 
 Prompt d'ouverture de session, à coller tel quel :
 
-> Lis `CLAUDE.md`, `docs/FORGE.md` et `docs/forges/FORGE-1.md`. Reste en mode plan. Produis `docs/forges/F1-CARTE.md` : (1) le chemin exact d'un ordre aujourd'hui, du renderer à l'AddOn (fichiers, fonctions, canaux IPC, méthodes JSON-RPC), avec les symboles cités tels qu'ils existent ; (2) le chemin exact d'une exécution entrante jusqu'au journal ; (3) la sémantique actuelle du kill switch global ; (4) la forme exacte du store du Copieur (`src/store/copier.ts`) et des règles du prototype ; (5) la forme de `tabs.ts` et des tests qui énumèrent le rail. Puis confirme ou corrige, fichier par fichier, le plan de tickets F1.2 à F1.8 ci-dessous. Si un symbole n'existe pas tel quel, dis-le ; n'invente rien. Aucune modification de fichier de code tant que l'ADMIN n'a pas validé la carte.
+> Lis `CLAUDE.md`, `docs/AGENT-HARDENING.md` § 0 et `docs/forges/FORGE-1.md`. Reste en mode plan. Produis `docs/forges/F1-CARTE.md` : (1) le chemin exact d'un ordre aujourd'hui, du renderer à l'AddOn (fichiers, fonctions, canaux IPC, méthodes JSON-RPC), avec les symboles cités tels qu'ils existent ; (2) le chemin exact d'une exécution entrante jusqu'au journal ; (3) la sémantique actuelle du kill switch global ; (4) la forme exacte du store du Copieur (`src/store/copier.ts`) et des règles du prototype ; (5) la forme de `tabs.ts` et des tests qui énumèrent le rail. Puis confirme ou corrige, fichier par fichier, le plan de tickets F1.2 à F1.8 ci-dessous. Si un symbole n'existe pas tel quel, dis-le ; n'invente rien. Aucune modification de fichier de code tant que l'ADMIN n'a pas validé la carte.
 
 Livrable J1 : `docs/forges/F1-CARTE.md`, décisions D1–D7 cochées (défauts retenus). Commit `F1.1 carte et plan`.
 
@@ -84,7 +84,7 @@ Règle : un ticket = un commit = un test ; `npm run typecheck && npm test` vert 
 
 ### F1.8 — documents
 
-- Fichiers : README (tableau *In short*, section *Copier*, *Roadmap* → renvoi à `docs/FORGE.md`), `docs/PONT-NINJATRADER.md` (section « Réplication »), `src/engine/changelog/changelog.json` (entrée **3.3.0**, trois langues ; la montée de version dans `package.json` reste à l'ADMIN), `docs/FORGE.md` L.2 marquée « livrée en 3.3.0 ».
+- Fichiers : README (tableau *In short*, section *Copier*, *Roadmap* : port d'exécution, réplication Sim, Copieur sur le rail en `08 · CPY`, désarmé à l'ouverture ; hors de cette forge : journal certifié, protocole d'agent, licence), `docs/PONT-NINJATRADER.md` (section « Réplication »), `src/engine/changelog/changelog.json` (entrée **3.3.0**, trois langues ; la montée de version dans `package.json` reste à l'ADMIN).
 - Preuve : `npm run check` vert ; le test du journal de version accepte l'entrée.
 - ☑ fait · commit `F1.8 documents 3.3.0`
 
