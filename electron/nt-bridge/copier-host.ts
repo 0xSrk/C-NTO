@@ -71,6 +71,8 @@ export class CopierHost {
   private sync: CopierSync | null = null;
   private lastRefusal: Refusal | null = null;
   private readonly seen = new Set<string>();
+  /** Soumission en cours : bloque un second envoi, sans consommer la clé. */
+  private readonly reserving = new Set<string>();
   private readonly pending = new Map<string, { account: string; orderId: string }>();
   private readonly seenPath: string;
   private readonly unsubscribe: () => void;
@@ -197,21 +199,26 @@ export class CopierHost {
     }
     for (const order of routed.orders) {
       const key = `${fill.executionId}\t${order.account}`;
-      if (this.seen.has(key)) continue;
-      this.seen.add(key);
-      this.remember(key);
-      const ack = await this.port.submit(order);
-      if (!this.armed) {
-        if (ack.ok) void this.port.cancel(order.account, ack.orderId);
-        continue;
+      if (this.seen.has(key) || this.reserving.has(key)) continue;
+      this.reserving.add(key);
+      try {
+        const ack = await this.port.submit(order);
+        if (!this.armed) {
+          if (ack.ok) void this.port.cancel(order.account, ack.orderId);
+          continue;
+        }
+        if (!ack.ok) {
+          this.log(`copieur échec compte=${order.account} code=${ack.code}`);
+          continue;
+        }
+        this.seen.add(key);
+        this.remember(key);
+        this.pending.set(ack.orderId, { account: order.account, orderId: ack.orderId });
+        this.routed += 1;
+        this.log(`copieur ordre compte=${order.account} instrument=${order.instrument} qty=${order.qty} id=${ack.orderId}`);
+      } finally {
+        this.reserving.delete(key);
       }
-      if (!ack.ok) {
-        this.log(`copieur échec compte=${order.account} code=${ack.code}`);
-        continue;
-      }
-      this.pending.set(ack.orderId, { account: order.account, orderId: ack.orderId });
-      this.routed += 1;
-      this.log(`copieur ordre compte=${order.account} instrument=${order.instrument} qty=${order.qty} id=${ack.orderId}`);
     }
     this.onStatus();
   }
