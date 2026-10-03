@@ -273,6 +273,34 @@
           "Placa firma del Lab más fina, grabada en el menú; la barra de estado ya no repite ART-002."
         ]
       }
+    },
+    {
+      "version": "3.3.0",
+      "date": "2026-10-03",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Port d’exécution : les ordres passent par un adaptateur, NinjaTrader 8 reste le premier.",
+          "Le Copieur réplique en simulation, du maître vers les suiveurs Sim, désarmé à chaque ouverture.",
+          "Couper désarme et annule les ordres en attente. Le coupe-circuit du pont désarme aussi le routeur.",
+          "Le Copieur revient sur le rail : 08 CPY.",
+          "La direction du Lab est écrite dans docs/FORGE.md."
+        ],
+        "en": [
+          "Execution port: orders go through an adapter, and NinjaTrader 8 stays the first one.",
+          "The Copier replicates in simulation, from the master to Sim followers, disarmed on every launch.",
+          "Cut disarms and cancels working orders. The bridge kill switch disarms the router as well.",
+          "The Copier is back on the rail: 08 CPY.",
+          "The Lab’s direction is written in docs/FORGE.md."
+        ],
+        "es": [
+          "Puerto de ejecución: las órdenes pasan por un adaptador, y NinjaTrader 8 sigue siendo el primero.",
+          "El Copiador replica en simulación, del maestro a las cuentas Sim, desarmado en cada apertura.",
+          "Cortar desarma y anula las órdenes pendientes. El corte del puente desarma también el enrutador.",
+          "El Copiador vuelve al raíl: 08 CPY.",
+          "La dirección del Lab está escrita en docs/FORGE.md."
+        ]
+      }
     }
   ]
 }

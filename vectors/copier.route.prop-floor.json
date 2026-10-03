@@ -1,0 +1,83 @@
+{
+  "fill": {
+    "account": "Sim101",
+    "instrument": "NQ 12-26",
+    "side": "sell",
+    "qty": 1,
+    "price": 21000,
+    "time": 1700000000000,
+    "executionId": "ex-floor"
+  },
+  "topology": {
+    "masterAccount": "Sim101",
+    "latencyBudgetMs": 60000,
+    "newsBlackout": false,
+    "windowStart": "00:00",
+    "windowEnd": "23:59",
+    "followerBufferFloor": 0.3,
+    "followers": [
+      { "account": "Sim102", "sizing": { "mode": "ratio", "value": 1, "maxContracts": 5 }, "symbolMap": { "mode": "identique" } },
+      { "account": "Sim103", "sizing": { "mode": "ratio", "value": 1, "maxContracts": 5 }, "symbolMap": { "mode": "identique" } }
+    ]
+  },
+  "context": {
+    "now": 1700000000000,
+    "localMinutes": 600,
+    "catalysts": [],
+    "maxContractsPerOrder": 20,
+    "states": [
+      {
+        "account": "Sim102",
+        "plan": {
+          "id": "floor",
+          "firm": "Test",
+          "label": "50K",
+          "accountSize": 50000,
+          "profitTarget": 3000,
+          "maxDrawdown": 2500,
+          "drawdownType": "eod-trailing",
+          "phase": "evaluation",
+          "version": 1,
+          "source": "bundled"
+        },
+        "sessions": [
+          {
+            "id": "s1",
+            "date": "2026-01-05",
+            "account": "Sim102",
+            "instruments": ["NQ"],
+            "source": "manuel",
+            "tradeCount": 1,
+            "pnl": -2000,
+            "grossProfit": 0,
+            "grossLoss": -2000,
+            "commission": 0,
+            "tags": [],
+            "createdAt": 0,
+            "updatedAt": 0
+          }
+        ],
+        "trades": []
+      },
+      {
+        "account": "Sim103",
+        "plan": {
+          "id": "floor",
+          "firm": "Test",
+          "label": "50K",
+          "accountSize": 50000,
+          "profitTarget": 3000,
+          "maxDrawdown": 2500,
+          "drawdownType": "eod-trailing",
+          "phase": "evaluation",
+          "version": 1,
+          "source": "bundled"
+        },
+        "sessions": [],
+        "trades": []
+      }
+    ]
+  },
+  "orders": [{ "account": "Sim103", "instrument": "NQ 12-26", "side": "sell", "qty": 1, "type": "market", "tag": "canto-cpy" }],
+  "refused": [{ "reason": "floor", "account": "Sim102", "instrument": "NQ 12-26", "qty": 1 }]
+}

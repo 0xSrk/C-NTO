@@ -23,6 +23,7 @@ import {
   type AddonCall,
   type ExecutionPayload,
   type HelloParams,
+  type OrderNotice,
   type OrderSubmitParams,
   type RpcId,
 } from './protocol';
@@ -94,6 +95,8 @@ export interface NtBridgeServerOptions {
   policy?: GuardPolicy;
   log?: (message: string) => void;
   onExecution?: (payload: ExecutionPayload) => void;
+  onOrder?: (order: OrderNotice) => void;
+  onAccounts?: (accounts: AccountSnapshot[]) => void;
   onStatus?: (status: NtBridgeStatus) => void;
   onMarket?: (event: NtMarketEvent) => void;
 }
@@ -127,6 +130,8 @@ export class NtBridgeServer {
   private boundPort = 0;
   private readonly requestedPort: number;
   private readonly onExecution?: (payload: ExecutionPayload) => void;
+  private readonly onOrder?: (order: OrderNotice) => void;
+  private readonly onAccounts?: (accounts: AccountSnapshot[]) => void;
   private readonly onStatus?: (status: NtBridgeStatus) => void;
   private readonly onMarket?: (event: NtMarketEvent) => void;
 
@@ -139,6 +144,8 @@ export class NtBridgeServer {
     this.log = options.log ?? (() => {});
     this.policy = options.policy ?? { extraAccounts: [], maxContractsPerOrder: 20 };
     this.onExecution = options.onExecution;
+    this.onOrder = options.onOrder;
+    this.onAccounts = options.onAccounts;
     this.onStatus = options.onStatus;
     this.onMarket = options.onMarket;
   }
@@ -364,12 +371,14 @@ export class NtBridgeServer {
       case 'bridge.accounts':
         this.accounts = call.params.accounts;
         this.accountNames = call.params.accounts.map((row) => row.name);
+        this.onAccounts?.(call.params.accounts);
         this.emitStatus();
         return;
       case 'bridge.execution':
         this.onExecution?.(call.params);
         return;
       case 'bridge.order':
+        this.onOrder?.(call.params);
         return;
       case 'marketdata.bar':
         this.onMarket?.({ kind: 'bar', instrument: call.params.instrument, timeframe: call.params.timeframe, bar: call.params.bar, final: call.params.final });

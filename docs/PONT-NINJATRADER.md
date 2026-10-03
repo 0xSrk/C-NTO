@@ -60,7 +60,7 @@ Control Center › **Trade Performance › Trades** (ou onglet **Executions**) �
 
 Le pont a **son propre** serveur WebSocket, dans `electron/nt-bridge/`. Il ne réutilise pas l'orchestrateur IA (`electron/orchestrator.ts` reste un prototype, autre cycle de vie, autre niveau de confiance).
 
-Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par les canaux IPC `marketdata:*` et alimentent `MarketDataPort` (`sourceId: 'nt8-bridge'`). Les ordres passent par `ntbridge:order`, après `guards.ts`. La réplication du copieur (sizing, filtres, politique prop firm) n'est pas dans ce transport.
+Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par les canaux IPC `marketdata:*` et alimentent `MarketDataPort` (`sourceId: 'nt8-bridge'`). Les ordres passent par `ntbridge:order`, après `guards.ts`. La réplication du copieur passe par ce transport : voir la section « Réplication ».
 
 ### Installation de l'AddOn
 
@@ -149,9 +149,13 @@ Un compte réel s'ajoute depuis le panneau. Le dialogue CΛNTO du renderer expli
 
 `scripts/fake-addon.mjs` simule l'AddOn (barres, exécution, `order.submit` sur Sim101) sans NinjaTrader.
 
-## 7. Hors de ce transport
+## 7. Réplication
 
-La logique de copie (sizing, filtres, fenêtre horaire, blackout, marge prop firm) est la tâche 5. Elle consommera `ntbridge:order`. Les méthodes `copy.order` / `copy.cancel` / `copy.flatten` de l'ancienne spécification ne sont pas le protocole du serveur.
+Le Copieur (Forge 1, L.2) est un routeur dans le process principal (`electron/nt-bridge/copier-host.ts`), pas une méthode `copy.*`. Un fill du compte maître sur `ExecutionPort` (`electron/nt-bridge/execution-port.ts`) devient des `order.submit` suiveurs, après `routeFill` (`src/engine/copier/router.ts`) : dimensionnement, fenêtre, blackout, marge `evaluatePlan`, plafond du pont. Les suiveurs sont `Sim*` seulement. Le routeur est désarmé à chaque ouverture. L'armement passe par le même dialogue d'avertissement que le compte réel (Annuler par défaut). Couper désarme et annule les ordres suiveurs en attente ; aplatir est une option, défaut off. Le kill switch global garde son `order.flatten` et désarme aussi le routeur.
+
+L'idempotence est une clé `executionId` + compte suiveur dans `userData/copier-seen.txt`, jamais dans le coffre. Le journal (`main.log`) note le fill, les ordres et les refus (motif, compte, instrument, quantité) et ne contient pas le jeton.
+
+Les méthodes `copy.order` / `copy.cancel` / `copy.flatten` de l'ancienne spécification ne sont pas le protocole du serveur.
 
 ## 1. Enveloppe
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { uid } from '@/lib/id';
 
-/** `copieur` : hors rail depuis 3.2.0, réplication reportée. */
+/** `copieur` : `08 · CPY` sur le rail depuis la 3.3.0. */
 export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur' | 'portefeuille';
 
 export interface Toast {
@@ -37,7 +37,7 @@ interface UiState {
 
 export const useUi = create<UiState>((set, get) => ({
   tab: 'metrique',
-  setTab: (tab) => set({ tab: tab === 'copieur' ? 'metrique' : tab }),
+  setTab: (tab) => set({ tab }),
   metricAccount: null,
   setMetricAccount: (metricAccount) => set({ metricAccount }),
   crumb: null,

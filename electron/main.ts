@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, promises as fs, renameSync, unlinkSync, writeFil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
+import { confirmCopierArm } from './nt-bridge/copier-host';
 import { authorizeLiveAccount, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
 import { Orchestrator } from './orchestrator';
@@ -641,6 +642,23 @@ ipcMain.handle('ntbridge:allow-account', async (e, name: unknown) => {
 ipcMain.handle('ntbridge:max-contracts', (e, n: unknown) => (trusted(e) && ntBridge && typeof n === 'number' ? ntBridge.setMaxContracts(n) : null));
 ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
 ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitch() : { accounts: [] }));
+
+ipcMain.handle('copier:status', (e) => (trusted(e) && ntBridge ? ntBridge.copierStatus() : null));
+ipcMain.handle('copier:configure', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.configureCopier(payload) : false));
+ipcMain.handle('copier:cut', (e) => (trusted(e) && ntBridge ? ntBridge.cutCopier() : { cancelled: [] }));
+ipcMain.handle('copier:arm', async (e) => {
+  if (!trusted(e) || !ntBridge) return null;
+  const host = ntBridge;
+  const attached = win && !win.isDestroyed() ? win : null;
+  const ok = await confirmCopierArm({
+    win: attached,
+    locale: readLocaleFile(app.getPath('userData')),
+    showMessageBox: (target, options) => dialog.showMessageBox(target as BrowserWindow, options),
+    log: (line) => mainLog('info', line),
+  });
+  if (ok) host.armCopier();
+  return host.copierStatus();
+});
 
 /* ─── Calendrier macro (sources officielles) ─── */
 ipcMain.handle('calendar:macro', async (e, fromDate: unknown, toDate: unknown) => {

@@ -412,4 +412,20 @@ Licence : MIT depuis 3.1.0.
 
 **Coffre.** Format `canto-vault-v2` inchangé (`schemaVersion: 2`). Champs optionnels `pockets`, `positions`, `cashBalances`, `fxRates`. Un coffre 2.2.x sans eux est accepté et ne remplace pas les tables. `equityPoints` n'est pas exporté : il est reconstruit à la restauration. Validateurs `CHECKS` : devises ISO, quantités finies, `kind` dans les types créables (`'crypto'` ne passe pas), taux strictement positif, `by: 'utilisateur'`.
 
+## 3.3.0 — Forge 1, port et routeur
+
+Relecture du code de la Forge 1 (L.1, L.2, Sim seulement). Pas de Release : `package.json` reste `3.2.2`, le tag est l'acte de l'ADMIN. `protocol.ts` et `ninjatrader/CantoBridge.cs` ne changent pas.
+
+**Moteur.** `routeFill` (`src/engine/copier/router.ts`) refuse `latency` si l'âge dépasse le budget (l'égalité passe), `window` hors `HH:mm` locale, `blackout` à ±15 min, `floor` quand `evaluatePlan(...).buffer` est sous `maxDrawdown * followerBufferFloor` ou que le plan est en échec, `cap` si la taille n'est pas un entier ≥ 1, dépasse le plafond du suiveur ou celui du pont, `instrument` si la carte micro/standard ne connaît pas la racine. Vecteurs `vectors/copier.route.basic.json`, `copier.route.blackout.json`, `copier.route.prop-floor.json`. Les gardes pures rendent `-32010` `-32011` `-32012` `-32013` (`vectors/execution.guards.json`) ; `tests/nt-bridge-guards.test.ts` n'a pas été modifié.
+
+**Interface.** `08 · CPY` est sur le rail (`tests/tabs.test.ts`). Armer appelle `copier:arm`, qui n'arme qu'après `confirmCopierArm` (Annuler par défaut, fenêtre absente refusée). Couper reste dans l'en-tête. Le badge lit `armed` de l'hôte, pas `config.enabled`.
+
+**Performance.** `tests/copier-host.test.ts` mesure `cut()` sous 200 ms. L'idempotence est un `Set` plus `userData/copier-seen.txt`. Le fichier grandit d'une ligne par ordre routé : observation, pas un blocage. Pas de rattrapage d'un fill déjà vu.
+
+**Sécurité.** Un suiveur qui ne commence pas par `Sim` est écarté dans `coerceCopierSync` et n'est pas soumis. Le `submit` repasse par `guardSubmit`. Le journal du routeur ne contient pas le jeton (`tests/copier-host.test.ts`). IPC ajoutée : `copier:status`, `copier:configure`, `copier:arm`, `copier:cut`, toutes derrière `trusted`. Couper pendant un `submit` encore en vol annule l'accusé qui revient. Le kill switch désarme le routeur puis garde `order.flatten`.
+
+**Design.** Aucun jeton nouveau. `tests/design-guard.test.ts` vert. Le Copieur réutilise `Button`, `Tag`, `Stat`, `Toggle`, `Panel`.
+
+**Reste hors de cette relecture.** CI sur les trois OS après poussée. Séance du testeur sur NinjaTrader 8 (Sim101 → Sim102). Règles Apex (D7, Forge 2). Journal certifié, protocole d'agent, licence. Rien d'ouvert en correctif de code sur les preuves ci-dessus.
+
 

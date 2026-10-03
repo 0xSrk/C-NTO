@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Barcode, Button, Led, cx } from '@/design/primitives';
 import { PlaqueSignature } from '@/design/PlaqueSignature';
 import { Wordmark } from '@/design/Wordmark';
@@ -105,8 +105,6 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
   const shortDate = dateTimeFormatter({ weekday: 'short', day: 'numeric', month: 'short', timeZone: ET_ZONE }, localeTag).format(now);
   const moduleName = (activeCopy?.label ?? '').toLocaleUpperCase(localeTag);
   const third = crumb && crumb.tab === tab ? crumb.label : '';
-  const shipped = TABS.filter((item) => !isConception(item.id));
-  const concept = TABS.filter((item) => isConception(item.id));
   const reported = nt?.accountNames?.filter(Boolean) ?? [];
   const port = nt?.port ?? 48231;
 
@@ -166,16 +164,22 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
       <aside className={s.rail}>
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
           <span className={s.navLabelHead}>{tr('MODULES', 'MODULES', 'MÓDULOS')}</span>
-          {shipped.map((item) => (
-            <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} on={tab === item.id} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
-          ))}
-          <div className={s.conceptLabel}>
-            <span>{tr('EN CONCEPTION', 'IN DESIGN', 'EN DISEÑO')}</span>
-            <i />
-          </div>
-          {concept.map((item) => (
-            <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} on={tab === item.id} dashed onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
-          ))}
+          {TABS.map((item, index) => {
+            const conception = isConception(item.id);
+            const prev = index > 0 ? TABS[index - 1] : undefined;
+            const openConcept = conception && (!prev || !isConception(prev.id));
+            return (
+              <Fragment key={item.id}>
+                {openConcept && (
+                  <div className={s.conceptLabel}>
+                    <span>{tr('EN CONCEPTION', 'IN DESIGN', 'EN DISEÑO')}</span>
+                    <i />
+                  </div>
+                )}
+                <RailButton itemId={item.id} index={item.index} label={tabCopy(item).label} on={tab === item.id} dashed={conception} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
+              </Fragment>
+            );
+          })}
         </nav>
         <div className={s.railFoot}>
           <div className={s.account}>

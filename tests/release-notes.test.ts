@@ -22,7 +22,7 @@ describe('notes de Release', () => {
     const source = JSON.parse(readFileSync(path.join(root, 'src', 'engine', 'changelog', 'changelog.json'), 'utf8')) as { entries: unknown[] };
     expect(published.schemaVersion).toBe(1);
     expect(published.entries).toHaveLength(source.entries.length);
-    expect(published.entries.at(-1)?.version).toBe('3.2.2');
+    expect(published.entries.at(-1)?.version).toBe('3.3.0');
     const text = readFileSync(notes, 'utf8');
     expect(text).toContain('### Français');
     expect(text).toContain('### English');

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { importCsvAuto } from '@/engine/import';
 import { executionPayloadToCsv } from '../electron/nt-bridge/execution-csv';
+import { Nt8ExecutionPort } from '../electron/nt-bridge/execution-port';
 import type { ExecutionPayload } from '../electron/nt-bridge/protocol';
 import { NtBridgeServer, type NtMarketEvent } from '../electron/nt-bridge/server';
 import WebSocket from 'ws';
@@ -89,6 +90,49 @@ describe('pont NT8 de bout en bout', () => {
     const killed = server.killSwitch();
     expect(performance.now() - started).toBeLessThan(200);
     expect(killed.accounts).toEqual(['Sim101']);
+    ws.close();
+  });
+
+  it('un ordre du port arrive à l’AddOn factice et le fill ressort', async () => {
+    const sink: { port?: Nt8ExecutionPort } = {};
+    const server = new NtBridgeServer({
+      token: TOKEN,
+      port: 0,
+      onExecution: (payload) => sink.port?.ingestExecution(payload),
+    });
+    servers.push(server);
+    const bound = await server.start();
+    const port = new Nt8ExecutionPort(server);
+    sink.port = port;
+    const fills: string[] = [];
+    port.subscribe((event) => {
+      if (event.kind === 'fill') fills.push(event.fill.executionId);
+    });
+    const seen: { tag?: string; account?: string }[] = [];
+    const ws = new WebSocket(`ws://127.0.0.1:${bound}/?token=${TOKEN}`);
+    ws.on('message', (data) => {
+      const msg = JSON.parse(String(data)) as { id?: number; method?: string; params?: { tag?: string; account?: string } };
+      if (msg.method === 'order.submit' && msg.id !== undefined) {
+        seen.push(msg.params ?? {});
+        ws.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { orderId: 'nt-port' } }));
+        ws.send(JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'bridge.execution',
+          params: { Instrument: 'MNQ 12-26', Action: 'Buy', Quantity: 1, Price: 21000, Time: Date.now(), ID: 'ex-port', Account: 'Sim101', Commission: 0, Rate: 1, Connection: 'Simulated' },
+        }));
+      }
+    });
+    await new Promise((resolve) => ws.once('open', resolve));
+    ws.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'bridge.hello', params: { kind: 'ninjatrader', ntVersion: '8.1', addonVersion: 'fake', accounts: ['Sim101'], protocol: 1 } }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const ack = await port.submit({ account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, type: 'market', tag: 'canto-e2e' });
+    expect(ack.ok).toBe(true);
+    expect(seen[0]).toMatchObject({ account: 'Sim101', tag: 'canto-e2e' });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(fills).toEqual(['ex-port']);
+    const blocked = await port.submit({ account: 'APEX-50K', instrument: 'MNQ 12-26', side: 'buy', qty: 1, type: 'market', tag: 'canto-e2e' });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.code).toBe(-32010);
     ws.close();
   });
 });

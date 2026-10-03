@@ -10,7 +10,9 @@ import type { BrowserWindow } from 'electron';
 import type { NinjaBridge } from '../bridge';
 import { mainLog } from '../main-log';
 import { uiText, type AppLocale } from '../locale';
+import { CopierHost, type CopierHostStatus } from './copier-host';
 import { executionPayloadToCsv } from './execution-csv';
+import { Nt8ExecutionPort } from './execution-port';
 import { DEFAULT_MAX_CONTRACTS } from './guards';
 import { DEFAULT_PORT, type ExecutionPayload } from './protocol';
 import { NtBridgeServer, type NtBridgeStatus, type NtMarketEvent } from './server';
@@ -163,6 +165,8 @@ export async function authorizeLiveAccount<T>(args: {
 export class NtBridgeHost {
   private policy: NtPolicy | null = null;
   private server: NtBridgeServer | null = null;
+  private execution: Nt8ExecutionPort | null = null;
+  private copier: CopierHost | null = null;
   private win: BrowserWindow | null = null;
   private fileBridge: NinjaBridge | null = null;
   private exportFolder: () => string;
@@ -182,11 +186,22 @@ export class NtBridgeHost {
       port: policy.port,
       policy: { extraAccounts: policy.extraAccounts, maxContractsPerOrder: policy.maxContractsPerOrder },
       log: (message) => mainLog('info', `nt-bridge ${message}`),
-      onExecution: (payload) => this.onExecution(payload),
-      onStatus: () => this.pushStatus(),
+      onExecution: (payload) => {
+        this.onExecution(payload);
+        this.execution?.ingestExecution(payload);
+      },
+      onOrder: (order) => this.execution?.ingestOrder(order),
+      onAccounts: (accounts) => this.execution?.ingestAccounts(accounts),
+      onStatus: () => {
+        this.pushStatus();
+        this.execution?.ingestLink(server.status().link);
+      },
       onMarket: (event) => this.onMarket(event),
     });
     this.server = server;
+    this.execution = new Nt8ExecutionPort(server);
+    this.copier = new CopierHost(this.execution, this.userDataDir, (line) => mainLog('info', line), () => this.pushCopier());
+    this.copier.open();
     try {
       await server.start();
       mainLog('info', `nt-bridge écoute 127.0.0.1:${server.status().port}`);
@@ -202,6 +217,10 @@ export class NtBridgeHost {
   }
 
   async dispose(): Promise<void> {
+    this.copier?.dispose();
+    this.copier = null;
+    this.execution?.dispose();
+    this.execution = null;
     await this.server?.stop();
     this.server = null;
   }
@@ -279,7 +298,24 @@ export class NtBridgeHost {
   }
 
   killSwitch(): { accounts: string[] } {
+    this.copier?.disarm();
     return this.server?.killSwitch() ?? { accounts: [] };
+  }
+
+  configureCopier(raw: unknown): boolean {
+    return this.copier?.configure(raw) ?? false;
+  }
+
+  armCopier(): void {
+    this.copier?.arm();
+  }
+
+  cutCopier(): { cancelled: string[] } {
+    return this.copier?.cut() ?? { cancelled: [] };
+  }
+
+  copierStatus(): CopierHostStatus {
+    return this.copier?.status() ?? { armed: false, link: 'absent', routed: 0, lastRefusal: null, flattenOnCut: false };
   }
 
   private async persistPolicy(): Promise<void> {
@@ -304,6 +340,10 @@ export class NtBridgeHost {
     this.syncFileBridge();
     const status = this.publicStatus();
     if (status) this.send('ntbridge:status', status);
+  }
+
+  private pushCopier(): void {
+    this.send('copier:status', this.copierStatus());
   }
 
   private syncFileBridge(): void {

@@ -1,0 +1,29 @@
+{
+  "fill": {
+    "account": "Sim101",
+    "instrument": "NQ 12-26",
+    "side": "buy",
+    "qty": 1,
+    "price": 21000,
+    "time": 1700000000000,
+    "executionId": "ex-basic"
+  },
+  "topology": {
+    "masterAccount": "Sim101",
+    "latencyBudgetMs": 250,
+    "newsBlackout": true,
+    "windowStart": "00:00",
+    "windowEnd": "23:59",
+    "followerBufferFloor": 0.3,
+    "followers": [
+      { "account": "Sim102", "sizing": { "mode": "ratio", "value": 1, "maxContracts": 20 }, "symbolMap": { "mode": "micro" } },
+      { "account": "Sim103", "sizing": { "mode": "fixe", "value": 2, "maxContracts": 20 }, "symbolMap": { "mode": "identique" } }
+    ]
+  },
+  "context": { "now": 1700000000000, "localMinutes": 600, "catalysts": [], "maxContractsPerOrder": 20, "states": [] },
+  "orders": [
+    { "account": "Sim102", "instrument": "MNQ 12-26", "side": "buy", "qty": 10, "type": "market", "tag": "canto-cpy" },
+    { "account": "Sim103", "instrument": "NQ 12-26", "side": "buy", "qty": 2, "type": "market", "tag": "canto-cpy" }
+  ],
+  "refused": []
+}
