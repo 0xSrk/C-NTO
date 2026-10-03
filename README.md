@@ -17,7 +17,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-292%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-389%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=c41e3a&label=version)](package.json)
 [![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
@@ -30,7 +30,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 
 <br/>
 
-**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 PTF` · `06 AGT` · `07 BOT`** · Copieur hors rail
+**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 PTF` · `06 AGT` · `07 BOT` · `08 CPY`**
 
 <br/><br/>
 
@@ -48,7 +48,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 5. [`05 · PTF` Portfolio](#portfolio) — shipped
 6. [`06 · AGT` AI agent](#ai-agent) — prototype
 7. [`07 · BOT` Bot](#bot) — design
-8. Copier — off the rail, replication postponed
+8. [`08 · CPY` Copier](#copier) — Sim replication, disarmed by default
 9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
 10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
 11. [Versions](#versions) · [Roadmap](#roadmap) · [Disclaimer](#disclaimer)
@@ -57,7 +57,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 
 ## In short
 
-CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, seven modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier stays in the code, off the rail, until replication ships. Crypto is not a class of CΛNTO: no pocket, no instrument. A vault that still carries `kind: "crypto"` is refused.
+CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. Crypto is not a class of CΛNTO: no pocket, no instrument. A vault that still carries `kind: "crypto"` is refused.
 
 | Module | State in 3.0.0 |
 |---|---|
@@ -68,7 +68,7 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 | `05 · PTF` Portfolio | Shipped. Local net value, exposure, distance to prop thresholds, Monte Carlo on the consolidated series |
 | `06 · AGT` Agent | Prototype. Desk tools, write confirmation, LLM through the main process |
 | `07 · BOT` Bot | Design. No order is sent |
-| Copier | Off the rail since 3.2.0. Replication is not wired. The order channel exists; copying does not |
+| `08 · CPY` Copier | Sim replication. Disarmed on every launch. Real follower accounts are out of this version |
 
 | | |
 |---|---|
@@ -79,7 +79,7 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 | **Context** | Official calendars (BLS, BEA, Fed, ECB, EIA, Treasury) plus an embedded 2026 snapshot · CME expirations computed locally · day’s notes |
 | **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph |
 | **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · its own JSON-RPC WebSocket, separate from the NT bridge |
-| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). Bot stays **design**. Copier replication is not wired |
+| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). Bot stays **design**. The Copier copies a master fill onto Sim followers only while armed |
 | **Synthesize** | Module 08. Missing FX excludes the pocket (`taux EUR/USD manquant`). Crypto pockets are refused |
 
 ---
@@ -426,25 +426,25 @@ Guardrails are **imposed** on every automation: circuit breaker at 30% of max DD
 
 <div align="center">
 
-**`CPY · COPIEUR · HORS RAIL · RÉPLICATION REPORTÉE`**
+**`08 · CPY · COPIEUR · RÉPLICATION SIM · DÉSARMÉ`**
 
 ## Copier
 
-### Master → followers topology · sizing · filters — replication not wired
+### Master fill → sized Sim followers · disarmed on launch
 
 <img src="docs/media/copieur.png" alt="CΛNTO — Copier: topology, filters, DISARMED kill switch" width="920"/>
 
-<sub>Copier — DISARMED by default, WebSocket bridge offline, fixed / ratio / risk sizing, time window, catalyst blackout. Kill switch **Couper** (Cut) sets `enabled: false`.</sub>
+<sub>Copier — disarmed on every launch. Arming asks for confirmation. **Couper** (Cut) disarms and cancels working follower orders.</sub>
 
 </div>
 
-Persisted prototype (accounts, rules, filters). The WebSocket **order channel** is implemented ([`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md), section B): the desk can submit, cancel, and flatten on NinjaTrader, Sim accounts by default. **Copying** a master fill onto followers — sizing, filters, prop-firm policy — is not implemented. This screen does not send those orders.
+Persisted topology (accounts, rules, filters). Replication runs in the main process on the execution port ([`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md), section « Réplication »): a master fill becomes sized follower orders, after the time window, the catalyst blackout, and the follower’s prop-firm floor (`evaluatePlan`). Followers are `Sim*` accounts only. The router starts disarmed. Arming uses the same warning dialog as a live account (Cancel is the default). **Couper** disarms and cancels working follower orders. Flattening followers is an explicit option, off by default. The bridge kill switch still flattens authorized accounts and also disarms the router.
 
 | | |
 |---|---|
 | Sizing | fixed · ratio · risk, contract cap, NQ ↔ MNQ map |
 | Filters | local window, latency budget, floor margin (fraction of DD), stops / targets, catalyst blackout |
-| Arming | default **off**; the **Couper** (Cut) button disarms immediately |
+| Arming | disarmed on every launch; **Armer** confirms in the main process; **Couper** cancels working orders |
 
 ---
 
@@ -499,7 +499,7 @@ The **CSV file** stays the fallback. While the socket is live, a watched executi
 
 The **Executions** export has no MAE/MFE (called out in the import UI). Positions still open are flagged and not imported until they are closed.
 
-Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**. Compiling the AddOn requires Windows and NinjaTrader 8. `scripts/fake-addon.mjs` speaks the same protocol without NT8. Copier replication and bot paper execution are not on this channel yet.
+Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**. Compiling the AddOn requires Windows and NinjaTrader 8. `scripts/fake-addon.mjs` speaks the same protocol without NT8. Copier replication uses that protocol (`order.submit` / `order.cancel` / `order.flatten`). Bot paper execution is not on this channel.
 
 ---
 
@@ -527,7 +527,7 @@ src/engine/       metrics, Monte Carlo, NT import, prop firm, portfolio,
                   instrument registry, market-data ports, official calendar,
                   indicators, agent tools
 src/store/        Dexie 4 (IndexedDB) + Zustand — schema version 7
-src/modules/      one folder per tab (01…08)
+src/modules/      one folder per tab (01…08, Copier is 08 CPY)
 tests/            Vitest — see `npm test` (engine, import, vault, calendar, bridge, agent, portfolio, shell)
 vectors/          shared JSON vectors (metrics / prop firm / portfolio)
 docs/             DESIGN.md · PONT-NINJATRADER.md · AUDIT.md · media/
@@ -596,19 +596,15 @@ Système 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is a
 
 ## Roadmap
 
-Shipped in **3.0.0**: instrument registry, market-data port, official calendar and embedded snapshot, NT8 WebSocket, notes ontology, portfolio, AUBE II launcher.
+This forge ships the execution port, Sim replication, and the Copier on the rail as `08 · CPY`, disarmed at launch.
 
-After 3.0.0:
-
-- Copier replication (sizing, filters, prop-firm policy) on the order channel that already exists
-- Backtest automations on imported bars
-- Agent: long memory per trader, desk evolution profiles
+Not in this forge: the certified journal, the agent protocol, and the licence.
 
 ---
 
 ## Disclaimer
 
-The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier does not replicate. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. Crypto is not part of the desk.
+The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. Crypto is not part of the desk.
 
 ## Licence
 

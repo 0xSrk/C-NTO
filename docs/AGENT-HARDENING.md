@@ -61,6 +61,8 @@ Bot / Copieur = UI + store seulement (`src/modules/bot`, `src/modules/copieur`, 
 
 ---
 
+> **2026-10-03.** Le protocole § 0 reste en vigueur. La liste d'interdits de ce brief (17 septembre, v1.1.1) est périmée là où le README 3.2.2 la contredit : le transport WebSocket et le canal d'ordres existent. La réplication Sim est dans cette branche. `copy.order` n'est pas un outil d'agent.
+
 ## 2. Hors périmètre (cette vague)
 
 - WebSocket NinjaTrader, `copy.order`, `copy.cancel`, flatten, robot live

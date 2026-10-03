@@ -1,36 +1,10 @@
 import { create } from 'zustand';
-import { microCounterpart, standardCounterpart } from '@/engine/instruments';
+import { replicatedQty as sizeFollowerPreview } from '@/engine/copier/sizing';
+import { DEFAULT_COPIER, type CopierConfig } from '@/engine/copier/types';
 import { uid } from '@/lib/id';
 import { coerceSymbolMap, db, getSetting, setSetting, type CopierAccount } from './db';
 
-export interface CopierConfig {
-  enabled: boolean;
-  /** Budget de latence toléré maître → suiveur (ms) avant alerte */
-  latencyBudgetMs: number;
-  copyStops: boolean;
-  copyTargets: boolean;
-  /** Ne pas copier ±15 min autour des catalyseurs majeurs */
-  newsBlackout: boolean;
-  /** Fenêtre de copie, heure locale */
-  windowStart: string;
-  windowEnd: string;
-  /** Rejeter une copie si le suiveur dépasse cette marge de drawdown (fraction du DD max de son plan) */
-  followerBufferFloor: number;
-  /** Inutilisé depuis 3.1.0 — conservé pour les coffres déjà exportés. */
-  channel: 'stable' | 'beta';
-}
-
-export const DEFAULT_COPIER: CopierConfig = {
-  enabled: false,
-  latencyBudgetMs: 250,
-  copyStops: true,
-  copyTargets: true,
-  newsBlackout: true,
-  windowStart: '15:30',
-  windowEnd: '17:30',
-  followerBufferFloor: 0.3,
-  channel: 'stable',
-};
+export { DEFAULT_COPIER, type CopierConfig };
 
 interface CopierState {
   ready: boolean;
@@ -83,27 +57,7 @@ export const useCopier = create<CopierState>((set, get) => ({
 
 /** Taille répliquée pour un suiveur à partir d'un ordre maître. */
 export function replicatedQty(master: { qty: number; instrument: string }, follower: CopierAccount): { qty: number; instrument: string; note?: string } {
-  let qty = master.qty;
-  let instrument = master.instrument;
   const map = coerceSymbolMap(follower.symbolMap);
-  if (map?.mode === 'micro') {
-    const micro = microCounterpart(instrument);
-    if (micro) {
-      instrument = micro.symbol;
-      qty *= micro.ratio;
-    }
-  } else if (map?.mode === 'standard') {
-    const standard = standardCounterpart(instrument);
-    if (standard) {
-      instrument = standard.symbol;
-      qty = Math.floor(qty / standard.ratio);
-    }
-  } else if (map?.mode === 'explicite' && instrument === map.from) {
-    instrument = map.to;
-  }
-  if (follower.sizing.mode === 'fixe') qty = follower.sizing.value;
-  else if (follower.sizing.mode === 'ratio') qty = Math.round(qty * follower.sizing.value);
-  else if (follower.sizing.mode === 'risque') qty = Math.max(1, Math.round(follower.sizing.value));
-  const capped = Math.min(qty, follower.sizing.maxContracts);
-  return { qty: capped, instrument, note: capped < qty ? `plafonné à ${follower.sizing.maxContracts}` : qty === 0 ? 'taille nulle' : undefined };
+  if (!map) return { qty: 0, instrument: master.instrument, note: 'taille nulle' };
+  return sizeFollowerPreview(master, { sizing: follower.sizing, symbolMap: map });
 }

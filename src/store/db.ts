@@ -582,6 +582,7 @@ const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
     if (isStr(v.windowStart, 5) && TIME_RE.test(v.windowStart)) out.windowStart = v.windowStart;
     if (isStr(v.windowEnd, 5) && TIME_RE.test(v.windowEnd)) out.windowEnd = v.windowEnd;
     if (inRange(v.followerBufferFloor, 0, 1)) out.followerBufferFloor = v.followerBufferFloor;
+    if (isBool(v.flattenOnCut)) out.flattenOnCut = v.flattenOnCut;
     // `channel` inutilisé depuis 3.1.0 — conservé pour les coffres déjà exportés.
     if (isEnum(v.channel, ['stable', 'beta'] as const)) out.channel = v.channel;
     return out;

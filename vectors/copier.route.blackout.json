@@ -1,0 +1,31 @@
+{
+  "fill": {
+    "account": "Sim101",
+    "instrument": "NQ 12-26",
+    "side": "buy",
+    "qty": 1,
+    "price": 21000,
+    "time": 1700000000000,
+    "executionId": "ex-blackout"
+  },
+  "topology": {
+    "masterAccount": "Sim101",
+    "latencyBudgetMs": 60000,
+    "newsBlackout": true,
+    "windowStart": "00:00",
+    "windowEnd": "23:59",
+    "followerBufferFloor": 0.3,
+    "followers": [
+      { "account": "Sim102", "sizing": { "mode": "ratio", "value": 1, "maxContracts": 5 }, "symbolMap": { "mode": "identique" } }
+    ]
+  },
+  "context": {
+    "now": 1700000000000,
+    "localMinutes": 600,
+    "catalysts": [{ "at": 1700000000000 }],
+    "maxContractsPerOrder": 20,
+    "states": []
+  },
+  "orders": [],
+  "refused": [{ "reason": "blackout", "account": "Sim102", "instrument": "NQ 12-26", "qty": 1 }]
+}

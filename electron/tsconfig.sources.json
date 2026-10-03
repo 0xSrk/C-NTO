@@ -13,5 +13,10 @@
     "sourceMap": false,
     "types": ["node"]
   },
-  "files": ["../src/engine/sources.ts"]
+  "files": [
+    "../src/engine/sources.ts",
+    "../src/engine/execution/guards.ts",
+    "../src/engine/copier/router.ts",
+    "../src/engine/copier/sync.ts"
+  ]
 }

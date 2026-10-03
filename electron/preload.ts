@@ -56,6 +56,13 @@ contextBridge.exposeInMainWorld('canto', {
     onStatus: (cb: (status: unknown) => void) => subscribe('ntbridge:status', cb),
     onExecution: (cb: (payload: { csv: string; executionId: string }) => void) => subscribe('ntbridge:execution', cb),
   },
+  copier: {
+    status: () => ipcRenderer.invoke('copier:status'),
+    configure: (sync: unknown) => ipcRenderer.invoke('copier:configure', sync) as Promise<boolean>,
+    arm: () => ipcRenderer.invoke('copier:arm'),
+    cut: () => ipcRenderer.invoke('copier:cut') as Promise<{ cancelled: string[] }>,
+    onStatus: (cb: (status: unknown) => void) => subscribe('copier:status', cb),
+  },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     changelog: () => ipcRenderer.invoke('update:changelog') as Promise<ChangelogFile | null>,

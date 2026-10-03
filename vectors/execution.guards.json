@@ -1,0 +1,39 @@
+{
+  "cases": [
+    {
+      "name": "accepté",
+      "order": { "account": "Sim101", "quantity": 1, "tag": "canto" },
+      "policy": { "extraAccounts": [], "maxContractsPerOrder": 20 },
+      "snap": { "link": "live", "ordersClosed": false },
+      "ok": true
+    },
+    {
+      "name": "compte",
+      "order": { "account": "APEX-50K", "quantity": 1, "tag": "canto" },
+      "policy": { "extraAccounts": [], "maxContractsPerOrder": 20 },
+      "snap": { "link": "live", "ordersClosed": false },
+      "code": -32010
+    },
+    {
+      "name": "lien",
+      "order": { "account": "Sim101", "quantity": 1, "tag": "canto" },
+      "policy": { "extraAccounts": [], "maxContractsPerOrder": 20 },
+      "snap": { "link": "lost", "ordersClosed": false },
+      "code": -32011
+    },
+    {
+      "name": "plafond",
+      "order": { "account": "Sim101", "quantity": 21, "tag": "canto" },
+      "policy": { "extraAccounts": [], "maxContractsPerOrder": 20 },
+      "snap": { "link": "live", "ordersClosed": false },
+      "code": -32012
+    },
+    {
+      "name": "tag",
+      "order": { "account": "Sim101", "quantity": 1, "tag": "  " },
+      "policy": { "extraAccounts": [], "maxContractsPerOrder": 20 },
+      "snap": { "link": "live", "ordersClosed": false },
+      "code": -32013
+    }
+  ]
+}

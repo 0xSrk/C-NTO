@@ -1,7 +1,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import { tr } from '@/i18n';
 import type { TabId } from '@/store/ui';
-import { IconAgent, IconBot, IconCalendar, IconMetric, IconNote, IconPortfolio, IconVisual } from './icons';
+import { IconAgent, IconBot, IconCalendar, IconCopier, IconMetric, IconNote, IconPortfolio, IconVisual } from './icons';
 
 export interface TabDef {
   id: TabId;
@@ -20,6 +20,7 @@ export const TABS: TabDef[] = [
   { id: 'portefeuille', index: '05', label: 'Portefeuille', code: 'PTF', tagline: 'Synthèse · cœur · projection', icon: IconPortfolio },
   { id: 'agent', index: '06', label: 'Agent IA', code: 'AGT', tagline: 'Passerelle native · orchestrateur', icon: IconAgent },
   { id: 'bot', index: '07', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates · CONCEPTION', icon: IconBot },
+  { id: 'copieur', index: '08', label: 'Copieur', code: 'CPY', tagline: 'Réplication · comptes Sim', icon: IconCopier },
 ];
 
 const CONCEPTION = new Set<TabId>(['agent', 'bot']);
@@ -35,7 +36,7 @@ const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
   note: { label: 'Note', tagline: 'Note vault · links' },
   agent: { label: 'AI Agent', tagline: 'Native gateway · orchestrator' },
   bot: { label: 'Bot', tagline: 'Automaton workshop · DESIGN' },
-  copieur: { label: 'Copier', tagline: 'Account replication · DESIGN' },
+  copieur: { label: 'Copier', tagline: 'Replication · Sim accounts' },
   portefeuille: { label: 'Portfolio', tagline: 'Synthesis · heart · projection' },
 };
 
@@ -46,7 +47,7 @@ const TAB_ES: Record<TabId, { label: string; tagline: string }> = {
   note: { label: 'Nota', tagline: 'Caja de notas · enlaces' },
   agent: { label: 'Agente IA', tagline: 'Pasarela nativa · orquestador' },
   bot: { label: 'Bot', tagline: 'Taller de autómatas · DISEÑO' },
-  copieur: { label: 'Copiador', tagline: 'Réplica de cuentas · DISEÑO' },
+  copieur: { label: 'Copiador', tagline: 'Réplica · cuentas Sim' },
   portefeuille: { label: 'Cartera', tagline: 'Síntesis · corazón · proyección' },
 };
 

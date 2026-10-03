@@ -1,8 +1,6 @@
 /** Identifiant canonique du registre (`src/engine/instruments.ts`). */
 export type Instrument = string;
 
-export type { AssetClass, Exchange, InstrumentSpec, SessionTemplate } from './instruments';
-
 export type Direction = 'long' | 'short';
 
 export type SessionSource = 'ninjatrader' | 'csv' | 'manuel' | 'demo';

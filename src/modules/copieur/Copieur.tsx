@@ -1,12 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Panel, Stat, Tag, Toggle, cx } from '@/design/primitives';
-import { PROP_FIRMS } from '@/engine/propfirm';
+import { packCopierSync } from '@/engine/copier/sync';
+import { findPlan, PROP_FIRMS } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
+import { desk, type CopierHostStatus } from '@/lib/desk';
+import { zonedToUtc } from '@/lib/time';
 import { plural } from '@/lib/format';
-import { APP_VERSION } from '@/lib/version';
+import { useBridge } from '@/store/bridge';
 import type { CopierAccount } from '@/store/db';
+import { useJournal } from '@/store/journal';
+import { useMacro } from '@/store/macro';
 import { replicatedQty, useCopier } from '@/store/copier';
 import s from './copieur.module.css';
 
@@ -29,15 +34,54 @@ function translateRepNote(note: string | undefined): string | undefined {
   return note;
 }
 
+const REFUSAL: Record<string, [string, string, string]> = {
+  latency: ['Latence', 'Latency', 'Latencia'],
+  window: ['Fenêtre', 'Window', 'Ventana'],
+  blackout: ['Blackout', 'Blackout', 'Blackout'],
+  floor: ['Plancher', 'Floor', 'Suelo'],
+  cap: ['Plafond', 'Cap', 'Tope'],
+  instrument: ['Instrument', 'Instrument', 'Instrumento'],
+};
+
 export default function Copieur() {
   useI18n((s) => s.locale);
   const { ready, accounts, config, load, addAccount, updateAccount, removeAccount, updateConfig } = useCopier();
+  const nt = useBridge((st) => st.nt);
+  const sessions = useJournal((st) => st.sessions);
+  const trades = useJournal((st) => st.trades);
+  const events = useMacro((st) => st.events);
   const [newName, setNewName] = useState('');
   const [newNt, setNewNt] = useState('');
   const [newRole, setNewRole] = useState<CopierAccount['role']>('suiveur');
   const [sampleQty, setSampleQty] = useState(2);
   const [sampleInstr, setSampleInstr] = useState<'NQ' | 'MNQ'>('NQ');
+  const [host, setHost] = useState<CopierHostStatus | null>(null);
+  const [arming, setArming] = useState(false);
   const BRIDGE_STEPS = bridgeSteps();
+  const catalysts = useMemo(
+    () => events.filter((event) => event.impact === 3 && event.timeET).map((event) => ({ at: zonedToUtc(event.date, event.timeET ?? '00:00', 'America/New_York') })),
+    [events],
+  );
+
+  useEffect(() => {
+    if (!desk?.copier) return;
+    void desk.copier.status().then(setHost);
+    return desk.copier.onStatus(setHost);
+  }, []);
+
+  useEffect(() => {
+    if (!desk?.copier || !ready) return;
+    const payload = packCopierSync({
+      accounts,
+      config,
+      sessions,
+      trades,
+      planById: findPlan,
+      catalysts,
+      maxContractsPerOrder: nt?.maxContractsPerOrder ?? 20,
+    });
+    void desk.copier.configure(payload);
+  }, [accounts, catalysts, config, nt?.maxContractsPerOrder, ready, sessions, trades]);
 
   useEffect(() => {
     if (!ready) load();
@@ -59,13 +103,35 @@ export default function Copieur() {
         tab="copieur"
         actions={
           <>
-            <Tag tone="amber" dot>
-              {tr('CONCEPTION', 'DESIGN', 'CONCEPCIÓN')}
+            <Tag tone={host?.armed ? 'ember' : 'mint'} dot>
+              {host?.armed ? tr('ARMÉ', 'ARMED', 'ARMADO') : tr('DÉSARMÉ', 'DISARMED', 'DESARMADO')}
             </Tag>
-            <Tag tone={config.enabled ? 'ember' : 'mint'} dot>
-              {config.enabled ? tr('ARMÉ', 'ARMED', 'ARMADO') : tr('DÉSARMÉ', 'DISARMED', 'DESARMADO')}
-            </Tag>
-            <Button size="sm" variant="danger" onClick={() => updateConfig({ enabled: false })}>
+            <Button
+              size="sm"
+              variant="gold"
+              disabled={host?.armed || arming || !desk?.copier}
+              onClick={() => {
+                const api = desk?.copier;
+                if (!api) return;
+                setArming(true);
+                void api.arm().then((status) => {
+                  if (status) setHost(status);
+                  setArming(false);
+                });
+              }}
+            >
+              {tr('Armer', 'Arm', 'Armar')}
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => {
+                void updateConfig({ enabled: false });
+                const api = desk?.copier;
+                if (!api) return;
+                void api.cut().then(() => api.status().then(setHost));
+              }}
+            >
               {tr('Couper', 'Cut', 'Cortar')}
             </Button>
           </>
@@ -75,7 +141,7 @@ export default function Copieur() {
         <div className={s.layout}>
           <div className={s.col}>
             <div className={s.board}>
-              <Stat small label={tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')} value={tr('Hors ligne', 'Offline', 'Fuera de línea')} hint={tr('pont local, non connecté', 'local bridge, not connected', 'puente local, no conectado')} />
+              <Stat small label={tr('Lien', 'Link', 'Enlace')} value={linkLabel(host?.link ?? nt?.link ?? 'absent')} hint={tr('pont local', 'local bridge', 'puente local')} />
               <Stat
                 small
                 label={tr('Maîtres · suiveurs', 'Masters · followers', 'Maestros · seguidores')}
@@ -83,16 +149,21 @@ export default function Copieur() {
                 hint={plural(followers.filter((f) => f.enabled).length, tr('suiveur actif', 'active follower', 'seguidor activo'), tr('suiveurs actifs', 'active followers', 'seguidores activos'))}
                 tone="ice"
               />
-              <Stat small label={tr('Budget latence', 'Latency budget', 'Presupuesto de latencia')} value={`${config.latencyBudgetMs} ms`} hint={tr('alerte au-delà', 'alert beyond', 'alerta más allá')} tone="gold" />
-              <Stat small label={tr('Version', 'Version', 'Versión')} value={APP_VERSION} />
+              <Stat small label={tr('Fills routés', 'Routed fills', 'Fills enrutados')} value={String(host?.routed ?? 0)} hint={tr('depuis l’ouverture', 'since launch', 'desde la apertura')} tone="gold" />
+              <Stat
+                small
+                label={tr('Dernier refus', 'Last refusal', 'Último rechazo')}
+                value={host?.lastRefusal ? tr(...(REFUSAL[host.lastRefusal.reason] ?? ['Refus', 'Refusal', 'Rechazo'])) : '—'}
+                hint={host?.lastRefusal ? `${host.lastRefusal.account} · ${host.lastRefusal.qty}` : tr('aucun', 'none', 'ninguno')}
+              />
             </div>
 
             <div className={s.banner}>
-              <b>{tr('Prototype.', 'Prototype.', 'Prototipo.')}</b>{' '}
+              <b>{tr('Sim.', 'Sim.', 'Sim.')}</b>{' '}
               {tr(
-                'La topologie, les règles de réplication et les filtres sont opérationnels et persistés. La réplication effective des ordres passe par le transport WebSocket de l’AddOn « CΛNTO Bridge », livré dans une prochaine itération : sans pont connecté, aucun ordre n’est envoyé.',
-                'Topology, replication rules, and filters are operational and persisted. Live order replication goes through the WebSocket transport of the “CΛNTO Bridge” AddOn, shipping in a later iteration: with no connected bridge, no order is sent.',
-                'La topología, las reglas de replicación y los filtros son operativos y persistidos. La replicación efectiva de órdenes pasa por el transporte WebSocket del AddOn « CΛNTO Bridge », entregado en una próxima iteración: sin puente conectado, no se envía ningún orden.',
+                'La réplication envoie les fills du maître vers les suiveurs Sim, désarmée à chaque ouverture. Couper annule les ordres en attente. Aucun compte réel suiveur dans cette version.',
+                'Replication sends the master fills to Sim followers, and starts disarmed on every launch. Cut cancels working orders. No real follower account in this version.',
+                'La réplica envía los fills del maestro a las cuentas seguidoras Sim, y arranca desarmada en cada apertura. Cortar anula las órdenes pendientes. Ninguna cuenta real seguidora en esta versión.',
               )}
             </div>
 
@@ -167,6 +238,11 @@ export default function Copieur() {
                   onChange={(v) => updateConfig({ newsBlackout: v })}
                   label={tr('Blackout ±15 min autour des catalyseurs majeurs', 'Blackout ±15 min around major catalysts', 'Blackout ±15 min alrededor de catalizadores mayores')}
                 />
+                <Toggle
+                  on={config.flattenOnCut}
+                  onChange={(v) => updateConfig({ flattenOnCut: v })}
+                  label={tr('Aplatir les suiveurs en coupant', 'Flatten followers when cutting', 'Aplanar seguidores al cortar')}
+                />
               </div>
             </Panel>
 
@@ -190,6 +266,14 @@ export default function Copieur() {
       </ModuleContent>
     </>
   );
+}
+
+function linkLabel(link: string): string {
+  if (link === 'live') return tr('Direct', 'Live', 'En directo');
+  if (link === 'stale') return tr('Veille', 'Standby', 'En espera');
+  if (link === 'lost') return tr('Perdu', 'Lost', 'Perdido');
+  if (link === 'connecting') return tr('Connexion', 'Connecting', 'Conexión');
+  return tr('Hors ligne', 'Offline', 'Fuera de línea');
 }
 
 function AccountCard({ acc, onChange, onRemove, sample }: { acc: CopierAccount; onChange: (p: Partial<CopierAccount>) => void; onRemove: () => void; sample?: { qty: number; instrument: 'NQ' | 'MNQ' } }) {

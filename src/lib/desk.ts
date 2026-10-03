@@ -51,6 +51,22 @@ export interface NtBridgeStatus {
   killSwitchShortcut: string;
 }
 
+export interface CopierHostStatus {
+  armed: boolean;
+  link: 'absent' | 'connecting' | 'live' | 'stale' | 'lost';
+  routed: number;
+  lastRefusal: { reason: string; account: string; instrument: string; qty: number } | null;
+  flattenOnCut: boolean;
+}
+
+export interface CopierApi {
+  status: () => Promise<CopierHostStatus | null>;
+  configure: (sync: unknown) => Promise<boolean>;
+  arm: () => Promise<CopierHostStatus | null>;
+  cut: () => Promise<{ cancelled: string[] }>;
+  onStatus: (cb: (status: CopierHostStatus) => void) => () => void;
+}
+
 export interface NtBridgeApi {
   status: () => Promise<NtBridgeStatus | null>;
   rotateToken: () => Promise<{ hasToken: boolean }>;
@@ -129,6 +145,7 @@ export interface DeskApi {
   };
   bridge: BridgeApi;
   ntbridge?: NtBridgeApi;
+  copier?: CopierApi;
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
     encrypt: (text: string) => Promise<string | null>;
