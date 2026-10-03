@@ -6,6 +6,9 @@ export interface DeskNote {
   body: string;
   tags: string[];
   updatedAt: number;
+  parentId?: string;
+  ancre?: string;
+  question?: string;
 }
 
 export interface DeskCalendarEntry {
@@ -25,6 +28,8 @@ export interface DeskPorts {
   updateSession(id: string, patch: { note?: string; tags?: string[] }): Promise<void>;
   notes(): DeskNote[];
   createNote(title: string, body: string, tags: string[]): Promise<{ id: string; title: string }>;
+  branchNote(parentId: string, ancre: string, question: string): Promise<{ id: string; title: string } | null>;
+  linkNotes(fromId: string, toId: string, predicate: string): Promise<{ id: string } | null>;
   calendarEntries(): DeskCalendarEntry[];
 }
 
@@ -47,7 +52,7 @@ export const ORCH_READ_METHODS = [
   'propfirm_status',
 ] as const;
 
-export const ORCH_WRITE_METHODS = ['create_note', 'annotate_session'] as const;
+export const ORCH_WRITE_METHODS = ['create_note', 'annotate_session', 'branch_note', 'link_notes'] as const;
 
 export function orchMethodAllowed(method: string, allowWrites: boolean): boolean {
   const name = method.replace(/^tool\./, '');
@@ -57,6 +62,8 @@ export function orchMethodAllowed(method: string, allowWrites: boolean): boolean
 }
 
 export const TITLE_MAX = 200;
+export const ANCRE_MAX = 500;
+export const QUESTION_MAX = 200;
 export const SHORT_ARG_MAX = 64;
 const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId'] as const;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -75,6 +82,8 @@ export function clampToolArgs(args: Record<string, unknown>, allowedKeys?: reado
   if (typeof out.body === 'string' && out.body.length > BODY_MAX) return { ok: false, reason: 'args_too_large' };
   if (typeof out.note === 'string' && out.note.length > BODY_MAX) return { ok: false, reason: 'args_too_large' };
   if (typeof out.title === 'string' && out.title.length > TITLE_MAX) return { ok: false, reason: 'args_too_large' };
+  if (typeof out.ancre === 'string' && out.ancre.length > ANCRE_MAX) return { ok: false, reason: 'args_too_large' };
+  if (typeof out.question === 'string' && out.question.length > QUESTION_MAX) return { ok: false, reason: 'args_too_large' };
   for (const k of SHORT_ARGS) {
     const v = out[k];
     if (typeof v === 'string' && v.length > SHORT_ARG_MAX) return { ok: false, reason: 'args_too_large' };
