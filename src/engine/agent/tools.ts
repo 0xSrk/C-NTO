@@ -1,4 +1,5 @@
 import { generateNasdaqEvents } from '@/engine/calendar';
+import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { tr } from '@/i18n';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
@@ -161,7 +162,19 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const id = str(args.id);
         const title = str(args.title).toLowerCase();
         const n = notes.find((x) => x.id === id) ?? notes.find((x) => x.title.toLowerCase() === title);
-        return n ? { id: n.id, title: n.title, tags: n.tags, body: n.body, updatedAt: new Date(n.updatedAt).toISOString() } : { error: tr('Note introuvable', 'Note not found', 'Nota no encontrada') };
+        if (!n) return { error: tr('Note introuvable', 'Note not found', 'Nota no encontrada') };
+        const children = notes.filter((x) => x.parentId === n.id).map((x) => x.title);
+        return {
+          id: n.id,
+          title: n.title,
+          tags: n.tags,
+          body: n.body,
+          updatedAt: new Date(n.updatedAt).toISOString(),
+          ...(n.parentId ? { parentId: n.parentId } : {}),
+          ...(n.ancre ? { ancre: n.ancre } : {}),
+          ...(n.question ? { question: n.question } : {}),
+          ...(children.length ? { children } : {}),
+        };
       },
     },
     {
@@ -172,6 +185,50 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       async run(args) {
         const n = await ports.createNote(str(args.title, 'Note'), str(args.body), Array.isArray(args.tags) ? args.tags.map(String) : []);
         return { id: n.id, title: n.title };
+      },
+    },
+    {
+      name: 'branch_note',
+      kind: 'write',
+      description: 'Ouvre une note enfant : question, ancre du passage, lien vers le parent. Le corps du parent n’est pas copié.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string' }, title: { type: 'string' }, ancre: { type: 'string' }, question: { type: 'string' } },
+        required: ['ancre', 'question'],
+        additionalProperties: false,
+      },
+      async run(args) {
+        const notes = ports.notes();
+        const id = str(args.id);
+        const title = str(args.title).toLowerCase();
+        const parent = notes.find((x) => x.id === id) ?? notes.find((x) => x.title.toLowerCase() === title);
+        if (!parent) return { error: tr('Note introuvable', 'Note not found', 'Nota no encontrada') };
+        const child = await ports.branchNote(parent.id, str(args.ancre), str(args.question));
+        if (!child) return { error: tr('Note introuvable', 'Note not found', 'Nota no encontrada') };
+        return { id: child.id, title: child.title };
+      },
+    },
+    {
+      name: 'link_notes',
+      kind: 'write',
+      description: 'Relie deux notes par un prédicat déjà connu. N’invente pas de relation.',
+      parameters: {
+        type: 'object',
+        properties: { from: { type: 'string' }, to: { type: 'string' }, predicate: { type: 'string' } },
+        required: ['from', 'to', 'predicate'],
+        additionalProperties: false,
+      },
+      async run(args) {
+        const predicate = str(args.predicate);
+        if (!(PREDICATES as readonly string[]).includes(predicate)) return { error: tr('Prédicat refusé', 'Predicate refused', 'Predicado rechazado') };
+        const notes = ports.notes();
+        const find = (key: string) => notes.find((x) => x.id === key) ?? notes.find((x) => x.title.toLowerCase() === key.toLowerCase());
+        const from = find(str(args.from));
+        const to = find(str(args.to));
+        if (!from || !to || from.id === to.id) return { error: tr('Note introuvable', 'Note not found', 'Nota no encontrada') };
+        const linked = await ports.linkNotes(from.id, to.id, predicate);
+        if (!linked) return { error: tr('Prédicat refusé', 'Predicate refused', 'Predicado rechazado') };
+        return { id: linked.id || linkId({ type: 'note', id: from.id }, predicate as Predicate, { type: 'note', id: to.id }) };
       },
     },
     {
@@ -217,6 +274,8 @@ const EMPTY_PORTS: DeskPorts = {
   updateSession: async () => undefined,
   notes: () => [],
   createNote: async () => ({ id: '', title: '' }),
+  branchNote: async () => null,
+  linkNotes: async () => null,
   calendarEntries: () => [],
 };
 
@@ -240,6 +299,10 @@ export function toolBlurb(name: string, fallback: string): string {
       return tr(fallback, 'Reads a full note by exact title or id.', 'Lee una nota completa por título exacto o id.');
     case 'create_note':
       return tr(fallback, 'Creates a Markdown note in the vault ([[links]] and #tags are recognized).', 'Crea una nota Markdown en la caja (se reconocen [[enlaces]] y #tags).');
+    case 'branch_note':
+      return tr(fallback, 'Opens a child note: question, anchor passage, link to the parent. The parent body is not copied.', 'Abre una nota hija: pregunta, ancla del pasaje, enlace al padre. El cuerpo del padre no se copia.');
+    case 'link_notes':
+      return tr(fallback, 'Links two notes with an already known predicate. Does not invent a relation.', 'Relaciona dos notas con un predicado ya conocido. No inventa una relación.');
     case 'calendar_events':
       return tr(fallback, 'Nasdaq events (FOMC, NFP, CPI, expirations, holidays…) and personal entries between two dates.', 'Eventos Nasdaq (FOMC, NFP, CPI, vencimientos, festivos…) y entradas personales entre dos fechas.');
     case 'propfirm_status':

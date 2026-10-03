@@ -1,3 +1,4 @@
+import { ANCRE_MAX, QUESTION_MAX } from '@/engine/agent/ports';
 import { parseNoteHeader, writeNoteStatut } from '@/engine/ontology/header';
 import { splitCode } from '@/engine/ontology/text';
 import { tr } from '@/i18n';
@@ -135,12 +136,22 @@ const PLAN_BODY_ES = `# Plan de trading
 - Reentrar tras 2 pérdidas seguidas #disciplina
 `;
 
+/** Corps de l'enfant : la question, puis un [[lien]] vers le titre du parent. L'ancre reste un champ. */
+export function branchChild(parent: { id: string; title: string }, ancre: string, question: string): { parentId: string; ancre: string; question: string; title: string; body: string } {
+  const q = question.trim().slice(0, QUESTION_MAX);
+  const a = ancre.trim().slice(0, ANCRE_MAX);
+  const title = (q || `${parent.title} — suite`).slice(0, 200);
+  const body = q ? `${q}\n\n[[${parent.title}]]\n` : `[[${parent.title}]]\n`;
+  return { parentId: parent.id, ancre: a, question: q, title, body };
+}
+
 interface NotesState {
   ready: boolean;
   notes: Note[];
   activeId: string | null;
   load: () => Promise<void>;
   create: (title?: string, body?: string, tags?: string[]) => Promise<Note>;
+  branch: (parentId: string, ancre: string, question?: string) => Promise<Note | null>;
   update: (id: string, patch: Partial<Pick<Note, 'title' | 'body' | 'pinned' | 'statut'>>) => Promise<void>;
   remove: (id: string) => Promise<void>;
   setActive: (id: string | null) => void;
@@ -191,6 +202,34 @@ export const useNotes = create<NotesState>((set, get) => ({
       body,
       tags: [...new Set([...tags, ...extractTags(body)])],
       ...(header.statut ? { statut: header.statut } : {}),
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.notes.add(note);
+    set({ notes: [note, ...get().notes], activeId: note.id });
+    scheduleOntologyRecompute();
+    return note;
+  },
+
+  async branch(parentId, ancre, question = '') {
+    const parent = get().notes.find((n) => n.id === parentId);
+    if (!parent) return null;
+    const draft = branchChild(parent, ancre, question);
+    const now = Date.now();
+    let finalTitle = draft.title;
+    let i = 2;
+    while (byTitle(get().notes, finalTitle)) {
+      const suffix = ` ${i++}`;
+      finalTitle = `${draft.title.slice(0, Math.max(0, 200 - suffix.length))}${suffix}`;
+    }
+    const note: Note = {
+      id: uid('n'),
+      title: finalTitle,
+      body: draft.body,
+      tags: extractTags(draft.body),
+      parentId: draft.parentId,
+      ...(draft.ancre ? { ancre: draft.ancre } : {}),
+      ...(draft.question ? { question: draft.question } : {}),
       createdAt: now,
       updatedAt: now,
     };

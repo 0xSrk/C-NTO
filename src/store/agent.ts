@@ -10,6 +10,8 @@ import { APP_VERSION } from '@/lib/version';
 import { useCalendar } from './calendar';
 import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
+import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
+import { useLinks } from './links';
 import { useNotes } from './notes';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings } from './settings';
 import { useUi } from './ui';
@@ -57,6 +59,16 @@ function livePorts(): DeskPorts {
     updateSession: (id, patch) => useJournal.getState().updateSession(id, patch),
     notes: () => useNotes.getState().notes,
     createNote: (title, body, tags) => useNotes.getState().create(title, body, tags),
+    branchNote: async (parentId, ancre, question) => {
+      const note = await useNotes.getState().branch(parentId, ancre, question);
+      return note ? { id: note.id, title: note.title } : null;
+    },
+    linkNotes: async (fromId, toId, predicate) => {
+      if (!(PREDICATES as readonly string[]).includes(predicate)) return null;
+      const known = predicate as Predicate;
+      await useLinks.getState().affirm({ type: 'note', id: fromId }, { type: 'note', id: toId }, known);
+      return { id: linkId({ type: 'note', id: fromId }, known, { type: 'note', id: toId }) };
+    },
     calendarEntries: () => useCalendar.getState().entries,
   };
 }

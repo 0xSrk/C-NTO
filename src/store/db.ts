@@ -23,6 +23,12 @@ export interface Note {
   pinned?: boolean;
   /** Statut épistémique. Absent = opinion. */
   statut?: NoteStatut;
+  /** Note dont celle-ci est la suite. Absent : note autonome. */
+  parentId?: string;
+  /** Passage sélectionné chez le parent. Pas une copie du corps. */
+  ancre?: string;
+  /** Question qui ouvre le corps de l'enfant. */
+  question?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -234,6 +240,10 @@ class CantoDb extends Dexie {
     this.version(8).stores({
       openLots: 'key, account, instrument',
     });
+    // v9 : parentId, ancre, question optionnels. Une note déjà là, sans ces champs, s'ouvre telle quelle.
+    this.version(9).stores({
+      notes: 'id, title, updatedAt, *tags, parentId',
+    });
   }
 }
 
@@ -435,7 +445,17 @@ const CHECKS: Record<string, Check> = {
     opt(r.executionIds, (v) => isStrArray(v, 64, 200)) &&
     opt(r.orderIds, (v) => isStrArray(v, 64, 200)) &&
     opt(r.contractMonth, (v) => isStr(v, 16)),
-  notes: (r) => isStr(r.title, 200) && isStr(r.body, 1_000_000) && isStrArray(r.tags, 100, 80) && isNum(r.updatedAt) && opt(r.createdAt, isNum) && opt(r.pinned, isBool) && opt(r.statut, (v) => isEnum(v, NOTE_STATUTS)),
+  notes: (r) =>
+    isStr(r.title, 200) &&
+    isStr(r.body, 1_000_000) &&
+    isStrArray(r.tags, 100, 80) &&
+    isNum(r.updatedAt) &&
+    opt(r.createdAt, isNum) &&
+    opt(r.pinned, isBool) &&
+    opt(r.statut, (v) => isEnum(v, NOTE_STATUTS)) &&
+    opt(r.parentId, (v) => isStr(v, 200)) &&
+    opt(r.ancre, (v) => isStr(v, 500)) &&
+    opt(r.question, (v) => isStr(v, 200)),
   calendar: (r) => isDate(r.date) && isStr(r.title, 200) && isEnum(r.kind, ['note', 'event'] as const) && opt(r.time, (v) => isStr(v, 5) && TIME_RE.test(v)) && opt(r.body, (v) => isStr(v, 20_000)),
   settings: (r) => r.key !== 'settings' || isRec(r.value),
   copierAccounts: (r) =>

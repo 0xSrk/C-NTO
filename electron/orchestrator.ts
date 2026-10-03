@@ -41,7 +41,7 @@ const ORCH_READ_METHODS = new Set([
   'calendar_events',
   'propfirm_status',
 ]);
-const ORCH_WRITE_METHODS = new Set(['create_note', 'annotate_session']);
+const ORCH_WRITE_METHODS = new Set(['create_note', 'annotate_session', 'branch_note', 'link_notes']);
 
 /** Miroir de src/engine/agent/ports.ts `orchMethodAllowed`. */
 export function orchMethodAllowed(method: string, allowWrites: boolean): boolean {

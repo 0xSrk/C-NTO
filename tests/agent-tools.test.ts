@@ -18,6 +18,8 @@ function mockPorts(log: { writes: number }): DeskPorts {
       log.writes++;
       return { id: 'n1', title };
     },
+    branchNote: async () => null,
+    linkNotes: async () => null,
     calendarEntries: () => [],
   };
 }

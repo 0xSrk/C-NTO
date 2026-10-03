@@ -30,7 +30,7 @@ function formatUpdated(ms: number): string {
 
 export default function Note() {
   useI18n((s) => s.locale);
-  const { notes, activeId, setActive, create, update, remove, openByTitle, dailyNote } = useNotes();
+  const { notes, activeId, setActive, create, branch, update, remove, openByTitle, dailyNote } = useNotes();
   const loadLinks = useLinks((st) => st.load);
   const toast = useUi((u) => u.toast);
   const confirmDialog = useUi((u) => u.confirm);
@@ -139,7 +139,7 @@ export default function Note() {
                 await remove(active.id);
                 toast(tr('Note supprimée.', 'Note deleted.', 'Nota eliminada.'), 'warn');
               }
-            }} onExport={() => saveTextFile(`${active.title.replace(/[\\/:*?"<>|]/g, '-')}.md`, active.body, 'text/markdown')} />
+            }} onExport={() => saveTextFile(`${active.title.replace(/[\\/:*?"<>|]/g, '-')}.md`, active.body, 'text/markdown')} onBranch={(ancre) => { void branch(active.id, ancre, ''); }} />
           ) : (
             <div className={s.editor} style={{ padding: 24 }}>
               <Empty
@@ -174,10 +174,11 @@ function NoteItem({ note, on, onClick }: { note: NoteType; on: boolean; onClick:
   );
 }
 
-function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onExport }: { note: NoteType; mode: Mode; notes: NoteType[]; onChange: (patch: { title?: string; body?: string; pinned?: boolean }) => void; onOpenTitle: (t: string) => void; onTag: (t: string) => void; onDelete: () => void; onExport: () => void }) {
+function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onExport, onBranch }: { note: NoteType; mode: Mode; notes: NoteType[]; onChange: (patch: { title?: string; body?: string; pinned?: boolean }) => void; onOpenTitle: (t: string) => void; onTag: (t: string) => void; onDelete: () => void; onExport: () => void; onBranch: (ancre: string) => void }) {
   useI18n((s) => s.locale);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body);
+  const [selection, setSelection] = useState('');
   const timer = useRef<number | null>(null);
   const titles = useMemo(() => new Set(notes.map((n) => n.title.toLowerCase())), [notes]);
   const html = useMemo(() => renderNote(body, titles), [body, titles]);
@@ -245,6 +246,11 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
         <Button size="sm" variant="ghost" onClick={onDelete} aria-label={tr('Supprimer la note', 'Delete note', 'Eliminar la nota')} title={tr('Supprimer la note', 'Delete note', 'Eliminar la nota')}>
           <IconTrash size={13} />
         </Button>
+        {selection && mode !== 'apercu' && (
+          <Button size="sm" variant="gold" onClick={() => onBranch(selection)}>
+            {tr('Brancher', 'Branch', 'Ramificar')}
+          </Button>
+        )}
       </div>
       <div className={cx(s.editorBody, mode === 'scinde' && s.split)}>
         {mode !== 'apercu' && (
@@ -262,6 +268,10 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
               } else schedule({ body: nextBody });
             }}
             onKeyDown={onKeyDown}
+            onSelect={(e) => {
+              const ta = e.currentTarget;
+              setSelection(ta.value.slice(ta.selectionStart, ta.selectionEnd).trim());
+            }}
             placeholder={tr('Markdown · [[lien vers une note]] · #tag', 'Markdown · [[link to a note]] · #tag', 'Markdown · [[enlace a una nota]] · #tag')}
             spellCheck={false}
           />
@@ -353,6 +363,8 @@ function Meta({ note, notes, onOpen, onOpenTitle, onStatut }: { note: NoteType; 
   const confidence = claimed ? claimConfidence({ type: 'note', id: note.id }, links, trades, sessions, events) : null;
   const statut = note.statut ?? parseNoteHeader(note.body).statut ?? 'opinion';
   const backlinks = notes.filter((n) => n.id !== note.id && extractLinks(n.body).includes(note.title.toLowerCase()));
+  const children = notes.filter((n) => n.parentId === note.id).slice(0, 8);
+  const withoutFollowUp = notes.filter((n) => n.parentId && n.id !== note.id && !notes.some((child) => child.parentId === n.id)).slice(0, 8);
   const context = (n: NoteType) => {
     const idx = n.body.toLowerCase().indexOf(`[[${note.title.toLowerCase()}`);
     return idx >= 0 ? n.body.slice(Math.max(0, idx - 50), idx + 70).replace(/\n/g, ' ') : '';
@@ -374,6 +386,32 @@ function Meta({ note, notes, onOpen, onOpenTitle, onStatut }: { note: NoteType; 
           </div>
         ))}
       </div>
+      {children.length > 0 && (
+        <div className={s.metaSection}>
+          <div className={s.metaTitle}>
+            <span>{tr('Enfants', 'Children', 'Hijos')}</span>
+            <span>{children.length}</span>
+          </div>
+          {children.map((n) => (
+            <button key={n.id} className={s.linkItem} onClick={() => onOpen(n.id)}>
+              {n.title}
+            </button>
+          ))}
+        </div>
+      )}
+      {withoutFollowUp.length > 0 && (
+        <div className={s.metaSection}>
+          <div className={s.metaTitle}>
+            <span>{tr('Sans suite', 'No follow-up', 'Sin continuación')}</span>
+            <span>{withoutFollowUp.length}</span>
+          </div>
+          {withoutFollowUp.map((n) => (
+            <button key={n.id} className={s.linkItem} onClick={() => onOpen(n.id)}>
+              {n.title}
+            </button>
+          ))}
+        </div>
+      )}
       <div className={s.metaSection}>
         <div className={s.metaTitle}>
           <span>{tr('Liens sortants', 'Outgoing links', 'Enlaces salientes')}</span>
