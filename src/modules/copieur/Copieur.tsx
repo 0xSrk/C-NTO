@@ -185,7 +185,7 @@ export default function Copieur() {
                     <AccountCard key={a.id} acc={a} onChange={(p) => updateAccount(a.id, p)} onRemove={() => removeAccount(a.id)} sample={{ qty: sampleQty, instrument: sampleInstr }} />
                   ))}
                   {followers.length === 0 && (
-                    <div className={s.hint}>{tr('Aucun suiveur : ajoutez vos comptes d’évaluation / financés à répliquer.', 'No followers: add your evaluation / funded accounts to replicate.', 'Ningún seguidor: añada sus cuentas de evaluación / financiadas a replicar.')}</div>
+                    <div className={s.hint}>{tr('Aucun suiveur : ajoutez un compte Sim, pas un compte financé.', 'No followers: add a Sim account, not a funded account.', 'Ningún seguidor: añada una cuenta Sim, no una cuenta financiada.')}</div>
                   )}
                 </div>
               </div>

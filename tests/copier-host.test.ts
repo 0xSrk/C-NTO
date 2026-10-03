@@ -155,6 +155,68 @@ describe('hôte de réplication', () => {
   });
 });
 
+describe('idempotence après accusé', () => {
+  it('un refus laisse le fill rejouable, un succès ne repart pas après redémarrage', async () => {
+    const gate: { listener: ((event: ExecutionEvent) => void) | null } = { listener: null };
+    const orders: string[] = [];
+    let calls = 0;
+    const port: ExecutionPort = {
+      sourceId: 'memory',
+      capabilities: { submit: true, cancel: true, flatten: true, accounts: 'sim' },
+      status: () => ({ state: 'live' }),
+      subscribe(cb) {
+        gate.listener = cb;
+        return () => {
+          gate.listener = null;
+        };
+      },
+      async submit() {
+        calls += 1;
+        if (calls === 1) return { ok: false, code: -32011, message: 'pont indisponible' };
+        const orderId = `ok-${orders.length + 1}`;
+        orders.push(orderId);
+        return { ok: true, orderId };
+      },
+      async cancel() {
+        return { ok: true };
+      },
+      async flatten() {
+        return { ok: true, closed: 0 };
+      },
+      dispose() {},
+    };
+    const one = sync({
+      followers: [{ account: 'Sim102', sizing: { mode: 'fixe', value: 1, maxContracts: 5 }, symbolMap: { mode: 'identique' } }],
+    });
+    const fill = { account: 'Sim101', instrument: 'NQ', side: 'buy' as const, qty: 1, price: 1, time: Date.now(), executionId: 'ex-replay' };
+    const dir = mkdtempSync(path.join(tmpdir(), 'canto-seen-'));
+    const host = new CopierHost(port, dir, () => {});
+    host.open();
+    host.configure(one);
+    host.arm();
+    const send = () => gate.listener?.({ kind: 'fill', fill });
+    send();
+    await waitFor(() => calls === 1);
+    expect(orders).toEqual([]);
+    send();
+    await waitFor(() => orders.length === 1);
+    expect(calls).toBe(2);
+    expect(host.status().routed).toBe(1);
+    host.dispose();
+
+    const restarted = new CopierHost(port, dir, () => {});
+    restarted.open();
+    restarted.configure(one);
+    restarted.arm();
+    send();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(calls).toBe(2);
+    expect(orders).toEqual(['ok-1']);
+    expect(restarted.status().routed).toBe(0);
+    restarted.dispose();
+  });
+});
+
 describe('Couper pendant un submit', () => {
   it('annule l’ordre qui revient après le désarmement', async () => {
     const gate: { listener: ((event: ExecutionEvent) => void) | null; release: ((ack: { ok: true; orderId: string }) => void) | null } = { listener: null, release: null };
