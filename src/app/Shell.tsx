@@ -34,7 +34,7 @@ function globexLabel(state: GlobexState): string {
   return state;
 }
 
-export function Shell({ children, revealed = true }: { children: ReactNode; revealed?: boolean }) {
+export function Shell({ children, revealed = true, inert = false }: { children: ReactNode; revealed?: boolean; inert?: boolean }) {
   const locale = useI18n((st) => st.locale);
   const tab = useUi((u) => u.tab);
   const setTab = useUi((u) => u.setTab);
@@ -109,7 +109,7 @@ export function Shell({ children, revealed = true }: { children: ReactNode; reve
   const port = nt?.port ?? 48231;
 
   return (
-    <div className={cx(s.shell, revealed ? s.intro : s.pending)}>
+    <div className={cx(s.shell, revealed ? s.intro : s.pending)} inert={inert}>
       <div className={s.texture} aria-hidden />
       <header className={s.title}>
         <div className={s.brand}>

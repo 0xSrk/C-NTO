@@ -1,35 +1,424 @@
+/* Écartement de l'ouverture — même couture que le boot. */
+@property --gap {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 .gate {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 100;
+  background: var(--bg-0);
+  overflow: hidden;
+  --gap: 0px;
+  -webkit-app-region: drag;
+}
+
+.texture {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px), url('../design/textures/grain.png');
+  background-size: auto, 180px 180px;
+  background-repeat: repeat, repeat;
+}
+
+.nano {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ─── Télémétrie : LOCK, puis UNLOCK le temps du sceau ─── */
+.hud {
+  position: absolute;
+  z-index: 4;
+  top: 44px;
+  left: 56px;
+  right: 56px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-3);
+  animation: fade-in 0.4s linear 0.08s both;
+}
+.hud b {
+  color: var(--text-0);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.slash {
+  font-style: normal;
+  color: var(--gold);
+}
+.granted {
+  color: var(--gold);
+  text-shadow: 0 0 6px rgba(229, 38, 61, 0.4);
+}
+
+/* ─── Plaque : le label du Lab au-dessus, le sceau au centre de la plaque ─── */
+.stage {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: var(--bg-0);
 }
-
-.card {
-  width: min(420px, 100%);
+.stack {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  gap: 28px;
+}
+.sous {
+  display: flex;
+  align-items: center;
+  margin: 0 -0.42em 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  color: var(--text-2);
+  white-space: nowrap;
+  animation: sous 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+}
+.sous b {
+  color: var(--text-0);
+  font-weight: 500;
+}
+.sous i {
+  width: 5px;
+  height: 5px;
+  margin: 0 12px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent);
+}
+@keyframes sous {
+  from {
+    opacity: 0;
+    letter-spacing: 0.7em;
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.42em;
+  }
 }
 
-.mark {
+.slot {
+  position: relative;
+  width: min(440px, calc(100vw - 48px));
+}
+.plate {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  padding: 28px 28px 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  -webkit-app-region: no-drag;
+  animation: gate-in 0.42s var(--ease-out) both;
+}
+@keyframes gate-in {
+  from {
+    transform: translateY(4px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.corners {
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+}
+.corners i {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--gold);
+}
+.corners i:nth-child(1) {
+  top: 0;
+  left: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+.corners i:nth-child(2) {
+  top: 0;
+  right: 0;
+  border-left: 0;
+  border-bottom: 0;
+}
+.corners i:nth-child(3) {
+  bottom: 0;
+  left: 0;
+  border-right: 0;
+  border-top: 0;
+}
+.corners i:nth-child(4) {
+  bottom: 0;
+  right: 0;
+  border-left: 0;
+  border-top: 0;
+}
+
+.status {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
 }
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.index {
+  width: 20px;
+  color: var(--text-4);
+}
+.dots {
+  flex: 1;
+  min-width: 16px;
+  height: 1px;
+  align-self: center;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 4px);
+}
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+.led {
+  width: 4px;
+  height: 4px;
+  background: var(--gold);
+  box-shadow: var(--glow-accent);
+}
+.denied .state {
+  color: var(--ember);
+}
+.denied .led {
+  background: var(--ember);
+  box-shadow: none;
+}
+.denied .plate input {
+  border-color: var(--ember);
 }
 
+.plate input {
+  letter-spacing: 0.22em;
+  background: var(--bg-0);
+}
 .row {
   display: flex;
   justify-content: flex-end;
+}
+
+/* Sceau : il occupe le centre de la plaque, plus large qu'elle. */
+.seal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(880px, 94vw);
+  translate: -50% -50%;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+}
+.seal svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.stroke {
+  fill: none;
+  stroke: var(--text-0);
+  stroke-width: 1.25px;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.tip {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.2px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 0.035 0.965;
+  stroke-dashoffset: 1;
+  opacity: 0;
+}
+.live .stroke {
+  animation: seal-draw var(--draw, 0.7s) cubic-bezier(0.65, 0, 0.35, 1) var(--t, 0s) forwards;
+}
+.live .tip {
+  animation: seal-tip var(--draw, 0.7s) cubic-bezier(0.65, 0, 0.35, 1) var(--t, 0s) forwards;
+}
+@keyframes seal-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes seal-tip {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0.035;
+    opacity: 0;
+  }
+}
+
+/* La plaque cède la place au sceau. */
+.forming .sous,
+.forming .plate,
+.opening .sous,
+.opening .plate {
+  animation: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s linear;
+}
+.forming .seal {
+  opacity: 1;
+}
+.opening .hud,
+.opening .seal {
+  opacity: 0;
+  transition: opacity 0.22s linear 0.1s;
+}
+.opening .nano {
+  opacity: 0.55;
+  transition: opacity 0.4s linear;
+}
+
+/* ─── Couture : le desk, déjà monté dessous, apparaît par l'axe du sceau ─── */
+.opening {
+  pointer-events: none;
+  --cut-a: calc(var(--axis, 50%) - var(--gap));
+  --cut-b: calc(var(--axis, 50%) + var(--gap));
+  -webkit-mask-image: linear-gradient(to bottom, #000 var(--cut-a), transparent var(--cut-a), transparent var(--cut-b), #000 var(--cut-b));
+  mask-image: linear-gradient(to bottom, #000 var(--cut-a), transparent var(--cut-a), transparent var(--cut-b), #000 var(--cut-b));
+  animation: split 0.58s cubic-bezier(0.7, 0, 0.2, 1) 0.18s both;
+}
+@keyframes split {
+  from {
+    --gap: 0px;
+  }
+  to {
+    --gap: 100vh;
+  }
+}
+
+.seam {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.seam i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  top: var(--axis, 50%);
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35) 18%, #ffffff 50%, rgba(255, 255, 255, 0.35) 82%, transparent);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.28);
+  transform-origin: 50% 50%;
+}
+.seam i::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 12px);
+  width: 24px;
+  top: 0;
+  height: 1px;
+  background: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 80%, transparent);
+}
+.seam i:first-child {
+  margin-top: -1px;
+}
+.opening .seam i {
+  opacity: 1;
+  animation: seam-draw 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.opening .seam i:first-child {
+  translate: 0 calc(-1 * var(--gap));
+}
+.opening .seam i:last-child {
+  translate: 0 var(--gap);
+}
+@keyframes seam-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.reduced .sous,
+.reduced .plate,
+.reduced .hud {
+  animation: none;
+}
+.reduced .stroke {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+.reduced .tip {
+  display: none;
+}
+.reduced.forming .seal,
+.reduced.opening .seal {
+  opacity: 1;
+}
+.reduced.opening {
+  -webkit-mask-image: none;
+  mask-image: none;
+  animation: none;
+  opacity: 0;
+  transition: opacity 0.24s linear;
+}
+.reduced .seam {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .hud {
+    top: 20px;
+    left: 16px;
+    right: 16px;
+  }
+  .sous {
+    letter-spacing: 0.22em;
+    margin-right: -0.22em;
+  }
 }
