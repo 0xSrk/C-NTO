@@ -16,6 +16,7 @@ import { useUi } from '@/store/ui';
 import { requestPersistence } from '@/store/db';
 import { Boot, type BootStep } from './Boot';
 import { ErrorBoundary } from './ErrorBoundary';
+import { Gate } from './Gate';
 import { Shell } from './Shell';
 
 const Metrique = lazy(() => import('@/modules/metrique/Metrique'));
@@ -117,6 +118,7 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [booted, setBooted] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [open, setOpen] = useState(false);
   const tab = useUi((u) => u.tab);
 
   useEffect(() => {
@@ -148,7 +150,7 @@ export function App() {
   // rendu lourd se fait masqué et la transition est un fondu, sans écran noir intermédiaire.
   return (
     <>
-      {(ready || booted) && (
+      {booted && open && (
         <Shell revealed={revealed}>
           <ErrorBoundary resetKey={tab}>
             <Suspense fallback={<div className="micro" style={{ padding: 24 }} data-locale={locale}>{tr('Chargement du module…', 'Loading module…', 'Cargando el módulo…')}</div>}>
@@ -164,6 +166,7 @@ export function App() {
           </ErrorBoundary>
         </Shell>
       )}
+      {booted && !open && <Gate onOpen={() => setOpen(true)} />}
       {!booted && <Boot steps={steps} ready={ready} onReveal={reveal} onFinished={finish} />}
     </>
   );
