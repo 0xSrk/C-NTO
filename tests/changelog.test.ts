@@ -60,7 +60,7 @@ describe('journal des versions', () => {
     expect(entryFor('3.3.0')?.highlights.fr).toHaveLength(5);
     expect(entryFor('3.3.1')?.kind).toBe('correctif');
     expect(entryFor('3.3.1')?.date).toBe('2026-10-04');
-    expect(entryFor('3.3.1')?.highlights.fr).toHaveLength(4);
+    expect(entryFor('3.3.1')?.highlights.fr).toHaveLength(5);
     expect(entryFor('3.0.1')).toBeNull();
   });
 

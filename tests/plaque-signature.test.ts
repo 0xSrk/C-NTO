@@ -58,7 +58,7 @@ describe('PlaqueSignature', () => {
 
   it('le rail ne garde aucune trace de l’ancienne signature', () => {
     const shell = readFileSync('src/app/Shell.tsx', 'utf8');
-    expect(shell).toContain('<PlaqueSignature');
+    expect(shell).not.toContain('<PlaqueSignature');
     expect(shell).not.toMatch(/DEEP TECH LAB|001 OS|DotGrid/);
   });
 

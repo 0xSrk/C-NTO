@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Barcode, Button, Led, cx } from '@/design/primitives';
-import { PlaqueSignature } from '@/design/PlaqueSignature';
+import { SignatureGlyphs } from '@/design/SignatureGlyphs';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
@@ -241,7 +241,6 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               </div>
             </div>
           </div>
-          <PlaqueSignature className={s.signature} />
         </div>
       </aside>
 
@@ -307,6 +306,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           <span className={s.sigEnd}>
             <Barcode />
             <span>[ SIΞRRΛSKΛ ]</span>
+            <SignatureGlyphs />
           </span>
         </div>
       </footer>

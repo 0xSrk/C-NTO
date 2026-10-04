@@ -1,0 +1,12 @@
+/* Neuf glyphes, 12 px de haut, alignés sur la ligne de la barre d'état. */
+.mark {
+  display: block;
+  height: 12px;
+  width: auto;
+  flex: none;
+  color: var(--text-0);
+  stroke: currentColor;
+  stroke-width: 1.15;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
