@@ -276,26 +276,29 @@
     },
     {
       "version": "3.3.0",
-      "date": "2026-10-03",
+      "date": "2026-10-04",
       "kind": "fonctionnalite",
       "highlights": {
         "fr": [
           "Port d’exécution : les ordres passent par un adaptateur, NinjaTrader 8 reste le premier.",
-          "Le Copieur réplique en simulation, du maître vers les suiveurs Sim, désarmé à chaque ouverture.",
+          "Le Copieur réplique en simulation vers les suiveurs Sim, sur le rail en 08 CPY, désarmé à chaque ouverture.",
           "Couper désarme et annule les ordres en attente. Le coupe-circuit du pont désarme aussi le routeur.",
-          "Le Copieur revient sur le rail : 08 CPY."
+          "Une note peut en brancher une autre : question, ancre, lien vers le parent, sans copier son corps.",
+          "Le desk reste fermé à l’arrivée."
         ],
         "en": [
           "Execution port: orders go through an adapter, and NinjaTrader 8 stays the first one.",
-          "The Copier replicates in simulation, from the master to Sim followers, disarmed on every launch.",
+          "The Copier replicates in simulation to Sim followers, on the rail as 08 CPY, disarmed on every launch.",
           "Cut disarms and cancels working orders. The bridge kill switch disarms the router as well.",
-          "The Copier is back on the rail: 08 CPY."
+          "A note can branch another: question, anchor, link to the parent, without copying its body.",
+          "The desk stays closed on arrival."
         ],
         "es": [
           "Puerto de ejecución: las órdenes pasan por un adaptador, y NinjaTrader 8 sigue siendo el primero.",
-          "El Copiador replica en simulación, del maestro a las cuentas Sim, desarmado en cada apertura.",
+          "El Copiador replica en simulación hacia las cuentas Sim, en el raíl como 08 CPY, desarmado en cada apertura.",
           "Cortar desarma y anula las órdenes pendientes. El corte del puente desarma también el enrutador.",
-          "El Copiador vuelve al raíl: 08 CPY."
+          "Una nota puede ramificar otra: pregunta, ancla, enlace al padre, sin copiar su cuerpo.",
+          "El desk permanece cerrado al llegar."
         ]
       }
     }
