@@ -19,11 +19,28 @@ describe('rail 3.2.2', () => {
     expect(between(shell, '<footer', '</footer>')).not.toContain('ChangelogJournal');
   });
 
-  it('ART-002 quitte la barre d’état et reste dans la barre de titre', () => {
+  it('le sigle et l’heure quittent la barre de titre ; le zoom s’y place', () => {
+    const header = between(shell, '<header', '</header>');
     const status = between(shell, '<footer', '</footer>');
+    expect(header).not.toContain('SRK—LAB / ART-002');
+    expect(header).toContain('<ZoomControls />');
     expect(status).not.toContain('ART-002');
-    expect(status).not.toContain('labDot');
-    expect(between(shell, '<header', '</header>')).toContain('SRK—LAB / ART-002');
+    expect(status).not.toContain('127.0.0.1');
+    expect(status).toContain('CME GLOBEX');
+    expect(status).toContain('city.code');
+    expect(status).toContain("chooseFace('24')");
+    expect(status).toContain("chooseFace('12')");
+    expect(shell).toContain("zone: 'Asia/Tokyo'");
+    expect(shell).toContain("zone: 'Europe/Paris'");
+    expect(shell).toContain("zone: 'America/New_York'");
+    expect(shell).toContain("code: 'TYO'");
+    expect(shell).toContain("code: 'PAR'");
+    expect(shell).toContain("code: 'NYC'");
+    const right = between(status, 'statusRight', '</footer>');
+    expect(right).toContain('Barcode');
+    expect(right).toContain('SIΞRRΛSKΛ');
+    expect(right).not.toContain('CME GLOBEX');
+    expect(between(shell, '<div className={s.railFoot}>', '<PlaqueSignature')).not.toContain('ZoomControls');
   });
 
   it('la plaque signature est gravée à 40 px', () => {

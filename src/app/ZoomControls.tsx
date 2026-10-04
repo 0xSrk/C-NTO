@@ -6,7 +6,7 @@ import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './shell.module.css';
 
-/** Contrôles zoom + calibrage écran (barre d’état). */
+/** Contrôles zoom + calibrage écran, dans la barre de titre. */
 export function ZoomControls() {
   useI18n((s) => s.locale);
   const uiZoom = useSettings((st) => st.settings.uiZoom);
