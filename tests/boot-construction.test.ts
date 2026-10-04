@@ -72,4 +72,13 @@ describe('Boot 3.2.2 — construction du logotype', () => {
     expect(circuit).not.toMatch(/ledFade/);
     expect(readFileSync('src/app/Boot.tsx', 'utf8')).not.toMatch(/<Sigil/);
   });
+
+  it('le coin ne dit pas l’accès accordé : le nom s’y forme en neuf glyphes', () => {
+    const el = mount();
+    expect(el.textContent).not.toMatch(/Accès accordé|Access granted|Acceso concedido|Circuit engagé/);
+    const slot = el.querySelectorAll('svg[aria-hidden]');
+    const mark = [...slot].find((svg) => svg.querySelectorAll('path').length === 9);
+    expect(mark).toBeTruthy();
+    expect(mark!.querySelectorAll('path[pathLength="1"]')).toHaveLength(9);
+  });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { tr, useI18n } from '@/i18n';
 import { InvertedTab } from '@/design/primitives';
+import { SignatureGlyphs } from '@/design/SignatureGlyphs';
 import { CONSTRUCTION_END, Wordmark } from '@/design/Wordmark';
 import { runBootCircuit } from './bootCircuit';
 import s from './boot.module.css';
@@ -105,11 +106,6 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
   const delay = fromLauncher ? DELAY_FROM_LAUNCHER_S : DELAY_S;
   const completed = steps.filter((st) => st.status !== 'pending').length;
   const progress = steps.length ? completed / steps.length : 0;
-  const statusWord = ready
-    ? tr('Accès accordé', 'Access granted', 'Acceso concedido')
-    : fromLauncher
-      ? tr('Circuit engagé', 'Circuit engaged', 'Circuito en marcha')
-      : tr('Initialisation', 'Initializing', 'Inicialización');
 
   return (
     <div
@@ -156,9 +152,8 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
         <div className={s.footer}>
           <InvertedTab>CΛNTO · Artefact 002</InvertedTab>
           <span>Design Unit · SIΞRRΛSKΛ Lab · Rev. B</span>
-          <span className={ready ? s.granted : undefined}>
-            <i className={s.grantDot} />
-            {statusWord}
+          <span className={s.markSlot}>
+            <SignatureGlyphs draw={!reduced} delay={delay} />
           </span>
         </div>
       </div>
