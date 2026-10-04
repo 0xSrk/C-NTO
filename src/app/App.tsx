@@ -119,6 +119,7 @@ export function App() {
   const [booted, setBooted] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [open, setOpen] = useState(false);
+  const [admitted, setAdmitted] = useState(false);
   const tab = useUi((u) => u.tab);
 
   useEffect(() => {
@@ -146,12 +147,12 @@ export function App() {
     setBooted(true);
   }, []);
 
-  // Le desk se monte sous l'écran de chargement dès que les coffres sont prêts : le premier
-  // rendu lourd se fait masqué et la transition est un fondu, sans écran noir intermédiaire.
+  // Le desk se monte sous le verrou dès que la phrase est admise : le rendu lourd
+  // se fait masqué, puis la couture s'ouvre sur un desk déjà composé.
   return (
     <>
-      {booted && open && (
-        <Shell revealed={revealed}>
+      {booted && admitted && (
+        <Shell revealed={revealed} inert={!open}>
           <ErrorBoundary resetKey={tab}>
             <Suspense fallback={<div className="micro" style={{ padding: 24 }} data-locale={locale}>{tr('Chargement du module…', 'Loading module…', 'Cargando el módulo…')}</div>}>
               {tab === 'metrique' && <Metrique />}
@@ -166,7 +167,7 @@ export function App() {
           </ErrorBoundary>
         </Shell>
       )}
-      {booted && !open && <Gate onOpen={() => setOpen(true)} />}
+      {booted && !open && <Gate onAdmit={() => setAdmitted(true)} onReveal={reveal} onOpen={() => setOpen(true)} />}
       {!booted && <Boot steps={steps} ready={ready} onReveal={reveal} onFinished={finish} />}
     </>
   );
