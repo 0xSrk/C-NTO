@@ -8,7 +8,7 @@
 
 ### A local trading desk for CME Group futures (Nasdaq, S&P, Russell, Dow, crude, gold, euro FX)
 
-An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and the modules that are still a prototype. **v3.3.0** installs natively on **macOS, Windows, and Linux**. Data stays 100% on the machine. Crypto, tweet feeds, and Investing.com / Forex Factory are out.
+An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and a Copier that replicates in simulation. **v3.3.0** installs natively on **macOS, Windows, and Linux**. Data stays on the machine. On arrival the desk stays closed until it opens.
 
 > The code is under the [MIT license](LICENSE). The names CΛNTO and SIΞRRΛSKΛ, and the visual identity, are not granted by this license.
 
@@ -17,9 +17,9 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-389%20passed-000000?style=flat-square)](tests)
-[![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-c41e3a?style=flat-square)](docs/DESIGN.md)
-[![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=c41e3a&label=version)](package.json)
+[![Tests](https://img.shields.io/badge/tests-396%20passed-000000?style=flat-square)](tests)
+[![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-e5263d?style=flat-square)](docs/DESIGN.md)
+[![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=e5263d&label=version)](package.json)
 [![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
 [![Windows](https://img.shields.io/badge/Windows-NSIS-000000?style=flat-square&logo=windows&logoColor=white)](#installer)
 [![Linux](https://img.shields.io/badge/Linux-AppImage%20%C2%B7%20deb-000000?style=flat-square&logo=linux&logoColor=white)](#installer)
@@ -45,10 +45,10 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 2. [`02 · VIS` Visual](#visual)
 3. [`03 · CAL` Calendar](#calendar)
 4. [`04 · NTE` Notes](#notes)
-5. [`05 · PTF` Portfolio](#portfolio) — shipped
+5. [`05 · PTF` Portfolio](#portfolio)
 6. [`06 · AGT` AI agent](#ai-agent) — prototype
 7. [`07 · BOT` Bot](#bot) — design
-8. [`08 · CPY` Copier](#copier) — Sim replication, disarmed by default
+8. [`08 · CPY` Copier](#copier) — simulation, disarmed on launch
 9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
 10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
 11. [Versions](#versions) · [Roadmap](#roadmap) · [Disclaimer](#disclaimer)
@@ -57,18 +57,18 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 
 ## In short
 
-CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. Crypto is not a class of CΛNTO: no pocket, no instrument. A vault that still carries `kind: "crypto"` is refused.
+CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. On arrival the desk stays closed; it opens onto the modules only after that.
 
-| Module | State in 3.0.0 |
+| Module | In 3.3.0 |
 |---|---|
-| `01 · MET` Metrics | Shipped. Journal, prop replay, Monte Carlo |
-| `02 · VIS` Visual | Shipped. Registry candles, indicators, live bars when the NT8 bridge is connected |
-| `03 · CAL` Calendar | Shipped. Official sources: BLS, BEA, Federal Reserve, ECB, EIA, TreasuryDirect, plus an embedded snapshot. FRED only with a key you type. CME expirations are computed locally. Investing.com and Forex Factory are not called |
-| `04 · NTE` Notes | Shipped. Markdown vault and typed links (ontology) |
-| `05 · PTF` Portfolio | Shipped. Local net value, exposure, distance to prop thresholds, Monte Carlo on the consolidated series |
+| `01 · MET` Metrics | Journal, prop replay, Monte Carlo |
+| `02 · VIS` Visual | Registry candles, indicators, live bars when the NT8 bridge is connected |
+| `03 · CAL` Calendar | Official sources: BLS, BEA, Federal Reserve, ECB, EIA, TreasuryDirect, plus an embedded snapshot. FRED only with a key you type. CME expirations are computed locally |
+| `04 · NTE` Notes | Markdown vault, typed links, and a branch from a selection |
+| `05 · PTF` Portfolio | Local net value, exposure, distance to prop thresholds, Monte Carlo on the consolidated series |
 | `06 · AGT` Agent | Prototype. Desk tools, write confirmation, LLM through the main process |
 | `07 · BOT` Bot | Design. No order is sent |
-| `08 · CPY` Copier | Sim replication. Disarmed on every launch. Real follower accounts are out of this version |
+| `08 · CPY` Copier | Simulation only. Disarmed on every launch. Real follower accounts are not in this version |
 
 | | |
 |---|---|
@@ -77,16 +77,16 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 | **Replay** | Versioned prop-firm plans (EOD / intraday / static trailing, daily loss, consistency) · bounded bootstrap Monte Carlo |
 | **See** | Candles for the instrument registry (NQ, ES, RTY, YM, CL, GC, 6E, and their micros) · indicator catalog · one session projected · live bars when the NT8 bridge is connected |
 | **Context** | Official calendars (BLS, BEA, Fed, ECB, EIA, Treasury) plus an embedded 2026 snapshot · CME expirations computed locally · day’s notes |
-| **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph |
+| **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph, and a branch from a selection |
 | **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · its own JSON-RPC WebSocket, separate from the NT bridge |
 | **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). Bot stays **design**. The Copier copies a master fill onto Sim followers only while armed |
-| **Synthesize** | Module 08. Missing FX excludes the pocket (`taux EUR/USD manquant`). Crypto pockets are refused |
+| **Portfolio** | Consolidated net value in a base currency. A missing exchange rate leaves that pocket out of the total |
 
 ---
 
 ## Get started
 
-**v3.0.0** is the freeze: instrument registry, official data, NT8 bridge, notes ontology, portfolio, and the AUBE II launcher. The whole application ships as a native app you can install without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
+**v3.3.0** is the current release: the execution port, the Copier on the rail as `08 · CPY`, note branches, and a desk that stays closed on arrival. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
 
 | OS | Installer | What you get |
 |---|---|---|
@@ -144,7 +144,7 @@ npm install
 npm run launch
 ```
 
-The **launcher** opens: the CΛNTO wordmark, a **Lancer le desk** button (Launch the desk), and a version check. One click opens the full desk.
+The **launcher** opens: the CΛNTO wordmark, a **Launch the desk** button, and a version check. One click opens the full desk.
 
 | Command | Effect |
 |---|---|
@@ -156,7 +156,15 @@ The **launcher** opens: the CΛNTO wordmark, a **Lancer le desk** button (Launch
 | `npm run dist:linux` | AppImage + deb, x64 and ARM64 → `release/` (on Linux) |
 | `npm run check` | `typecheck` + `test` + `build` |
 
-On first launch: launcher screen, then the lithographic boot, then the desk. A **demo set** (140 sessions) loads from Metrics › *Charger un jeu de démonstration* (Load a demo set).
+On first launch: launcher, lithographic boot, then the closed desk. Opening draws **Desk Unlocked** in the center, then splits onto the modules. A **demo set** (140 sessions) loads from Metrics › **Load a demo dataset**.
+
+<div align="center">
+
+<img src="docs/media/arrival.png" alt="CΛNTO — the desk stays closed on arrival" width="920"/>
+
+<sub>Arrival — SIΞRRΛSKΛ Lab above the plate. The desk opens onto the modules only after this screen.</sub>
+
+</div>
 
 ---
 
@@ -164,7 +172,7 @@ On first launch: launcher screen, then the lithographic boot, then the desk. A *
 
 Every install opens on the **launcher** — desk language, version check, and the circuit transition into the desk — whether it runs from a git clone or from an installer (`--desk` skips it). CΛNTO **checks GitHub at startup** (launcher and the desk title bar).
 
-| Install | Click **Mettre à jour et relancer** (Update and relaunch) |
+| Install | Click **Update and relaunch** |
 |---|---|
 | **Git clone** (recommended path, `git clone` … `CANTO.cmd`) | `git fetch` + `git pull --ff-only origin main`, then `npm install --legacy-peer-deps`, then **relaunch** the launcher. A dirty working tree asks for confirmation (stash). |
 | **Installer** (no `.git` folder) | Compares the local version with the **latest published GitHub Release** (`releases/latest`, drafts and pre-releases ignored), downloads the installer for this machine with live progress, **verifies it against the release’s `SHA256SUMS.txt`** (refused on mismatch), then installs natively: **Windows** runs the NSIS setup silently in place and relaunches CΛNTO, a **Linux AppImage** is replaced and relaunched, a **macOS DMG** or **Linux deb** is opened for you. Network goes through Chromium, so the system proxy is honored. The version on `main` is not used, so an installer is never told to update before a binary exists. |
@@ -182,7 +190,7 @@ Every install opens on the **launcher** — desk language, version check, and th
 
 <div align="center">
 
-**`01 · MET · MÉTRIQUE · JOURNAL ULTIME · MOTEUR QUANTITATIF`**
+**`01 · MET · METRICS · ULTIMATE JOURNAL · QUANTITATIVE ENGINE`**
 
 ## Metrics
 
@@ -190,11 +198,11 @@ Every install opens on the **launcher** — desk language, version check, and th
 
 <img src="docs/media/metrique.png" alt="CΛNTO — Metrics: dashboard, equity curve, yearly heatmap" width="920"/>
 
-<sub>Dashboard — net PnL, ratios, equity curve, drawdown from the high, rolling year. 140 demo sessions.</sub>
+<sub>Dashboard — net PnL, ratios, equity curve, drawdown, latest sessions. 140 demo sessions.</sub>
 
 </div>
 
-Five views in the same module: **Tableau de bord** (Dashboard) · **Séances** (Sessions) · **Analyse** (Analysis) · **Firme prop** (Prop firm) · **Monte-Carlo**. Capacity is **1,000 sessions** (a warning and an export offer past that, never a silent drop). Each session has an account, a trading date (Globex key **18:00 America/New_York**), tags, and a list of trades.
+Five views in the same module: **Dashboard** · **Sessions** · **Analysis** · **Prop firm** · **Monte-Carlo**. Capacity is **1,000 sessions** (a warning and an export offer past that, never a silent drop). Each session has an account, a trading date (Globex key **18:00 America/New_York**), tags, and a list of trades.
 
 The engine (`src/engine`) is pure TypeScript, independent of the UI.
 
@@ -212,15 +220,15 @@ Three formats are recognized automatically: **NinjaTrader · Trades**, **NinjaTr
 
 - Trades: deduped by the fingerprint `instrument \| direction \| qty \| times \| prices`.
 - Executions: **FIFO** matching by account and contract, persisted execution IDs, commissions pro-rated. A second import of the same file recreates neither trades nor sessions (`date \| account` merges).
-- Files **over 5,000 lines**: parsed in a Worker, progress bar, **Annuler** (Cancel) via `AbortSignal` — no synchronous fallback if you cancel.
+- Files **over 5,000 lines**: parsed in a Worker, progress bar, **Cancel** via `AbortSignal` — no synchronous fallback if you cancel.
 
 ### Vault
 
-JSON export `canto-vault-v2` (v1 read still supported). Always included: sessions, trades, notes, calendar, settings (API key **and** encrypted blob excluded), copier accounts, automations, `calendarEvents`. An old `macroReleases` array (Investing / Forex Factory) is accepted on restore and dropped. **Heavy vault** option (`backupIncludeHeavy`, off by default): bars + agent messages. Daily save into a chosen folder when `backupDaily` is checked. Under Electron, a key restored from a browser vault is re-encrypted immediately.
+JSON export `canto-vault-v2` (v1 read still supported). Always included: sessions, trades, notes, calendar, settings (API key **and** encrypted blob excluded), copier accounts, automations, `calendarEvents`. **Heavy vault** option (`backupIncludeHeavy`, off by default): bars + agent messages. Daily save into a chosen folder when `backupDaily` is checked. Under Electron, a key restored from a browser vault is re-encrypted immediately.
 
 <div align="center">
 
-**`01.3 · ANALYSE · CHAMPS · CARTES · EXCURSIONS`**
+**`01.3 · ANALYSIS · FIELDS · MAPS · EXCURSIONS`**
 
 ### Analysis
 
@@ -234,7 +242,7 @@ JSON export `canto-vault-v2` (v1 read still supported). Always included: session
 
 <div align="center">
 
-**`01.4 · PROP FIRM · REGISTRE INDICATIF · REJEU`**
+**`01.4 · PROP FIRM · INDICATIVE REGISTRY · REPLAY`**
 
 ### Prop firm
 
@@ -244,7 +252,7 @@ JSON export `canto-vault-v2` (v1 read still supported). Always included: session
 
 </div>
 
-Plan figures are **indicative** (`version: 1`, optional `effectiveFrom`). Always confirm them with the firm. The rail shows the label « Indicatif » (Indicative).
+Plan figures are **indicative** (`version: 1`, optional `effectiveFrom`). Always confirm them with the firm. The rail shows **Indicative**.
 
 <br/>
 
@@ -267,7 +275,7 @@ Plan figures are **indicative** (`version: 1`, optional `effectiveFrom`). Always
 
 <div align="center">
 
-**`02 · VIS · VISUAL · GRAPHIQUE AVANCÉ · INDICATEURS`**
+**`02 · VIS · VISUAL · ADVANCED CHART · INDICATORS`**
 
 ## Visual
 
@@ -292,7 +300,7 @@ Plan figures are **indicative** (`version: 1`, optional `effectiveFrom`). Always
 | ATR | volatility, separate pane | period 14 |
 | Relative volume (RVOL) | volume vs average | period 20 |
 
-From Metrics › Sessions › *Voir dans Visual* (See in Visual), one day’s trades are projected onto the chart.
+From Metrics › Sessions › **See in Visual**, one day’s trades are projected onto the chart.
 
 ---
 
@@ -301,7 +309,7 @@ From Metrics › Sessions › *Voir dans Visual* (See in Visual), one day’s tr
 
 <div align="center">
 
-**`03 · CAL · CALENDRIER · CATALYSEURS NASDAQ · REPÈRES`**
+**`03 · CAL · CALENDAR · OFFICIAL SOURCES · MARKERS`**
 
 ## Calendar
 
@@ -309,7 +317,7 @@ From Metrics › Sessions › *Voir dans Visual* (See in Visual), one day’s tr
 
 <img src="docs/media/calendrier.png" alt="CΛNTO — Calendar: September grid, FOMC, beginner notes" width="920"/>
 
-<sub>September 2026 grid — colored families, journal PnL in the cells, day panel (FOMC + retail sales) with beginner markers.</sub>
+<sub>October 2026 grid — colored families, journal PnL in the cells, day panel, beginner markers.</sub>
 
 </div>
 
@@ -325,7 +333,7 @@ Two views: **monthly grid** and **chronological stream**. Filters for notable / 
 | CME | Expirations, NQ / MNQ rollovers |
 | Hours | US holidays, shortened sessions, US / EU DST changes |
 
-Each major event carries a **beginner marker** (window to avoid, release time). The right panel holds the **note of the day** and reminders. Catalysts come from the official pages — BLS, BEA, the Federal Reserve, the ECB, EIA, and TreasuryDirect. Investing.com and Forex Factory are not called. A 2026 snapshot ships inside the binary, so a fresh install still shows NFP and CPI when a host answers 403. CME expirations stay local (third Friday, marked estimated). Refresh the snapshot with `npm run calendar:snapshot`.
+Each major event carries a **beginner marker** (window to avoid, release time). The right panel holds the **note of the day** and reminders. Catalysts come from the official pages — BLS, BEA, the Federal Reserve, the ECB, EIA, and TreasuryDirect. A 2026 snapshot ships inside the binary, so a fresh install still shows NFP and CPI when a host answers 403. CME expirations stay local (third Friday, marked estimated). Refresh the snapshot with `npm run calendar:snapshot`.
 
 ---
 
@@ -334,7 +342,7 @@ Each major event carries a **beginner marker** (window to avoid, release time). 
 
 <div align="center">
 
-**`04 · NTE · NOTE · COFFRE DE NOTES · LIENS`**
+**`04 · NTE · NOTE · NOTE VAULT · LINKS`**
 
 ## Notes
 
@@ -353,6 +361,7 @@ Obsidian-style, 100% inside the Dexie vault:
 - Prefilled **note of the day**
 - Force-directed graph (nodes = notes, edges = links) — asleep when idle
 - Modes: pinned, raw `.md`, split, preview
+- A selection branches a child note: a question and an anchor, linked to the parent, without copying its body
 
 ---
 
@@ -361,7 +370,7 @@ Obsidian-style, 100% inside the Dexie vault:
 
 <div align="center">
 
-**`06 · AGT · AGENT IA · PASSERELLE NATIVE · ORCHESTRATEUR`**
+**`06 · AGT · AI AGENT · NATIVE GATEWAY · ORCHESTRATOR`**
 
 ## AI agent
 
@@ -385,11 +394,13 @@ The renderer **does not fetch** the provider: `streamChat` / `probe` go through 
 | `calendar_events` | read | catalysts |
 | `propfirm_status` | read | replay of the current plan |
 | `create_note` | write | new note (confirmed) |
+| `branch_note` | write | child note from a selection (confirmed) |
+| `link_notes` | write | typed link between two notes (confirmed) |
 | `annotate_session` | write | session annotation (confirmed) |
 
 Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 characters. An “untrusted data” preamble is attached to tool results. `copy.order` is not an agent tool. Orders go through the NinjaTrader bridge, not the agent.
 
-**Orchestrator** (shell only): JSON-RPC 2.0 on `ws://127.0.0.1:<port>`, session token (constant-time compare, **never** in the periodic status — *Copier le jeton* / Copy the token button), browser origins refused, 8 clients, 1 MB / frame, 40 req/s.
+**Orchestrator** (shell only): JSON-RPC 2.0 on `ws://127.0.0.1:<port>`, session token (constant-time compare, **never** in the periodic status — **Copy the token**), browser origins refused, 8 clients, 1 MB / frame, 40 req/s.
 
 ---
 
@@ -398,7 +409,7 @@ Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 cha
 
 <div align="center">
 
-**`07 · BOT · ATELIER D’AUTOMATES · CONCEPTION`**
+**`07 · BOT · AUTOMATON WORKSHOP · DESIGN`**
 
 ## Bot
 
@@ -410,7 +421,7 @@ Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 cha
 
 </div>
 
-**DESIGN** phase only. Workshop lifecycle: `draft → backtest → paper` (`brouillon → backtest → papier`). The *paper* status is a label — **no order is sent**.
+**DESIGN** phase only. Workshop lifecycle: `draft → backtest → paper`. The *paper* status is a label — **no order is sent**.
 
 | Template | Idea |
 |---|---|
@@ -426,7 +437,7 @@ Guardrails are **imposed** on every automation: circuit breaker at 30% of max DD
 
 <div align="center">
 
-**`08 · CPY · COPIEUR · RÉPLICATION SIM · DÉSARMÉ`**
+**`08 · CPY · COPIER · SIM REPLICATION · DISARMED`**
 
 ## Copier
 
@@ -434,17 +445,17 @@ Guardrails are **imposed** on every automation: circuit breaker at 30% of max DD
 
 <img src="docs/media/copieur.png" alt="CΛNTO — Copier: topology, filters, DISARMED kill switch" width="920"/>
 
-<sub>Copier — disarmed on every launch. Arming asks for confirmation. **Couper** (Cut) disarms and cancels working follower orders.</sub>
+<sub>Copier — disarmed on every launch. Arming asks for confirmation. **Cut** disarms and cancels working follower orders.</sub>
 
 </div>
 
-Persisted topology (accounts, rules, filters). Replication runs in the main process on the execution port ([`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md), section « Réplication »): a master fill becomes sized follower orders, after the time window, the catalyst blackout, and the follower’s prop-firm floor (`evaluatePlan`). Followers are `Sim*` accounts only. The router starts disarmed. Arming uses the same warning dialog as a live account (Cancel is the default). **Couper** disarms and cancels working follower orders. Flattening followers is an explicit option, off by default. The bridge kill switch still flattens authorized accounts and also disarms the router.
+Persisted topology (accounts, rules, filters). Replication runs in the main process on the execution port ([`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md), Replication): a master fill becomes sized follower orders, after the time window, the catalyst blackout, and the follower’s prop-firm floor (`evaluatePlan`). Followers are `Sim*` accounts only. The router starts disarmed. Arming uses the same warning dialog as a live account (Cancel is the default). **Cut** disarms and cancels working follower orders. Flattening followers is an explicit option, off by default. The bridge kill switch still flattens authorized accounts and also disarms the router. A fill is remembered only after the broker accepts it, so a refusal can be sent again and a success is not sent twice.
 
 | | |
 |---|---|
 | Sizing | fixed · ratio · risk, contract cap, NQ ↔ MNQ map |
 | Filters | local window, latency budget, floor margin (fraction of DD), stops / targets, catalyst blackout |
-| Arming | disarmed on every launch; **Armer** confirms in the main process; **Couper** cancels working orders |
+| Arming | disarmed on every launch; **Arm** confirms in the main process; **Cut** cancels working orders |
 
 ---
 
@@ -454,15 +465,19 @@ Persisted topology (accounts, rules, filters). Replication runs in the main proc
 
 <div align="center">
 
-**`05 · PTF · PORTEFEUILLE · SYNTHÈSE · CŒUR · PROJECTION`**
+**`05 · PTF · PORTFOLIO · SYNTHESIS · HEART · PROJECTION`**
 
 ## Portfolio
 
-### Shipped · local net value · no new feed · crypto refused
+### Local net value · exposure · projection
+
+<img src="docs/media/portefeuille.png" alt="CΛNTO — Portfolio: consolidated net value, pockets, exposure, projection" width="920"/>
+
+<sub>Portfolio — consolidated net value in the base currency, pockets, exposure, and a projection once enough daily PnL exists.</sub>
 
 </div>
 
-Eighth module. It reads the journal, the prop plans, a live NinjaTrader snapshot when the link is up, and positions or cash you enter. It does not open a quote feed and it does not talk to a broker.
+Fifth module on the rail (`Ctrl+5`). It reads the journal, the prop plans, a live NinjaTrader snapshot when the link is up, and positions or cash you enter. It does not open a quote feed and it does not talk to a broker.
 
 | Question | Answer |
 |---|---|
@@ -470,7 +485,7 @@ Eighth module. It reads the journal, the prop plans, a live NinjaTrader snapshot
 | Risk | Drawdown, exposure, concentration, distance to the prop plan (`evaluatePlan`) |
 | Projection | Monte Carlo on the consolidated daily PnL. Ruin defaults to the sum of remaining prop drawdowns |
 
-Traditional marks use the last price you entered, otherwise cost. A missing FX rate excludes the whole pocket (`taux EUR/USD manquant`) and never converts at 1. Futures and prop exposure during the session come from a fresh bridge snapshot; otherwise the note is `pont hors ligne`. A pocket with `kind: "crypto"` cannot be created or restored.
+Traditional marks use the last price you entered, otherwise cost. A missing exchange rate leaves that pocket out of the total and never converts at 1. Futures and prop exposure during the session come from a fresh bridge snapshot; when the bridge is offline, that exposure is not counted.
 
 ---
 
@@ -479,7 +494,7 @@ Traditional marks use the last price you entered, otherwise cost. A missing FX r
 
 <div align="center">
 
-**`PONT · NINJATRADER 8 · CSV · WEBSOCKET · GARDE-FOUS`**
+**`BRIDGE · NINJATRADER 8 · CSV · WEBSOCKET · GUARDRAILS`**
 
 ## NinjaTrader 8 bridge
 
@@ -505,7 +520,7 @@ Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**. Compiling the A
 
 <div align="center">
 
-**`ARCH · COQUE · MOTEUR · COFFRE`**
+**`ARCH · SHELL · ENGINE · VAULT`**
 
 ## Architecture
 
@@ -521,12 +536,12 @@ CANTO.cmd         Windows double-click → launcher
 CANTO.sh          macOS / Linux terminal → launcher
 CANTO.command     Finder double-click (macOS) → launcher
 build/            Lab icon (LED)
-src/app/          boot, shell (title bar 56 · rail 232 · status 28), tabs
+src/app/          boot, gate, shell (title bar 44 · rail 220 · status 28), tabs
 src/design/       tokens, primitives, CΛNTO wordmark, SVG charts
 src/engine/       metrics, Monte Carlo, NT import, prop firm, portfolio,
                   instrument registry, market-data ports, official calendar,
-                  indicators, agent tools
-src/store/        Dexie 4 (IndexedDB) + Zustand — schema version 7
+                  execution port, copier router, indicators, agent tools
+src/store/        Dexie (IndexedDB) + Zustand — schema version 9
 src/modules/      one folder per tab (01…08, Copier is 08 CPY)
 tests/            Vitest — see `npm test` (engine, import, vault, calendar, bridge, agent, portfolio, shell)
 vectors/          shared JSON vectors (metrics / prop firm / portfolio)
@@ -566,15 +581,15 @@ Data folder (vault, bridge state, language): `%APPDATA%\CΛNTO` (Windows), `~/Li
 
 <div align="center">
 
-**`SYS · SIΞRRΛSKΛ · LITHOGRAPHIE · LED #c41e3a`**
+**`SYS · SIΞRRΛSKΛ · LITHOGRAPHY · LED #E5263D`**
 
 ## Visual system
 
 </div>
 
-Système 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is archived in `docs/design/archive/DESIGN-v1.md`):
+System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is archived in `docs/design/archive/DESIGN-v1.md`):
 
-- Carbone `#0A0B0D`, sol `#0F1013`, plaque `#16171B`. Graphite labels stay at or above 4.5:1
+- Carbon `#0A0B0D`, floor `#0F1013`, plate `#16171B`. Graphite labels stay at or above 4.5:1
 - Archivo (display and UI) · Doto (one readout per screen) · JetBrains Mono capitals (labels, 10 px minimum; also the fallback that draws Λ and Ξ)
 - Lab LED `#E5263D` — a 5 px dot and its halo, never decorative. Lab orange `#ED5D0B` is the signature dot and the readout tab only
 - Chrome: title bar 44 · rail 220 · status 28 · work area `24 / 40 / 22`
@@ -584,34 +599,41 @@ Système 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is a
 
 ## Versions
 
-- 3.3.0 — Port d’exécution, Copieur sur le rail, branches de notes
-- 3.2.2 — Rail, marque et logotype
-- 3.2.1 — Correctifs et plaque signature du Lab
-- 3.2.0 — Refonte : Système 3.4, Métrique, Portefeuille
-- 3.1.0 — Version journal and what’s new in the launcher, AUBE III, MIT license
-- 3.0.0 — Gel : registre d'instruments (la crypto n'est pas une classe), données officielles, pont NT8, ontologie, portefeuille, lanceur AUBE II
-- 2.2.1 — Lanceur : AUBE II (lever orbital, cœur vectoriel, voile de ville) ; transfert vers le desk garanti même fenêtre masquée
-- 2.2.0 — Notes : ontologie (liens typés, suggestions, confiance calculée)
+The journal inside the desk lists the same releases, in French, English, and Spanish.
+
+- 3.3.0 — Execution port. Copier on the rail as `08 · CPY`, simulation only, disarmed on every launch. A note can branch another. The desk stays closed on arrival. (2026-10-04)
+- 3.2.2 — New icon and logotype. Cleaner menu, thinner Lab signature plate. (2026-09-30)
+- 3.2.1 — Lab signature plate, minus sign kept on negative amounts, installer checksums. (2026-09-30)
+- 3.2.0 — System 3.4. Metrics and Portfolio redrawn. Portfolio moves to `05`. (2026-09-29)
+- 3.1.0 — AUBE III launcher, version journal, MIT license. (2026-09-28)
+- 3.0.0 — Portfolio module: consolidated net value, risk, projection. Security audit. (2026-09-27)
+- 2.2.1 — AUBE II launcher. The desk still starts if the launcher moves to the background. (2026-09-26)
+- 2.2.0 — Notes linked to sessions, trades, instruments, and the day’s events. (2026-09-26)
+- 2.1.0 — CME contract registry, official calendar, NinjaTrader bridge with the file as fallback. (2026-09-26)
+- 2.0.2 — The desk opens on the launcher. Built-in update. (2026-09-25)
+- 2.0.1 — Language choice on the launcher: French, English, Spanish. (2026-09-25)
+- 2.0.0 — Native desk for macOS, Windows, and Linux, with installers. (2026-09-23)
+- 1.1.2 — Lab visual grammar, copier filters, NinjaTrader bridge specification. (2026-09-17)
 
 ---
 
 ## Roadmap
 
-This forge ships the execution port, Sim replication, and the Copier on the rail as `08 · CPY`, disarmed at launch.
+Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
 
-Not in this forge: the certified journal, the agent protocol, and the licence.
+Still ahead of the desk: the agent remains a prototype, and Bot remains design — it sends no order. The Copier does not follow a real account in this version.
 
 ---
 
 ## Disclaimer
 
-The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. Crypto is not part of the desk.
+The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. The desk stays closed on arrival.
 
-## Licence
+## License
 
 The code is under the MIT license (`LICENSE`). Copyright (c) 2026 SIΞRRΛSKΛ. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, are not granted by this license.
 
-## Tiers
+## Fonts
 
 Fonts shipped with the desk (copied next to the launcher at build time, license file beside each family):
 
