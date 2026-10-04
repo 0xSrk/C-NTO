@@ -32,5 +32,21 @@ describe('signature, neuf glyphes', () => {
     expect(paths).toHaveLength(9);
     expect(el.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     expect(el.textContent).toBe('');
+    expect(el.querySelector('path')?.hasAttribute('pathLength')).toBe(false);
+  });
+
+  it('en formation, chaque glyphe a un tracé et un décalage', () => {
+    act(() => root?.unmount());
+    host?.remove();
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(createElement(SignatureGlyphs, { draw: true, delay: 0.22 })));
+    const svg = host.querySelector('svg')!;
+    expect(svg.style.getPropertyValue('--form-delay')).toBe('0.22s');
+    const paths = [...svg.querySelectorAll('path')];
+    expect(paths).toHaveLength(9);
+    expect(paths[0]?.style.getPropertyValue('--t')).toBe('0.00s');
+    expect(paths[8]?.style.getPropertyValue('--t')).toBe('0.88s');
   });
 });
