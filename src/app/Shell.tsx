@@ -229,17 +229,17 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
               <span className={s.accountName}>{accountLine}</span>
             </div>
+            <span className={s.accountSource}>{source}</span>
             <div className={s.accountMeta}>
-              <span className={s.accountSource}>{source}</span>
               <ChangelogJournal version={appVersion} />
+              <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
+                {LOCALES.map((item) => (
+                  <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
+                    {item.id.toUpperCase()}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
-            {LOCALES.map((item) => (
-              <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
-                {item.label}
-              </button>
-            ))}
           </div>
           <PlaqueSignature className={s.signature} />
         </div>

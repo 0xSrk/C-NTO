@@ -199,8 +199,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 12px 0 14px;
-  border: 1px solid transparent;
+  padding: 0 12px;
+  border: 0;
+  border-left: 2px solid transparent;
   color: var(--text-1);
   font-size: 14px;
   font-weight: 500;
@@ -209,10 +210,14 @@
 .navItem:hover {
   background: var(--bg-3);
 }
+/* Onglet choisi : amorce LED, arête haute éclairée, lumière rasante qui s'éteint vers la droite. */
 .navItem.on {
   background: var(--bg-2);
-  border-color: var(--line-2);
-  box-shadow: inset 2px 0 0 var(--gold);
+  border-left-color: var(--gold);
+  box-shadow:
+    inset 0 1px 0 rgba(237, 235, 228, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    inset 22px 0 32px rgba(255, 255, 255, 0.045);
   color: var(--text-0);
   font-weight: 600;
 }
@@ -241,13 +246,15 @@
   width: 0;
 }
 .navItem.dashed {
-  border: 1px dashed var(--line-0);
+  margin: 2px 0;
+  border: 1px dashed var(--line-1);
+  border-left-width: 2px;
   color: var(--text-2);
-  margin-top: 4px;
 }
 .navItem.dashed.on {
-  border-style: solid;
-  border-color: var(--line-2);
+  border-color: transparent;
+  border-left-style: solid;
+  border-left-color: var(--gold);
   color: var(--text-0);
 }
 .navItem.dashed:first-of-type {
@@ -284,9 +291,11 @@
 .account {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 2px 0;
-  border-top: 1px solid var(--line-0);
+  gap: 4px;
+  padding: 10px 10px 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-0);
+  box-shadow: inset 0 1px 0 rgba(237, 235, 228, 0.08);
 }
 .railLabel {
   display: flex;
@@ -323,10 +332,13 @@
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  padding-left: 18px;
+  margin-top: 6px;
+  padding: 8px 0 0 18px;
+  border-top: 1px solid var(--line-0);
 }
 .accountSource {
   min-width: 0;
+  margin-left: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -361,18 +373,20 @@
 
 .langRow {
   display: flex;
-  gap: 2px;
-  padding: 0 2px;
+  gap: 0;
+  flex: none;
 }
 .langBtn {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   color: var(--text-2);
-  padding: 2px 4px;
+  padding: 0 5px;
+  height: 16px;
 }
 .langBtn.on {
   color: var(--text-0);
+  box-shadow: inset 0 -1px 0 rgba(237, 235, 228, 0.7);
 }
 
 .signature {
