@@ -68,9 +68,32 @@ jobs:
           node-version: "22"
       - run: npm ci
       - name: Installeur natif
-        run: npm run ${{ matrix.script }}
+        shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          set -uo pipefail
+          # Le zip Electron (GitHub) répond parfois 500 une fois le téléchargement annoncé.
+          # On ne réessaie que cette coupure réseau ; une erreur de build reste fatale.
+          for attempt in 1 2 3; do
+            set +e
+            log=$(npm run "${{ matrix.script }}" 2>&1)
+            code=$?
+            set -e
+            printf '%s\n' "$log"
+            if [ "$code" -eq 0 ]; then
+              exit 0
+            fi
+            if printf '%s\n' "$log" | grep -Eq "Response code 500|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up"; then
+              echo "Téléchargement Electron interrompu (tentative ${attempt}/3)."
+              if [ "$attempt" -lt 3 ]; then
+                sleep $((attempt * 15))
+              fi
+              continue
+            fi
+            exit "$code"
+          done
+          exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
