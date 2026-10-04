@@ -87,17 +87,12 @@
   -webkit-app-region: no-drag;
 }
 
-.labMark,
-.clock {
+.titleZoom {
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  height: 100%;
+  padding: 0 8px 0 10px;
   border-right: 1px solid var(--line-0);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-2);
 }
 
 .updateBtn {
@@ -200,13 +195,13 @@
 
 .navItem {
   position: relative;
-  height: 38px;
+  height: 36px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 2px;
+  gap: 12px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 2px solid transparent;
   color: var(--text-1);
   font-size: 14px;
   font-weight: 500;
@@ -215,10 +210,14 @@
 .navItem:hover {
   background: var(--bg-3);
 }
+/* Onglet choisi : amorce LED, arête haute éclairée, lumière rasante qui s'éteint vers la droite. */
 .navItem.on {
-  background: var(--bg-3);
-  box-shadow: rgba(255, 255, 255, 0.05) 0 1px 0 inset;
-  border-color: #2b2e34;
+  background: var(--bg-2);
+  border-left-color: var(--gold);
+  box-shadow:
+    inset 0 1px 0 rgba(237, 235, 228, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    inset 22px 0 32px rgba(255, 255, 255, 0.045);
   color: var(--text-0);
   font-weight: 600;
 }
@@ -244,12 +243,19 @@
   background: transparent;
 }
 .navItem.on .navMark {
-  background: var(--text-0);
+  width: 0;
 }
 .navItem.dashed {
-  border: 1px dashed var(--line-0);
+  margin: 2px 0;
+  border: 1px dashed var(--line-1);
+  border-left-width: 2px;
   color: var(--text-2);
-  margin-top: 4px;
+}
+.navItem.dashed.on {
+  border-color: transparent;
+  border-left-style: solid;
+  border-left-color: var(--gold);
+  color: var(--text-0);
 }
 .navItem.dashed:first-of-type {
   margin-top: 0;
@@ -285,11 +291,13 @@
 .account {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 0 2px;
+  gap: 4px;
+  padding: 10px 10px 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-0);
+  box-shadow: inset 0 1px 0 rgba(237, 235, 228, 0.08);
 }
-.railLabel,
-.versionRow {
+.railLabel {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -299,8 +307,7 @@
   text-transform: uppercase;
   color: var(--text-2);
 }
-.railLabel > i,
-.versionRow > i {
+.railLabel > i {
   flex: 1;
   height: 3px;
   background: var(--rule-dots);
@@ -319,9 +326,30 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.accountMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 6px;
+  padding: 8px 0 0 18px;
+  border-top: 1px solid var(--line-0);
+}
 .accountSource {
-  padding-left: 18px;
-  font-size: 12px;
+  min-width: 0;
+  margin-left: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.accountMeta .versionBtn {
+  flex: none;
   color: var(--text-1);
 }
 
@@ -343,42 +371,22 @@
   box-shadow: inset 0 0 0 1px var(--ghost);
 }
 
-/* Version, sous le compte : le numéro ouvre le journal. */
-.versionRow {
-  padding: 0 2px;
-}
-.versionRow .versionBtn {
-  flex: none;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: none;
-  color: var(--text-1);
-}
-.versionRow .versionBtn:hover {
-  color: var(--text-0);
-}
-
-.tools {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  min-width: 0;
-  max-width: 100%;
-}
 .langRow {
   display: flex;
-  gap: 2px;
+  gap: 0;
+  flex: none;
 }
 .langBtn {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   color: var(--text-2);
-  padding: 2px 4px;
+  padding: 0 5px;
+  height: 16px;
 }
 .langBtn.on {
   color: var(--text-0);
+  box-shadow: inset 0 -1px 0 rgba(237, 235, 228, 0.7);
 }
 
 .signature {
@@ -500,8 +508,58 @@
 .statusRight {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
   min-width: 0;
+}
+.statusLeft {
+  flex: 1;
+  overflow: hidden;
+}
+.statusSep {
+  width: 1px;
+  height: 12px;
+  background: var(--line-2);
+  flex: none;
+}
+.session,
+.sessionDate,
+.clocks,
+.sigEnd {
+  flex: none;
+}
+.sessionDate {
+  color: var(--text-0);
+}
+.clocks {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.clock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+.clock b {
+  color: var(--text-0);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.clockFace {
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+}
+.clockFace button {
+  height: 16px;
+  padding: 0 5px;
+  font: inherit;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.clockFace button.on {
+  background: var(--text-0);
+  color: var(--bg-0);
 }
 .statusItem {
   white-space: nowrap;

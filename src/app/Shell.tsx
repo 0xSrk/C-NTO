@@ -7,7 +7,7 @@ import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
 import { cmeSession } from '@/lib/cmeClosed';
-import { ET_ZONE, dateTimeFormatter, etDateKey, globexState, type GlobexState } from '@/lib/time';
+import { ET_ZONE, etDateKey, globexState, type GlobexState } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
@@ -34,6 +34,29 @@ function globexLabel(state: GlobexState): string {
   return state;
 }
 
+type ClockFace = '24' | '12';
+
+const CLOCKS = [
+  { zone: 'Asia/Tokyo', code: 'TYO', city: ['Tokyo', 'Tokyo', 'Tokio'] },
+  { zone: 'Europe/Paris', code: 'PAR', city: ['Paris', 'Paris', 'París'] },
+  { zone: 'America/New_York', code: 'NYC', city: ['New York', 'New York', 'Nueva York'] },
+] as const;
+
+/** Date de séance (New York), même ordre dans les trois langues : jour, quantième, mois. */
+function sessionStamp(ms: number, localeTag: string): string {
+  const parts = new Intl.DateTimeFormat(localeTag, { weekday: 'short', day: 'numeric', month: 'short', timeZone: ET_ZONE }).formatToParts(ms);
+  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${pick('weekday')} ${pick('day')} ${pick('month')}`.replace(/\./g, '').replace(/\s+/g, ' ').trim();
+}
+
+function readClockFace(): ClockFace {
+  try {
+    return localStorage.getItem('canto.clock') === '12' ? '12' : '24';
+  } catch {
+    return '24';
+  }
+}
+
 export function Shell({ children, revealed = true, inert = false }: { children: ReactNode; revealed?: boolean; inert?: boolean }) {
   const locale = useI18n((st) => st.locale);
   const tab = useUi((u) => u.tab);
@@ -52,6 +75,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
   const [appVersion, setAppVersion] = useState(APP_VERSION);
+  const [face, setFace] = useState<ClockFace>(readClockFace);
 
   useEffect(() => {
     if (!desk) return;
@@ -99,14 +123,27 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       : tr('Hors ligne · import CSV', 'Offline · CSV import', 'Fuera de línea · importación CSV');
 
   const localeTag = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR';
-  const clock = new Intl.DateTimeFormat(localeTag, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: ET_ZONE }).format(now);
   const session = cmeSession(etDateKey(now));
   const phase = globexState(now, session.closed, session.earlyCloseMinute);
-  const shortDate = dateTimeFormatter({ weekday: 'short', day: 'numeric', month: 'short', timeZone: ET_ZONE }, localeTag).format(now);
+  const sessionDate = sessionStamp(now, localeTag);
+  const hour = (zone: string) =>
+    new Intl.DateTimeFormat(localeTag, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: face === '24' ? 'h23' : 'h12',
+      timeZone: zone,
+    }).format(now);
   const moduleName = (activeCopy?.label ?? '').toLocaleUpperCase(localeTag);
   const third = crumb && crumb.tab === tab ? crumb.label : '';
   const reported = nt?.accountNames?.filter(Boolean) ?? [];
-  const port = nt?.port ?? 48231;
+  const chooseFace = (next: ClockFace) => {
+    setFace(next);
+    try {
+      localStorage.setItem('canto.clock', next);
+    } catch {
+      /* navigation privée */
+    }
+  };
 
   return (
     <div className={cx(s.shell, revealed ? s.intro : s.pending)} inert={inert}>
@@ -131,8 +168,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
         <div className={s.titleRight}>
           <UpdateButton />
-          <span className={s.labMark}>SRK—LAB / ART-002</span>
-          <span className={s.clock}>{clock} ET</span>
+          <div className={s.titleZoom}>
+            <ZoomControls />
+          </div>
           {isDesk && (
             <div className={s.winControls}>
               <button onClick={() => desk?.window.minimize()} aria-label={tr('Réduire', 'Minimize', 'Minimizar')} title={tr('Réduire', 'Minimize', 'Minimizar')}>
@@ -192,21 +230,16 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               <span className={s.accountName}>{accountLine}</span>
             </div>
             <span className={s.accountSource}>{source}</span>
-          </div>
-          <div className={s.versionRow}>
-            <span>{tr('VERSION', 'VERSION', 'VERSIÓN')}</span>
-            <i aria-hidden />
-            <ChangelogJournal version={appVersion} />
-          </div>
-          <div className={s.tools}>
-            <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
-              {LOCALES.map((item) => (
-                <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
-                  {item.label}
-                </button>
-              ))}
+            <div className={s.accountMeta}>
+              <ChangelogJournal version={appVersion} />
+              <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
+                {LOCALES.map((item) => (
+                  <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
+                    {item.id.toUpperCase()}
+                  </button>
+                ))}
+              </div>
             </div>
-            <ZoomControls />
           </div>
           <PlaqueSignature className={s.signature} />
         </div>
@@ -247,13 +280,30 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             {nt?.link === 'live' ? 'LIVE' : tr('HORS LIGNE', 'OFFLINE', 'FUERA DE LÍNEA')}
           </span>
           {reported.length > 0 ? <span>{reported.join(' · ')}</span> : null}
-          <span>127.0.0.1:{port}</span>
           {nt?.heartbeatLatencyMs != null ? <span>{tr('LATENCE', 'LATENCY', 'LATENCIA')} {nt.heartbeatLatencyMs} MS</span> : null}
+          <i className={s.statusSep} aria-hidden />
+          <span className={s.session}>CME GLOBEX · {globexLabel(phase)}</span>
+          <time className={s.sessionDate} dateTime={etDateKey(now)}>
+            {sessionDate}
+          </time>
+          <span className={s.clocks} role="group" aria-label={tr('Heures Tokyo, Paris, New York', 'Tokyo, Paris, New York times', 'Horas Tokio, París, Nueva York')}>
+            {CLOCKS.map((city) => (
+              <span key={city.code} className={s.clock} title={tr(city.city[0], city.city[1], city.city[2])}>
+                <b>{hour(city.zone)}</b>
+                {city.code}
+              </span>
+            ))}
+            <span className={s.clockFace}>
+              <button type="button" className={face === '24' ? s.on : undefined} aria-pressed={face === '24'} onClick={() => chooseFace('24')}>
+                24
+              </button>
+              <button type="button" className={face === '12' ? s.on : undefined} aria-pressed={face === '12'} onClick={() => chooseFace('12')}>
+                12
+              </button>
+            </span>
+          </span>
         </div>
         <div className={s.statusRight}>
-          <span>
-            CME GLOBEX · {globexLabel(phase)} · {shortDate}
-          </span>
           <span className={s.sigEnd}>
             <Barcode />
             <span>[ SIΞRRΛSKΛ ]</span>
