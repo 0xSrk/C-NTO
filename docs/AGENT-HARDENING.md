@@ -267,7 +267,7 @@ Puis `git ls-files` : si un csv/vault/env est tracké → `git rm --cached` uniq
 
 ### P2.7 — Licence
 
-Depuis l'alpha, l'usage du desk passe par le Lab (`LICENSE`). Les versions 3.1.0 à 3.3.1 déjà publiées sous MIT le restent. Les noms CΛNTO et SIΞRRΛSKΛ, et l'identité visuelle, restent au Lab. Les services qui suivent (modèle par API, desk ajusté pour un trader, déploiement) sont des accords séparés.
+L'usage personnel non commercial est libre sous la PolyForm Noncommercial License 1.0.0 (`LICENSE`). L'usage commercial et les services (modèle par API, desk ajusté pour un trader, déploiement) passent par un accord avec le Lab. Contact : https://github.com/0xSrk/C-NTO/issues. Les versions 3.1.0 à 3.3.1 publiées sous MIT restent sous MIT. Les noms CΛNTO et SIΞRRΛSKΛ, et l'identité visuelle, sont hors licence. Les polices restent sous SIL OFL.
 
 ---
 
