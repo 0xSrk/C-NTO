@@ -2,15 +2,15 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.3.1 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.3.2 · DESK OUTPUT`**
 
 # CΛNTO
 
 ### A local trading desk for CME Group futures (Nasdaq, S&P, Russell, Dow, crude, gold, euro FX)
 
-An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and a Copier that replicates in simulation. **v3.3.1** installs natively on **macOS, Windows, and Linux**. Data stays on the machine. On arrival the desk stays closed until it opens.
+An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and a Copier that replicates in simulation. **v3.3.2** installs natively on **macOS, Windows, and Linux**. Data stays on the machine. On arrival the desk stays closed until it opens.
 
-> The code is under the [MIT license](LICENSE). The names CΛNTO and SIΞRRΛSKΛ, and the visual identity, are not granted by this license.
+> Personal noncommercial use is free under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use goes through **SIΞRRΛSKΛ Lab**. Versions 3.1.0 through 3.3.1 published under MIT remain under MIT.
 
 [![Node](https://img.shields.io/badge/Node-22.12%2B-000000?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Shell-Electron-000000?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
@@ -51,15 +51,15 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 8. [`08 · CPY` Copier](#copier) — simulation, disarmed on launch
 9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
 10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
-11. [Versions](#versions) · [Roadmap](#roadmap) · [Disclaimer](#disclaimer)
+11. [Versions](#versions) · [Roadmap](#roadmap) · [Services](#services) · [Disclaimer](#disclaimer)
 
 ---
 
 ## In short
 
-CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. On arrival the desk stays closed; it opens onto the modules only after that.
+CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. On arrival the desk stays closed; it opens onto the modules only after that. Personal noncommercial use is free. Commercial use goes through the Lab.
 
-| Module | In 3.3.1 |
+| Module | In 3.3.2 |
 |---|---|
 | `01 · MET` Metrics | Journal, prop replay, Monte Carlo |
 | `02 · VIS` Visual | Registry candles, indicators, live bars when the NT8 bridge is connected |
@@ -86,19 +86,19 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 
 ## Get started
 
-**v3.3.1** is the current release: a lighter title bar, session clocks for Tokyo, Paris, and New York, the account plate in the rail, and an opening that draws Desk Unlocked before the desk splits. It keeps the execution port, the Copier on the rail as `08 · CPY`, note branches, and a desk that stays closed on arrival. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
+**v3.3.2** is the current release, under the PolyForm Noncommercial License 1.0.0. It keeps the desk chrome of 3.3.1, the execution port, the Copier on the rail as `08 · CPY`, note branches, and a desk that stays closed on arrival. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
 
 | OS | Installer | What you get |
 |---|---|---|
-| **macOS** 12+ (Apple silicon and Intel) | `CANTO-3.3.1-mac-universal.dmg` | Application in `/Applications`. The file bridge lives in the desk. |
-| **Windows** 10 / 11 (x64 and ARM) | `CANTO-3.3.1-win-x64-setup.exe` (or `arm64`) | NSIS wizard (choose the folder, shortcut). Portable: `CANTO-3.3.1-win-x64-portable.exe`. |
-| **Linux** x64 and ARM64 | `CANTO-3.3.1-linux-x86_64.AppImage` or `CANTO-3.3.1-linux-amd64.deb` | ARM64: `linux-arm64.AppImage` and `linux-arm64.deb`. |
+| **macOS** 12+ (Apple silicon and Intel) | `CANTO-3.3.2-mac-universal.dmg` | Application in `/Applications`. The file bridge lives in the desk. |
+| **Windows** 10 / 11 (x64 and ARM) | `CANTO-3.3.2-win-x64-setup.exe` (or `arm64`) | NSIS wizard (choose the folder, shortcut). Portable: `CANTO-3.3.2-win-x64-portable.exe`. |
+| **Linux** x64 and ARM64 | `CANTO-3.3.2-linux-x86_64.AppImage` or `CANTO-3.3.2-linux-amd64.deb` | ARM64: `linux-arm64.AppImage` and `linux-arm64.deb`. |
 
 <a id="installer"></a>
 
 ### macOS
 
-1. Download the DMG from the [GitHub Release v3.3.1](https://github.com/0xSrk/C-NTO/releases/tag/v3.3.1), or run `npm run dist:mac` on a Mac.
+1. Download the DMG from the [GitHub Release v3.3.2](https://github.com/0xSrk/C-NTO/releases/tag/v3.3.2), or run `npm run dist:mac` on a Mac.
 2. Open the DMG and drag **CΛNTO** into **Applications**.
 3. First launch: right-click the app › **Open** (the DMG is not Apple-signed; Gatekeeper asks for this confirmation once).
 4. The launcher, then the desk, open. Metrics › NinjaTrader bridge creates `~/Documents/NinjaTrader 8/export/CANTO` and watches it.
@@ -109,9 +109,9 @@ From source (development): double-click `CANTO.command`, or `chmod +x CANTO.sh &
 
 ### Windows
 
-1. Run `CANTO-3.3.1-win-x64-setup.exe` (or `arm64` on Windows ARM).
+1. Run `CANTO-3.3.2-win-x64-setup.exe` (or `arm64` on Windows ARM).
 2. Choose the folder, finish the wizard, and open **CΛNTO** from the Start menu.
-3. No-install variant: `CANTO-3.3.1-win-x64-portable.exe`.
+3. No-install variant: `CANTO-3.3.2-win-x64-portable.exe`.
 4. Metrics › NinjaTrader bridge › default folder `Documents\NinjaTrader 8\export\CANTO`.
 5. Real time: `CantoBridge.cs` ships in `resources/ninjatrader/` next to the executable (sources: `ninjatrader/CantoBridge.cs`). Copy it to `Documents\NinjaTrader 8\bin\Custom\AddOns\`, then NinjaScript Editor › Compile (F5). In the desk, **Write the NinjaTrader configuration** so the AddOn reads `bridge.json` (port and token) and opens the WebSocket. The CSV file is still written in parallel.
 
@@ -121,8 +121,8 @@ From source: double-click `CANTO.cmd`. The Electron binary is downloaded and ext
 
 ### Linux
 
-1. **AppImage** (no system install): `chmod +x CANTO-3.3.1-linux-x86_64.AppImage && ./CANTO-3.3.1-linux-x86_64.AppImage`. ARM64: `CANTO-3.3.1-linux-arm64.AppImage`.
-2. **Debian / Ubuntu**: `sudo apt install ./CANTO-3.3.1-linux-amd64.deb` (ARM64: `CANTO-3.3.1-linux-arm64.deb`), then launch `canto` or **CΛNTO** from the menu.
+1. **AppImage** (no system install): `chmod +x CANTO-3.3.2-linux-x86_64.AppImage && ./CANTO-3.3.2-linux-x86_64.AppImage`. ARM64: `CANTO-3.3.2-linux-arm64.AppImage`.
+2. **Debian / Ubuntu**: `sudo apt install ./CANTO-3.3.2-linux-amd64.deb` (ARM64: `CANTO-3.3.2-linux-arm64.deb`), then launch `canto` or **CΛNTO** from the menu.
 3. The bridge creates `~/Documents/NinjaTrader 8/export/CANTO`. Same rule as macOS: the AddOn runs inside NinjaTrader 8 on Windows; the Linux desk imports the CSVs from that folder.
 
 From source: `chmod +x CANTO.sh && ./CANTO.sh`.
@@ -179,7 +179,7 @@ Every install opens on the **launcher** — desk language, version check, and th
 
 | State | Behavior |
 |---|---|
-| Up to date | The button shows `v3.3.1` (quiet) |
+| Up to date | The button shows `v3.3.2` (quiet) |
 | Update available | The button turns **amber / yellow** — one click installs and relaunches |
 
 ---
@@ -601,6 +601,7 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is arc
 
 The journal inside the desk lists the same releases, in French, English, and Spanish.
 
+- 3.3.2 — PolyForm Noncommercial 1.0.0. Personal noncommercial use is free. Commercial use goes through the Lab. (2026-10-04)
 - 3.3.1 — Lighter title bar, session clocks, account plate, and the Desk Unlocked opening. (2026-10-04)
 - 3.3.0 — Execution port. Copier on the rail as `08 · CPY`, simulation only, disarmed on every launch. A note can branch another. The desk stays closed on arrival. (2026-10-04)
 - 3.2.2 — New icon and logotype. Cleaner menu, thinner Lab signature plate. (2026-09-30)
@@ -620,9 +621,21 @@ The journal inside the desk lists the same releases, in French, English, and Spa
 
 ## Roadmap
 
-Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
+Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
 
-Still ahead of the desk: the agent remains a prototype, and Bot remains design — it sends no order. The Copier does not follow a real account in this version.
+Still ahead of the desk: the agent remains a prototype, and Bot remains design — it sends no order. The Copier does not follow a real account in this version. What the Lab brings next is listed under [Services](#services).
+
+---
+
+## Services
+
+Personal noncommercial use of the desk is free. A model reached through an API and run as a service, a desk fitted to one trader, and deployment of what follows are commercial: they go through SIΞRRΛSKΛ Lab under a separate agreement. Write to the Lab on the repository: [github.com/0xSrk/C-NTO/issues](https://github.com/0xSrk/C-NTO/issues).
+
+- A model in the desk, reached through an API
+- A desk fitted to one trader
+- Deployment of the services that follow
+
+The desk can already point at a provider you configure yourself. The Lab’s service is the integration, the fit, and the deployment.
 
 ---
 
@@ -632,7 +645,13 @@ The prop-firm registry is **indicative**: rules change often and must be confirm
 
 ## License
 
-The code is under the MIT license (`LICENSE`). Copyright (c) 2026 SIΞRRΛSKΛ. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, are not granted by this license.
+Personal noncommercial use of this desk is free under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+Commercial use, resale, hosted services, and the services above go through SIΞRRΛSKΛ Lab under a separate agreement.
+
+Write to the Lab on the repository: [github.com/0xSrk/C-NTO/issues](https://github.com/0xSrk/C-NTO/issues).
+
+Versions 3.1.0 through 3.3.1 published under the MIT license remain under MIT. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, are outside this license. The fonts shipped with the desk stay under the SIL Open Font License.
 
 ## Fonts
 
@@ -648,6 +667,6 @@ Fonts shipped with the desk (copied next to the launcher at build time, license 
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.3.1`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.3.2`**
 
 </div>

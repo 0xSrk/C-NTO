@@ -329,6 +329,28 @@
           "Nueve glifos cierran la firma, después del código de barras. La placa deja el raíl: la cuenta activa ocupa su lugar."
         ]
       }
+    },
+    {
+      "version": "3.3.2",
+      "date": "2026-10-04",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Le desk passe sous la licence PolyForm Noncommercial 1.0.0. L’usage personnel non commercial est libre.",
+          "L’usage commercial, la revente et les services hébergés demandent un accord avec le Lab.",
+          "Les versions 3.1.0 à 3.3.1 publiées sous MIT restent sous MIT."
+        ],
+        "en": [
+          "The desk is under the PolyForm Noncommercial License 1.0.0. Personal noncommercial use is free.",
+          "Commercial use, resale, and hosted services require an agreement with the Lab.",
+          "Versions 3.1.0 through 3.3.1 published under MIT remain under MIT."
+        ],
+        "es": [
+          "El desk queda bajo la licencia PolyForm Noncommercial 1.0.0. El uso personal no comercial es libre.",
+          "El uso comercial, la reventa y los servicios alojados requieren un acuerdo con el Lab.",
+          "Las versiones 3.1.0 a 3.3.1 publicadas bajo MIT siguen bajo MIT."
+        ]
+      }
     }
   ]
 }
