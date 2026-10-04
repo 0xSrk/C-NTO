@@ -301,6 +301,34 @@
           "El desk permanece cerrado al llegar."
         ]
       }
+    },
+    {
+      "version": "3.3.1",
+      "date": "2026-10-04",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "La barre de titre ne porte plus le sigle ni l’heure : le zoom est à côté des boutons de fenêtre.",
+          "La barre d’état groupe le pont, CME Globex, la date de séance et les heures de Tokyo, Paris et New York, en 24 h ou en 12 h.",
+          "Le compte actif, la source, la version et la langue tiennent dans une plaque du rail. L’onglet choisi a une lumière rasante.",
+          "À l’ouverture, Desk Unlocked se trace au centre, puis le desk se fend sur les modules.",
+          "Neuf glyphes ferment la signature, après le code-barres. La plaque quitte le rail : le compte actif en occupe la place."
+        ],
+        "en": [
+          "The title bar no longer carries the mark or the clock: zoom sits beside the window buttons.",
+          "The status bar groups the bridge, CME Globex, the session date, and the Tokyo, Paris, and New York times, in 24-hour or 12-hour form.",
+          "The active account, source, version, and language sit in one rail plate. The selected tab carries a grazing light.",
+          "On opening, Desk Unlocked draws in the center, then the desk splits onto the modules.",
+          "Nine glyphs close the signature, after the barcode. The plate leaves the rail: the active account takes its place."
+        ],
+        "es": [
+          "La barra de título ya no lleva el sigilo ni la hora: el zoom está junto a los botones de la ventana.",
+          "La barra de estado agrupa el puente, CME Globex, la fecha de la sesión y las horas de Tokio, París y Nueva York, en 24 h o en 12 h.",
+          "La cuenta activa, la fuente, la versión y el idioma caben en una placa del raíl. La pestaña elegida lleva una luz rasante.",
+          "Al abrir, Desk Unlocked se traza en el centro y el desk se abre sobre los módulos.",
+          "Nueve glifos cierran la firma, después del código de barras. La placa deja el raíl: la cuenta activa ocupa su lugar."
+        ]
+      }
     }
   ]
 }
