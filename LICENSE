@@ -1,21 +1,19 @@
-MIT License
+SIΞRRΛSKΛ Lab Alpha License
 
 Copyright (c) 2026 SIΞRRΛSKΛ
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This license covers CΛNTO from the revision that adopts it. Copies of versions 3.1.0 through 3.3.1 that were released under the MIT license remain under that grant. This license does not take those copies back.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Alpha. CΛNTO is an alpha desk of SIΞRRΛSKΛ Lab.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Use goes through the Lab. Installing, running, deploying, or modifying this software for use requires prior authorization from SIΞRRΛSKΛ Lab. Reading this repository is not that authorization.
+
+3. No transfer. You may not sell, rent, sublicense, or offer the desk, or a service built from it, to anyone else.
+
+4. Names and mark. The names CΛNTO and SIΞRRΛSKΛ, and the visual identity, remain with the Lab. This license does not grant them.
+
+5. Services. A model reached through an API and placed in the desk, a desk fitted to one trader, and the later services the Lab deploys are provided by the Lab under a separate agreement. They are not included here.
+
+6. Fonts. The fonts shipped beside the desk stay under the SIL Open Font License. That license is not this one.
+
+7. No warranty. The software is provided as is, without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose, and non-infringement. The Lab is not liable for any claim, damages, or other liability arising from the software or its use.

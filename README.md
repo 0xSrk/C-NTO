@@ -10,7 +10,7 @@
 
 An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and a Copier that replicates in simulation. **v3.3.1** installs natively on **macOS, Windows, and Linux**. Data stays on the machine. On arrival the desk stays closed until it opens.
 
-> The code is under the [MIT license](LICENSE). The names CΛNTO and SIΞRRΛSKΛ, and the visual identity, are not granted by this license.
+> CΛNTO is in **alpha**. Use goes through **SIΞRRΛSKΛ Lab**. The [Lab license](LICENSE) covers this desk. Versions 3.1.0 through 3.3.1 that were already released under MIT stay under that grant.
 
 [![Node](https://img.shields.io/badge/Node-22.12%2B-000000?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Shell-Electron-000000?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
@@ -51,13 +51,13 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 8. [`08 · CPY` Copier](#copier) — simulation, disarmed on launch
 9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
 10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
-11. [Versions](#versions) · [Roadmap](#roadmap) · [Disclaimer](#disclaimer)
+11. [Versions](#versions) · [Roadmap](#roadmap) · [Alpha](#alpha) · [Services](#services) · [Disclaimer](#disclaimer)
 
 ---
 
 ## In short
 
-CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. On arrival the desk stays closed; it opens onto the modules only after that.
+CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. On arrival the desk stays closed; it opens onto the modules only after that. The desk is in alpha: running it is authorized by the Lab.
 
 | Module | In 3.3.1 |
 |---|---|
@@ -85,6 +85,8 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 ---
 
 ## Get started
+
+Alpha use is authorized by the Lab first. The steps below are for that use.
 
 **v3.3.1** is the current release: a lighter title bar, session clocks for Tokyo, Paris, and New York, the account plate in the rail, and an opening that draws Desk Unlocked before the desk splits. It keeps the execution port, the Copier on the rail as `08 · CPY`, note branches, and a desk that stays closed on arrival. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
 
@@ -622,7 +624,27 @@ The journal inside the desk lists the same releases, in French, English, and Spa
 
 Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
 
-Still ahead of the desk: the agent remains a prototype, and Bot remains design — it sends no order. The Copier does not follow a real account in this version.
+Still ahead of the desk: the agent remains a prototype, and Bot remains design — it sends no order. The Copier does not follow a real account in this version. What the Lab brings next is listed under [Services](#services).
+
+---
+
+## Alpha
+
+The desk is in alpha. Installing it, running it, or deploying it requires prior authorization from SIΞRRΛSKΛ Lab. Ask on the repository: [github.com/0xSrk/C-NTO/issues](https://github.com/0xSrk/C-NTO/issues).
+
+Reading the source is not that authorization.
+
+---
+
+## Services
+
+After this alpha, the Lab will provide, each under its own agreement:
+
+- A model in the desk, reached through an API
+- A desk fitted to one trader
+- Deployment of the services that follow
+
+The alpha desk can already point at a provider you configure yourself. The Lab’s service is the integration, the fit, and the deployment.
 
 ---
 
@@ -632,7 +654,9 @@ The prop-firm registry is **indicative**: rules change often and must be confirm
 
 ## License
 
-The code is under the MIT license (`LICENSE`). Copyright (c) 2026 SIΞRRΛSKΛ. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, are not granted by this license.
+This desk is under the [SIΞRRΛSKΛ Lab Alpha License](LICENSE). Copyright (c) 2026 SIΞRRΛSKΛ.
+
+Use goes through the Lab. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, stay with the Lab. The services above are separate agreements. Copies of versions 3.1.0 through 3.3.1 already released under the MIT license remain under that grant. The fonts shipped with the desk stay under the SIL Open Font License.
 
 ## Fonts
 

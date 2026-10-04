@@ -5,7 +5,7 @@
   "description": "CΛNTO — desk de trading local Nasdaq / CME · SIΞRRΛSKΛ Lab v3.3.1 · macOS, Windows, Linux",
   "private": true,
   "author": "SIΞRRΛSKΛ",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=22.12.0"
   },

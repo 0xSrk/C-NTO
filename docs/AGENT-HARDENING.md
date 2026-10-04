@@ -267,9 +267,7 @@ Puis `git ls-files` : si un csv/vault/env est tracké → `git rm --cached` uniq
 
 ### P2.7 — Licence
 
-Tranché en 3.1.0 : le code est sous MIT. Les noms CΛNTO et SIΞRRΛSKΛ, et l'identité visuelle, ne sont pas concédés.
-
-> Licence : MIT depuis 3.1.0. Les noms CΛNTO et SIΞRRΛSKΛ, et l'identité visuelle, ne sont pas concédés.
+Depuis l'alpha, l'usage du desk passe par le Lab (`LICENSE`). Les versions 3.1.0 à 3.3.1 déjà publiées sous MIT le restent. Les noms CΛNTO et SIΞRRΛSKΛ, et l'identité visuelle, restent au Lab. Les services qui suivent (modèle par API, desk ajusté pour un trader, déploiement) sont des accords séparés.
 
 ---
 
