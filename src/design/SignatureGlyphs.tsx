@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import s from './signatureGlyphs.module.css';
 
 /**
@@ -50,11 +51,26 @@ function layout() {
 
 const MARK = layout();
 
-export function SignatureGlyphs() {
+/** Chaque glyphe se trace, puis le suivant. Neuf lettres tiennent dans le boot. */
+const DRAW_STEP_S = 0.11;
+
+export function SignatureGlyphs({ draw = false, delay = 0 }: { draw?: boolean; delay?: number }) {
   return (
-    <svg className={s.mark} viewBox={`0 0 ${MARK.width} 14`} fill="none" aria-hidden>
+    <svg
+      className={draw ? `${s.mark} ${s.draw}` : s.mark}
+      viewBox={`0 0 ${MARK.width} 14`}
+      fill="none"
+      aria-hidden
+      style={draw ? ({ '--form-delay': `${delay}s` } as CSSProperties) : undefined}
+    >
       {MARK.placed.map((glyph, index) => (
-        <path key={`${glyph.ch}-${index}`} d={glyph.d} transform={`translate(${glyph.x} 0)`} />
+        <path
+          key={`${glyph.ch}-${index}`}
+          d={glyph.d}
+          transform={`translate(${glyph.x} 0)`}
+          pathLength={draw ? 1 : undefined}
+          style={draw ? ({ '--t': `${(index * DRAW_STEP_S).toFixed(2)}s` } as CSSProperties) : undefined}
+        />
       ))}
     </svg>
   );
