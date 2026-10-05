@@ -10,6 +10,7 @@ function mockPorts(log: { writes: number }): DeskPorts {
     trades: () => [],
     startingBalance: () => 50_000,
     planId: () => 'apex-50',
+    planAccount: () => '',
     updateSession: async () => {
       log.writes++;
     },
@@ -21,6 +22,7 @@ function mockPorts(log: { writes: number }): DeskPorts {
     branchNote: async () => null,
     linkNotes: async () => null,
     calendarEntries: () => [],
+    officialEvents: () => [],
   };
 }
 

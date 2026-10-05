@@ -14,6 +14,7 @@ import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
 import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { useLinks } from './links';
+import { useMacro } from './macro';
 import { useNotes } from './notes';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings } from './settings';
 import { useUi } from './ui';
@@ -58,6 +59,7 @@ function livePorts(): DeskPorts {
     trades: () => useJournal.getState().trades,
     startingBalance: () => useSettings.getState().settings.startingBalance,
     planId: () => useSettings.getState().settings.planId,
+    planAccount: () => useSettings.getState().settings.planAccount,
     updateSession: (id, patch) => useJournal.getState().updateSession(id, patch),
     notes: () => useNotes.getState().notes,
     createNote: (title, body, tags) => useNotes.getState().create(title, body, tags),
@@ -72,6 +74,7 @@ function livePorts(): DeskPorts {
       return { id: linkId({ type: 'note', id: fromId }, known, { type: 'note', id: toId }) };
     },
     calendarEntries: () => useCalendar.getState().entries,
+    officialEvents: () => useMacro.getState().events,
   };
 }
 
@@ -110,11 +113,6 @@ export const useAgent = create<AgentState>((set, get) => ({
         if (req.method === 'desk.ping') {
           api.orchestrator.respond(req.id, req.clientId, { pong: Date.now() });
           log(true);
-          return;
-        }
-        if (req.method.startsWith('bridge.')) {
-          api.orchestrator.respond(req.id, req.clientId, null, 'Transport WebSocket du pont non disponible : utiliser le transport fichier (Métrique › Pont NinjaTrader, docs/PONT-NINJATRADER.md)');
-          log(false, 'pont non disponible');
           return;
         }
         const name = req.method.replace(/^tool\./, '');

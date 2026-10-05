@@ -33,12 +33,14 @@ describe('branche de note', () => {
       trades: () => [],
       startingBalance: () => 0,
       planId: () => '',
+      planAccount: () => '',
       updateSession: async () => undefined,
       notes: () => notes,
       createNote: async (title) => ({ id: 'n', title }),
       branchNote: async () => null,
       linkNotes: async () => null,
       calendarEntries: () => [],
+      officialEvents: () => [],
     };
     const read = (await executeDeskTool(ports, 'read_note', { id: 'p1' }, { source: 'llm' })) as { ancre?: string; question?: string; parentId?: string; children?: string[]; body?: string };
     expect(read.ancre).toBe('passage secret');
@@ -59,6 +61,7 @@ describe('branche de note', () => {
       trades: () => [],
       startingBalance: () => 0,
       planId: () => '',
+      planAccount: () => '',
       updateSession: async () => undefined,
       notes: () => notes,
       createNote: async (title) => ({ id: 'n', title }),
@@ -68,6 +71,7 @@ describe('branche de note', () => {
         return { id: 'lien' };
       },
       calendarEntries: () => [],
+      officialEvents: () => [],
     };
     const refused = (await executeDeskTool(ports, 'link_notes', { from: 'a', to: 'b', predicate: 'invente' }, { source: 'orch', allowWrite: true })) as { error?: string };
     expect(typeof refused.error).toBe('string');

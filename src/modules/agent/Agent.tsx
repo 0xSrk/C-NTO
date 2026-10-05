@@ -12,6 +12,7 @@ import { useAgent } from '@/store/agent';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
+import { PRESETS } from './presets';
 import s from './agent.module.css';
 
 function suggestions(): string[] {
@@ -37,20 +38,13 @@ function suggestions(): string[] {
       'Redacta la nota de reseña semanal a partir de mis 5 últimas sesiones.',
     ),
     tr(
-      'Quels catalyseurs Nasdaq arrivent dans les 10 prochains jours et comment les aborder ?',
-      'Which Nasdaq catalysts arrive in the next 10 days, and how should I approach them?',
-      '¿Qué catalizadores Nasdaq llegan en los próximos 10 días y cómo abordarlos?',
+      'Quels catalyseurs majeurs (FOMC, NFP, CPI…) arrivent dans les 10 prochains jours et comment les aborder ?',
+      'Which major catalysts (FOMC, NFP, CPI…) arrive in the next 10 days, and how should I approach them?',
+      '¿Qué catalizadores mayores (FOMC, NFP, CPI…) llegan en los próximos 10 días y cómo abordarlos?',
     ),
   ];
 }
 
-const PRESETS: { id: string; label: string; provider: AgentProvider; baseUrl: string; model: string }[] = [
-  { id: 'ollama', label: 'Ollama (local)', provider: 'openai-compatible', baseUrl: 'http://localhost:11434/v1', model: 'llama3.1' },
-  { id: 'lmstudio', label: 'LM Studio (local)', provider: 'openai-compatible', baseUrl: 'http://localhost:1234/v1', model: 'local-model' },
-  { id: 'openai', label: 'OpenAI', provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
-  { id: 'openrouter', label: 'OpenRouter', provider: 'openai-compatible', baseUrl: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-sonnet-4' },
-  { id: 'anthropic', label: 'Anthropic', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514' },
-];
 
 /** Le flux en cours est affiché en texte brut (Markdown seulement pour le message final) : O(n) par jeton au lieu de O(n²). */
 function StreamBubble({ text }: { text: string }) {
@@ -242,13 +236,13 @@ export default function Agent() {
                   value=""
                   onChange={(e) => {
                     const p = PRESETS.find((x) => x.id === e.target.value);
-                    if (p) updateAgent({ provider: p.provider, baseUrl: p.baseUrl, model: p.model });
+                    if (p && !p.reserved) updateAgent({ provider: p.provider, baseUrl: p.baseUrl, model: p.model });
                   }}
                 >
                   <option value="">{tr('Préréglages…', 'Presets…', 'Preajustes…')}</option>
                   {PRESETS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
+                    <option key={p.id} value={p.id} disabled={p.reserved}>
+                      {p.reserved ? `${p.label} · ${tr('réservé', 'reserved', 'reservado')}` : p.label}
                     </option>
                   ))}
                 </select>
@@ -463,9 +457,9 @@ export default function Agent() {
               ))}
               <div className={s.hint}>
                 {tr(
-                  'Architecture ouverte : les mêmes outils servent le modèle conversationnel et l’orchestrateur externe ; les outils d’écriture demandent confirmation à l’opérateur. Le desk évolue au rythme du trader.',
-                  'Open architecture: the same tools serve the conversational model and the external orchestrator; write tools ask the operator for confirmation. The desk evolves at the trader’s pace.',
-                  'Arquitectura abierta: las mismas herramientas sirven al modelo conversacional y al orquestador externo; las de escritura piden confirmación al operador. El desk evoluciona al ritmo del trader.',
+                  'Architecture ouverte : les mêmes outils servent le modèle conversationnel et les agents externes. Pour le modèle, chaque écriture demande confirmation à l’opérateur ; pour un agent externe, l’écriture reste coupée tant qu’elle n’est pas autorisée ci-dessus.',
+                  'Open architecture: the same tools serve the conversational model and external agents. For the model, every write asks the operator for confirmation; for an external agent, writing stays off until it is allowed above.',
+                  'Arquitectura abierta: las mismas herramientas sirven al modelo conversacional y a los agentes externos. Para el modelo, cada escritura pide confirmación al operador; para un agente externo, la escritura queda cortada mientras no se autorice arriba.',
                 )}
               </div>
             </div>
