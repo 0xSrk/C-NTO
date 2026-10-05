@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { probeProvider, streamChat } from '@/engine/agent/llm';
+import { contextBudget, fitHistory } from '@/engine/agent/context';
 import { MAX_TOOL_ROUNDS, runAgentTurn, toChatHistory } from '@/engine/agent/loop';
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
@@ -146,6 +147,7 @@ export const useAgent = create<AgentState>((set, get) => ({
     const signal = abortController.signal;
     const tools = settings.agent.toolsEnabled ? toolSchemas() : [];
     const prompt = isDefaultAgentPrompt(settings.agent.systemPrompt) ? defaultAgentPrompt() : settings.agent.systemPrompt;
+    const budget = contextBudget(settings.agent.baseUrl);
 
     try {
       const outcome = await runAgentTurn({
@@ -159,7 +161,7 @@ export const useAgent = create<AgentState>((set, get) => ({
           );
           return `${prompt}\n\n${stamp}`;
         },
-        history: () => toChatHistory(get().messages),
+        history: () => fitHistory(toChatHistory(get().messages), budget),
         stream: (req) => streamChat({ config: settings.agent, messages: req.messages, tools: req.tools, toolChoice: req.toolChoice, signal, onDelta: req.onDelta }),
         kindOf: toolKind,
         runTool: (call) =>
