@@ -351,6 +351,31 @@
           "Las versiones 3.1.0 a 3.3.1 publicadas bajo MIT siguen bajo MIT."
         ]
       }
+    },
+    {
+      "version": "3.3.3",
+      "date": "2026-10-05",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Desk Unlocked se trace sur une seule grille.",
+          "La pointe du Λ reste allumée, en rouge.",
+          "Le titre d’onglet tient dans une plaque : le code du module, le nom, la ligne.",
+          "Les runes quittent la barre d’état."
+        ],
+        "en": [
+          "Desk Unlocked is drawn on one grid.",
+          "The tip of the Λ stays lit, in red.",
+          "The module title sits in a plate: the module code, the name, the line.",
+          "The runes leave the status bar."
+        ],
+        "es": [
+          "Desk Unlocked se traza sobre una sola cuadrícula.",
+          "La punta de la Λ permanece encendida, en rojo.",
+          "El título del módulo cabe en una placa: el código, el nombre, la línea.",
+          "Las runas dejan la barra de estado."
+        ]
+      }
     }
   ]
 }
