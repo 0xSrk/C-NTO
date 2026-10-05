@@ -250,6 +250,8 @@ export async function applyUpdate(
         no_installer: ui('Pas d’installeur pour ce système — page des versions ouverte', 'No installer for this system — releases page opened', 'Sin instalador para este sistema — página de versiones abierta'),
         no_checksums: ui('Empreintes SHA-256 absentes de la release : installation refusée', 'Release has no SHA-256 checksums: install refused', 'La versión no tiene sumas SHA-256: instalación rechazada'),
         checksum_mismatch: ui('Fichier corrompu (SHA-256 différent) : installation refusée', 'Corrupted download (SHA-256 mismatch): install refused', 'Descarga dañada (SHA-256 distinto): instalación rechazada'),
+        no_signature: ui('Release non signée par le Lab : installation refusée', 'Release not signed by the Lab: install refused', 'Versión no firmada por el Lab: instalación rechazada'),
+        bad_signature: ui('Signature de la release invalide : installation refusée', 'Invalid release signature: install refused', 'Firma de la versión no válida: instalación rechazada'),
       };
       return {
         current,
