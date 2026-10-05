@@ -162,6 +162,43 @@ export async function authorizeLiveAccount<T>(args: {
   return args.allow(name);
 }
 
+/** Dialogue du relèvement du plafond. Annuler est le bouton par défaut (index 1). */
+export function maxContractsDialog(from: number, to: number, locale: AppLocale): RealAccountDialogOptions {
+  const allow = uiText(locale, `Relever à ${to} contrats par ordre`, `Raise to ${to} contracts per order`, `Subir a ${to} contratos por orden`);
+  const cancel = uiText(locale, 'Annuler', 'Cancel', 'Cancelar');
+  const message = uiText(
+    locale,
+    `Le plafond par ordre passera de ${from} à ${to} contrats, sur tous les comptes autorisés.`,
+    `The per-order ceiling will go from ${from} to ${to} contracts, on every allowed account.`,
+    `El tope por orden pasará de ${from} a ${to} contratos, en todas las cuentas autorizadas.`,
+  );
+  return { type: 'warning', title: 'CΛNTO', message, buttons: [allow, cancel], defaultId: 1, cancelId: 1, noLink: true };
+}
+
+/**
+ * Baisser le plafond réduit le risque : appliqué sans dialogue. Le relever n'est appliqué qu'après
+ * confirmation dans le process principal, fenêtre attachée. Hors 1–1000 ou non entier : rien.
+ */
+export async function changeMaxContracts<T>(args: {
+  win: { isDestroyed(): boolean } | null;
+  current: number;
+  requested: number;
+  locale: AppLocale;
+  showMessageBox: (win: { isDestroyed(): boolean }, options: RealAccountDialogOptions) => Promise<{ response: number }>;
+  apply: (n: number) => Promise<T>;
+  log: (line: string) => void;
+}): Promise<T | null> {
+  const n = args.requested;
+  if (!Number.isInteger(n) || n < 1 || n > 1000) return null;
+  if (n > args.current) {
+    if (!args.win || args.win.isDestroyed()) return null;
+    const choice = await args.showMessageBox(args.win, maxContractsDialog(args.current, n, args.locale));
+    if (choice.response !== 0) return null;
+  }
+  args.log(`nt-bridge plafond ${args.current} → ${n} contrats`);
+  return args.apply(n);
+}
+
 export class NtBridgeHost {
   private policy: NtPolicy | null = null;
   private server: NtBridgeServer | null = null;
@@ -266,6 +303,11 @@ export class NtBridgeHost {
     return this.publicStatus();
   }
 
+  maxContracts(): number {
+    return this.policy?.maxContractsPerOrder ?? DEFAULT_MAX_CONTRACTS;
+  }
+
+  /** Applique sans dialogue : passer par `changeMaxContracts`, qui confirme un relèvement. */
   async setMaxContracts(n: number): Promise<NtPublicStatus | null> {
     if (!this.policy || !Number.isInteger(n) || n < 1 || n > 1000) return this.publicStatus();
     this.policy.maxContractsPerOrder = n;

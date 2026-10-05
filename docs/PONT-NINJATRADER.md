@@ -135,7 +135,7 @@ Réglables dans le panneau. Persistés dans `userData/nt-bridge.json`, pas dans 
 | Comptes autorisés | nom commençant par `Sim`, plus une liste explicite vide | `-32010` |
 | Coupe-circuit | lien autre que `live` (dont `lost` après 6 s) | `-32011`, ordre non réémis |
 | Kill switch | `Ctrl+Shift+K` / `Cmd+Shift+K` (`CommandOrControl+Shift+K`) : `order.flatten` sur chaque compte autorisé connu, puis canal fermé à la soumission jusqu'au redémarrage du desk. Annuler et aplatir restent permis. Le message ne dit « aplati » que pour les comptes dont l'AddOn a confirmé l'aplatissement (réponse attendue 3 s) ; pont hors ligne, il le dit | `-32011` sur `order.submit` ensuite |
-| Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle) | `-32012` si `quantity` est supérieure |
+| Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle). Le baisser est immédiat ; le relever passe par un dialogue du process principal (Annuler par défaut) | `-32012` si `quantity` est supérieure |
 | Tag | obligatoire sur `order.submit` | `-32013` |
 
 Un compte réel s'ajoute depuis le panneau. Le dialogue CΛNTO du renderer explique le geste ; il ne suffit pas. Le process principal affiche ensuite `dialog.showMessageBox` (type `warning`, boutons « Autoriser les ordres réels sur &lt;compte&gt; » / « Annuler », défaut Annuler, `noLink`, FR/EN/ES). Seule la réponse Autoriser appelle `allowAccount`. L'autorisation est journalisée dans `main.log` (compte, horodatage, sans jeton). Chaque ordre émis est écrit dans `main.log` avec tag, compte, instrument, quantité, latence et résultat.
