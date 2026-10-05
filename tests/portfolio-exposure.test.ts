@@ -40,4 +40,20 @@ describe('exposure', () => {
     expect(live.totalNotional).toBe(4_000);
     expect(live.byInstrument[0]?.key).toBe('NQ');
   });
+
+  it('contrat daté du pont (« NQ 12-26 ») : le multiplicateur de la racine, pas 1', () => {
+    const pocket: Pocket = { id: 'f', name: 'Fut', kind: 'futures', currency: 'USD', account: 'SIM', createdAt: now };
+    const x = exposure({
+      pockets: [pocket],
+      positions: [],
+      snapshots: [{ account: 'SIM', cashValue: 50_000, unrealizedPnl: 0, positions: [{ instrument: 'NQ 12-26', quantity: 2, avgPrice: 21_000 }, { instrument: 'MES 12-26', quantity: -1, avgPrice: 6_000 }], at: now - 1_000 }],
+      fx: [],
+      base: 'USD',
+      now,
+      netValue: 50_000,
+    });
+    // NQ : 20 $ le point ; MES : 5 $ le point.
+    expect(x.totalNotional).toBe(2 * 21_000 * 20 + 6_000 * 5);
+    expect(x.grossLeverage).toBeCloseTo(x.totalNotional / 50_000, 6);
+  });
 });
