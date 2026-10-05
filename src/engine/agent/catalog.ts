@@ -1,0 +1,39 @@
+/**
+ * Noms et types des outils du desk : la seule liste. Le moteur (`tools.ts`) la vérifie, le process
+ * principal l'importe pour l'allowlist de l'orchestrateur (émis vers `dist-electron/agent/catalog.js`
+ * par `electron/tsconfig.sources.json`). Aucun import : ce module tourne des deux côtés.
+ */
+export const DESK_TOOL_KINDS = {
+  desk_overview: 'read',
+  list_sessions: 'read',
+  get_session: 'read',
+  search_notes: 'read',
+  read_note: 'read',
+  calendar_events: 'read',
+  journal_breakdown: 'read',
+  monte_carlo: 'read',
+  bridge_status: 'read',
+  portfolio_snapshot: 'read',
+  market_levels: 'read',
+  propfirm_status: 'read',
+  annotate_session: 'write',
+  create_note: 'write',
+  branch_note: 'write',
+  link_notes: 'write',
+} as const satisfies Record<string, 'read' | 'write'>;
+
+export type DeskToolName = keyof typeof DESK_TOOL_KINDS;
+
+/** Méthodes du protocole de l'orchestrateur, hors outils. */
+export const ORCH_PROTOCOL_METHODS = ['desk.auth', 'desk.describe', 'desk.ping'] as const;
+
+const names = Object.keys(DESK_TOOL_KINDS) as DeskToolName[];
+export const ORCH_READ_METHODS: readonly string[] = [...ORCH_PROTOCOL_METHODS, ...names.filter((n) => DESK_TOOL_KINDS[n] === 'read')];
+export const ORCH_WRITE_METHODS: readonly string[] = names.filter((n) => DESK_TOOL_KINDS[n] === 'write');
+
+/** `tool.<nom>` ou `<nom>` ; écritures seulement si l'opérateur les autorise. */
+export function orchMethodAllowed(method: string, allowWrites: boolean): boolean {
+  const name = method.replace(/^tool\./, '');
+  if (ORCH_READ_METHODS.includes(method) || ORCH_READ_METHODS.includes(name)) return true;
+  return allowWrites && ORCH_WRITE_METHODS.includes(name);
+}

@@ -65,32 +65,7 @@ export const TAG_LEN_MAX = 40;
 export const MAX_CALLS_PER_ROUND = 8;
 export const MAX_WRITES_PER_ROUND = 2;
 
-export const ORCH_READ_METHODS = [
-  'desk.auth',
-  'desk.describe',
-  'desk.ping',
-  'desk_overview',
-  'list_sessions',
-  'get_session',
-  'search_notes',
-  'read_note',
-  'calendar_events',
-  'propfirm_status',
-  'journal_breakdown',
-  'monte_carlo',
-  'bridge_status',
-  'portfolio_snapshot',
-  'market_levels',
-] as const;
-
-export const ORCH_WRITE_METHODS = ['create_note', 'annotate_session', 'branch_note', 'link_notes'] as const;
-
-export function orchMethodAllowed(method: string, allowWrites: boolean): boolean {
-  const name = method.replace(/^tool\./, '');
-  if ((ORCH_READ_METHODS as readonly string[]).includes(method) || (ORCH_READ_METHODS as readonly string[]).includes(name)) return true;
-  if (allowWrites && (ORCH_WRITE_METHODS as readonly string[]).includes(name)) return true;
-  return false;
-}
+export { ORCH_READ_METHODS, ORCH_WRITE_METHODS, orchMethodAllowed } from './catalog';
 
 export const TITLE_MAX = 200;
 export const ANCRE_MAX = 500;
