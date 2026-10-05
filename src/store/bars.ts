@@ -3,6 +3,7 @@ import { tr } from '@/i18n';
 import type { Bar, BarSeries } from '@/engine/bars';
 import { DEFAULT_FUTURE, resolveSymbol } from '@/engine/instruments';
 import { createPort, portWarnings, type MarketDataPort } from '@/engine/marketdata';
+import { ntBarToOpenTime } from '@/engine/marketdata/adapters/nt8';
 import { CSV_WORKER_MIN_LINES, csvLineCount } from '@/engine/import';
 import { defaultParams, indicatorById, type IndicatorInstance } from '@/engine/indicators';
 import type { Instrument } from '@/engine/types';
@@ -93,10 +94,11 @@ export const useBars = create<BarsState>((set, get) => ({
     return loading;
   },
 
-  applyNtBar(instrumentName, timeframe, bar, final) {
+  applyNtBar(instrumentName, timeframe, rawBar, final) {
     const resolved = resolveSymbol(instrumentName);
     if (!resolved) return;
     const id = `nt8:${resolved.symbol}:${timeframe}`;
+    const bar = ntBarToOpenTime(rawBar, timeframe);
     set((state) => {
       const existing = state.series.find((sr) => sr.id === id);
       const bars = mergeNtBar(existing?.bars ?? [], id, bar, final);
@@ -106,7 +108,9 @@ export const useBars = create<BarsState>((set, get) => ({
         ? { ...existing, bars, label }
         : { id, instrument: resolved.symbol, timeframe, label, source: 'nt8-bridge', bars, createdAt: Date.now() };
       const series = existing ? state.series.map((row) => (row.id === id ? sr : row)) : [...state.series, sr];
-      return { series, activeId: state.activeId && state.series.some((row) => row.source === 'nt8-bridge' && row.id === state.activeId) ? state.activeId : id };
+      // Le choix du trader (CSV, autre série du pont) reste ; seule la démo cède la place au direct.
+      const current = state.series.find((row) => row.id === state.activeId);
+      return { series, activeId: current && current.source !== 'demo' ? state.activeId : id };
     });
   },
 
