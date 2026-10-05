@@ -28,6 +28,7 @@ Repris de `docs/AGENT-HARDENING.md` § 0, toujours en vigueur.
 
 - Montée de version dans `package.json`, tag `v*`, Release, fusion dans `main`.
 - Clé de publication du Lab et signature de chaque Release (`docs/PUBLICATION.md`) : la clé privée ne passe jamais par une session d'agent, le dépôt ou GitHub.
+- Clé de siège et émission des codes (`docs/SIEGE-NOMINATIF.md`, `scripts/issue-seat.mjs`) : même règle. Pour qu'une version accepte des sièges, la clé publique est inscrite dans `electron/seat-keys.ts` avant son tag.
 - Compilation de l'AddOn `ninjatrader/CantoBridge.cs` dans NinjaTrader 8 (Windows, F5) : elle ne se fait pas depuis ce dépôt. Toute modification du C# le dit dans la PR, avec la procédure de vérification sur compte Sim.
 - Décisions de licence et de services (PolyForm Noncommercial 1.0.0, voir `LICENSE` et README › License).
 
@@ -53,6 +54,7 @@ Une entrée de `src/engine/changelog/changelog.json` peut être préparée (troi
 - LLM : la clé API ne quitte pas le process principal ; hôtes épinglés dans `electron/llm-host.ts`, le renderer ne peut pas élargir la liste.
 - Renderer : CSP `connect-src 'self'` ; aucun appel réseau direct.
 - Mises à jour : un installeur n'est installé que si `SHA256SUMS.txt` porte une signature d'une clé de `electron/release-keys.ts`, liée à la version.
+- Siège nominatif : le nom affiché vient d'une ligne `SIEGE1` vérifiée dans le process principal avec les clés de `electron/seat-keys.ts`, jamais avec celles de publication ; jamais le texte saisi. Sans siège, le desk s'ouvre comme avant. Ni la ligne ni le nom ne sont journalisés.
 - Aucun jeton, secret ou clé dans un journal, un export de coffre ou un commit.
 
 ## 6. Où consigner
@@ -60,6 +62,7 @@ Une entrée de `src/engine/changelog/changelog.json` peut être préparée (troi
 - Constats d'audit et preuves : `docs/AUDIT.md`, une section par vague, chaque constat cité `fichier:ligne`.
 - Plan en cours : `docs/AUDIT.md` › « 3.3.4 — audit agentique » (A1 fiabilité de la boucle, A2 données justes, A3 tout le desk en lecture, A4 la porte MCP et les événements, A5 exécution gardée après les prérequis S1–S5).
 - Pont NinjaTrader : `docs/PONT-NINJATRADER.md`.
+- Siège nominatif : `docs/SIEGE-NOMINATIF.md`.
 
 ## Commandes
 
