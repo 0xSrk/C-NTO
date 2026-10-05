@@ -12,6 +12,8 @@ export interface DeskNote {
   parentId?: string;
   ancre?: string;
   question?: string;
+  /** `agent` : note écrite par un agent IA. Absent : le trader. */
+  by?: 'agent';
 }
 
 export interface DeskCalendarEntry {

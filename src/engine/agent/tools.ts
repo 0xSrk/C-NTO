@@ -206,7 +206,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           .slice(0, limit)
           .map((n) => {
             const i = n.body.toLowerCase().indexOf(q);
-            return { id: n.id, title: n.title, tags: n.tags, excerpt: i >= 0 ? n.body.slice(Math.max(0, i - 80), i + 160) : n.body.slice(0, 200) };
+            return { id: n.id, title: n.title, tags: n.tags, ...(n.by ? { by: n.by } : {}), excerpt: i >= 0 ? n.body.slice(Math.max(0, i - 80), i + 160) : n.body.slice(0, 200) };
           });
         return { count: hits.length, notes: hits };
       },
@@ -229,6 +229,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           tags: n.tags,
           body: n.body,
           updatedAt: new Date(n.updatedAt).toISOString(),
+          ...(n.by ? { by: n.by } : {}),
           ...(n.parentId ? { parentId: n.parentId } : {}),
           ...(n.ancre ? { ancre: n.ancre } : {}),
           ...(n.question ? { question: n.question } : {}),

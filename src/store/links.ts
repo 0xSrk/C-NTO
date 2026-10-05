@@ -1,6 +1,6 @@
 import { listInstruments } from '@/engine/instruments';
 import { ONTOLOGY_WORKER_NOTES, ONTOLOGY_WORKER_TRADES, recomputeOntology, type EntityRef, type Link, type Predicate, type StructuralInput } from '@/engine/ontology';
-import { linkId, unorderedPairKey } from '@/engine/ontology/schema';
+import { linkId, unorderedPairKey, type LinkAuthor } from '@/engine/ontology/schema';
 import { listenWorker } from '@/lib/worker';
 import { create } from 'zustand';
 import { db } from './db';
@@ -12,7 +12,8 @@ interface LinksState {
   load: () => Promise<void>;
   promote: (id: string, predicate: Predicate) => Promise<void>;
   reject: (id: string) => Promise<void>;
-  affirm: (from: EntityRef, to: EntityRef, predicate: Predicate) => Promise<void>;
+  /** `by` : `utilisateur` par défaut ; `agent` pour un lien écrit par un agent IA. */
+  affirm: (from: EntityRef, to: EntityRef, predicate: Predicate, by?: Extract<LinkAuthor, 'utilisateur' | 'agent'>) => Promise<void>;
   /** Retire un lien affirmé. Les structurels se recalculent, ils ne se suppriment pas à la main. */
   remove: (id: string) => Promise<void>;
   recompute: () => Promise<void>;
@@ -94,7 +95,7 @@ export const useLinks = create<LinksState>((set, get) => ({
       set({ links: get().links.map((l) => (l.id === id ? next : l)) });
     }),
 
-  affirm: (from, to, predicate) =>
+  affirm: (from, to, predicate, by = 'utilisateur') =>
     enqueue(async () => {
       const now = Date.now();
       const link: Link = {
@@ -103,7 +104,7 @@ export const useLinks = create<LinksState>((set, get) => ({
         to,
         predicate,
         kind: 'affirme',
-        by: 'utilisateur',
+        by,
         createdAt: now,
         updatedAt: now,
       };
@@ -113,6 +114,9 @@ export const useLinks = create<LinksState>((set, get) => ({
         for (const row of all) {
           if (row.kind === 'hypothese' && unorderedPairKey(row.from, row.to) === pair) await db.links.delete(row.id);
         }
+        // Un agent qui réaffirme un lien du trader ne s'en approprie pas la signature.
+        const prev = all.find((row) => row.id === link.id);
+        if (by === 'agent' && prev?.kind === 'affirme' && prev.by !== 'agent') return;
         await db.links.put(link);
       });
       set({ links: await db.links.toArray() });

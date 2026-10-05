@@ -464,6 +464,7 @@ function Meta({ note, notes, onOpen, onOpenTitle, onStatut }: { note: NoteType; 
                   ) : (
                     <div className={s.linkItem}>{label}</div>
                   )}
+                  {link.by === 'agent' && <div className={s.linkCtx}>{tr('écrit par un agent', 'written by an agent', 'escrito por un agente')}</div>}
                   {link.kind === 'hypothese' && (
                     <div className={s.relActions}>
                       <small>{Math.round((link.score ?? 0) * 100)} %</small>
@@ -522,6 +523,12 @@ function Meta({ note, notes, onOpen, onOpenTitle, onStatut }: { note: NoteType; 
           </select>
         </label>
         <small>
+          {note.by === 'agent' && (
+            <>
+              {tr('Écrite par un agent IA', 'Written by an AI agent', 'Escrita por un agente IA')}
+              <br />
+            </>
+          )}
           {tr('Créée le', 'Created', 'Creada el')} {formatDateFr(dateKeyLocal(new Date(note.createdAt)), { short: true })} · {tr('modifiée', 'updated', 'modificada')} {formatUpdated(note.updatedAt)}
           <br />
           {note.body.length} {tr('caractères', 'characters', 'caracteres')} · {note.body.split(/\s+/).filter(Boolean).length} {tr('mots', 'words', 'palabras')}

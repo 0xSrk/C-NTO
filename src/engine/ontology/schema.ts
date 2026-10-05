@@ -13,7 +13,8 @@ export type Predicate = (typeof PREDICATES)[number];
 export const LINK_KINDS = ['structurel', 'affirme', 'hypothese', 'rejete'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
-export const LINK_AUTHORS = ['moteur', 'utilisateur'] as const;
+/** `agent` : écrit par un agent IA (embarqué, orchestrateur ou MCP), jamais par le trader. */
+export const LINK_AUTHORS = ['moteur', 'utilisateur', 'agent'] as const;
 export type LinkAuthor = (typeof LINK_AUTHORS)[number];
 
 export interface Link {

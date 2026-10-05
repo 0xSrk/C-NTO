@@ -66,7 +66,8 @@ interface AgentState {
 let abortController: AbortController | null = null;
 let unsubscribeRequests: (() => void) | null = null;
 
-function livePorts(): DeskPorts {
+/** Ports du desk branchés sur les stores. Exporté pour les tests. */
+export function livePorts(): DeskPorts {
   return {
     sessions: () => useJournal.getState().sessions,
     trades: () => useJournal.getState().trades,
@@ -75,15 +76,15 @@ function livePorts(): DeskPorts {
     planAccount: () => useSettings.getState().settings.planAccount,
     updateSession: (id, patch) => useJournal.getState().updateSession(id, patch),
     notes: () => useNotes.getState().notes,
-    createNote: (title, body, tags) => useNotes.getState().create(title, body, tags),
+    createNote: (title, body, tags) => useNotes.getState().create(title, body, tags, { by: 'agent' }),
     branchNote: async (parentId, ancre, question) => {
-      const note = await useNotes.getState().branch(parentId, ancre, question);
+      const note = await useNotes.getState().branch(parentId, ancre, question, { by: 'agent' });
       return note ? { id: note.id, title: note.title } : null;
     },
     linkNotes: async (fromId, toId, predicate) => {
       if (!(PREDICATES as readonly string[]).includes(predicate)) return null;
       const known = predicate as Predicate;
-      await useLinks.getState().affirm({ type: 'note', id: fromId }, { type: 'note', id: toId }, known);
+      await useLinks.getState().affirm({ type: 'note', id: fromId }, { type: 'note', id: toId }, known, 'agent');
       return { id: linkId({ type: 'note', id: fromId }, known, { type: 'note', id: toId }) };
     },
     calendarEntries: () => useCalendar.getState().entries,
