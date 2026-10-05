@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toChatHistory } from '@/engine/agent/loop';
-import { AnthropicStreamParser, fallbackCallId, OpenAiStreamParser } from '../electron/llm-stream';
+import { AnthropicStreamParser, anthropicRequestBody, fallbackCallId, OpenAiStreamParser, openAiRequestBody } from '../electron/llm-stream';
 
 const oaChunk = (delta: unknown) => JSON.stringify({ choices: [{ delta }] });
 
@@ -81,5 +81,42 @@ describe('historique de la conversation', () => {
   it('conversation d’avant 3.3.5 : l’id du message tient lieu d’identifiant d’appel', () => {
     const chat = toChatHistory([{ id: 'call_legacy', role: 'tool', content: 'r', toolName: 'desk_overview' }]);
     expect(chat).toEqual([{ role: 'tool', content: 'r', toolCallId: 'call_legacy', name: 'desk_overview' }]);
+  });
+});
+
+describe('corps des requêtes', () => {
+  const tools = [{ name: 'desk_overview', description: 'vue', parameters: { type: 'object', properties: {} } }];
+  const messages = [
+    { role: 'system', content: 'consigne' },
+    { role: 'user', content: 'Diagnostic' },
+    { role: 'assistant', content: '', toolCalls: [{ id: 't1', name: 'desk_overview', args: '{}' }, { id: 't2', name: 'desk_overview', args: 'pas du json' }] },
+    { role: 'tool', content: 'r1', toolCallId: 't1', name: 'desk_overview' },
+    { role: 'tool', content: 'r2', toolCallId: 't2', name: 'desk_overview' },
+  ];
+
+  it('OpenAI : tool_choice none seulement avec des outils', () => {
+    expect(openAiRequestBody({ model: 'm', temperature: 0.3, messages, tools, toolChoice: 'none' }).tool_choice).toBe('none');
+    expect(openAiRequestBody({ model: 'm', temperature: 0.3, messages, tools, toolChoice: 'auto' })).not.toHaveProperty('tool_choice');
+    expect(openAiRequestBody({ model: 'm', temperature: 0.3, messages, tools: [], toolChoice: 'none' })).not.toHaveProperty('tool_choice');
+  });
+
+  it('OpenAI : appels et résultats gardent leurs identifiants', () => {
+    const body = openAiRequestBody({ model: 'm', temperature: 0.3, messages, tools });
+    const sent = body.messages as { role: string; tool_calls?: { id: string }[]; tool_call_id?: string }[];
+    expect(sent[2]?.tool_calls?.map((c) => c.id)).toEqual(['t1', 't2']);
+    expect(sent.slice(3).map((m) => m.tool_call_id)).toEqual(['t1', 't2']);
+  });
+
+  it('Anthropic : tool_choice { type: none }, consigne à part, résultats réunis dans un seul tour user', () => {
+    const body = anthropicRequestBody({ model: 'm', temperature: 1.4, messages, tools, toolChoice: 'none' });
+    expect(body.tool_choice).toEqual({ type: 'none' });
+    expect(body.system).toBe('consigne');
+    expect(body.temperature).toBe(1);
+    const sent = body.messages as { role: string; content: unknown }[];
+    expect(sent.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
+    const assistant = sent[1]?.content as { type: string; input?: unknown }[];
+    expect(assistant.map((b) => b.input)).toEqual([{}, {}]);
+    expect((sent[2]?.content as { tool_use_id: string }[]).map((b) => b.tool_use_id)).toEqual(['t1', 't2']);
+    expect(anthropicRequestBody({ model: 'm', temperature: 0.3, messages, tools })).not.toHaveProperty('tool_choice');
   });
 });

@@ -101,16 +101,34 @@ describe('runAgentTurn', () => {
     expect(asked.filter((id) => !answered.has(id))).toEqual([]);
   });
 
-  it('tours épuisés : le résultat le signale', async () => {
+  it('dernier aller-retour : tool_choice none, les appels résiduels sont refusés et le tour le signale', async () => {
     const h = harness(
       [
         { text: '', toolCalls: [call('a', 'desk_overview')] },
-        { text: '', toolCalls: [call('b', 'desk_overview')] },
+        { text: 'je voudrais encore lire', toolCalls: [call('b', 'desk_overview')] },
       ],
       { maxRounds: 2 },
     );
     const out = await runAgentTurn(h.deps);
     expect(out).toEqual({ rounds: 2, exhausted: true });
-    expect(h.ran).toEqual(['desk_overview', 'desk_overview']);
+    expect(h.requests.map((r) => r.toolChoice)).toEqual(['auto', 'none']);
+    // L'appel du dernier tour n'est pas exécuté, mais il a son résultat.
+    expect(h.ran).toEqual(['desk_overview']);
+    const lastTool = h.records.at(-1);
+    expect(lastTool?.role === 'tool' && lastTool.toolCallId).toBe('b');
+    expect(JSON.parse(lastTool!.content.slice(TOOL_PREAMBLE.length))).toEqual({ ok: false, reason: 'round_limit' });
+  });
+
+  it('dernier aller-retour respecté par le fournisseur : réponse finale, pas d’avis', async () => {
+    const h = harness(
+      [
+        { text: '', toolCalls: [call('a', 'desk_overview')] },
+        { text: 'Synthèse finale', toolCalls: [] },
+      ],
+      { maxRounds: 2 },
+    );
+    const out = await runAgentTurn(h.deps);
+    expect(out).toEqual({ rounds: 2, exhausted: false });
+    expect(h.records.at(-1)).toEqual({ role: 'assistant', content: 'Synthèse finale', toolCalls: undefined });
   });
 });

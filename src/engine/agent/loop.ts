@@ -13,6 +13,8 @@ export type TurnRecord =
 export interface StreamRequest {
   messages: ChatMessage[];
   tools: ToolSchema[];
+  /** `none` au dernier aller-retour : le modèle conclut avec ce qu'il a lu. */
+  toolChoice: 'auto' | 'none';
   onDelta: (text: string) => void;
 }
 
@@ -38,7 +40,7 @@ export interface AgentTurnDeps {
 
 export interface TurnOutcome {
   rounds: number;
-  /** Le modèle demandait encore des outils quand les tours ont été épuisés. */
+  /** Le modèle demandait encore des outils au dernier tour : sa réponse n'est pas finale. */
   exhausted: boolean;
 }
 
@@ -80,12 +82,23 @@ export async function runAgentTurn(deps: AgentTurnDeps): Promise<TurnOutcome> {
   let rounds = 0;
   for (let round = 0; round < maxRounds; round++) {
     rounds = round + 1;
+    const last = round === maxRounds - 1;
     deps.onRoundStart?.();
     const messages: ChatMessage[] = [{ role: 'system', content: deps.system() }, ...deps.history()];
-    const result = await deps.stream({ messages, tools: deps.tools, onDelta: (d) => deps.onDelta?.(d) });
+    const result = await deps.stream({ messages, tools: deps.tools, toolChoice: last ? 'none' : 'auto', onDelta: (d) => deps.onDelta?.(d) });
     if (!deps.isCurrent()) return { rounds, exhausted: false };
     await deps.append({ role: 'assistant', content: result.text, toolCalls: result.toolCalls.length ? result.toolCalls : undefined });
     if (result.toolCalls.length === 0) return { rounds, exhausted: false };
+
+    if (last) {
+      // Un fournisseur qui ignore `tool_choice` peut encore demander des outils : chaque appel est
+      // refusé pour que l'historique reste valide, et l'opérateur est prévenu.
+      for (const call of result.toolCalls) {
+        await deps.append({ role: 'tool', content: TOOL_PREAMBLE + JSON.stringify({ ok: false, reason: 'round_limit' }), toolCallId: call.id, toolName: call.name });
+        deps.onToolDone?.(call.name, false);
+      }
+      return { rounds, exhausted: true };
+    }
 
     // Chaque appel reçoit un résultat, exécuté ou refusé : un appel sans résultat rend l'historique
     // invalide pour OpenAI comme pour Anthropic, et la conversation entière échouerait ensuite.
@@ -103,5 +116,5 @@ export async function runAgentTurn(deps: AgentTurnDeps): Promise<TurnOutcome> {
       deps.onToolDone?.(call.name, !isErrorResult(output));
     }
   }
-  return { rounds, exhausted: true };
+  return { rounds, exhausted: false };
 }

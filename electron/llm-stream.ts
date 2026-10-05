@@ -103,3 +103,87 @@ export class AnthropicStreamParser {
     return { text: this.text, toolCalls: [...this.calls] };
   }
 }
+
+/** Message tel que le renderer l'envoie (`ChatMessage` de src/engine/agent/llm.ts). */
+interface WireMessage {
+  role?: string;
+  content?: string;
+  toolCalls?: StreamedCall[];
+  toolCallId?: string;
+  name?: string;
+}
+
+interface WireTool {
+  name: string;
+  description: string;
+  parameters: unknown;
+}
+
+export type ToolChoice = 'auto' | 'none';
+
+export interface RequestInput {
+  model: string;
+  temperature: number;
+  messages: unknown[];
+  tools: unknown[];
+  /** `none` : le modèle doit répondre sans appeler d'outil (dernier tour de la boucle). */
+  toolChoice?: ToolChoice;
+}
+
+/** Corps `chat/completions`. `tool_choice` n'est envoyé qu'avec des outils (OpenAI le refuse seul). */
+export function openAiRequestBody({ model, temperature, messages, tools, toolChoice }: RequestInput): Record<string, unknown> {
+  const oaMessages = (messages as WireMessage[]).map((m) => {
+    if (m.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: m.content || null,
+        tool_calls: m.toolCalls?.length ? m.toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.args } })) : undefined,
+      };
+    }
+    if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
+    return { role: m.role, content: m.content };
+  });
+  const body: Record<string, unknown> = { model, messages: oaMessages, stream: true, temperature };
+  if (tools.length) {
+    body.tools = (tools as WireTool[]).map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+    if (toolChoice === 'none') body.tool_choice = 'none';
+  }
+  return body;
+}
+
+/** Corps `v1/messages`. Les résultats d'outils consécutifs partagent un seul tour `user`. */
+export function anthropicRequestBody({ model, temperature, messages, tools, toolChoice }: RequestInput): Record<string, unknown> {
+  const msgs = messages as WireMessage[];
+  const system = msgs.find((m) => m.role === 'system')?.content;
+  const converted: { role: 'user' | 'assistant'; content: unknown }[] = [];
+  for (const m of msgs) {
+    if (m.role === 'system') continue;
+    if (m.role === 'user') converted.push({ role: 'user', content: m.content });
+    else if (m.role === 'assistant') {
+      const blocks: unknown[] = [];
+      if (m.content) blocks.push({ type: 'text', text: m.content });
+      for (const tc of m.toolCalls ?? []) {
+        let input: unknown = {};
+        try {
+          input = tc.args ? JSON.parse(tc.args) : {};
+        } catch {
+          input = {};
+        }
+        blocks.push({ type: 'tool_use', id: tc.id, name: tc.name, input });
+      }
+      converted.push({ role: 'assistant', content: blocks.length ? blocks : [{ type: 'text', text: '…' }] });
+    } else {
+      const block = { type: 'tool_result', tool_use_id: m.toolCallId, content: m.content };
+      const last = converted[converted.length - 1];
+      if (last && last.role === 'user' && Array.isArray(last.content)) (last.content as unknown[]).push(block);
+      else converted.push({ role: 'user', content: [block] });
+    }
+  }
+  const body: Record<string, unknown> = { model, max_tokens: 4096, stream: true, temperature: Math.max(0, Math.min(1, temperature)), messages: converted };
+  if (system) body.system = system;
+  if (tools.length) {
+    body.tools = (tools as WireTool[]).map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+    if (toolChoice === 'none') body.tool_choice = { type: 'none' };
+  }
+  return body;
+}

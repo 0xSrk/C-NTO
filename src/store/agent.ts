@@ -34,6 +34,8 @@ interface AgentState {
   streamText: string;
   pendingTool: string | null;
   error: string | null;
+  /** Avis non bloquant sur le dernier tour (limite d'allers-retours atteinte). */
+  notice: string | null;
   orchestrator: OrchestratorStatus;
   linkLog: LinkLogEntry[];
   load: () => Promise<void>;
@@ -85,6 +87,7 @@ export const useAgent = create<AgentState>((set, get) => ({
   streamText: '',
   pendingTool: null,
   error: null,
+  notice: null,
   orchestrator: { running: false, port: 0, clients: 0 },
   linkLog: [],
 
@@ -137,7 +140,7 @@ export const useAgent = create<AgentState>((set, get) => ({
     const { conversationId } = get();
     const userMsg: AgentMessage = { id: uid('m'), conversationId, role: 'user', content: text, createdAt: Date.now() };
     await db.agentMessages.add(userMsg);
-    set({ messages: [...get().messages, userMsg], streaming: true, streamText: '', error: null, pendingTool: null });
+    set({ messages: [...get().messages, userMsg], streaming: true, streamText: '', error: null, notice: null, pendingTool: null });
 
     abortController = new AbortController();
     const signal = abortController.signal;
@@ -145,7 +148,7 @@ export const useAgent = create<AgentState>((set, get) => ({
     const prompt = isDefaultAgentPrompt(settings.agent.systemPrompt) ? defaultAgentPrompt() : settings.agent.systemPrompt;
 
     try {
-      await runAgentTurn({
+      const outcome = await runAgentTurn({
         maxRounds: MAX_TOOL_ROUNDS,
         tools,
         system: () => {
@@ -157,7 +160,7 @@ export const useAgent = create<AgentState>((set, get) => ({
           return `${prompt}\n\n${stamp}`;
         },
         history: () => toChatHistory(get().messages),
-        stream: (req) => streamChat({ config: settings.agent, messages: req.messages, tools: req.tools, signal, onDelta: req.onDelta }),
+        stream: (req) => streamChat({ config: settings.agent, messages: req.messages, tools: req.tools, toolChoice: req.toolChoice, signal, onDelta: req.onDelta }),
         kindOf: toolKind,
         runTool: (call) =>
           executeDeskTool(livePorts(), call.name, call.args, {
@@ -178,6 +181,15 @@ export const useAgent = create<AgentState>((set, get) => ({
         onToolStart: (name) => set({ pendingTool: name }),
         onToolDone: (name, ok) => pushLog(set, get, { direction: 'out', method: name, ok }),
       });
+      if (outcome.exhausted && get().conversationId === conversationId) {
+        set({
+          notice: tr(
+            `Limite de ${MAX_TOOL_ROUNDS} allers-retours atteinte : le modèle demandait encore des outils, sa réponse n’est pas finale. Relancez ou précisez la question.`,
+            `Limit of ${MAX_TOOL_ROUNDS} round trips reached: the model still wanted tools, so its answer is not final. Ask again or narrow the question.`,
+            `Límite de ${MAX_TOOL_ROUNDS} idas y vueltas alcanzado: el modelo aún pedía herramientas, su respuesta no es final. Vuelva a preguntar o precise la pregunta.`,
+          ),
+        });
+      }
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError')) set({ error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -194,7 +206,7 @@ export const useAgent = create<AgentState>((set, get) => ({
     get().stop();
     const conversationId = uid('conv');
     await db.settings.put({ key: 'agent.conversation', value: conversationId });
-    set({ conversationId, messages: [], streamText: '', error: null });
+    set({ conversationId, messages: [], streamText: '', error: null, notice: null });
   },
 
   probe() {

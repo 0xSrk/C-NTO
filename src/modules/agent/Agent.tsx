@@ -72,6 +72,7 @@ export default function Agent() {
   const streamText = useAgent((a) => a.streamText);
   const pendingTool = useAgent((a) => a.pendingTool);
   const error = useAgent((a) => a.error);
+  const notice = useAgent((a) => a.notice);
   const send = useAgent((a) => a.send);
   const stop = useAgent((a) => a.stop);
   const newConversation = useAgent((a) => a.newConversation);
@@ -184,6 +185,11 @@ export default function Agent() {
               {error && (
                 <div className={s.error}>
                   {tr('Erreur fournisseur :', 'Provider error:', 'Error del proveedor:')} {error}
+                </div>
+              )}
+              {notice && !error && (
+                <div className={s.notice} role="status">
+                  {notice}
                 </div>
               )}
             </div>

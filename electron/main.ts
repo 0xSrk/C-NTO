@@ -6,7 +6,7 @@ import { NinjaBridge } from './bridge';
 import { confirmCopierArm } from './nt-bridge/copier-host';
 import { authorizeLiveAccount, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
-import { AnthropicStreamParser, OpenAiStreamParser } from './llm-stream';
+import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
 import { syncOfficialCalendar } from './calendar';
 import { allowedHosts, dataFetchAllowed } from './sources';
@@ -835,6 +835,7 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
     config?: { provider?: unknown; baseUrl?: unknown; model?: unknown; temperature?: unknown; apiKeyEncrypted?: unknown };
     messages?: unknown;
     tools?: unknown;
+    toolChoice?: unknown;
     allowedHosts?: unknown;
   };
   if (!isString(p.requestId, 64) || !p.config || typeof p.config !== 'object' || !isString(p.config.baseUrl, 2048) || !isString(p.config.model, 256)) return;
@@ -852,11 +853,12 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
   const temperature = typeof p.config.temperature === 'number' ? p.config.temperature : 0.3;
   const messages = Array.isArray(p.messages) ? p.messages : [];
   const tools = Array.isArray(p.tools) ? p.tools : [];
+  const toolChoice: ToolChoice = p.toolChoice === 'none' ? 'none' : 'auto';
   try {
     if (provider === 'anthropic') {
-      await streamAnthropicMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, ac.signal);
+      await streamAnthropicMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, toolChoice, ac.signal);
     } else {
-      await streamOpenAiMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, ac.signal);
+      await streamOpenAiMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, toolChoice, ac.signal);
     }
   } catch (err) {
     if (!ac.signal.aborted) sender.send('llm:error', { requestId, error: err instanceof Error ? err.message : String(err) });
@@ -876,21 +878,10 @@ async function streamOpenAiMain(
   key: string,
   messages: unknown[],
   tools: unknown[],
+  toolChoice: ToolChoice,
   signal: AbortSignal,
 ): Promise<void> {
-  const oaMessages = (messages as { role?: string; content?: string; toolCalls?: { id: string; name: string; args: string }[]; toolCallId?: string; name?: string }[]).map((m) => {
-    if (m.role === 'assistant') {
-      return {
-        role: 'assistant',
-        content: m.content || null,
-        tool_calls: m.toolCalls?.length ? m.toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.args } })) : undefined,
-      };
-    }
-    if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
-    return { role: m.role, content: m.content };
-  });
-  const body: Record<string, unknown> = { model, messages: oaMessages, stream: true, temperature };
-  if (tools.length) body.tools = (tools as { name: string; description: string; parameters: unknown }[]).map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+  const body = openAiRequestBody({ model, temperature, messages, tools, toolChoice });
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (key) headers.Authorization = `Bearer ${key}`;
   const res = await fetch(joinLlmUrl(baseUrl, 'chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
@@ -912,39 +903,10 @@ async function streamAnthropicMain(
   key: string,
   messages: unknown[],
   tools: unknown[],
+  toolChoice: ToolChoice,
   signal: AbortSignal,
 ): Promise<void> {
-  const msgs = messages as { role?: string; content?: string; toolCalls?: { id: string; name: string; args: string }[]; toolCallId?: string }[];
-  const system = msgs.find((m) => m.role === 'system')?.content;
-  const converted: { role: 'user' | 'assistant'; content: unknown }[] = [];
-  for (const m of msgs) {
-    if (m.role === 'system') continue;
-    if (m.role === 'user') converted.push({ role: 'user', content: m.content });
-    else if (m.role === 'assistant') {
-      const blocks: unknown[] = [];
-      if (m.content) blocks.push({ type: 'text', text: m.content });
-      for (const tc of m.toolCalls ?? []) {
-        let input: unknown = {};
-        try {
-          input = tc.args ? JSON.parse(tc.args) : {};
-        } catch {
-          input = {};
-        }
-        blocks.push({ type: 'tool_use', id: tc.id, name: tc.name, input });
-      }
-      converted.push({ role: 'assistant', content: blocks.length ? blocks : [{ type: 'text', text: '…' }] });
-    } else {
-      const block = { type: 'tool_result', tool_use_id: m.toolCallId, content: m.content };
-      const last = converted[converted.length - 1];
-      if (last && last.role === 'user' && Array.isArray(last.content)) (last.content as unknown[]).push(block);
-      else converted.push({ role: 'user', content: [block] });
-    }
-  }
-  const body: Record<string, unknown> = { model, max_tokens: 4096, stream: true, temperature: Math.max(0, Math.min(1, temperature)), messages: converted };
-  if (system) body.system = system;
-  if (tools.length) {
-    body.tools = (tools as { name: string; description: string; parameters: unknown }[]).map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
-  }
+  const body = anthropicRequestBody({ model, temperature, messages, tools, toolChoice });
   const res = await fetch(joinLlmUrl(baseUrl, 'v1/messages'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },

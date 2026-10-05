@@ -156,6 +156,7 @@ export interface DeskApi {
       config: { provider: string; baseUrl: string; model: string; temperature: number; apiKeyEncrypted?: string };
       messages: unknown[];
       tools: unknown[];
+      toolChoice?: 'auto' | 'none';
       allowedHosts?: string[];
     }) => Promise<void>;
     abort: (requestId: string) => void;
