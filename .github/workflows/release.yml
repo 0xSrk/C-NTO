@@ -102,6 +102,8 @@ jobs:
         run: |
           cd publish
           find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > ../SHA256SUMS.tmp && mv ../SHA256SUMS.tmp SHA256SUMS.txt
+          # Affichées ici pour que l'ADMIN les compare avant de signer (scripts/sign-release.mjs).
+          cat SHA256SUMS.txt
       - name: Vérifier les sommes
         run: |
           cd publish
@@ -110,14 +112,17 @@ jobs:
             echo "::error::SHA256SUMS.txt se liste lui-même."
             exit 1
           fi
-      - name: Publier la Release
+      - name: Release en brouillon
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
         # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit.
+        # --draft : invisible des desks tant que l'ADMIN ne l'a pas signée puis publiée
+        # (node scripts/sign-release.mjs --tag "$TAG" --key <clé> --publish). La clé reste hors de GitHub.
         run: |
           gh release create "$TAG" publish/* \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "CΛNTO $TAG" \
-            --notes-file release-notes.md
+            --notes-file release-notes.md \
+            --draft

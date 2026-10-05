@@ -27,6 +27,7 @@ Repris de `docs/AGENT-HARDENING.md` § 0, toujours en vigueur.
 ## 3. Ce qui reste à l'ADMIN
 
 - Montée de version dans `package.json`, tag `v*`, Release, fusion dans `main`.
+- Clé de publication du Lab et signature de chaque Release (`docs/PUBLICATION.md`) : la clé privée ne passe jamais par une session d'agent, le dépôt ou GitHub.
 - Compilation de l'AddOn `ninjatrader/CantoBridge.cs` dans NinjaTrader 8 (Windows, F5) : elle ne se fait pas depuis ce dépôt. Toute modification du C# le dit dans la PR, avec la procédure de vérification sur compte Sim.
 - Décisions de licence et de services (PolyForm Noncommercial 1.0.0, voir `LICENSE` et README › License).
 
@@ -51,6 +52,7 @@ Une entrée de `src/engine/changelog/changelog.json` peut être préparée (troi
 - Agent : `copy.order` et la soumission d'ordres ne sont pas des outils d'agent. Écritures confirmées par l'opérateur (LLM) ou derrière `orchestratorAllowWrite`, défaut `false`.
 - LLM : la clé API ne quitte pas le process principal ; hôtes épinglés dans `electron/llm-host.ts`, le renderer ne peut pas élargir la liste.
 - Renderer : CSP `connect-src 'self'` ; aucun appel réseau direct.
+- Mises à jour : un installeur n'est installé que si `SHA256SUMS.txt` porte une signature d'une clé de `electron/release-keys.ts`, liée à la version.
 - Aucun jeton, secret ou clé dans un journal, un export de coffre ou un commit.
 
 ## 6. Où consigner
