@@ -91,6 +91,7 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
+    portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   };
 
   it('lecture libre ; écriture seulement si le desk l’autorise, côté main comme côté renderer', async () => {

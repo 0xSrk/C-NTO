@@ -4,6 +4,7 @@ import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { tr } from '@/i18n';
 import { aggregateByDate, computeDailyStats, computeTradeStats, type Bucket } from '@/engine/metrics';
 import { monteCarlo } from '@/engine/montecarlo';
+import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
@@ -412,6 +413,52 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'portfolio_snapshot',
+      kind: 'read',
+      description:
+        'Portefeuille consolidé, comme l’écran Portefeuille : valeur nette en devise de base, chaque poche (valeur, latent, marque, raison d’exclusion, distance au plan prop), exposition (notionnel, levier brut, concentration, par classe et par instrument). Les positions futures viennent du pont quand il est vivant.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      async run() {
+        const [book, { nt }] = await Promise.all([ports.portfolio(), ports.bridge()]);
+        const now = Date.now();
+        const { valuations, coeur, exposure: expo } = portfolioView({
+          ...book,
+          sessions: ports.sessions(),
+          trades: ports.trades(),
+          snapshots: bridgeSnapshots(nt, now),
+          now,
+        });
+        const names = new Map(book.pockets.map((p) => [p.id, p.name]));
+        const top = (list: { key: string; notional: number }[]) => list.slice(0, 10).map((b) => ({ key: b.key, notional: round(b.notional) }));
+        return {
+          base: coeur.currency,
+          netValue: round(coeur.netValue),
+          bridge: nt?.link ?? 'absent',
+          pockets: valuations.map((v) => ({
+            name: names.get(v.pocketId) ?? v.pocketId,
+            kind: v.kind,
+            currency: v.currency,
+            equity: v.nativeEquity === null ? null : round(v.nativeEquity),
+            equityBase: v.equityBase === null ? null : round(v.equityBase),
+            unrealized: v.unrealized === null ? null : round(v.unrealized),
+            mark: v.mark,
+            ...(v.reason ? { excluded: v.reason } : {}),
+            ...(v.prop
+              ? { prop: { status: v.prop.status, toDrawdown: round(v.prop.toDrawdown), toDailyLoss: v.prop.toDailyLoss === null ? null : round(v.prop.toDailyLoss), toTarget: round(v.prop.toTarget), alert: v.prop.alert } }
+              : {}),
+          })),
+          exposure: {
+            totalNotional: round(expo.totalNotional),
+            grossLeverage: expo.grossLeverage === null ? null : round(expo.grossLeverage, 3),
+            concentration: round(expo.concentration, 4),
+            byClass: top(expo.byClass),
+            byInstrument: top(expo.byInstrument),
+            notes: expo.notes.map((n) => ({ pocket: names.get(n.pocketId) ?? n.pocketId, text: n.text })),
+          },
+        };
+      },
+    },
+    {
       name: 'propfirm_status',
       kind: 'read',
       description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. Par défaut, le plan et le compte suivis par l’écran Métrique.',
@@ -450,6 +497,7 @@ const EMPTY_PORTS: DeskPorts = {
   calendarEntries: () => [],
   officialEvents: () => [],
   bridge: async () => ({ nt: null, copier: null }),
+  portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
 };
 
 /** Catalogue (affichage UI) — les `run` de ce tableau ne touchent pas les stores. */
@@ -499,6 +547,12 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions), Copier armed or not, routed orders, last refusal. Read only: no tool places an order.',
         'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura: ninguna herramienta envía órdenes.',
+      );
+    case 'portfolio_snapshot':
+      return tr(
+        fallback,
+        'Consolidated portfolio, as on the Portfolio screen: net value in the base currency, each pocket (value, unrealized, mark, exclusion reason, distance to the prop plan), exposure (notional, gross leverage, concentration, by class and by instrument). Futures positions come from the bridge when it is live.',
+        'Cartera consolidada, como en la pantalla Cartera: valor neto en la divisa base, cada bolsillo (valor, latente, marca, motivo de exclusión, distancia al plan prop), exposición (nocional, apalancamiento bruto, concentración, por clase y por instrumento). Las posiciones de futuros vienen del puente cuando está activo.',
       );
     case 'propfirm_status':
       return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');

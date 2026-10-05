@@ -17,6 +17,7 @@ import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { useLinks } from './links';
 import { useMacro } from './macro';
 import { useNotes } from './notes';
+import { usePortfolio } from './portfolio';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings } from './settings';
 import { useUi } from './ui';
 
@@ -90,6 +91,11 @@ function livePorts(): DeskPorts {
       nt: (await desk?.ntbridge?.status().catch(() => null)) ?? useBridge.getState().nt,
       copier: desk?.copier ? await desk.copier.status().catch(() => null) : null,
     }),
+    portfolio: async () => {
+      if (!usePortfolio.getState().ready) await usePortfolio.getState().load();
+      const { pockets, positions, cash, fx } = usePortfolio.getState();
+      return { pockets, positions, cash, fx, base: useSettings.getState().settings.portfolio.baseCurrency };
+    },
   };
 }
 

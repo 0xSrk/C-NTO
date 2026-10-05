@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { LineArea, type LineSeries } from '@/design/charts/LineArea';
 import { Button, Empty, Field, Panel, Segmented, Tag, tableClass } from '@/design/primitives';
-import { PROP_FIRMS, findPlan, type PropPlan } from '@/engine/propfirm';
+import { PROP_FIRMS, type PropPlan } from '@/engine/propfirm';
 import { bilan, bilanBounds, bilanToCsv, projectionRuin, type BilanPreset } from '@/engine/portfolio/bilan';
 import { buildEquityPoints, consolidateEquity, projectionSeries } from '@/engine/portfolio/equity';
-import { exposure } from '@/engine/portfolio/exposure';
 import { convertAmount } from '@/engine/portfolio/fx';
 import { positionMultiplier } from '@/engine/portfolio/price';
 import { riskFromEquity } from '@/engine/portfolio/risk';
@@ -19,7 +18,7 @@ import {
   type Position,
   type ValuationMark,
 } from '@/engine/portfolio/types';
-import { consolidate, valuePocket } from '@/engine/portfolio/valuation';
+import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { Synthese } from './Synthese';
 import { intlTag, tr, useI18n } from '@/i18n';
 import { saveTextFile, openTextFile } from '@/lib/desk';
@@ -204,42 +203,15 @@ export default function Portefeuille() {
     return [...bundled, ...userPlans.filter((p) => !ids.has(p.id))];
   }, [userPlans]);
   const accounts = useMemo(() => [...new Set(sessions.map((row) => row.account).filter((a): a is string => !!a && a.length > 0))].sort(), [sessions]);
-  const snapshots = useMemo(() => {
-    if (!nt || nt.link !== 'live') return [];
-    return nt.accounts.map((a) => ({
-      account: a.name,
-      cashValue: a.cashValue,
-      unrealizedPnl: a.unrealizedPnl,
-      positions: a.positions,
-      at: now,
-    }));
-  }, [nt, now]);
-
-  const valuations = useMemo(
-    () =>
-      active.map((pocket) =>
-        valuePocket(pocket, {
-          now,
-          sessions,
-          trades,
-          plan: pocket.planId ? findPlan(pocket.planId) : undefined,
-          bridgeSnapshot: snapshots.find((snap) => snap.account === (pocket.account ?? '')) ?? null,
-          positions,
-          cash,
-          fx,
-          base,
-        }),
-      ),
-    [active, now, sessions, trades, snapshots, positions, cash, fx, base],
+  const snapshots = useMemo(() => bridgeSnapshots(nt, now), [nt, now]);
+  const view = useMemo(
+    () => portfolioView({ pockets: active, positions, cash, fx, base, sessions, trades, snapshots, now }),
+    [active, positions, cash, fx, base, sessions, trades, snapshots, now],
   );
-  const coeur = useMemo(() => consolidate(valuations, base, now), [valuations, base, now]);
+  const { valuations, coeur, exposure: expo } = view;
   const points = useMemo(() => buildEquityPoints(pockets, { sessions, positions, cash, fx }), [pockets, sessions, positions, cash, fx]);
   const curve = useMemo(() => consolidateEquity(active, points, fx, base), [active, points, fx, base]);
   const risk = useMemo(() => riskFromEquity(curve.series), [curve]);
-  const expo = useMemo(
-    () => exposure({ pockets: active, positions, snapshots, fx, base, now, netValue: coeur.netValue }),
-    [active, positions, snapshots, fx, base, now, coeur.netValue],
-  );
   const bounds = useMemo(() => bilanBounds(preset, now, customFrom && customTo ? { from: customFrom, to: customTo } : undefined), [preset, now, customFrom, customTo]);
   const bounds30 = useMemo(() => bilanBounds('30j', now), [now]);
   const report = useMemo(() => bilan(bounds, { pockets: active, points, sessions, fx, base }), [bounds, active, points, sessions, fx, base]);

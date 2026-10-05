@@ -18,6 +18,7 @@ function ports(view: DeskBridgeView): DeskPorts {
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => view,
+    portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   };
 }
 

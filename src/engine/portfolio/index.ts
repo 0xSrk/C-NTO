@@ -39,4 +39,6 @@ export type {
   ValuationMark,
 } from './types';
 export { consolidate, sumAccountPnl, valuePocket } from './valuation';
+export { bridgeSnapshots, portfolioView } from './view';
+export type { BridgeAccountsView, PortfolioViewInput } from './view';
 export type { ValuationContext } from './valuation';

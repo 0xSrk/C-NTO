@@ -1,4 +1,5 @@
 import type { CalendarEventRow } from '../calendarEvents';
+import type { CashBalance, FxRate, Pocket, Position } from '../portfolio/types';
 import type { Session, Trade } from '../types';
 
 export interface DeskNote {
@@ -51,6 +52,8 @@ export interface DeskPorts {
   officialEvents(): CalendarEventRow[];
   /** État en direct du pont et du Copieur. */
   bridge(): Promise<DeskBridgeView>;
+  /** Poches, positions, liquidités, taux et devise de base du Portefeuille (chargés si besoin). */
+  portfolio(): Promise<{ pockets: Pocket[]; positions: Position[]; cash: CashBalance[]; fx: FxRate[]; base: string }>;
 }
 
 export const BODY_MAX = 20_000;
@@ -73,6 +76,7 @@ export const ORCH_READ_METHODS = [
   'journal_breakdown',
   'monte_carlo',
   'bridge_status',
+  'portfolio_snapshot',
 ] as const;
 
 export const ORCH_WRITE_METHODS = ['create_note', 'annotate_session', 'branch_note', 'link_notes'] as const;
