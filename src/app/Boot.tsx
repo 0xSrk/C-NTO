@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { tr, useI18n } from '@/i18n';
 import { InvertedTab } from '@/design/primitives';
-import { SignatureGlyphs } from '@/design/SignatureGlyphs';
 import { CONSTRUCTION_END, Wordmark } from '@/design/Wordmark';
 import { runBootCircuit } from './bootCircuit';
 import s from './boot.module.css';
@@ -152,9 +151,7 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
         <div className={s.footer}>
           <InvertedTab>CΛNTO · Artefact 002</InvertedTab>
           <span>Design Unit · SIΞRRΛSKΛ Lab · Rev. B</span>
-          <span className={s.markSlot}>
-            <SignatureGlyphs draw={!reduced} delay={delay} />
-          </span>
+          <span className={s.markSlot}>SIΞRRΛSKΛ</span>
         </div>
       </div>
 
