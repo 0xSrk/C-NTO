@@ -43,10 +43,15 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | `search_notes` / `read_note` | lecture | Coffre de notes |
 | `calendar_events` | lecture | Catalyseurs officiels fusionnés, repères locaux, entrées personnelles |
 | `propfirm_status` | lecture | Rejeu du plan prop sur le compte suivi |
+| `journal_breakdown` | lecture | Ventilations par heure et jour (New York), instrument, long / short |
+| `monte_carlo` | lecture | Projection bootstrap i.i.d. : percentiles, ruine, objectif (graine fixe) |
+| `bridge_status` | lecture | Pont NinjaTrader et Copieur en direct : lien, comptes, PnL, positions |
+| `portfolio_snapshot` | lecture | Portefeuille consolidé : valeur nette, poches, exposition |
+| `market_levels` | lecture | Dernier prix, PDH / PDL / PDC, Opening Range, VWAP, ATR (source nommée, démo marquée `synthetic`) |
 | `create_note` / `branch_note` / `link_notes` | écriture | Notes |
 | `annotate_session` | écriture | Note et tags d'une séance (remplace) |
 
-Le catalogue fait foi : `tools/list` le lit dans le desk à chaque fois (cache de 5 s).
+Le catalogue fait foi : `tools/list` le lit dans le desk à chaque fois (cache de 5 s). Noms et types n'existent qu'à un endroit, `src/engine/agent/catalog.ts`, partagé avec l'allowlist de l'orchestrateur.
 
 ## 2. Brancher un client
 
