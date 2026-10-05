@@ -32,6 +32,26 @@ describe('outils de signature de l’ADMIN', () => {
     expect(existsSync('cle-dans-le-depot.pem')).toBe(false);
   });
 
+  it('fichier des clés extrait en CRLF (Windows) : la clé est inscrite avec la même fin de ligne', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'canto-crlf-'));
+    const keys = path.join(dir, 'release-keys.ts');
+    writeFileSync(keys, readFileSync('electron/release-keys.ts', 'utf8').replace(/\r?\n/g, '\r\n'));
+    const made = node('scripts/release-key.mjs', ['--out', path.join(dir, 'lab.pem'), '--keys-file', keys, '--write']);
+    expect(made.status, made.stderr).toBe(0);
+    const src = readFileSync(keys, 'utf8');
+    expect(src).toMatch(/\/\/ clés\r\n  '[A-Za-z0-9_-]{43}',\r\n\];/);
+    expect(src.replace(/\r\n/g, '')).not.toContain('\n');
+  });
+
+  it('fichier des clés sans repère : aucune clé privée n’est créée', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'canto-nomark-'));
+    const keys = path.join(dir, 'release-keys.ts');
+    writeFileSync(keys, 'export const RELEASE_PUBLIC_KEYS: readonly string[] = [];\n');
+    const pem = path.join(dir, 'lab.pem');
+    expect(node('scripts/release-key.mjs', ['--out', pem, '--keys-file', keys, '--write']).status).not.toBe(0);
+    expect(existsSync(pem)).toBe(false);
+  });
+
   it('la signature hors ligne est celle que le desk accepte, pour cette version seulement', () => {
     const { dir, key, keys, x } = lab();
     const sums = path.join(dir, 'SHA256SUMS.txt');

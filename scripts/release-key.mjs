@@ -37,17 +37,23 @@ function fail(message) {
 }
 
 const keysFile = flag('--keys-file') ?? path.join(root, 'electron', 'release-keys.ts');
-const MARKER = '  // clés\n';
+// Fin de ligne LF ou CRLF : sous Windows, git extrait le fichier en CRLF.
+const MARKER = /^( *\/\/ clés)(\r?\n)/m;
 
-/** Ajoute la clé publique à la liste embarquée, sans doublon. */
-async function inscribe(x) {
+async function keysSource() {
   const src = await readFile(keysFile, 'utf8');
-  if (!src.includes(MARKER)) fail(`repère « // clés » introuvable dans ${path.relative(root, keysFile)}`);
+  if (!MARKER.test(src)) fail(`repère « // clés » introuvable dans ${path.relative(root, keysFile)}`);
+  return src;
+}
+
+/** Ajoute la clé publique à la liste embarquée, sans doublon, avec la fin de ligne du fichier. */
+async function inscribe(x) {
+  const src = await keysSource();
   if (src.includes(`'${x}'`)) {
     console.log(`Clé publique déjà inscrite dans ${path.relative(root, keysFile)}.`);
     return;
   }
-  await writeFile(keysFile, src.replace(MARKER, `${MARKER}  '${x}',\n`), 'utf8');
+  await writeFile(keysFile, src.replace(MARKER, (_m, line, eol) => `${line}${eol}  '${x}',${eol}`), 'utf8');
   console.log(`Clé publique inscrite dans ${path.relative(root, keysFile)} : à committer.`);
 }
 
@@ -65,6 +71,8 @@ if (args.includes('--public')) {
 const out = path.resolve(flag('--out') ?? path.join(homedir(), '.canto', 'release-signing-key.pem'));
 if (out.startsWith(`${root}${path.sep}`)) fail('la clé privée ne doit pas être écrite dans le dépôt');
 if (existsSync(out)) fail(`${out} existe déjà : une clé n'est jamais écrasée`);
+// Avec --write, le fichier des clés est vérifié avant de générer : jamais de clé privée orpheline.
+if (args.includes('--write')) await keysSource();
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 await mkdir(path.dirname(out), { recursive: true, mode: 0o700 });
