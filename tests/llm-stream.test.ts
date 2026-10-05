@@ -78,7 +78,7 @@ describe('historique de la conversation', () => {
     ]);
   });
 
-  it('conversation d’avant 3.3.5 : l’id du message tient lieu d’identifiant d’appel', () => {
+  it('conversation enregistrée en 3.3.4 : l’id du message tient lieu d’identifiant d’appel', () => {
     const chat = toChatHistory([{ id: 'call_legacy', role: 'tool', content: 'r', toolName: 'desk_overview' }]);
     expect(chat).toEqual([{ role: 'tool', content: 'r', toolCallId: 'call_legacy', name: 'desk_overview' }]);
   });

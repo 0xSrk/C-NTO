@@ -75,7 +75,7 @@ export interface AgentMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   toolName?: string;
-  /** Message `tool` : identifiant de l'appel auquel il répond. Absent avant 3.3.5 : l'`id` en tenait lieu. */
+  /** Message `tool` : identifiant de l'appel auquel il répond. Absent des messages enregistrés en 3.3.4 et avant : l'`id` en tenait lieu. */
   toolCallId?: string;
   toolCalls?: { id: string; name: string; args: string }[];
   createdAt: number;

@@ -55,8 +55,8 @@ export interface StoredMessage {
 }
 
 /**
- * Historique pour le fournisseur. Un message `tool` répond à `toolCallId` ; avant 3.3.5 l'`id`
- * du message était l'identifiant d'appel, il sert encore pour ces conversations.
+ * Historique pour le fournisseur. Un message `tool` répond à `toolCallId` ; dans les messages
+ * enregistrés avant ce champ, l'`id` du message était l'identifiant d'appel et sert encore.
  */
 export function toChatHistory(messages: readonly StoredMessage[]): ChatMessage[] {
   const out: ChatMessage[] = [];
