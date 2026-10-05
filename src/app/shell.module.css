@@ -540,8 +540,10 @@
 .session,
 .sessionDate,
 .clocks,
+/* Le nom d'un siège peut céder à l'ellipse ; les barres et [ SIΞRRΛSKΛ ] ne rétrécissent pas. */
 .sigEnd {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .sessionDate {
   color: var(--text-0);
