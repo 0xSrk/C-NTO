@@ -39,6 +39,9 @@ export interface RouteContext {
   catalysts: { at: number }[];
   maxContractsPerOrder: number;
   states: FollowerState[];
+  copied?: number;
+  commanded?: Record<string, number>;
+  actual?: Record<string, number>;
 }
 export interface RouteResult {
   orders: OrderRequest[];

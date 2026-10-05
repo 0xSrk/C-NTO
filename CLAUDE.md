@@ -47,7 +47,7 @@ Une entrée de `src/engine/changelog/changelog.json` peut être préparée (troi
 
 - Ordres : comptes `Sim*` par défaut, compte réel seulement après le dialogue du process principal, plafond 1–1000 (le relever passe aussi par un dialogue du process principal), tag obligatoire, kill switch `CommandOrControl+Shift+K`. Après le kill switch, la soumission reste fermée jusqu'au redémarrage du desk.
 - AddOn NinjaTrader : garde propre lue dans `bridge.json` (comptes, plafond, tag) ; le jeton ne circule pas (défi-réponse HMAC) ; rien n'est envoyé ni exécuté avant la preuve du desk.
-- Copieur : désarmé à chaque ouverture, suiveurs `Sim*` seulement, armement par dialogue du process principal.
+- Copieur : désarmé à chaque ouverture, suiveurs `Sim*` seulement, jamais le compte maître ni un doublon, armement par dialogue du process principal. Réplication par position : une réduction de risque n'est jamais bloquée et ne dépasse jamais la position réelle du suiveur.
 - Agent : `copy.order` et la soumission d'ordres ne sont pas des outils d'agent. Écritures confirmées par l'opérateur (LLM) ou derrière `orchestratorAllowWrite`, défaut `false`.
 - LLM : la clé API ne quitte pas le process principal ; hôtes épinglés dans `electron/llm-host.ts`, le renderer ne peut pas élargir la liste.
 - Renderer : CSP `connect-src 'self'` ; aucun appel réseau direct.

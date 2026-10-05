@@ -127,8 +127,19 @@ function hhmm(v: unknown, fallback: string): string {
 }
 
 /**
- * Charge utile IPC du renderer. Les suiveurs qui ne commencent pas par `Sim` sont écartés.
- * `null` si le maître ou le plafond est illisible.
+ * Pourquoi un suiveur est écarté. `maitre` : c'est le compte maître lui-même (chaque ordre copié
+ * redeviendrait un fill du maître : boucle) ; `doublon` : compte déjà suiveur (ordres doublés).
+ */
+export function followerExclusion(account: string, masterAccount: string, seen: ReadonlySet<string>): 'non-sim' | 'maitre' | 'doublon' | null {
+  if (!account.startsWith('Sim')) return 'non-sim';
+  if (account === masterAccount) return 'maitre';
+  if (seen.has(account)) return 'doublon';
+  return null;
+}
+
+/**
+ * Charge utile IPC du renderer. Sont écartés : les suiveurs qui ne commencent pas par `Sim`, le compte
+ * maître s'il figure parmi les suiveurs, un suiveur en double. `null` si le maître ou le plafond est illisible.
  */
 export function coerceCopierSync(raw: unknown): CopierSync | null {
   if (!isRecord(raw)) return null;
@@ -139,12 +150,14 @@ export function coerceCopierSync(raw: unknown): CopierSync | null {
   const followersIn = Array.isArray(raw.followers) ? raw.followers.slice(0, 32) : [];
   const followers: FollowerRule[] = [];
   const states: FollowerState[] = [];
+  const taken = new Set<string>();
   for (const row of followersIn) {
     if (!isRecord(row)) continue;
     const account = str(row.account, 128);
     const ruleSizing = sizing(row.sizing);
     const map = symbolMap(row.symbolMap);
-    if (!account || !account.startsWith('Sim') || !ruleSizing || !map) continue;
+    if (!account || followerExclusion(account, masterAccount, taken) || !ruleSizing || !map) continue;
+    taken.add(account);
     followers.push({ account, sizing: ruleSizing, symbolMap: map });
     const sessions = Array.isArray(row.sessions) ? row.sessions.slice(0, 1000).map(sessionOf).filter((s): s is Session => s !== null) : [];
     const trades = Array.isArray(row.trades) ? row.trades.slice(0, 5000).map(tradeOf).filter((t): t is Trade => t !== null) : [];
@@ -184,6 +197,22 @@ export interface PackAccount {
   planId?: string;
 }
 
+/** Suiveurs actifs écartés parce qu'ils sont le compte maître ou un doublon (affichés dans l'onglet Copieur). */
+export function ignoredFollowers(accounts: readonly Pick<PackAccount, 'role' | 'ntAccount' | 'enabled'>[]): string[] {
+  const masters = accounts.filter((account) => account.enabled && account.role === 'maitre' && account.ntAccount.trim());
+  const masterName = masters.length === 1 ? masters[0]!.ntAccount.trim() : '';
+  const taken = new Set<string>();
+  const out: string[] = [];
+  for (const account of accounts) {
+    if (!account.enabled || account.role !== 'suiveur') continue;
+    const name = account.ntAccount.trim();
+    const why = followerExclusion(name, masterName, taken);
+    if (why === 'maitre' || why === 'doublon') out.push(name);
+    else if (!why) taken.add(name);
+  }
+  return out;
+}
+
 /** Objet JSON que `coerceCopierSync` relit. Un seul maître actif. */
 export function packCopierSync(input: {
   accounts: PackAccount[];
@@ -196,9 +225,19 @@ export function packCopierSync(input: {
 }): Record<string, unknown> {
   const masters = input.accounts.filter((account) => account.enabled && account.role === 'maitre' && account.ntAccount.trim());
   const master = masters.length === 1 ? masters[0] : undefined;
-  const followers = master ? input.accounts.filter((account) => account.enabled && account.role === 'suiveur' && account.ntAccount.startsWith('Sim')) : [];
+  const masterName = master ? master.ntAccount.trim() : '';
+  const taken = new Set<string>();
+  const followers = master
+    ? input.accounts.filter((account) => {
+        if (!account.enabled || account.role !== 'suiveur') return false;
+        const name = account.ntAccount.trim();
+        if (followerExclusion(name, masterName, taken)) return false;
+        taken.add(name);
+        return true;
+      })
+    : [];
   return {
-    masterAccount: master ? master.ntAccount.trim() : '',
+    masterAccount: masterName,
     latencyBudgetMs: input.config.latencyBudgetMs,
     newsBlackout: input.config.newsBlackout,
     windowStart: input.config.windowStart,

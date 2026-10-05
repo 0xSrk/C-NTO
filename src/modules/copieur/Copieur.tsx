@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Panel, Stat, Tag, Toggle, cx } from '@/design/primitives';
-import { packCopierSync } from '@/engine/copier/sync';
+import { ignoredFollowers, packCopierSync } from '@/engine/copier/sync';
 import { findPlan, PROP_FIRMS } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { desk, type CopierHostStatus } from '@/lib/desk';
@@ -13,6 +13,8 @@ import type { CopierAccount } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { replicatedQty, useCopier } from '@/store/copier';
+import { useUi } from '@/store/ui';
+import { cutSummary } from './cutSummary';
 import s from './copieur.module.css';
 
 function bridgeSteps(): [string, string][] {
@@ -89,6 +91,7 @@ export default function Copieur() {
 
   const masters = accounts.filter((a) => a.role === 'maitre');
   const followers = accounts.filter((a) => a.role === 'suiveur');
+  const ignored = ignoredFollowers(accounts);
 
   const add = async () => {
     if (!newName.trim()) return;
@@ -129,7 +132,11 @@ export default function Copieur() {
                 void updateConfig({ enabled: false });
                 const api = desk?.copier;
                 if (!api) return;
-                void api.cut().then(() => api.status().then(setHost));
+                void api.cut().then((report) => {
+                  const summary = cutSummary(report);
+                  useUi.getState().toast(summary.text, summary.tone);
+                  return api.status().then(setHost);
+                });
               }}
             >
               {tr('Couper', 'Cut', 'Cortar')}
@@ -161,9 +168,9 @@ export default function Copieur() {
             <div className={s.banner}>
               <b>{tr('Sim.', 'Sim.', 'Sim.')}</b>{' '}
               {tr(
-                'La réplication envoie les fills du maître vers les suiveurs Sim, désarmée à chaque ouverture. Couper annule les ordres en attente. Aucun compte réel suiveur dans cette version.',
-                'Replication sends the master fills to Sim followers, and starts disarmed on every launch. Cut cancels working orders. No real follower account in this version.',
-                'La réplica envía los fills del maestro a las cuentas seguidoras Sim, y arranca desarmada en cada apertura. Cortar anula las órdenes pendientes. Ninguna cuenta real seguidora en esta versión.',
+                'La réplication amène chaque suiveur Sim à la position du maître (à sa taille), pas fill par fill : une entrée en plusieurs fills ne multiplie pas la taille. Les sorties partent toujours, même hors fenêtre ou en blackout. Désarmée à chaque ouverture. Couper annule les ordres en attente. Aucun compte réel suiveur dans cette version.',
+                'Replication brings each Sim follower to the master position (at its own size), not fill by fill: an entry in several fills does not multiply the size. Exits always go out, even outside the window or during a blackout. Disarmed on every launch. Cut cancels working orders. No real follower account in this version.',
+                'La réplica lleva cada cuenta seguidora Sim a la posición del maestro (a su tamaño), no fill por fill: una entrada en varios fills no multiplica el tamaño. Las salidas siempre se envían, incluso fuera de la ventana o en blackout. Desarmada en cada apertura. Cortar anula las órdenes pendientes. Ninguna cuenta real seguidora en esta versión.',
               )}
             </div>
 
@@ -186,6 +193,15 @@ export default function Copieur() {
                   ))}
                   {followers.length === 0 && (
                     <div className={s.hint}>{tr('Aucun suiveur : ajoutez un compte Sim, pas un compte financé.', 'No followers: add a Sim account, not a funded account.', 'Ningún seguidor: añada una cuenta Sim, no una cuenta financiada.')}</div>
+                  )}
+                  {ignored.length > 0 && (
+                    <div className={s.hint}>
+                      {tr(
+                        `Ignoré : ${ignored.join(', ')} (compte maître ou suiveur en double). Un compte qui se copie lui-même bouclerait.`,
+                        `Ignored: ${ignored.join(', ')} (master account or duplicate follower). An account copying itself would loop.`,
+                        `Ignorado: ${ignored.join(', ')} (cuenta maestra o seguidor duplicado). Una cuenta que se copia a sí misma entraría en bucle.`,
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

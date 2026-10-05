@@ -11,7 +11,7 @@ import type { BrowserWindow } from 'electron';
 import type { NinjaBridge } from '../bridge';
 import { mainLog } from '../main-log';
 import { uiText, type AppLocale } from '../locale';
-import { CopierHost, type CopierHostStatus } from './copier-host';
+import { CopierHost, type CopierCutReport, type CopierHostStatus } from './copier-host';
 import { executionFill, executionPayloadToCsv } from './execution-csv';
 import { Nt8ExecutionPort } from './execution-port';
 import { DEFAULT_MAX_CONTRACTS } from './guards';
@@ -372,8 +372,8 @@ export class NtBridgeHost {
     this.copier?.arm();
   }
 
-  cutCopier(): { cancelled: string[] } {
-    return this.copier?.cut() ?? { cancelled: [] };
+  cutCopier(): CopierCutReport {
+    return this.copier?.cut() ?? { cancelled: [], open: [], flattened: [] };
   }
 
   copierStatus(): CopierHostStatus {
