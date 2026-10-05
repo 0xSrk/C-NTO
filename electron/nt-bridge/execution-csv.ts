@@ -44,3 +44,16 @@ export function executionPayloadToCsv(rows: ExecutionPayload[]): string {
   }
   return lines.join('\n');
 }
+
+/** Champs d'une exécution lus par le journal d'événements des agents (`fill`). Pas d'identifiant d'ordre ni de connexion. */
+export function executionFill(row: ExecutionPayload): { account: string; instrument: string; action: string; quantity: number; price: number; time: number; entryExit?: string } {
+  return {
+    account: row.account,
+    instrument: row.instrument,
+    action: row.action,
+    quantity: row.quantity,
+    price: row.price,
+    time: row.time,
+    ...(row.entryExit ? { entryExit: row.entryExit } : {}),
+  };
+}

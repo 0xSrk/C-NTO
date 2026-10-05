@@ -4,6 +4,7 @@ import { generateNasdaqEvents } from '@/engine/calendar';
 import { isDesk } from '@/lib/desk';
 import { plural } from '@/lib/format';
 import { useAgent } from '@/store/agent';
+import { useDeskEvents } from '@/store/deskEvents';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
@@ -121,10 +122,11 @@ export function App() {
   const [open, setOpen] = useState(false);
   const [admitted, setAdmitted] = useState(false);
   const tab = useUi((u) => u.tab);
-  // La passerelle MCP rouvre après l'ouverture du desk, jamais pendant qu'il est fermé.
+  // La passerelle MCP rouvre et les événements des agents se collectent après l'ouverture du desk, jamais avant.
   const admit = useCallback(() => {
     setAdmitted(true);
     void useAgent.getState().resumeMcp();
+    useDeskEvents.getState().start();
   }, []);
 
   useEffect(() => {
