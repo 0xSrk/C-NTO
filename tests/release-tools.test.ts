@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -7,11 +7,13 @@ import { verifyReleaseSignature } from '../electron/release-signature';
 
 const node = (script: string, args: string[]) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 const SUMS = `${'a'.repeat(64)}  ./CANTO-3.4.0-win-x64-setup.exe\n`;
+/** Liste de clés vide, au format de electron/release-keys.ts : les tests ne dépendent pas des clés réellement inscrites. */
+const EMPTY_KEYS = "export const RELEASE_PUBLIC_KEYS: readonly string[] = [\n  // clés\n];\n";
 
 function lab() {
   const dir = mkdtempSync(path.join(tmpdir(), 'canto-key-'));
   const keys = path.join(dir, 'release-keys.ts');
-  copyFileSync('electron/release-keys.ts', keys);
+  writeFileSync(keys, EMPTY_KEYS);
   const key = path.join(dir, 'lab.pem');
   const made = node('scripts/release-key.mjs', ['--out', key, '--keys-file', keys, '--write']);
   expect(made.status, made.stderr).toBe(0);
@@ -35,7 +37,7 @@ describe('outils de signature de l’ADMIN', () => {
   it('fichier des clés extrait en CRLF (Windows) : la clé est inscrite avec la même fin de ligne', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'canto-crlf-'));
     const keys = path.join(dir, 'release-keys.ts');
-    writeFileSync(keys, readFileSync('electron/release-keys.ts', 'utf8').replace(/\r?\n/g, '\r\n'));
+    writeFileSync(keys, EMPTY_KEYS.replace(/\n/g, '\r\n'));
     const made = node('scripts/release-key.mjs', ['--out', path.join(dir, 'lab.pem'), '--keys-file', keys, '--write']);
     expect(made.status, made.stderr).toBe(0);
     const src = readFileSync(keys, 'utf8');
@@ -72,6 +74,10 @@ describe('outils de signature de l’ADMIN', () => {
     const r = node('scripts/sign-release.mjs', ['--sums', sums, '--version', '3.4.0', '--key', b.key, '--keys-file', a.keys, '--yes']);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain('les desks refuseraient');
+  });
+
+  it('le vrai fichier des clés garde son repère : --write peut y inscrire une clé (rotation)', () => {
+    expect(readFileSync('electron/release-keys.ts', 'utf8')).toMatch(/^ *\/\/ clés\r?$/m);
   });
 
   it('la CI publie la Release en brouillon et affiche les empreintes à comparer', () => {
