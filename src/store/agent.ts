@@ -6,7 +6,7 @@ import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { type DeskPorts } from '@/engine/agent/ports';
 import { tr } from '@/i18n';
-import { desk, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
+import { desk, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
 import { APP_VERSION } from '@/lib/version';
 import { useCalendar } from './calendar';
@@ -18,6 +18,9 @@ import { useMacro } from './macro';
 import { useNotes } from './notes';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings } from './settings';
 import { useUi } from './ui';
+
+/** Identifiant de client des requêtes relayées par la passerelle MCP (`electron/desk-relay.ts`). */
+const MCP_CLIENT_ID = 'mcp';
 
 export interface LinkLogEntry {
   id: string;
@@ -39,6 +42,7 @@ interface AgentState {
   /** Avis non bloquant sur le dernier tour (limite d'allers-retours atteinte). */
   notice: string | null;
   orchestrator: OrchestratorStatus;
+  mcp: McpStatus;
   linkLog: LinkLogEntry[];
   load: () => Promise<void>;
   send: (text: string) => Promise<void>;
@@ -48,6 +52,12 @@ interface AgentState {
   startOrchestrator: () => Promise<void>;
   stopOrchestrator: () => Promise<void>;
   rotateToken: () => Promise<void>;
+  startMcp: () => Promise<void>;
+  /** Rouvre la passerelle si le trader l'avait laissée ouverte. Appelé à l'ouverture du desk. */
+  resumeMcp: () => Promise<void>;
+  stopMcp: () => Promise<void>;
+  rotateMcpToken: () => Promise<void>;
+  mcpConnection: () => Promise<{ url: string; token: string } | null>;
 }
 
 let abortController: AbortController | null = null;
@@ -93,6 +103,7 @@ export const useAgent = create<AgentState>((set, get) => ({
   error: null,
   notice: null,
   orchestrator: { running: false, port: 0, clients: 0 },
+  mcp: { running: false, port: 0, calls: 0 },
   linkLog: [],
 
   async load() {
@@ -104,9 +115,11 @@ export const useAgent = create<AgentState>((set, get) => ({
     const api = desk;
     if (api && !unsubscribeRequests) {
       unsubscribeRequests = api.orchestrator.onRequest(async (req: OrchestratorRequest) => {
-        const log = (ok: boolean, detail?: string) => pushLog(set, get, { direction: 'in', method: req.method, ok, detail });
+        const via = req.clientId === MCP_CLIENT_ID ? `mcp · ${req.method}` : req.method;
+        const log = (ok: boolean, detail?: string) => pushLog(set, get, { direction: 'in', method: via, ok, detail });
         if (req.method === 'desk.describe') {
-          api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: APP_VERSION, tools: toolSchemas() });
+          const tools = toolSchemas().map((t) => ({ ...t, kind: toolKind(t.name) }));
+          api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: APP_VERSION, tools });
           log(true);
           return;
         }
@@ -129,6 +142,10 @@ export const useAgent = create<AgentState>((set, get) => ({
       });
       api.orchestrator.onStatus((status) => set({ orchestrator: status }));
       set({ orchestrator: await api.orchestrator.status() });
+      if (api.mcp) {
+        api.mcp.onStatus((status) => set({ mcp: status }));
+        set({ mcp: await api.mcp.status() });
+      }
     }
   },
 
@@ -229,17 +246,56 @@ export const useAgent = create<AgentState>((set, get) => ({
     if (!desk) return;
     set({ orchestrator: await desk.orchestrator.rotateToken() });
   },
+
+  async startMcp() {
+    if (!desk?.mcp) return;
+    const { mcpPort, orchestratorAllowWrite } = useSettings.getState().settings;
+    const status = await desk.mcp.start(mcpPort, orchestratorAllowWrite);
+    set({ mcp: status });
+    if (status.running) await useSettings.getState().update({ mcpEnabled: true });
+  },
+
+  async resumeMcp() {
+    if (!desk?.mcp || get().mcp.running || !useSettings.getState().settings.mcpEnabled) return;
+    const { mcpPort, orchestratorAllowWrite } = useSettings.getState().settings;
+    set({ mcp: await desk.mcp.start(mcpPort, orchestratorAllowWrite) });
+  },
+
+  async stopMcp() {
+    if (!desk?.mcp) return;
+    set({ mcp: await desk.mcp.stop() });
+    await useSettings.getState().update({ mcpEnabled: false });
+  },
+
+  async rotateMcpToken() {
+    if (!desk?.mcp) return;
+    set({ mcp: await desk.mcp.rotateToken() });
+  },
+
+  mcpConnection() {
+    return desk?.mcp ? desk.mcp.connection() : Promise.resolve(null);
+  },
 }));
 
-// L'allowlist d'écriture de l'orchestrateur vit côté main : basculer le réglage pendant qu'il tourne
-// re-pousse `start(port, allowWrite)` (le main met son drapeau à jour et renvoie le statut s'il tourne déjà).
+// L'allowlist d'écriture des agents externes vit côté main : basculer le réglage pendant qu'une passerelle
+// tourne re-pousse `start(port, allowWrite)` (le main met son drapeau à jour et renvoie le statut).
 useSettings.subscribe((state, prev) => {
   if (!desk || state.settings.orchestratorAllowWrite === prev.settings.orchestratorAllowWrite) return;
+  const allow = state.settings.orchestratorAllowWrite;
   const current = useAgent.getState().orchestrator;
-  if (!current.running) return;
-  void desk.orchestrator
-    .start(current.port || state.settings.orchestratorPort, state.settings.orchestratorAllowWrite)
-    .then((status) => useAgent.setState({ orchestrator: status }))
-    .catch(() => undefined);
+  if (current.running) {
+    void desk.orchestrator
+      .start(current.port || state.settings.orchestratorPort, allow)
+      .then((status) => useAgent.setState({ orchestrator: status }))
+      .catch(() => undefined);
+  }
+  // Même drapeau pour la passerelle MCP : le main le met à jour sans fermer les liens.
+  const gateway = useAgent.getState().mcp;
+  if (gateway.running && desk.mcp) {
+    void desk.mcp
+      .start(gateway.port || state.settings.mcpPort, allow)
+      .then((status) => useAgent.setState({ mcp: status }))
+      .catch(() => undefined);
+  }
 });
 

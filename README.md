@@ -400,6 +400,8 @@ The renderer **does not fetch** the provider: `streamChat` / `probe` go through 
 
 Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 characters. An “untrusted data” preamble is attached to tool results. `copy.order` is not an agent tool. Orders go through the NinjaTrader bridge, not the agent.
 
+**MCP gateway** (shell only): external agents — Claude Code, Claude Desktop, Codex, Cursor, any MCP client — read the desk with the same tools over the Model Context Protocol at `http://127.0.0.1:47118/mcp`. Bearer token kept in the data folder and renewable, browser origins and non-loopback hosts refused, 1 MB per request, 40 req/s. Write tools stay hidden and refused until the trader allows writing. The panel copies a ready configuration for Claude Code or as JSON. ChatGPT on the web or in its app calls MCP servers from OpenAI's cloud and cannot reach `127.0.0.1`. Guide: [docs/PROTOCOLE-AGENT.md](docs/PROTOCOLE-AGENT.md).
+
 **Orchestrator** (shell only): JSON-RPC 2.0 on `ws://127.0.0.1:<port>`, session token (constant-time compare, **never** in the periodic status — **Copy the token**), browser origins refused, 8 clients, 1 MB / frame, 40 req/s.
 
 ---

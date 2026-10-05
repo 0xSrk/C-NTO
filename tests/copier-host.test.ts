@@ -284,7 +284,12 @@ describe('kill switch du pont', () => {
   });
 });
 
-async function waitFor(pred: () => boolean, ms = 1000): Promise<void> {
+/**
+ * Attente de vivacité (aller-retour WebSocket, écriture de copier-seen.txt par ordre). Sous Windows
+ * en CI chargé, ce chemin a dépassé 1 s ; 5 s laissent la marge sans rien relâcher : les durées
+ * qui comptent (« Couper < 200 ms ») sont mesurées à part, autour de l'appel lui-même.
+ */
+async function waitFor(pred: () => boolean, ms = 5000): Promise<void> {
   const start = Date.now();
   while (!pred()) {
     if (Date.now() - start > ms) throw new Error('délai dépassé');
