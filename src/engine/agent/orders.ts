@@ -100,7 +100,8 @@ export function raisedLimits(current: AgentOrderPolicy, next: AgentOrderPolicy):
   return AGENT_ORDER_LIMITS.filter((key) => next[key] > current[key]);
 }
 
-export type AgentOrderRefusal = 'disabled' | 'not_sim' | 'busy' | 'link' | 'orders_closed' | 'rate' | 'quantity' | 'position' | 'prop_buffer';
+export const AGENT_ORDER_REFUSALS = ['disabled', 'not_sim', 'busy', 'link', 'orders_closed', 'rate', 'quantity', 'position', 'prop_buffer'] as const;
+export type AgentOrderRefusal = (typeof AGENT_ORDER_REFUSALS)[number];
 
 export interface AgentOrderSnapshot {
   now: number;

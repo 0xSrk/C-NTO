@@ -1,6 +1,7 @@
 /** API exposée par le shell Electron (preload). Absente lorsque CΛNTO tourne dans un navigateur. */
 import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEvents';
 import type { ChangelogFile } from '@/engine/changelog';
+import type { AgentOrderRefusal } from '@/engine/agent/orders';
 import type { KillSwitchReport } from '@/engine/execution/killSwitch';
 /** Passerelle MCP des agents externes (process principal). Le jeton n'y figure jamais. */
 export interface McpStatus {
@@ -107,7 +108,7 @@ export type AgentOrderOrigin = 'llm' | 'mcp' | 'orch';
 
 export type AgentOrderOutcome =
   | { status: 'sent'; orderId: string; latencyMs?: number; account: string; instrument: string; side: 'buy' | 'sell'; qty: number; resulting: number }
-  | { status: 'refused'; reason: string; detail: string }
+  | { status: 'refused'; reason: AgentOrderRefusal | 'invalid'; detail: string }
   | { status: 'declined'; detail: string }
   | { status: 'failed'; code?: number; detail: string };
 

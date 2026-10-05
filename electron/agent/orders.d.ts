@@ -26,7 +26,8 @@ export interface AgentOrderPolicy {
 export const AGENT_ORDER_DEFAULTS: AgentOrderPolicy;
 export const AGENT_ORDER_BOUNDS: { readonly maxQty: readonly [1, 50]; readonly maxPosition: readonly [1, 100]; readonly perMinute: readonly [1, 10] };
 export const AGENT_ORDER_LIMITS: readonly ('maxQty' | 'maxPosition' | 'perMinute')[];
-export type AgentOrderRefusal = 'disabled' | 'not_sim' | 'busy' | 'link' | 'orders_closed' | 'rate' | 'quantity' | 'position' | 'prop_buffer';
+export const AGENT_ORDER_REFUSALS: readonly ['disabled', 'not_sim', 'busy', 'link', 'orders_closed', 'rate', 'quantity', 'position', 'prop_buffer'];
+export type AgentOrderRefusal = (typeof AGENT_ORDER_REFUSALS)[number];
 export interface AgentOrderSnapshot {
   now: number;
   link: string;

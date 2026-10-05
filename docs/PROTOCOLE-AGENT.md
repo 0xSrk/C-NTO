@@ -2,7 +2,7 @@
 
 # Protocole agent — brancher une IA sur le desk
 
-CΛNTO ouvre le desk aux agents IA par deux portes locales. Les deux servent les **mêmes outils** que l'agent embarqué (`src/engine/agent/tools.ts`), exécutés par `executeDeskTool` dans le renderer. Aucune n'envoie d'ordre : la soumission d'ordres n'est pas un outil d'agent.
+CΛNTO ouvre le desk aux agents IA par deux portes locales. Les deux servent les **mêmes outils** que l'agent embarqué (`src/engine/agent/tools.ts`), exécutés par `executeDeskTool` dans le renderer. Aucune n'envoie d'ordre : un agent peut seulement **proposer** un ordre sur un compte Sim (`propose_order`, § 5), que le trader confirme ou refuse dans une fenêtre du desk.
 
 | Porte | Transport | Pour qui | Réglage |
 |---|---|---|---|
@@ -26,13 +26,13 @@ Agent IA › **Agents externes · MCP** › *Ouvrir la passerelle*. Elle se rouv
 | Méthodes | `initialize`, `ping`, `tools/list`, `tools/call`. Le reste rend `-32601` |
 | Capacités | `tools` (`listChanged: false`) |
 | Refus avant lecture du corps | `Origin` présent (navigateur) → `403` ; `Host` hors loopback → `403` ; jeton absent ou faux → `401` ; corps > 1 Mo → `413` ; plus de 40 requêtes / s → `429` |
-| Délai | 15 s au plus pour une réponse du desk ; fenêtre fermée → résultat `isError` lisible |
+| Délai | 15 s au plus pour une réponse du desk, 55 s pour `propose_order` (le trader a 45 s pour répondre) ; fenêtre fermée → résultat `isError` lisible |
 
 `tools/call` rend le résultat de l'outil en texte JSON et en `structuredContent`. Un refus du desk (`ok: false`, `error`) devient `isError: true`, pas une erreur de protocole. Un outil inconnu est une erreur de protocole (`-32602`).
 
 ### Écriture
 
-Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_session`) sont **masqués** de `tools/list` et **refusés** tant que le trader ne coche pas *écriture autorisée*. Le réglage vaut pour les deux portes. Il est contrôlé deux fois : dans le process principal, puis par `executeDeskTool` (source `orch`). Il n'est jamais restauré depuis un coffre.
+Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_session`, `propose_order`) sont **masqués** de `tools/list` et **refusés** tant que le trader ne coche pas *écriture autorisée*. Le réglage vaut pour les deux portes. Il est contrôlé deux fois : dans le process principal, puis par `executeDeskTool` (source `orch`). Il n'est jamais restauré depuis un coffre.
 
 ### Outils
 
@@ -51,6 +51,7 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | `desk_events` | lecture | Événements du desk depuis un curseur (voir § 4) |
 | `create_note` / `branch_note` / `link_notes` | écriture | Notes |
 | `annotate_session` | écriture | Note et tags d'une séance (remplace) |
+| `propose_order` | écriture | Propose un ordre sur un compte Sim ; le trader le confirme ou le refuse (§ 5) |
 
 Le catalogue fait foi : `tools/list` le lit dans le desk à chaque fois (cache de 5 s). Noms et types n'existent qu'à un endroit, `src/engine/agent/catalog.ts`, partagé avec l'allowlist de l'orchestrateur.
 
@@ -122,6 +123,7 @@ Une fois le desk ouvert, il range ses événements dans un journal (500 au plus,
 | `prop_buffer` | La marge du plan suivi passe sous 50, 25, 10 % du drawdown maximal, ou à zéro | `threshold`, `breached`, `remainingShare`, `liveBuffer` (rejeu du journal + latent négatif du compte), `journalBuffer`, `unrealized`, `floor`, `balance`, `planId`, `account` |
 | `catalyst` | Catalyseur majeur (impact 3) publié dans les 15 minutes | `title`, `at`, `date`, `timeET`, `minutesBefore`, `category`, `source`, `estimated`, attendu / précédent s'ils sont connus |
 | `bridge_link` | Changement d'état du lien du pont | `from`, `to`, `addonVersion` |
+| `agent_order` | Chaque ordre proposé par un agent, quelle qu'en soit l'issue | `by` (`agent`), `origin` (`llm`, `mcp`, `orch`), `status` (`sent`, `declined`, `refused`, `failed`), `account`, `instrument`, `side`, `qty`, `type`, `why` (raison de l'agent, 200 caractères), `orderId` et `resulting` si l'ordre est parti, `reason` (motif d'un refus du desk), `detail`, `code` |
 
 Une alerte de marge ne revient qu'après une remontée de 5 points au-dessus du seuil. Le premier rejeu après l'ouverture, ou après un changement de plan ou de compte, pose le niveau sans alerter. La marge journalière (perte du jour) n'est pas encore suivie.
 
@@ -135,10 +137,43 @@ Une alerte de marge ne revient qu'après une remontée de 5 points au-dessus du 
 
 Le process principal ne pousse que les types de ce tableau, 16 Ko au plus par trame. Le `cursor` sert à reprendre par `tool.desk_events` après une déconnexion.
 
-## 5. Modèle du Lab
+## 5. Ordres proposés par l'agent
+
+L'agent ne soumet rien. `propose_order` lui permet de **proposer** un ordre : le process principal le garde, le montre au trader dans une fenêtre du système et ne le soumet qu'après sa confirmation. Le code : `src/engine/agent/orders.ts` (gardes, partagées avec le process principal) et `electron/agent-orders.ts` (activation, limites, fenêtre, soumission).
+
+**Activer.** Agent IA › *Ordres proposés par l'agent* › *Autoriser…* : fenêtre du process principal, *Annuler* par défaut. Désactivé à chaque ouverture du desk ; *Couper* le désactive aussitôt. Pour un agent externe, il faut en plus *écriture autorisée* : sans elle, l'outil n'est ni listé ni accepté.
+
+**Arguments.** `account` (compte `Sim*`), `instrument` (nom NinjaTrader complet, ex. `MNQ 12-26`), `side` (`buy` ou `sell`), `qty` (entier ≥ 1), `type` (`market` par défaut, `limit` avec `limit`, `stop` avec `stop`), `reason` (obligatoire, 500 caractères au plus, montrée telle quelle au trader).
+
+**Gardes**, dans le process principal, avant toute question au trader :
+
+| Garde | Refus (`reason`) |
+|---|---|
+| Ordres de l'agent activés | `disabled` |
+| Compte `Sim*`, même si un compte réel est autorisé à la main | `not_sim` |
+| Une proposition à la fois | `busy` |
+| Pont NinjaTrader en ligne | `link` |
+| Canal d'ordres ouvert : fermé après le kill switch, jusqu'au redémarrage du desk | `orders_closed` |
+| Propositions par minute, refusées comprises (défaut 3, de 1 à 10) | `rate` |
+| Contrats par ordre (défaut 1, de 1 à 50) | `quantity` |
+| Position atteinte sur le compte et l'instrument (défaut 2, de 1 à 100) | `position` |
+| Marge du plan prop suivi au-dessus de 25 % du drawdown maximal, latent compris | `prop_buffer` |
+
+Un ordre qui rapproche la position de zéro sans la retourner échappe aux gardes de position et de marge : l'agent peut toujours proposer de réduire le risque. Baisser une limite est immédiat ; la relever passe par une fenêtre du process principal. Les limites sont gardées dans `userData/agent-orders.json` ; l'activation ne l'est jamais. Une proposition mal formée est refusée avec `reason: "invalid"`.
+
+**Confirmation.** La fenêtre montre l'ordre, le compte, la position avant et après, l'origine (agent du desk, MCP, orchestrateur) et la raison de l'agent. *Refuser* par défaut ; sans réponse en 45 s, rien ne part. L'ordre confirmé part par le pont avec le tag `canto-agent`, puis passe les gardes du pont et de l'AddOn (comptes autorisés, plafond, tag).
+
+**Réponse.** `ok` vaut `true` seulement si l'ordre est parti. `status` : `sent` (`orderId`, `resulting`), `declined` (le trader a refusé ou n'a pas répondu), `refused` (`reason`, `detail`), `failed` (le pont ou l'AddOn a refusé : `code`, `detail`). Chaque proposition est rangée dans le journal des événements (`agent_order`, § 4) et dans le journal du process principal ; le panneau montre la dernière.
+
+```json
+→ {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"propose_order","arguments":
+   {"account":"Sim101","instrument":"MNQ 12-26","side":"sell","qty":1,"reason":"Rejet du VWAP +1σ après le CPI, stop au-dessus du plus haut"}}}
+```
+
+## 6. Modèle du Lab
 
 L'emplacement **SIΞRRΛSKΛ Lab · Artefact 003** est réservé dans les préréglages de l'agent embarqué (`src/modules/agent/presets.ts`), sans hôte ni modèle. Son hôte rejoindra la liste épinglée du process principal (`electron/llm-host.ts`) le jour de son ouverture.
 
-## 6. Journal
+## 7. Journal
 
 Chaque appel entrant paraît dans le journal des liens de l'onglet Agent IA (`mcp · tool.<nom>` pour la passerelle MCP), avec son issue. Le jeton n'est jamais écrit dans un journal ni renvoyé dans un statut.
