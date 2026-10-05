@@ -67,8 +67,11 @@ export interface Settings {
   lastBackupAt: number | null;
   agent: AgentConfig;
   orchestratorPort: number;
-  /** Autoriser l'orchestrateur externe à écrire (notes, annotations) */
+  /** Autoriser les agents externes (orchestrateur, passerelle MCP) à écrire (notes, annotations) */
   orchestratorAllowWrite: boolean;
+  /** Passerelle MCP ouverte au démarrage du desk. Jamais restaurée depuis un coffre. */
+  mcpEnabled: boolean;
+  mcpPort: number;
   /** `dev` : clone git (pull + relance). Conservé pour l’UI ; un checkout git tire toujours origin/main. */
   updateChannel: 'release' | 'dev';
   llmAllowedHosts: string[];
@@ -103,6 +106,8 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   orchestratorPort: 47117,
   orchestratorAllowWrite: false,
+  mcpEnabled: false,
+  mcpPort: 47118,
   updateChannel: 'release',
   llmAllowedHosts: [],
   portfolio: { baseCurrency: 'USD' },
@@ -207,6 +212,8 @@ export function coerceSettings(raw: unknown, base: Settings): Settings {
     agent: coerceAgentConfig(r.agent, base.agent),
     orchestratorPort: pickNum(r.orchestratorPort, 1024, 65535, base.orchestratorPort, true),
     orchestratorAllowWrite: pickBool(r.orchestratorAllowWrite, base.orchestratorAllowWrite),
+    mcpEnabled: pickBool(r.mcpEnabled, base.mcpEnabled),
+    mcpPort: pickNum(r.mcpPort, 1024, 65535, base.mcpPort, true),
     updateChannel: pickEnum(r.updateChannel, ['release', 'dev'] as const, base.updateChannel),
     llmAllowedHosts: hosts,
     portfolio: coercePortfolio(r.portfolio, base.portfolio),

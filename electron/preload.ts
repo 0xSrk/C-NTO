@@ -82,6 +82,14 @@ contextBridge.exposeInMainWorld('canto', {
     onRequest: (cb: (req: unknown) => void) => subscribe('orch:request', cb),
     onStatus: (cb: (status: unknown) => void) => subscribe('orch:status', cb),
   },
+  mcp: {
+    start: (port: number, allowWrites?: boolean) => ipcRenderer.invoke('mcp:start', port, allowWrites),
+    stop: () => ipcRenderer.invoke('mcp:stop'),
+    status: () => ipcRenderer.invoke('mcp:status'),
+    rotateToken: () => ipcRenderer.invoke('mcp:rotate-token'),
+    connection: () => ipcRenderer.invoke('mcp:connection'),
+    onStatus: (cb: (status: unknown) => void) => subscribe('mcp:status', cb),
+  },
   secrets: {
     encrypt: (text: string) => ipcRenderer.invoke('secrets:encrypt', text),
   },

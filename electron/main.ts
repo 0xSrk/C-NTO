@@ -8,6 +8,8 @@ import { authorizeLiveAccount, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-b
 import { llmHostOk } from './llm-host';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
+import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
+import { McpGateway } from './mcp-server';
 import { syncOfficialCalendar } from './calendar';
 import { allowedHosts, dataFetchAllowed } from './sources';
 import { applyUpdate, checkForUpdate, GITHUB_REPO, relaunchDesk, type UpdateStatus } from './updater';
@@ -159,6 +161,19 @@ function fallBackToSoftware(reason: string): void {
 let win: BrowserWindow | null = null;
 let launcherWin: BrowserWindow | null = null;
 const orchestrator = new Orchestrator();
+/** Requêtes MCP relayées au renderer sur le canal de l'orchestrateur (`clientId` = `mcp`). */
+const deskRelay = new DeskRelay((req) => {
+  if (!win || win.isDestroyed()) return false;
+  win.webContents.send('orch:request', req);
+  return true;
+});
+let mcp: McpGateway | null = null;
+function mcpGateway(): McpGateway {
+  mcp ??= new McpGateway(app.getPath('userData'), mcpRelay(deskRelay), app.getVersion(), (status) => {
+    if (win && !win.isDestroyed()) win.webContents.send('mcp:status', status);
+  });
+  return mcp;
+}
 let bridge: NinjaBridge | null = null;
 let ntBridge: NtBridgeHost | null = null;
 let updateBusy = false;
@@ -464,6 +479,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   orchestrator.stop();
+  void mcp?.stop();
   bridge?.dispose();
   if (process.platform !== 'darwin') app.quit();
 });
@@ -734,11 +750,25 @@ ipcMain.handle('orch:rotate-token', (e) => (trusted(e) ? orchestrator.rotateToke
 ipcMain.handle('orch:copy-token', (e) => (trusted(e) ? orchestrator.copyToken() : null));
 ipcMain.on('orch:respond', (e, id: unknown, clientId: unknown, result: unknown, error?: unknown) => {
   if (!trusted(e) || !isString(id, 64) || !isString(clientId, 32)) return;
-  orchestrator.respond(id, clientId, result, isString(error, 2000) ? error : undefined);
+  const message = isString(error, 2000) ? error : undefined;
+  if (clientId === MCP_CLIENT_ID) {
+    deskRelay.settle(id, result, message);
+    return;
+  }
+  orchestrator.respond(id, clientId, result, message);
 });
 ipcMain.on('orch:broadcast', (e, event: unknown, payload: unknown) => {
   if (trusted(e) && isString(event, 64)) orchestrator.broadcast(event, payload);
 });
+
+/* ─── Passerelle MCP (agents externes) ─── */
+const MCP_IDLE = { running: false, port: 0, calls: 0 };
+ipcMain.handle('mcp:start', (e, port: unknown, allowWrites: unknown) => (trusted(e) && isPort(port) ? mcpGateway().start(port, allowWrites === true) : (mcp?.status() ?? MCP_IDLE)));
+ipcMain.handle('mcp:stop', (e) => (trusted(e) ? mcpGateway().stop() : (mcp?.status() ?? MCP_IDLE)));
+ipcMain.handle('mcp:status', (e) => (trusted(e) ? mcpGateway().status() : MCP_IDLE));
+ipcMain.handle('mcp:rotate-token', (e) => (trusted(e) ? mcpGateway().rotateToken() : (mcp?.status() ?? MCP_IDLE)));
+// Adresse et jeton, à la demande de l'opérateur (copie de la configuration d'un client). Jamais dans un statut.
+ipcMain.handle('mcp:connection', (e) => (trusted(e) ? mcpGateway().connection() : null));
 
 /* ─── Secrets (clé API chiffrée par le trousseau du système) ─── */
 ipcMain.handle('secrets:encrypt', (e, text: unknown) => {

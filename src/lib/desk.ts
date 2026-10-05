@@ -2,6 +2,15 @@
 import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEvents';
 import type { ChangelogFile } from '@/engine/changelog';
 import type { KillSwitchReport } from '@/engine/execution/killSwitch';
+/** Passerelle MCP des agents externes (process principal). Le jeton n'y figure jamais. */
+export interface McpStatus {
+  running: boolean;
+  port: number;
+  calls: number;
+  lastCallAt?: number;
+  error?: string;
+}
+
 export interface OrchestratorRequest {
   id: string;
   clientId: string;
@@ -205,6 +214,14 @@ export interface DeskApi {
       sources: CalendarSourceStatus[];
       error?: string;
     }>;
+  };
+  mcp?: {
+    start: (port: number, allowWrites?: boolean) => Promise<McpStatus>;
+    stop: () => Promise<McpStatus>;
+    status: () => Promise<McpStatus>;
+    rotateToken: () => Promise<McpStatus>;
+    connection: () => Promise<{ url: string; token: string } | null>;
+    onStatus: (cb: (status: McpStatus) => void) => () => void;
   };
   orchestrator: {
     start: (port: number, allowWrites?: boolean) => Promise<OrchestratorStatus>;
