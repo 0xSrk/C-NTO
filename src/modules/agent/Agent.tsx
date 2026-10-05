@@ -12,6 +12,7 @@ import { useAgent } from '@/store/agent';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
+import { claudeCodeCommand, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
 import s from './agent.module.css';
 
@@ -75,6 +76,12 @@ export default function Agent() {
   const startOrchestrator = useAgent((a) => a.startOrchestrator);
   const stopOrchestrator = useAgent((a) => a.stopOrchestrator);
   const rotateToken = useAgent((a) => a.rotateToken);
+  const mcp = useAgent((a) => a.mcp);
+  const startMcp = useAgent((a) => a.startMcp);
+  const stopMcp = useAgent((a) => a.stopMcp);
+  const rotateMcpToken = useAgent((a) => a.rotateMcpToken);
+  const mcpConnection = useAgent((a) => a.mcpConnection);
+  const mcpPort = useSettings((st) => st.settings.mcpPort);
   const linkLog = useAgent((a) => a.linkLog);
   const agent = useSettings((st) => st.settings.agent);
   const port = useSettings((st) => st.settings.orchestratorPort);
@@ -344,6 +351,98 @@ export default function Agent() {
 
             <div className={s.section}>
               <div className={s.sectionTitle}>
+                <span>{tr('Agents externes · MCP', 'External agents · MCP', 'Agentes externos · MCP')}</span>
+                <Tag tone={mcp.running ? 'mint' : undefined} dot live={mcp.running}>
+                  {mcp.running
+                    ? tr(`port ${mcp.port} · ${mcp.calls} appel(s)`, `port ${mcp.port} · ${mcp.calls} call(s)`, `puerto ${mcp.port} · ${mcp.calls} llamada(s)`)
+                    : tr('fermée', 'closed', 'cerrada')}
+                </Tag>
+              </div>
+              {isDesk && desk?.mcp ? (
+                <>
+                  <div className={s.hint}>
+                    {tr(
+                      'Claude, Codex, Cursor et tout client MCP lisent le desk avec les outils natifs, sur 127.0.0.1 et avec le jeton du desk. Aucun outil ne passe d’ordre.',
+                      'Claude, Codex, Cursor and any MCP client read the desk with the native tools, on 127.0.0.1 and with the desk token. No tool places an order.',
+                      'Claude, Codex, Cursor y cualquier cliente MCP leen el desk con las herramientas nativas, en 127.0.0.1 y con el token del desk. Ninguna herramienta envía órdenes.',
+                    )}
+                  </div>
+                  <div className={s.row2}>
+                    <Field label={tr('Port HTTP', 'HTTP port', 'Puerto HTTP')}>
+                      <input type="number" min={1024} max={65535} value={mcpPort} onChange={(e) => update({ mcpPort: Number(e.target.value) || 47118 })} disabled={mcp.running} />
+                    </Field>
+                    <Field label={tr('État', 'Status', 'Estado')}>
+                      {mcp.running ? (
+                        <Button size="sm" variant="danger" onClick={() => stopMcp()}>
+                          {tr('Fermer', 'Close', 'Cerrar')}
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="gold" onClick={() => startMcp()}>
+                          {tr('Ouvrir la passerelle', 'Open gateway', 'Abrir la pasarela')}
+                        </Button>
+                      )}
+                    </Field>
+                  </div>
+                  {mcp.error && <div className={s.error}>{mcp.error}</div>}
+                  <Toggle
+                    on={allowWrite}
+                    onChange={(v) => update({ orchestratorAllowWrite: v })}
+                    label={
+                      allowWrite
+                        ? tr('écriture autorisée (notes, annotations) · MCP et orchestrateur', 'write allowed (notes, annotations) · MCP and orchestrator', 'escritura autorizada (notas, anotaciones) · MCP y orquestador')
+                        : tr('lecture seule · MCP et orchestrateur', 'read only · MCP and orchestrator', 'solo lectura · MCP y orquestador')
+                    }
+                  />
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {(
+                      [
+                        ['claude', tr('Copier pour Claude Code', 'Copy for Claude Code', 'Copiar para Claude Code'), claudeCodeCommand],
+                        ['json', tr('Copier la configuration JSON', 'Copy JSON configuration', 'Copiar la configuración JSON'), mcpJsonConfig],
+                      ] as const
+                    ).map(([id, label, build]) => (
+                      <Button
+                        key={id}
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          const conn = await mcpConnection();
+                          if (conn) await navigator.clipboard?.writeText(build(conn.url, conn.token));
+                          toast(
+                            conn
+                              ? tr('Copié. Le jeton y figure : ne le partagez pas.', 'Copied. It contains the token: do not share it.', 'Copiado. Contiene el token: no lo comparta.')
+                              : tr('Passerelle indisponible.', 'Gateway unavailable.', 'Pasarela no disponible.'),
+                            conn ? 'ok' : 'warn',
+                          );
+                        }}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                    <Button size="sm" variant="ghost" onClick={() => rotateMcpToken()} title={tr('Nouveau jeton : les clients configurés devront être mis à jour', 'New token: configured clients must be updated', 'Nuevo token: hay que actualizar los clientes configurados')}>
+                      {tr('Renouveler le jeton', 'Renew token', 'Renovar el token')}
+                    </Button>
+                  </div>
+                  <div className={s.hint}>
+                    {tr(
+                      'ChatGPT (web et application) appelle les serveurs MCP depuis le cloud d’OpenAI : il ne voit pas 127.0.0.1. Codex, en local, se branche comme Claude Code. Voir docs/PROTOCOLE-AGENT.md.',
+                      'ChatGPT (web and app) calls MCP servers from OpenAI’s cloud: it cannot see 127.0.0.1. Codex, running locally, connects like Claude Code. See docs/PROTOCOLE-AGENT.md.',
+                      'ChatGPT (web y aplicación) llama a los servidores MCP desde la nube de OpenAI: no ve 127.0.0.1. Codex, en local, se conecta como Claude Code. Ver docs/PROTOCOLE-AGENT.md.',
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className={s.hint}>
+                  {tr(
+                    'Disponible dans le shell local (Electron) : CΛNTO ouvre une passerelle MCP sur 127.0.0.1 pour Claude, Codex, Cursor et tout client MCP.',
+                    'Available in the local shell (Electron): CΛNTO opens an MCP gateway on 127.0.0.1 for Claude, Codex, Cursor and any MCP client.',
+                    'Disponible en el shell local (Electron): CΛNTO abre una pasarela MCP en 127.0.0.1 para Claude, Codex, Cursor y cualquier cliente MCP.',
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className={s.section}>
+              <div className={s.sectionTitle}>
                 <span>{tr('Orchestrateur externe', 'External orchestrator', 'Orquestador externo')}</span>
                 <Tag tone={orchestrator.running ? 'mint' : undefined} dot live={orchestrator.running}>
                   {orchestrator.running
@@ -370,15 +469,11 @@ export default function Agent() {
                     </Field>
                   </div>
                   {orchestrator.error && <div className={s.error}>{orchestrator.error}</div>}
-                  <Toggle
-                    on={allowWrite}
-                    onChange={(v) => update({ orchestratorAllowWrite: v })}
-                    label={
-                      allowWrite
-                        ? tr('écriture autorisée (notes, annotations)', 'write allowed (notes, annotations)', 'escritura autorizada (notas, anotaciones)')
-                        : tr('lecture seule', 'read only', 'solo lectura')
-                    }
-                  />
+                  <div className={s.hint}>
+                    {allowWrite
+                      ? tr('Écriture autorisée (réglée avec la passerelle MCP).', 'Write allowed (set with the MCP gateway).', 'Escritura autorizada (se ajusta con la pasarela MCP).')
+                      : tr('Lecture seule (réglée avec la passerelle MCP).', 'Read only (set with the MCP gateway).', 'Solo lectura (se ajusta con la pasarela MCP).')}
+                  </div>
                 </>
               ) : (
                 <div className={s.hint}>
