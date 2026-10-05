@@ -438,7 +438,8 @@ app.whenReady().then(() => {
   ntBridge = new NtBridgeHost(app.getPath('userData'), () => defaultNinjaExportFolder(app.getPath('documents')));
   void ntBridge.start();
   const shortcut = globalShortcut.register(KILL_SWITCH_SHORTCUT, () => {
-    ntBridge?.killSwitch();
+    // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont.
+    void ntBridge?.killSwitchReport();
   });
   if (!shortcut) mainLog('warn', `raccourci kill switch non enregistré (${KILL_SWITCH_SHORTCUT})`);
   // Aucune permission navigateur (caméra, notifications, géoloc…) ; seule l'écriture presse-papiers
@@ -642,7 +643,7 @@ ipcMain.handle('ntbridge:allow-account', async (e, name: unknown) => {
 });
 ipcMain.handle('ntbridge:max-contracts', (e, n: unknown) => (trusted(e) && ntBridge && typeof n === 'number' ? ntBridge.setMaxContracts(n) : null));
 ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
-ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitch() : { accounts: [] }));
+ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitchReport() : { accounts: [], sent: false, results: [] }));
 
 ipcMain.handle('copier:status', (e) => (trusted(e) && ntBridge ? ntBridge.copierStatus() : null));
 ipcMain.handle('copier:configure', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.configureCopier(payload) : false));

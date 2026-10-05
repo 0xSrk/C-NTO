@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Bar } from '@/engine/bars';
+import { killSwitchSummary } from '@/engine/execution/killSwitch';
 import { FORMAT_LABEL } from '@/engine/import';
 import { tr } from '@/i18n';
 import { desk, type BridgeFilePayload, type BridgeStatus, type NtBridgeStatus } from '@/lib/desk';
@@ -245,11 +246,9 @@ export const useBridge = create<BridgeState>((set, get) => ({
   async killSwitch() {
     const api = desk?.ntbridge;
     if (!api) return;
-    const res = await api.killSwitch();
+    const report = await api.killSwitch();
     set({ nt: (await api.status()) ?? get().nt });
-    useUi.getState().toast(
-      tr(`Kill switch · ${res.accounts.length} compte(s) aplati(s). Canal d'ordres fermé.`, `Kill switch · ${res.accounts.length} account(s) flattened. Order channel closed.`, `Kill switch · ${res.accounts.length} cuenta(s) aplanada(s). Canal de órdenes cerrado.`),
-      'warn',
-    );
+    const { tone, text } = killSwitchSummary(report);
+    useUi.getState().toast(text, tone);
   },
 }));

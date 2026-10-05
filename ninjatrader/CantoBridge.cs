@@ -366,7 +366,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             {
                 ["kind"] = "ninjatrader",
                 ["ntVersion"] = "8",
-                ["addonVersion"] = "2.1.0",
+                ["addonVersion"] = "2.1.1",
                 ["accounts"] = accounts,
                 ["protocol"] = 1
             };
@@ -627,15 +627,41 @@ namespace NinjaTrader.NinjaScript.AddOns
             return new JObject { ["ok"] = false };
         }
 
+        // Aplatit un compte : positions ouvertes ET ordres encore vivants. Account.Flatten annule les
+        // ordres et clôt les positions des instruments donnés ; un instrument à plat qui porte un ordre
+        // en attente (limite, stop) doit donc être dans la liste, sinon l'ordre survit au kill switch.
         private JObject FlattenAccount(JObject p)
         {
             Account account = FindAccount((string)p["account"]);
             if (account == null || !IsConnected(account)) throw new InvalidOperationException("compte non connecté");
             List<Instrument> instruments = new List<Instrument>();
-            foreach (Position position in account.Positions)
-                if (position.Instrument != null) instruments.Add(position.Instrument);
+            int positions = 0;
+            lock (account.Positions)
+            {
+                foreach (Position position in account.Positions)
+                {
+                    if (position.Instrument == null) continue;
+                    positions++;
+                    if (!instruments.Contains(position.Instrument)) instruments.Add(position.Instrument);
+                }
+            }
+            int working = 0;
+            lock (account.Orders)
+            {
+                foreach (Order order in account.Orders)
+                {
+                    if (order.Instrument == null || IsTerminal(order.OrderState)) continue;
+                    working++;
+                    if (!instruments.Contains(order.Instrument)) instruments.Add(order.Instrument);
+                }
+            }
             if (instruments.Count > 0) account.Flatten(instruments);
-            return new JObject { ["closed"] = instruments.Count };
+            return new JObject { ["closed"] = positions, ["cancelled"] = working };
+        }
+
+        private static bool IsTerminal(OrderState state)
+        {
+            return state == OrderState.Filled || state == OrderState.Cancelled || state == OrderState.Rejected;
         }
 
         private static Account FindAccount(string name)

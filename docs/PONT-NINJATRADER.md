@@ -120,9 +120,9 @@ Les barres sont en epoch **secondes** UTC. Les ticks, quotes et exécutions sont
 | `marketdata.history` | `{ instrument, timeframe, from, to }` | `{ bars }` (plafond 50 000) |
 | `order.submit` | `{ account, instrument, action, quantity, type, limitPrice?, stopPrice?, oco?, tag }` | `{ orderId, latencyMs }` |
 | `order.cancel` | `{ account, orderId }` | `{ ok }` |
-| `order.flatten` | `{ account }` | `{ closed }` |
+| `order.flatten` | `{ account }` | `{ closed, cancelled }` (AddOn 2.1.1 ; `closed` seul avant) |
 
-`action` ∈ `Buy` | `Sell` | `BuyToCover` | `SellShort`. `type` ∈ `Market` | `Limit` | `StopMarket` | `StopLimit`. `Order.Name = tag`. `order.flatten` appelle `account.Flatten`. Compte non connecté : erreur explicite.
+`action` ∈ `Buy` | `Sell` | `BuyToCover` | `SellShort`. `type` ∈ `Market` | `Limit` | `StopMarket` | `StopLimit`. `Order.Name = tag`. `order.flatten` appelle `account.Flatten` sur les instruments en position **et** sur ceux qui portent un ordre encore vivant (ni rempli, ni annulé, ni rejeté) : depuis l'AddOn 2.1.1, un ordre limite ou stop en attente sur un instrument à plat ne survit plus au kill switch. Compte non connecté : erreur explicite.
 
 Le CSV continue d'être écrit en parallèle, avec le même `ID`. Le journal dédoublonne par l'empreinte existante (`account + ID`). Une exécution déjà connue n'est pas réappariée. Les lots encore ouverts sont persistés (table `openLots`, clé `account|instrument|contractMonth|executionId`) et repris au message WebSocket suivant comme au fichier CSV suivant. Le coffre les exporte ; un coffre 3.0.0 sans ce champ reste lisible.
 
@@ -134,7 +134,7 @@ Réglables dans le panneau. Persistés dans `userData/nt-bridge.json`, pas dans 
 | --- | --- | --- |
 | Comptes autorisés | nom commençant par `Sim`, plus une liste explicite vide | `-32010` |
 | Coupe-circuit | lien autre que `live` (dont `lost` après 6 s) | `-32011`, ordre non réémis |
-| Kill switch | `Ctrl+Shift+K` / `Cmd+Shift+K` (`CommandOrControl+Shift+K`) : `order.flatten` sur chaque compte autorisé connu, puis canal fermé jusqu'au redémarrage du desk | `-32011` ensuite |
+| Kill switch | `Ctrl+Shift+K` / `Cmd+Shift+K` (`CommandOrControl+Shift+K`) : `order.flatten` sur chaque compte autorisé connu, puis canal fermé à la soumission jusqu'au redémarrage du desk. Annuler et aplatir restent permis. Le message ne dit « aplati » que pour les comptes dont l'AddOn a confirmé l'aplatissement (réponse attendue 3 s) ; pont hors ligne, il le dit | `-32011` sur `order.submit` ensuite |
 | Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle) | `-32012` si `quantity` est supérieure |
 | Tag | obligatoire sur `order.submit` | `-32013` |
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ERR } from '../electron/nt-bridge/protocol';
-import { GUARD, guardSubmit, killSwitchAccounts, type GuardOrder, type GuardPolicy, type GuardSnapshot } from '@/engine/execution/guards';
+import { GUARD, guardAccountCommand, guardSubmit, killSwitchAccounts, type GuardOrder, type GuardPolicy, type GuardSnapshot } from '@/engine/execution/guards';
 import { loadVector } from './helpers/loadVector';
 
 interface GuardCase {
@@ -30,6 +30,15 @@ describe('gardes pures', () => {
       }
     }
     expect([...codes].sort((a, b) => a - b)).toEqual([-32013, -32012, -32011, -32010]);
+  });
+
+  it('après le kill switch : soumettre est refusé, annuler et aplatir restent permis', () => {
+    const policy: GuardPolicy = { extraAccounts: [], maxContractsPerOrder: 20 };
+    const closed: GuardSnapshot = { link: 'live', ordersClosed: true };
+    expect(guardSubmit({ account: 'Sim101', quantity: 1, tag: 'canto' }, policy, closed)).toMatchObject({ ok: false, code: GUARD.LOST });
+    expect(guardAccountCommand('Sim101', policy, closed)).toEqual({ ok: true });
+    expect(guardAccountCommand('APEX-50K', policy, closed)).toMatchObject({ ok: false, code: GUARD.ACCOUNT });
+    expect(guardAccountCommand('Sim101', policy, { link: 'lost', ordersClosed: true })).toMatchObject({ ok: false, code: GUARD.LOST });
   });
 
   it('le kill switch n’aplatit que les comptes autorisés', () => {
