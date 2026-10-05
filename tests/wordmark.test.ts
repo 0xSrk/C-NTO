@@ -61,12 +61,15 @@ describe('logotype — géométrie', () => {
 });
 
 describe('logotype — au repos (barre de titre)', () => {
-  it('une seule image nommée CΛNTO, sans grille ni LED', () => {
+  it('une seule image nommée CΛNTO, pointe du Λ allumée, sans grille', () => {
     const svg = mount({ width: 84 }).querySelector('svg')!;
     expect(svg.getAttribute('role')).toBe('img');
     expect(svg.getAttribute('aria-label')).toBe('CΛNTO');
     expect(svg.getAttribute('height')).toBe('21');
-    expect(svg.querySelector('[data-part]')).toBeNull();
+    expect(svg.querySelector('[data-part="led"]')).toBeNull();
+    const apex = svg.querySelector('[data-part="apex"]')!;
+    expect(apex.querySelectorAll('circle')).toHaveLength(2);
+    expect(apex.querySelector('circle:last-child')?.getAttribute('fill')).toBe('var(--gold)');
     expect(svg.querySelectorAll('path')).toHaveLength(10);
   });
 

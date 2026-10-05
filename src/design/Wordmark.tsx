@@ -220,6 +220,11 @@ function Repos({ uid, u, core, color, ticks, survol }: LayerProps & { ticks: boo
       <g stroke={color} strokeWidth={r2(core)} strokeLinecap="square" strokeLinejoin="miter" strokeMiterlimit={4}>
         {glyphPaths()}
       </g>
+      {/* Signature : la pointe du Λ, au-dessus du mitre, avec une lumière légère. */}
+      <g data-part="apex">
+        <circle cx={WORDMARK_APEX[0]} cy={r2(WORDMARK_APEX[1] - core * 0.9)} r={r2(3.2 * u)} fill="var(--gold)" opacity={0.45} />
+        <circle cx={WORDMARK_APEX[0]} cy={r2(WORDMARK_APEX[1] - core * 0.9)} r={r2(1.35 * u)} fill="var(--gold)" />
+      </g>
       {survol && (
         <g className={s.survol} data-part="survol" stroke={color} strokeWidth={fine} fill="var(--bg-0)">
           {SURVOL_ANCRES.map(([x, y]) => (

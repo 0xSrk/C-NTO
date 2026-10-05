@@ -17,19 +17,20 @@ const ADVANCE = 58;
 const SPACE = 36;
 
 /**
- * Boîte 4 → 52, capitale 8 → 72, axe y 40.
- * L'axe du circuit passe donc à la ceinture du mot.
+ * Une seule boîte : fûts x 8 et 48, capitale y 8, pied y 72, ceinture y 40.
+ * Les rondes partagent l'ellipse 20 × 32. Le S est deux cercles de rayon 16, empilés.
+ * L'axe du circuit passe à la ceinture du mot.
  */
 const LETTER: Record<string, readonly string[]> = {
-  D: ['M4 72 V8 H28 A24 32 0 0 1 28 72 H4'],
-  E: ['M52 8 H4 V72 H52', 'M4 40 H36'],
-  S: ['M46 18 C46 8 8 8 8 22 C8 36 44 30 44 46 C44 62 8 56 8 70'],
-  K: ['M4 8 V72', 'M4 40 L52 8', 'M4 40 L52 72'],
-  U: ['M4 8 V44 A24 28 0 0 0 52 44 V8'],
-  N: ['M4 72 V8 L52 72 V8'],
-  L: ['M4 8 V72 H52'],
-  O: ['M28 8 A24 32 0 1 1 28 72 A24 32 0 1 1 28 8'],
-  C: ['M40.4 12.6 A24 32 0 1 0 40.4 67.4'],
+  D: ['M8 72 V8 H28 A20 32 0 0 1 28 72 H8'],
+  E: ['M48 8 H8 V72 H48', 'M8 40 H36'],
+  S: ['M44 18 C44 8 12 10 12 24 C12 36 22 40 28 40 C34 40 44 44 44 56 C44 70 12 72 12 62'],
+  K: ['M8 8 V72', 'M8 40 L48 8', 'M8 40 L48 72'],
+  U: ['M8 8 V40 A20 32 0 0 0 48 40 V8'],
+  N: ['M8 72 V8', 'M8 8 L48 72', 'M48 72 V8'],
+  L: ['M8 8 V72 H48'],
+  O: ['M28 8 A20 32 0 1 1 28 72 A20 32 0 1 1 28 8'],
+  C: ['M38.3 12.57 A20 32 0 1 0 38.3 67.43'],
 };
 
 export interface SealGlyph {

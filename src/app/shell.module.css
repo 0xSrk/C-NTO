@@ -439,42 +439,62 @@
 
 .moduleHead {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
   flex-shrink: 0;
-  padding: 24px 40px 0;
+  padding: 12px 40px 0;
 }
-.moduleTitle h1 {
-  font-family: var(--font-display);
-  font-size: 44px;
-  font-weight: 700;
-  font-stretch: 125%;
-  letter-spacing: -0.015em;
-  line-height: 0.9;
-}
-.moduleTitle h1 small {
-  display: block;
-  margin-top: 8px;
-  font-family: var(--font-mono);
-  font-size: 10px;
+.modulePlate {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 32px;
+  margin: 0;
+  padding-right: 14px;
+  background: var(--bg-0);
+  border: 1px solid rgba(237, 235, 228, 0.62);
   font-weight: 500;
-  font-stretch: 100%;
-  letter-spacing: 0.14em;
-  color: var(--text-2);
+}
+.moduleCode {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  min-width: 52px;
+  padding: 0 10px;
+  border-right: 1px solid rgba(237, 235, 228, 0.62);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--text-0);
+}
+.moduleName {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--text-0);
 }
 .moduleTagline,
 .moduleMeta {
-  display: block;
-  margin-top: 6px;
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-2);
+  white-space: nowrap;
 }
 .moduleMeta {
   color: var(--text-1);
+}
+.moduleMeta::before,
+.moduleTagline::before {
+  content: '·';
+  margin-right: 12px;
+  color: var(--ghost);
 }
 .moduleActions {
   display: flex;
