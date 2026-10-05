@@ -18,6 +18,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'copier/position': 'src/engine/copier/position.ts',
     'copier/sync': 'src/engine/copier/sync.ts',
     'agent/catalog': 'src/engine/agent/catalog.ts',
+    'agent/orders': 'src/engine/agent/orders.ts',
   };
   const hit = map[rel];
   return hit ? path.join(root, hit) : null;
