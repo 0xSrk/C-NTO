@@ -1,7 +1,10 @@
+import { ORDER_TOOLS } from './agent/catalog';
 import type { McpRelay, McpToolInfo } from './mcp-server';
 
 /** Identifiant de client des requêtes MCP sur le canal `orch:request` (les clients WS sont `c1`, `c2`…). */
 export const MCP_CLIENT_ID = 'mcp';
+/** Un ordre proposé attend la réponse du trader (45 s au plus) : le relais attend un peu plus. */
+export const ORDER_RELAY_TIMEOUT_MS = 55_000;
 
 export interface DeskAnswer {
   result: unknown;
@@ -22,12 +25,12 @@ export class DeskRelay {
     private readonly timeoutMs = 15_000,
   ) {}
 
-  ask(method: string, params: unknown): Promise<DeskAnswer> {
+  ask(method: string, params: unknown, timeoutMs = this.timeoutMs): Promise<DeskAnswer> {
     const id = `m${++this.seq}`;
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         if (this.pending.delete(id)) resolve({ result: null, error: 'Le desk ne répond pas (délai dépassé).' });
-      }, this.timeoutMs);
+      }, timeoutMs);
       this.pending.set(id, { resolve, timer });
       if (!this.send({ id, clientId: MCP_CLIENT_ID, method, params })) {
         clearTimeout(timer);
@@ -67,7 +70,7 @@ export function mcpRelay(relay: DeskRelay, cacheMs = 5_000, now: () => number = 
       return tools;
     },
     call(name, args) {
-      return relay.ask(`tool.${name}`, args);
+      return relay.ask(`tool.${name}`, args, ORDER_TOOLS.includes(name) ? ORDER_RELAY_TIMEOUT_MS : undefined);
     },
   };
 }

@@ -13,6 +13,7 @@ import { useDeskEvents } from '@/store/deskEvents';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
+import { AgentOrdersPanel } from './AgentOrdersPanel';
 import { claudeCodeCommand, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
 import s from './agent.module.css';
@@ -365,9 +366,9 @@ export default function Agent() {
                 <>
                   <div className={s.hint}>
                     {tr(
-                      'Claude, Codex, Cursor et tout client MCP lisent le desk avec les outils natifs, sur 127.0.0.1 et avec le jeton du desk. Aucun outil ne passe d’ordre.',
-                      'Claude, Codex, Cursor and any MCP client read the desk with the native tools, on 127.0.0.1 and with the desk token. No tool places an order.',
-                      'Claude, Codex, Cursor y cualquier cliente MCP leen el desk con las herramientas nativas, en 127.0.0.1 y con el token del desk. Ninguna herramienta envía órdenes.',
+                      'Claude, Codex, Cursor et tout client MCP lisent le desk avec les outils natifs, sur 127.0.0.1 et avec le jeton du desk. Aucun outil ne passe d’ordre : propose_order propose, vous confirmez (voir « Ordres proposés par l’agent »).',
+                      'Claude, Codex, Cursor and any MCP client read the desk with the native tools, on 127.0.0.1 and with the desk token. No tool places an order: propose_order proposes, you confirm (see “Orders proposed by the agent”).',
+                      'Claude, Codex, Cursor y cualquier cliente MCP leen el desk con las herramientas nativas, en 127.0.0.1 y con el token del desk. Ninguna herramienta envía órdenes: propose_order propone, usted confirma (ver « Órdenes propuestas por el agente »).',
                     )}
                   </div>
                   <div className={s.row2}>
@@ -547,6 +548,8 @@ export default function Agent() {
                 </div>
               )}
             </div>
+
+            <AgentOrdersPanel available={isDesk && !!desk?.agentOrders} />
 
             <div className={s.section}>
               <div className={s.sectionTitle}>

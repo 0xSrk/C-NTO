@@ -63,6 +63,13 @@ contextBridge.exposeInMainWorld('canto', {
     cut: () => ipcRenderer.invoke('copier:cut') as Promise<{ cancelled: string[]; open: { account: string; instrument: string; qty: number }[]; flattened: string[] }>,
     onStatus: (cb: (status: unknown) => void) => subscribe('copier:status', cb),
   },
+  agentOrders: {
+    status: () => ipcRenderer.invoke('agent-orders:status'),
+    enable: () => ipcRenderer.invoke('agent-orders:enable'),
+    disable: () => ipcRenderer.invoke('agent-orders:disable'),
+    limits: (raw: unknown) => ipcRenderer.invoke('agent-orders:limits', raw),
+    propose: (raw: unknown, origin: string, propShare: number | null) => ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare),
+  },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     changelog: () => ipcRenderer.invoke('update:changelog') as Promise<ChangelogFile | null>,

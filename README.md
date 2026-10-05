@@ -398,15 +398,16 @@ The renderer **does not fetch** the provider: `streamChat` / `probe` go through 
 | `bridge_status` | read | live NinjaTrader bridge and Copier: link, accounts, PnL, positions |
 | `portfolio_snapshot` | read | consolidated portfolio: net value, pockets, exposure |
 | `market_levels` | read | last price, PDH / PDL / PDC, Opening Range, VWAP, ATR (source named, demo marked synthetic) |
-| `desk_events` | read | desk events since a cursor: fills, prop buffer thresholds, major catalyst within 15 min, bridge link |
+| `desk_events` | read | desk events since a cursor: fills, prop buffer thresholds, major catalyst within 15 min, bridge link, proposed orders |
 | `create_note` | write | new note (confirmed) |
 | `branch_note` | write | child note from a selection (confirmed) |
 | `link_notes` | write | typed link between two notes (confirmed) |
 | `annotate_session` | write | session annotation (confirmed) |
+| `propose_order` | write | proposes an order on a Sim account; the trader confirms it in a system window |
 
-Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 characters. An “untrusted data” preamble is attached to tool results. `copy.order` is not an agent tool. Orders go through the NinjaTrader bridge, not the agent. Notes and links written by an agent are signed `agent`, never as the trader.
+Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 characters. An “untrusted data” preamble is attached to tool results. `copy.order` is not an agent tool, and the agent never submits an order: with `propose_order` it proposes one on a Sim account, the main process checks the agent's own limits (contracts per order, resulting position, proposals per minute, tracked prop buffer, kill switch), and the trader confirms each order in a system window (45 s, Decline by default). Off each time the desk opens; allowed in a main-process dialog; orders tagged `canto-agent`. Notes and links written by an agent are signed `agent`, never as the trader.
 
-**Events**: once the desk is open, it logs NinjaTrader fills, the tracked prop plan's buffer crossing 50 / 25 / 10 % of max drawdown (or breached, account unrealized included), major catalysts 15 minutes ahead and bridge link changes. The orchestrator pushes them as `desk.event`; MCP agents read them with `desk_events` and a cursor.
+**Events**: once the desk is open, it logs NinjaTrader fills, the tracked prop plan's buffer crossing 50 / 25 / 10 % of max drawdown (or breached, account unrealized included), major catalysts 15 minutes ahead, bridge link changes and every order proposed by an agent. The orchestrator pushes them as `desk.event`; MCP agents read them with `desk_events` and a cursor.
 
 **MCP gateway** (shell only): external agents — Claude Code, Claude Desktop, Codex, Cursor, any MCP client — read the desk with the same tools over the Model Context Protocol at `http://127.0.0.1:47118/mcp`. Bearer token kept in the data folder and renewable, browser origins and non-loopback hosts refused, 1 MB per request, 40 req/s. Write tools stay hidden and refused until the trader allows writing. The panel copies a ready configuration for Claude Code or as JSON. ChatGPT on the web or in its app calls MCP servers from OpenAI's cloud and cannot reach `127.0.0.1`. Guide: [docs/PROTOCOLE-AGENT.md](docs/PROTOCOLE-AGENT.md).
 
