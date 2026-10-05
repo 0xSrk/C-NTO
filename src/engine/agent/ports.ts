@@ -1,4 +1,5 @@
 import type { CalendarEventRow } from '../calendarEvents';
+import type { DeskEventPage } from './events';
 import type { BarSeries } from '../bars';
 import type { CashBalance, FxRate, Pocket, Position } from '../portfolio/types';
 import type { Session, Trade } from '../types';
@@ -59,6 +60,8 @@ export interface DeskPorts {
   portfolio(): Promise<{ pockets: Pocket[]; positions: Position[]; cash: CashBalance[]; fx: FxRate[]; base: string }>;
   /** Séries de barres du desk (pont NinjaTrader, CSV, démo), chargées si besoin. */
   barSeries(): Promise<BarSeries[]>;
+  /** Journal des événements du lancement en cours (fills, marge prop, catalyseurs, lien du pont). */
+  events(opts: { cursor?: string; kinds?: readonly string[]; limit?: number }): DeskEventPage;
 }
 
 export const BODY_MAX = 20_000;
@@ -73,7 +76,7 @@ export const TITLE_MAX = 200;
 export const ANCRE_MAX = 500;
 export const QUESTION_MAX = 200;
 export const SHORT_ARG_MAX = 64;
-const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId', 'account', 'instrument'] as const;
+const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId', 'account', 'instrument', 'cursor'] as const;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**

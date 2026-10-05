@@ -12,6 +12,7 @@ import { APP_VERSION } from '@/lib/version';
 import { useBars } from './bars';
 import { useBridge } from './bridge';
 import { useCalendar } from './calendar';
+import { deskEventLog } from './deskEvents';
 import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
 import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
@@ -98,6 +99,7 @@ export function livePorts(): DeskPorts {
       const { pockets, positions, cash, fx } = usePortfolio.getState();
       return { pockets, positions, cash, fx, base: useSettings.getState().settings.portfolio.baseCurrency };
     },
+    events: (opts) => deskEventLog.read(opts),
     barSeries: async () => {
       if (!useBars.getState().ready) await useBars.getState().load();
       return useBars.getState().series;

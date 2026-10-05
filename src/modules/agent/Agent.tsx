@@ -6,9 +6,10 @@ import { DESK_TOOLS, toolBlurb } from '@/engine/agent/tools';
 import { tr, useI18n } from '@/i18n';
 import { desk, isDesk } from '@/lib/desk';
 import { fmtNum } from '@/lib/format';
-import { dateTimeFormatter } from '@/lib/time';
+import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
 import type { AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
+import { useDeskEvents } from '@/store/deskEvents';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
@@ -68,6 +69,8 @@ export default function Agent() {
   const pendingTool = useAgent((a) => a.pendingTool);
   const error = useAgent((a) => a.error);
   const notice = useAgent((a) => a.notice);
+  const eventCount = useDeskEvents((e) => e.count);
+  const lastEvent = useDeskEvents((e) => e.last);
   const send = useAgent((a) => a.send);
   const stop = useAgent((a) => a.stop);
   const newConversation = useAgent((a) => a.newConversation);
@@ -427,6 +430,13 @@ export default function Agent() {
                       'ChatGPT (web et application) appelle les serveurs MCP depuis le cloud d’OpenAI : il ne voit pas 127.0.0.1. Codex, en local, se branche comme Claude Code. Voir docs/PROTOCOLE-AGENT.md.',
                       'ChatGPT (web and app) calls MCP servers from OpenAI’s cloud: it cannot see 127.0.0.1. Codex, running locally, connects like Claude Code. See docs/PROTOCOLE-AGENT.md.',
                       'ChatGPT (web y aplicación) llama a los servidores MCP desde la nube de OpenAI: no ve 127.0.0.1. Codex, en local, se conecta como Claude Code. Ver docs/PROTOCOLE-AGENT.md.',
+                    )}
+                  </div>
+                  <div className={s.hint}>
+                    {tr(
+                      `Événements du desk (fills, marge prop, catalyseurs, lien du pont) : ${eventCount} depuis l’ouverture${lastEvent ? `, dernier ${lastEvent.kind} à ${formatTimeLocal(lastEvent.at)}` : ''}. Les agents MCP les lisent avec desk_events, l’orchestrateur les reçoit en desk.event.`,
+                      `Desk events (fills, prop buffer, catalysts, bridge link): ${eventCount} since opening${lastEvent ? `, last ${lastEvent.kind} at ${formatTimeLocal(lastEvent.at)}` : ''}. MCP agents read them with desk_events, the orchestrator receives them as desk.event.`,
+                      `Eventos del desk (fills, margen prop, catalizadores, enlace del puente): ${eventCount} desde la apertura${lastEvent ? `, último ${lastEvent.kind} a las ${formatTimeLocal(lastEvent.at)}` : ''}. Los agentes MCP los leen con desk_events, el orquestador los recibe como desk.event.`,
                     )}
                   </div>
                 </>

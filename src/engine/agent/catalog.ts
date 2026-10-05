@@ -16,6 +16,7 @@ export const DESK_TOOL_KINDS = {
   portfolio_snapshot: 'read',
   market_levels: 'read',
   propfirm_status: 'read',
+  desk_events: 'read',
   annotate_session: 'write',
   create_note: 'write',
   branch_note: 'write',

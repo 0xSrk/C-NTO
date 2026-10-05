@@ -48,10 +48,13 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | `bridge_status` | lecture | Pont NinjaTrader et Copieur en direct : lien, comptes, PnL, positions |
 | `portfolio_snapshot` | lecture | Portefeuille consolidé : valeur nette, poches, exposition |
 | `market_levels` | lecture | Dernier prix, PDH / PDL / PDC, Opening Range, VWAP, ATR (source nommée, démo marquée `synthetic`) |
+| `desk_events` | lecture | Événements du desk depuis un curseur (voir § 4) |
 | `create_note` / `branch_note` / `link_notes` | écriture | Notes |
 | `annotate_session` | écriture | Note et tags d'une séance (remplace) |
 
 Le catalogue fait foi : `tools/list` le lit dans le desk à chaque fois (cache de 5 s). Noms et types n'existent qu'à un endroit, `src/engine/agent/catalog.ts`, partagé avec l'allowlist de l'orchestrateur.
+
+Une note créée ou branchée par un agent porte `by: "agent"` (rendu par `read_note` et `search_notes`, affiché dans l'onglet Notes) ; un lien affirmé par un agent est signé `agent` dans l'ontologie. Un agent qui réaffirme un lien du trader ne reprend pas sa signature.
 
 ## 2. Brancher un client
 
@@ -109,10 +112,33 @@ ChatGPT appelle les serveurs MCP **depuis le cloud d'OpenAI**. Il ne voit pas `1
 
 JSON-RPC 2.0 sur `ws://127.0.0.1:<port>`. Jeton de session (mémoire seulement, renouvelé à chaque lancement), `?token=…` ou `desk.auth { token }`. Méthodes : `desk.auth`, `desk.describe`, `desk.ping`, puis `tool.<nom>` (ou `<nom>`). Origines navigateur refusées, 8 clients, 1 Mo par trame, 40 requêtes / s. `desk.describe` rend le catalogue avec le type de chaque outil (`kind`).
 
-## 4. Modèle du Lab
+## 4. Événements du desk
+
+Une fois le desk ouvert, il range ses événements dans un journal (500 au plus, lancement en cours, mémoire seulement) :
+
+| Type | Quand | Données |
+|---|---|---|
+| `fill` | Exécution reçue du pont NinjaTrader | `account`, `instrument`, `action`, `quantity`, `price`, `time`, `entryExit` |
+| `prop_buffer` | La marge du plan suivi passe sous 50, 25, 10 % du drawdown maximal, ou à zéro | `threshold`, `breached`, `remainingShare`, `liveBuffer` (rejeu du journal + latent négatif du compte), `journalBuffer`, `unrealized`, `floor`, `balance`, `planId`, `account` |
+| `catalyst` | Catalyseur majeur (impact 3) publié dans les 15 minutes | `title`, `at`, `date`, `timeET`, `minutesBefore`, `category`, `source`, `estimated`, attendu / précédent s'ils sont connus |
+| `bridge_link` | Changement d'état du lien du pont | `from`, `to`, `addonVersion` |
+
+Une alerte de marge ne revient qu'après une remontée de 5 points au-dessus du seuil. Le premier rejeu après l'ouverture, ou après un changement de plan ou de compte, pose le niveau sans alerter. La marge journalière (perte du jour) n'est pas encore suivie.
+
+**MCP** — la passerelle est sans état : elle ne pousse rien. L'agent appelle `desk_events` et repasse le `cursor` rendu pour ne lire que les suivants. Sans curseur : les 50 plus récents. Arguments : `cursor`, `kinds` (types voulus), `limit` (1 à 200). Réponse : `cursor`, `count`, `events` (`seq`, `at`, `kind`, `data`), et selon le cas `more` (page suivante), `dropped` (événements sortis du journal avant lecture), `reset` (curseur d'un autre lancement : la page repart des plus récents).
+
+**Orchestrateur** — chaque événement est poussé aux clients authentifiés :
+
+```json
+{ "jsonrpc": "2.0", "method": "desk.event", "params": { "event": "fill", "payload": { "seq": 12, "cursor": "<curseur>", "data": { } }, "at": 1791200000000 } }
+```
+
+Le process principal ne pousse que les types de ce tableau, 16 Ko au plus par trame. Le `cursor` sert à reprendre par `tool.desk_events` après une déconnexion.
+
+## 5. Modèle du Lab
 
 L'emplacement **SIΞRRΛSKΛ Lab · Artefact 003** est réservé dans les préréglages de l'agent embarqué (`src/modules/agent/presets.ts`), sans hôte ni modèle. Son hôte rejoindra la liste épinglée du process principal (`electron/llm-host.ts`) le jour de son ouverture.
 
-## 5. Journal
+## 6. Journal
 
 Chaque appel entrant paraît dans le journal des liens de l'onglet Agent IA (`mcp · tool.<nom>` pour la passerelle MCP), avec son issue. Le jeton n'est jamais écrit dans un journal ni renvoyé dans un statut.
