@@ -191,6 +191,8 @@ describe('prepareVaultRestore (validation pure)', () => {
             { id: 'a2', conversationId: 'c', role: 'root', content: 'hi', createdAt: now },
             { id: 'a3', conversationId: 'c', role: 'assistant', content: 'hi', createdAt: now, toolCalls: [{ id: 'x', name: 'y', args: 1 }] },
             { id: 'a4', conversationId: 'c', role: 'assistant', content: 'x'.repeat(200_001), createdAt: now },
+            { id: 'a5', conversationId: 'c', role: 'tool', content: 'r', toolName: 'desk_overview', toolCallId: 'call_0', createdAt: now },
+            { id: 'a6', conversationId: 'c', role: 'tool', content: 'r', toolName: 'desk_overview', toolCallId: 42, createdAt: now },
           ],
         }),
       ),
@@ -202,8 +204,8 @@ describe('prepareVaultRestore (validation pure)', () => {
     expect(v.copierAccounts.map((c) => c.id)).toEqual(['c1']);
     expect(v.calendarEvents).toEqual([]);
     expect(v.barSeries.map((b) => b.id)).toEqual(['bs1']);
-    expect(v.agentMessages.map((a) => a.id)).toEqual(['a1']);
-    expect(v.skipped).toEqual({ sessions: 4, trades: 8, notes: 1, bots: 3, copierAccounts: 2, macroReleases: 2, barSeries: 1, agentMessages: 3 });
+    expect(v.agentMessages.map((a) => a.id)).toEqual(['a1', 'a5']);
+    expect(v.skipped).toEqual({ sessions: 4, trades: 8, notes: 1, bots: 3, copierAccounts: 2, macroReleases: 2, barSeries: 1, agentMessages: 4 });
   });
 
   it('accepte un instrument hors registre et convertit les anciennes symbolMap', () => {

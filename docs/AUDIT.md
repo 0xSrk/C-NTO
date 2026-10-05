@@ -429,3 +429,56 @@ Relecture du code de la Forge 1 (L.1, L.2, Sim seulement). Pas de Release : `pac
 **Reste hors de cette relecture.** CI sur les trois OS après poussée. Séance du testeur sur NinjaTrader 8 (Sim101 → Sim102). Règles Apex (D7, Forge 2). Journal certifié, protocole d'agent, licence. Rien d'ouvert en correctif de code sur les preuves ci-dessus.
 
 
+
+## 3.3.4 — audit agentique (2026-10-05)
+
+Relecture en lecture seule de `main` à v3.3.4, au regard d'un objectif : CΛNTO est la porte de la couche agentique IA du trader. Trois lecteurs : l'onglet `06 · AGT` et la licence ; les onglets `01` à `05` ; l'exécution (`07 · BOT`, `08 · CPY`, pont NT8, shell). `npm run typecheck` vert, **397** tests verts. Chaque constat ci-dessous cite le code ; les plus graves ont été relus deux fois. Rien n'est corrigé dans cette section : les correctifs deviennent les tickets A1 et suivants.
+
+**Verdict.** L'onglet critique est `06 · AGT`. Il est la porte et reste un prototype : la boucle peut casser une conversation, deux outils rendent des chiffres faux, il ne lit qu'un tiers du desk, et sa passerelle parle un JSON-RPC propre que les agents du marché ne connaissent pas.
+
+### Agent (`06 · AGT`)
+
+| # | Constat | Preuve |
+|---|---|---|
+| G1 | Le message assistant garde tous les appels d'outils ; `takeToolCalls` n'en exécute que 8, dont 2 écritures. Un appel écarté reste sans résultat : le tour suivant reçoit un 400 (OpenAI comme Anthropic), et chaque envoi rejoue cet historique. | `src/store/agent.ts:180`, `:187` |
+| G2 | `calendar_events` ne lit que `generateNasdaqEvents`, qui ne contient plus FOMC ni NFP ; les événements officiels de `useMacro` ne sont pas lus. Seules l'année de début et celle de fin sont générées. | `src/engine/agent/tools.ts:243-244`, `src/engine/calendar.ts:229` |
+| G3 | `propfirm_status` et `desk_overview` appellent `evaluatePlan` sans compte ; l'écran filtre sur le compte choisi. | `tools.ts:44`, `:262`, `src/modules/metrique/useStats.ts:61` |
+| G4 | L'identifiant d'appel de repli (`call_${index}`, `toolu_${index}`) devient la clé Dexie du message outil : collision possible d'un tour à l'autre. | `electron/main.ts:914`, `:986`, `src/store/agent.ts:193` |
+| G5 | Tout l'historique repart à chaque tour, résultats d'outils compris. Six tours épuisés : aucune réponse finale, aucun avis. | `src/store/agent.ts:158-200` |
+| G6 | Consigne et descriptions « Nasdaq NQ/MNQ » ; branche `bridge.*` morte au message faux ; liste des méthodes de l'orchestrateur en double ; préréglages de modèles anciens ; les liens écrits par l'agent sont signés `utilisateur`. | `src/store/settings.ts:11`, `src/store/agent.ts:122`, `src/engine/agent/ports.ts:42`, `electron/orchestrator.ts:32`, `src/modules/agent/Agent.tsx:48-52` |
+| G7 | Ni la boucle (`send`) ni les flux SSE du main ne sont testés. | `tests/agent-*.test.ts` |
+| G8 | Lecture absente : positions et comptes NT8, barres et niveaux, portefeuille, ventilations, Monte Carlo, Copieur. Aucun événement poussé (`broadcast` jamais appelé). Pas de MCP. | `src/engine/agent/ports.ts:23-34`, `src/lib/desk.ts:214` |
+
+### Prérequis avant toute exécution par l'agent
+
+| # | Constat | Preuve |
+|---|---|---|
+| S1 | L'AddOn exécute `order.submit` sans garde propre et n'authentifie pas le serveur auquel il envoie son jeton. | `ninjatrader/CantoBridge.cs:312`, `:495` |
+| S2 | Le kill switch n'aplatit que les instruments en position : un ordre en attente sur un instrument à plat survit. Après la coupure, `cancel` est refusé. Le message « N compte(s) aplati(s) » ne lit pas les réponses. | `CantoBridge.cs:630-639`, `src/engine/execution/guards.ts:60`, `src/store/bridge.ts:251` |
+| S3 | Le plafond monte à 1000 par IPC sans dialogue du main. | `electron/main.ts:642` |
+| S4 | Copieur : rien n'interdit au maître d'être aussi suiveur ; réplication fill par fill sans distinguer entrée et sortie ; Couper protège peu sans `flattenOnCut`. | `src/engine/copier/sync.ts:197-199`, `src/engine/copier/sizing.ts:54-56`, `electron/nt-bridge/copier-host.ts:216` |
+| S5 | Mises à jour sans signature de code ; `SHA256SUMS.txt` vient de la même Release. | `package.json` (`mac.identity: null`), `electron/native-update.ts:84-100` |
+
+### Autres onglets
+
+| Onglet | Constat principal | Preuve |
+|---|---|---|
+| `01 · MET` | Heure classée en ET, jour de semaine en heure locale. EOD jamais contrôlé en séance. | `src/engine/metrics.ts:373`, `:376`, `src/engine/propfirm.ts:257` |
+| `02 · VIS` | Barres NT8 datées à la clôture, lues comme ouvertures (Opening Range faussé). Une barre live remplace la série choisie. Marqueurs non filtrés par instrument. | `CantoBridge.cs:574`, `src/store/bars.ts:109`, `src/modules/visual/Visual.tsx:197` |
+| `03 · CAL` | CPI officiel et estimé affichés à un jour d'écart. « 3ᵉ vendredi » appliqué à CL, GC, 6E. Historique d'une source effacé à chaque synchro. | `src/engine/macroMerge.ts:146`, `src/engine/calendar.ts:271-299`, `src/store/macro.ts:73` |
+| `04 · NTE` | Les tags posés à la création sont perdus à la première modification du corps. | `src/store/notes.ts:203`, `:254` |
+| `05 · PTF` | `instrumentMultiplier('NQ 12-26')` vaut 1 : exposition sous-estimée d'un facteur 20. | `src/engine/portfolio/price.ts:11`, `src/engine/portfolio/exposure.ts:79` |
+
+### Licence
+
+À valider par un conseil. La fenêtre MIT (3.1.0 à 3.3.1) couvre l'agent, l'orchestrateur, le canal d'ordres et la réplication : l'avance doit venir de ce qui suit. Le cas du trader financé qui touche des paiements n'est pas tranché par le texte « usage personnel ». Pas de CLA : une contribution externe ne pourra pas être relicenciée commercialement. `CantoBridge.cs` est copié seul dans NinjaTrader sans la ligne `Required Notice`.
+
+### Plan
+
+- **A1 · Fiabilité de la boucle** — G1, G4, G5, G7 : chaque appel reçoit un résultat, identifiants uniques, réponse finale au dernier tour, budget de contexte, boucle extraite et testée.
+- **A2 · Données justes** — G2, G3, G6 : calendrier officiel fusionné, compte dans `propfirm_status`, consigne multi-CME, préréglages à jour, emplacement pour le modèle du Lab.
+- **A3 · Tout le desk en lecture** — G8 : pont, portefeuille (après le facteur 20), barres et niveaux, ventilations, Monte Carlo, Copieur ; une seule liste d'outils.
+- **A4 · La porte** — serveur MCP local à jeton, événements poussés, `PROTOCOLE-AGENT.md`, auteur `agent` dans l'ontologie.
+- **A5 · Exécution gardée** — après S1 à S4 : `propose_order` confirmé dans le main, Sim par défaut, limites de cadence et de position.
+
+Le correctif du kill switch (S2) suit en parallèle, sur sa propre branche.

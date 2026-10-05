@@ -6,6 +6,7 @@ import { NinjaBridge } from './bridge';
 import { confirmCopierArm } from './nt-bridge/copier-host';
 import { authorizeLiveAccount, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
+import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
 import { syncOfficialCalendar } from './calendar';
 import { allowedHosts, dataFetchAllowed } from './sources';
@@ -834,6 +835,7 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
     config?: { provider?: unknown; baseUrl?: unknown; model?: unknown; temperature?: unknown; apiKeyEncrypted?: unknown };
     messages?: unknown;
     tools?: unknown;
+    toolChoice?: unknown;
     allowedHosts?: unknown;
   };
   if (!isString(p.requestId, 64) || !p.config || typeof p.config !== 'object' || !isString(p.config.baseUrl, 2048) || !isString(p.config.model, 256)) return;
@@ -851,11 +853,12 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
   const temperature = typeof p.config.temperature === 'number' ? p.config.temperature : 0.3;
   const messages = Array.isArray(p.messages) ? p.messages : [];
   const tools = Array.isArray(p.tools) ? p.tools : [];
+  const toolChoice: ToolChoice = p.toolChoice === 'none' ? 'none' : 'auto';
   try {
     if (provider === 'anthropic') {
-      await streamAnthropicMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, ac.signal);
+      await streamAnthropicMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, toolChoice, ac.signal);
     } else {
-      await streamOpenAiMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, ac.signal);
+      await streamOpenAiMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, toolChoice, ac.signal);
     }
   } catch (err) {
     if (!ac.signal.aborted) sender.send('llm:error', { requestId, error: err instanceof Error ? err.message : String(err) });
@@ -875,50 +878,20 @@ async function streamOpenAiMain(
   key: string,
   messages: unknown[],
   tools: unknown[],
+  toolChoice: ToolChoice,
   signal: AbortSignal,
 ): Promise<void> {
-  const oaMessages = (messages as { role?: string; content?: string; toolCalls?: { id: string; name: string; args: string }[]; toolCallId?: string; name?: string }[]).map((m) => {
-    if (m.role === 'assistant') {
-      return {
-        role: 'assistant',
-        content: m.content || null,
-        tool_calls: m.toolCalls?.length ? m.toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.args } })) : undefined,
-      };
-    }
-    if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
-    return { role: m.role, content: m.content };
-  });
-  const body: Record<string, unknown> = { model, messages: oaMessages, stream: true, temperature };
-  if (tools.length) body.tools = (tools as { name: string; description: string; parameters: unknown }[]).map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+  const body = openAiRequestBody({ model, temperature, messages, tools, toolChoice });
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (key) headers.Authorization = `Bearer ${key}`;
   const res = await fetch(joinLlmUrl(baseUrl, 'chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
   if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
-  let text = '';
-  const calls = new Map<number, { id: string; name: string; args: string }>();
+  const parser = new OpenAiStreamParser(requestId);
   await sseData(res, signal, (data) => {
-    if (!data || data === '[DONE]') return;
-    let json: { choices?: { delta?: { content?: string; tool_calls?: { index: number; id?: string; function?: { name?: string; arguments?: string } }[] } }[] };
-    try {
-      json = JSON.parse(data);
-    } catch {
-      return;
-    }
-    const delta = json.choices?.[0]?.delta;
-    if (!delta) return;
-    if (delta.content) {
-      text += delta.content;
-      sender.send('llm:delta', { requestId, text: delta.content });
-    }
-    for (const tc of delta.tool_calls ?? []) {
-      const cur = calls.get(tc.index) ?? { id: tc.id ?? `call_${tc.index}`, name: '', args: '' };
-      if (tc.id) cur.id = tc.id;
-      if (tc.function?.name) cur.name += tc.function.name;
-      if (tc.function?.arguments) cur.args += tc.function.arguments;
-      calls.set(tc.index, cur);
-    }
+    const delta = parser.push(data);
+    if (delta) sender.send('llm:delta', { requestId, text: delta });
   });
-  sender.send('llm:done', { requestId, result: { text, toolCalls: [...calls.values()].filter((c) => c.name) } });
+  sender.send('llm:done', { requestId, result: parser.result() });
 }
 
 async function streamAnthropicMain(
@@ -930,39 +903,10 @@ async function streamAnthropicMain(
   key: string,
   messages: unknown[],
   tools: unknown[],
+  toolChoice: ToolChoice,
   signal: AbortSignal,
 ): Promise<void> {
-  const msgs = messages as { role?: string; content?: string; toolCalls?: { id: string; name: string; args: string }[]; toolCallId?: string }[];
-  const system = msgs.find((m) => m.role === 'system')?.content;
-  const converted: { role: 'user' | 'assistant'; content: unknown }[] = [];
-  for (const m of msgs) {
-    if (m.role === 'system') continue;
-    if (m.role === 'user') converted.push({ role: 'user', content: m.content });
-    else if (m.role === 'assistant') {
-      const blocks: unknown[] = [];
-      if (m.content) blocks.push({ type: 'text', text: m.content });
-      for (const tc of m.toolCalls ?? []) {
-        let input: unknown = {};
-        try {
-          input = tc.args ? JSON.parse(tc.args) : {};
-        } catch {
-          input = {};
-        }
-        blocks.push({ type: 'tool_use', id: tc.id, name: tc.name, input });
-      }
-      converted.push({ role: 'assistant', content: blocks.length ? blocks : [{ type: 'text', text: '…' }] });
-    } else {
-      const block = { type: 'tool_result', tool_use_id: m.toolCallId, content: m.content };
-      const last = converted[converted.length - 1];
-      if (last && last.role === 'user' && Array.isArray(last.content)) (last.content as unknown[]).push(block);
-      else converted.push({ role: 'user', content: [block] });
-    }
-  }
-  const body: Record<string, unknown> = { model, max_tokens: 4096, stream: true, temperature: Math.max(0, Math.min(1, temperature)), messages: converted };
-  if (system) body.system = system;
-  if (tools.length) {
-    body.tools = (tools as { name: string; description: string; parameters: unknown }[]).map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
-  }
+  const body = anthropicRequestBody({ model, temperature, messages, tools, toolChoice });
   const res = await fetch(joinLlmUrl(baseUrl, 'v1/messages'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -970,37 +914,12 @@ async function streamAnthropicMain(
     signal,
   });
   if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
-  let text = '';
-  const calls: { id: string; name: string; args: string }[] = [];
-  const blocks = new Map<number, { id: string; name: string; args: string }>();
+  const parser = new AnthropicStreamParser(requestId, ui('Erreur du fournisseur pendant le flux', 'Provider error during the stream', 'Error del proveedor durante el flujo'));
   await sseData(res, signal, (data) => {
-    if (!data) return;
-    let ev: { type: string; index?: number; content_block?: { type: string; id?: string; name?: string }; delta?: { type: string; text?: string; partial_json?: string } };
-    try {
-      ev = JSON.parse(data);
-    } catch {
-      return;
-    }
-    if (ev.type === 'error') throw new Error((ev as unknown as { error?: { message?: string } }).error?.message ?? ui('Erreur du fournisseur pendant le flux', 'Provider error during the stream', 'Error del proveedor durante el flujo'));
-    if (ev.type === 'content_block_start' && ev.content_block?.type === 'tool_use' && ev.index !== undefined) {
-      blocks.set(ev.index, { id: ev.content_block.id ?? `toolu_${ev.index}`, name: ev.content_block.name ?? '', args: '' });
-    } else if (ev.type === 'content_block_delta' && ev.delta) {
-      if (ev.delta.type === 'text_delta' && ev.delta.text) {
-        text += ev.delta.text;
-        sender.send('llm:delta', { requestId, text: ev.delta.text });
-      } else if (ev.delta.type === 'input_json_delta' && ev.index !== undefined) {
-        const b = blocks.get(ev.index);
-        if (b) b.args += ev.delta.partial_json ?? '';
-      }
-    } else if (ev.type === 'content_block_stop' && ev.index !== undefined) {
-      const b = blocks.get(ev.index);
-      if (b) {
-        calls.push({ ...b, args: b.args || '{}' });
-        blocks.delete(ev.index);
-      }
-    }
+    const delta = parser.push(data);
+    if (delta) sender.send('llm:delta', { requestId, text: delta });
   });
-  sender.send('llm:done', { requestId, result: { text, toolCalls: calls } });
+  sender.send('llm:done', { requestId, result: parser.result() });
 }
 
 /* ─── Pont NinjaTrader ─── */

@@ -75,6 +75,8 @@ export interface AgentMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   toolName?: string;
+  /** Message `tool` : identifiant de l'appel auquel il répond. Absent des messages enregistrés en 3.3.4 et avant : l'`id` en tenait lieu. */
+  toolCallId?: string;
   toolCalls?: { id: string; name: string; args: string }[];
   createdAt: number;
 }
@@ -523,6 +525,7 @@ const CHECKS: Record<string, Check> = {
     isStr(r.content, 200_000) &&
     isNum(r.createdAt) &&
     opt(r.toolName, (v) => isStr(v, 100)) &&
+    opt(r.toolCallId, (v) => isStr(v, 200)) &&
     opt(r.toolCalls, (v) => Array.isArray(v) && v.length <= 64 && v.every(isToolCall)),
   links: (r) =>
     isEntityRef(r.from) &&

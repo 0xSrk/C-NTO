@@ -29,6 +29,8 @@ interface StreamArgs {
   config: AgentConfig;
   messages: ChatMessage[];
   tools: ToolSchema[];
+  /** `none` : réponse sans appel d'outil (dernier tour de la boucle). */
+  toolChoice?: 'auto' | 'none';
   onDelta: (text: string) => void;
   signal?: AbortSignal;
 }
@@ -59,7 +61,7 @@ export function streamChat(args: StreamArgs): Promise<StreamResult> {
   return Promise.reject(new Error('Passerelle LLM indisponible : le shell Electron est requis.'));
 }
 
-async function streamViaMain({ config, messages, tools, onDelta, signal }: StreamArgs): Promise<StreamResult> {
+async function streamViaMain({ config, messages, tools, toolChoice, onDelta, signal }: StreamArgs): Promise<StreamResult> {
   const api = desk?.llm;
   if (!api) throw new Error('Passerelle LLM indisponible : le shell Electron est requis.');
   const requestId = uid('llm');
@@ -105,6 +107,7 @@ async function streamViaMain({ config, messages, tools, onDelta, signal }: Strea
         },
         messages,
         tools,
+        ...(toolChoice === 'none' ? { toolChoice } : {}),
       })
       .catch((e) => {
         stop();

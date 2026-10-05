@@ -1,0 +1,134 @@
+import { describe, expect, it } from 'vitest';
+import type { ChatMessage, StreamResult, ToolCall } from '@/engine/agent/llm';
+import { runAgentTurn, TOOL_PREAMBLE, type AgentTurnDeps, type StreamRequest, type TurnRecord } from '@/engine/agent/loop';
+
+interface Harness {
+  deps: AgentTurnDeps;
+  records: TurnRecord[];
+  requests: StreamRequest[];
+  ran: string[];
+}
+
+/** Conversation en mémoire : `replies` est consommé dans l'ordre, un élément par aller-retour. */
+function harness(replies: StreamResult[], over: Partial<AgentTurnDeps> = {}): Harness {
+  const history: ChatMessage[] = [{ role: 'user', content: 'Diagnostic' }];
+  const records: TurnRecord[] = [];
+  const requests: StreamRequest[] = [];
+  const ran: string[] = [];
+  const queue = [...replies];
+  const deps: AgentTurnDeps = {
+    system: () => 'consigne',
+    history: () => history,
+    tools: [{ name: 'desk_overview', description: '', parameters: {} }],
+    stream: async (req) => {
+      requests.push({ ...req, messages: req.messages.map((m) => ({ ...m })) });
+      const next = queue.shift();
+      if (!next) throw new Error('réponse non prévue');
+      req.onDelta(next.text);
+      return next;
+    },
+    kindOf: (name) => (name.startsWith('create') ? 'write' : 'read'),
+    runTool: async (call) => {
+      ran.push(call.name);
+      return { ok: true, name: call.name };
+    },
+    append: async (record) => {
+      records.push(record);
+      if (record.role === 'assistant') history.push({ role: 'assistant', content: record.content, toolCalls: record.toolCalls });
+      else history.push({ role: 'tool', content: record.content, toolCallId: record.toolCallId, name: record.toolName });
+    },
+    isCurrent: () => true,
+    ...over,
+  };
+  return { deps, records, requests, ran };
+}
+
+const call = (id: string, name: string): ToolCall => ({ id, name, args: '{}' });
+
+describe('runAgentTurn', () => {
+  it('réponse sans outil : un aller-retour, consigne système en tête', async () => {
+    const h = harness([{ text: 'Bonjour', toolCalls: [] }]);
+    const out = await runAgentTurn(h.deps);
+    expect(out).toEqual({ rounds: 1, exhausted: false });
+    expect(h.records).toEqual([{ role: 'assistant', content: 'Bonjour', toolCalls: undefined }]);
+    expect(h.requests[0]?.messages[0]).toEqual({ role: 'system', content: 'consigne' });
+    expect(h.requests[0]?.messages[1]).toEqual({ role: 'user', content: 'Diagnostic' });
+  });
+
+  it('un outil puis la réponse : le résultat repart au modèle avec le préambule', async () => {
+    const h = harness([
+      { text: '', toolCalls: [call('c1', 'desk_overview')] },
+      { text: 'Synthèse', toolCalls: [] },
+    ]);
+    const out = await runAgentTurn(h.deps);
+    expect(out).toEqual({ rounds: 2, exhausted: false });
+    expect(h.ran).toEqual(['desk_overview']);
+    expect(h.records.map((r) => r.role)).toEqual(['assistant', 'tool', 'assistant']);
+    const tool = h.records[1];
+    expect(tool?.role === 'tool' && tool.toolCallId).toBe('c1');
+    expect(tool?.content.startsWith(TOOL_PREAMBLE)).toBe(true);
+    const second = h.requests[1]?.messages ?? [];
+    expect(second.at(-1)).toMatchObject({ role: 'tool', toolCallId: 'c1', name: 'desk_overview' });
+  });
+
+  it('changement de conversation pendant le flux : rien n’est ajouté', async () => {
+    const h = harness([{ text: 'tardif', toolCalls: [call('c1', 'desk_overview')] }], { isCurrent: () => false });
+    const out = await runAgentTurn(h.deps);
+    expect(out.exhausted).toBe(false);
+    expect(h.records).toEqual([]);
+    expect(h.ran).toEqual([]);
+  });
+
+  it('appels écartés par les limites : chacun reçoit un résultat refusé, dans l’ordre', async () => {
+    const writes = [call('w1', 'create_note'), call('w2', 'create_note'), call('w3', 'create_note')];
+    const reads = Array.from({ length: 7 }, (_, i) => call(`r${i}`, 'desk_overview'));
+    const h = harness([
+      { text: '', toolCalls: [...writes, ...reads] },
+      { text: 'fin', toolCalls: [] },
+    ]);
+    await runAgentTurn(h.deps);
+    // Les 8 premiers appels sont retenus, dont 2 écritures au plus : w1, w2, r0…r4 ; w3 dépasse les écritures, r5 et r6 les appels.
+    expect(h.ran).toEqual(['create_note', 'create_note', ...Array(5).fill('desk_overview')]);
+    const tools = h.records.filter((r) => r.role === 'tool');
+    expect(tools.map((r) => r.toolCallId)).toEqual([...writes, ...reads].map((c) => c.id));
+    const reason = (id: string) => JSON.parse(tools.find((r) => r.toolCallId === id)!.content.slice(TOOL_PREAMBLE.length)).reason;
+    expect(reason('w3')).toBe('write_limit');
+    expect(reason('r6')).toBe('call_limit');
+    // L'historique renvoyé au tour suivant n'a aucun appel sans résultat.
+    const next = h.requests[1]?.messages ?? [];
+    const asked = next.flatMap((m) => (m.role === 'assistant' ? (m.toolCalls ?? []).map((c) => c.id) : []));
+    const answered = new Set(next.flatMap((m) => (m.role === 'tool' ? [m.toolCallId] : [])));
+    expect(asked.filter((id) => !answered.has(id))).toEqual([]);
+  });
+
+  it('dernier aller-retour : tool_choice none, les appels résiduels sont refusés et le tour le signale', async () => {
+    const h = harness(
+      [
+        { text: '', toolCalls: [call('a', 'desk_overview')] },
+        { text: 'je voudrais encore lire', toolCalls: [call('b', 'desk_overview')] },
+      ],
+      { maxRounds: 2 },
+    );
+    const out = await runAgentTurn(h.deps);
+    expect(out).toEqual({ rounds: 2, exhausted: true });
+    expect(h.requests.map((r) => r.toolChoice)).toEqual(['auto', 'none']);
+    // L'appel du dernier tour n'est pas exécuté, mais il a son résultat.
+    expect(h.ran).toEqual(['desk_overview']);
+    const lastTool = h.records.at(-1);
+    expect(lastTool?.role === 'tool' && lastTool.toolCallId).toBe('b');
+    expect(JSON.parse(lastTool!.content.slice(TOOL_PREAMBLE.length))).toEqual({ ok: false, reason: 'round_limit' });
+  });
+
+  it('dernier aller-retour respecté par le fournisseur : réponse finale, pas d’avis', async () => {
+    const h = harness(
+      [
+        { text: '', toolCalls: [call('a', 'desk_overview')] },
+        { text: 'Synthèse finale', toolCalls: [] },
+      ],
+      { maxRounds: 2 },
+    );
+    const out = await runAgentTurn(h.deps);
+    expect(out).toEqual({ rounds: 2, exhausted: false });
+    expect(h.records.at(-1)).toEqual({ role: 'assistant', content: 'Synthèse finale', toolCalls: undefined });
+  });
+});
