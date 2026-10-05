@@ -39,9 +39,8 @@ describe('rail 3.2.2', () => {
     const right = between(status, 'statusRight', '</footer>');
     expect(right).toContain('Barcode');
     expect(right).toContain('SIΞRRΛSKΛ');
-    expect(right).toContain('<SignatureGlyphs />');
+    expect(right).not.toContain('SignatureGlyphs');
     expect(right.indexOf('Barcode')).toBeLessThan(right.indexOf('SIΞRRΛSKΛ'));
-    expect(right.indexOf('SIΞRRΛSKΛ')).toBeLessThan(right.indexOf('<SignatureGlyphs />'));
     expect(right).not.toContain('CME GLOBEX');
     expect(between(shell, '<div className={s.railFoot}>', '</aside>')).not.toContain('PlaqueSignature');
     expect(between(shell, '<div className={s.railFoot}>', '</aside>')).not.toContain('ZoomControls');

@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Barcode, Button, Led, cx } from '@/design/primitives';
-import { SignatureGlyphs } from '@/design/SignatureGlyphs';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
@@ -306,7 +305,6 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           <span className={s.sigEnd}>
             <Barcode />
             <span>[ SIΞRRΛSKΛ ]</span>
-            <SignatureGlyphs />
           </span>
         </div>
       </footer>
@@ -364,11 +362,12 @@ export function ModuleHeader({ tab, actions, crumb = '', meta }: { tab: TabId; a
   const copy = tabCopy(def);
   return (
     <div className={s.moduleHead}>
-      <div className={s.moduleTitle}>
-        <h1>{copy.label}</h1>
+      <h1 className={s.modulePlate}>
+        <span className={s.moduleCode}>{def.code}</span>
+        <span className={s.moduleName}>{copy.label}</span>
         <span className={s.moduleTagline}>{copy.tagline}</span>
         {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
-      </div>
+      </h1>
       {actions && <div className={s.moduleActions}>{actions}</div>}
     </div>
   );
