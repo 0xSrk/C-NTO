@@ -376,6 +376,28 @@
           "En la barra de carga, el nombre del Lab va en caracteres."
         ]
       }
+    },
+    {
+      "version": "3.3.4",
+      "date": "2026-10-05",
+      "kind": "correctif",
+      "highlights": {
+        "fr": [
+          "Le desk propose cette mise à jour : le numéro passe à 3.3.4.",
+          "Desk Unlocked s’écrit dans la police du desk.",
+          "Dans la barre de chargement, SIΞRRΛSKΛ est en caractères."
+        ],
+        "en": [
+          "The desk offers this update: the number moves to 3.3.4.",
+          "Desk Unlocked is set in the desk type.",
+          "In the loading bar, SIΞRRΛSKΛ is set in characters."
+        ],
+        "es": [
+          "El desk propone esta actualización: el número pasa a 3.3.4.",
+          "Desk Unlocked se escribe en la letra del desk.",
+          "En la barra de carga, SIΞRRΛSKΛ va en caracteres."
+        ]
+      }
     }
   ]
 }

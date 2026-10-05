@@ -43,9 +43,9 @@ describe('journal des versions', () => {
     expect(versions).toEqual(sorted);
   });
 
-  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.3.3', () => {
-    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3']);
-    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3']);
+  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.3.4', () => {
+    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4']);
+    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4']);
     expect(entryFor('3.1.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.date).toBe('2026-09-29');
@@ -67,6 +67,9 @@ describe('journal des versions', () => {
     expect(entryFor('3.3.3')?.kind).toBe('correctif');
     expect(entryFor('3.3.3')?.date).toBe('2026-10-05');
     expect(entryFor('3.3.3')?.highlights.fr).toHaveLength(4);
+    expect(entryFor('3.3.4')?.kind).toBe('correctif');
+    expect(entryFor('3.3.4')?.date).toBe('2026-10-05');
+    expect(entryFor('3.3.4')?.highlights.fr).toHaveLength(3);
     expect(entryFor('3.0.1')).toBeNull();
   });
 
