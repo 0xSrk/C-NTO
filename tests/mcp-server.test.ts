@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -124,6 +125,27 @@ describe('passerelle MCP · protocole', () => {
   });
 });
 
+/** Client lent : le corps part par morceaux de 64 Ko ; dit si la réponse est arrivée après le dernier morceau. */
+function slowPost(port: number, token: string, size: number): Promise<{ status?: number; error?: string; answeredAfterLastWrite: boolean }> {
+  return new Promise((resolve) => {
+    let sent = 0;
+    const req = request({ host: '127.0.0.1', port, path: '/mcp', method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'content-length': size } }, (res) => {
+      const answeredAfterLastWrite = sent >= size;
+      res.resume();
+      res.on('end', () => resolve({ status: res.statusCode, answeredAfterLastWrite }));
+    });
+    req.on('error', (e) => resolve({ error: (e as NodeJS.ErrnoException).code ?? e.message, answeredAfterLastWrite: sent >= size }));
+    const chunk = Buffer.alloc(64 * 1024, 120);
+    const tick = () => {
+      if (sent >= size) return void req.end();
+      sent += chunk.length;
+      req.write(chunk);
+      setTimeout(tick, 2);
+    };
+    tick();
+  });
+}
+
 describe('passerelle MCP · serveur', () => {
   const gateways: McpGateway[] = [];
   afterEach(async () => {
@@ -159,8 +181,8 @@ describe('passerelle MCP · serveur', () => {
     const out = await call(rpc('tools/call', { name: 'desk_overview' }, 2));
     expect(((await out.json()) as { result: { structuredContent: unknown } }).result.structuredContent).toEqual({ netPnl: 1250 });
     expect(gw.status().calls).toBe(2);
-    const big = await fetch(conn!.url, { method: 'POST', headers: { authorization: `Bearer ${conn!.token}`, 'content-type': 'application/json' }, body: 'x'.repeat(1024 * 1024 + 10) });
-    expect(big.status).toBe(413);
+    // Corps trop grand : la réponse 413 n'arrive qu'après le dernier octet envoyé, sans coupure.
+    expect(await slowPost(st.port, conn!.token, 2 * 1024 * 1024)).toEqual({ status: 413, answeredAfterLastWrite: true });
     await gw.stop();
     expect(gw.status().running).toBe(false);
   });

@@ -20,6 +20,8 @@ export const MCP_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', 
 export const MCP_DEFAULT_PORT = 47118;
 export const MCP_PATH = '/mcp';
 const MAX_BODY_BYTES = 1024 * 1024;
+/** Corps vidé (sans le garder) avant un refus ; au-delà, la connexion est coupée. */
+const DRAIN_MAX_BYTES = 16 * 1024 * 1024;
 const RATE_WINDOW_MS = 1000;
 const RATE_MAX = 40;
 const TOKEN_FILE = 'mcp-token.json';
@@ -362,9 +364,31 @@ function readBody(req: IncomingMessage): Promise<string | null> {
   });
 }
 
-/** Réponse avant (ou sans) lecture complète du corps : le reste est vidé, la connexion fermée ensuite. */
+/**
+ * Refus avant la lecture complète du corps. Répondre puis fermer pendant que le client écrit
+ * encore lui renvoie une coupure (ECONNRESET, vue sous macOS) au lieu du statut : le reste du
+ * corps est donc vidé sans être gardé, puis la réponse part. Au-delà de `DRAIN_MAX_BYTES`, la
+ * connexion est fermée après la réponse.
+ */
 function refuse(req: IncomingMessage, res: ServerResponse, reply: McpHttpReply): void {
-  send(res, { ...reply, headers: { ...reply.headers, Connection: 'close' } });
+  if (req.readableEnded) {
+    send(res, reply);
+    return;
+  }
+  let drained = 0;
+  let done = false;
+  const finish = (close: boolean) => {
+    if (done) return;
+    done = true;
+    send(res, close ? { ...reply, headers: { ...reply.headers, Connection: 'close' } } : reply);
+    if (close) req.destroy();
+  };
+  req.on('data', (chunk: Buffer) => {
+    drained += chunk.length;
+    if (drained > DRAIN_MAX_BYTES) finish(true);
+  });
+  req.on('end', () => finish(false));
+  req.on('error', () => finish(true));
   req.resume();
 }
 
