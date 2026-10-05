@@ -110,6 +110,14 @@ describe('passerelle MCP · protocole', () => {
     expect(silent.result).toEqual({ content: [{ type: 'text', text: 'Desk indisponible' }], isError: true });
   });
 
+  it('desk fermé (catalogue vide) : isError lisible, pas « outil inconnu »', async () => {
+    const closed: McpRelay = { tools: async () => [], call: async () => ({ result: null }) };
+    const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'desk_overview' })), ctx({ relay: closed })));
+    expect(out.error).toBeUndefined();
+    expect(out.result).toMatchObject({ isError: true });
+    expect(JSON.stringify(out.result)).toMatch(/indisponible/);
+  });
+
   it('méthode inconnue : -32601', async () => {
     const out = await result(await handleMcpHttp(post(rpc('resources/list')), ctx()));
     expect(out.error?.code).toBe(-32601);

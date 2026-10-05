@@ -136,7 +136,10 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
     case 'tools/call': {
       const name = typeof params.name === 'string' ? params.name : '';
       const args = params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments) ? (params.arguments as Record<string, unknown>) : {};
-      const tool = (await ctx.relay.tools()).find((t) => t.name === name);
+      const catalog = await ctx.relay.tools();
+      // Catalogue vide : le desk est fermé ou muet, pas l'outil inconnu.
+      if (!catalog.length) return { result: toolError('Desk indisponible : la fenêtre de CΛNTO est fermée ou ne répond pas.') };
+      const tool = catalog.find((t) => t.name === name);
       if (!tool) return { error: { code: -32602, message: `Outil inconnu : ${name || '(sans nom)'}` } };
       if (tool.kind === 'write' && !ctx.allowWrites) {
         return { result: toolError('Écriture désactivée dans CΛNTO : le trader doit l’autoriser (Agent IA › Agents externes).') };
