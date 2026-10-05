@@ -68,18 +68,23 @@ Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par l
 2. Dans le desk, Métrique › Pont NinjaTrader : **Régénérer le jeton** si besoin, puis **Écrire la configuration pour NinjaTrader**. Le desk écrit `Documents\NinjaTrader 8\export\CANTO\bridge.json` (ou le dossier surveillé) :
 
 ```json
-{ "port": 48231, "token": "…" }
+{ "port": 48231, "token": "…", "extraAccounts": ["APEX-50K"], "maxContractsPerOrder": 20 }
 ```
 
-Le fichier est en mode `0600`. Sur Windows, Node ignore ce mode : après l'écriture, le process principal lance `icacls "<fichier>" /inheritance:r /grant:r "%USERNAME%":F` (`execFile`, sans shell). Succès ou échec est journalisé (nom du fichier, pas le jeton). Si l'ACL échoue, le panneau Pont affiche « permissions du fichier de configuration non restreintes ». L'ADMIN vérifie sur son poste que le fichier n'est lisible que par son compte. Le jeton n'est plus affiché après génération. L'AddOn le relit, se connecte à `ws://127.0.0.1:<port>/?token=<jeton>`, et se reconnecte avec un repli de 1 s à 30 s.
+`extraAccounts` et `maxContractsPerOrder` sont la garde propre de l'AddOn (voir « Garde-fous »). Quand un compte réel est autorisé ou que le plafond change, le desk réécrit un `bridge.json` déjà présent ; il n'en crée jamais un sans le geste du trader. À l'ouverture, il complète un fichier écrit par une version précédente.
+
+Le fichier est en mode `0600`. Sur Windows, Node ignore ce mode : après l'écriture, le process principal lance `icacls "<fichier>" /inheritance:r /grant:r "%USERNAME%":F` (`execFile`, sans shell). Succès ou échec est journalisé (nom du fichier, pas le jeton). Si l'ACL échoue, le panneau Pont affiche « permissions du fichier de configuration non restreintes ». L'ADMIN vérifie sur son poste que le fichier n'est lisible que par son compte. Le jeton n'est plus affiché après génération. L'AddOn le relit, se connecte à `ws://127.0.0.1:<port>/?v=2` **sans le jeton**, prouve qu'il le connaît par défi-réponse et exige la même preuve du desk (voir « 1. Serveur »). Il se reconnecte avec un repli de 1 s à 30 s.
 
 La compilation de l'AddOn exige Windows et NinjaTrader 8. L'AddOn C# n'a pas été compilé dans NinjaTrader 8 par ce dépôt : l'ADMIN le compile sur Windows (NinjaScript Editor, F5).
 
 ## 1. Serveur
 
 - Hôte **uniquement** `127.0.0.1`. Port par défaut **48231**, configurable dans `userData/nt-bridge.json` (hors coffre).
-- Jeton de session : 18 octets `base64url`, comparé avec `tokensMatch`. Sans jeton valide : fermeture **4401**.
-- Une seule connexion AddOn. Une seconde connexion valide ferme la première en **4409**.
+- Jeton de session : 18 octets `base64url`. Il ne circule pas sur le socket (protocole 2).
+- **Défi-réponse (AddOn 2.2.0).** À la connexion (`/?v=2`), le desk envoie `bridge.challenge { nonce, protocol: 2 }` (32 octets aléatoires, hexadécimal). L'AddOn tire son propre défi et répond `bridge.auth { nonce, proof }`, avec `proof = HMAC-SHA256(jeton, "canto-addon|<défi du desk>|<défi de l'AddOn>")` en hexadécimal minuscule. Preuve juste : le desk répond `bridge.welcome { proof }`, avec `HMAC-SHA256(jeton, "canto-desk|<défi de l'AddOn>|<défi du desk>")`. L'AddOn vérifie cette preuve avant tout le reste : sans elle, il n'envoie ni `bridge.hello`, ni exécution, ni compte, ne répond à aucune requête et coupe la connexion (10 s au plus). Un programme qui prendrait le port du desk n'obtient donc ni le jeton, ni les comptes, ni l'exécution d'un ordre.
+- Côté desk : avant la preuve, seule `bridge.auth` est admise ; toute autre trame, une preuve fausse ou 5 s sans preuve ferment en **4401**. Au plus 4 connexions en attente de preuve. Une connexion en attente ne déloge jamais l'AddOn déjà connecté.
+- Ancien AddOn (≤ 2.1.1) : jeton dans l'URL (`/?token=<jeton>`), comparé avec `tokensMatch`. Toujours accepté, signalé `auth: "token"` dans le statut et dans le panneau Pont (« AddOn antérieur à 2.2.0 »). Jeton faux : **4401**.
+- Une seule connexion AddOn. Une seconde connexion authentifiée ferme la première en **4409**.
 - Premier message obligatoirement `bridge.hello` (`kind: "ninjatrader"`, `protocol: 1`), sinon fermeture **4400**.
 - Trame plafonnée à **256 Ko**, sinon fermeture **1009**.
 - Battement toutes les **2 s**. À 4 s le lien passe `stale` (flux marché périmés). À **6 s** le lien passe `lost`, notification `bridge.lost`, abonnements `stale`, canal d'ordres fermé jusqu'au retour d'un battement. Un ordre en vol n'est pas réémis.
@@ -135,8 +140,10 @@ Réglables dans le panneau. Persistés dans `userData/nt-bridge.json`, pas dans 
 | Comptes autorisés | nom commençant par `Sim`, plus une liste explicite vide | `-32010` |
 | Coupe-circuit | lien autre que `live` (dont `lost` après 6 s) | `-32011`, ordre non réémis |
 | Kill switch | `Ctrl+Shift+K` / `Cmd+Shift+K` (`CommandOrControl+Shift+K`) : `order.flatten` sur chaque compte autorisé connu, puis canal fermé à la soumission jusqu'au redémarrage du desk. Annuler et aplatir restent permis. Le message ne dit « aplati » que pour les comptes dont l'AddOn a confirmé l'aplatissement (réponse attendue 3 s) ; pont hors ligne, il le dit | `-32011` sur `order.submit` ensuite |
-| Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle) | `-32012` si `quantity` est supérieure |
+| Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle). Le baisser est immédiat ; le relever passe par un dialogue du process principal (Annuler par défaut) | `-32012` si `quantity` est supérieure |
 | Tag | obligatoire sur `order.submit` | `-32013` |
+
+**Garde de l'AddOn.** L'AddOn ne se fie pas au desk : avant chaque `order.submit`, il relit `bridge.json` et refuse lui-même un tag vide (`-32013`), un compte qui n'est ni `Sim*` ni dans `extraAccounts` (`-32010`), une quantité non entière, inférieure à 1 ou supérieure à `maxContractsPerOrder` (`-32012`). Champs absents (fichier d'un desk antérieur) : comptes `Sim*` seulement, 20 contrats. Le refus est écrit dans le journal de NinjaTrader. Un serveur qui se ferait passer pour le desk ne peut donc ni ouvrir un compte réel ni dépasser le plafond : il lui faudrait aussi écrire `bridge.json`, lisible et modifiable par le seul compte Windows du trader.
 
 Un compte réel s'ajoute depuis le panneau. Le dialogue CΛNTO du renderer explique le geste ; il ne suffit pas. Le process principal affiche ensuite `dialog.showMessageBox` (type `warning`, boutons « Autoriser les ordres réels sur &lt;compte&gt; » / « Annuler », défaut Annuler, `noLink`, FR/EN/ES). Seule la réponse Autoriser appelle `allowAccount`. L'autorisation est journalisée dans `main.log` (compte, horodatage, sans jeton). Chaque ordre émis est écrit dans `main.log` avec tag, compte, instrument, quantité, latence et résultat.
 

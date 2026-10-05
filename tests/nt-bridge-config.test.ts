@@ -20,7 +20,7 @@ describe('bridge.json et journal du pont', () => {
   it('écrit bridge.json en 0600 et le jeton n’entre pas dans le journal', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'canto-bridge-'));
     dirs.push(dir);
-    const written = await writeAddonConfig(dir, 48231, TOKEN);
+    const written = await writeAddonConfig(dir, { port: 48231, token: TOKEN, extraAccounts: [], maxContractsPerOrder: 20 });
     // Node ignore le mode POSIX sur Windows : stat renvoie 0666. L'ACL est prouvée à part, avec un execFile factice.
     if (process.platform !== 'win32') {
       expect((await stat(written.path)).mode & 0o777).toBe(0o600);
@@ -48,7 +48,7 @@ describe('bridge.json et journal du pont', () => {
     dirs.push(dir);
     const calls: string[][] = [];
     const logs: string[] = [];
-    const written = await writeAddonConfig(dir, 48231, TOKEN, {
+    const written = await writeAddonConfig(dir, { port: 48231, token: TOKEN, extraAccounts: [], maxContractsPerOrder: 20 }, {
       platform: 'win32',
       username: 'Ada',
       log: (_level, message) => logs.push(message),
@@ -66,7 +66,7 @@ describe('bridge.json et journal du pont', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'canto-bridge-acl-fail-'));
     dirs.push(dir);
     const calls: string[][] = [];
-    const written = await writeAddonConfig(dir, 48231, TOKEN, {
+    const written = await writeAddonConfig(dir, { port: 48231, token: TOKEN, extraAccounts: [], maxContractsPerOrder: 20 }, {
       platform: 'win32',
       username: 'Ada',
       execFile: (cmd, args, cb) => {

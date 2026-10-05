@@ -4,6 +4,7 @@
  */
 import { execFile as execFileCb } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { BrowserWindow } from 'electron';
@@ -88,14 +89,25 @@ function defaultExec(cmd: string, args: readonly string[]): Promise<void> {
   });
 }
 
+/** Ce que l'AddOn lit dans `bridge.json` : où se connecter, et sa propre garde d'ordres. */
+export interface AddonConfig {
+  port: number;
+  token: string;
+  /** Comptes réels autorisés par le dialogue du process principal. Les `Sim*` le sont toujours. */
+  extraAccounts: readonly string[];
+  maxContractsPerOrder: number;
+}
+
 /**
- * Écrit `bridge.json` (port + jeton) pour l'AddOn. Le jeton n'est pas renvoyé au renderer.
+ * Écrit `bridge.json` pour l'AddOn : port, jeton et politique d'ordres (comptes, plafond), que
+ * l'AddOn applique lui-même avant tout `order.submit`. Le jeton n'est pas renvoyé au renderer.
  * Sur Windows, Node ignore le mode POSIX : on retire l'héritage et on n'accorde que le compte courant.
  */
-export async function writeAddonConfig(folder: string, port: number, token: string, io: AddonWriteIO = {}): Promise<{ path: string; aclRestricted: boolean }> {
+export async function writeAddonConfig(folder: string, config: AddonConfig, io: AddonWriteIO = {}): Promise<{ path: string; aclRestricted: boolean }> {
   await mkdir(folder, { recursive: true });
   const file = path.join(folder, 'bridge.json');
-  await writeFile(file, `${JSON.stringify({ port, token }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  const body = { port: config.port, token: config.token, extraAccounts: [...config.extraAccounts], maxContractsPerOrder: config.maxContractsPerOrder };
+  await writeFile(file, `${JSON.stringify(body, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   await chmod(file, 0o600).catch(() => {});
   const platform = io.platform ?? process.platform;
   if (platform !== 'win32') return { path: file, aclRestricted: true };
@@ -162,6 +174,43 @@ export async function authorizeLiveAccount<T>(args: {
   return args.allow(name);
 }
 
+/** Dialogue du relèvement du plafond. Annuler est le bouton par défaut (index 1). */
+export function maxContractsDialog(from: number, to: number, locale: AppLocale): RealAccountDialogOptions {
+  const allow = uiText(locale, `Relever à ${to} contrats par ordre`, `Raise to ${to} contracts per order`, `Subir a ${to} contratos por orden`);
+  const cancel = uiText(locale, 'Annuler', 'Cancel', 'Cancelar');
+  const message = uiText(
+    locale,
+    `Le plafond par ordre passera de ${from} à ${to} contrats, sur tous les comptes autorisés.`,
+    `The per-order ceiling will go from ${from} to ${to} contracts, on every allowed account.`,
+    `El tope por orden pasará de ${from} a ${to} contratos, en todas las cuentas autorizadas.`,
+  );
+  return { type: 'warning', title: 'CΛNTO', message, buttons: [allow, cancel], defaultId: 1, cancelId: 1, noLink: true };
+}
+
+/**
+ * Baisser le plafond réduit le risque : appliqué sans dialogue. Le relever n'est appliqué qu'après
+ * confirmation dans le process principal, fenêtre attachée. Hors 1–1000 ou non entier : rien.
+ */
+export async function changeMaxContracts<T>(args: {
+  win: { isDestroyed(): boolean } | null;
+  current: number;
+  requested: number;
+  locale: AppLocale;
+  showMessageBox: (win: { isDestroyed(): boolean }, options: RealAccountDialogOptions) => Promise<{ response: number }>;
+  apply: (n: number) => Promise<T>;
+  log: (line: string) => void;
+}): Promise<T | null> {
+  const n = args.requested;
+  if (!Number.isInteger(n) || n < 1 || n > 1000) return null;
+  if (n > args.current) {
+    if (!args.win || args.win.isDestroyed()) return null;
+    const choice = await args.showMessageBox(args.win, maxContractsDialog(args.current, n, args.locale));
+    if (choice.response !== 0) return null;
+  }
+  args.log(`nt-bridge plafond ${args.current} → ${n} contrats`);
+  return args.apply(n);
+}
+
 export class NtBridgeHost {
   private policy: NtPolicy | null = null;
   private server: NtBridgeServer | null = null;
@@ -213,6 +262,8 @@ export class NtBridgeHost {
   attach(win: BrowserWindow, fileBridge: NinjaBridge): void {
     this.win = win;
     this.fileBridge = fileBridge;
+    // Un bridge.json écrit par une version précédente n'a pas la politique d'ordres : on la lui ajoute.
+    void this.syncAddonConfig();
     this.pushStatus();
   }
 
@@ -250,7 +301,7 @@ export class NtBridgeHost {
     if (!this.policy) return { ok: false, error: 'pont non démarré' };
     const folder = this.fileBridge?.status().folder || this.exportFolder();
     try {
-      const written = await writeAddonConfig(folder, this.server?.status().port || this.policy.port, this.policy.token);
+      const written = await writeAddonConfig(folder, this.addonConfig(this.policy));
       mainLog('info', `nt-bridge configuration écrite (${path.basename(written.path)})`);
       return { ok: true, path: written.path, aclRestricted: written.aclRestricted };
     } catch (err) {
@@ -266,6 +317,11 @@ export class NtBridgeHost {
     return this.publicStatus();
   }
 
+  maxContracts(): number {
+    return this.policy?.maxContractsPerOrder ?? DEFAULT_MAX_CONTRACTS;
+  }
+
+  /** Applique sans dialogue : passer par `changeMaxContracts`, qui confirme un relèvement. */
   async setMaxContracts(n: number): Promise<NtPublicStatus | null> {
     if (!this.policy || !Number.isInteger(n) || n < 1 || n > 1000) return this.publicStatus();
     this.policy.maxContractsPerOrder = n;
@@ -328,7 +384,27 @@ export class NtBridgeHost {
     if (!this.policy) return;
     this.server?.setPolicy({ extraAccounts: this.policy.extraAccounts, maxContractsPerOrder: this.policy.maxContractsPerOrder });
     await savePolicy(this.userDataDir, this.policy);
+    await this.syncAddonConfig();
     this.pushStatus();
+  }
+
+  private addonConfig(policy: NtPolicy): AddonConfig {
+    return { port: this.server?.status().port || policy.port, token: policy.token, extraAccounts: policy.extraAccounts, maxContractsPerOrder: policy.maxContractsPerOrder };
+  }
+
+  /**
+   * L'AddOn applique la politique de `bridge.json` : un compte autorisé ou un plafond changé dans le desk
+   * doit l'y rejoindre. Réécrit seulement un fichier déjà écrit par le trader ; n'en crée jamais.
+   */
+  async syncAddonConfig(): Promise<void> {
+    if (!this.policy) return;
+    const folder = this.fileBridge?.status().folder || this.exportFolder();
+    if (!existsSync(path.join(folder, 'bridge.json'))) return;
+    try {
+      await writeAddonConfig(folder, this.addonConfig(this.policy));
+    } catch (err) {
+      mainLog('warn', `nt-bridge bridge.json non resynchronisé : ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private onExecution(payload: ExecutionPayload): void {

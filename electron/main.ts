@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
 import { confirmCopierArm } from './nt-bridge/copier-host';
-import { authorizeLiveAccount, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
+import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
@@ -657,7 +657,21 @@ ipcMain.handle('ntbridge:allow-account', async (e, name: unknown) => {
     log: (line) => mainLog('info', line),
   });
 });
-ipcMain.handle('ntbridge:max-contracts', (e, n: unknown) => (trusted(e) && ntBridge && typeof n === 'number' ? ntBridge.setMaxContracts(n) : null));
+ipcMain.handle('ntbridge:max-contracts', async (e, n: unknown) => {
+  if (!trusted(e) || !ntBridge || typeof n !== 'number') return null;
+  const host = ntBridge;
+  const attached = win && !win.isDestroyed() ? win : null;
+  const applied = await changeMaxContracts({
+    win: attached,
+    current: host.maxContracts(),
+    requested: n,
+    locale: readLocaleFile(app.getPath('userData')),
+    showMessageBox: (target, options) => dialog.showMessageBox(target as BrowserWindow, options),
+    apply: (next) => host.setMaxContracts(next),
+    log: (line) => mainLog('info', line),
+  });
+  return applied ?? host.publicStatus();
+});
 ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
 ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitchReport() : { accounts: [], sent: false, results: [] }));
 

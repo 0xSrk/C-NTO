@@ -66,6 +66,8 @@ export interface NtBridgeStatus {
   extraAccounts: string[];
   maxContractsPerOrder: number;
   killSwitchShortcut: string;
+  /** `token` : AddOn antérieur à 2.2.0, qui envoie son jeton sans vérifier le desk. */
+  auth?: 'mutual' | 'token' | null;
 }
 
 export interface CopierHostStatus {

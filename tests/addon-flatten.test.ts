@@ -23,6 +23,6 @@ describe('AddOn · order.flatten', () => {
   });
 
   it('annonce sa version : le panneau montre si l’AddOn corrigé est compilé', () => {
-    expect(readFileSync('ninjatrader/CantoBridge.cs', 'utf8')).toContain('["addonVersion"] = "2.1.1"');
+    expect(readFileSync('ninjatrader/CantoBridge.cs', 'utf8')).toContain('["addonVersion"] = "2.2.0"');
   });
 });
