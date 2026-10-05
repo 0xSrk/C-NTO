@@ -79,6 +79,28 @@ describe('runAgentTurn', () => {
     expect(h.ran).toEqual([]);
   });
 
+  it('appels écartés par les limites : chacun reçoit un résultat refusé, dans l’ordre', async () => {
+    const writes = [call('w1', 'create_note'), call('w2', 'create_note'), call('w3', 'create_note')];
+    const reads = Array.from({ length: 7 }, (_, i) => call(`r${i}`, 'desk_overview'));
+    const h = harness([
+      { text: '', toolCalls: [...writes, ...reads] },
+      { text: 'fin', toolCalls: [] },
+    ]);
+    await runAgentTurn(h.deps);
+    // Les 8 premiers appels sont retenus, dont 2 écritures au plus : w1, w2, r0…r4 ; w3 dépasse les écritures, r5 et r6 les appels.
+    expect(h.ran).toEqual(['create_note', 'create_note', ...Array(5).fill('desk_overview')]);
+    const tools = h.records.filter((r) => r.role === 'tool');
+    expect(tools.map((r) => r.toolCallId)).toEqual([...writes, ...reads].map((c) => c.id));
+    const reason = (id: string) => JSON.parse(tools.find((r) => r.toolCallId === id)!.content.slice(TOOL_PREAMBLE.length)).reason;
+    expect(reason('w3')).toBe('write_limit');
+    expect(reason('r6')).toBe('call_limit');
+    // L'historique renvoyé au tour suivant n'a aucun appel sans résultat.
+    const next = h.requests[1]?.messages ?? [];
+    const asked = next.flatMap((m) => (m.role === 'assistant' ? (m.toolCalls ?? []).map((c) => c.id) : []));
+    const answered = new Set(next.flatMap((m) => (m.role === 'tool' ? [m.toolCallId] : [])));
+    expect(asked.filter((id) => !answered.has(id))).toEqual([]);
+  });
+
   it('tours épuisés : le résultat le signale', async () => {
     const h = harness(
       [
