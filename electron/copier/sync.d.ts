@@ -14,3 +14,4 @@ export interface CopierSync {
   flattenOnCut: boolean;
 }
 export function coerceCopierSync(raw: unknown): CopierSync | null;
+export function followerExclusion(account: string, masterAccount: string, seen: ReadonlySet<string>): 'non-sim' | 'maitre' | 'doublon' | null;

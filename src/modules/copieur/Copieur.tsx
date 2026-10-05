@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Panel, Stat, Tag, Toggle, cx } from '@/design/primitives';
-import { packCopierSync } from '@/engine/copier/sync';
+import { ignoredFollowers, packCopierSync } from '@/engine/copier/sync';
 import { findPlan, PROP_FIRMS } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { desk, type CopierHostStatus } from '@/lib/desk';
@@ -89,6 +89,7 @@ export default function Copieur() {
 
   const masters = accounts.filter((a) => a.role === 'maitre');
   const followers = accounts.filter((a) => a.role === 'suiveur');
+  const ignored = ignoredFollowers(accounts);
 
   const add = async () => {
     if (!newName.trim()) return;
@@ -186,6 +187,15 @@ export default function Copieur() {
                   ))}
                   {followers.length === 0 && (
                     <div className={s.hint}>{tr('Aucun suiveur : ajoutez un compte Sim, pas un compte financé.', 'No followers: add a Sim account, not a funded account.', 'Ningún seguidor: añada una cuenta Sim, no una cuenta financiada.')}</div>
+                  )}
+                  {ignored.length > 0 && (
+                    <div className={s.hint}>
+                      {tr(
+                        `Ignoré : ${ignored.join(', ')} (compte maître ou suiveur en double). Un compte qui se copie lui-même bouclerait.`,
+                        `Ignored: ${ignored.join(', ')} (master account or duplicate follower). An account copying itself would loop.`,
+                        `Ignorado: ${ignored.join(', ')} (cuenta maestra o seguidor duplicado). Una cuenta que se copia a sí misma entraría en bucle.`,
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

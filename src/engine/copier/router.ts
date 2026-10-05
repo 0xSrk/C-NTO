@@ -78,7 +78,8 @@ function refusal(reason: RefusalReason, follower: FollowerRule, instrument: stri
  */
 export function routeFill(fill: MasterFill, topology: CopierTopology, context: RouteContext): RouteResult {
   if (fill.account !== topology.masterAccount) return { orders: [], refused: [] };
-  const followers = topology.followers.filter((follower) => follower.account.startsWith('Sim'));
+  // Jamais le maître lui-même : un ordre copié redeviendrait un fill du maître (boucle).
+  const followers = topology.followers.filter((follower) => follower.account.startsWith('Sim') && follower.account !== topology.masterAccount);
   const refused: Refusal[] = [];
   const stale = context.now - fill.time > topology.latencyBudgetMs;
   const closed = !inCopyWindow(context.localMinutes, topology.windowStart, topology.windowEnd);

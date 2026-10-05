@@ -7,7 +7,7 @@ import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ExecutionPort, Fill } from '../execution/port';
 import type { CopierSync } from '../copier/sync';
-import { coerceCopierSync } from '../copier/sync';
+import { coerceCopierSync, followerExclusion } from '../copier/sync';
 import { routeFill, type Refusal } from '../copier/router';
 import { uiText, type AppLocale } from '../locale';
 
@@ -109,10 +109,14 @@ export class CopierHost {
     const sync = coerceCopierSync(raw);
     if (!sync) return false;
     if (raw !== null && typeof raw === 'object' && Array.isArray((raw as { followers?: unknown }).followers)) {
+      const taken = new Set<string>();
       for (const row of (raw as { followers: unknown[] }).followers) {
         if (row !== null && typeof row === 'object' && typeof (row as { account?: unknown }).account === 'string') {
           const account = (row as { account: string }).account.trim();
-          if (account && !account.startsWith('Sim')) this.log(`copieur suiveur écarté compte=${account}`);
+          if (!account) continue;
+          const why = followerExclusion(account, sync.topology.masterAccount, taken);
+          if (why) this.log(`copieur suiveur écarté compte=${account} motif=${why}`);
+          else taken.add(account);
         }
       }
     }
@@ -164,6 +168,11 @@ export class CopierHost {
   private async onFill(fill: Fill): Promise<void> {
     const sync = this.sync;
     if (!sync || fill.account !== sync.topology.masterAccount || !fill.executionId) return;
+    // Un ordre du copieur ne se recopie jamais, même si le compte maître le recevait.
+    if (fill.orderId && this.pending.has(fill.orderId)) {
+      this.log(`copieur fill d'un ordre copié ignoré compte=${fill.account} id=${fill.executionId}`);
+      return;
+    }
     this.log(`copieur fill maître compte=${fill.account} instrument=${fill.instrument} qty=${fill.qty} id=${fill.executionId}`);
     if (!this.armed) {
       this.log(`copieur désarmé id=${fill.executionId}`);
