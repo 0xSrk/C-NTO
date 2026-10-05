@@ -2,6 +2,7 @@
  * Serveur WebSocket du pont NT8. Écoute uniquement 127.0.0.1.
  * Une connexion AddOn à la fois : la suivante ferme la précédente (4409).
  */
+import { createHmac, randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { tokensMatch } from '../secure-token';
@@ -74,6 +75,21 @@ export class ManualClock implements BridgeClock {
   }
 }
 
+/** Délai laissé à l'AddOn pour prouver qu'il connaît le jeton. */
+export const AUTH_TIMEOUT_MS = 5_000;
+/** Connexions en attente de preuve : au-delà, refusées (un client local ne peut pas saturer le pont). */
+export const MAX_PENDING_AUTH = 4;
+const HEX64 = /^[0-9a-f]{64}$/;
+
+/**
+ * Preuve du défi-réponse (protocole 2). Chaque côté prouve qu'il connaît le jeton sans l'envoyer :
+ * l'AddOn signe `canto-addon|<défi du desk>|<son défi>`, le desk `canto-desk|<défi de l'AddOn>|<son défi>`.
+ * HMAC-SHA256, clé = jeton en UTF-8, sortie hexadécimale minuscule. Le C# de l'AddOn calcule la même chose.
+ */
+export function authProof(token: string, role: 'addon' | 'desk', first: string, second: string): string {
+  return createHmac('sha256', Buffer.from(token, 'utf8')).update(`canto-${role}|${first}|${second}`, 'utf8').digest('hex');
+}
+
 export interface NtBridgeStatus {
   link: LinkState;
   port: number;
@@ -84,6 +100,8 @@ export interface NtBridgeStatus {
   heartbeatLatencyMs: number | null;
   ordersOpen: boolean;
   hasToken: boolean;
+  /** `mutual` : défi-réponse, le jeton ne circule pas. `token` : ancien AddOn, jeton dans l'URL. */
+  auth: 'mutual' | 'token' | null;
 }
 
 export interface NtBridgeServerOptions {
@@ -132,6 +150,8 @@ export class NtBridgeServer {
   private readonly log: (message: string) => void;
   private wss: WebSocketServer | null = null;
   private socket: WebSocket | null = null;
+  private auth: 'mutual' | 'token' | null = null;
+  private readonly pendingAuth = new Map<WebSocket, { nonce: string; cancel: () => void }>();
   private token: string;
   private policy: GuardPolicy;
   private link: LinkState = 'absent';
@@ -186,6 +206,11 @@ export class NtBridgeServer {
   async stop(): Promise<void> {
     this.clearWatchdog();
     this.failPending('pont arrêté');
+    for (const [pending, state] of this.pendingAuth) {
+      state.cancel();
+      pending.close(1001, 'arrêt');
+    }
+    this.pendingAuth.clear();
     this.socket?.close(1001, 'arrêt');
     this.socket = null;
     this.link = 'absent';
@@ -218,6 +243,7 @@ export class NtBridgeServer {
       heartbeatLatencyMs,
       ordersOpen: this.link === 'live' && !this.ordersClosed,
       hasToken: this.token.length > 0,
+      auth: this.socket ? this.auth : null,
     };
   }
 
@@ -241,7 +267,10 @@ export class NtBridgeServer {
       const message = err instanceof Error ? err.message : 'échec order.submit';
       this.logOrder(parsed.order, message);
       if (this.ordersClosed || this.link !== 'live') return { ok: false, code: ERR.LOST, message: 'pont perdu, ordre non réémis' };
-      return { ok: false, code: ERR.GENERIC, message };
+      // La garde de l'AddOn répond avec les codes du desk : on les garde (compte, plafond, tag).
+      const rpcCode = (err as { rpcCode?: unknown }).rpcCode;
+      const code = rpcCode === ERR.ACCOUNT || rpcCode === ERR.QUANTITY || rpcCode === ERR.TAG ? rpcCode : ERR.GENERIC;
+      return { ok: false, code, message };
     }
   }
 
@@ -326,13 +355,70 @@ export class NtBridgeServer {
   }
 
   private onConnection(socket: WebSocket, req: IncomingMessage): void {
-    const token = readToken(req.url);
-    if (!tokensMatch(token, this.token)) {
-      socket.close(CLOSE.BAD_TOKEN, 'jeton invalide');
+    socket.on('error', () => {
+      /* la fermeture suit ; une connexion adoptée a son propre suivi */
+    });
+    socket.on('message', (data, isBinary) => {
+      if (this.pendingAuth.has(socket)) this.onAuthMessage(socket, data, isBinary);
+      else this.onMessage(socket, data, isBinary);
+    });
+    // Ancien AddOn (≤ 2.1) : jeton dans l'URL. Accepté, signalé dans le statut (`auth: 'token'`).
+    const legacy = readToken(req.url);
+    if (legacy) {
+      if (!tokensMatch(legacy, this.token)) {
+        socket.close(CLOSE.BAD_TOKEN, 'jeton invalide');
+        return;
+      }
+      this.adopt(socket, 'token');
       return;
     }
+    // Protocole 2 : défi-réponse. La connexion n'est adoptée (et ne remplace l'AddOn en place) qu'après la preuve.
+    if (this.pendingAuth.size >= MAX_PENDING_AUTH) {
+      socket.close(CLOSE.BAD_TOKEN, 'trop de connexions en attente');
+      return;
+    }
+    const nonce = randomBytes(32).toString('hex');
+    const cancel = this.clock.delay(AUTH_TIMEOUT_MS, () => {
+      if (!this.pendingAuth.delete(socket)) return;
+      socket.close(CLOSE.BAD_TOKEN, 'authentification expirée');
+    });
+    this.pendingAuth.set(socket, { nonce, cancel });
+    socket.on('close', () => {
+      const state = this.pendingAuth.get(socket);
+      if (!state) return;
+      state.cancel();
+      this.pendingAuth.delete(socket);
+    });
+    socket.send(rpcNotify('bridge.challenge', { nonce, protocol: 2 }));
+  }
+
+  /** Seule trame admise avant la preuve : `bridge.auth { nonce, proof }`. Tout le reste ferme en 4401. */
+  private onAuthMessage(socket: WebSocket, data: RawData, isBinary: boolean): void {
+    const state = this.pendingAuth.get(socket);
+    if (!state) return;
+    const refuse = (reason: string) => {
+      state.cancel();
+      this.pendingAuth.delete(socket);
+      socket.close(CLOSE.BAD_TOKEN, reason);
+    };
+    if (isBinary || frameByteLength(data) > 4096) return refuse('authentification invalide');
+    const parsed = parseFrame(rawToString(data));
+    if (!parsed.ok || parsed.kind === 'response' || parsed.method !== 'bridge.auth') return refuse('bridge.auth requis');
+    const nonce = parsed.params.nonce;
+    const proof = parsed.params.proof;
+    if (typeof nonce !== 'string' || typeof proof !== 'string' || !HEX64.test(nonce) || !HEX64.test(proof) || nonce === state.nonce) return refuse('authentification invalide');
+    if (!tokensMatch(proof, authProof(this.token, 'addon', state.nonce, nonce))) return refuse('preuve invalide');
+    state.cancel();
+    this.pendingAuth.delete(socket);
+    socket.send(rpcNotify('bridge.welcome', { proof: authProof(this.token, 'desk', nonce, state.nonce) }));
+    this.log('AddOn authentifié (défi-réponse)');
+    this.adopt(socket, 'mutual');
+  }
+
+  private adopt(socket: WebSocket, auth: 'mutual' | 'token'): void {
     const previous = this.socket;
     this.socket = socket;
+    this.auth = auth;
     this.helloOk = false;
     this.hello = null;
     this.beatSamples = [];
@@ -341,7 +427,6 @@ export class NtBridgeServer {
     this.failPending('connexion remplacée');
     if (previous && previous !== socket && previous.readyState === WebSocket.OPEN) previous.close(CLOSE.REPLACED, 'remplacé');
     this.emitStatus();
-    socket.on('message', (data, isBinary) => this.onMessage(socket, data, isBinary));
     socket.on('close', () => {
       if (this.socket !== socket) return;
       if (this.link === 'live' || this.link === 'stale' || this.link === 'connecting') this.enterLost('socket fermé');
@@ -497,7 +582,7 @@ export class NtBridgeServer {
     if (!pending) return;
     pending.cancel();
     this.pending.delete(key);
-    if (error) pending.reject(new Error(error.message));
+    if (error) pending.reject(Object.assign(new Error(error.message), { rpcCode: error.code }));
     else pending.resolve(result);
   }
 

@@ -198,6 +198,16 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
               </div>
             )}
 
+            {nt?.auth === 'token' && (
+              <p className={s.note}>
+                {tr(
+                  'AddOn antérieur à 2.2.0 : il envoie son jeton sans vérifier que le serveur est bien le desk. Compilez le CantoBridge.cs fourni.',
+                  'AddOn older than 2.2.0: it sends its token without checking that the server is the desk. Compile the bundled CantoBridge.cs.',
+                  'AddOn anterior a 2.2.0: envía su token sin comprobar que el servidor es el desk. Compile el CantoBridge.cs incluido.',
+                )}
+              </p>
+            )}
+
             {aclUnrestricted && (
               <p className={s.note}>{tr('permissions du fichier de configuration non restreintes', 'configuration file permissions are not restricted', 'permisos del archivo de configuración no restringidos')}</p>
             )}

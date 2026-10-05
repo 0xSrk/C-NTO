@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,6 +52,13 @@ namespace NinjaTrader.NinjaScript.AddOns
         private readonly object policyLock = new object();
         private readonly List<string> extraAccounts = new List<string>();
         private int maxContracts = DefaultMaxContracts;
+        // Défi-réponse (protocole 2) : le jeton ne circule pas ; rien n'est envoyé ni exécuté avant la preuve du desk.
+        private volatile bool deskVerified;
+        private int connectionGen;
+        private string serverNonce;
+        private string clientNonce;
+        private bool warnedUnverified;
+        private Task authWatchdog;
 
         protected override void OnStateChange()
         {
@@ -337,14 +345,21 @@ namespace NinjaTrader.NinjaScript.AddOns
                 ClientWebSocket ws = new ClientWebSocket();
                 try
                 {
-                    Uri uri = new Uri("ws://127.0.0.1:" + wsPort.ToString(CultureInfo.InvariantCulture) + "/?token=" + Uri.EscapeDataString(wsToken));
+                    // Pas de jeton dans l'URL : le desk envoie un défi, chacun prouve qu'il connaît le jeton.
+                    Uri uri = new Uri("ws://127.0.0.1:" + wsPort.ToString(CultureInfo.InvariantCulture) + "/?v=2");
+                    deskVerified = false;
+                    int gen = Interlocked.Increment(ref connectionGen);
                     await ws.ConnectAsync(uri, ct);
                     socket = ws;
                     reconnectDelayMs = 1000;
-                    SendHello();
-                    heartbeatTimer = new Timer(_ => Send(Notify("bridge.heartbeat", new JObject { ["at"] = NowMs() })), null, 2000, 2000);
-                    accountsTimer = new Timer(_ => SendAccounts(), null, 5000, 5000);
-                    await ReceiveLoop(ws, ct);
+                    // Un serveur qui ne prouve rien en 10 s n'est pas le desk : on coupe.
+                    authWatchdog = Task.Delay(10000).ContinueWith(_ => { if (Volatile.Read(ref connectionGen) == gen && !deskVerified) AbortSocket(ws); });
+                    await ReceiveLoop(ws, ct, gen);
+                    if (!deskVerified && !warnedUnverified)
+                    {
+                        warnedUnverified = true;
+                        Log("CΛNTO Bridge : le serveur n'a pas prouvé qu'il est le desk (desk à mettre à jour, ou autre programme sur le port) — rien n'a été envoyé.", LogLevel.Warning);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -365,7 +380,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             }
         }
 
-        private async Task ReceiveLoop(ClientWebSocket ws, CancellationToken ct)
+        private async Task ReceiveLoop(ClientWebSocket ws, CancellationToken ct, int gen)
         {
             byte[] buffer = new byte[8192];
             StringBuilder sb = new StringBuilder();
@@ -378,8 +393,89 @@ namespace NinjaTrader.NinjaScript.AddOns
                 string text = sb.ToString();
                 sb.Clear();
                 string copy = text;
-                TriggerCustomEvent(delegate { DispatchDesk(copy); }, null);
+                TriggerCustomEvent(delegate { DispatchDesk(copy, gen); }, null);
             }
+        }
+
+        private void AnswerChallenge(JObject p)
+        {
+            string nonce = (string)p["nonce"];
+            if (!IsHex64(nonce))
+            {
+                AbortSocket(socket);
+                return;
+            }
+            string mine = NewNonce();
+            serverNonce = nonce;
+            clientNonce = mine;
+            SendNow(Notify("bridge.auth", new JObject { ["nonce"] = mine, ["proof"] = Proof("canto-addon|" + nonce + "|" + mine) }));
+        }
+
+        private void VerifyDesk(JObject p)
+        {
+            string proof = (string)p["proof"];
+            if (clientNonce == null || serverNonce == null || !FixedTimeEquals(proof, Proof("canto-desk|" + clientNonce + "|" + serverNonce)))
+            {
+                Log("CΛNTO Bridge : preuve du desk invalide — connexion coupée, rien n'a été envoyé.", LogLevel.Warning);
+                AbortSocket(socket);
+                return;
+            }
+            deskVerified = true;
+            warnedUnverified = false;
+            StartSession();
+        }
+
+        private void StartSession()
+        {
+            if (heartbeatTimer != null) heartbeatTimer.Dispose();
+            if (accountsTimer != null) accountsTimer.Dispose();
+            SendHello();
+            heartbeatTimer = new Timer(_ => Send(Notify("bridge.heartbeat", new JObject { ["at"] = NowMs() })), null, 2000, 2000);
+            accountsTimer = new Timer(_ => SendAccounts(), null, 5000, 5000);
+        }
+
+        // HMAC-SHA256, clé = jeton en UTF-8, hexadécimal minuscule : la même preuve que le desk (authProof).
+        private string Proof(string message)
+        {
+            using (HMACSHA256 hmac = new HMACSHA256(Encoding.UTF8.GetBytes(wsToken ?? "")))
+                return ToHex(hmac.ComputeHash(Encoding.UTF8.GetBytes(message)));
+        }
+
+        private static string NewNonce()
+        {
+            byte[] bytes = new byte[32];
+            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
+                rng.GetBytes(bytes);
+            return ToHex(bytes);
+        }
+
+        private static string ToHex(byte[] bytes)
+        {
+            StringBuilder sb = new StringBuilder(bytes.Length * 2);
+            foreach (byte b in bytes) sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+            return sb.ToString();
+        }
+
+        private static bool IsHex64(string value)
+        {
+            if (value == null || value.Length != 64) return false;
+            foreach (char c in value)
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+            return true;
+        }
+
+        private static bool FixedTimeEquals(string a, string b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            int diff = 0;
+            for (int i = 0; i < a.Length; i++) diff |= a[i] ^ b[i];
+            return diff == 0;
+        }
+
+        private static void AbortSocket(ClientWebSocket ws)
+        {
+            if (ws == null) return;
+            try { ws.Abort(); } catch { /* déjà fermé */ }
         }
 
         private void SendHello()
@@ -394,7 +490,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             {
                 ["kind"] = "ninjatrader",
                 ["ntVersion"] = "8",
-                ["addonVersion"] = "2.1.1",
+                ["addonVersion"] = "2.2.0",
                 ["accounts"] = accounts,
                 ["protocol"] = 1
             };
@@ -505,8 +601,9 @@ namespace NinjaTrader.NinjaScript.AddOns
             SendAccounts();
         }
 
-        private void DispatchDesk(string json)
+        private void DispatchDesk(string json, int gen)
         {
+            if (gen != Volatile.Read(ref connectionGen)) return;
             JObject msg;
             try { msg = JObject.Parse(json); }
             catch { return; }
@@ -514,6 +611,18 @@ namespace NinjaTrader.NinjaScript.AddOns
             string method = (string)msg["method"];
             if (string.IsNullOrEmpty(method)) return;
             JObject p = msg["params"] as JObject ?? new JObject();
+            if (method == "bridge.challenge")
+            {
+                if (!deskVerified) AnswerChallenge(p);
+                return;
+            }
+            if (method == "bridge.welcome")
+            {
+                if (!deskVerified) VerifyDesk(p);
+                return;
+            }
+            // Avant la preuve du desk : aucun ordre, aucun abonnement, aucune réponse.
+            if (!deskVerified) return;
             try
             {
                 if (method == "marketdata.subscribe") Reply(id, SubscribeMarket(p));
@@ -841,7 +950,14 @@ namespace NinjaTrader.NinjaScript.AddOns
             return new JObject { ["jsonrpc"] = "2.0", ["method"] = method, ["params"] = payload };
         }
 
+        // Rien ne part (exécutions, comptes, réponses) tant que le serveur n'a pas prouvé qu'il est le desk.
         private void Send(JObject msg)
+        {
+            if (!deskVerified) return;
+            SendNow(msg);
+        }
+
+        private void SendNow(JObject msg)
         {
             ClientWebSocket ws = socket;
             if (ws == null || ws.State != WebSocketState.Open) return;
