@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { probeProvider, streamChat, type ChatMessage } from '@/engine/agent/llm';
-import { MAX_TOOL_ROUNDS, runAgentTurn } from '@/engine/agent/loop';
+import { probeProvider, streamChat } from '@/engine/agent/llm';
+import { MAX_TOOL_ROUNDS, runAgentTurn, toChatHistory } from '@/engine/agent/loop';
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { type DeskPorts } from '@/engine/agent/ports';
@@ -75,16 +75,6 @@ function livePorts(): DeskPorts {
 function pushLog(set: (p: Partial<AgentState>) => void, get: () => AgentState, entry: Omit<LinkLogEntry, 'id' | 'at'>): void {
   const item: LinkLogEntry = { id: uid('l'), at: Date.now(), ...entry };
   set({ linkLog: [item, ...get().linkLog].slice(0, 80) });
-}
-
-function toChat(messages: AgentMessage[]): ChatMessage[] {
-  const out: ChatMessage[] = [];
-  for (const m of messages) {
-    if (m.role === 'user') out.push({ role: 'user', content: m.content });
-    else if (m.role === 'assistant') out.push({ role: 'assistant', content: m.content, toolCalls: m.toolCalls });
-    else if (m.role === 'tool') out.push({ role: 'tool', content: m.content, toolCallId: m.id, name: m.toolName ?? '' });
-  }
-  return out;
 }
 
 export const useAgent = create<AgentState>((set, get) => ({
@@ -166,7 +156,7 @@ export const useAgent = create<AgentState>((set, get) => ({
           );
           return `${prompt}\n\n${stamp}`;
         },
-        history: () => toChat(get().messages),
+        history: () => toChatHistory(get().messages),
         stream: (req) => streamChat({ config: settings.agent, messages: req.messages, tools: req.tools, signal, onDelta: req.onDelta }),
         kindOf: toolKind,
         runTool: (call) =>
@@ -178,7 +168,7 @@ export const useAgent = create<AgentState>((set, get) => ({
           const msg: AgentMessage =
             record.role === 'assistant'
               ? { id: uid('m'), conversationId, role: 'assistant', content: record.content, toolCalls: record.toolCalls, createdAt: Date.now() }
-              : { id: record.toolCallId, conversationId, role: 'tool', toolName: record.toolName, content: record.content, createdAt: Date.now() };
+              : { id: uid('m'), conversationId, role: 'tool', toolCallId: record.toolCallId, toolName: record.toolName, content: record.content, createdAt: Date.now() };
           await db.agentMessages.add(msg);
           set({ messages: [...get().messages, msg], ...(record.role === 'assistant' ? { streamText: '' } : {}) });
         },

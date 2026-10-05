@@ -42,6 +42,30 @@ export interface TurnOutcome {
   exhausted: boolean;
 }
 
+/** Message tel que le coffre le garde (forme de `AgentMessage`, sans dépendre du store). */
+export interface StoredMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  toolName?: string;
+  toolCallId?: string;
+  toolCalls?: ToolCall[];
+}
+
+/**
+ * Historique pour le fournisseur. Un message `tool` répond à `toolCallId` ; avant 3.3.5 l'`id`
+ * du message était l'identifiant d'appel, il sert encore pour ces conversations.
+ */
+export function toChatHistory(messages: readonly StoredMessage[]): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  for (const m of messages) {
+    if (m.role === 'user') out.push({ role: 'user', content: m.content });
+    else if (m.role === 'assistant') out.push({ role: 'assistant', content: m.content, toolCalls: m.toolCalls });
+    else if (m.role === 'tool') out.push({ role: 'tool', content: m.content, toolCallId: m.toolCallId ?? m.id, name: m.toolName ?? '' });
+  }
+  return out;
+}
+
 function isErrorResult(output: unknown): boolean {
   return !!output && typeof output === 'object' && 'error' in output;
 }

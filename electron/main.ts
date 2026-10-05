@@ -6,6 +6,7 @@ import { NinjaBridge } from './bridge';
 import { confirmCopierArm } from './nt-bridge/copier-host';
 import { authorizeLiveAccount, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
+import { AnthropicStreamParser, OpenAiStreamParser } from './llm-stream';
 import { Orchestrator } from './orchestrator';
 import { syncOfficialCalendar } from './calendar';
 import { allowedHosts, dataFetchAllowed } from './sources';
@@ -894,31 +895,12 @@ async function streamOpenAiMain(
   if (key) headers.Authorization = `Bearer ${key}`;
   const res = await fetch(joinLlmUrl(baseUrl, 'chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
   if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
-  let text = '';
-  const calls = new Map<number, { id: string; name: string; args: string }>();
+  const parser = new OpenAiStreamParser(requestId);
   await sseData(res, signal, (data) => {
-    if (!data || data === '[DONE]') return;
-    let json: { choices?: { delta?: { content?: string; tool_calls?: { index: number; id?: string; function?: { name?: string; arguments?: string } }[] } }[] };
-    try {
-      json = JSON.parse(data);
-    } catch {
-      return;
-    }
-    const delta = json.choices?.[0]?.delta;
-    if (!delta) return;
-    if (delta.content) {
-      text += delta.content;
-      sender.send('llm:delta', { requestId, text: delta.content });
-    }
-    for (const tc of delta.tool_calls ?? []) {
-      const cur = calls.get(tc.index) ?? { id: tc.id ?? `call_${tc.index}`, name: '', args: '' };
-      if (tc.id) cur.id = tc.id;
-      if (tc.function?.name) cur.name += tc.function.name;
-      if (tc.function?.arguments) cur.args += tc.function.arguments;
-      calls.set(tc.index, cur);
-    }
+    const delta = parser.push(data);
+    if (delta) sender.send('llm:delta', { requestId, text: delta });
   });
-  sender.send('llm:done', { requestId, result: { text, toolCalls: [...calls.values()].filter((c) => c.name) } });
+  sender.send('llm:done', { requestId, result: parser.result() });
 }
 
 async function streamAnthropicMain(
@@ -970,37 +952,12 @@ async function streamAnthropicMain(
     signal,
   });
   if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
-  let text = '';
-  const calls: { id: string; name: string; args: string }[] = [];
-  const blocks = new Map<number, { id: string; name: string; args: string }>();
+  const parser = new AnthropicStreamParser(requestId, ui('Erreur du fournisseur pendant le flux', 'Provider error during the stream', 'Error del proveedor durante el flujo'));
   await sseData(res, signal, (data) => {
-    if (!data) return;
-    let ev: { type: string; index?: number; content_block?: { type: string; id?: string; name?: string }; delta?: { type: string; text?: string; partial_json?: string } };
-    try {
-      ev = JSON.parse(data);
-    } catch {
-      return;
-    }
-    if (ev.type === 'error') throw new Error((ev as unknown as { error?: { message?: string } }).error?.message ?? ui('Erreur du fournisseur pendant le flux', 'Provider error during the stream', 'Error del proveedor durante el flujo'));
-    if (ev.type === 'content_block_start' && ev.content_block?.type === 'tool_use' && ev.index !== undefined) {
-      blocks.set(ev.index, { id: ev.content_block.id ?? `toolu_${ev.index}`, name: ev.content_block.name ?? '', args: '' });
-    } else if (ev.type === 'content_block_delta' && ev.delta) {
-      if (ev.delta.type === 'text_delta' && ev.delta.text) {
-        text += ev.delta.text;
-        sender.send('llm:delta', { requestId, text: ev.delta.text });
-      } else if (ev.delta.type === 'input_json_delta' && ev.index !== undefined) {
-        const b = blocks.get(ev.index);
-        if (b) b.args += ev.delta.partial_json ?? '';
-      }
-    } else if (ev.type === 'content_block_stop' && ev.index !== undefined) {
-      const b = blocks.get(ev.index);
-      if (b) {
-        calls.push({ ...b, args: b.args || '{}' });
-        blocks.delete(ev.index);
-      }
-    }
+    const delta = parser.push(data);
+    if (delta) sender.send('llm:delta', { requestId, text: delta });
   });
-  sender.send('llm:done', { requestId, result: { text, toolCalls: calls } });
+  sender.send('llm:done', { requestId, result: parser.result() });
 }
 
 /* ─── Pont NinjaTrader ─── */
