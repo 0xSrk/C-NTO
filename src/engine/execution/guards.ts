@@ -53,13 +53,15 @@ export function guardSubmit(order: GuardOrder, policy: GuardPolicy, snap: GuardS
   return { ok: true };
 }
 
+/**
+ * Annuler et aplatir réduisent le risque : ils restent permis après le kill switch, pour qu'un
+ * ordre qui aurait survécu puisse encore être retiré depuis le desk. Seul le lien doit être vivant.
+ */
 export function guardAccountCommand(account: string, policy: GuardPolicy, snap: GuardSnapshot): GuardDecision {
   if (!accountAllowed(account, policy.extraAccounts)) {
     return { ok: false, code: GUARD.ACCOUNT, message: `compte non autorisé : ${account}` };
   }
-  if (snap.ordersClosed || snap.link !== 'live') {
-    return { ok: false, code: GUARD.LOST, message: snap.ordersClosed ? 'canal d’ordres fermé' : 'pont indisponible' };
-  }
+  if (snap.link !== 'live') return { ok: false, code: GUARD.LOST, message: 'pont indisponible' };
   return { ok: true };
 }
 

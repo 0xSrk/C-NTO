@@ -66,6 +66,9 @@ describe('garde-fous du pont NT8', () => {
     const again = await server.submit(order);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.code).toBe(ERR.LOST);
+    // Réduire le risque reste possible : un second aplatissement part encore.
+    const reflat = await server.flatten('Sim101');
+    expect(reflat.ok).toBe(true);
     ws.close();
   });
 
