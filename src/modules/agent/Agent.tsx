@@ -37,9 +37,9 @@ function suggestions(): string[] {
       'Redacta la nota de reseña semanal a partir de mis 5 últimas sesiones.',
     ),
     tr(
-      'Quels catalyseurs Nasdaq arrivent dans les 10 prochains jours et comment les aborder ?',
-      'Which Nasdaq catalysts arrive in the next 10 days, and how should I approach them?',
-      '¿Qué catalizadores Nasdaq llegan en los próximos 10 días y cómo abordarlos?',
+      'Quels catalyseurs majeurs (FOMC, NFP, CPI…) arrivent dans les 10 prochains jours et comment les aborder ?',
+      'Which major catalysts (FOMC, NFP, CPI…) arrive in the next 10 days, and how should I approach them?',
+      '¿Qué catalizadores mayores (FOMC, NFP, CPI…) llegan en los próximos 10 días y cómo abordarlos?',
     ),
   ];
 }
@@ -463,9 +463,9 @@ export default function Agent() {
               ))}
               <div className={s.hint}>
                 {tr(
-                  'Architecture ouverte : les mêmes outils servent le modèle conversationnel et l’orchestrateur externe ; les outils d’écriture demandent confirmation à l’opérateur. Le desk évolue au rythme du trader.',
-                  'Open architecture: the same tools serve the conversational model and the external orchestrator; write tools ask the operator for confirmation. The desk evolves at the trader’s pace.',
-                  'Arquitectura abierta: las mismas herramientas sirven al modelo conversacional y al orquestador externo; las de escritura piden confirmación al operador. El desk evoluciona al ritmo del trader.',
+                  'Architecture ouverte : les mêmes outils servent le modèle conversationnel et les agents externes. Pour le modèle, chaque écriture demande confirmation à l’opérateur ; pour un agent externe, l’écriture reste coupée tant qu’elle n’est pas autorisée ci-dessus.',
+                  'Open architecture: the same tools serve the conversational model and external agents. For the model, every write asks the operator for confirmation; for an external agent, writing stays off until it is allowed above.',
+                  'Arquitectura abierta: las mismas herramientas sirven al modelo conversacional y a los agentes externos. Para el modelo, cada escritura pide confirmación al operador; para un agente externo, la escritura queda cortada mientras no se autorice arriba.',
                 )}
               </div>
             </div>

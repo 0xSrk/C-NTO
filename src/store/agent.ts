@@ -115,11 +115,6 @@ export const useAgent = create<AgentState>((set, get) => ({
           log(true);
           return;
         }
-        if (req.method.startsWith('bridge.')) {
-          api.orchestrator.respond(req.id, req.clientId, null, 'Transport WebSocket du pont non disponible : utiliser le transport fichier (Métrique › Pont NinjaTrader, docs/PONT-NINJATRADER.md)');
-          log(false, 'pont non disponible');
-          return;
-        }
         const name = req.method.replace(/^tool\./, '');
         const result = await executeDeskTool(livePorts(), name, (req.params as Record<string, unknown>) ?? {}, {
           source: 'orch',
