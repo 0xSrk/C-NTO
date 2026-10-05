@@ -93,6 +93,34 @@ export interface CopierApi {
   onStatus: (cb: (status: CopierHostStatus) => void) => () => void;
 }
 
+/** Ordres proposés par l'agent (A5) : gardes, dialogue et soumission dans le process principal. */
+export interface AgentOrderStatus {
+  enabled: boolean;
+  maxQty: number;
+  maxPosition: number;
+  perMinute: number;
+  /** Une proposition attend la réponse du trader. */
+  pending: boolean;
+}
+
+export type AgentOrderOrigin = 'llm' | 'mcp' | 'orch';
+
+export type AgentOrderOutcome =
+  | { status: 'sent'; orderId: string; latencyMs?: number; account: string; instrument: string; side: 'buy' | 'sell'; qty: number; resulting: number }
+  | { status: 'refused'; reason: string; detail: string }
+  | { status: 'declined'; detail: string }
+  | { status: 'failed'; code?: number; detail: string };
+
+export interface AgentOrdersApi {
+  status: () => Promise<AgentOrderStatus>;
+  /** Dialogue du process principal ; rend le statut, activé ou non. */
+  enable: () => Promise<AgentOrderStatus>;
+  disable: () => Promise<AgentOrderStatus>;
+  /** Relever une limite passe par un dialogue du process principal. */
+  limits: (raw: Partial<Pick<AgentOrderStatus, 'maxQty' | 'maxPosition' | 'perMinute'>>) => Promise<AgentOrderStatus>;
+  propose: (raw: unknown, origin: AgentOrderOrigin, propShare: number | null) => Promise<AgentOrderOutcome>;
+}
+
 export interface NtBridgeApi {
   status: () => Promise<NtBridgeStatus | null>;
   rotateToken: () => Promise<{ hasToken: boolean }>;
@@ -172,6 +200,7 @@ export interface DeskApi {
   bridge: BridgeApi;
   ntbridge?: NtBridgeApi;
   copier?: CopierApi;
+  agentOrders?: AgentOrdersApi;
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
     encrypt: (text: string) => Promise<string | null>;

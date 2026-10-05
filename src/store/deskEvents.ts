@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { DeskEventKind } from '@/engine/agent/catalog';
-import { DeskEventLog, dueCatalysts, fillData, linkTransition, propBufferAlert, type DeskEvent } from '@/engine/agent/events';
+import { DeskEventLog, dueCatalysts, fillData, linkTransition, propBufferAlert, propLiveBuffer, type DeskEvent, type PropBufferInput } from '@/engine/agent/events';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
@@ -30,11 +30,39 @@ interface DeskEventsState {
 
 let stop: (() => void) | null = null;
 
-function record(kind: DeskEventKind, data: Record<string, unknown>): void {
+/** Range un événement, le compte et le pousse aux clients de l'orchestrateur. */
+export function recordDeskEvent(kind: DeskEventKind, data: Record<string, unknown>): void {
   const event = deskEventLog.push(kind, data);
   useDeskEvents.setState((s) => ({ count: s.count + 1, last: event }));
   // L'orchestrateur ne pousse qu'à ses clients authentifiés ; le main borne type et taille.
   desk?.orchestrator?.broadcast(kind, { seq: event.seq, cursor: `${deskEventLog.epoch}.${event.seq}`, data });
+}
+
+/** Plan suivi, rejoué sur le journal, avec le latent du pont : `null` sans plan. */
+function trackedPlan(): { input: PropBufferInput; key: string } | null {
+  const { planId, planAccount } = useSettings.getState().settings;
+  const plan = findPlan(planId);
+  if (!plan) return null;
+  const { sessions, trades } = useJournal.getState();
+  const ev = evaluatePlan(plan, sessions, trades, planAccount || undefined);
+  const nt = useBridge.getState().nt;
+  const live = nt?.link === 'live' ? nt.accounts.filter((a) => !planAccount || a.name === planAccount) : [];
+  const unrealized = live.reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
+  return {
+    input: { planId: plan.id, account: planAccount, maxDrawdown: plan.maxDrawdown, buffer: ev.buffer, floor: ev.floor, balance: ev.balance, unrealized },
+    key: `${plan.id}|${plan.version}|${planAccount}`,
+  };
+}
+
+/**
+ * Part restante du drawdown maximal du plan suivi, si `account` est le sien (ou si le plan suit tous les
+ * comptes) ; `null` sinon. Lue par le process principal avant chaque ordre proposé par l'agent.
+ */
+export function trackedPropShare(account: string): number | null {
+  const { planAccount } = useSettings.getState().settings;
+  if (planAccount && planAccount !== account) return null;
+  const tracked = trackedPlan();
+  return tracked ? (propLiveBuffer(tracked.input)?.share ?? null) : null;
 }
 
 /** Marge du plan suivi : niveau par plan et compte ; le premier rejeu pose le niveau sans alerter. */
@@ -44,16 +72,9 @@ function propWatcher(): { check: () => void; dispose: () => void } {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const run = () => {
     timer = null;
-    const { planId, planAccount } = useSettings.getState().settings;
-    const plan = findPlan(planId);
-    if (!plan) return;
-    const { sessions, trades } = useJournal.getState();
-    const ev = evaluatePlan(plan, sessions, trades, planAccount || undefined);
-    const nt = useBridge.getState().nt;
-    const live = nt?.link === 'live' ? nt.accounts.filter((a) => !planAccount || a.name === planAccount) : [];
-    const unrealized = live.reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
-    const input = { planId: plan.id, account: planAccount, maxDrawdown: plan.maxDrawdown, buffer: ev.buffer, floor: ev.floor, balance: ev.balance, unrealized };
-    const nextKey = `${plan.id}|${plan.version}|${planAccount}`;
+    const tracked = trackedPlan();
+    if (!tracked) return;
+    const { input, key: nextKey } = tracked;
     if (nextKey !== key) {
       key = nextKey;
       level = propBufferAlert(0, input).level;
@@ -61,7 +82,7 @@ function propWatcher(): { check: () => void; dispose: () => void } {
     }
     const r = propBufferAlert(level, input);
     level = r.level;
-    if (r.data) record('prop_buffer', r.data);
+    if (r.data) recordDeskEvent('prop_buffer', r.data);
   };
   return {
     check: () => {
@@ -94,7 +115,7 @@ function checkCatalysts(seen: Set<string>, now = Date.now()): void {
   const merged = mergeCalendarEvents(local, official);
   for (const due of dueCatalysts(merged, now, seen)) {
     seen.add(due.id);
-    record('catalyst', due.data);
+    recordDeskEvent('catalyst', due.data);
   }
   if (seen.size > 2000) seen.clear();
 }
@@ -110,7 +131,7 @@ export const useDeskEvents = create<DeskEventsState>((set) => ({
 
     const offExecution = desk?.ntbridge?.onExecution((payload) => {
       const data = fillData(payload.fill);
-      if (data) record('fill', data);
+      if (data) recordDeskEvent('fill', data);
     });
     if (offExecution) disposers.push(offExecution);
 
@@ -122,7 +143,7 @@ export const useDeskEvents = create<DeskEventsState>((set) => ({
         const next = s.nt?.link ?? null;
         if (next !== null && next !== link) {
           const data = linkTransition(link, next, s.nt?.addonVersion ?? null);
-          if (data) record('bridge_link', data);
+          if (data) recordDeskEvent('bridge_link', data);
         }
         link = next;
         if (s.nt !== prev.nt) prop.check();

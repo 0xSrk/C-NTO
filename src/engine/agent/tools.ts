@@ -11,7 +11,7 @@ import { evaluatePlan, findPlan } from '@/engine/propfirm';
 import type { Bar, BarSeries } from '@/engine/bars';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
-import { DESK_EVENT_KINDS, isDeskEventKind } from './catalog';
+import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
 import { clampToolArgs, type DeskPorts } from './ports';
 
@@ -416,7 +416,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'bridge_status',
       kind: 'read',
       description:
-        'État en direct du pont NinjaTrader 8 et du Copieur : lien, latence, canal d’ordres ouvert ou fermé, plafond, comptes (cash, PnL réalisé et latent, positions), Copieur armé ou non, ordres routés, dernier refus. Lecture seule : aucun outil ne passe d’ordre.',
+        'État en direct du pont NinjaTrader 8 et du Copieur : lien, latence, canal d’ordres ouvert ou fermé, plafond, comptes (cash, PnL réalisé et latent, positions), Copieur armé ou non, ordres routés, dernier refus. Lecture seule ; pour proposer un ordre au trader : propose_order.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const { nt, copier } = await ports.bridge();
@@ -524,6 +524,30 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'propose_order',
+      kind: 'write',
+      description:
+        'Propose un ordre au trader, sur un compte Sim seulement. Le desk le montre dans son dialogue (ordre, compte, position avant et après, ta raison) et ne l’envoie qu’après sa confirmation, 45 s au plus, Refuser par défaut. Gardes avant le dialogue : compte Sim, contrats par ordre, position atteinte, propositions par minute, marge du plan prop, canal d’ordres ouvert. Rend status : sent (orderId), declined (le trader a refusé ou n’a pas répondu), refused (garde, avec motif) ou failed (le pont a refusé). Ne propose pas sans raison claire et vérifiable.',
+      parameters: {
+        type: 'object',
+        properties: {
+          account: { type: 'string', description: 'Compte NinjaTrader Sim (ex. Sim101)' },
+          instrument: { type: 'string', description: 'Nom NinjaTrader complet (ex. MNQ 12-26)' },
+          side: { type: 'string', enum: ['buy', 'sell'] },
+          qty: { type: 'number', description: 'Contrats, entier ≥ 1' },
+          type: { type: 'string', enum: ['market', 'limit', 'stop'], description: 'market par défaut' },
+          limit: { type: 'number', description: 'Prix limite (type limit)' },
+          stop: { type: 'number', description: 'Prix stop (type stop)' },
+          reason: { type: 'string', description: 'Pourquoi cet ordre, en une ou deux phrases : montré tel quel au trader' },
+        },
+        required: ['account', 'instrument', 'side', 'qty', 'reason'],
+        additionalProperties: false,
+      },
+      async run(args) {
+        return ports.proposeOrder(args);
+      },
+    },
+    {
       name: 'desk_events',
       kind: 'read',
       description:
@@ -592,6 +616,7 @@ const EMPTY_PORTS: DeskPorts = {
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   barSeries: async () => [],
   events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
+  proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
 };
 
 /** Catalogue (affichage UI) — les `run` de ce tableau ne touchent pas les stores. */
@@ -639,8 +664,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'bridge_status':
       return tr(
         fallback,
-        'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions), Copier armed or not, routed orders, last refusal. Read only: no tool places an order.',
-        'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura: ninguna herramienta envía órdenes.',
+        'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions), Copier armed or not, routed orders, last refusal. Read only; to propose an order to the trader: propose_order.',
+        'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura; para proponer una orden al trader: propose_order.',
       );
     case 'portfolio_snapshot':
       return tr(
@@ -653,6 +678,12 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real.',
         'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales.',
+      );
+    case 'propose_order':
+      return tr(
+        fallback,
+        'Proposes an order to the trader, on a Sim account only. The desk shows it in its dialog (order, account, position before and after, your reason) and sends it only after the trader confirms, within 45 s, Decline by default. Guards before the dialog: Sim account, contracts per order, resulting position, proposals per minute, prop plan buffer, order channel open. Returns status: sent (orderId), declined (the trader declined or did not answer), refused (guard, with reason) or failed (the bridge refused). Do not propose without a clear, checkable reason.',
+        'Propone una orden al trader, solo en una cuenta Sim. El desk la muestra en su diálogo (orden, cuenta, posición antes y después, tu razón) y solo la envía tras su confirmación, 45 s como máximo, Rechazar por defecto. Controles antes del diálogo: cuenta Sim, contratos por orden, posición resultante, propuestas por minuto, margen del plan prop, canal de órdenes abierto. Devuelve status: sent (orderId), declined (el trader rechazó o no respondió), refused (control, con motivo) o failed (el puente la rechazó). No propongas sin una razón clara y verificable.',
       );
     case 'desk_events':
       return tr(
@@ -754,7 +785,8 @@ export async function executeDeskTool(ports: DeskPorts, name: string, args: stri
   if (!clamped.ok) return { ok: false, reason: clamped.reason };
   if (toolKind(name) === 'write') {
     if (ctx.source === 'orch' && ctx.allowWrite !== true) return { ok: false, reason: 'write_disabled' };
-    if (ctx.source === 'llm') {
+    // Un ordre est confirmé par le dialogue du process principal, pas par celui du renderer.
+    if (ctx.source === 'llm' && !ORDER_TOOLS.includes(name)) {
       const ok = ctx.confirmFn
         ? await ctx.confirmFn(
             tr(`L’agent veut exécuter « ${name} »`, `The agent wants to run “${name}”`, `El agente quiere ejecutar « ${name} »`),

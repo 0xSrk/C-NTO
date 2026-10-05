@@ -94,6 +94,7 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
+    proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
   };
 
   it('lecture libre ; écriture seulement si le desk l’autorise, côté main comme côté renderer', async () => {

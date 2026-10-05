@@ -6,9 +6,10 @@ import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { type DeskPorts } from '@/engine/agent/ports';
 import { tr } from '@/i18n';
-import { desk, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
+import { desk, type AgentOrderOrigin, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
 import { APP_VERSION } from '@/lib/version';
+import { useAgentOrders } from './agentOrders';
 import { useBars } from './bars';
 import { useBridge } from './bridge';
 import { useCalendar } from './calendar';
@@ -67,8 +68,8 @@ interface AgentState {
 let abortController: AbortController | null = null;
 let unsubscribeRequests: (() => void) | null = null;
 
-/** Ports du desk branchés sur les stores. Exporté pour les tests. */
-export function livePorts(): DeskPorts {
+/** Ports du desk branchés sur les stores. `origin` : qui appelle, pour la trace des ordres proposés. Exporté pour les tests. */
+export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
   return {
     sessions: () => useJournal.getState().sessions,
     trades: () => useJournal.getState().trades,
@@ -103,6 +104,10 @@ export function livePorts(): DeskPorts {
     barSeries: async () => {
       if (!useBars.getState().ready) await useBars.getState().load();
       return useBars.getState().series;
+    },
+    proposeOrder: async (args) => {
+      const outcome = await useAgentOrders.getState().propose(args, origin);
+      return { ok: outcome.status === 'sent', ...outcome };
     },
   };
 }
@@ -148,7 +153,7 @@ export const useAgent = create<AgentState>((set, get) => ({
           return;
         }
         const name = req.method.replace(/^tool\./, '');
-        const result = await executeDeskTool(livePorts(), name, (req.params as Record<string, unknown>) ?? {}, {
+        const result = await executeDeskTool(livePorts(req.clientId === MCP_CLIENT_ID ? 'mcp' : 'orch'), name, (req.params as Record<string, unknown>) ?? {}, {
           source: 'orch',
           allowWrite: useSettings.getState().settings.orchestratorAllowWrite,
         });
@@ -199,7 +204,7 @@ export const useAgent = create<AgentState>((set, get) => ({
         stream: (req) => streamChat({ config: settings.agent, messages: req.messages, tools: req.tools, toolChoice: req.toolChoice, signal, onDelta: req.onDelta }),
         kindOf: toolKind,
         runTool: (call) =>
-          executeDeskTool(livePorts(), call.name, call.args, {
+          executeDeskTool(livePorts('llm'), call.name, call.args, {
             source: 'llm',
             confirmFn: (title, detail) => useUi.getState().confirm(title, detail, false),
           }),

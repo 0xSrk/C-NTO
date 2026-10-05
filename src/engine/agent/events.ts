@@ -116,14 +116,21 @@ export interface PropBufferInput {
   unrealized: number;
 }
 
+/** Marge en direct et part restante du drawdown maximal ; `null` sans drawdown ou sans marge lisible. */
+export function propLiveBuffer(input: Pick<PropBufferInput, 'maxDrawdown' | 'buffer' | 'unrealized'>): { liveBuffer: number; share: number } | null {
+  if (!(input.maxDrawdown > 0) || !Number.isFinite(input.buffer)) return null;
+  const liveBuffer = input.buffer + Math.min(0, Number.isFinite(input.unrealized) ? input.unrealized : 0);
+  return { liveBuffer, share: liveBuffer / input.maxDrawdown };
+}
+
 /**
  * Marge en direct : celle du rejeu, diminuée d'un latent négatif (un latent positif ne compte pas :
  * il ne relève pas le plancher avant la clôture). Rend un événement quand un seuil est franchi vers le bas.
  */
 export function propBufferAlert(prevLevel: number, input: PropBufferInput): { level: number; data: Record<string, unknown> | null } {
-  if (!(input.maxDrawdown > 0) || !Number.isFinite(input.buffer)) return { level: prevLevel, data: null };
-  const liveBuffer = input.buffer + Math.min(0, Number.isFinite(input.unrealized) ? input.unrealized : 0);
-  const share = liveBuffer / input.maxDrawdown;
+  const live = propLiveBuffer(input);
+  if (!live) return { level: prevLevel, data: null };
+  const { liveBuffer, share } = live;
   const level = propBufferLevel(share, prevLevel);
   if (level <= prevLevel) return { level, data: null };
   return {

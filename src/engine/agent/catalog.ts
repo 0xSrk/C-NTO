@@ -21,7 +21,14 @@ export const DESK_TOOL_KINDS = {
   create_note: 'write',
   branch_note: 'write',
   link_notes: 'write',
+  propose_order: 'write',
 } as const satisfies Record<string, 'read' | 'write'>;
+
+/**
+ * Outils d'ordre : écritures que le process principal fait confirmer à l'opérateur dans son propre
+ * dialogue (pas de confirmation du renderer en plus), avec un délai de réponse plus long.
+ */
+export const ORDER_TOOLS: readonly string[] = ['propose_order'];
 
 export type DeskToolName = keyof typeof DESK_TOOL_KINDS;
 
@@ -40,7 +47,7 @@ export function orchMethodAllowed(method: string, allowWrites: boolean): boolean
 }
 
 /** Événements que le desk pousse aux agents (`desk.event` de l'orchestrateur) et range pour `desk_events`. */
-export const DESK_EVENT_KINDS = ['fill', 'prop_buffer', 'catalyst', 'bridge_link'] as const;
+export const DESK_EVENT_KINDS = ['fill', 'prop_buffer', 'catalyst', 'bridge_link', 'agent_order'] as const;
 export type DeskEventKind = (typeof DESK_EVENT_KINDS)[number];
 
 export function isDeskEventKind(kind: unknown): kind is DeskEventKind {

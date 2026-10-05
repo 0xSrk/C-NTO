@@ -62,6 +62,8 @@ export interface DeskPorts {
   barSeries(): Promise<BarSeries[]>;
   /** Journal des événements du lancement en cours (fills, marge prop, catalyseurs, lien du pont). */
   events(opts: { cursor?: string; kinds?: readonly string[]; limit?: number }): DeskEventPage;
+  /** Propose un ordre : le process principal garde, le fait confirmer par l'opérateur, puis le soumet. */
+  proposeOrder(args: Record<string, unknown>): Promise<unknown>;
 }
 
 export const BODY_MAX = 20_000;
