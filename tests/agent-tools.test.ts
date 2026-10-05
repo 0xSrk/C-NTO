@@ -23,6 +23,7 @@ function mockPorts(log: { writes: number }): DeskPorts {
     linkNotes: async () => null,
     calendarEntries: () => [],
     officialEvents: () => [],
+    bridge: async () => ({ nt: null, copier: null }),
   };
 }
 

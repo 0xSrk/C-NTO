@@ -384,6 +384,34 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'bridge_status',
+      kind: 'read',
+      description:
+        'État en direct du pont NinjaTrader 8 et du Copieur : lien, latence, canal d’ordres ouvert ou fermé, plafond, comptes (cash, PnL réalisé et latent, positions), Copieur armé ou non, ordres routés, dernier refus. Lecture seule : aucun outil ne passe d’ordre.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      async run() {
+        const { nt, copier } = await ports.bridge();
+        if (!nt) return { link: 'absent', note: tr('Pont NinjaTrader indisponible dans ce desk.', 'NinjaTrader bridge unavailable in this desk.', 'Puente NinjaTrader no disponible en este desk.'), copier };
+        const live = nt.link === 'live';
+        return {
+          link: nt.link,
+          ...(live ? {} : { note: tr('Pont hors ligne : comptes et positions peuvent être périmés.', 'Bridge offline: accounts and positions may be stale.', 'Puente fuera de línea: cuentas y posiciones pueden estar desactualizadas.') }),
+          addonVersion: nt.addonVersion,
+          heartbeatLatencyMs: nt.heartbeatLatencyMs,
+          ordersOpen: nt.ordersOpen,
+          maxContractsPerOrder: nt.maxContractsPerOrder,
+          accounts: nt.accounts.map((a) => ({
+            name: a.name,
+            cash: round(a.cashValue),
+            realizedPnl: round(a.realizedPnl),
+            unrealizedPnl: round(a.unrealizedPnl),
+            positions: a.positions.filter((p) => p.quantity !== 0).map((p) => ({ instrument: p.instrument, quantity: p.quantity, avgPrice: p.avgPrice })),
+          })),
+          copier: copier ? { armed: copier.armed, routed: copier.routed, lastRefusal: copier.lastRefusal } : null,
+        };
+      },
+    },
+    {
       name: 'propfirm_status',
       kind: 'read',
       description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. Par défaut, le plan et le compte suivis par l’écran Métrique.',
@@ -421,6 +449,7 @@ const EMPTY_PORTS: DeskPorts = {
   linkNotes: async () => null,
   calendarEntries: () => [],
   officialEvents: () => [],
+  bridge: async () => ({ nt: null, copier: null }),
 };
 
 /** Catalogue (affichage UI) — les `run` de ce tableau ne touchent pas les stores. */
@@ -464,6 +493,12 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Monte Carlo projection by i.i.d. bootstrap of daily PnL (ignores autocorrelation): final PnL and max drawdown percentiles, ruin and target probabilities. By default, ruin is the tracked prop plan’s max drawdown and the target its profit target. Fixed seed: reproducible.',
         'Proyección Monte Carlo por bootstrap i.i.d. de los PnL diarios (ignora la autocorrelación): percentiles del PnL final y del drawdown máx., probabilidades de ruina y de objetivo. Por defecto, la ruina es el drawdown máx. del plan prop seguido y el objetivo su objetivo de beneficio. Semilla fija: reproducible.',
+      );
+    case 'bridge_status':
+      return tr(
+        fallback,
+        'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions), Copier armed or not, routed orders, last refusal. Read only: no tool places an order.',
+        'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura: ninguna herramienta envía órdenes.',
       );
     case 'propfirm_status':
       return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');

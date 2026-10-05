@@ -20,6 +20,7 @@ function ports(over: Partial<DeskPorts> = {}): DeskPorts {
     linkNotes: async () => null,
     calendarEntries: () => [],
     officialEvents: () => [],
+    bridge: async () => ({ nt: null, copier: null }),
     ...over,
   };
 }

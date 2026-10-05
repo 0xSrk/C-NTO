@@ -20,6 +20,19 @@ export interface DeskCalendarEntry {
   body?: string;
 }
 
+/** Vue du pont NinjaTrader et du Copieur telle que le renderer la tient (lecture seule). */
+export interface DeskBridgeView {
+  nt: {
+    link: string;
+    addonVersion: string | null;
+    heartbeatLatencyMs: number | null;
+    ordersOpen: boolean;
+    maxContractsPerOrder: number;
+    accounts: { name: string; cashValue: number; realizedPnl: number; unrealizedPnl: number; positions: { instrument: string; quantity: number; avgPrice: number }[] }[];
+  } | null;
+  copier: { armed: boolean; routed: number; lastRefusal: { reason: string; account: string; instrument: string; qty: number } | null } | null;
+}
+
 /** Accès desk injecté — pas de stores dans `tools.ts`. */
 export interface DeskPorts {
   sessions(): Session[];
@@ -36,6 +49,8 @@ export interface DeskPorts {
   calendarEntries(): DeskCalendarEntry[];
   /** Lignes des sources officielles synchronisées (BLS, BEA, Fed, ECB, EIA, Treasury, instantané). */
   officialEvents(): CalendarEventRow[];
+  /** État en direct du pont et du Copieur. */
+  bridge(): Promise<DeskBridgeView>;
 }
 
 export const BODY_MAX = 20_000;
@@ -57,6 +72,7 @@ export const ORCH_READ_METHODS = [
   'propfirm_status',
   'journal_breakdown',
   'monte_carlo',
+  'bridge_status',
 ] as const;
 
 export const ORCH_WRITE_METHODS = ['create_note', 'annotate_session', 'branch_note', 'link_notes'] as const;

@@ -42,6 +42,7 @@ const ORCH_READ_METHODS = new Set([
   'propfirm_status',
   'journal_breakdown',
   'monte_carlo',
+  'bridge_status',
 ]);
 const ORCH_WRITE_METHODS = new Set(['create_note', 'annotate_session', 'branch_note', 'link_notes']);
 

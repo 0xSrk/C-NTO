@@ -24,6 +24,7 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     linkNotes: async () => null,
     calendarEntries: () => [],
     officialEvents: () => [],
+    bridge: async () => ({ nt: null, copier: null }),
   };
 }
 

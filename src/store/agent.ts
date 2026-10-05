@@ -9,6 +9,7 @@ import { tr } from '@/i18n';
 import { desk, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
 import { APP_VERSION } from '@/lib/version';
+import { useBridge } from './bridge';
 import { useCalendar } from './calendar';
 import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
@@ -85,6 +86,10 @@ function livePorts(): DeskPorts {
     },
     calendarEntries: () => useCalendar.getState().entries,
     officialEvents: () => useMacro.getState().events,
+    bridge: async () => ({
+      nt: (await desk?.ntbridge?.status().catch(() => null)) ?? useBridge.getState().nt,
+      copier: desk?.copier ? await desk.copier.status().catch(() => null) : null,
+    }),
   };
 }
 
