@@ -46,6 +46,11 @@ namespace NinjaTrader.NinjaScript.AddOns
         private Timer accountsTimer;
         private int rpcSeq;
         private readonly object sendLock = new object();
+        // Politique d'ordres lue dans bridge.json (écrit par le desk) : la garde propre de l'AddOn.
+        private const int DefaultMaxContracts = 20;
+        private readonly object policyLock = new object();
+        private readonly List<string> extraAccounts = new List<string>();
+        private int maxContracts = DefaultMaxContracts;
 
         protected override void OnStateChange()
         {
@@ -265,6 +270,29 @@ namespace NinjaTrader.NinjaScript.AddOns
                 JObject obj = JObject.Parse(File.ReadAllText(path));
                 if (obj["port"] != null) wsPort = (int)obj["port"];
                 if (obj["token"] != null) wsToken = (string)obj["token"];
+                // Absents (bridge.json d'un desk antérieur) : comptes Sim seulement, 20 contrats.
+                List<string> extra = new List<string>();
+                JArray list = obj["extraAccounts"] as JArray;
+                if (list != null)
+                {
+                    foreach (JToken item in list)
+                    {
+                        string name = (string)item;
+                        if (!string.IsNullOrEmpty(name) && name.Length <= 128) extra.Add(name);
+                    }
+                }
+                int cap = DefaultMaxContracts;
+                if (obj["maxContractsPerOrder"] != null)
+                {
+                    int n = (int)obj["maxContractsPerOrder"];
+                    if (n >= 1 && n <= 1000) cap = n;
+                }
+                lock (policyLock)
+                {
+                    extraAccounts.Clear();
+                    extraAccounts.AddRange(extra);
+                    maxContracts = cap;
+                }
             }
             catch (Exception ex)
             {
@@ -497,6 +525,11 @@ namespace NinjaTrader.NinjaScript.AddOns
                 else if (method == "bridge.snapshot") Reply(id, new JObject());
                 else if (method == "bridge.lost") { /* coupe-circuit côté desk */ }
             }
+            catch (GuardException ex)
+            {
+                Log("CΛNTO Bridge : ordre refusé par l'AddOn — " + ex.Message, LogLevel.Warning);
+                ReplyError(id, ex.Code, ex.Message);
+            }
             catch (Exception ex)
             {
                 ReplyError(id, -32000, ex.Message);
@@ -590,15 +623,20 @@ namespace NinjaTrader.NinjaScript.AddOns
         private JObject SubmitOrder(JObject p)
         {
             long started = NowMs();
-            Account account = FindAccount((string)p["account"]);
+            // Politique du jour, relue à chaque ordre : un compte retiré ou un plafond baissé s'applique tout de suite.
+            ReadBridgeConfig();
+            string accountName = (string)p["account"];
+            string tag = (string)p["tag"] ?? "";
+            double requested = p["quantity"] != null ? (double)p["quantity"] : 0;
+            GuardSubmit(accountName, requested, tag);
+            Account account = FindAccount(accountName);
             if (account == null) throw new InvalidOperationException("compte introuvable");
             if (!IsConnected(account)) throw new InvalidOperationException("compte non connecté");
             Instrument instrument = Instrument.GetInstrument((string)p["instrument"]);
             if (instrument == null) throw new InvalidOperationException("instrument inconnu");
-            string tag = (string)p["tag"] ?? "";
             OrderAction action = ParseAction((string)p["action"]);
             OrderType type = ParseType((string)p["type"]);
-            int quantity = (int)p["quantity"];
+            int quantity = (int)requested;
             double limit = p["limitPrice"] != null ? (double)p["limitPrice"] : 0;
             double stop = p["stopPrice"] != null ? (double)p["stopPrice"] : 0;
             string oco = (string)p["oco"] ?? "";
@@ -606,6 +644,33 @@ namespace NinjaTrader.NinjaScript.AddOns
             order.Name = tag;
             account.Submit(new[] { order });
             return new JObject { ["orderId"] = order.OrderId ?? "", ["latencyMs"] = NowMs() - started };
+        }
+
+        // Garde propre de l'AddOn, mêmes codes que le desk : -32013 tag, -32010 compte, -32012 plafond.
+        // Le desk garde ses règles ; un ordre ne part d'ici que s'il respecte aussi celles de bridge.json.
+        private void GuardSubmit(string accountName, double quantity, string tag)
+        {
+            if (string.IsNullOrEmpty(tag) || tag.Trim().Length == 0) throw new GuardException(-32013, "tag obligatoire");
+            bool allowed;
+            int cap;
+            lock (policyLock)
+            {
+                allowed = !string.IsNullOrEmpty(accountName) && (accountName.StartsWith("Sim", StringComparison.Ordinal) || extraAccounts.Contains(accountName));
+                cap = maxContracts;
+            }
+            if (!allowed) throw new GuardException(-32010, "compte non autorisé par l'AddOn : " + accountName);
+            if (quantity != Math.Floor(quantity) || quantity < 1 || quantity > cap)
+                throw new GuardException(-32012, "plafond de l'AddOn : " + cap.ToString(CultureInfo.InvariantCulture) + " contrats");
+        }
+
+        private sealed class GuardException : Exception
+        {
+            public readonly int Code;
+
+            public GuardException(int code, string message) : base(message)
+            {
+                Code = code;
+            }
         }
 
         private JObject CancelOrder(JObject p)

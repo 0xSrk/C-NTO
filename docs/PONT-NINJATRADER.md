@@ -68,8 +68,10 @@ Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par l
 2. Dans le desk, Métrique › Pont NinjaTrader : **Régénérer le jeton** si besoin, puis **Écrire la configuration pour NinjaTrader**. Le desk écrit `Documents\NinjaTrader 8\export\CANTO\bridge.json` (ou le dossier surveillé) :
 
 ```json
-{ "port": 48231, "token": "…" }
+{ "port": 48231, "token": "…", "extraAccounts": ["APEX-50K"], "maxContractsPerOrder": 20 }
 ```
+
+`extraAccounts` et `maxContractsPerOrder` sont la garde propre de l'AddOn (voir « Garde-fous »). Quand un compte réel est autorisé ou que le plafond change, le desk réécrit un `bridge.json` déjà présent ; il n'en crée jamais un sans le geste du trader. À l'ouverture, il complète un fichier écrit par une version précédente.
 
 Le fichier est en mode `0600`. Sur Windows, Node ignore ce mode : après l'écriture, le process principal lance `icacls "<fichier>" /inheritance:r /grant:r "%USERNAME%":F` (`execFile`, sans shell). Succès ou échec est journalisé (nom du fichier, pas le jeton). Si l'ACL échoue, le panneau Pont affiche « permissions du fichier de configuration non restreintes ». L'ADMIN vérifie sur son poste que le fichier n'est lisible que par son compte. Le jeton n'est plus affiché après génération. L'AddOn le relit, se connecte à `ws://127.0.0.1:<port>/?token=<jeton>`, et se reconnecte avec un repli de 1 s à 30 s.
 
@@ -137,6 +139,8 @@ Réglables dans le panneau. Persistés dans `userData/nt-bridge.json`, pas dans 
 | Kill switch | `Ctrl+Shift+K` / `Cmd+Shift+K` (`CommandOrControl+Shift+K`) : `order.flatten` sur chaque compte autorisé connu, puis canal fermé à la soumission jusqu'au redémarrage du desk. Annuler et aplatir restent permis. Le message ne dit « aplati » que pour les comptes dont l'AddOn a confirmé l'aplatissement (réponse attendue 3 s) ; pont hors ligne, il le dit | `-32011` sur `order.submit` ensuite |
 | Plafond | `maxContractsPerOrder` = **20** par défaut, réglable de 1 à 1000 dans le panneau (le process refuse hors de cet intervalle). Le baisser est immédiat ; le relever passe par un dialogue du process principal (Annuler par défaut) | `-32012` si `quantity` est supérieure |
 | Tag | obligatoire sur `order.submit` | `-32013` |
+
+**Garde de l'AddOn.** L'AddOn ne se fie pas au desk : avant chaque `order.submit`, il relit `bridge.json` et refuse lui-même un tag vide (`-32013`), un compte qui n'est ni `Sim*` ni dans `extraAccounts` (`-32010`), une quantité non entière, inférieure à 1 ou supérieure à `maxContractsPerOrder` (`-32012`). Champs absents (fichier d'un desk antérieur) : comptes `Sim*` seulement, 20 contrats. Le refus est écrit dans le journal de NinjaTrader. Un serveur qui se ferait passer pour le desk ne peut donc ni ouvrir un compte réel ni dépasser le plafond : il lui faudrait aussi écrire `bridge.json`, lisible et modifiable par le seul compte Windows du trader.
 
 Un compte réel s'ajoute depuis le panneau. Le dialogue CΛNTO du renderer explique le geste ; il ne suffit pas. Le process principal affiche ensuite `dialog.showMessageBox` (type `warning`, boutons « Autoriser les ordres réels sur &lt;compte&gt; » / « Annuler », défaut Annuler, `noLink`, FR/EN/ES). Seule la réponse Autoriser appelle `allowAccount`. L'autorisation est journalisée dans `main.log` (compte, horodatage, sans jeton). Chaque ordre émis est écrit dans `main.log` avec tag, compte, instrument, quantité, latence et résultat.
 
