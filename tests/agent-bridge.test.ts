@@ -19,6 +19,7 @@ function ports(view: DeskBridgeView): DeskPorts {
     officialEvents: () => [],
     bridge: async () => view,
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
+    barSeries: async () => [],
   };
 }
 

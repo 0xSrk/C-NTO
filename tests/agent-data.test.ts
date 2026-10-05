@@ -22,6 +22,7 @@ function ports(over: Partial<DeskPorts> = {}): DeskPorts {
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
+    barSeries: async () => [],
     ...over,
   };
 }

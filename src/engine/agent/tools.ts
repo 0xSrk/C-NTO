@@ -1,4 +1,6 @@
 import { generateNasdaqEvents } from '@/engine/calendar';
+import { defaultParams, indicatorById } from '@/engine/indicators';
+import { resolveSymbol } from '@/engine/instruments';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { tr } from '@/i18n';
@@ -6,6 +8,7 @@ import { aggregateByDate, computeDailyStats, computeTradeStats, type Bucket } fr
 import { monteCarlo } from '@/engine/montecarlo';
 import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
+import type { Bar, BarSeries } from '@/engine/bars';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
 import { clampToolArgs, type DeskPorts } from './ports';
@@ -23,6 +26,8 @@ const MC_MAX_RUNS = 2000;
 const MC_MAX_HORIZON = 250;
 const MC_MIN_DAYS = 10;
 const MC_SEED = 1337;
+/** Indicateurs calculés sur les dernières barres seulement (≈ 17 jours en 1 min). */
+const LEVELS_MAX_BARS = 25_000;
 
 const round = (v: number, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,6 +53,26 @@ function journalSlice(ports: DeskPorts, args: Record<string, unknown>): { sessio
   const sessions = ports.sessions().filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account));
   const ids = new Set(sessions.map((s) => s.id));
   return { sessions, trades: ports.trades().filter((t) => ids.has(t.sessionId)), account };
+}
+
+/** Dernière valeur d'une ligne d'indicateur, ou null. */
+function lastLine(bars: Bar[], id: string, key: string, params: Record<string, number | string> = {}): number | null {
+  const def = indicatorById(id);
+  if (!def || !bars.length) return null;
+  const line = def.compute(bars, { ...defaultParams(def), ...params }).lines.find((l) => l.key === key);
+  for (let i = (line?.data.length ?? 0) - 1; i >= 0; i--) {
+    const v = line?.data[i]?.value;
+    if (v !== undefined && Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/** Pont vivant d'abord, puis CSV, puis démo ; à unité égale, la plus fine. */
+const SOURCE_RANK: Record<string, number> = { 'nt8-bridge': 0, csv: 1, demo: 2 };
+function pickSeries(all: BarSeries[], symbol: string | null, timeframe: number | null): BarSeries | undefined {
+  return all
+    .filter((s) => s.bars.length > 0 && (!symbol || s.instrument === symbol) && (!timeframe || s.timeframe === timeframe))
+    .sort((a, b) => (SOURCE_RANK[a.source] ?? 1) - (SOURCE_RANK[b.source] ?? 1) || a.timeframe - b.timeframe)[0];
 }
 
 const SLICE_PARAMS = {
@@ -459,6 +484,43 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'market_levels',
+      kind: 'read',
+      description:
+        'Niveaux de marché d’un instrument du registre à partir des barres du desk (pont NinjaTrader, sinon CSV, sinon démo) : dernier prix, PDH / PDL / PDC, Opening Range RTH, VWAP de séance et ±1σ, ATR 14. La source est nommée ; une série de démo est marquée synthetic : ses prix ne sont pas réels.',
+      parameters: {
+        type: 'object',
+        properties: {
+          instrument: { type: 'string', description: 'Racine ou contrat (NQ, MNQ 12-26, ES…). Défaut : la première série disponible' },
+          timeframe: { type: 'number', description: 'Unité en minutes (défaut : la plus fine disponible)' },
+          openingRangeMinutes: { type: 'number', description: 'Durée de l’Opening Range (5 à 60, défaut 15)' },
+        },
+        additionalProperties: false,
+      },
+      async run(args) {
+        const raw = str(args.instrument);
+        const symbol = raw ? resolveSymbol(raw)?.symbol ?? null : null;
+        if (raw && !symbol) return { error: tr(`Instrument hors registre : ${raw}`, `Instrument not in the registry: ${raw}`, `Instrumento fuera del registro: ${raw}`) };
+        const tf = typeof args.timeframe === 'number' && Number.isFinite(args.timeframe) ? Math.round(args.timeframe) : null;
+        const series = pickSeries(await ports.barSeries(), symbol, tf);
+        if (!series) return { error: tr('Aucune barre pour cet instrument dans le desk', 'No bars for this instrument in the desk', 'No hay barras para este instrumento en el desk') };
+        const bars = series.bars.slice(-LEVELS_MAX_BARS);
+        const last = bars[bars.length - 1]!;
+        const orMinutes = Math.min(60, Math.max(5, Math.round(num(args.openingRangeMinutes, 15) / 5) * 5));
+        const level = (v: number | null) => (v === null ? null : round(v, 2));
+        return {
+          instrument: series.instrument,
+          series: { label: series.label, source: series.source, timeframe: series.timeframe, bars: bars.length, synthetic: series.source === 'demo' },
+          last: { time: new Date(last.time * 1000).toISOString(), close: last.close },
+          prevSession: { high: level(lastLine(bars, 'prev-session', 'pdh')), low: level(lastLine(bars, 'prev-session', 'pdl')), close: level(lastLine(bars, 'prev-session', 'pdc')) },
+          openingRange: { minutes: orMinutes, high: level(lastLine(bars, 'opening-range', 'orh', { minutes: orMinutes })), low: level(lastLine(bars, 'opening-range', 'orl', { minutes: orMinutes })) },
+          vwap: { value: level(lastLine(bars, 'vwap', 'vwap')), up1: level(lastLine(bars, 'vwap', 'up1')), dn1: level(lastLine(bars, 'vwap', 'dn1')) },
+          atr14: level(lastLine(bars, 'atr', 'atr', { period: 14 })),
+          timezone: 'America/New_York',
+        };
+      },
+    },
+    {
       name: 'propfirm_status',
       kind: 'read',
       description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. Par défaut, le plan et le compte suivis par l’écran Métrique.',
@@ -498,6 +560,7 @@ const EMPTY_PORTS: DeskPorts = {
   officialEvents: () => [],
   bridge: async () => ({ nt: null, copier: null }),
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
+  barSeries: async () => [],
 };
 
 /** Catalogue (affichage UI) — les `run` de ce tableau ne touchent pas les stores. */
@@ -553,6 +616,12 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Consolidated portfolio, as on the Portfolio screen: net value in the base currency, each pocket (value, unrealized, mark, exclusion reason, distance to the prop plan), exposure (notional, gross leverage, concentration, by class and by instrument). Futures positions come from the bridge when it is live.',
         'Cartera consolidada, como en la pantalla Cartera: valor neto en la divisa base, cada bolsillo (valor, latente, marca, motivo de exclusión, distancia al plan prop), exposición (nocional, apalancamiento bruto, concentración, por clase y por instrumento). Las posiciones de futuros vienen del puente cuando está activo.',
+      );
+    case 'market_levels':
+      return tr(
+        fallback,
+        'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real.',
+        'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales.',
       );
     case 'propfirm_status':
       return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');

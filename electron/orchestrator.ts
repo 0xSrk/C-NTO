@@ -44,6 +44,7 @@ const ORCH_READ_METHODS = new Set([
   'monte_carlo',
   'bridge_status',
   'portfolio_snapshot',
+  'market_levels',
 ]);
 const ORCH_WRITE_METHODS = new Set(['create_note', 'annotate_session', 'branch_note', 'link_notes']);
 
