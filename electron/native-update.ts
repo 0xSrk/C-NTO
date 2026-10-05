@@ -7,12 +7,15 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { mainLog } from './main-log';
-import { parseChecksums, parseLatestRelease, pickInstallerAsset, type InstallKind, type ReleaseInfo } from './release-check';
+import { parseLatestRelease, pickInstallerAsset, type InstallKind, type ReleaseInfo } from './release-check';
+import { RELEASE_PUBLIC_KEYS } from './release-keys';
+import { SIGNATURE_ASSET, SIGNATURE_MAX_BYTES, trustedChecksum } from './release-signature';
 import { compareSemver } from './semver';
 
 /**
  * Mise à jour native de l'application installée (sans `.git`) : l'installeur de la dernière
- * Release GitHub adapté au poste est téléchargé, vérifié contre `SHA256SUMS.txt`, puis
+ * Release GitHub adapté au poste est téléchargé, vérifié contre `SHA256SUMS.txt` (lui-même signé
+ * par une clé du Lab, voir `release-signature.ts`), puis
  * installé. Windows : installeur NSIS silencieux qui relance CΛNTO ; Linux AppImage : fichier
  * remplacé puis relance ; macOS DMG et Linux deb : l'installeur est ouvert pour l'utilisateur.
  * Réseau via `net.fetch` (pile Chromium) : le proxy système du poste est respecté.
@@ -85,8 +88,22 @@ export async function applyInstallerUpdate(opts: {
   if (!sumsAsset) throw new Error('no_checksums');
   const sumsRes = await net.fetch(sumsAsset.url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', signal: AbortSignal.timeout(30_000) });
   if (!sumsRes.ok) throw new Error('no_checksums');
-  const expected = parseChecksums(await sumsRes.text()).get(pick.asset.name);
-  if (!expected) throw new Error('no_checksums');
+  const sums = await sumsRes.text();
+  // Signature du Lab sur SHA256SUMS.txt : sans elle, des empreintes publiées avec les installeurs ne prouvent rien.
+  const sigAsset = release.assets.find((a) => a.name === SIGNATURE_ASSET);
+  let signature: string | null = null;
+  if (sigAsset && sigAsset.size <= SIGNATURE_MAX_BYTES) {
+    const sigRes = await net.fetch(sigAsset.url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', signal: AbortSignal.timeout(30_000) });
+    if (sigRes.ok) signature = (await sigRes.text()).slice(0, SIGNATURE_MAX_BYTES);
+  }
+  const trust = trustedChecksum({ version: release.version, installer: pick.asset.name, sums, signature, keys: RELEASE_PUBLIC_KEYS });
+  if (!trust.ok) {
+    mainLog('error', `mise à jour v${release.version} refusée : ${trust.error}`);
+    throw new Error(trust.error);
+  }
+  if (trust.signed) mainLog('info', `SHA256SUMS.txt de v${release.version} signé par une clé du Lab`);
+  else mainLog('warn', `aucune clé de publication embarquée : SHA256SUMS.txt de v${release.version} non vérifié par signature`);
+  const expected = trust.sha256;
 
   const dir = path.join(app.getPath('temp'), 'canto-update');
   await fs.mkdir(dir, { recursive: true });

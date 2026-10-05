@@ -20,6 +20,8 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm test && npm run build",
     "hash-release": "node scripts/hash-release.mjs",
+    "release:key": "node scripts/release-key.mjs",
+    "release:sign": "node scripts/sign-release.mjs",
     "calendar:snapshot": "node scripts/calendar-snapshot.mjs",
     "electron:compile": "tsc -p electron/tsconfig.json && tsc -p electron/tsconfig.sources.json && node scripts/copy-electron-assets.mjs",
     "launch": "node scripts/launch.mjs",
