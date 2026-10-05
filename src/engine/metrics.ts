@@ -373,7 +373,8 @@ export function computeTradeStats(input: Trade[]): TradeStats {
       (t) => String(zonedWallClock(t.entryTime, ET_ZONE).hour),
       Array.from({ length: 24 }, (_, i) => String(i)),
     ),
-    byWeekday: bucketize(trades, (t) => WEEKDAY_KEYS[new Date(t.entryTime).getDay()] ?? 'dim', WEEKDAY_KEYS),
+    // Même fuseau que les heures : le jour d'entrée à New York, pas celui du poste.
+    byWeekday: bucketize(trades, (t) => WEEKDAY_KEYS[zonedWallClock(t.entryTime, ET_ZONE).weekday] ?? 'dim', WEEKDAY_KEYS),
     byInstrument: bucketize(trades, (t) => t.instrument, instruments),
     equity: dd.equity,
     pnls,
