@@ -2,8 +2,10 @@ import { generateNasdaqEvents } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { tr } from '@/i18n';
-import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
+import { aggregateByDate, computeDailyStats, computeTradeStats, type Bucket } from '@/engine/metrics';
+import { monteCarlo } from '@/engine/montecarlo';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
+import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
 import { clampToolArgs, type DeskPorts } from './ports';
 
@@ -15,6 +17,11 @@ export interface DeskTool extends ToolSchema {
 /** Une plage de dates longue produirait des milliers de lignes : le modèle n'en lit pas autant. */
 const CALENDAR_MAX_YEARS = 3;
 const CALENDAR_MAX_EVENTS = 300;
+/** Projection bornée : l'outil s'exécute dans le renderer, sans worker (≤ 500 000 tirages). */
+const MC_MAX_RUNS = 2000;
+const MC_MAX_HORIZON = 250;
+const MC_MIN_DAYS = 10;
+const MC_SEED = 1337;
 
 const round = (v: number, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -30,6 +37,26 @@ function str(v: unknown, fallback = ''): string {
 }
 function num(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+/** Séances d'une plage de dates et d'un compte ('' = tous), et leurs trades. */
+function journalSlice(ports: DeskPorts, args: Record<string, unknown>): { sessions: Session[]; trades: Trade[]; account: string } {
+  const from = str(args.from);
+  const to = str(args.to);
+  const account = str(args.account);
+  const sessions = ports.sessions().filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account));
+  const ids = new Set(sessions.map((s) => s.id));
+  return { sessions, trades: ports.trades().filter((t) => ids.has(t.sessionId)), account };
+}
+
+const SLICE_PARAMS = {
+  from: { type: 'string', description: 'Date de début incluse (YYYY-MM-DD)' },
+  to: { type: 'string', description: 'Date de fin incluse (YYYY-MM-DD)' },
+  account: { type: 'string', description: 'Compte (défaut : tous les comptes)' },
+} as const;
+
+function buckets(list: Bucket[]) {
+  return list.filter((b) => b.count > 0).map((b) => ({ key: b.key, trades: b.count, pnl: round(b.pnl), winRate: round(b.winRate, 4) }));
 }
 
 /** Outils natifs exposés à l'agent IA et à l'orchestrateur externe (même contrat). */
@@ -288,6 +315,75 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'journal_breakdown',
+      kind: 'read',
+      description:
+        'Ventilations du journal : par heure d’entrée et par jour de semaine (heure de New York), par instrument, long / short. Filtres optionnels de dates et de compte. Seuls les créneaux qui portent des trades sont rendus.',
+      parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
+      async run(args) {
+        const { trades, account } = journalSlice(ports, args);
+        const t = computeTradeStats(trades);
+        const dir = (d: typeof t.long) => ({ trades: d.count, pnl: round(d.pnl), winRate: round(d.winRate, 4), avgPnl: round(d.avgPnl) });
+        return {
+          timezone: 'America/New_York',
+          account: account || null,
+          trades: t.count,
+          netPnl: round(t.netPnl),
+          winRate: round(t.winRate, 4),
+          byHour: buckets(t.byHour),
+          byWeekday: buckets(t.byWeekday),
+          byInstrument: buckets(t.byInstrument),
+          direction: { long: dir(t.long), short: dir(t.short) },
+        };
+      },
+    },
+    {
+      name: 'monte_carlo',
+      kind: 'read',
+      description:
+        'Projection Monte Carlo par bootstrap i.i.d. des PnL journaliers (ignore l’autocorrélation) : percentiles du PnL final et du drawdown max, probabilité de ruine et d’objectif. Par défaut, la ruine est le drawdown max du plan prop suivi et l’objectif son objectif de profit. Graine fixe : résultat reproductible.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...SLICE_PARAMS,
+          runs: { type: 'number', description: `Nombre de simulations (défaut 1000, au plus ${MC_MAX_RUNS})` },
+          horizon: { type: 'number', description: `Journées simulées (défaut 60, au plus ${MC_MAX_HORIZON})` },
+          ruinDrawdown: { type: 'number', description: 'Drawdown ($) qui vaut ruine (défaut : celui du plan suivi)' },
+          target: { type: 'number', description: 'Objectif de profit ($) (défaut : celui du plan suivi)' },
+        },
+        additionalProperties: false,
+      },
+      async run(args) {
+        const { sessions, account } = journalSlice(ports, args);
+        const daily = aggregateByDate(sessions).map((d) => d.pnl);
+        if (daily.length < MC_MIN_DAYS) {
+          return { error: tr(`Échantillon trop court : ${daily.length} journée(s), ${MC_MIN_DAYS} au moins`, `Sample too short: ${daily.length} day(s), at least ${MC_MIN_DAYS}`, `Muestra demasiado corta: ${daily.length} día(s), al menos ${MC_MIN_DAYS}`) };
+        }
+        const plan = findPlan(ports.planId());
+        const runs = Math.min(MC_MAX_RUNS, Math.max(100, Math.round(num(args.runs, 1000))));
+        const horizon = Math.min(MC_MAX_HORIZON, Math.max(5, Math.round(num(args.horizon, 60))));
+        const ruinDrawdown = num(args.ruinDrawdown, plan?.maxDrawdown ?? Number.NaN);
+        const target = num(args.target, plan?.profitTarget ?? Number.NaN);
+        const r = monteCarlo(daily, { runs, horizon, seed: MC_SEED, ruinDrawdown: Number.isFinite(ruinDrawdown) ? ruinDrawdown : undefined, target: Number.isFinite(target) ? target : undefined });
+        if (!r) return { error: tr('Projection impossible', 'Projection unavailable', 'Proyección imposible') };
+        const pct = (q: typeof r.finalPnl) => ({ p5: round(q.p5), p25: round(q.p25), p50: round(q.p50), p75: round(q.p75), p95: round(q.p95), mean: round(q.mean) });
+        return {
+          method: 'bootstrap i.i.d. des PnL journaliers',
+          account: account || null,
+          sampleDays: daily.length,
+          runs: r.runs,
+          horizon: r.horizon,
+          seed: MC_SEED,
+          finalPnl: pct(r.finalPnl),
+          maxDrawdown: pct(r.maxDrawdown),
+          ruinDrawdown: Number.isFinite(ruinDrawdown) ? ruinDrawdown : null,
+          ruinProbability: r.ruinProbability === null ? null : round(r.ruinProbability, 4),
+          target: Number.isFinite(target) ? target : null,
+          targetProbability: r.targetProbability === null ? null : round(r.targetProbability, 4),
+        };
+      },
+    },
+    {
       name: 'propfirm_status',
       kind: 'read',
       description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. Par défaut, le plan et le compte suivis par l’écran Métrique.',
@@ -356,6 +452,18 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Catalysts between two dates (at most three calendar years): synced official sources (BLS, BEA, Federal Reserve, ECB, EIA, Treasury, embedded snapshot) merged with local markers (holidays, sessions, estimated CME expirations), then personal entries. Each event carries its source and `estimated` when the date is inferred.',
         'Catalizadores entre dos fechas (como máximo tres años civiles): fuentes oficiales sincronizadas (BLS, BEA, Reserva Federal, BCE, EIA, Treasury, instantánea integrada) fusionadas con las referencias locales (festivos, sesiones, vencimientos CME estimados), y luego entradas personales. Cada evento lleva su fuente y `estimated` cuando la fecha se deduce.',
+      );
+    case 'journal_breakdown':
+      return tr(
+        fallback,
+        'Journal breakdowns: by entry hour and weekday (New York time), by instrument, long / short. Optional date and account filters. Only slots with trades are returned.',
+        'Desgloses del diario: por hora de entrada y día de la semana (hora de Nueva York), por instrumento, largo / corto. Filtros opcionales de fechas y cuenta. Solo se devuelven las franjas con trades.',
+      );
+    case 'monte_carlo':
+      return tr(
+        fallback,
+        'Monte Carlo projection by i.i.d. bootstrap of daily PnL (ignores autocorrelation): final PnL and max drawdown percentiles, ruin and target probabilities. By default, ruin is the tracked prop plan’s max drawdown and the target its profit target. Fixed seed: reproducible.',
+        'Proyección Monte Carlo por bootstrap i.i.d. de los PnL diarios (ignora la autocorrelación): percentiles del PnL final y del drawdown máx., probabilidades de ruina y de objetivo. Por defecto, la ruina es el drawdown máx. del plan prop seguido y el objetivo su objetivo de beneficio. Semilla fija: reproducible.',
       );
     case 'propfirm_status':
       return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');
