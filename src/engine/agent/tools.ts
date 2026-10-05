@@ -1,4 +1,5 @@
 import { generateNasdaqEvents } from '@/engine/calendar';
+import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { tr } from '@/i18n';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
@@ -10,6 +11,10 @@ export interface DeskTool extends ToolSchema {
   kind: 'read' | 'write';
   run: (args: Record<string, unknown>) => Promise<unknown>;
 }
+
+/** Une plage de dates longue produirait des milliers de lignes : le modèle n'en lit pas autant. */
+const CALENDAR_MAX_YEARS = 3;
+const CALENDAR_MAX_EVENTS = 300;
 
 const round = (v: number, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -33,7 +38,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
     {
       name: 'desk_overview',
       kind: 'read',
-      description: 'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi.',
+      description: 'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique).',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const sessions = ports.sessions();
@@ -41,7 +46,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const t = computeTradeStats(trades);
         const d = computeDailyStats(sessions, ports.startingBalance());
         const plan = findPlan(ports.planId());
-        const evalr = plan ? evaluatePlan(plan, sessions, trades) : null;
+        const planAccount = ports.planAccount();
+        const evalr = plan ? evaluatePlan(plan, sessions, trades, planAccount || undefined) : null;
         return {
           sessions: sessions.length,
           trades: t.count,
@@ -59,7 +65,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           bestDay: round(d.bestDay),
           worstDay: round(d.worstDay),
           consistencyShare: round(d.consistency, 4),
-          plan: plan ? { id: plan.id, firm: plan.firm, label: plan.label, status: evalr?.status, balance: round(evalr?.balance ?? 0), floor: round(evalr?.floor ?? 0), buffer: round(evalr?.buffer ?? 0), targetProgress: round(evalr?.targetProgress ?? 0, 4) } : null,
+          plan: plan ? { id: plan.id, firm: plan.firm, label: plan.label, account: planAccount || null, status: evalr?.status, balance: round(evalr?.balance ?? 0), floor: round(evalr?.floor ?? 0), buffer: round(evalr?.buffer ?? 0), targetProgress: round(evalr?.targetProgress ?? 0, 4) } : null,
         };
       },
     },
@@ -234,17 +240,49 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
     {
       name: 'calendar_events',
       kind: 'read',
-      description: 'Événements Nasdaq (FOMC, NFP, CPI, expirations, fériés…) et entrées personnelles entre deux dates.',
-      parameters: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } }, required: ['from', 'to'], additionalProperties: false },
+      description:
+        'Catalyseurs entre deux dates (au plus trois années civiles) : sources officielles synchronisées (BLS, BEA, Federal Reserve, BCE, EIA, Treasury, instantané embarqué) fusionnées avec les repères locaux (fériés, séances, expirations CME estimées), puis entrées personnelles. Chaque événement porte sa source et `estimated` quand la date est déduite.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'Date de début incluse (YYYY-MM-DD)' },
+          to: { type: 'string', description: 'Date de fin incluse (YYYY-MM-DD)' },
+          minImpact: { type: 'number', description: 'Impact minimal 1 (mineur) à 3 (majeur), défaut 1' },
+        },
+        required: ['from', 'to'],
+        additionalProperties: false,
+      },
       async run(args) {
         const from = str(args.from);
         const to = str(args.to);
         if (!DATE_RE.test(from) || !DATE_RE.test(to)) return { error: tr('Dates attendues au format YYYY-MM-DD', 'Dates expected in YYYY-MM-DD format', 'Fechas esperadas en formato YYYY-MM-DD') };
-        const years = new Set([Number(from.slice(0, 4)), Number(to.slice(0, 4))]);
-        const events = [...years].flatMap((y) => generateNasdaqEvents(y)).filter((e) => e.date >= from && e.date <= to);
+        if (to < from) return { error: tr('La date de fin précède la date de début', 'The end date is before the start date', 'La fecha final es anterior a la inicial') };
+        const fromYear = Number(from.slice(0, 4));
+        const toYear = Number(to.slice(0, 4));
+        if (toYear - fromYear > CALENDAR_MAX_YEARS - 1) return { error: tr(`Plage limitée à ${CALENDAR_MAX_YEARS} années civiles`, `Range limited to ${CALENDAR_MAX_YEARS} calendar years`, `Rango limitado a ${CALENDAR_MAX_YEARS} años civiles`) };
+        const minImpact = Math.min(3, Math.max(1, Math.round(num(args.minImpact, 1))));
+        const local: ReturnType<typeof generateNasdaqEvents> = [];
+        for (let y = fromYear; y <= toYear; y++) local.push(...generateNasdaqEvents(y));
+        const all = mergeCalendarEvents(local, ports.officialEvents()).filter((e) => e.date >= from && e.date <= to && e.impact >= minImpact);
+        const events = all.slice(0, CALENDAR_MAX_EVENTS);
         const perso = ports.calendarEntries().filter((e) => e.date >= from && e.date <= to);
         return {
-          events: events.map((e) => ({ date: e.date, timeET: e.timeET, title: e.title, impact: e.impact, category: e.category, estimated: e.estimated })),
+          count: all.length,
+          ...(all.length > events.length ? { truncated: true } : {}),
+          events: events.map((e) => ({
+            date: e.date,
+            timeET: e.timeET,
+            title: e.title,
+            impact: e.impact,
+            category: e.category,
+            estimated: e.estimated,
+            source: e.source ?? 'local',
+            ...(e.forecast != null ? { forecast: e.forecast } : {}),
+            ...(e.previous != null ? { previous: e.previous } : {}),
+            ...(e.actual != null ? { actual: e.actual } : {}),
+            ...(e.period ? { period: e.period } : {}),
+            ...(e.instruments?.length ? { instruments: e.instruments } : {}),
+          })),
           personal: perso.map((e) => ({ date: e.date, time: e.time, kind: e.kind, title: e.title, body: e.body })),
         };
       },
@@ -252,15 +290,23 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
     {
       name: 'propfirm_status',
       kind: 'read',
-      description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance.',
-      parameters: { type: 'object', properties: { planId: { type: 'string', description: 'Identifiant de plan (défaut : plan suivi dans les réglages)' } }, additionalProperties: false },
+      description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. Par défaut, le plan et le compte suivis par l’écran Métrique.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'Identifiant de plan (défaut : plan suivi dans les réglages)' },
+          account: { type: 'string', description: 'Compte à rejouer (défaut : compte suivi ; chaîne vide = tous les comptes)' },
+        },
+        additionalProperties: false,
+      },
       async run(args) {
         const sessions = ports.sessions();
         const trades = ports.trades();
         const plan = findPlan(str(args.planId) || ports.planId());
         if (!plan) return { error: tr('Plan inconnu', 'Unknown plan', 'Plan desconocido') };
-        const r = evaluatePlan(plan, sessions, trades);
-        return { plan, status: r.status, reason: r.reason, failedOn: r.failedOn, balance: round(r.balance), highWater: round(r.highWater), floor: round(r.floor), buffer: round(r.buffer), targetProgress: round(r.targetProgress, 4), remainingToTarget: round(r.remainingToTarget), daysTraded: r.daysTraded, consistency: r.consistency, dailyLossBreaches: r.dailyLossBreaches };
+        const account = typeof args.account === 'string' ? args.account : ports.planAccount();
+        const r = evaluatePlan(plan, sessions, trades, account || undefined);
+        return { plan, account: account || null, status: r.status, reason: r.reason, failedOn: r.failedOn, balance: round(r.balance), highWater: round(r.highWater), floor: round(r.floor), buffer: round(r.buffer), targetProgress: round(r.targetProgress, 4), remainingToTarget: round(r.remainingToTarget), daysTraded: r.daysTraded, consistency: r.consistency, dailyLossBreaches: r.dailyLossBreaches };
       },
     },
   ];
@@ -271,12 +317,14 @@ const EMPTY_PORTS: DeskPorts = {
   trades: () => [],
   startingBalance: () => 0,
   planId: () => '',
+  planAccount: () => '',
   updateSession: async () => undefined,
   notes: () => [],
   createNote: async () => ({ id: '', title: '' }),
   branchNote: async () => null,
   linkNotes: async () => null,
   calendarEntries: () => [],
+  officialEvents: () => [],
 };
 
 /** Catalogue (affichage UI) — les `run` de ce tableau ne touchent pas les stores. */
@@ -286,7 +334,7 @@ export const DESK_TOOLS: DeskTool[] = createDeskTools(EMPTY_PORTS);
 export function toolBlurb(name: string, fallback: string): string {
   switch (name) {
     case 'desk_overview':
-      return tr(fallback, 'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status.', 'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido.');
+      return tr(fallback, 'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen).', 'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas).');
     case 'list_sessions':
       return tr(fallback, 'Lists trading sessions (date, PnL, trade count, tags, note), newest first. Optional YYYY-MM-DD date bounds.', 'Lista las sesiones (fecha, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtro opcional por fechas YYYY-MM-DD.');
     case 'get_session':
@@ -304,9 +352,13 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'link_notes':
       return tr(fallback, 'Links two notes with an already known predicate. Does not invent a relation.', 'Relaciona dos notas con un predicado ya conocido. No inventa una relación.');
     case 'calendar_events':
-      return tr(fallback, 'Nasdaq events (FOMC, NFP, CPI, expirations, holidays…) and personal entries between two dates.', 'Eventos Nasdaq (FOMC, NFP, CPI, vencimientos, festivos…) y entradas personales entre dos fechas.');
+      return tr(
+        fallback,
+        'Catalysts between two dates (at most three calendar years): synced official sources (BLS, BEA, Federal Reserve, ECB, EIA, Treasury, embedded snapshot) merged with local markers (holidays, sessions, estimated CME expirations), then personal entries. Each event carries its source and `estimated` when the date is inferred.',
+        'Catalizadores entre dos fechas (como máximo tres años civiles): fuentes oficiales sincronizadas (BLS, BEA, Reserva Federal, BCE, EIA, Treasury, instantánea integrada) fusionadas con las referencias locales (festivos, sesiones, vencimientos CME estimados), y luego entradas personales. Cada evento lleva su fuente y `estimated` cuando la fecha se deduce.',
+      );
     case 'propfirm_status':
-      return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia.');
+      return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');
     default:
       return fallback;
   }

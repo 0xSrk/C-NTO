@@ -1,3 +1,4 @@
+import type { CalendarEventRow } from '../calendarEvents';
 import type { Session, Trade } from '../types';
 
 export interface DeskNote {
@@ -25,12 +26,16 @@ export interface DeskPorts {
   trades(): Trade[];
   startingBalance(): number;
   planId(): string;
+  /** Compte suivi par le rejeu prop de l'écran Métrique ('' = tous les comptes). */
+  planAccount(): string;
   updateSession(id: string, patch: { note?: string; tags?: string[] }): Promise<void>;
   notes(): DeskNote[];
   createNote(title: string, body: string, tags: string[]): Promise<{ id: string; title: string }>;
   branchNote(parentId: string, ancre: string, question: string): Promise<{ id: string; title: string } | null>;
   linkNotes(fromId: string, toId: string, predicate: string): Promise<{ id: string } | null>;
   calendarEntries(): DeskCalendarEntry[];
+  /** Lignes des sources officielles synchronisées (BLS, BEA, Fed, ECB, EIA, Treasury, instantané). */
+  officialEvents(): CalendarEventRow[];
 }
 
 export const BODY_MAX = 20_000;
@@ -65,7 +70,7 @@ export const TITLE_MAX = 200;
 export const ANCRE_MAX = 500;
 export const QUESTION_MAX = 200;
 export const SHORT_ARG_MAX = 64;
-const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId'] as const;
+const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId', 'account'] as const;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
