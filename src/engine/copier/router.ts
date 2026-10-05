@@ -1,7 +1,7 @@
 import type { OrderRequest, OrderSide } from '../execution/port';
 import { evaluatePlan, type PropPlan } from '../propfirm';
 import type { Session, Trade } from '../types';
-import { sizeFollower } from './sizing';
+import { followerTarget, positionKey, splitMove } from './position';
 import type { CopierTopology, FollowerRule } from './types';
 
 /** Tag d'ordre suiveur. Stable, sans secret. */
@@ -44,6 +44,15 @@ export interface RouteContext {
   /** Plafond du pont, par ordre suiveur. */
   maxContractsPerOrder: number;
   states: FollowerState[];
+  /**
+   * Exposition copiée du maître sur l'instrument du fill, après le fill (voir `position.ts`).
+   * Absente : le maître partait de zéro, l'exposition est le fill lui-même.
+   */
+  copied?: number;
+  /** Positions déjà commandées par le copieur, `compte|instrument` → quantité signée. Absent : aucune. */
+  commanded?: Record<string, number>;
+  /** Positions réelles des suiveurs d'après le pont, `compte|instrument` → quantité signée. Absent : inconnues. */
+  actual?: Record<string, number>;
 }
 
 export interface RouteResult {
@@ -74,30 +83,58 @@ function refusal(reason: RefusalReason, follower: FollowerRule, instrument: stri
 
 /**
  * Fill maître → ordres suiveurs, ou refus motivés. Aucun effet.
- * Un fill qui n'est pas celui du maître unique ne produit rien.
+ * Le suiveur est amené à la cible de l'exposition copiée du maître : on envoie l'écart avec la position
+ * déjà commandée, pas le fill. Ce qui réduit le risque (sortie, réduction, clôture avant retournement)
+ * part toujours : ni budget de latence, ni fenêtre, ni blackout, ni marge prop, ni plafond du suiveur ne
+ * peuvent laisser un suiveur en position quand le maître sort. La réduction est bornée par la position
+ * réelle du suiveur quand le pont la connaît (jamais de position inverse), et découpée au plafond du pont.
+ * Ce qui ouvre ou augmente passe par toutes les gardes. Un fill qui n'est pas celui du maître ne produit rien.
  */
 export function routeFill(fill: MasterFill, topology: CopierTopology, context: RouteContext): RouteResult {
   if (fill.account !== topology.masterAccount) return { orders: [], refused: [] };
   // Jamais le maître lui-même : un ordre copié redeviendrait un fill du maître (boucle).
   const followers = topology.followers.filter((follower) => follower.account.startsWith('Sim') && follower.account !== topology.masterAccount);
   const refused: Refusal[] = [];
+  const orders: OrderRequest[] = [];
+  const signed = fill.side === 'buy' ? fill.qty : -fill.qty;
+  const copied = context.copied ?? signed;
   const stale = context.now - fill.time > topology.latencyBudgetMs;
   const closed = !inCopyWindow(context.localMinutes, topology.windowStart, topology.windowEnd);
   const blackout = topology.newsBlackout && context.catalysts.some((row) => Number.isFinite(row.at) && Math.abs(fill.time - row.at) <= BLACKOUT_MS);
-  if (stale || closed || blackout) {
-    const reason: RefusalReason = stale ? 'latency' : closed ? 'window' : 'blackout';
-    for (const follower of followers) refused.push(refusal(reason, follower, fill.instrument, fill.qty));
-    return { orders: [], refused };
-  }
-  const orders: OrderRequest[] = [];
+  const gate: RefusalReason | null = stale ? 'latency' : closed ? 'window' : blackout ? 'blackout' : null;
+  const cap = Math.max(1, Math.floor(context.maxContractsPerOrder));
+  const push = (follower: FollowerRule, instrument: string, delta: number) => {
+    let left = Math.abs(delta);
+    while (left > 0) {
+      const qty = Math.min(left, cap);
+      orders.push({ account: follower.account, instrument, side: delta > 0 ? 'buy' : 'sell', qty, type: 'market', tag: COPY_TAG });
+      left -= qty;
+    }
+  };
   for (const follower of followers) {
-    const sized = sizeFollower({ qty: fill.qty, instrument: fill.instrument }, follower);
-    if (sized.unmapped) {
+    const goal = followerTarget(copied, fill.instrument, follower);
+    if (goal.unmapped) {
       refused.push(refusal('instrument', follower, fill.instrument, fill.qty));
       continue;
     }
-    if (!Number.isInteger(sized.qty) || sized.qty < 1 || sized.capped || sized.qty > context.maxContractsPerOrder) {
-      refused.push(refusal('cap', follower, sized.instrument, sized.qty));
+    const key = positionKey(follower.account, goal.instrument);
+    const held = context.commanded?.[key] ?? 0;
+    const move = splitMove(held, goal.target);
+    if (move.reduce !== 0) {
+      // Ne jamais réduire au-delà de ce que le suiveur détient réellement : pas de position inverse.
+      const actual = context.actual?.[key];
+      const room = actual === undefined ? Math.abs(move.reduce) : Math.sign(actual) === Math.sign(held) ? Math.abs(actual) : 0;
+      const reduce = Math.sign(move.reduce) * Math.min(Math.abs(move.reduce), room);
+      if (reduce !== 0) push(follower, goal.instrument, reduce);
+    }
+    if (move.open === 0) continue;
+    const qty = Math.abs(move.open);
+    if (gate) {
+      refused.push(refusal(gate, follower, goal.instrument, qty));
+      continue;
+    }
+    if (!Number.isInteger(goal.target) || !Number.isInteger(qty) || Math.abs(goal.target) > follower.sizing.maxContracts || qty > context.maxContractsPerOrder) {
+      refused.push(refusal('cap', follower, goal.instrument, qty));
       continue;
     }
     const state = context.states.find((row) => row.account === follower.account);
@@ -105,18 +142,11 @@ export function routeFill(fill: MasterFill, topology: CopierTopology, context: R
       const replay = evaluatePlan(state.plan, state.sessions, state.trades, follower.account);
       const cushion = state.plan.maxDrawdown * topology.followerBufferFloor;
       if (replay.status === 'echec' || !(replay.buffer >= cushion)) {
-        refused.push(refusal('floor', follower, sized.instrument, sized.qty));
+        refused.push(refusal('floor', follower, goal.instrument, qty));
         continue;
       }
     }
-    orders.push({
-      account: follower.account,
-      instrument: sized.instrument,
-      side: fill.side,
-      qty: sized.qty,
-      type: 'market',
-      tag: COPY_TAG,
-    });
+    push(follower, goal.instrument, move.open);
   }
   return { orders, refused };
 }

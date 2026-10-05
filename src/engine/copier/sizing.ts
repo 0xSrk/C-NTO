@@ -1,16 +1,7 @@
 import { knownRoot, microOf, splitRoot, standardOf } from './symbols';
 import type { FollowerRule, SymbolMap } from './types';
 
-export interface SizedOrder {
-  qty: number;
-  instrument: string;
-  /** La carte micro/standard était demandée et la racine est inconnue. */
-  unmapped: boolean;
-  /** Le plafond du suiveur a réduit la taille. */
-  capped: boolean;
-}
-
-function applyMap(instrument: string, qty: number, map: SymbolMap): { instrument: string; qty: number; unmapped: boolean } {
+export function applyMap(instrument: string, qty: number, map: SymbolMap): { instrument: string; qty: number; unmapped: boolean } {
   if (map.mode === 'explicite') {
     return instrument === map.from ? { instrument: map.to, qty, unmapped: false } : { instrument, qty, unmapped: false };
   }
@@ -44,16 +35,4 @@ export function replicatedQty(
     instrument,
     note: capped < qty ? `plafonné à ${follower.sizing.maxContracts}` : qty === 0 ? 'taille nulle' : undefined,
   };
-}
-
-/** Taille avant plafond. Le routeur refuse au lieu d'envoyer une taille réduite. */
-export function sizeFollower(master: { qty: number; instrument: string }, follower: FollowerRule): SizedOrder {
-  const mapped = applyMap(master.instrument, master.qty, follower.symbolMap);
-  if (mapped.unmapped) return { qty: master.qty, instrument: master.instrument, unmapped: true, capped: false };
-  let qty = mapped.qty;
-  if (follower.sizing.mode === 'fixe') qty = follower.sizing.value;
-  else if (follower.sizing.mode === 'ratio') qty = Math.round(qty * follower.sizing.value);
-  else qty = Math.max(1, Math.round(follower.sizing.value));
-  const capped = qty > follower.sizing.maxContracts;
-  return { qty, instrument: mapped.instrument, unmapped: false, capped };
 }

@@ -15,6 +15,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'execution/guards': 'src/engine/execution/guards.ts',
     'execution/port': 'src/engine/execution/port.ts',
     'copier/router': 'src/engine/copier/router.ts',
+    'copier/position': 'src/engine/copier/position.ts',
     'copier/sync': 'src/engine/copier/sync.ts',
     'agent/catalog': 'src/engine/agent/catalog.ts',
   };

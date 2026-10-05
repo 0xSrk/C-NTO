@@ -162,9 +162,9 @@ export default function Copieur() {
             <div className={s.banner}>
               <b>{tr('Sim.', 'Sim.', 'Sim.')}</b>{' '}
               {tr(
-                'La réplication envoie les fills du maître vers les suiveurs Sim, désarmée à chaque ouverture. Couper annule les ordres en attente. Aucun compte réel suiveur dans cette version.',
-                'Replication sends the master fills to Sim followers, and starts disarmed on every launch. Cut cancels working orders. No real follower account in this version.',
-                'La réplica envía los fills del maestro a las cuentas seguidoras Sim, y arranca desarmada en cada apertura. Cortar anula las órdenes pendientes. Ninguna cuenta real seguidora en esta versión.',
+                'La réplication amène chaque suiveur Sim à la position du maître (à sa taille), pas fill par fill : une entrée en plusieurs fills ne multiplie pas la taille. Les sorties partent toujours, même hors fenêtre ou en blackout. Désarmée à chaque ouverture. Couper annule les ordres en attente. Aucun compte réel suiveur dans cette version.',
+                'Replication brings each Sim follower to the master position (at its own size), not fill by fill: an entry in several fills does not multiply the size. Exits always go out, even outside the window or during a blackout. Disarmed on every launch. Cut cancels working orders. No real follower account in this version.',
+                'La réplica lleva cada cuenta seguidora Sim a la posición del maestro (a su tamaño), no fill por fill: una entrada en varios fills no multiplica el tamaño. Las salidas siempre se envían, incluso fuera de la ventana o en blackout. Desarmada en cada apertura. Cortar anula las órdenes pendientes. Ninguna cuenta real seguidora en esta versión.',
               )}
             </div>
 

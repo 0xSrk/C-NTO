@@ -5,7 +5,8 @@
  */
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { ExecutionPort, Fill } from '../execution/port';
+import type { AccountView, ExecutionPort, Fill } from '../execution/port';
+import { applyMasterFill, FLAT, positionKey, rebaseExposure, type MasterExposure } from '../copier/position';
 import type { CopierSync } from '../copier/sync';
 import { coerceCopierSync, followerExclusion } from '../copier/sync';
 import { routeFill, type Refusal } from '../copier/router';
@@ -70,10 +71,15 @@ export class CopierHost {
   private routed = 0;
   private sync: CopierSync | null = null;
   private lastRefusal: Refusal | null = null;
+  /** Fills du maître déjà portés au livre (persistés) : un fill rejoué ne compte pas deux fois. */
   private readonly seen = new Set<string>();
-  /** Soumission en cours : bloque un second envoi, sans consommer la clé. */
-  private readonly reserving = new Set<string>();
   private readonly pending = new Map<string, { account: string; orderId: string }>();
+  /** Exposition du maître par instrument. */
+  private readonly exposure = new Map<string, MasterExposure>();
+  /** Positions commandées aux suiveurs par le copieur, `compte|instrument`. Mises à jour à l'envoi, défaites sur refus. */
+  private readonly commanded = new Map<string, number>();
+  /** Dernier état des comptes vu par le pont : positions réelles. */
+  private accounts: AccountView[] | null = null;
   private readonly seenPath: string;
   private readonly unsubscribe: () => void;
 
@@ -87,6 +93,7 @@ export class CopierHost {
     this.seenPath = path.join(userDataDir, SEEN_FILE);
     this.unsubscribe = port.subscribe((event) => {
       if (event.kind === 'fill') void this.onFill(event.fill);
+      else if (event.kind === 'accounts') this.accounts = event.accounts;
       else if (event.kind === 'status') this.onStatus();
     });
   }
@@ -96,9 +103,10 @@ export class CopierHost {
     this.armed = false;
     try {
       const text = readFileSync(this.seenPath, 'utf8');
+      // Une ligne par fill du maître : `<executionId>\t` (ancien format : `<executionId>\t<suiveur>`).
       for (const line of text.split('\n')) {
-        const key = line.trim();
-        if (key) this.seen.add(key);
+        const id = line.split('\t')[0]?.trim();
+        if (id) this.seen.add(id);
       }
     } catch {
       /* premier démarrage : aucun fill déjà routé */
@@ -108,6 +116,8 @@ export class CopierHost {
   configure(raw: unknown): boolean {
     const sync = coerceCopierSync(raw);
     if (!sync) return false;
+    // Un autre maître : son exposition repart de sa position réelle à l'armement.
+    if (this.sync && this.sync.topology.masterAccount !== sync.topology.masterAccount) this.exposure.clear();
     if (raw !== null && typeof raw === 'object' && Array.isArray((raw as { followers?: unknown }).followers)) {
       const taken = new Set<string>();
       for (const row of (raw as { followers: unknown[] }).followers) {
@@ -125,7 +135,20 @@ export class CopierHost {
     return true;
   }
 
+  /**
+   * Arme la réplication. L'exposition du maître est recalée sur sa position réelle d'après le pont :
+   * une position déjà ouverte n'est pas copiée, seules les positions ouvertes ensuite le sont.
+   */
   arm(): void {
+    const master = this.sync?.topology.masterAccount;
+    const view = master ? this.accounts?.find((account) => account.name === master) : undefined;
+    if (view) {
+      const instruments = new Set([...this.exposure.keys(), ...view.positions.map((p) => p.instrument)]);
+      for (const instrument of instruments) {
+        const actual = view.positions.find((p) => p.instrument === instrument)?.qty ?? 0;
+        this.exposure.set(instrument, rebaseExposure(this.exposure.get(instrument) ?? FLAT, actual));
+      }
+    }
     this.armed = true;
     this.onStatus();
   }
@@ -174,6 +197,15 @@ export class CopierHost {
       return;
     }
     this.log(`copieur fill maître compte=${fill.account} instrument=${fill.instrument} qty=${fill.qty} id=${fill.executionId}`);
+    // Le livre suit le maître armé ou non ; un fill déjà vu ne compte pas deux fois (rejeu, redémarrage).
+    const before = this.exposure.get(fill.instrument) ?? FLAT;
+    let after = before;
+    if (!this.seen.has(fill.executionId)) {
+      after = applyMasterFill(before, fill.side === 'buy' ? fill.qty : -fill.qty, this.armed);
+      this.exposure.set(fill.instrument, after);
+      this.seen.add(fill.executionId);
+      this.remember(`${fill.executionId}\t`);
+    }
     if (!this.armed) {
       this.log(`copieur désarmé id=${fill.executionId}`);
       return;
@@ -200,36 +232,60 @@ export class CopierHost {
         catalysts: sync.catalysts,
         maxContractsPerOrder: sync.maxContractsPerOrder,
         states: sync.states,
+        copied: after.copied,
+        commanded: Object.fromEntries(this.commanded),
+        actual: this.actualPositions(sync),
       },
     );
     for (const refusal of routed.refused) {
       this.lastRefusal = refusal;
       this.log(`copieur refus motif=${refusal.reason} compte=${refusal.account} instrument=${refusal.instrument} qty=${refusal.qty}`);
     }
-    for (const order of routed.orders) {
-      const key = `${fill.executionId}\t${order.account}`;
-      if (this.seen.has(key) || this.reserving.has(key)) continue;
-      this.reserving.add(key);
+    // Comptabilité à l'envoi, avant tout await : un fill suivant voit déjà ces ordres et n'envoie que l'écart restant.
+    const sent = routed.orders.map((order) => {
+      const key = positionKey(order.account, order.instrument);
+      const signed = order.side === 'buy' ? order.qty : -order.qty;
+      this.commanded.set(key, (this.commanded.get(key) ?? 0) + signed);
+      return { order, key, signed };
+    });
+    for (const { order, key, signed } of sent) {
+      let ack: Awaited<ReturnType<ExecutionPort['submit']>>;
       try {
-        const ack = await this.port.submit(order);
-        if (!this.armed) {
-          if (ack.ok) void this.port.cancel(order.account, ack.orderId);
-          continue;
-        }
-        if (!ack.ok) {
-          this.log(`copieur échec compte=${order.account} code=${ack.code}`);
-          continue;
-        }
-        this.seen.add(key);
-        this.remember(key);
-        this.pending.set(ack.orderId, { account: order.account, orderId: ack.orderId });
-        this.routed += 1;
-        this.log(`copieur ordre compte=${order.account} instrument=${order.instrument} qty=${order.qty} id=${ack.orderId}`);
-      } finally {
-        this.reserving.delete(key);
+        ack = await this.port.submit(order);
+      } catch (err) {
+        ack = { ok: false, code: -32000, message: err instanceof Error ? err.message : String(err) };
       }
+      if (!ack.ok) {
+        // Refusé : la position commandée revient en arrière, le prochain fill du maître renverra l'écart.
+        this.commanded.set(key, (this.commanded.get(key) ?? 0) - signed);
+        this.log(`copieur échec compte=${order.account} code=${ack.code}`);
+        continue;
+      }
+      if (!this.armed) {
+        void this.port.cancel(order.account, ack.orderId);
+        continue;
+      }
+      this.pending.set(ack.orderId, { account: order.account, orderId: ack.orderId });
+      this.routed += 1;
+      this.log(`copieur ordre compte=${order.account} instrument=${order.instrument} ${order.side} qty=${order.qty} id=${ack.orderId}`);
     }
     this.onStatus();
+  }
+
+  /** Positions réelles des suiveurs, d'après le dernier état des comptes du pont (0 si le compte y est sans position). */
+  private actualPositions(sync: CopierSync): Record<string, number> {
+    const out: Record<string, number> = {};
+    if (!this.accounts) return out;
+    for (const follower of sync.topology.followers) {
+      const view = this.accounts.find((account) => account.name === follower.account);
+      if (!view) continue;
+      for (const key of this.commanded.keys()) {
+        if (!key.startsWith(`${follower.account}|`)) continue;
+        const instrument = key.slice(follower.account.length + 1);
+        out[key] = view.positions.find((p) => p.instrument === instrument)?.qty ?? 0;
+      }
+    }
+    return out;
   }
 
   private remember(key: string): void {

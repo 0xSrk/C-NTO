@@ -198,8 +198,11 @@ describe('idempotence après accusé', () => {
     send();
     await waitFor(() => calls === 1);
     expect(orders).toEqual([]);
+    // Le refus doit être rendu avant le rejeu : pendant l'envoi, l'ordre compte déjà dans la position commandée.
+    await new Promise((resolve) => setTimeout(resolve, 20));
     send();
-    await waitFor(() => orders.length === 1);
+    await waitFor(() => host.status().routed === 1);
+    expect(orders).toEqual(['ok-1']);
     expect(calls).toBe(2);
     expect(host.status().routed).toBe(1);
     host.dispose();
