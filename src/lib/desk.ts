@@ -122,6 +122,12 @@ export interface AgentOrdersApi {
   propose: (raw: unknown, origin: AgentOrderOrigin, propShare: number | null) => Promise<AgentOrderOutcome>;
 }
 
+/** Siège nominatif : le process principal vérifie le code ; le renderer ne reçoit que le nom signé. */
+export interface SeatApi {
+  status: () => Promise<{ client: string } | null>;
+  submit: (line: string) => Promise<{ ok: true; client: string } | { ok: false }>;
+}
+
 export interface NtBridgeApi {
   status: () => Promise<NtBridgeStatus | null>;
   rotateToken: () => Promise<{ hasToken: boolean }>;
@@ -202,6 +208,7 @@ export interface DeskApi {
   ntbridge?: NtBridgeApi;
   copier?: CopierApi;
   agentOrders?: AgentOrdersApi;
+  seat?: SeatApi;
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
     encrypt: (text: string) => Promise<string | null>;

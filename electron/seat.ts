@@ -1,4 +1,6 @@
 import { createPublicKey, verify } from 'node:crypto';
+import { chmodSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 /**
  * Siège nominatif (`docs/SIEGE-NOMINATIF.md`). Une ligne `SIEGE1.<payload>.<signature>` :
@@ -97,4 +99,71 @@ export function verifySeatLine(raw: unknown, keys: readonly string[]): SeatVerdi
   if (!seatClientValid(client)) return { ok: false, reason: 'client' };
   if (!seatDateValid(date)) return { ok: false, reason: 'date' };
   return { ok: true, client, date };
+}
+
+/** Ligne acceptée, gardée telle quelle dans `userData` ; le nom n'est jamais stocké à part. */
+export const SEAT_FILE = 'siege.line';
+
+export interface SeatHostDeps {
+  userDataDir: string;
+  keys: readonly string[];
+  /** Journal du process principal : motif court, jamais la ligne, la signature, la clé ni le nom. */
+  log: (level: 'info' | 'warn', message: string) => void;
+}
+
+/** Siège du desk : relu et revérifié au premier appel, remplacé par un code valide. */
+export class SeatHost {
+  private loaded = false;
+  private current: { client: string } | null = null;
+
+  constructor(private readonly deps: SeatHostDeps) {}
+
+  private get file(): string {
+    return path.join(this.deps.userDataDir, SEAT_FILE);
+  }
+
+  status(): { client: string } | null {
+    if (this.loaded) return this.current;
+    this.loaded = true;
+    let line: string;
+    try {
+      line = readFileSync(this.file, 'utf8');
+    } catch {
+      return null; // absent ou illisible : pas de nom
+    }
+    const verdict = verifySeatLine(line, this.deps.keys);
+    if (verdict.ok) {
+      this.current = { client: verdict.client };
+      return this.current;
+    }
+    // Signature morte (clé retirée, ligne altérée) : le fichier part.
+    try {
+      unlinkSync(this.file);
+    } catch {
+      /* déjà parti */
+    }
+    this.deps.log('warn', `siège retiré au lancement (${verdict.reason})`);
+    return null;
+  }
+
+  submit(raw: unknown): { ok: true; client: string } | { ok: false } {
+    this.status();
+    const verdict = verifySeatLine(raw, this.deps.keys);
+    if (!verdict.ok) {
+      this.deps.log('warn', `siège refusé (${verdict.reason})`);
+      return { ok: false };
+    }
+    try {
+      mkdirSync(this.deps.userDataDir, { recursive: true });
+      const tmp = `${this.file}.tmp`;
+      writeFileSync(tmp, (raw as string).trim(), { encoding: 'utf8', mode: 0o600 });
+      chmodSync(tmp, 0o600);
+      renameSync(tmp, this.file);
+    } catch {
+      this.deps.log('warn', 'siège accepté, non enregistré (écriture impossible)');
+    }
+    this.current = { client: verdict.client };
+    this.deps.log('info', 'siège accepté');
+    return { ok: true, client: verdict.client };
+  }
 }
