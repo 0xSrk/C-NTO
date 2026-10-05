@@ -12,6 +12,7 @@ import { useAgent } from '@/store/agent';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
+import { PRESETS } from './presets';
 import s from './agent.module.css';
 
 function suggestions(): string[] {
@@ -44,13 +45,6 @@ function suggestions(): string[] {
   ];
 }
 
-const PRESETS: { id: string; label: string; provider: AgentProvider; baseUrl: string; model: string }[] = [
-  { id: 'ollama', label: 'Ollama (local)', provider: 'openai-compatible', baseUrl: 'http://localhost:11434/v1', model: 'llama3.1' },
-  { id: 'lmstudio', label: 'LM Studio (local)', provider: 'openai-compatible', baseUrl: 'http://localhost:1234/v1', model: 'local-model' },
-  { id: 'openai', label: 'OpenAI', provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
-  { id: 'openrouter', label: 'OpenRouter', provider: 'openai-compatible', baseUrl: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-sonnet-4' },
-  { id: 'anthropic', label: 'Anthropic', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514' },
-];
 
 /** Le flux en cours est affiché en texte brut (Markdown seulement pour le message final) : O(n) par jeton au lieu de O(n²). */
 function StreamBubble({ text }: { text: string }) {
@@ -242,13 +236,13 @@ export default function Agent() {
                   value=""
                   onChange={(e) => {
                     const p = PRESETS.find((x) => x.id === e.target.value);
-                    if (p) updateAgent({ provider: p.provider, baseUrl: p.baseUrl, model: p.model });
+                    if (p && !p.reserved) updateAgent({ provider: p.provider, baseUrl: p.baseUrl, model: p.model });
                   }}
                 >
                   <option value="">{tr('Préréglages…', 'Presets…', 'Preajustes…')}</option>
                   {PRESETS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
+                    <option key={p.id} value={p.id} disabled={p.reserved}>
+                      {p.reserved ? `${p.label} · ${tr('réservé', 'reserved', 'reservado')}` : p.label}
                     </option>
                   ))}
                 </select>
