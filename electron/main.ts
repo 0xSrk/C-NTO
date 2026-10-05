@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
 import { confirmCopierArm } from './nt-bridge/copier-host';
+import { AgentOrderHost } from './agent-orders';
 import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { llmHostOk } from './llm-host';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
@@ -176,6 +177,7 @@ function mcpGateway(): McpGateway {
 }
 let bridge: NinjaBridge | null = null;
 let ntBridge: NtBridgeHost | null = null;
+let agentOrders: AgentOrderHost | null = null;
 let updateBusy = false;
 /** Dossiers accordés par un dialogue système : seuls ceux-là sont accessibles en écriture / surveillance. */
 const grants = new FolderGrants(gpuDir);
@@ -451,6 +453,15 @@ app.whenReady().then(() => {
   if (!primaryInstance) return;
   mainLog('info', `prêt · GPU ${gpuHardware ? 'matériel' : 'logiciel'}`);
   ntBridge = new NtBridgeHost(app.getPath('userData'), () => defaultNinjaExportFolder(app.getPath('documents')));
+  agentOrders = new AgentOrderHost({
+    userDataDir: app.getPath('userData'),
+    locale: () => readLocaleFile(app.getPath('userData')),
+    window: () => (win && !win.isDestroyed() ? win : null),
+    showMessageBox: (target, options) => dialog.showMessageBox(target as BrowserWindow, options),
+    bridge: () => ntBridge?.publicStatus() ?? null,
+    submit: (order) => (ntBridge ? ntBridge.order(order) : Promise.resolve({ ok: false, code: -32011, message: 'pont indisponible' })),
+    log: (line) => mainLog('info', line),
+  });
   void ntBridge.start();
   const shortcut = globalShortcut.register(KILL_SWITCH_SHORTCUT, () => {
     // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont.
@@ -773,6 +784,19 @@ ipcMain.on('orch:respond', (e, id: unknown, clientId: unknown, result: unknown, 
 });
 ipcMain.on('orch:broadcast', (e, event: unknown, payload: unknown) => {
   if (trusted(e) && isString(event, 64)) orchestrator.broadcast(event, payload);
+});
+
+/* ─── Ordres proposés par l'agent (A5) : gardes, dialogue et soumission ici, jamais dans le renderer ─── */
+const AGENT_ORDERS_OFF = { enabled: false, maxQty: 1, maxPosition: 2, perMinute: 3, pending: false };
+const AGENT_ORIGINS = new Set(['llm', 'mcp', 'orch']);
+ipcMain.handle('agent-orders:status', (e) => (trusted(e) && agentOrders ? agentOrders.status() : AGENT_ORDERS_OFF));
+ipcMain.handle('agent-orders:enable', (e) => (trusted(e) && agentOrders ? agentOrders.enable() : AGENT_ORDERS_OFF));
+ipcMain.handle('agent-orders:disable', (e) => (trusted(e) && agentOrders ? agentOrders.disable() : AGENT_ORDERS_OFF));
+ipcMain.handle('agent-orders:limits', (e, raw: unknown) => (trusted(e) && agentOrders ? agentOrders.setLimits(raw) : AGENT_ORDERS_OFF));
+ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propShare: unknown) => {
+  if (!trusted(e) || !agentOrders) return { status: 'refused', reason: 'disabled', detail: 'desk indisponible' };
+  const from = typeof origin === 'string' && AGENT_ORIGINS.has(origin) ? (origin as 'llm' | 'mcp' | 'orch') : 'orch';
+  return agentOrders.propose(raw, from, typeof propShare === 'number' ? propShare : null);
 });
 
 /* ─── Passerelle MCP (agents externes) ─── */
