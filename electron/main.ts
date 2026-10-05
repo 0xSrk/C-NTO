@@ -677,7 +677,7 @@ ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.
 
 ipcMain.handle('copier:status', (e) => (trusted(e) && ntBridge ? ntBridge.copierStatus() : null));
 ipcMain.handle('copier:configure', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.configureCopier(payload) : false));
-ipcMain.handle('copier:cut', (e) => (trusted(e) && ntBridge ? ntBridge.cutCopier() : { cancelled: [] }));
+ipcMain.handle('copier:cut', (e) => (trusted(e) && ntBridge ? ntBridge.cutCopier() : { cancelled: [], open: [], flattened: [] }));
 ipcMain.handle('copier:arm', async (e) => {
   if (!trusted(e) || !ntBridge) return null;
   const host = ntBridge;

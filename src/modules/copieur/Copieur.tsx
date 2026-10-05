@@ -13,6 +13,8 @@ import type { CopierAccount } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { replicatedQty, useCopier } from '@/store/copier';
+import { useUi } from '@/store/ui';
+import { cutSummary } from './cutSummary';
 import s from './copieur.module.css';
 
 function bridgeSteps(): [string, string][] {
@@ -130,7 +132,11 @@ export default function Copieur() {
                 void updateConfig({ enabled: false });
                 const api = desk?.copier;
                 if (!api) return;
-                void api.cut().then(() => api.status().then(setHost));
+                void api.cut().then((report) => {
+                  const summary = cutSummary(report);
+                  useUi.getState().toast(summary.text, summary.tone);
+                  return api.status().then(setHost);
+                });
               }}
             >
               {tr('Couper', 'Cut', 'Cortar')}

@@ -79,7 +79,7 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 | **Context** | Official calendars (BLS, BEA, Fed, ECB, EIA, Treasury) plus an embedded 2026 snapshot · CME expirations computed locally · day’s notes |
 | **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph, and a branch from a selection |
 | **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · its own JSON-RPC WebSocket, separate from the NT bridge |
-| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). Bot stays **design**. The Copier copies a master fill onto Sim followers only while armed |
+| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). Bot stays **design**. The Copier brings Sim followers to the master position (not fill by fill) only while armed; exits always go out |
 | **Portfolio** | Consolidated net value in a base currency. A missing exchange rate leaves that pocket out of the total |
 
 ---

@@ -20,6 +20,15 @@ export interface CopierHostStatus {
   flattenOnCut: boolean;
 }
 
+/** Ce que Couper laisse derrière lui. Sans « Aplatir en coupant », les positions copiées restent ouvertes. */
+export interface CopierCutReport {
+  cancelled: string[];
+  /** Positions commandées par le copieur encore ouvertes sur les suiveurs (signées). */
+  open: { account: string; instrument: string; qty: number }[];
+  /** Suiveurs dont l'aplatissement a été demandé (option « Aplatir en coupant »). */
+  flattened: string[];
+}
+
 export interface CopierArmDialog {
   type: 'warning';
   buttons: [string, string];
@@ -158,19 +167,39 @@ export class CopierHost {
     this.onStatus();
   }
 
-  /** D1 : désarme et annule les ordres suiveurs en attente. Aplatit seulement si l'option est armée. */
-  cut(): { cancelled: string[] } {
+  /**
+   * D1 : désarme et annule les ordres suiveurs en attente. Aplatit seulement si l'option est armée.
+   * Sinon, rend les positions copiées encore ouvertes : Couper ne les clôt pas, l'opérateur doit le savoir.
+   */
+  cut(): CopierCutReport {
     this.armed = false;
     const pending = [...this.pending.values()];
     this.pending.clear();
     for (const item of pending) void this.port.cancel(item.account, item.orderId);
+    let flattened: string[] = [];
     if (this.sync?.flattenOnCut) {
-      const accounts = new Set(this.sync.topology.followers.map((follower) => follower.account));
-      for (const account of accounts) void this.port.flatten(account);
+      flattened = [...new Set(this.sync.topology.followers.map((follower) => follower.account))];
+      for (const account of flattened) void this.port.flatten(account);
+      for (const key of [...this.commanded.keys()]) if (flattened.some((account) => key.startsWith(`${account}|`))) this.commanded.delete(key);
     }
-    this.log(`copieur couper annulés=${pending.length}`);
+    const open = this.openPositions();
+    this.log(`copieur couper annulés=${pending.length} ouverts=${open.map((row) => `${row.account}:${row.instrument}:${row.qty}`).join(',') || '0'}`);
     this.onStatus();
-    return { cancelled: pending.map((item) => item.orderId) };
+    return { cancelled: pending.map((item) => item.orderId), open, flattened };
+  }
+
+  /** Positions commandées non nulles ; bornées par la position réelle quand le pont la connaît. */
+  private openPositions(): CopierCutReport['open'] {
+    const out: CopierCutReport['open'] = [];
+    for (const [key, held] of this.commanded) {
+      if (held === 0) continue;
+      const [account = '', instrument = ''] = key.split('|');
+      const view = this.accounts?.find((row) => row.name === account);
+      const actual = view ? (view.positions.find((p) => p.instrument === instrument)?.qty ?? 0) : undefined;
+      const qty = actual === undefined ? held : Math.sign(actual) === Math.sign(held) ? Math.sign(held) * Math.min(Math.abs(held), Math.abs(actual)) : 0;
+      if (qty !== 0) out.push({ account, instrument, qty });
+    }
+    return out;
   }
 
   status(): CopierHostStatus {

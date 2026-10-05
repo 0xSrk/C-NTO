@@ -60,7 +60,7 @@ contextBridge.exposeInMainWorld('canto', {
     status: () => ipcRenderer.invoke('copier:status'),
     configure: (sync: unknown) => ipcRenderer.invoke('copier:configure', sync) as Promise<boolean>,
     arm: () => ipcRenderer.invoke('copier:arm'),
-    cut: () => ipcRenderer.invoke('copier:cut') as Promise<{ cancelled: string[] }>,
+    cut: () => ipcRenderer.invoke('copier:cut') as Promise<{ cancelled: string[]; open: { account: string; instrument: string; qty: number }[]; flattened: string[] }>,
     onStatus: (cb: (status: unknown) => void) => subscribe('copier:status', cb),
   },
   update: {

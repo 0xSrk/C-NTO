@@ -70,6 +70,13 @@ export interface NtBridgeStatus {
   auth?: 'mutual' | 'token' | null;
 }
 
+/** Ce que Couper laisse derrière lui (voir `electron/nt-bridge/copier-host.ts`). */
+export interface CopierCutReport {
+  cancelled: string[];
+  open: { account: string; instrument: string; qty: number }[];
+  flattened: string[];
+}
+
 export interface CopierHostStatus {
   armed: boolean;
   link: 'absent' | 'connecting' | 'live' | 'stale' | 'lost';
@@ -82,7 +89,7 @@ export interface CopierApi {
   status: () => Promise<CopierHostStatus | null>;
   configure: (sync: unknown) => Promise<boolean>;
   arm: () => Promise<CopierHostStatus | null>;
-  cut: () => Promise<{ cancelled: string[] }>;
+  cut: () => Promise<CopierCutReport>;
   onStatus: (cb: (status: CopierHostStatus) => void) => () => void;
 }
 
