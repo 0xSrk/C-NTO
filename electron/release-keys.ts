@@ -6,4 +6,5 @@
  */
 export const RELEASE_PUBLIC_KEYS: readonly string[] = [
   // clés
+  '_uCBJVIJ8hYLufN7jV5i78SHEnwI0pNR6rQndhGWXgw',
 ];
