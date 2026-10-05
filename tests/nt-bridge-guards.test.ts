@@ -59,6 +59,8 @@ describe('garde-fous du pont NT8', () => {
     const killed = server.killSwitch();
     expect(performance.now() - started).toBeLessThan(200);
     expect(killed.accounts).toEqual(['Sim101']);
+    expect(killed.sent).toBe(true);
+    expect(await killed.settled).toEqual([{ account: 'Sim101', ok: true, closed: 1 }]);
     await new Promise((resolve) => setTimeout(resolve, 30));
     const flats = seen.filter((msg) => msg.method === 'order.flatten');
     expect(flats).toHaveLength(1);
@@ -70,6 +72,33 @@ describe('garde-fous du pont NT8', () => {
     const reflat = await server.flatten('Sim101');
     expect(reflat.ok).toBe(true);
     ws.close();
+  });
+
+  it('kill switch : un refus de l’AddOn et un pont hors ligne sont rapportés, jamais comptés comme aplatis', async () => {
+    const server = new NtBridgeServer({ token: TOKEN, port: 0, policy: { extraAccounts: ['APEX-50K'], maxContractsPerOrder: 20 } });
+    servers.push(server);
+    const port = await server.start();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${TOKEN}`);
+    ws.on('message', (data) => {
+      const msg = JSON.parse(String(data)) as { id?: number; method?: string; params?: { account?: string } };
+      if (msg.method !== 'order.flatten' || msg.id === undefined) return;
+      const reply = msg.params?.account === 'Sim101' ? { result: { closed: 2 } } : { error: { code: -32000, message: 'compte non connecté' } };
+      ws.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, ...reply }));
+    });
+    await new Promise((resolve) => ws.once('open', resolve));
+    ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'bridge.hello', params: { kind: 'ninjatrader', ntVersion: '8.1', addonVersion: 'test', accounts: ['Sim101', 'APEX-50K'], protocol: 1 } }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const killed = server.killSwitch();
+    expect(await killed.settled).toEqual([
+      { account: 'Sim101', ok: true, closed: 2 },
+      { account: 'APEX-50K', ok: false, error: 'compte non connecté' },
+    ]);
+
+    ws.close();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const offline = server.killSwitch();
+    expect(offline.sent).toBe(false);
+    expect((await offline.settled).every((r) => !r.ok)).toBe(true);
   });
 
   it('dialogue Annuler : le compte réel n’est pas ajouté', async () => {

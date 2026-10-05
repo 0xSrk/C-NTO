@@ -1,6 +1,7 @@
 /** API exposée par le shell Electron (preload). Absente lorsque CΛNTO tourne dans un navigateur. */
 import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEvents';
 import type { ChangelogFile } from '@/engine/changelog';
+import type { KillSwitchReport } from '@/engine/execution/killSwitch';
 export interface OrchestratorRequest {
   id: string;
   clientId: string;
@@ -74,7 +75,7 @@ export interface NtBridgeApi {
   allowAccount: (name: string) => Promise<NtBridgeStatus | null>;
   setMaxContracts: (n: number) => Promise<NtBridgeStatus | null>;
   order: (payload: { op: 'submit' | 'cancel' | 'flatten'; [key: string]: unknown }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number; closed?: number }>;
-  killSwitch: () => Promise<{ accounts: string[] }>;
+  killSwitch: () => Promise<KillSwitchReport>;
   onStatus: (cb: (status: NtBridgeStatus) => void) => () => void;
   onExecution: (cb: (payload: { csv: string; executionId: string }) => void) => () => void;
 }

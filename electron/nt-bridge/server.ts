@@ -109,6 +109,24 @@ export type NtMarketEvent =
 
 type Pending = { resolve: (value: unknown) => void; reject: (err: Error) => void; cancel: () => void };
 
+/** Réponse de l'AddOn à un `order.flatten` du kill switch. */
+export interface KillSwitchOutcome {
+  account: string;
+  ok: boolean;
+  closed?: number;
+  error?: string;
+}
+
+export interface KillSwitchSent {
+  accounts: string[];
+  /** Faux si aucune trame ne pouvait partir (pont hors ligne). */
+  sent: boolean;
+  settled: Promise<KillSwitchOutcome[]>;
+}
+
+/** Délai de réponse d'un aplatissement du kill switch (l'envoi, lui, part tout de suite). */
+export const KILL_SWITCH_TIMEOUT_MS = 3_000;
+
 export class NtBridgeServer {
   private readonly clock: BridgeClock;
   private readonly log: (message: string) => void;
@@ -247,17 +265,29 @@ export class NtBridgeServer {
 
   /**
    * Aplatit chaque compte autorisé puis ferme le canal d'ordres.
-   * Les envois partent avant le premier await, pour tenir l'objectif < 200 ms.
+   * Les envois partent avant le premier await, pour tenir l'objectif < 200 ms. `settled` rend la
+   * réponse de l'AddOn pour chaque compte (ou l'erreur), au plus `KILL_SWITCH_TIMEOUT_MS` après.
    */
-  killSwitch(): { accounts: string[] } {
+  killSwitch(): KillSwitchSent {
     const accounts = killSwitchAccounts(this.accountNames, this.policy.extraAccounts);
     this.ordersClosed = true;
-    for (const account of accounts) {
-      void this.rpc('order.flatten', { account }).catch(() => {});
-    }
-    this.log(`kill switch · ${accounts.join(', ') || 'aucun compte'}`);
+    const sent = this.canSend();
+    const replies = accounts.map((account) =>
+      this.rpc('order.flatten', { account }, KILL_SWITCH_TIMEOUT_MS).then(
+        (result): KillSwitchOutcome => {
+          const rec = asRecord(result);
+          return { account, ok: true, closed: rec && typeof rec.closed === 'number' ? rec.closed : 0 };
+        },
+        (err: unknown): KillSwitchOutcome => ({ account, ok: false, error: err instanceof Error ? err.message : 'échec order.flatten' }),
+      ),
+    );
+    this.log(`kill switch · ${accounts.join(', ') || 'aucun compte'}${sent ? '' : ' · pont hors ligne, rien envoyé'}`);
     this.emitStatus();
-    return { accounts };
+    const settled = Promise.all(replies).then((results) => {
+      if (results.length) this.log(`kill switch · ${results.map((r) => (r.ok ? `${r.account} aplati closed=${r.closed}` : `${r.account} non confirmé (${r.error})`)).join(' · ')}`);
+      return results;
+    });
+    return { accounts, sent, settled };
   }
 
   async subscribe(raw: Record<string, unknown>): Promise<{ ok: true; subscriptionId: string } | { ok: false; detail: string; code?: number }> {
@@ -439,9 +469,14 @@ export class NtBridgeServer {
     this.cancelLost = null;
   }
 
+  /** Une trame peut partir vers l'AddOn (socket ouverte, `bridge.hello` reçu). */
+  private canSend(): boolean {
+    return !!this.socket && this.socket.readyState === WebSocket.OPEN && this.helloOk;
+  }
+
   private rpc(method: string, params: unknown, timeoutMs = 8_000): Promise<unknown> {
     const socket = this.socket;
-    if (!socket || socket.readyState !== WebSocket.OPEN || !this.helloOk) {
+    if (!socket || !this.canSend()) {
       return Promise.reject(new Error('pont indisponible'));
     }
     const id = ++this.nextId;

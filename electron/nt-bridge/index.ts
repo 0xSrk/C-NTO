@@ -15,7 +15,7 @@ import { executionPayloadToCsv } from './execution-csv';
 import { Nt8ExecutionPort } from './execution-port';
 import { DEFAULT_MAX_CONTRACTS } from './guards';
 import { DEFAULT_PORT, type ExecutionPayload } from './protocol';
-import { NtBridgeServer, type NtBridgeStatus, type NtMarketEvent } from './server';
+import { NtBridgeServer, type KillSwitchOutcome, type KillSwitchSent, type NtBridgeStatus, type NtMarketEvent } from './server';
 
 export interface NtPolicy {
   port: number;
@@ -297,9 +297,15 @@ export class NtBridgeHost {
     return Promise.resolve({ ok: false, code: -32602, message: 'opération inconnue' });
   }
 
-  killSwitch(): { accounts: string[] } {
+  killSwitch(): KillSwitchSent {
     this.copier?.disarm();
-    return this.server?.killSwitch() ?? { accounts: [] };
+    return this.server?.killSwitch() ?? { accounts: [], sent: false, settled: Promise.resolve([]) };
+  }
+
+  /** Kill switch puis réponses de l'AddOn, pour un message qui ne dit « aplati » que sur confirmation. */
+  async killSwitchReport(): Promise<{ accounts: string[]; sent: boolean; results: KillSwitchOutcome[] }> {
+    const { accounts, sent, settled } = this.killSwitch();
+    return { accounts, sent, results: await settled };
   }
 
   configureCopier(raw: unknown): boolean {
