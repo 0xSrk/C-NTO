@@ -11,6 +11,8 @@ import { evaluatePlan, findPlan } from '@/engine/propfirm';
 import type { Bar, BarSeries } from '@/engine/bars';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
+import { DESK_EVENT_KINDS, isDeskEventKind } from './catalog';
+import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
 import { clampToolArgs, type DeskPorts } from './ports';
 
 export interface DeskTool extends ToolSchema {
@@ -206,7 +208,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           .slice(0, limit)
           .map((n) => {
             const i = n.body.toLowerCase().indexOf(q);
-            return { id: n.id, title: n.title, tags: n.tags, excerpt: i >= 0 ? n.body.slice(Math.max(0, i - 80), i + 160) : n.body.slice(0, 200) };
+            return { id: n.id, title: n.title, tags: n.tags, ...(n.by ? { by: n.by } : {}), excerpt: i >= 0 ? n.body.slice(Math.max(0, i - 80), i + 160) : n.body.slice(0, 200) };
           });
         return { count: hits.length, notes: hits };
       },
@@ -229,6 +231,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           tags: n.tags,
           body: n.body,
           updatedAt: new Date(n.updatedAt).toISOString(),
+          ...(n.by ? { by: n.by } : {}),
           ...(n.parentId ? { parentId: n.parentId } : {}),
           ...(n.ancre ? { ancre: n.ancre } : {}),
           ...(n.question ? { question: n.question } : {}),
@@ -521,6 +524,33 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'desk_events',
+      kind: 'read',
+      description:
+        'Événements du desk : fills NinjaTrader, marge du plan prop suivi sous 50 / 25 / 10 % du drawdown maximal ou franchie (latent du compte compris), catalyseur majeur dans les 15 minutes, changement du lien du pont. Repasser `cursor` pour ne lire que les événements suivants ; sans curseur, les plus récents. Le journal garde les 500 derniers événements du lancement en cours ; `reset` signale un curseur d’un autre lancement.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string', description: 'Curseur rendu par l’appel précédent' },
+          kinds: { type: 'array', items: { type: 'string', enum: [...DESK_EVENT_KINDS] }, description: 'Types à lire, tous par défaut' },
+          limit: { type: 'number', description: `Événements par page, 1 à ${EVENTS_PAGE_MAX}, défaut ${EVENTS_PAGE_DEFAULT}` },
+        },
+        additionalProperties: false,
+      },
+      async run(args) {
+        const kinds = Array.isArray(args.kinds) ? args.kinds.filter(isDeskEventKind) : [];
+        const page = ports.events({ cursor: str(args.cursor) || undefined, kinds: kinds.length ? kinds : undefined, limit: num(args.limit, EVENTS_PAGE_DEFAULT) });
+        return {
+          cursor: page.cursor,
+          count: page.events.length,
+          ...(page.more ? { more: true } : {}),
+          ...(page.dropped ? { dropped: page.dropped } : {}),
+          ...(page.reset ? { reset: true } : {}),
+          events: page.events.map((e) => ({ seq: e.seq, at: new Date(e.at).toISOString(), kind: e.kind, data: e.data })),
+        };
+      },
+    },
+    {
       name: 'propfirm_status',
       kind: 'read',
       description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. Par défaut, le plan et le compte suivis par l’écran Métrique.',
@@ -561,6 +591,7 @@ const EMPTY_PORTS: DeskPorts = {
   bridge: async () => ({ nt: null, copier: null }),
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   barSeries: async () => [],
+  events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
 };
 
 /** Catalogue (affichage UI) — les `run` de ce tableau ne touchent pas les stores. */
@@ -622,6 +653,12 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real.',
         'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales.',
+      );
+    case 'desk_events':
+      return tr(
+        fallback,
+        'Desk events: NinjaTrader fills, tracked prop plan buffer below 50 / 25 / 10 % of max drawdown or breached (account unrealized included), major catalyst within 15 minutes, bridge link change. Pass `cursor` back to read only the following events; without a cursor, the most recent. The log keeps the last 500 events of the current launch; `reset` flags a cursor from another launch.',
+        'Eventos del desk: fills de NinjaTrader, margen del plan prop seguido por debajo del 50 / 25 / 10 % del drawdown máximo o superado (latente de la cuenta incluido), catalizador mayor en los próximos 15 minutos, cambio del enlace del puente. Devolver `cursor` para leer solo los eventos siguientes; sin cursor, los más recientes. El registro guarda los últimos 500 eventos del lanzamiento en curso; `reset` señala un cursor de otro lanzamiento.',
       );
     case 'propfirm_status':
       return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');

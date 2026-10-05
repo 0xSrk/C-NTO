@@ -54,7 +54,7 @@ contextBridge.exposeInMainWorld('canto', {
     order: (payload: unknown) => ipcRenderer.invoke('ntbridge:order', payload),
     killSwitch: () => ipcRenderer.invoke('ntbridge:killswitch'),
     onStatus: (cb: (status: unknown) => void) => subscribe('ntbridge:status', cb),
-    onExecution: (cb: (payload: { csv: string; executionId: string }) => void) => subscribe('ntbridge:execution', cb),
+    onExecution: (cb: (payload: { csv: string; executionId: string; fill?: Record<string, unknown> }) => void) => subscribe('ntbridge:execution', cb),
   },
   copier: {
     status: () => ipcRenderer.invoke('copier:status'),

@@ -145,13 +145,19 @@ export function branchChild(parent: { id: string; title: string }, ancre: string
   return { parentId: parent.id, ancre: a, question: q, title, body };
 }
 
+/** Auteur d'une note créée par programme. Absent : le trader. */
+export interface NoteOrigin {
+  by?: 'agent';
+}
+
 interface NotesState {
   ready: boolean;
   notes: Note[];
   activeId: string | null;
   load: () => Promise<void>;
-  create: (title?: string, body?: string, tags?: string[]) => Promise<Note>;
-  branch: (parentId: string, ancre: string, question?: string) => Promise<Note | null>;
+  /** `opts.by: 'agent'` signe une note écrite par un agent IA. */
+  create: (title?: string, body?: string, tags?: string[], opts?: NoteOrigin) => Promise<Note>;
+  branch: (parentId: string, ancre: string, question?: string, opts?: NoteOrigin) => Promise<Note | null>;
   update: (id: string, patch: Partial<Pick<Note, 'title' | 'body' | 'pinned' | 'statut'>>) => Promise<void>;
   remove: (id: string) => Promise<void>;
   setActive: (id: string | null) => void;
@@ -190,7 +196,7 @@ export const useNotes = create<NotesState>((set, get) => ({
     set({ notes, ready: true, activeId: current && notes.some((n) => n.id === current) ? current : notes[0]?.id ?? null });
   },
 
-  async create(title = tr('Nouvelle note', 'New note', 'Nueva nota'), body = '', tags = []) {
+  async create(title = tr('Nouvelle note', 'New note', 'Nueva nota'), body = '', tags = [], opts) {
     const now = Date.now();
     let finalTitle = title;
     let i = 2;
@@ -202,6 +208,7 @@ export const useNotes = create<NotesState>((set, get) => ({
       body,
       tags: [...new Set([...tags, ...extractTags(body)])],
       ...(header.statut ? { statut: header.statut } : {}),
+      ...(opts?.by ? { by: opts.by } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -211,7 +218,7 @@ export const useNotes = create<NotesState>((set, get) => ({
     return note;
   },
 
-  async branch(parentId, ancre, question = '') {
+  async branch(parentId, ancre, question = '', opts) {
     const parent = get().notes.find((n) => n.id === parentId);
     if (!parent) return null;
     const draft = branchChild(parent, ancre, question);
@@ -230,6 +237,7 @@ export const useNotes = create<NotesState>((set, get) => ({
       parentId: draft.parentId,
       ...(draft.ancre ? { ancre: draft.ancre } : {}),
       ...(draft.question ? { question: draft.question } : {}),
+      ...(opts?.by ? { by: opts.by } : {}),
       createdAt: now,
       updatedAt: now,
     };

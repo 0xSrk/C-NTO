@@ -11,7 +11,7 @@ import type { NinjaBridge } from '../bridge';
 import { mainLog } from '../main-log';
 import { uiText, type AppLocale } from '../locale';
 import { CopierHost, type CopierHostStatus } from './copier-host';
-import { executionPayloadToCsv } from './execution-csv';
+import { executionFill, executionPayloadToCsv } from './execution-csv';
 import { Nt8ExecutionPort } from './execution-port';
 import { DEFAULT_MAX_CONTRACTS } from './guards';
 import { DEFAULT_PORT, type ExecutionPayload } from './protocol';
@@ -333,7 +333,7 @@ export class NtBridgeHost {
 
   private onExecution(payload: ExecutionPayload): void {
     if (payload.id) this.fileBridge?.noteExecution(payload.id);
-    this.send('ntbridge:execution', { csv: executionPayloadToCsv([payload]), executionId: payload.id });
+    this.send('ntbridge:execution', { csv: executionPayloadToCsv([payload]), executionId: payload.id, fill: executionFill(payload) });
   }
 
   private onMarket(event: NtMarketEvent): void {

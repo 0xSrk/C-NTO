@@ -46,6 +46,13 @@ export interface BridgeFilePayload {
   kind: 'nouveau' | 'modifié' | 'rescan';
 }
 
+/** Exécution reçue du pont : CSV pour le journal, champs lus par le journal d'événements. */
+export interface NtExecutionPayload {
+  csv: string;
+  executionId: string;
+  fill?: { account: string; instrument: string; action: string; quantity: number; price: number; time: number; entryExit?: string };
+}
+
 export interface NtBridgeStatus {
   link: 'absent' | 'connecting' | 'live' | 'stale' | 'lost';
   port: number;
@@ -86,7 +93,7 @@ export interface NtBridgeApi {
   order: (payload: { op: 'submit' | 'cancel' | 'flatten'; [key: string]: unknown }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number; closed?: number }>;
   killSwitch: () => Promise<KillSwitchReport>;
   onStatus: (cb: (status: NtBridgeStatus) => void) => () => void;
-  onExecution: (cb: (payload: { csv: string; executionId: string }) => void) => () => void;
+  onExecution: (cb: (payload: NtExecutionPayload) => void) => () => void;
 }
 
 export interface BridgeApi {

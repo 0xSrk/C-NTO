@@ -3,7 +3,7 @@ import { app } from 'electron';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { WebSocket, WebSocketServer } from 'ws';
-import { orchMethodAllowed } from './agent/catalog';
+import { isDeskEventKind, orchMethodAllowed } from './agent/catalog';
 import { tokensMatch } from './secure-token';
 
 export { orchMethodAllowed };
@@ -31,6 +31,9 @@ const MAX_INFLIGHT = 8;
 const RATE_WINDOW_MS = 1000;
 const RATE_MAX = 40;
 const OPEN = 1;
+
+/** Taille maximale d'une trame `desk.event`. */
+export const BROADCAST_MAX_BYTES = 16_384;
 
 function safeSend(socket: WebSocket, payload: unknown): void {
   if (socket.readyState !== OPEN) return;
@@ -186,9 +189,25 @@ export class Orchestrator {
     safeSend(client.socket, error ? { jsonrpc: '2.0', id: rpcId, error: { code: -32000, message: error, data: result } } : { jsonrpc: '2.0', id: rpcId, result });
   }
 
-  broadcast(event: string, payload: unknown): void {
-    const msg = { jsonrpc: '2.0', method: 'desk.event', params: { event, payload, at: Date.now() } };
-    for (const c of this.clients.values()) if (c.authenticated) safeSend(c.socket, msg);
+  /** Pousse un événement du desk aux clients authentifiés. Types du catalogue seulement, 16 Ko au plus. */
+  broadcast(event: string, payload: unknown): boolean {
+    if (!isDeskEventKind(event)) return false;
+    let frame: string;
+    try {
+      frame = JSON.stringify({ jsonrpc: '2.0', method: 'desk.event', params: { event, payload, at: Date.now() } });
+    } catch {
+      return false;
+    }
+    if (Buffer.byteLength(frame) > BROADCAST_MAX_BYTES) return false;
+    for (const c of this.clients.values()) {
+      if (!c.authenticated || c.socket.readyState !== OPEN) continue;
+      try {
+        c.socket.send(frame);
+      } catch {
+        /* socket fermée entre-temps */
+      }
+    }
+    return true;
   }
 
   private reply(client: Client, id: string | number | null, error: { code: number; message: string }): void {

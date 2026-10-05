@@ -16,6 +16,7 @@ export const DESK_TOOL_KINDS = {
   portfolio_snapshot: 'read',
   market_levels: 'read',
   propfirm_status: 'read',
+  desk_events: 'read',
   annotate_session: 'write',
   create_note: 'write',
   branch_note: 'write',
@@ -36,4 +37,12 @@ export function orchMethodAllowed(method: string, allowWrites: boolean): boolean
   const name = method.replace(/^tool\./, '');
   if (ORCH_READ_METHODS.includes(method) || ORCH_READ_METHODS.includes(name)) return true;
   return allowWrites && ORCH_WRITE_METHODS.includes(name);
+}
+
+/** Événements que le desk pousse aux agents (`desk.event` de l'orchestrateur) et range pour `desk_events`. */
+export const DESK_EVENT_KINDS = ['fill', 'prop_buffer', 'catalyst', 'bridge_link'] as const;
+export type DeskEventKind = (typeof DESK_EVENT_KINDS)[number];
+
+export function isDeskEventKind(kind: unknown): kind is DeskEventKind {
+  return typeof kind === 'string' && (DESK_EVENT_KINDS as readonly string[]).includes(kind);
 }
