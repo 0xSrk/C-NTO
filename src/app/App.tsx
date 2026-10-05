@@ -121,6 +121,11 @@ export function App() {
   const [open, setOpen] = useState(false);
   const [admitted, setAdmitted] = useState(false);
   const tab = useUi((u) => u.tab);
+  // La passerelle MCP rouvre après l'ouverture du desk, jamais pendant qu'il est fermé.
+  const admit = useCallback(() => {
+    setAdmitted(true);
+    void useAgent.getState().resumeMcp();
+  }, []);
 
   useEffect(() => {
     const apply: Mark = (id, status, detail) => setSteps((prev) => prev.map((st) => (st.id === id ? { ...st, status, detail } : st)));
@@ -167,7 +172,7 @@ export function App() {
           </ErrorBoundary>
         </Shell>
       )}
-      {booted && !open && <Gate onAdmit={() => setAdmitted(true)} onReveal={reveal} onOpen={() => setOpen(true)} />}
+      {booted && !open && <Gate onAdmit={admit} onReveal={reveal} onOpen={() => setOpen(true)} />}
       {!booted && <Boot steps={steps} ready={ready} onReveal={reveal} onFinished={finish} />}
     </>
   );

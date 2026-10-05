@@ -53,6 +53,8 @@ interface AgentState {
   stopOrchestrator: () => Promise<void>;
   rotateToken: () => Promise<void>;
   startMcp: () => Promise<void>;
+  /** Rouvre la passerelle si le trader l'avait laissée ouverte. Appelé à l'ouverture du desk. */
+  resumeMcp: () => Promise<void>;
   stopMcp: () => Promise<void>;
   rotateMcpToken: () => Promise<void>;
   mcpConnection: () => Promise<{ url: string; token: string } | null>;
@@ -142,8 +144,7 @@ export const useAgent = create<AgentState>((set, get) => ({
       set({ orchestrator: await api.orchestrator.status() });
       if (api.mcp) {
         api.mcp.onStatus((status) => set({ mcp: status }));
-        const { mcpEnabled, mcpPort, orchestratorAllowWrite } = useSettings.getState().settings;
-        set({ mcp: mcpEnabled ? await api.mcp.start(mcpPort, orchestratorAllowWrite) : await api.mcp.status() });
+        set({ mcp: await api.mcp.status() });
       }
     }
   },
@@ -252,6 +253,12 @@ export const useAgent = create<AgentState>((set, get) => ({
     const status = await desk.mcp.start(mcpPort, orchestratorAllowWrite);
     set({ mcp: status });
     if (status.running) await useSettings.getState().update({ mcpEnabled: true });
+  },
+
+  async resumeMcp() {
+    if (!desk?.mcp || get().mcp.running || !useSettings.getState().settings.mcpEnabled) return;
+    const { mcpPort, orchestratorAllowWrite } = useSettings.getState().settings;
+    set({ mcp: await desk.mcp.start(mcpPort, orchestratorAllowWrite) });
   },
 
   async stopMcp() {
