@@ -228,69 +228,38 @@
   justify-content: flex-end;
 }
 
-/* Sceau : il occupe le centre de la plaque, plus large qu'elle. */
+/* Le mot, dans la police du desk : chasse régulière, les deux mots sur un axe. */
 .seal {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(880px, 94vw);
   translate: -50% -50%;
+  width: max-content;
+  max-width: 92vw;
   pointer-events: none;
   opacity: 0;
   z-index: 2;
 }
-.seal svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.stroke {
-  fill: none;
-  stroke: var(--text-0);
-  stroke-width: 1.25px;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  vector-effect: non-scaling-stroke;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-}
-.tip {
-  fill: none;
-  stroke: #ffffff;
-  stroke-width: 2.2px;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-  stroke-dasharray: 0.035 0.965;
-  stroke-dashoffset: 1;
+.seal p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-stretch: 100%;
+  font-size: clamp(28px, 4.6vw, 58px);
+  line-height: 1;
+  letter-spacing: 0.42em;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--text-0);
   opacity: 0;
 }
-.live .stroke {
-  animation: seal-draw var(--draw, 0.7s) cubic-bezier(0.65, 0, 0.35, 1) var(--t, 0s) forwards;
+.seal .live {
+  animation: seal-settle var(--draw, 0.85s) cubic-bezier(0.65, 0, 0.35, 1) forwards;
 }
-.live .tip {
-  animation: seal-tip var(--draw, 0.7s) cubic-bezier(0.65, 0, 0.35, 1) var(--t, 0s) forwards;
-}
-@keyframes seal-draw {
+@keyframes seal-settle {
   to {
-    stroke-dashoffset: 0;
-  }
-}
-@keyframes seal-tip {
-  0% {
-    stroke-dashoffset: 1;
-    opacity: 0;
-  }
-  6% {
     opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    stroke-dashoffset: 0.035;
-    opacity: 0;
+    letter-spacing: 0.18em;
   }
 }
 
@@ -389,12 +358,10 @@
 .reduced .hud {
   animation: none;
 }
-.reduced .stroke {
+.reduced .seal p {
   animation: none;
-  stroke-dashoffset: 0;
-}
-.reduced .tip {
-  display: none;
+  opacity: 1;
+  letter-spacing: 0.18em;
 }
 .reduced.forming .seal,
 .reduced.opening .seal {

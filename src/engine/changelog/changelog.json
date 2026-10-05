@@ -358,22 +358,22 @@
       "kind": "correctif",
       "highlights": {
         "fr": [
-          "Desk Unlocked se trace sur une seule grille.",
+          "Desk Unlocked s’écrit dans la police du desk, régulière.",
           "La pointe du Λ reste allumée, en rouge.",
           "Le titre d’onglet tient dans une plaque : le code du module, le nom, la ligne.",
-          "Les runes quittent la barre d’état."
+          "Dans la barre de chargement, le nom du Lab est en caractères."
         ],
         "en": [
-          "Desk Unlocked is drawn on one grid.",
+          "Desk Unlocked is set in the desk type, regular and even.",
           "The tip of the Λ stays lit, in red.",
           "The module title sits in a plate: the module code, the name, the line.",
-          "The runes leave the status bar."
+          "In the loading bar, the Lab name is set in type."
         ],
         "es": [
-          "Desk Unlocked se traza sobre una sola cuadrícula.",
+          "Desk Unlocked se escribe en la letra del desk, regular.",
           "La punta de la Λ permanece encendida, en rojo.",
           "El título del módulo cabe en una placa: el código, el nombre, la línea.",
-          "Las runas dejan la barra de estado."
+          "En la barra de carga, el nombre del Lab va en caracteres."
         ]
       }
     }

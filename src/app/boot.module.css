@@ -317,11 +317,8 @@
 }
 .markSlot {
   margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-.markSlot svg {
-  height: 13px;
+  color: var(--text-0);
+  letter-spacing: 0.18em;
 }
 
 /* Mouvement réduit : ni ouverture ni couture, un fondu court. */

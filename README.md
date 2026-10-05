@@ -86,7 +86,7 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 
 ## Get started
 
-**v3.3.3** is the current release. Desk Unlocked is drawn on one grid, the Λ keeps its red tip, and each module title sits in a compact plate. It stays under the PolyForm Noncommercial License 1.0.0, with the execution port, the Copier on the rail as `08 · CPY`, note branches, and a desk that stays closed on arrival. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
+**v3.3.3** is the current release. Desk Unlocked is set in the desk type, the Λ keeps its red tip, and each module title sits in a compact plate. It stays under the PolyForm Noncommercial License 1.0.0, with the execution port, the Copier on the rail as `08 · CPY`, note branches, and a desk that stays closed on arrival. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
 
 | OS | Installer | What you get |
 |---|---|---|
@@ -601,7 +601,7 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is arc
 
 The journal inside the desk lists the same releases, in French, English, and Spanish.
 
-- 3.3.3 — Desk Unlocked on one grid. Red tip on the Λ. Compact module plate. (2026-10-05)
+- 3.3.3 — Desk Unlocked in the desk type. Red tip on the Λ. Compact module plate. (2026-10-05)
 - 3.3.2 — PolyForm Noncommercial 1.0.0. Personal noncommercial use is free. Commercial use goes through the Lab. (2026-10-04)
 - 3.3.1 — Lighter title bar, session clocks, account plate, and the Desk Unlocked opening. (2026-10-04)
 - 3.3.0 — Execution port. Copier on the rail as `08 · CPY`, simulation only, disarmed on every launch. A note can branch another. The desk stays closed on arrival. (2026-10-04)
@@ -622,7 +622,7 @@ The journal inside the desk lists the same releases, in French, English, and Spa
 
 ## Roadmap
 
-Shipped in 3.3.3: the regular seal, the Λ tip, and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
+Shipped in 3.3.3: Desk Unlocked in the desk type, the Λ tip, and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
 
 Still ahead of the desk: the agent remains a prototype, and Bot remains design — it sends no order. The Copier does not follow a real account in this version. What the Lab brings next is listed under [Services](#services).
 

@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Button, Field } from '@/design/primitives';
 import { opens } from '@/engine/gate';
 import { tr, useI18n } from '@/i18n';
 import { runBootCircuit } from './bootCircuit';
-import { SEAL_DRAW_S, seal, sealFormMs } from './unlockMark';
+import { SEAL_DRAW_S, sealFormMs } from './unlockMark';
 import s from './gate.module.css';
 
 /** Durée de l'ouverture sur l'axe, la même que le boot. */
@@ -14,50 +14,10 @@ function prefersReducedMotion(): boolean {
 }
 
 function UnlockMark({ active }: { active: boolean }) {
-  const { glyphs, width, height } = seal();
-  const uid = `seal${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className={active ? s.live : undefined}
-      style={{ '--draw': `${SEAL_DRAW_S}s` } as CSSProperties}
-      fill="none"
-      role="img"
-      aria-label="Desk Unlocked"
-    >
-      <defs>
-        <filter id={`${uid}-tip`} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="1.2" />
-        </filter>
-      </defs>
-      {glyphs.flatMap((glyph) =>
-        glyph.strokes.map((d, index) => (
-          <path
-            key={`${glyph.ch}-${glyph.x}-${index}`}
-            className={s.stroke}
-            d={d}
-            pathLength={1}
-            transform={`translate(${glyph.x} 0)`}
-            style={{ '--t': `${glyph.delay}s` } as CSSProperties}
-          />
-        )),
-      )}
-      {glyphs.map((glyph) => {
-        const spine = glyph.strokes[0];
-        if (!spine) return null;
-        return (
-          <path
-            key={`${glyph.ch}-${glyph.x}-tip`}
-            className={s.tip}
-            d={spine}
-            pathLength={1}
-            transform={`translate(${glyph.x} 0)`}
-            filter={`url(#${uid}-tip)`}
-            style={{ '--t': `${glyph.delay}s` } as CSSProperties}
-          />
-        );
-      })}
-    </svg>
+    <p className={active ? s.live : undefined} style={{ '--draw': `${SEAL_DRAW_S}s` } as CSSProperties} role="img" aria-label="Desk Unlocked">
+      DESK UNLOCKED
+    </p>
   );
 }
 
@@ -84,7 +44,6 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   revealRef.current = onReveal;
   openRef.current = onOpen;
 
-  const layout = seal();
   const live = phase !== 'locked';
 
   useEffect(() => {
@@ -107,7 +66,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     admitRef.current();
     const wait = reduced ? 280 : sealFormMs();
     const t = window.setTimeout(() => {
-      const box = markRef.current?.querySelector('svg')?.getBoundingClientRect();
+      const box = markRef.current?.getBoundingClientRect();
       const root = rootRef.current?.getBoundingClientRect();
       if (box && root && root.height > 0) setAxis(((box.top + box.height / 2 - root.top) / root.height) * 100);
       setPhase('opening');
@@ -228,12 +187,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
                 </Button>
               </div>
             </form>
-            <div
-              className={s.seal}
-              ref={markRef}
-              style={{ aspectRatio: `${layout.width} / ${layout.height}` }}
-              aria-hidden={!live}
-            >
+            <div className={s.seal} ref={markRef} aria-hidden={!live}>
               <UnlockMark active={live} />
             </div>
           </div>
