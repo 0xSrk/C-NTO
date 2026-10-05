@@ -9,6 +9,8 @@ import { tr } from '@/i18n';
 import { desk, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
 import { APP_VERSION } from '@/lib/version';
+import { useBars } from './bars';
+import { useBridge } from './bridge';
 import { useCalendar } from './calendar';
 import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
@@ -16,6 +18,7 @@ import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { useLinks } from './links';
 import { useMacro } from './macro';
 import { useNotes } from './notes';
+import { usePortfolio } from './portfolio';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings } from './settings';
 import { useUi } from './ui';
 
@@ -85,6 +88,19 @@ function livePorts(): DeskPorts {
     },
     calendarEntries: () => useCalendar.getState().entries,
     officialEvents: () => useMacro.getState().events,
+    bridge: async () => ({
+      nt: (await desk?.ntbridge?.status().catch(() => null)) ?? useBridge.getState().nt,
+      copier: desk?.copier ? await desk.copier.status().catch(() => null) : null,
+    }),
+    portfolio: async () => {
+      if (!usePortfolio.getState().ready) await usePortfolio.getState().load();
+      const { pockets, positions, cash, fx } = usePortfolio.getState();
+      return { pockets, positions, cash, fx, base: useSettings.getState().settings.portfolio.baseCurrency };
+    },
+    barSeries: async () => {
+      if (!useBars.getState().ready) await useBars.getState().load();
+      return useBars.getState().series;
+    },
   };
 }
 

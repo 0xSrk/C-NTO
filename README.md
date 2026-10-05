@@ -391,8 +391,13 @@ The renderer **does not fetch** the provider: `streamChat` / `probe` go through 
 | `desk_overview` | read | metrics snapshot + plan |
 | `list_sessions` / `get_session` | read | journal |
 | `search_notes` / `read_note` | read | vault |
-| `calendar_events` | read | catalysts |
-| `propfirm_status` | read | replay of the current plan |
+| `calendar_events` | read | official catalysts merged with local markers |
+| `propfirm_status` | read | replay of the current plan, on the tracked account |
+| `journal_breakdown` | read | by entry hour and weekday (New York), instrument, long / short |
+| `monte_carlo` | read | i.i.d. bootstrap of daily PnL: percentiles, ruin, target (fixed seed) |
+| `bridge_status` | read | live NinjaTrader bridge and Copier: link, accounts, PnL, positions |
+| `portfolio_snapshot` | read | consolidated portfolio: net value, pockets, exposure |
+| `market_levels` | read | last price, PDH / PDL / PDC, Opening Range, VWAP, ATR (source named, demo marked synthetic) |
 | `create_note` | write | new note (confirmed) |
 | `branch_note` | write | child note from a selection (confirmed) |
 | `link_notes` | write | typed link between two notes (confirmed) |

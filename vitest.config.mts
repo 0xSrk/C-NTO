@@ -16,6 +16,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'execution/port': 'src/engine/execution/port.ts',
     'copier/router': 'src/engine/copier/router.ts',
     'copier/sync': 'src/engine/copier/sync.ts',
+    'agent/catalog': 'src/engine/agent/catalog.ts',
   };
   const hit = map[rel];
   return hit ? path.join(root, hit) : null;

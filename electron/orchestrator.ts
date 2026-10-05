@@ -3,7 +3,10 @@ import { app } from 'electron';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { WebSocket, WebSocketServer } from 'ws';
+import { orchMethodAllowed } from './agent/catalog';
 import { tokensMatch } from './secure-token';
+
+export { orchMethodAllowed };
 
 export interface OrchestratorStatus {
   running: boolean;
@@ -28,28 +31,6 @@ const MAX_INFLIGHT = 8;
 const RATE_WINDOW_MS = 1000;
 const RATE_MAX = 40;
 const OPEN = 1;
-
-const ORCH_READ_METHODS = new Set([
-  'desk.auth',
-  'desk.describe',
-  'desk.ping',
-  'desk_overview',
-  'list_sessions',
-  'get_session',
-  'search_notes',
-  'read_note',
-  'calendar_events',
-  'propfirm_status',
-]);
-const ORCH_WRITE_METHODS = new Set(['create_note', 'annotate_session', 'branch_note', 'link_notes']);
-
-/** Miroir de src/engine/agent/ports.ts `orchMethodAllowed`. */
-export function orchMethodAllowed(method: string, allowWrites: boolean): boolean {
-  const name = method.replace(/^tool\./, '');
-  if (ORCH_READ_METHODS.has(method) || ORCH_READ_METHODS.has(name)) return true;
-  if (allowWrites && ORCH_WRITE_METHODS.has(name)) return true;
-  return false;
-}
 
 function safeSend(socket: WebSocket, payload: unknown): void {
   if (socket.readyState !== OPEN) return;

@@ -23,6 +23,9 @@ function mockPorts(log: { writes: number }): DeskPorts {
     linkNotes: async () => null,
     calendarEntries: () => [],
     officialEvents: () => [],
+    bridge: async () => ({ nt: null, copier: null }),
+    portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
+    barSeries: async () => [],
   };
 }
 

@@ -483,4 +483,6 @@ Relecture en lecture seule de `main` à v3.3.4, au regard d'un objectif : CΛNTO
 
 Le correctif du kill switch (S2) suit en parallèle, sur sa propre branche.
 
-**Suivi (2026-10-05).** A1 fusionné (#76). S2 fusionné (#77) ; l'AddOn 2.1.1 reste à compiler et à essayer sur Sim par l'ADMIN. `CLAUDE.md` fusionné (#78). A2 en revue (#79). A4 livré avant A3, à la demande de l'ADMIN : passerelle MCP locale (`electron/mcp-server.ts`, `docs/PROTOCOLE-AGENT.md`), vérifiée avec le client MCP officiel contre le desk réel. Événements poussés (A4) et auteur `agent` dans l'ontologie : à venir. A3 suit.
+**Suivi (2026-10-05).** A1 fusionné (#76). S2 fusionné (#77) ; l'AddOn 2.1.1 reste à compiler et à essayer sur Sim par l'ADMIN. `CLAUDE.md` fusionné (#78). A2 en revue (#79). A4 livré avant A3, à la demande de l'ADMIN : passerelle MCP locale (`electron/mcp-server.ts`, `docs/PROTOCOLE-AGENT.md`), vérifiée avec le client MCP officiel contre le desk réel. Événements poussés (A4) et auteur `agent` dans l'ontologie : à venir.
+
+**A3 (2026-10-05).** L'agent lit tout le desk : `journal_breakdown`, `monte_carlo`, `bridge_status`, `portfolio_snapshot`, `market_levels`. Au passage, quatre constats des autres onglets sont corrigés, chacun avec un test rouge sans le correctif : jour de semaine au fuseau du poste (`01 · MET`), multiplicateur des contrats datés du pont, × 20 (`05 · PTF`), barres NinjaTrader datées à la clôture et série active remplacée par le direct (`02 · VIS`). La liste des outils n'existe plus qu'à un endroit (`src/engine/agent/catalog.ts`).

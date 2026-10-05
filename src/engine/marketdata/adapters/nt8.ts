@@ -17,6 +17,16 @@ interface HeldBar {
   final: boolean;
 }
 
+/**
+ * NinjaTrader date une barre temporelle à sa **clôture** (la barre 9:30–9:35 porte 9:35). Le desk,
+ * comme lightweight-charts et les indicateurs (Opening Range, VWAP), date une barre à son
+ * **ouverture**. Une barre de `timeframe` minutes recule donc d'autant à l'entrée dans le desk.
+ */
+export function ntBarToOpenTime(bar: Bar, timeframeMin: number | undefined): Bar {
+  if (!timeframeMin || timeframeMin <= 0) return bar;
+  return { ...bar, time: bar.time - timeframeMin * 60 };
+}
+
 export function createNt8Port(transport: Nt8Transport): MarketDataPort {
   let disposed = false;
   const stops: Unsubscribe[] = [];
@@ -29,7 +39,7 @@ export function createNt8Port(transport: Nt8Transport): MarketDataPort {
       if (disposed) throw new Error('Port libéré');
       const res = await transport.history(req);
       if (!res.ok) throw new Error(res.detail);
-      return dedupeBars(res.bars.filter((bar) => bar.time >= req.from && bar.time <= req.to));
+      return dedupeBars(res.bars.map((bar) => ntBarToOpenTime(bar, req.timeframe)).filter((bar) => bar.time >= req.from && bar.time <= req.to));
     },
     subscribe(req, onEvent) {
       if (disposed) return () => {};
@@ -49,8 +59,9 @@ export function createNt8Port(transport: Nt8Transport): MarketDataPort {
         }
         if (event.kind === 'bar') {
           if (event.instrument !== req.instrument || (req.timeframe !== undefined && event.timeframe !== req.timeframe)) return;
-          const accepted = acceptBar(book!, event.bar, event.final);
-          if (accepted) onEvent({ kind: 'bar', instrument: event.instrument, timeframe: event.timeframe, bar: accepted, final: event.final && book!.get(event.bar.time)?.final === true });
+          const opened = ntBarToOpenTime(event.bar, event.timeframe);
+          const accepted = acceptBar(book!, opened, event.final);
+          if (accepted) onEvent({ kind: 'bar', instrument: event.instrument, timeframe: event.timeframe, bar: accepted, final: event.final && book!.get(opened.time)?.final === true });
           return;
         }
         if (event.kind === 'tick' && event.tick.instrument === req.instrument) onEvent(event);

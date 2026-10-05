@@ -25,3 +25,18 @@ describe('orchestrator allowlist extraite', () => {
     }
   });
 });
+
+describe('catalogue unique des outils', () => {
+  it('chaque outil du desk est au catalogue, avec le même type, et rien d’autre', async () => {
+    const { DESK_TOOLS } = await import('@/engine/agent/tools');
+    const { DESK_TOOL_KINDS } = await import('@/engine/agent/catalog');
+    expect(Object.fromEntries(DESK_TOOLS.map((t) => [t.name, t.kind]))).toEqual(DESK_TOOL_KINDS);
+  });
+
+  it('le process principal lit la même liste que le moteur', () => {
+    for (const m of [...ORCH_READ_METHODS, ...ORCH_WRITE_METHODS, 'tool.market_levels', 'copy.order', 'order.submit']) {
+      for (const allow of [false, true]) expect(orchMain(m, allow), `${m} ${allow}`).toBe(orchMethodAllowed(m, allow));
+    }
+    expect(orchMain('order.submit', true)).toBe(false);
+  });
+});

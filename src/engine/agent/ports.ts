@@ -1,4 +1,6 @@
 import type { CalendarEventRow } from '../calendarEvents';
+import type { BarSeries } from '../bars';
+import type { CashBalance, FxRate, Pocket, Position } from '../portfolio/types';
 import type { Session, Trade } from '../types';
 
 export interface DeskNote {
@@ -20,6 +22,19 @@ export interface DeskCalendarEntry {
   body?: string;
 }
 
+/** Vue du pont NinjaTrader et du Copieur telle que le renderer la tient (lecture seule). */
+export interface DeskBridgeView {
+  nt: {
+    link: string;
+    addonVersion: string | null;
+    heartbeatLatencyMs: number | null;
+    ordersOpen: boolean;
+    maxContractsPerOrder: number;
+    accounts: { name: string; cashValue: number; realizedPnl: number; unrealizedPnl: number; positions: { instrument: string; quantity: number; avgPrice: number }[] }[];
+  } | null;
+  copier: { armed: boolean; routed: number; lastRefusal: { reason: string; account: string; instrument: string; qty: number } | null } | null;
+}
+
 /** Accès desk injecté — pas de stores dans `tools.ts`. */
 export interface DeskPorts {
   sessions(): Session[];
@@ -36,6 +51,12 @@ export interface DeskPorts {
   calendarEntries(): DeskCalendarEntry[];
   /** Lignes des sources officielles synchronisées (BLS, BEA, Fed, ECB, EIA, Treasury, instantané). */
   officialEvents(): CalendarEventRow[];
+  /** État en direct du pont et du Copieur. */
+  bridge(): Promise<DeskBridgeView>;
+  /** Poches, positions, liquidités, taux et devise de base du Portefeuille (chargés si besoin). */
+  portfolio(): Promise<{ pockets: Pocket[]; positions: Position[]; cash: CashBalance[]; fx: FxRate[]; base: string }>;
+  /** Séries de barres du desk (pont NinjaTrader, CSV, démo), chargées si besoin. */
+  barSeries(): Promise<BarSeries[]>;
 }
 
 export const BODY_MAX = 20_000;
@@ -44,33 +65,13 @@ export const TAG_LEN_MAX = 40;
 export const MAX_CALLS_PER_ROUND = 8;
 export const MAX_WRITES_PER_ROUND = 2;
 
-export const ORCH_READ_METHODS = [
-  'desk.auth',
-  'desk.describe',
-  'desk.ping',
-  'desk_overview',
-  'list_sessions',
-  'get_session',
-  'search_notes',
-  'read_note',
-  'calendar_events',
-  'propfirm_status',
-] as const;
-
-export const ORCH_WRITE_METHODS = ['create_note', 'annotate_session', 'branch_note', 'link_notes'] as const;
-
-export function orchMethodAllowed(method: string, allowWrites: boolean): boolean {
-  const name = method.replace(/^tool\./, '');
-  if ((ORCH_READ_METHODS as readonly string[]).includes(method) || (ORCH_READ_METHODS as readonly string[]).includes(name)) return true;
-  if (allowWrites && (ORCH_WRITE_METHODS as readonly string[]).includes(name)) return true;
-  return false;
-}
+export { ORCH_READ_METHODS, ORCH_WRITE_METHODS, orchMethodAllowed } from './catalog';
 
 export const TITLE_MAX = 200;
 export const ANCRE_MAX = 500;
 export const QUESTION_MAX = 200;
 export const SHORT_ARG_MAX = 64;
-const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId', 'account'] as const;
+const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId', 'account', 'instrument'] as const;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
