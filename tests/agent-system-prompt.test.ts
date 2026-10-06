@@ -34,6 +34,16 @@ describe('consigne système de l’agent embarqué', () => {
     useNotes.setState({ notes: [] });
   });
 
+  it('outils du desk coupés : ni règle ni note du trader ne partent au fournisseur', () => {
+    useI18n.setState({ locale: 'fr' });
+    const s = settings({ agent: { ...DEFAULT_SETTINGS.agent, toolsEnabled: false } });
+    const memory = traderMemory({ rules: s.traderRules, plan: undefined, planAccount: 'PA-1', notes: NOTES });
+    const prompt = agentSystemPrompt(s, memory, AT);
+    expect(prompt).not.toContain('500 $');
+    expect(prompt).not.toContain('Pas de revanche');
+    expect(prompt).toBe(`${defaultAgentPrompt()}\n\n${deskClock(AT, s.callsign)}`);
+  });
+
   it('le résumé tient le plafond d’un modèle local, plus large pour un fournisseur cloud', () => {
     const memory = traderMemory({ rules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 500 }, plan: undefined, planAccount: '', notes: NOTES });
     const clock = deskClock(AT, DEFAULT_SETTINGS.callsign);

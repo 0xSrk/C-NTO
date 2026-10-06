@@ -144,7 +144,8 @@ export function deskClock(now: number, callsign: string): string {
 /** Consigne système d'un tour : consigne du trader (ou par défaut), résumé de sa mémoire au budget du modèle, horodatage. */
 export function agentSystemPrompt(settings: Settings, memory: TraderMemory, now: number): string {
   const prompt = isDefaultAgentPrompt(settings.agent.systemPrompt) ? defaultAgentPrompt() : settings.agent.systemPrompt;
-  const digest = memoryDigest(memory, memoryBudget(settings.agent.baseUrl));
+  // Outils du desk coupés : le trader n'ouvre pas son desk au fournisseur, sa mémoire non plus.
+  const digest = settings.agent.toolsEnabled ? memoryDigest(memory, memoryBudget(settings.agent.baseUrl)) : '';
   return [prompt, digest, deskClock(now, settings.callsign)].filter(Boolean).join('\n\n');
 }
 
