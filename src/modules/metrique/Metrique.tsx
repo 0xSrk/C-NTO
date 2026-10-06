@@ -4,7 +4,7 @@ import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Segmented, Tag } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
 import { findPlan } from '@/engine/propfirm';
-import { openTextFile, saveTextFile } from '@/lib/desk';
+import { desk, openTextFile, saveTextFile } from '@/lib/desk';
 import { exportVault, restoreVault } from '@/store/db';
 import { useLinks } from '@/store/links';
 import { fmtInt, fmtUsd, plural, signClass } from '@/lib/format';
@@ -33,6 +33,8 @@ import { SettingsModal } from './SettingsModal';
 import d from './dashboard.module.css';
 import { filterJournal, rangeFrom, scopeFor, type MetricRange } from './range';
 import { liveSession } from './liveSession';
+import { INCOMPLETE_BOOK, ordersPanel, watchOrders } from './liveOrders';
+import type { OrderBookView } from '@/engine/execution/orderBook';
 
 type View = 'bord' | 'seances' | 'analyse' | 'prop' | 'mc';
 
@@ -47,6 +49,7 @@ export default function Metrique() {
   const metricAccount = useUi((u) => u.metricAccount);
   const setMetricAccount = useUi((u) => u.setMetricAccount);
   const [modal, setModal] = useState<null | 'import' | 'manuel' | 'reglages' | 'pont'>(null);
+  const [book, setBook] = useState<OrderBookView | null>(null);
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
   const loadDemo = useJournal((j) => j.loadDemo);
@@ -59,6 +62,8 @@ export default function Metrique() {
   const nt = useBridge((b) => b.nt);
   const traderRules = useSettings((st) => st.settings.traderRules);
   const planId = useSettings((st) => st.settings.planId);
+  useEffect(() => watchOrders(desk?.ntbridge, setBook), []);
+  const orders = ordersPanel(book);
   const head = liveSession({
     link: nt?.link ?? 'absent',
     now: Date.now(),
@@ -254,6 +259,21 @@ export default function Metrique() {
                 {head.fresh ? tr('frais', 'fresh', 'reciente') : tr('périmé', 'stale', 'caducado')}
               </b>
             </span>
+          </div>
+        )}
+        {orders && (
+          <div className={d.liveOrders}>
+            {orders.incomplete && <p>{tr(INCOMPLETE_BOOK[0], INCOMPLETE_BOOK[1], INCOMPLETE_BOOK[2])}</p>}
+            {orders.rows.length === 0 ? (
+              <p>{tr('Aucun ordre en cours.', 'No working order.', 'Ninguna orden en curso.')}</p>
+            ) : (
+              orders.rows.map((row, index) => (
+                <p key={index}>
+                  {row.side === 'buy' ? tr('achat', 'buy', 'compra') : tr('vente', 'sell', 'venta')} {fmtInt(row.qty)} {row.instrument} · {row.account} · {row.state}
+                  {row.byAgent ? ` · ${tr('agent', 'agent', 'agente')}` : ''}
+                </p>
+              ))
+            )}
           </div>
         )}
         <div className={d.tools}>
