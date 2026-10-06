@@ -801,3 +801,19 @@ L'ADMIN a confirmé les sept décisions du § 7 de `docs/THESE-AGENTIQUE.md`. De
 
 **Constat de la vague, tranché et corrigé.** Le plancher des suiveurs du Copieur lisait la marge de clôture (`replay.buffer`, `src/engine/copier/router.ts:144`). L'ADMIN a étendu la décision 2 au Copieur (« il doit tout lire ») : A17.4 et A17.5. Deux écarts relevés en chemin sont corrigés avec : le process principal perdait la MAE et la MFE des trades des suiveurs (`src/engine/copier/sync.ts:104`), et ne recevait leurs séances que l'onglet Copieur ouvert (`src/modules/copieur/Copieur.tsx:74`).
 
+
+## Publication de la 3.5.0 (2026-10-06)
+
+L'ADMIN confie la sortie de la 3.5.0 et un README réagencé. En recapturant les plaques du README dans le desk anglais, deux libellés restés en français sont apparus ; ils sont corrigés avant le tag. Un ticket = un commit = un test.
+
+| Piste | Commits | Tests | Ce qui change |
+|---|---|---|---|
+| **M5.11** | `718854b` | `fan-marks` | Les seuils de l'éventail Monte-Carlo s'écrivaient `ruine` et `objectif` dans toutes les langues (`src/design/charts/Fan.tsx:77`, `:85`, Métrique et Portefeuille). Ils suivent la langue du desk (`fanMarks`). |
+| **R1** | `96214ff` | `portfolio-labels` | La source des poches (`SAISIE`, `PONT`, `PRIX`, `src/modules/portefeuille/Synthese.tsx:65`) et les motifs du moteur (`pont hors ligne`, `taux X/Y manquant`, `plan manquant`…, `Synthese.tsx:387`, `Portefeuille.tsx:523`) s'affichaient en français. L'affichage les traduit (`src/modules/portefeuille/labels.ts`) ; le moteur les garde tels quels, stables pour les outils de l'agent. |
+| **R2** | — | — | README réagencé pour la 3.5.0 ; plaques recapturées en anglais sur le desk 3.5.0 avec `scripts/capture-readme.mjs` (phrase d'ouverture lue dans `CANTO_PHRASE`, jamais écrite). |
+
+Échecs observés sans les correctifs :
+- M5.11 : `TypeError: fanMarks is not a function`.
+- R1 : `Cannot find package '@/modules/portefeuille/labels'`.
+
+**Constat non corrigé.** Le jeu de démonstration étiquette ses séances en français dans toutes les langues (`plan respecté`, `sur-trading`, `src/engine/demo.ts:9`, `:96`). Ce sont des données, pas l'interface ; le README n'en montre pas.
