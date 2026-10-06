@@ -6,7 +6,7 @@ Date : 2026-10-06
 Dépôt : `0xSrk/C-NTO`
 Base : `main` à `d9b39aa` (vague 1, étapes 3 à 5 des Métriques, A11.6)
 Mis à jour : 2026-10-06, après la revue des PR #97 à #109 (§ 5)
-État : § 5.1, § 5.2 et § 5.3 faits, sur la branche `agentique/vague-2` (`docs/AUDIT.md` › « vague 2 › Corrections ») ; décisions de la vague 3 arrêtées le 2026-10-06 (`docs/THESE-AGENTIQUE.md` § 7), règles du trader et marge datée en garde livrées (A17)
+État : § 5.1, § 5.2 et § 5.3 faits, sur la branche `agentique/vague-2` (`docs/AUDIT.md` › « vague 2 › Corrections ») ; décisions de la vague 3 arrêtées le 2026-10-06 (`docs/THESE-AGENTIQUE.md` § 7), règles du trader et marge datée en garde livrées (A17), plancher des suiveurs du Copieur compris
 Version `package.json` : `3.4.0`, à ne pas toucher
 
 Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vague 1 l'a laissée. Tu modifies **ce dépôt uniquement**. Tu ne réinventes pas l'architecture : elle est décrite au § 2 et elle tient.
@@ -106,7 +106,7 @@ Arrêtées le 2026-10-06 (`docs/THESE-AGENTIQUE.md` § 7) : les règles du trade
 - **Gardes de `propose_order`.**
   - Ne touche pas `guardProposal` (`src/engine/agent/orders.ts`) ni les gardes d'`electron/agent-orders.ts`, sauf pour **refuser plus**, et seulement si un ticket le demande.
   - Refuser un ordre contraire aux règles du trader est une décision ouverte.
-- **Marge de la garde A5 et de `prop_buffer`.** Elles lisent la marge datée de la jauge K.04, latent négatif compris (A17.2, `src/store/deskEvents.ts`, `propShare`). Ne pas revenir à `buffer`.
+- **Marge de la garde A5, de `prop_buffer` et du plancher des suiveurs.** Elles lisent la marge datée de la jauge K.04, latent négatif compris (A17.2, `src/store/deskEvents.ts`, `propShare` ; A17.4, `src/engine/copier/router.ts`, `RouteContext.unrealized`). Les séances des suiveurs partent au process principal dès l'ouverture du desk (A17.5, `src/store/copierSync.ts`). Ne pas revenir à `buffer`.
 - **Abonnement aux données de marché par l'agent.** `market_quote` reste une lecture du cache.
 - **`ninjatrader/CantoBridge.cs`** (AddOn 2.3.0, D3) : ne pas modifier.
 - **Réservé à l'ADMIN** : version de `package.json`, tag, Release, fusion dans `main`, clés de publication et de siège.

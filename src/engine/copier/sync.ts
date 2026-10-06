@@ -119,7 +119,15 @@ function tradeOf(raw: unknown): Trade | null {
     exitPrice: typeof raw.exitPrice === 'number' ? raw.exitPrice : 0,
     pnl: raw.pnl,
     commission: typeof raw.commission === 'number' ? raw.commission : 0,
+    // Les excursions font les extrêmes de la journée rejouée : plancher intraday et marge datée (`planMargin`), comme dans le desk.
+    mae: excursion(raw.mae),
+    mfe: excursion(raw.mfe),
   };
+}
+
+/** Excursion en USD, positive et finie ; sinon absente. */
+function excursion(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined;
 }
 
 function hhmm(v: unknown, fallback: string): string {

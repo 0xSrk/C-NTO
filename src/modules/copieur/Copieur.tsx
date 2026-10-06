@@ -1,17 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Panel, Stat, Tag, Toggle, cx } from '@/design/primitives';
-import { ignoredFollowers, packCopierSync } from '@/engine/copier/sync';
-import { findPlan, PROP_FIRMS } from '@/engine/propfirm';
+import { ignoredFollowers } from '@/engine/copier/sync';
+import { PROP_FIRMS } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { desk, type CopierHostStatus } from '@/lib/desk';
-import { zonedToUtc } from '@/lib/time';
 import { plural } from '@/lib/format';
 import { useBridge } from '@/store/bridge';
 import type { CopierAccount } from '@/store/db';
-import { useJournal } from '@/store/journal';
-import { useMacro } from '@/store/macro';
 import { replicatedQty, useCopier } from '@/store/copier';
 import { useUi } from '@/store/ui';
 import { cutSummary } from './cutSummary';
@@ -49,9 +46,6 @@ export default function Copieur() {
   useI18n((s) => s.locale);
   const { ready, accounts, config, load, addAccount, updateAccount, removeAccount, updateConfig } = useCopier();
   const nt = useBridge((st) => st.nt);
-  const sessions = useJournal((st) => st.sessions);
-  const trades = useJournal((st) => st.trades);
-  const events = useMacro((st) => st.events);
   const [newName, setNewName] = useState('');
   const [newNt, setNewNt] = useState('');
   const [newRole, setNewRole] = useState<CopierAccount['role']>('suiveur');
@@ -60,30 +54,12 @@ export default function Copieur() {
   const [host, setHost] = useState<CopierHostStatus | null>(null);
   const [arming, setArming] = useState(false);
   const BRIDGE_STEPS = bridgeSteps();
-  const catalysts = useMemo(
-    () => events.filter((event) => event.impact === 3 && event.timeET).map((event) => ({ at: zonedToUtc(event.date, event.timeET ?? '00:00', 'America/New_York') })),
-    [events],
-  );
 
   useEffect(() => {
     if (!desk?.copier) return;
     void desk.copier.status().then(setHost);
     return desk.copier.onStatus(setHost);
   }, []);
-
-  useEffect(() => {
-    if (!desk?.copier || !ready) return;
-    const payload = packCopierSync({
-      accounts,
-      config,
-      sessions,
-      trades,
-      planById: findPlan,
-      catalysts,
-      maxContractsPerOrder: nt?.maxContractsPerOrder ?? 20,
-    });
-    void desk.copier.configure(payload);
-  }, [accounts, catalysts, config, nt?.maxContractsPerOrder, ready, sessions, trades]);
 
   useEffect(() => {
     if (!ready) load();
@@ -243,7 +219,7 @@ export default function Copieur() {
                   <Field label={tr('Budget latence (ms)', 'Latency budget (ms)', 'Presupuesto de latencia (ms)')}>
                     <input type="number" min={50} step={50} value={config.latencyBudgetMs} onChange={(e) => updateConfig({ latencyBudgetMs: Number(e.target.value) || 250 })} />
                   </Field>
-                  <Field label={tr('Marge plancher minimale', 'Minimum floor buffer', 'Margen suelo mínimo')} hint={tr('fraction du DD max du plan suiveur', 'fraction of the follower plan max DD', 'fracción del DD máx. del plan seguidor')}>
+                  <Field label={tr('Marge plancher minimale', 'Minimum floor buffer', 'Margen suelo mínimo')} hint={tr('fraction du DD max du plan suiveur, sur la marge au plancher (K.04), latent compris', 'fraction of the follower plan max DD, on the margin to floor (K.04), unrealized included', 'fracción del DD máx. del plan seguidor, sobre el margen al suelo (K.04), latente incluida')}>
                     <input type="number" min={0} max={1} step={0.05} value={config.followerBufferFloor} onChange={(e) => updateConfig({ followerBufferFloor: Number(e.target.value) || 0 })} />
                   </Field>
                 </div>

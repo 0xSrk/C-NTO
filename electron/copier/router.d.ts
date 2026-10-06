@@ -42,6 +42,7 @@ export interface RouteContext {
   copied?: number;
   commanded?: Record<string, number>;
   actual?: Record<string, number>;
+  unrealized?: Record<string, number>;
 }
 export interface RouteResult {
   orders: OrderRequest[];

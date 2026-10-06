@@ -55,6 +55,8 @@ export interface OrderUpdate {
 export interface AccountView {
   name: string;
   positions: { instrument: string; qty: number; avgPrice: number }[];
+  /** P&L latent du compte (USD) d'après la plateforme. Absent : inconnu. */
+  unrealizedPnl?: number;
 }
 
 export type ExecutionEvent =

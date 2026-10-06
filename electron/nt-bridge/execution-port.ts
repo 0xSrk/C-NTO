@@ -84,6 +84,7 @@ export class Nt8ExecutionPort implements ExecutionPort {
       accounts: accounts.map((account) => ({
         name: account.name,
         positions: account.positions.map((position) => ({ instrument: position.instrument, qty: position.quantity, avgPrice: position.avgPrice })),
+        unrealizedPnl: account.unrealizedPnl,
       })),
     });
   }

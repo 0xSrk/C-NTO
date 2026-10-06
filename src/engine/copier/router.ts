@@ -1,5 +1,5 @@
 import type { OrderRequest, OrderSide } from '../execution/port';
-import { evaluatePlan, type PropPlan } from '../propfirm';
+import { evaluatePlan, planMargin, type PropPlan } from '../propfirm';
 import type { Session, Trade } from '../types';
 import { followerTarget, positionKey, splitMove } from './position';
 import type { CopierTopology, FollowerRule } from './types';
@@ -53,6 +53,8 @@ export interface RouteContext {
   commanded?: Record<string, number>;
   /** Positions réelles des suiveurs d'après le pont, `compte|instrument` → quantité signée. Absent : inconnues. */
   actual?: Record<string, number>;
+  /** P&L latent des suiveurs d'après le pont, compte → USD. Absent : aucun. */
+  unrealized?: Record<string, number>;
 }
 
 export interface RouteResult {
@@ -139,9 +141,13 @@ export function routeFill(fill: MasterFill, topology: CopierTopology, context: R
     }
     const state = context.states.find((row) => row.account === follower.account);
     if (state?.plan) {
+      // Même lecture que la garde de l'agent : la marge datée de la jauge K.04 (la marge de clôture sans
+      // séance rejouée), diminuée d'un latent négatif du suiveur. Un latent positif ne relève rien.
       const replay = evaluatePlan(state.plan, state.sessions, state.trades, follower.account);
+      const unrealized = context.unrealized?.[follower.account];
+      const live = (planMargin(replay)?.margin ?? replay.buffer) + Math.min(0, typeof unrealized === 'number' && Number.isFinite(unrealized) ? unrealized : 0);
       const cushion = state.plan.maxDrawdown * topology.followerBufferFloor;
-      if (replay.status === 'echec' || !(replay.buffer >= cushion)) {
+      if (replay.status === 'echec' || !(live >= cushion)) {
         refused.push(refusal('floor', follower, goal.instrument, qty));
         continue;
       }
