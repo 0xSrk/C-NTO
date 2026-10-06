@@ -30,7 +30,7 @@ const AS_OF = DAYS[59]!;
 describe('1.6 jauge de repli branchée sur la marge réelle', () => {
   it('rejeu du plan sur tout l’historique : plus-haut 53 000, plancher 50 100, plus-bas 50 275, marge 175', () => {
     const margin = planMargin(evaluatePlan(PLAN, SESSIONS, TRADES, 'A'))!;
-    expect(margin).toEqual({ highWater: 53_000, floor: 50_100, lastLow: 50_275, margin: 175 });
+    expect(margin).toEqual({ date: AS_OF, highWater: 53_000, floor: 50_100, lastLow: 50_275, margin: 175 });
   });
 
   it('jauge sur 30J + compte A : la marge du plan, pas le repli de la période', () => {
@@ -39,7 +39,7 @@ describe('1.6 jauge de repli branchée sur la marge réelle', () => {
     // Avant : repli sur clôtures remis à zéro au début des 30 jours.
     expect(daily.maxDrawdown).toBe(575);
     const gauge = drawdownGauge({ plan: PLAN, account: 'A', history: { sessions: SESSIONS, trades: TRADES }, maxDrawdown: daily.maxDrawdown, startingBalance: PLAN.accountSize });
-    expect(gauge).toMatchObject({ kind: 'plan', limit: 2_500, margin: 175, highWater: 53_000, floor: 50_100, lastLow: 50_275 });
+    expect(gauge).toMatchObject({ kind: 'plan', limit: 2_500, margin: 175, highWater: 53_000, floor: 50_100, lastLow: 50_275, date: AS_OF, status: 'en-cours' });
     expect(gauge.used).toBeCloseTo(0.93, 9);
   });
 
@@ -49,3 +49,13 @@ describe('1.6 jauge de repli branchée sur la marge réelle', () => {
     expect(drawdownGauge({ plan: PLAN, account: null, history: { sessions: SESSIONS, trades: TRADES }, maxDrawdown: 575, startingBalance: 50_000 }).kind).toBe('clotures');
   });
 });
+
+describe('1.6 marge datée', () => {
+  it('le rejeu s’arrête à l’objectif : la jauge dit à quelle date', () => {
+    const easy = { ...PLAN, profitTarget: 2_000 };
+    const gauge = drawdownGauge({ plan: easy, account: 'A', history: { sessions: SESSIONS, trades: TRADES }, maxDrawdown: 0, startingBalance: 50_000 });
+    // +200 $ par jour : l'objectif de 2 000 $ tombe à la dixième séance.
+    expect(gauge).toMatchObject({ kind: 'plan', status: 'objectif', date: DAYS[9] });
+  });
+});
+

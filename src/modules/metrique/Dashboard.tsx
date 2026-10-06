@@ -263,6 +263,11 @@ export function Dashboard({
                 </span>
                 <span className={s.hint}>
                   {tr('PLUS-BAS DERNIÈRE SÉANCE', 'LAST SESSION LOW', 'MÍNIMO ÚLTIMA SESIÓN')} {fmtInt(gauge.lastLow)}
+                  {gauge.status === 'objectif'
+                    ? ` · ${tr('OBJECTIF ATTEINT LE', 'TARGET REACHED ON', 'OBJETIVO ALCANZADO EL')} ${shortDay(gauge.date)}`
+                    : gauge.status === 'echec'
+                      ? ` · ${tr('COMPTE INVALIDÉ LE', 'ACCOUNT FAILED ON', 'CUENTA INVALIDADA EL')} ${shortDay(gauge.date)}`
+                      : ''}
                 </span>
               </div>
             ) : (

@@ -1,4 +1,4 @@
-import { evaluatePlan, findPlan, planMargin, type PropPlan } from '@/engine/propfirm';
+import { evaluatePlan, findPlan, planMargin, type PropEvaluation, type PropPlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
 
 /**
@@ -18,7 +18,7 @@ export function metricDrawdownLimit(input: {
 }
 
 export type DrawdownGauge =
-  | { kind: 'plan'; limit: number; margin: number; used: number; highWater: number; floor: number; lastLow: number }
+  | { kind: 'plan'; limit: number; margin: number; used: number; highWater: number; floor: number; lastLow: number; date: string; status: PropEvaluation['status'] }
   | { kind: 'clotures'; limit: number | null; maxDrawdown: number; used: number };
 
 /**
@@ -36,8 +36,9 @@ export function drawdownGauge(input: {
 }): DrawdownGauge {
   const { plan, account } = input;
   if (plan && account && plan.maxDrawdown > 0) {
-    const margin = planMargin(evaluatePlan(plan, [...input.history.sessions], [...input.history.trades], account));
-    if (margin) return { kind: 'plan', limit: plan.maxDrawdown, ...margin, used: Math.max(0, Math.min(1, 1 - margin.margin / plan.maxDrawdown)) };
+    const ev = evaluatePlan(plan, [...input.history.sessions], [...input.history.trades], account);
+    const margin = planMargin(ev);
+    if (margin) return { kind: 'plan', limit: plan.maxDrawdown, ...margin, status: ev.status, used: Math.max(0, Math.min(1, 1 - margin.margin / plan.maxDrawdown)) };
   }
   const limit = plan?.maxDrawdown ?? null;
   const dd = input.maxDrawdown;

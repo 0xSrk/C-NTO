@@ -335,6 +335,8 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
 }
 
 export interface PlanMargin {
+  /** Dernière séance rejouée : le rejeu s'arrête à l'objectif atteint ou à l'échec. */
+  date: string;
   highWater: number;
   floor: number;
   /** Plus-bas du solde pendant la dernière séance rejouée, excursions défavorables comprises. */
@@ -353,6 +355,6 @@ export function planMargin(ev: PropEvaluation): PlanMargin | null {
   if (!last) return null;
   const open = last.balance - last.dayPnl;
   const lastLow = Math.min(last.balance, open + last.intradayLow);
-  return { highWater: ev.highWater, floor: ev.floor, lastLow, margin: lastLow - ev.floor };
+  return { date: last.date, highWater: ev.highWater, floor: ev.floor, lastLow, margin: lastLow - ev.floor };
 }
 
