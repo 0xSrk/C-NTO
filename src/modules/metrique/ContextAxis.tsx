@@ -8,7 +8,7 @@ import { useBars } from '@/store/bars';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
-import { AXES, axisReading, type Axis } from './axisReading';
+import { AXES, axisReading, type Axis, type RegimeSource } from './axisReading';
 import s from './metrique.module.css';
 
 function axisLabel(axis: Axis): string {
@@ -53,6 +53,19 @@ function rowName(axis: Axis, key: string): string {
   return key;
 }
 
+/** Pourquoi le régime et la bande ne se lisent pas pour cette racine. Null : ils se lisent. */
+function regimeNote(source: RegimeSource, root: string): string | null {
+  if (source === 'demo')
+    return tr(
+      `Le régime et la bande ne se lisent pas sur une série de démonstration : importez des barres de ${root}.`,
+      `Regime and band are not read from a demo series: import ${root} bars.`,
+      `El régimen y la banda no se leen en una serie de demostración: importe barras de ${root}.`,
+    );
+  if (source === 'absent') return tr(`Aucune série de barres de ${root} : le régime et la bande ne se lisent pas.`, `No ${root} bar series: regime and band cannot be read.`, `Ninguna serie de barras de ${root}: el régimen y la banda no se leen.`);
+  if (source === 'court') return tr('Historique de barres insuffisant', 'Bar history is too short', 'Historial de barras insuficiente');
+  return null;
+}
+
 /** Remplace la trame jour × heure : une ligne par valeur de l'axe choisi. */
 export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
   useI18n((st) => st.locale);
@@ -62,7 +75,8 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
   const events = useMacro((st) => st.events);
   const settings = useSettings((st) => st.settings);
   const metricAccount = useUi((st) => st.metricAccount);
-  const rows = useMemo(() => axisReading({ axis, sessions, trades, series, activeId, events, settings, metricAccount }), [axis, series, activeId, events, trades, sessions, settings, metricAccount]);
+  const reading = useMemo(() => axisReading({ axis, sessions, trades, series, activeId, events, settings, metricAccount }), [axis, series, activeId, events, trades, sessions, settings, metricAccount]);
+  const refused = (axis === 'regime' || axis === 'band') && reading.root ? regimeNote(reading.regime, reading.root) : null;
   return (
     <div className={s.trame}>
       <header className={s.trameHead}>
@@ -75,6 +89,7 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
               'Un eje a la vez. El régimen y la banda de una jornada son los de su ficha, fijada al cierre del día anterior.',
             )}
           </p>
+          {reading.root ? <p>{tr(`Racine lue : ${reading.root}, seuls ses trades entrent dans la lecture.`, `Root read: ${reading.root}, only its trades enter the reading.`, `Raíz leída: ${reading.root}, solo sus trades entran en la lectura.`)}</p> : null}
         </div>
       </header>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
@@ -84,8 +99,10 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
           </button>
         ))}
       </div>
-      {rows.thin ? <p className={s.note}>{tr('Pas assez de journées comparables', 'Not enough comparable days', 'No hay suficientes jornadas comparables')}</p> : null}
-      {rows.rows.length === 0 ? (
+      {reading.thin ? <p className={s.note}>{tr('Pas assez de journées comparables', 'Not enough comparable days', 'No hay suficientes jornadas comparables')}</p> : null}
+      {refused ? (
+        <p className={s.note}>{refused}</p>
+      ) : reading.rows.length === 0 ? (
         <p className={s.note}>{tr('Pas de données sur cet axe.', 'No data on this axis.', 'Sin datos en este eje.')}</p>
       ) : (
         <table className={tableClass}>
@@ -101,7 +118,7 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
             </tr>
           </thead>
           <tbody>
-            {rows.rows.map((row) => (
+            {reading.rows.map((row) => (
               <AxisLine key={row.key} axis={axis} row={row} />
             ))}
           </tbody>

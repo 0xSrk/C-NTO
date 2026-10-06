@@ -60,6 +60,15 @@ function bar(date: string, time = '12:00'): Bar {
   return { time: zonedToUtc(date, time, ET_ZONE) / 1000, open: 20_000, high: 20_010, low: 19_990, close: 20_000, volume: 1 };
 }
 
+/** Une barre par séance ; volatilité qui décroît sur 100 séances, puis remonte d'un coup. */
+function dailyBars(dates: readonly string[], level = 20_000, base = 0.3): Bar[] {
+  return dates.map((date, index) => {
+    const sigma = index < 100 ? base - (0.1 * index) / 100 : base;
+    const half = Math.sqrt((2 * sigma * sigma) / 252) / 2;
+    return { time: zonedToUtc(date, '12:00', ET_ZONE) / 1000, open: level, close: level, high: level * Math.exp(half), low: level * Math.exp(-half), volume: 1 };
+  });
+}
+
 function seriesOf(id: string, instrument: string, bars: Bar[], source = 'csv'): BarSeries {
   return { id, instrument, timeframe: 1440, label: `${instrument} · ${source}`, source, bars, createdAt: 0 };
 }
@@ -69,7 +78,7 @@ function read(axis: Axis, over: Partial<AxisReadingInput>): ReturnType<typeof ax
 }
 
 describe('lecture par contexte, onglet C', () => {
-  it('M6.4 : fenêtre de publication de 5 min avant à 30 min après', () => {
+  it('classe « proche » de 5 min avant à 30 min après une publication', () => {
     const day = '2026-01-13';
     const cpi: ContextEvent = { date: day, timeET: '08:30', title: 'CPI', impact: 3, estimated: false };
     const trades = [trade('t0800', day, '08:00'), trade('t0827', day, '08:27'), trade('t0845', day, '08:45'), trade('t0905', day, '09:05')];
@@ -89,5 +98,42 @@ describe('lecture par contexte, onglet C', () => {
     expect(lone?.points ?? 40).toBeLessThan(40);
     expect(lone?.points ?? 0).toBeGreaterThan(grand);
     expect(reading.rows.find((row) => row.key === '9')?.points ?? 0).toBeLessThan(4);
+  });
+
+  it('lit une seule racine : les trades de la série, et jamais le régime d’une démo', () => {
+    const dates = weekdays('2024-01-02', 130);
+    const traded = dates.slice(100);
+    const sessions = traded.map((date) => session(date));
+    const trades = traded.flatMap((date, day) => [trade(`nq${day}`, date, '10:00', 10, 'NQ'), trade(`es${day}`, date, '11:00', 2, 'ES')]);
+    const es = seriesOf('es', 'ES', dailyBars(dates, 5_000, 0.25));
+    const demo = seriesOf('demo', 'NQ', dailyBars(dates), 'demo');
+    const nq = seriesOf('nq', 'NQ', dailyBars(dates));
+
+    // Série active ES : seuls les trades ES sont lus, leurs points ne se moyennent pas avec ceux du NQ.
+    const onEs = read('weekday', { sessions, trades, series: [es, demo], activeId: 'es' });
+    expect(onEs.samples.map((sample) => sample.tradeId).filter((id) => !id.startsWith('es'))).toEqual([]);
+    expect(onEs.samples).toHaveLength(30);
+    for (const row of onEs.rows) expect(row.points).toBeCloseTo(2, 8);
+    expect(onEs.root).toBe('ES');
+
+    // Série active de démonstration (NQ) : le NQ est lu, mais son régime ne vient pas de la démo.
+    const onDemo = read('regime', { sessions, trades, series: [es, demo], activeId: 'demo' });
+    expect(onDemo.rows).toEqual([]);
+    expect(onDemo.root).toBe('NQ');
+    expect(onDemo.regime).toBe('demo');
+    expect(read('weekday', { sessions, trades, series: [es, demo], activeId: 'demo' }).samples).toHaveLength(30);
+
+    // Avec une vraie série NQ, le régime vient d'elle, même quand la démo est la série active.
+    const withNq = read('regime', { sessions, trades, series: [es, demo, nq], activeId: 'demo' });
+    expect(withNq.regime).toBe('ok');
+    expect(withNq.samples).toHaveLength(30);
+    expect(withNq.samples.every((sample) => sample.tradeId.startsWith('nq'))).toBe(true);
+
+    // Aucune série de la racine tradée : rien n'est lu sur le régime.
+    const nqOnly = trades.filter((row) => row.instrument === 'NQ');
+    const noBars = read('regime', { sessions, trades: nqOnly, series: [es], activeId: 'es' });
+    expect(noBars.root).toBe('NQ');
+    expect(noBars.regime).toBe('absent');
+    expect(noBars.rows).toEqual([]);
   });
 });
