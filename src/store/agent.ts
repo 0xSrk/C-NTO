@@ -123,7 +123,7 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
   };
 }
 
-/** Mémoire du trader telle que la consigne la résume : réglages et notes du trader, jamais celles d'un agent. */
+/** Mémoire du trader telle que la consigne la résume : réglages et notes du trader, et les notes d'agent qu'il a adoptées. */
 export function currentTraderMemory(settings: Settings): TraderMemory {
   return traderMemory({ rules: settings.traderRules, plan: findPlan(settings.planId), planAccount: settings.planAccount, notes: useNotes.getState().notes });
 }

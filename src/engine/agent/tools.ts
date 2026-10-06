@@ -165,8 +165,18 @@ const FINDINGS_MAX = 50;
 /** Horizon de recherche du prochain catalyseur majeur. */
 const CATALYST_HORIZON_DAYS = 7;
 
+/** Une note d'agent adoptée garde `by: 'agent'` et porte `adoptedAt` (instant de l'adoption par le trader). */
 function memoryNoteOut(n: MemoryNote) {
-  return { id: n.id, title: n.title, tags: n.tags, by: n.by, date: n.date, body: n.body.slice(0, MEMORY_NOTE_MAX), ...(n.body.length > MEMORY_NOTE_MAX ? { truncated: true } : {}) };
+  return {
+    id: n.id,
+    title: n.title,
+    tags: n.tags,
+    by: n.by,
+    ...(n.adoptedAt !== undefined ? { adoptedAt: new Date(n.adoptedAt).toISOString() } : {}),
+    date: n.date,
+    body: n.body.slice(0, MEMORY_NOTE_MAX),
+    ...(n.body.length > MEMORY_NOTE_MAX ? { truncated: true } : {}),
+  };
 }
 
 /** Latent du compte suivi ('' = tous), d'après le pont vivant ; 0 hors pont. */
@@ -245,7 +255,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'list_sessions',
       kind: 'read',
       description:
-        `Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source \`demo\` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (\`noteTruncated\`) : get_session la rend entière. Au plus ${TAGS_MAX} tags de ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).` + PROVENANCE_FR,
+        `Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source \`demo\` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (\`noteTruncated\`) : get_session la rend entière. Au plus ${TAGS_MAX} tags de ${TAG_LEN_MAX} caractères (\`tagsTruncated\`). \`truncated\` à la racine dès qu’une note ou des tags sont coupés.` + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
@@ -264,11 +274,13 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           .filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account))
           .sort((a, b) => b.date.localeCompare(a.date))
           .slice(0, limit);
+        // `truncated` à la racine : une note ou des tags coupés dans la liste.
         let cut = false;
         const list = rows.map((s) => {
           const note = excerpt(s.note);
           if (note.cut) cut = true;
           const tags = boundTags(s.tags);
+          if (tags.tagsTruncated) cut = true;
           return { id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: tags.tags, ...(tags.tagsTruncated ? { tagsTruncated: true } : {}), rating: s.rating, note: note.text, ...(note.cut ? { noteTruncated: true } : {}) };
         });
         return { count: list.length, ...(cut ? { truncated: true } : {}), sessions: list, ...provenance(ports, rows) };
@@ -278,7 +290,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'get_session',
       kind: 'read',
       description:
-        `Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans \`account\`, rend \`ambiguous\` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (\`truncated\`, \`tradeCount\`) ; les statistiques portent sur tous. Les tags de la séance : au plus ${TAGS_MAX}, ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).`,
+        `Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans \`account\`, rend \`ambiguous\` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (\`truncated\`, \`tradeCount\`) ; les statistiques portent sur tous. Les tags de la séance et ceux de chaque trade : au plus ${TAGS_MAX}, ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).`,
       parameters: {
         type: 'object',
         properties: {
@@ -315,7 +327,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           session: { ...row, tags: boundedTags.tags, ...(boundedTags.tagsTruncated ? { tagsTruncated: true } : {}), ...(executionIds ? { executionCount: executionIds.length } : {}) },
           stats: { winRate: round(stats.winRate, 4), ...profitFactorOf(stats.profitFactor), expectancy: round(stats.expectancy), maxDrawdown: round(stats.maxDrawdown), avgDurationMin: round(stats.avgDurationMs / 60000, 1) },
           ...(own.length > shown.length ? { truncated: true, tradeCount: own.length } : {}),
-          trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, tags: t.tags })),
+          // Tags du trade bornés comme ceux de la séance ; un trade sans tags reste sans champ.
+          trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, ...(t.tags ? boundTags(t.tags) : {}) })),
         };
       },
     },
@@ -394,10 +407,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       description: 'Crée une note Markdown dans le coffre (les [[liens]] et #tags sont reconnus).',
       parameters: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, required: ['title', 'body'], additionalProperties: false },
       async run(args) {
-        // `adoptedAt` est un geste du trader : un argument de ce nom est ignoré.
-        const { adoptedAt: _adoptedAt, ...rest } = args;
-        void _adoptedAt;
-        const n = await ports.createNote(str(rest.title, 'Note'), str(rest.body), Array.isArray(rest.tags) ? rest.tags.map(String) : []);
+        // `adoptedAt` reste un geste du trader : non déclaré, l'argument est retiré par `clampToolArgs`, et le port n'en reçoit pas.
+        const n = await ports.createNote(str(args.title, 'Note'), str(args.body), Array.isArray(args.tags) ? args.tags.map(String) : []);
         return { id: n.id, title: n.title };
       },
     },
@@ -899,7 +910,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'trader_memory',
       kind: 'read',
       description:
-        'Mémoire du trader : ses règles chiffrées actives (perte maximale du jour, trades par journée, fenêtre autour des catalyseurs majeurs, instruments autorisés, fenêtre de revanche), le plan prop suivi, sa note « Plan de trading », ses leçons (notes #leçon) et son playbook (notes #strategie), chacune avec son auteur et sa date. Les notes écrites par un agent n’y entrent pas (`excludedAgentNotes` les compte). Lecture seule.',
+        'Mémoire du trader : ses règles chiffrées actives (perte maximale du jour, trades par journée, fenêtre autour des catalyseurs majeurs, instruments autorisés, fenêtre de revanche), le plan prop suivi, sa note « Plan de trading », ses leçons (notes #leçon) et son playbook (notes #strategie), chacune avec son auteur et sa date. Une note écrite par un agent n’y entre que si le trader l’a adoptée : elle garde `by: agent` et porte `adoptedAt`, adoptée par le trader ; les autres en sont écartées (`excludedAgentNotes` les compte). Lecture seule.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const m = traderMemory({ rules: ports.traderRules(), plan: findPlan(ports.planId()), planAccount: ports.planAccount(), notes: ports.notes() });
@@ -1027,14 +1038,14 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'list_sessions':
       return tr(
         fallback,
-        `Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The \`demo\` source is the demo dataset. A note longer than 280 characters is cut (\`noteTruncated\`): get_session returns it whole. At most ${TAGS_MAX} tags of ${TAG_LEN_MAX} characters (\`tagsTruncated\`).` + PROVENANCE_EN,
-        `Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente \`demo\` es el juego de demostración. Una nota de más de 280 caracteres se corta (\`noteTruncated\`): get_session la devuelve entera. Como máximo ${TAGS_MAX} etiquetas de ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).` + PROVENANCE_ES,
+        `Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The \`demo\` source is the demo dataset. A note longer than 280 characters is cut (\`noteTruncated\`): get_session returns it whole. At most ${TAGS_MAX} tags of ${TAG_LEN_MAX} characters (\`tagsTruncated\`). \`truncated\` at the root as soon as a note or tags are cut.` + PROVENANCE_EN,
+        `Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente \`demo\` es el juego de demostración. Una nota de más de 280 caracteres se corta (\`noteTruncated\`): get_session la devuelve entera. Como máximo ${TAGS_MAX} etiquetas de ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`). \`truncated\` en la raíz en cuanto se corta una nota o etiquetas.` + PROVENANCE_ES,
       );
     case 'get_session':
       return tr(
         fallback,
-        `Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without \`account\`, returns \`ambiguous\` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (\`truncated\`, \`tradeCount\`); the statistics cover them all. Session tags: at most ${TAGS_MAX}, ${TAG_LEN_MAX} characters (\`tagsTruncated\`).`,
-        `Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin \`account\`, devuelve \`ambiguous\` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (\`truncated\`, \`tradeCount\`); las estadísticas los cubren todos. Etiquetas de la sesión: como máximo ${TAGS_MAX}, ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).`,
+        `Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without \`account\`, returns \`ambiguous\` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (\`truncated\`, \`tradeCount\`); the statistics cover them all. Tags of the session and of each trade: at most ${TAGS_MAX}, ${TAG_LEN_MAX} characters (\`tagsTruncated\`).`,
+        `Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin \`account\`, devuelve \`ambiguous\` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (\`truncated\`, \`tradeCount\`); las estadísticas los cubren todos. Etiquetas de la sesión y de cada trade: como máximo ${TAGS_MAX}, ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).`,
       );
     case 'annotate_session':
       return tr(fallback, 'Adds or replaces a session note and/or its tags.', 'Añade o sustituye la nota de una sesión y/o sus etiquetas.');
@@ -1117,8 +1128,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'trader_memory':
       return tr(
         fallback,
-        'Trader memory: their active numeric rules (max daily loss, trades per day, window around major catalysts, allowed instruments, revenge window), the tracked prop plan, their “Trading plan” note, their lessons (#lesson notes) and their playbook (#strategy notes), each with its author and date. Notes written by an agent are left out (`excludedAgentNotes` counts them). Read only.',
-        'Memoria del trader: sus reglas numéricas activas (pérdida máxima del día, trades por jornada, ventana alrededor de los catalizadores mayores, instrumentos autorizados, ventana de revancha), el plan prop seguido, su nota «Plan de trading», sus lecciones (notas #lección) y su playbook (notas #estrategia), cada una con su autor y su fecha. Las notas escritas por un agente no entran (`excludedAgentNotes` las cuenta). Solo lectura.',
+        'Trader memory: their active numeric rules (max daily loss, trades per day, window around major catalysts, allowed instruments, revenge window), the tracked prop plan, their “Trading plan” note, their lessons (#lesson notes) and their playbook (#strategy notes), each with its author and date. A note written by an agent enters only once the trader has adopted it: it keeps `by: agent` and carries `adoptedAt`, adopted by the trader; the others stay out (`excludedAgentNotes` counts them). Read only.',
+        'Memoria del trader: sus reglas numéricas activas (pérdida máxima del día, trades por jornada, ventana alrededor de los catalizadores mayores, instrumentos autorizados, ventana de revancha), el plan prop seguido, su nota «Plan de trading», sus lecciones (notas #lección) y su playbook (notas #estrategia), cada una con su autor y su fecha. Una nota escrita por un agente solo entra si el trader la ha adoptado: conserva `by: agent` y lleva `adoptedAt`, adoptada por el trader; las demás quedan fuera (`excludedAgentNotes` las cuenta). Solo lectura.',
       );
     case 'discipline_status':
       return tr(

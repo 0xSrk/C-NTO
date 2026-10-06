@@ -425,4 +425,58 @@ describe('A6.11 tags bornés', () => {
     expect(plain.sessions[0]?.tags).toEqual(['revue']);
     expect(plain.sessions[0]?.tagsTruncated).toBeUndefined();
   });
+
+  it('A6.11b : un trade de 500 tags rendu par get_session est coupé de même', async () => {
+    const tags = Array.from({ length: 500 }, (_, i) => (i === 0 ? 'x'.repeat(80) : `trade-${i}`));
+    const start = zonedToUtc('2026-09-28', '09:30', ET_ZONE);
+    const rows = [
+      trade('t_big', 'imp', start, start + 60_000, 10, { tags }),
+      trade('t_court', 'imp', start + 120_000, start + 180_000, 5, { tags: ['revue'] }),
+      trade('t_nu', 'imp', start + 240_000, start + 300_000, 1),
+    ];
+    const ports = fakePorts({ sessions: () => [session('imp', '2026-09-28', 'Sim101', 16, { tradeCount: 3 })], trades: () => rows });
+    const out = await callTool<{ trades: { id: string; tags?: string[]; tagsTruncated?: boolean }[] }>(ports, 'get_session', { id: 'imp' });
+    expect(out.trades.map((t) => t.id)).toEqual(['t_big', 't_court', 't_nu']);
+    const [big, short, bare] = out.trades;
+    expect(big?.tags).toHaveLength(TAGS_MAX);
+    expect(big?.tags?.every((tag) => tag.length <= TAG_LEN_MAX)).toBe(true);
+    expect(big?.tags?.[0]).toBe('x'.repeat(TAG_LEN_MAX));
+    expect(big?.tagsTruncated).toBe(true);
+    expect(JSON.stringify(out)).not.toContain('trade-499');
+    expect(short?.tags).toEqual(['revue']);
+    expect(short?.tagsTruncated).toBeUndefined();
+    // Un trade sans tags reste sans champ, comme avant.
+    expect(bare && 'tags' in bare).toBe(false);
+    expect(bare?.tagsTruncated).toBeUndefined();
+  });
+
+  it('A6.11c : la coupe en longueur seule est signalée, et list_sessions la remonte à la racine', async () => {
+    type Tagged = { tags: string[]; tagsTruncated?: boolean };
+    const long = 'l'.repeat(TAG_LEN_MAX + 1);
+    // Trois tags (sous la limite de 20), dont un de 41 caractères.
+    const tags = ['revue', long, 'ouverture'];
+    const start = zonedToUtc('2026-09-28', '09:30', ET_ZONE);
+    const ports = fakePorts({
+      sessions: () => [session('lng', '2026-09-28', 'Sim101', 10, { tags, note: 'courte' })],
+      trades: () => [trade('t1', 'lng', start, start + 60_000, 10, { tags })],
+    });
+    const listed = await callTool<{ truncated?: boolean; sessions: (Tagged & { noteTruncated?: boolean })[] }>(ports, 'list_sessions');
+    const detail = await callTool<{ truncated?: boolean; session: Tagged; trades: Tagged[] }>(ports, 'get_session', { id: 'lng' });
+    for (const rendered of [listed.sessions[0]!, detail.session, detail.trades[0]!]) {
+      expect(rendered.tags).toEqual(['revue', 'l'.repeat(TAG_LEN_MAX), 'ouverture']);
+      expect(rendered.tagsTruncated).toBe(true);
+    }
+    // La note est entière : seule la coupe des tags lève le `truncated` racine.
+    expect(listed.sessions[0]?.noteTruncated).toBeUndefined();
+    expect(listed.truncated).toBe(true);
+    // get_session garde `truncated` pour les trades au-delà de 200 (avec `tradeCount`), comme avant.
+    expect(detail.truncated).toBeUndefined();
+
+    // Vingt tags, dont un d'exactement 40 caractères : rien n'est coupé.
+    const fit = Array.from({ length: TAGS_MAX }, (_, i) => (i === 0 ? 'e'.repeat(TAG_LEN_MAX) : `t${i}`));
+    const whole = await callTool<{ truncated?: boolean; sessions: Tagged[] }>(fakePorts({ sessions: () => [session('fit', '2026-09-28', 'Sim101', 1, { tags: fit })] }), 'list_sessions');
+    expect(whole.sessions[0]?.tags).toEqual(fit);
+    expect(whole.sessions[0]?.tagsTruncated).toBeUndefined();
+    expect(whole.truncated).toBeUndefined();
+  });
 });
