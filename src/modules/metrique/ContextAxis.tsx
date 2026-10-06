@@ -1,23 +1,15 @@
 import { useMemo, useState } from 'react';
-import { tableClass } from '@/design/primitives';
-import { comparableSet, readAxis, tradingDaysBetween, weekdayKey, type AxisRow, type ReadingSample, type ReadingVerdict } from '@/engine/contextReading';
-import { sessionDates } from '@/engine/metrics';
-import { buildMetricsContext } from '@/engine/metricsContext';
-import { findPlan } from '@/engine/propfirm';
-import { horizonSigma, sigmaBand, sigmaDistance, tradeRisk } from '@/engine/riskConsole';
+import { Segmented, tableClass } from '@/design/primitives';
+import type { AxisRow, ReadingVerdict } from '@/engine/contextReading';
 import type { Session, Trade } from '@/engine/types';
-import { pointsPerContract } from '@/engine/tradeUnits';
 import { tr, useI18n } from '@/i18n';
-import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import { fmtPct, fmtRatio, signClass } from '@/lib/format';
 import { useBars } from '@/store/bars';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
+import { AXES, axisReading, type Axis, type RegimeSource } from './axisReading';
 import s from './metrique.module.css';
-
-const AXES = ['regime', 'band', 'release', 'rank', 'afterLoss', 'risk', 'sigma', 'weekday', 'hour'] as const;
-type Axis = (typeof AXES)[number];
 
 function axisLabel(axis: Axis): string {
   const labels: Record<Axis, [string, string, string]> = {
@@ -42,7 +34,29 @@ function verdictLabel(verdict: ReadingVerdict): string {
   return tr('non concluant', 'inconclusive', 'no concluyente');
 }
 
+const KEY_NAMES: Partial<Record<Axis, Record<string, [string, string, string]>>> = {
+  regime: {
+    expansion: ['expansion', 'expansion', 'expansión'],
+    compression: ['compression', 'compression', 'compresión'],
+    choc: ['choc', 'shock', 'choque'],
+    decrue: ['décrue', 'receding', 'retroceso'],
+  },
+  band: {
+    basse: ['basse', 'low', 'baja'],
+    moyenne: ['moyenne', 'medium', 'media'],
+    haute: ['haute', 'high', 'alta'],
+  },
+  sigma: {
+    '<0.25': ['[0 ; 0,25) σ', '[0, 0.25) σ', '[0 ; 0,25) σ'],
+    '0.25-0.5': ['[0,25 ; 0,5) σ', '[0.25, 0.5) σ', '[0,25 ; 0,5) σ'],
+    '0.5-1': ['[0,5 ; 1) σ', '[0.5, 1) σ', '[0,5 ; 1) σ'],
+    '>1': ['[1 ; ∞) σ', '[1, ∞) σ', '[1 ; ∞) σ'],
+  },
+};
+
 function rowName(axis: Axis, key: string): string {
+  const named = KEY_NAMES[axis]?.[key];
+  if (named) return tr(named[0], named[1], named[2]);
   if (axis === 'hour') return `${key}h`;
   if (axis === 'afterLoss') return key === 'perte' ? tr('après une perte', 'after a loss', 'tras una pérdida') : tr('après un gain', 'after a win', 'tras una ganancia');
   if (axis === 'release') return key === 'pres' ? tr('proche', 'near', 'cerca') : tr('loin', 'far', 'lejos');
@@ -61,6 +75,19 @@ function rowName(axis: Axis, key: string): string {
   return key;
 }
 
+/** Pourquoi le régime et la bande ne se lisent pas pour cette racine. Null : ils se lisent. */
+function regimeNote(source: RegimeSource, root: string): string | null {
+  if (source === 'demo')
+    return tr(
+      `Le régime et la bande ne se lisent pas sur une série de démonstration : importez des barres de ${root}.`,
+      `Regime and band are not read from a demo series: import ${root} bars.`,
+      `El régimen y la banda no se leen en una serie de demostración: importe barras de ${root}.`,
+    );
+  if (source === 'absent') return tr(`Aucune série de barres de ${root} : le régime et la bande ne se lisent pas.`, `No ${root} bar series: regime and band cannot be read.`, `Ninguna serie de barras de ${root}: el régimen y la banda no se leen.`);
+  if (source === 'court') return tr('Historique de barres insuffisant', 'Bar history is too short', 'Historial de barras insuficiente');
+  return null;
+}
+
 /** Remplace la trame jour × heure : une ligne par valeur de l'axe choisi. */
 export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
   useI18n((st) => st.locale);
@@ -70,87 +97,30 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
   const events = useMacro((st) => st.events);
   const settings = useSettings((st) => st.settings);
   const metricAccount = useUi((st) => st.metricAccount);
-  const rows = useMemo(() => {
-    const chosen = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
-    const context = chosen
-      ? buildMetricsContext({
-          root: chosen.instrument,
-          bars: chosen.bars,
-          timeframe: chosen.timeframe,
-          trades,
-          sessions,
-          events: events.map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),
-          confirm: settings.regimeConfirm,
-          minStay: settings.regimeMinSessions,
-        })
-      : null;
-    const dates = sessionDates(sessions);
-    const days = context?.days ?? [];
-    const cycleOf = new Map(days.map((day, index) => [day.date, index > 0 ? days[index - 1]?.volCycle : undefined]));
-    const bandOf = new Map(days.map((day, index) => [day.date, index > 0 ? days[index - 1]?.volBand : undefined]));
-    const infoOf = new Map((context?.trades ?? []).map((row) => [row.tradeId, row]));
-    const plan = metricAccount && settings.planAccount === metricAccount ? findPlan(settings.planId) : null;
-    const capital = plan?.maxDrawdown && plan.maxDrawdown > 0 ? plan.maxDrawdown : settings.startingBalance;
-    const span = [...dates.values()].sort();
-    const bounds = tradingDaysBetween(span[0] ?? '', span.at(-1) ?? '');
-    const samples: ReadingSample[] = [];
-    for (const trade of trades) {
-      const date = dates.get(trade.sessionId) ?? '';
-      if (!date) continue;
-      const info = infoOf.get(trade.id);
-      let key: string | null = null;
-      if (axis === 'weekday') key = weekdayKey(date);
-      else if (axis === 'hour') key = String(zonedWallClock(trade.entryTime, ET_ZONE).hour);
-      else if (axis === 'regime') key = cycleOf.get(date) ?? null;
-      else if (axis === 'band') key = bandOf.get(date) ?? null;
-      else if (axis === 'afterLoss' && info) key = info.afterLoss ? 'perte' : 'gain';
-      else if (axis === 'rank' && info) key = String(info.rankInDay);
-      else if (axis === 'release' && info?.minutesToRelease != null) key = info.minutesToRelease >= -settings.releaseBefore && info.minutesToRelease <= settings.releaseAfter ? 'pres' : 'loin';
-      else if (axis === 'risk') {
-        const risk = tradeRisk(trade, settings.riskPerContract, capital);
-        if (risk.lossPct != null) key = risk.lossPct <= settings.riskBasePoints / 100 ? 'dans' : 'dessus';
-      } else if (axis === 'sigma' && settings.impliedVol != null) {
-        const risk = tradeRisk(trade, settings.riskPerContract, capital);
-        const distance = sigmaDistance(risk.stopPoints, horizonSigma(trade.entryPrice, settings.impliedVol, 252));
-        key = distance == null ? null : sigmaBand(distance);
-      }
-      if (!key) continue;
-      samples.push({ date, exitTime: trade.exitTime, points: pointsPerContract(trade), key });
-    }
-    const hourKeys = [...new Set(samples.map((sample) => sample.key))];
-    const calendar =
-      axis === 'weekday'
-        ? bounds.map((date) => ({ date, key: weekdayKey(date) }))
-        : axis === 'hour'
-          ? bounds.flatMap((date) => hourKeys.map((key) => ({ date, key })))
-          : axis === 'regime'
-            ? days.map((day, index) => ({ date: day.date, key: index > 0 ? (days[index - 1]?.volCycle ?? null) : null }))
-            : axis === 'band'
-              ? days.map((day, index) => ({ date: day.date, key: index > 0 ? (days[index - 1]?.volBand ?? null) : null }))
-              : [];
-    const rows = readAxis(samples, calendar, { minTrades: settings.markerMinTrades, fdr: settings.falseDiscoveryRate, draws: 800, seed: 1 });
-    const last = [...days].reverse().find((day) => day.volCycle && day.volBand);
-    const comparable = last?.volCycle && last.volBand ? comparableSet(days, last.volCycle, last.volBand) : null;
-    const thin = comparable != null && ((comparable.hausse?.count ?? 0) < 30 || (comparable.baisse?.count ?? 0) < 30);
-    return { rows, thin };
-  }, [axis, series, activeId, events, trades, sessions, settings, metricAccount]);
+  const reading = useMemo(() => axisReading({ axis, sessions, trades, series, activeId, events, settings, metricAccount }), [axis, series, activeId, events, trades, sessions, settings, metricAccount]);
+  const refused = (axis === 'regime' || axis === 'band') && reading.root ? regimeNote(reading.regime, reading.root) : null;
   return (
     <div className={s.trame}>
       <header className={s.trameHead}>
         <div>
           <h3>{tr('Lecture par contexte', 'Reading by context', 'Lectura por contexto')}</h3>
-          <p>{tr('Un axe à la fois. Le régime et la bande sont ceux de la veille.', 'One axis at a time. Regime and band are those of the previous day.', 'Un eje a la vez. El régimen y la banda son los del día anterior.')}</p>
+          <p>
+            {tr(
+              'Un axe à la fois. Le régime et la bande d’une journée sont ceux de sa fiche, arrêtée à la clôture de la veille.',
+              'One axis at a time. A day’s regime and band come from its own sheet, set at the previous close.',
+              'Un eje a la vez. El régimen y la banda de una jornada son los de su ficha, fijada al cierre del día anterior.',
+            )}
+          </p>
+          {reading.root ? <p>{tr(`Racine lue : ${reading.root}, seuls ses trades entrent dans la lecture.`, `Root read: ${reading.root}, only its trades enter the reading.`, `Raíz leída: ${reading.root}, solo sus trades entran en la lectura.`)}</p> : null}
         </div>
       </header>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-        {AXES.map((value) => (
-          <button key={value} type="button" onClick={() => setAxis(value)} className={axis === value ? s.insightK : s.note}>
-            {axisLabel(value)}
-          </button>
-        ))}
+      <div style={{ marginBottom: 10 }}>
+        <Segmented value={axis} onChange={setAxis} options={AXES.map((value) => ({ value, label: axisLabel(value) }))} />
       </div>
-      {rows.thin ? <p className={s.note}>{tr('Pas assez de journées comparables', 'Not enough comparable days', 'No hay suficientes jornadas comparables')}</p> : null}
-      {rows.rows.length === 0 ? (
+      {reading.thin ? <p className={s.note}>{tr('Pas assez de journées comparables', 'Not enough comparable days', 'No hay suficientes jornadas comparables')}</p> : null}
+      {refused ? (
+        <p className={s.note}>{refused}</p>
+      ) : reading.rows.length === 0 ? (
         <p className={s.note}>{tr('Pas de données sur cet axe.', 'No data on this axis.', 'Sin datos en este eje.')}</p>
       ) : (
         <table className={tableClass}>
@@ -159,14 +129,14 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
               <th>{axisLabel(axis)}</th>
               <th className="num">{tr('Jours tradés', 'Days traded', 'Días operados')}</th>
               <th className="num">{tr('Points', 'Points', 'Puntos')}</th>
-              <th className="num">IC 90 %</th>
+              <th className="num">{tr('IC 90 %', '90% CI', 'IC 90 %')}</th>
               <th className="num">{tr('Trades', 'Trades', 'Trades')}</th>
               <th className="num">{tr('Écart', 'Gap', 'Brecha')}</th>
               <th>{tr('Verdict', 'Verdict', 'Veredicto')}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.rows.map((row) => (
+            {reading.rows.map((row) => (
               <AxisLine key={row.key} axis={axis} row={row} />
             ))}
           </tbody>

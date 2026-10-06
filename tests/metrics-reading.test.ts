@@ -6,7 +6,6 @@ import {
   daySide,
   decomposeExact,
   labelRelease,
-  laggedValue,
   readAxis,
   releaseContrast,
   semiOpenClasses,
@@ -15,10 +14,60 @@ import {
   weekdayKey,
   type ReadingSample,
 } from '@/engine/contextReading';
+import type { Bar, BarSeries } from '@/engine/bars';
+import { permutationPValues } from '@/engine/inference';
 import { sessionDates } from '@/engine/metrics';
-import type { DayContext } from '@/engine/metricsContext';
+import { buildMetricsContext, type DayContext } from '@/engine/metricsContext';
 import { pointsPerContract } from '@/engine/tradeUnits';
-import { ET_ZONE, zonedWallClock } from '@/lib/time';
+import type { Session, Trade } from '@/engine/types';
+import { ET_ZONE, zonedToUtc, zonedWallClock } from '@/lib/time';
+import { axisReading, type AxisSettings } from '@/modules/metrique/axisReading';
+
+const AXIS_SETTINGS: AxisSettings = {
+  regimeConfirm: 2,
+  regimeMinSessions: 5,
+  releaseBefore: 5,
+  releaseAfter: 30,
+  markerMinTrades: 30,
+  falseDiscoveryRate: 0.05,
+  riskPerContract: 0,
+  riskBasePoints: 1.5,
+  impliedVol: null,
+  startingBalance: 50_000,
+  planAccount: '',
+  planId: 'apex-50',
+};
+
+function weekdays(start: string, count: number): string[] {
+  const out: string[] = [];
+  let cursor = start;
+  while (out.length < count) {
+    const dow = new Date(`${cursor}T12:00:00Z`).getUTCDay();
+    if (dow !== 0 && dow !== 6) out.push(cursor);
+    const [y, m, d] = cursor.split('-').map(Number);
+    cursor = new Date(Date.UTC(y ?? 2024, (m ?? 1) - 1, (d ?? 1) + 1)).toISOString().slice(0, 10);
+  }
+  return out;
+}
+
+/** Séance dont la variance de Garman-Klass annualisée vaut `sigma` (ouverture = clôture). */
+function barAt(date: string, sigma: number): Bar {
+  const half = Math.sqrt((2 * sigma * sigma) / 252) / 2;
+  return { time: zonedToUtc(date, '12:00', ET_ZONE) / 1000, open: 20_000, close: 20_000, high: 20_000 * Math.exp(half), low: 20_000 * Math.exp(-half), volume: 1 };
+}
+
+function nqSeries(bars: Bar[]): BarSeries {
+  return { id: 'nq', instrument: 'NQ', timeframe: 1440, label: 'NQ', source: 'csv', bars, createdAt: 0 };
+}
+
+function daySession(date: string): Session {
+  return { id: `s-${date}`, date, account: 'Sim101', instruments: ['NQ'], source: 'csv', tradeCount: 1, pnl: 200, grossProfit: 200, grossLoss: 0, commission: 0, tags: [], createdAt: 0, updatedAt: 0 };
+}
+
+function dayTrade(date: string): Trade {
+  const entry = zonedToUtc(date, '10:00', ET_ZONE);
+  return { id: `t-${date}`, sessionId: `s-${date}`, instrument: 'NQ', account: 'Sim101', direction: 'long', qty: 1, entryTime: entry, exitTime: entry + 60_000, entryPrice: 20_000, exitPrice: 20_010, pnl: 200, commission: 0 };
+}
 
 describe('lecture par contexte', () => {
   it('retrouve exactement le gain moyen par journée', () => {
@@ -32,23 +81,96 @@ describe('lecture par contexte', () => {
     expect(term?.perDay).toBeCloseTo(gross / 3, 8);
   });
 
-  it('classe le jour du changement avec le régime de la veille', () => {
-    expect(laggedValue(['compression', 'compression', 'expansion'])).toEqual([undefined, 'compression', 'compression']);
-    const samples: ReadingSample[] = [
-      { date: '2026-01-05', exitTime: 1, points: 1, key: 'compression' },
-      { date: '2026-01-06', exitTime: 2, points: 1, key: 'compression' },
-      { date: '2026-01-07', exitTime: 3, points: 100, key: 'compression' },
-    ];
-    const rows = readAxis(samples, [
-      { date: '2026-01-05', key: null },
-      { date: '2026-01-06', key: 'compression' },
-      { date: '2026-01-07', key: 'compression' },
-    ], { minTrades: 30, draws: 50 });
-    expect(rows.map((row) => row.key)).toEqual(['compression']);
-    expect(rows[0]?.trades).toBe(3);
+  it('classe le jour du changement avec sa propre fiche, arrêtée à la veille', () => {
+    const dates = weekdays('2024-01-02', 240);
+    // Volatilité qui décroît doucement (compression), puis un choc modéré à partir de la séance 133.
+    const bars = dates.map((date, index) => barAt(date, index < 133 ? 0.3 - (0.1 * index) / 133 : 0.26));
+    const traded = dates.slice(120, 170);
+    const input = {
+      sessions: traded.map((date) => daySession(date)),
+      trades: traded.map((date) => dayTrade(date)),
+      series: [nqSeries(bars)],
+      activeId: 'nq',
+      events: [],
+      settings: AXIS_SETTINGS,
+      metricAccount: null,
+    };
+    const { days } = buildMetricsContext({ root: 'NQ', bars, trades: [], confirm: AXIS_SETTINGS.regimeConfirm, minStay: AXIS_SETTINGS.regimeMinSessions });
+    const sheet = new Map(days.map((day) => [day.date, day]));
+    const shock = days.findIndex((day, index) => index > 0 && day.volCycle === 'choc' && days[index - 1]?.volCycle !== 'choc');
+    const changeDay = days[shock]!.date;
+    expect(days[shock - 1]?.volCycle).toBe('compression');
+    expect(traded).toContain(changeDay);
+
+    const keysOf = (axis: 'regime' | 'band', over: Partial<typeof input> = {}) => new Map(axisReading({ axis, ...input, ...over }).samples.map((sample) => [sample.date, sample.key]));
+    const regime = keysOf('regime');
+    const band = keysOf('band');
+    // Le jour où la fiche passe en choc, ses trades sont classés « choc », pas avec la fiche de la veille.
+    expect(regime.get(changeDay)).toBe('choc');
+    for (const date of traded) {
+      expect(regime.get(date)).toBe(sheet.get(date)?.volCycle);
+      expect(band.get(date)).toBe(sheet.get(date)?.volBand);
+    }
+    const bandShift = days.findIndex((day, index) => index > shock && day.volBand !== days[index - 1]?.volBand);
+    expect(band.get(days[bandShift]!.date)).toBe(days[bandShift]!.volBand);
+    expect(days[bandShift]!.volBand).not.toBe(days[bandShift - 1]!.volBand);
+
+    // Aucune fuite : la barre du jour D ne change ni le régime ni la bande de ses trades, seulement la fiche du lendemain.
+    const at = dates.indexOf(changeDay);
+    const shaken = bars.map((bar, index) => (index === at ? { ...bar, high: bar.high * 1.05, low: bar.low * 0.95, close: bar.close * 1.03 } : bar));
+    const moved = { series: [nqSeries(shaken)] };
+    const shakenRegime = keysOf('regime', moved);
+    const shakenBand = keysOf('band', moved);
+    for (const date of traded.filter((day) => day <= changeDay)) {
+      expect(shakenRegime.get(date)).toBe(regime.get(date));
+      expect(shakenBand.get(date)).toBe(band.get(date));
+    }
+    const next = buildMetricsContext({ root: 'NQ', bars: shaken, trades: [] }).days[at + 1];
+    expect(next?.volCT).not.toBe(days[at + 1]?.volCT);
+
     expect(daySide(0)).toBeNull();
     expect(daySide(1)).toBe('hausse');
     expect(daySide(-1)).toBe('baisse');
+  });
+
+  it('confirme un groupe à 0 point quand le reste fait +12 : la permutation se centre sur la moyenne générale', () => {
+    const dates = weekdays('2025-01-06', 40);
+    const samples: ReadingSample[] = dates.flatMap((date, day) => [
+      { date, exitTime: day * 10, points: day % 2 ? 3 : -3, key: 'creux' },
+      ...[1, 2, 3, 4].map((k) => ({ date, exitTime: day * 10 + k, points: 12 + (k % 2 ? 3 : -3), key: 'reste' })),
+    ]);
+    const rows = readAxis(samples, [], { draws: 400, seed: 1 });
+    const creux = rows.find((row) => row.key === 'creux');
+    expect(creux?.trades).toBe(40);
+    expect(creux?.verdict).toBe('confirme');
+
+    const values = samples.map((sample) => sample.points as number);
+    const group = samples.flatMap((sample, index) => (sample.key === 'creux' ? [index] : []));
+    expect(permutationPValues(values, [group], { draws: 400, seed: 1, centered: true })[0]).toBeLessThan(0.01);
+    // Le rail de l'étape 2 garde la valeur absolue de la moyenne : un groupe à 0 n'y est jamais extrême.
+    expect(permutationPValues(values, [group], { draws: 400, seed: 1 })[0]).toBe(1);
+
+    const contrast = releaseContrast(samples.map((sample) => ({ points: sample.points as number, treated: sample.key === 'creux' })), { draws: 400, seed: 1 });
+    expect(contrast.diff).toBeCloseTo(-12, 8);
+    expect(contrast.significant).toBe(true);
+  });
+
+  it('juge le verdict sur 30 journées distinctes, pas sur 30 trades', () => {
+    const dates = weekdays('2025-01-06', 40);
+    const swing = (index: number) => (index % 2 ? 3 : -3);
+    const samples: ReadingSample[] = dates.flatMap((date, day) => [
+      // 60 trades serrés sur 12 journées, et 40 trades sur 40 journées : même écart à la moyenne.
+      ...(day < 12 ? [0, 1, 2, 3, 4].map((k) => ({ date, exitTime: day * 100 + k, points: swing(k + day), key: 'serre' })) : []),
+      { date, exitTime: day * 100 + 10, points: swing(day), key: 'etale' },
+      ...[0, 1, 2, 3].map((k) => ({ date, exitTime: day * 100 + 20 + k, points: 12 + swing(k), key: 'reste' })),
+    ]);
+    const rows = readAxis(samples, [], { draws: 400, seed: 1 });
+    const serre = rows.find((row) => row.key === 'serre');
+    const etale = rows.find((row) => row.key === 'etale');
+    expect(serre?.trades).toBe(60);
+    expect(serre?.verdict).toBe('insuffisant');
+    expect(etale?.trades).toBe(40);
+    expect(etale?.verdict).toBe('confirme');
   });
 
   it('ferme les classes d’amplitude à 100 % et ignore les vides', () => {
@@ -58,16 +180,19 @@ describe('lecture par contexte', () => {
     expect(semiOpenClasses([0, 5, 10, 15], [0, 10, 20])).toEqual(classes);
   });
 
-  it('le contrôle décalé d’une semaine n’est pas significatif', () => {
-    const trades = [
-      ...Array.from({ length: 8 }, () => ({ date: '2026-01-05', minute: 600, points: 12 })),
-      ...Array.from({ length: 8 }, () => ({ date: '2026-01-06', minute: 600, points: 0 })),
-    ];
+  it('le contrôle décalé d’une semaine tombe sur une journée tradée et n’est pas significatif', () => {
+    // Publication le lundi 5 janvier : +12 points ; les autres journées, dont le lundi suivant, oscillent autour de zéro.
+    const days = tradingDaysBetween('2026-01-05', '2026-01-16');
+    const trades = days.flatMap((date) => Array.from({ length: 8 }, (_, k) => ({ date, minute: 600 + k, points: date === '2026-01-05' ? 12 : k % 2 ? 3 : -3 })));
     const events = [{ date: '2026-01-05', minute: 600 }];
     const direct = releaseContrast(labelRelease(trades, events, 5, 30), { draws: 300, seed: 1 });
     expect(direct.significant).toBe(true);
     const shifted = events.map((event) => ({ ...event, date: addCalendarDays(event.date, 7) }));
-    expect(releaseContrast(labelRelease(trades, shifted, 5, 30), { draws: 200, seed: 1 }).significant).toBe(false);
+    expect(trades.filter((trade) => trade.date === shifted[0]!.date)).toHaveLength(8);
+    const placebo = releaseContrast(labelRelease(trades, shifted, 5, 30), { draws: 300, seed: 1 });
+    expect(placebo.diff).not.toBeNull();
+    expect(placebo.p).not.toBeNull();
+    expect(placebo.significant).toBe(false);
   });
 
   it('n’utilise la queue de Pareto qu’à partir de 500 journées', () => {
@@ -76,6 +201,29 @@ describe('lecture par contexte', () => {
     expect(tailLoss(mild.slice(0, 100))).toBeNull();
     const heavy = Array.from({ length: 520 }, (_, i) => (i < 40 ? -100 - i : i - 200));
     expect(tailLoss(heavy)?.method).toBe('gpd');
+  });
+
+  it('extrapole la queue de Pareto du seuil 10 % au niveau 5 %', () => {
+    // 900 journées au-dessus de −100 ; 100 en dessous, dont les excès suivent une Pareto généralisée (ξ = 0,2, σ = 40).
+    const body = Array.from({ length: 900 }, (_, i) => -100 + (500 * i) / 899);
+    const tail = Array.from({ length: 100 }, (_, i) => -100 - 200 * ((1 - (i + 0.5) / 100) ** -0.2 - 1));
+    const pnls = [...body, ...tail];
+    const result = tailLoss(pnls);
+    expect(result?.method).toBe('gpd');
+    // Moments des excès sous le quantile empirique 10 %, puis quantile au niveau 5 %.
+    const sorted = [...pnls].sort((a, b) => a - b);
+    const threshold = sorted[Math.ceil(0.1 * sorted.length) - 1]!;
+    const excesses = sorted.filter((value) => value < threshold).map((value) => threshold - value);
+    const mu = excesses.reduce((sum, value) => sum + value, 0) / excesses.length;
+    const variance = excesses.reduce((sum, value) => sum + (value - mu) ** 2, 0) / (excesses.length - 1);
+    const shape = 0.5 * (1 - (mu * mu) / variance);
+    const scale = 0.5 * mu * (1 + (mu * mu) / variance);
+    const rate = excesses.length / sorted.length;
+    expect(rate).toBeCloseTo(0.1, 2);
+    expect(result?.quantile).toBeCloseTo(threshold - (scale / shape) * ((0.05 / rate) ** -shape - 1), 9);
+    // Quantile 5 % de la loi construite : −100 − 200 × (2^0,2 − 1) ≈ −129,7.
+    expect(Math.abs((result?.quantile ?? 0) - (-100 - 200 * (2 ** 0.2 - 1)))).toBeLessThan(1.5);
+    expect(result?.expectedShortfall ?? 0).toBeLessThan(result?.quantile ?? 0);
   });
 
   it('la démo ne confirme ni le jour ni l’heure', () => {
