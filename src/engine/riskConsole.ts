@@ -1,3 +1,4 @@
+import { mulberry32 } from '@/lib/rng';
 import { getInstrument, hasInstrument } from './instruments';
 
 export type RiskSource = 'stop' | 'saisi' | 'fixe' | 'absent';
@@ -154,4 +155,129 @@ export function sigmaBand(distance: number): '<0.25' | '0.25-0.5' | '0.5-1' | '>
   if (distance < 0.5) return '0.25-0.5';
   if (distance < 1) return '0.5-1';
   return '>1';
+}
+
+/** p^k. Gains : p = taux de réussite. Pertes : p = 1 − taux. */
+export function bernoulliRun(probability: number, length: number): number {
+  if (!(probability >= 0) || probability > 1 || !Number.isInteger(length) || length < 0) return Number.NaN;
+  return probability ** length;
+}
+
+/** Plus longue série de pertes sur `trades` essais, `draws` trajectoires. */
+export function longestLossStreak(trades: number, lossRate: number, draws = 20_000, seed = 1): { mean: number; p95: number } {
+  const n = Math.max(0, Math.floor(trades));
+  const runs = Math.max(1, Math.floor(draws));
+  const rand = mulberry32(seed);
+  const lengths = new Array<number>(runs);
+  for (let draw = 0; draw < runs; draw++) {
+    let current = 0;
+    let max = 0;
+    for (let i = 0; i < n; i++) {
+      if (rand() < lossRate) {
+        current += 1;
+        if (current > max) max = current;
+      } else current = 0;
+    }
+    lengths[draw] = max;
+  }
+  lengths.sort((a, b) => a - b);
+  let sum = 0;
+  for (const value of lengths) sum += value;
+  const index = Math.min(lengths.length - 1, Math.max(0, Math.ceil(0.95 * lengths.length) - 1));
+  return { mean: lengths.length ? sum / lengths.length : 0, p95: lengths[index] ?? 0 };
+}
+
+const LANCZOS = [676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+
+function logGamma(z: number): number {
+  if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
+  z -= 1;
+  let x = 0.99999999999980993;
+  for (let i = 0; i < LANCZOS.length; i++) x += (LANCZOS[i] ?? 0) / (z + i + 1);
+  const t = z + LANCZOS.length - 0.5;
+  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+}
+
+function betaContinuedFraction(a: number, b: number, x: number): number {
+  const qab = a + b;
+  const qap = a + 1;
+  const qam = a - 1;
+  let c = 1;
+  let d = 1 - (qab * x) / qap;
+  if (Math.abs(d) < 1e-30) d = 1e-30;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= 200; m++) {
+    const m2 = 2 * m;
+    let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < 1e-30) d = 1e-30;
+    c = 1 + aa / c;
+    if (Math.abs(c) < 1e-30) c = 1e-30;
+    d = 1 / d;
+    h *= d * c;
+    aa = (-(a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < 1e-30) d = 1e-30;
+    c = 1 + aa / c;
+    if (Math.abs(c) < 1e-30) c = 1e-30;
+    d = 1 / d;
+    const delta = d * c;
+    h *= delta;
+    if (Math.abs(delta - 1) < 3e-12) break;
+  }
+  return h;
+}
+
+/** I_x(a, b), fonction bêta incomplète régularisée. */
+export function regularizedBeta(x: number, a: number, b: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const logFront = Math.log(x) * a + Math.log(1 - x) * b - (logGamma(a) + logGamma(b) - logGamma(a + b));
+  if (x < (a + 1) / (a + b + 2)) return (Math.exp(logFront) * betaContinuedFraction(a, b, x)) / a;
+  return 1 - (Math.exp(logFront) * betaContinuedFraction(b, a, 1 - x)) / b;
+}
+
+/** Quantile de la loi Bêta, par dichotomie. */
+export function betaQuantile(probability: number, a: number, b: number): number {
+  if (probability <= 0) return 0;
+  if (probability >= 1) return 1;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (regularizedBeta(mid, a, b) < probability) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/** A posteriori Bêta(1, 1) : moyenne et intervalle central à 90 %. */
+export function betaPosterior(wins: number, losses: number): { mean: number; low: number; high: number } {
+  const a = 1 + wins;
+  const b = 1 + losses;
+  return { mean: a / (a + b), low: betaQuantile(0.05, a, b), high: betaQuantile(0.95, a, b) };
+}
+
+/** Taux de réussite des trades qui suivent exactement `streak` gains ou pertes. */
+export function rateAfterStreak(pnls: readonly number[], streak: number, side: 'loss' | 'win'): { count: number; wins: number; winRate: number | null } {
+  if (!Number.isInteger(streak) || streak < 1) return { count: 0, wins: 0, winRate: null };
+  let count = 0;
+  let wins = 0;
+  for (let i = streak; i < pnls.length; i++) {
+    let matched = true;
+    for (let k = 1; k <= streak; k++) {
+      const previous = pnls[i - k] ?? 0;
+      const hit = side === 'loss' ? previous < 0 : previous > 0;
+      if (!hit) {
+        matched = false;
+        break;
+      }
+    }
+    const current = pnls[i];
+    if (!matched || current == null || !Number.isFinite(current)) continue;
+    count += 1;
+    if (current > 0) wins += 1;
+  }
+  return { count, wins, winRate: count > 0 ? wins / count : null };
 }
