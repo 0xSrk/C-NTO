@@ -32,6 +32,8 @@ function mockPorts(log: { writes: number }): DeskPorts {
     marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
+    activeSeriesId: () => null,
+    regimeRules: () => ({ confirm: 2, minStay: 5 }),
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
     proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
   };

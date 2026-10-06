@@ -56,9 +56,9 @@ export const ROUTINES: readonly RoutineDef[] = [
     name: 'pre_session_brief',
     title: ['Brief d’avant-séance', 'Pre-session brief', 'Brief previo a la sesión'],
     description: [
-      'Prépare la séance : marge du plan prop, catalyseurs du jour, niveaux de marché, ce que dit le journal de ce créneau.',
-      'Prepares the session: prop plan buffer, the day’s catalysts, market levels, what the journal says about this time slot.',
-      'Prepara la sesión: margen del plan prop, catalizadores del día, niveles de mercado, lo que dice el diario de esta franja.',
+      'Prépare la séance : marge du plan prop, catalyseurs du jour, niveaux de marché, régime de volatilité, ce que dit le journal de ce créneau.',
+      'Prepares the session: prop plan buffer, the day’s catalysts, market levels, volatility regime, what the journal says about this time slot.',
+      'Prepara la sesión: margen del plan prop, catalizadores del día, niveles de mercado, régimen de volatilidad, lo que dice el diario de esta franja.',
     ],
     arguments: [
       DATE_ARG,
@@ -71,7 +71,7 @@ export const ROUTINES: readonly RoutineDef[] = [
         ],
       },
     ],
-    reads: ['trader_memory', 'desk_overview', 'propfirm_status', 'discipline_status', 'calendar_events', 'market_levels', 'journal_breakdown', 'desk_events', 'bridge_status'],
+    reads: ['trader_memory', 'desk_overview', 'propfirm_status', 'discipline_status', 'calendar_events', 'market_levels', 'day_context', 'journal_breakdown', 'desk_events', 'bridge_status'],
     writes: ['create_note'],
   },
   {
@@ -240,24 +240,29 @@ const STEPS: Record<RoutineName, Lines> = {
       `6. market_levels${i ? ` con instrument = "${i}"` : ''}: último precio, PDH / PDL / PDC, Opening Range, VWAP, ATR. Si la serie está marcada synthetic, di que sus precios no son reales.`,
     ),
     t(
-      `7. journal_breakdown : ce que le trader obtient d’habitude un ${day}, et selon l’heure d’entrée.`,
-      `7. journal_breakdown: what the trader usually gets on a ${day}, and by entry hour.`,
-      `7. journal_breakdown: lo que el trader suele obtener un ${day}, y según la hora de entrada.`,
+      `7. day_context${i ? ` avec instrument = "${i}"` : ''} : régime et bande de volatilité de la dernière fiche, arrêtés à la clôture de la veille. Si available est faux, dis pourquoi (série de démonstration, historique insuffisant) et n’invente aucun régime.`,
+      `7. day_context${i ? ` with instrument = "${i}"` : ''}: volatility regime and band of the last sheet, stopped at the previous close. If available is false, say why (demo series, history too short) and invent no regime.`,
+      `7. day_context${i ? ` con instrument = "${i}"` : ''}: régimen y banda de volatilidad de la última ficha, detenidos en el cierre de la víspera. Si available es falso, di por qué (serie de demostración, historial insuficiente) y no inventes ningún régimen.`,
     ),
     t(
-      '8. desk_events avec kinds = ["prop_buffer", "daily_loss", "discipline", "catalyst", "bridge_link"] : alertes récentes ; garde le cursor rendu pour la suite.',
-      '8. desk_events with kinds = ["prop_buffer", "daily_loss", "discipline", "catalyst", "bridge_link"]: recent alerts; keep the returned cursor for later.',
-      '8. desk_events con kinds = ["prop_buffer", "daily_loss", "discipline", "catalyst", "bridge_link"]: alertas recientes; guarda el cursor devuelto para después.',
+      `8. journal_breakdown : ce que le trader obtient d’habitude un ${day}, et selon l’heure d’entrée.`,
+      `8. journal_breakdown: what the trader usually gets on a ${day}, and by entry hour.`,
+      `8. journal_breakdown: lo que el trader suele obtener un ${day}, y según la hora de entrada.`,
     ),
     t(
-      '9. bridge_status : lien du pont NinjaTrader, comptes, positions déjà ouvertes.',
-      '9. bridge_status: NinjaTrader bridge link, accounts, positions already open.',
-      '9. bridge_status: enlace del puente NinjaTrader, cuentas, posiciones ya abiertas.',
+      '9. desk_events avec kinds = ["prop_buffer", "daily_loss", "discipline", "catalyst", "bridge_link"] : alertes récentes ; garde le cursor rendu pour la suite.',
+      '9. desk_events with kinds = ["prop_buffer", "daily_loss", "discipline", "catalyst", "bridge_link"]: recent alerts; keep the returned cursor for later.',
+      '9. desk_events con kinds = ["prop_buffer", "daily_loss", "discipline", "catalyst", "bridge_link"]: alertas recientes; guarda el cursor devuelto para después.',
     ),
     t(
-      'Rends un brief de 250 mots au plus : 1) marge du plan et perte encore possible avant le plancher et avant la limite du jour ; 2) règles du trader qui s’appliquent aujourd’hui ; 3) catalyseurs du jour, heure ET ; 4) niveaux clés ; 5) ce que dit le journal de ce jour et de ces heures ; 6) trois points de vigilance.',
-      'Return a brief of at most 250 words: 1) plan margin and the loss still possible before the floor and before the daily limit; 2) the trader’s rules that apply today; 3) the day’s catalysts, ET time; 4) key levels; 5) what the journal says about this day and these hours; 6) three points to watch.',
-      'Devuelve un brief de 250 palabras como máximo: 1) margen del plan y pérdida aún posible antes del suelo y antes del límite del día; 2) reglas del trader que se aplican hoy; 3) catalizadores del día, hora ET; 4) niveles clave; 5) lo que dice el diario de este día y de estas horas; 6) tres puntos de vigilancia.',
+      '10. bridge_status : lien du pont NinjaTrader, comptes, positions déjà ouvertes.',
+      '10. bridge_status: NinjaTrader bridge link, accounts, positions already open.',
+      '10. bridge_status: enlace del puente NinjaTrader, cuentas, posiciones ya abiertas.',
+    ),
+    t(
+      'Rends un brief de 250 mots au plus : 1) marge du plan et perte encore possible avant le plancher et avant la limite du jour ; 2) règles du trader qui s’appliquent aujourd’hui ; 3) catalyseurs du jour, heure ET ; 4) niveaux clés et régime de volatilité ; 5) ce que dit le journal de ce jour et de ces heures ; 6) trois points de vigilance.',
+      'Return a brief of at most 250 words: 1) plan margin and the loss still possible before the floor and before the daily limit; 2) the trader’s rules that apply today; 3) the day’s catalysts, ET time; 4) key levels and volatility regime; 5) what the journal says about this day and these hours; 6) three points to watch.',
+      'Devuelve un brief de 250 palabras como máximo: 1) margen del plan y pérdida aún posible antes del suelo y antes del límite del día; 2) reglas del trader que se aplican hoy; 3) catalizadores del día, hora ET; 4) niveles clave y régimen de volatilidad; 5) lo que dice el diario de este día y de estas horas; 6) tres puntos de vigilancia.',
     ),
   ],
   session_debrief: (t, { date, day, account: a }) => [

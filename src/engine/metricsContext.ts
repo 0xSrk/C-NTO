@@ -1,7 +1,7 @@
 import { eventTypeOf } from '@/engine/ontology/confidence';
 import { zonedToUtc, ET_ZONE } from '@/lib/time';
 import { atrSeries } from './atr';
-import type { Bar } from './bars';
+import type { Bar, BarSeries } from './bars';
 import { sessionKeyOf } from './indicators';
 import { cmeSession } from '@/lib/cmeClosed';
 import { standardEquivalentQty, standardRoot, exitReasonOf, pointsPerContract } from './tradeUnits';
@@ -259,6 +259,21 @@ export interface MetricsContext {
   sufficient: boolean;
   days: DayContext[];
   trades: TradeContext[];
+}
+
+/**
+ * Série qui porte le contexte du jour, pour l'écran comme pour l'agent : celle de la racine d'`instrument`,
+ * sinon la série active, sinon la plus longue. Jamais de prix synthétiques : une série de démonstration
+ * cède la place à la plus longue série réelle de la même racine ; sans elle, `demo_series`.
+ */
+export function contextSeries(series: readonly BarSeries[], opts: { activeId?: string | null; instrument?: string } = {}): { series: BarSeries } | { reason: 'demo_series' | 'no_series' } {
+  const longest = (rows: readonly BarSeries[]) => rows.filter((row) => row.bars.length > 0).sort((a, b) => b.bars.length - a.bars.length)[0];
+  const root = opts.instrument ? standardRoot(opts.instrument) : undefined;
+  const first = root ? longest(series.filter((row) => standardRoot(row.instrument) === root)) : (series.find((row) => row.id === opts.activeId) ?? longest(series));
+  if (!first || first.bars.length === 0) return { reason: 'no_series' };
+  if (first.source !== 'demo') return { series: first };
+  const real = longest(series.filter((row) => row.source !== 'demo' && standardRoot(row.instrument) === standardRoot(first.instrument)));
+  return real ? { series: real } : { reason: 'demo_series' };
 }
 
 /**

@@ -77,6 +77,10 @@ export interface DeskPorts {
   portfolio(): Promise<{ pockets: Pocket[]; positions: Position[]; cash: CashBalance[]; fx: FxRate[]; base: string }>;
   /** Séries de barres du desk (pont NinjaTrader, CSV, démo), chargées si besoin. */
   barSeries(): Promise<BarSeries[]>;
+  /** Série affichée par Visual (`null` : aucune) ; le contexte du jour la lit par défaut, comme l'onglet Analyse. */
+  activeSeriesId(): string | null;
+  /** Réglages 1 et 2 des Métriques : confirmation d'un régime et durée minimale, en séances. */
+  regimeRules(): { confirm: number; minStay: number };
   /** Journal des événements du lancement en cours (fills, marge prop, catalyseurs, lien du pont). */
   events(opts: { cursor?: string; kinds?: readonly string[]; limit?: number }): DeskEventPage;
   /** Propose un ordre : le process principal garde, le fait confirmer par l'opérateur, puis le soumet. */

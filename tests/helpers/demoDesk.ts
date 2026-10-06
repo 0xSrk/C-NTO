@@ -130,6 +130,8 @@ export function demoDesk(opts: DemoDeskOptions = {}): DemoDesk {
     marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
+    activeSeriesId: () => null,
+    regimeRules: () => ({ confirm: 2, minStay: 5 }),
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
     now: () => opts.now ?? Date.parse(opts.end ?? DEMO_END),
     async proposeOrder(args) {

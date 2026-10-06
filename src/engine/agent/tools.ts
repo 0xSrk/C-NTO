@@ -15,6 +15,8 @@ import type { Bar, BarSeries } from '@/engine/bars';
 import type { BookOrder } from '@/engine/execution/orderBook';
 import { findQuote, QUOTE_STALE_MS } from '@/engine/marketdata/quotes';
 import type { Session, Trade } from '@/engine/types';
+import { buildMetricsContext, contextSeries } from '@/engine/metricsContext';
+import { standardRoot } from '@/engine/tradeUnits';
 import type { ToolSchema } from './llm';
 import { DESK_EVENT_KINDS, DESK_TOOL_TITLES, isDeskEventKind, ORDER_TOOLS } from './catalog';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
@@ -754,6 +756,89 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'day_context',
+      kind: 'read',
+      description:
+        'Fiche du contexte du jour, la même que l’onglet Analyse. Arrêtés à la clôture de la veille : régime de volatilité (regime : choc, expansion, decrue, compression), bande (band : basse, moyenne, haute, tiers de la volatilité moyen terme), volatilités de Garman-Klass annualisées (volCT, volMT, volLT ; hv30, hv60, hv90). Puis ATR 14, trades et contrats du jour (équivalent standard), publications du jour, demi-séance, et l’amplitude de la journée elle-même (dayRange, openToClose, écarts à la clôture de la veille). date YYYY-MM-DD (défaut : la dernière fiche) ; instrument : racine ou contrat du registre (défaut : la série affichée par Visual, sinon la plus longue). Jamais sur des prix synthétiques : une série de démonstration cède la place à une série réelle de la même racine, sinon available: false (demo_series). Moins de 90 séances de barres avant la fiche : available: false (insufficient_history). Lecture seule.',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', pattern: DATE_PATTERN, description: 'Journée de la fiche (YYYY-MM-DD) ; défaut : la dernière' },
+          instrument: { type: 'string', description: 'Racine ou contrat (NQ, MNQ 12-26, ES…) ; défaut : la série affichée' },
+        },
+        additionalProperties: false,
+      },
+      async run(args) {
+        const raw = str(args.instrument);
+        const symbol = raw ? resolveSymbol(raw)?.symbol ?? null : null;
+        if (raw && !symbol) return { error: tr(`Instrument hors registre : ${raw}`, `Instrument not in the registry: ${raw}`, `Instrumento fuera del registro: ${raw}`) };
+        const date = str(args.date);
+        const asOf = new Date(ports.now?.() ?? Date.now()).toISOString();
+        const all = await ports.barSeries();
+        const activeId = ports.activeSeriesId();
+        // Même choix de série que l'onglet Analyse (`contextSeries`) : jamais de prix synthétiques.
+        const picked = contextSeries(all, symbol ? { instrument: symbol } : { activeId });
+        const unavailable = (reason: string, note: string, extra: Record<string, unknown> = {}) => ({ available: false, reason, instrument: symbol ?? all.find((row) => row.id === activeId)?.instrument ?? null, ...extra, note, asOf });
+        if ('reason' in picked) {
+          return picked.reason === 'demo_series'
+            ? unavailable('demo_series', tr('Série de démonstration : pas de contexte du jour sur des prix synthétiques', 'Demo series: no daily context on synthetic prices', 'Serie de demostración: sin contexto del día sobre precios sintéticos'))
+            : unavailable('no_series', tr('Aucune série de barres pour cet instrument dans le desk', 'No bar series for this instrument in the desk', 'Ninguna serie de barras para este instrumento en el desk'));
+        }
+        const series = picked.series;
+        const rules = ports.regimeRules();
+        const context = buildMetricsContext({
+          root: series.instrument,
+          bars: series.bars,
+          timeframe: series.timeframe,
+          trades: ports.trades(),
+          sessions: ports.sessions(),
+          events: ports.officialEvents().map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),
+          confirm: rules.confirm,
+          minStay: rules.minStay,
+        });
+        const last = context.days.at(-1);
+        const day = date ? context.days.find((row) => row.date === date) : last;
+        const where = { instrument: series.instrument, source: series.source };
+        if (!day) {
+          return unavailable('no_sheet', tr('Aucune fiche pour cette journée : pas de barre ce jour-là', 'No sheet for that day: no bar on that day', 'Ninguna ficha para ese día: no hay barra ese día'), { ...where, date, latestDate: last?.date ?? null });
+        }
+        if (day.volCT == null && day.volMT == null && day.volLT == null) {
+          return unavailable('insufficient_history', tr('Historique de barres insuffisant : moins de 90 séances avant cette fiche', 'Bar history is too short: fewer than 90 sessions before this sheet', 'Historial de barras insuficiente: menos de 90 sesiones antes de esta ficha'), { ...where, date: day.date });
+        }
+        const n = (v: number | undefined, d: number) => (v == null ? null : round(v, d));
+        return {
+          available: true,
+          instrument: series.instrument,
+          root: standardRoot(series.instrument),
+          source: series.source,
+          timeframe: series.timeframe,
+          date: day.date,
+          latest: day.date === last?.date,
+          regime: day.volCycle ?? null,
+          band: day.volBand ?? null,
+          volCT: n(day.volCT, 4),
+          volMT: n(day.volMT, 4),
+          volLT: n(day.volLT, 4),
+          hv30: n(day.hv30, 4),
+          hv60: n(day.hv60, 4),
+          hv90: n(day.hv90, 4),
+          atr14: n(day.atr14, 2),
+          prevClose: n(day.prevClose, 2),
+          traded: day.traded,
+          trades: day.trades,
+          contracts: n(day.contracts, 2),
+          events: day.events,
+          halfDay: day.halfDay,
+          gapAtr: n(day.gapAtr, 2),
+          dayRange: n(day.dayRange, 2),
+          highVsPrevClose: n(day.highVsPrevClose, 2),
+          lowVsPrevClose: n(day.lowVsPrevClose, 2),
+          openToClose: n(day.openToClose, 2),
+          asOf,
+        };
+      },
+    },
+    {
       name: 'working_orders',
       kind: 'read',
       description:
@@ -1048,6 +1133,8 @@ const EMPTY_PORTS: DeskPorts = {
   marketFeed: () => 'closed',
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   barSeries: async () => [],
+  activeSeriesId: () => null,
+  regimeRules: () => ({ confirm: 2, minStay: 5 }),
   events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
   proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
 };
@@ -1123,6 +1210,12 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real. feed: NinjaTrader feed state (live, stale, closed); ageSec: seconds since the last bar ended; a bridge series that ended more than 120 s ago is marked stale (it stays selected).',
         'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales. feed: estado del flujo NinjaTrader (live, stale, closed); ageSec: segundos desde el final de la última barra; una serie del puente terminada hace más de 120 s se marca stale (sigue elegida).',
+      );
+    case 'day_context':
+      return tr(
+        fallback,
+        'Daily context sheet, the same as the Analysis tab. Stopped at the previous close: volatility regime (regime: choc = shock, expansion, decrue = receding, compression), band (band: basse = low, moyenne = medium, haute = high, thirds of medium-term volatility), annualized Garman-Klass volatilities (volCT, volMT, volLT; hv30, hv60, hv90). Then ATR 14, the day’s trades and contracts (standard equivalent), the day’s releases, half session, and the day’s own range (dayRange, openToClose, gaps to the previous close). date YYYY-MM-DD (default: the last sheet); instrument: registry root or contract (default: the series shown in Visual, otherwise the longest). Never on synthetic prices: a demo series gives way to a real series of the same root, otherwise available: false (demo_series). Fewer than 90 bar sessions before the sheet: available: false (insufficient_history). Read only.',
+        'Ficha del contexto del día, la misma que la pestaña Análisis. Detenidos en el cierre de la víspera: régimen de volatilidad (regime: choc = choque, expansion, decrue = descenso, compression), banda (band: basse = baja, moyenne = media, haute = alta, tercios de la volatilidad a medio plazo), volatilidades Garman-Klass anualizadas (volCT, volMT, volLT; hv30, hv60, hv90). Luego ATR 14, trades y contratos del día (equivalente estándar), publicaciones del día, media sesión, y la amplitud del propio día (dayRange, openToClose, distancias al cierre de la víspera). date YYYY-MM-DD (por defecto: la última ficha); instrument: raíz o contrato del registro (por defecto: la serie mostrada en Visual, si no la más larga). Nunca sobre precios sintéticos: una serie de demostración cede el paso a una serie real de la misma raíz, si no available: false (demo_series). Menos de 90 sesiones de barras antes de la ficha: available: false (insufficient_history). Solo lectura.',
       );
     case 'working_orders':
       return tr(

@@ -3,8 +3,8 @@ import { Bars, Histogram } from '@/design/charts/Bars';
 import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
-import { aggregatePoints, exitReasonOf, standardRoot, tagTiming, type ExitReason } from '@/engine/tradeUnits';
-import { buildMetricsContext } from '@/engine/metricsContext';
+import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
+import { buildMetricsContext, contextSeries } from '@/engine/metricsContext';
 import { useBars } from '@/store/bars';
 import { useMacro } from '@/store/macro';
 import { RiskReading } from './RiskReading';
@@ -118,11 +118,10 @@ export function ContextNote({ sessions, trades }: { sessions: Session[]; trades:
   const confirm = useSettings((st) => st.settings.regimeConfirm);
   const minStay = useSettings((st) => st.settings.regimeMinSessions);
   const note = useMemo(() => {
-    const active = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
-    if (!active || active.bars.length === 0) return null;
-    // Jamais de fiche sur des prix synthétiques : une série réelle de la même racine, sinon rien.
-    const chosen = active.source !== 'demo' ? active : series.filter((row) => row.source !== 'demo' && row.bars.length > 0 && standardRoot(row.instrument) === standardRoot(active.instrument)).sort((a, b) => b.bars.length - a.bars.length)[0];
-    if (!chosen) return { demo: true as const };
+    // Même choix que l'outil day_context : jamais de fiche sur des prix synthétiques.
+    const picked = contextSeries(series, { activeId });
+    if ('reason' in picked) return picked.reason === 'demo_series' ? { demo: true as const } : null;
+    const chosen = picked.series;
     const result = buildMetricsContext({
       root: chosen.instrument,
       bars: chosen.bars,

@@ -120,6 +120,8 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
       if (!useBars.getState().ready) await useBars.getState().load();
       return useBars.getState().series;
     },
+    activeSeriesId: () => useBars.getState().activeId,
+    regimeRules: () => ({ confirm: useSettings.getState().settings.regimeConfirm, minStay: useSettings.getState().settings.regimeMinSessions }),
     proposeOrder: async (args) => {
       const outcome = await useAgentOrders.getState().propose(args, origin);
       return { ok: outcome.status === 'sent', ...outcome };

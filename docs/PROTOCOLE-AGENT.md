@@ -53,6 +53,7 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | `bridge_status` | lecture | Pont NinjaTrader et Copieur en direct : lien, comptes, PnL, positions, heure de réception des comptes (`accountsAt`) |
 | `portfolio_snapshot` | lecture | Portefeuille consolidé : valeur nette, poches, exposition |
 | `market_levels` | lecture | Dernier prix, PDH / PDL / PDC, Opening Range, VWAP, ATR (source nommée, démo marquée `synthetic`) ; `feed`, `ageSec`, `stale` au-delà de 120 s pour la série du pont |
+| `day_context` | lecture | Fiche du contexte du jour, la même que l'onglet Analyse (`buildMetricsContext`, série choisie par `contextSeries`) : régime et bande de volatilité, volatilités de Garman-Klass arrêtées à la clôture de la veille, ATR 14, trades et contrats du jour, publications, amplitude de la journée. `date` (défaut : la dernière fiche), `instrument` (défaut : la série affichée par Visual). Jamais sur une série de démonstration (`demo_series`) ; moins de 90 séances avant la fiche : `insufficient_history` |
 | `working_orders` | lecture | Ordres NinjaTrader actifs et derniers terminés, tenus par le process principal : état NinjaTrader, `byAgent` (tag `canto-agent`, seul à porter `orderId`), `complete`, `asOf`, `unconfirmed` |
 | `market_quote` | lecture | Dernière cotation reçue du pont (bid, ask, last, heure, `ageMs`, `stale` au-delà de 10 s). Ne s'abonne pas : sans cotation reçue, `available: false` et la raison. Visual, lui, s'abonne à l'instrument affiché seulement si le trader le demande (historique, puis direct) |
 | `desk_events` | lecture | Événements du desk depuis un curseur (voir § 4) |
@@ -74,7 +75,7 @@ Trois routines, définies dans `src/engine/agent/routines.ts` (module pur, sans 
 
 | Prompt | Arguments (facultatifs) | Outils de lecture appelés |
 |---|---|---|
-| `pre_session_brief` | `date` (défaut : aujourd'hui à New York), `instrument` | `trader_memory`, `desk_overview`, `propfirm_status`, `discipline_status`, `calendar_events`, `market_levels`, `journal_breakdown`, `desk_events`, `bridge_status` |
+| `pre_session_brief` | `date` (défaut : aujourd'hui à New York), `instrument` | `trader_memory`, `desk_overview`, `propfirm_status`, `discipline_status`, `calendar_events`, `market_levels`, `day_context`, `journal_breakdown`, `desk_events`, `bridge_status` |
 | `session_debrief` | `date`, `account` | `trader_memory`, `get_session`, `journal_breakdown`, `list_sessions`, `propfirm_status`, `calendar_events`, `desk_events` |
 | `prop_plan_review` | `planId`, `account` | `propfirm_status`, `desk_overview`, `monte_carlo`, `journal_breakdown`, `list_sessions` |
 

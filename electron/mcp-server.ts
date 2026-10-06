@@ -213,6 +213,7 @@ const READ_OUTPUT_HEADS: Record<string, readonly string[]> = {
   bridge_status: ['link', 'accountsAt'],
   portfolio_snapshot: ['pockets', 'bridge'],
   market_levels: ['instrument', 'last'],
+  day_context: ['available', 'instrument', 'asOf'],
   working_orders: ['active', 'recent', 'complete'],
   market_quote: ['available', 'stale'],
   propfirm_status: ['status', 'buffer'],
