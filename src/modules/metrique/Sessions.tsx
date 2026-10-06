@@ -2,7 +2,7 @@ import { Fragment, memo, useCallback, useDeferredValue, useMemo, useRef, useStat
 import { IconTrash } from '@/app/icons';
 import { Button, Empty, Panel, Tag, cx, tableClass } from '@/design/primitives';
 import { findPlan } from '@/engine/propfirm';
-import { horizonSigma, tradeRisk, type RiskSource } from '@/engine/riskConsole';
+import { TRADE_LEVEL_KEYS, horizonSigma, readTradeLevel, tradeRisk, type RiskSource, type TradeLevelIssue, type TradeLevelKey } from '@/engine/riskConsole';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtPrice, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
@@ -281,21 +281,58 @@ function riskSourceLabel(source: RiskSource): string {
   return '—';
 }
 
+/** Motif d'un refus de stop ou d'objectif, dans la langue du desk. */
+function levelRefusal(key: TradeLevelKey, issue: TradeLevelIssue, trade: Trade): string {
+  const label = key === 'stopPrice' ? tr('Stop', 'Stop', 'Stop') : tr('Objectif', 'Target', 'Objetivo');
+  if (issue === 'format') return tr(`${label} refusé : prix illisible, chiffres et virgule décimale attendus.`, `${label} refused: unreadable price, digits and a decimal point expected.`, `${label} rechazado: precio ilegible, se esperan cifras y una coma decimal.`);
+  if (issue === 'range') return tr(`${label} refusé : prix hors de ]0 ; 1 000 000].`, `${label} refused: price outside (0, 1,000,000].`, `${label} rechazado: precio fuera de ]0 ; 1 000 000].`);
+  const below = (key === 'stopPrice') === (trade.direction === 'long');
+  const entry = fmtPrice(trade.entryPrice);
+  if (trade.direction === 'long') {
+    return tr(
+      `${label} refusé : sur un achat, il se place ${below ? 'sous' : 'au-dessus de'} l’entrée (${entry}).`,
+      `${label} refused: on a long, it sits ${below ? 'below' : 'above'} the entry (${entry}).`,
+      `${label} rechazado: en una compra, va por ${below ? 'debajo' : 'encima'} de la entrada (${entry}).`,
+    );
+  }
+  return tr(
+    `${label} refusé : sur une vente, il se place ${below ? 'sous' : 'au-dessus de'} l’entrée (${entry}).`,
+    `${label} refused: on a short, it sits ${below ? 'below' : 'above'} the entry (${entry}).`,
+    `${label} rechazado: en una venta, va por ${below ? 'debajo' : 'encima'} de la entrada (${entry}).`,
+  );
+}
+
 function TradeLevels({ trade, riskPerContract, riskCapital }: { trade: Trade; riskPerContract: number; riskCapital: number }) {
   const updateTrade = useJournal((j) => j.updateTrade);
+  // Refus en cours, par champ : rien n'est enregistré tant que la saisie n'est pas lisible et du bon côté.
+  const [refused, setRefused] = useState<Partial<Record<TradeLevelKey, TradeLevelIssue>>>({});
   const risk = tradeRisk(trade, riskPerContract, riskCapital);
-  const save = (key: 'stopPrice' | 'targetPrice', raw: string) => {
-    const value = raw.trim() === '' ? null : Number(raw);
-    if (value != null && !Number.isFinite(value)) return;
-    void updateTrade(trade.id, { [key]: value });
+  const save = (key: TradeLevelKey, raw: string) => {
+    const read = readTradeLevel(raw, key, trade);
+    setRefused((current) => {
+      const next = { ...current };
+      if (read.ok) delete next[key];
+      else next[key] = read.issue;
+      return next;
+    });
+    if (!read.ok) return;
+    void updateTrade(trade.id, { [key]: read.value });
   };
   return (
     <div className={s.note} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
       <span>
         {riskSourceLabel(risk.source)} · {risk.risk == null ? '—' : fmtUsd(risk.risk, { cents: true })} · R/R {risk.plannedRr == null ? '—' : fmtRatio(risk.plannedRr, 2)} · {risk.realizedR == null ? '—' : `${fmtRatio(risk.realizedR, 2)} R`}
       </span>
-      <input aria-label={tr('Stop initial', 'Initial stop', 'Stop inicial')} placeholder={tr('stop', 'stop', 'stop')} defaultValue={trade.stopPrice ?? ''} onBlur={(e) => save('stopPrice', e.target.value)} style={{ height: 22, width: 88, padding: '0 6px', fontSize: 11 }} />
-      <input aria-label={tr('Objectif initial', 'Initial target', 'Objetivo inicial')} placeholder={tr('objectif', 'target', 'objetivo')} defaultValue={trade.targetPrice ?? ''} onBlur={(e) => save('targetPrice', e.target.value)} style={{ height: 22, width: 88, padding: '0 6px', fontSize: 11 }} />
+      <input aria-label={tr('Stop initial', 'Initial stop', 'Stop inicial')} aria-invalid={refused.stopPrice ? true : undefined} placeholder={tr('stop', 'stop', 'stop')} defaultValue={trade.stopPrice ?? ''} onBlur={(e) => save('stopPrice', e.target.value)} style={{ height: 22, width: 88, padding: '0 6px', fontSize: 11 }} />
+      <input aria-label={tr('Objectif initial', 'Initial target', 'Objetivo inicial')} aria-invalid={refused.targetPrice ? true : undefined} placeholder={tr('objectif', 'target', 'objetivo')} defaultValue={trade.targetPrice ?? ''} onBlur={(e) => save('targetPrice', e.target.value)} style={{ height: 22, width: 88, padding: '0 6px', fontSize: 11 }} />
+      {TRADE_LEVEL_KEYS.map((key) => {
+        const issue = refused[key];
+        return issue ? (
+          <span key={key} role="alert" className="neg">
+            {levelRefusal(key, issue, trade)}
+          </span>
+        ) : null;
+      })}
     </div>
   );
 }

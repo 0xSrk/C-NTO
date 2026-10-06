@@ -69,6 +69,49 @@ export function tradeRisk(trade: RiskInput, riskPerContract = 0, riskCapital = 0
   return { source, risk, potentialGain, plannedRr, realizedR, lossPct, stopPoints, targetPoints };
 }
 
+export const TRADE_LEVEL_KEYS = ['stopPrice', 'targetPrice'] as const;
+export type TradeLevelKey = (typeof TRADE_LEVEL_KEYS)[number];
+/** `format` : illisible ; `range` : hors de ]0 ; 1e6] ; `side` : du mauvais côté de l'entrée. */
+export type TradeLevelIssue = 'format' | 'range' | 'side';
+
+/** Plafond d'un prix au coffre (`CHECKS`). */
+export const TRADE_LEVEL_MAX = 1e6;
+
+/**
+ * Prix saisi : chiffres, une virgule ou un point décimal, espaces de groupe tolérés (« 19 990,25 »).
+ * Rien d'autre : ni exposant, ni deux séparateurs, ni lettres. NaN si illisible.
+ */
+export function parsePriceInput(raw: string): number {
+  const match = /^([+\-−]?)(\d+(?:[.,]\d+)?|[.,]\d+)$/.exec(raw.replace(/\s+/g, ''));
+  if (!match) return Number.NaN;
+  const value = Number((match[2] ?? '').replace(',', '.'));
+  return match[1] === '-' || match[1] === '−' ? -value : value;
+}
+
+/**
+ * Contrôle d'un stop ou d'un objectif initial : dans ]0 ; 1e6], et du bon côté de l'entrée.
+ * Achat : stop < entrée < objectif. Vente : objectif < entrée < stop. Entrée inconnue : côté non jugé.
+ */
+export function tradeLevelIssue(key: TradeLevelKey, value: number, trade: { direction: 'long' | 'short'; entryPrice: number }): TradeLevelIssue | null {
+  if (!Number.isFinite(value)) return 'format';
+  if (!(value > 0) || value > TRADE_LEVEL_MAX) return 'range';
+  if (!Number.isFinite(trade.entryPrice)) return null;
+  const below = (key === 'stopPrice') === (trade.direction === 'long');
+  return (below ? value < trade.entryPrice : value > trade.entryPrice) ? null : 'side';
+}
+
+/** Lecture d'une saisie de stop ou d'objectif. Vide : le champ est effacé (`value: null`). */
+export function readTradeLevel(
+  raw: string,
+  key: TradeLevelKey,
+  trade: { direction: 'long' | 'short'; entryPrice: number },
+): { ok: true; value: number | null } | { ok: false; issue: TradeLevelIssue } {
+  if (raw.trim() === '') return { ok: true, value: null };
+  const value = parsePriceInput(raw);
+  const issue = tradeLevelIssue(key, value, trade);
+  return issue ? { ok: false, issue } : { ok: true, value };
+}
+
 /** Taux de réussite de seuil : 1 / (1 + R/R). */
 export function thresholdWinRate(rewardRisk: number): number {
   if (!(rewardRisk > 0) || !Number.isFinite(rewardRisk)) return Number.NaN;

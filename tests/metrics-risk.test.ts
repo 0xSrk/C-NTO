@@ -73,7 +73,7 @@ describe('risque du trade', () => {
     expect(horizonSigma(20_000, 0.16, 52)).toBeGreaterThan(sigma);
   });
 
-  it('relit un stop saisi et refuse un prix aberrant', () => {
+  it('relit un stop saisi ; un prix aberrant retire le champ et garde le trade et son P&L', () => {
     const base = {
       sessionId: 's',
       instrument: 'NQ',
@@ -94,13 +94,26 @@ describe('risque du trade', () => {
         trades: [
           { ...base, id: 'kept', stopPrice: 19_990, targetPrice: 20_020 },
           { ...base, id: 'old' },
-          { ...base, id: 'bad', stopPrice: -1 },
+          { ...base, id: 'bad', stopPrice: -1, targetPrice: 20_020 },
+          { ...base, id: 'side', stopPrice: 20_010, targetPrice: 19_990 },
+          { ...base, id: 'kinds', stopPrice: '19990', targetPrice: null },
+          { ...base, id: 'huge', stopPrice: 0, targetPrice: 2e6 },
+          { ...base, id: 'short', direction: 'short', pnl: -200, stopPrice: 20_010, targetPrice: 19_990 },
         ],
       }),
     );
-    expect(restored.trades.map((row) => row.id).sort()).toEqual(['kept', 'old']);
-    expect(restored.trades.find((row) => row.id === 'kept')?.stopPrice).toBe(19_990);
-    expect(restored.trades.find((row) => row.id === 'old')?.stopPrice).toBeUndefined();
-    expect(restored.skipped.trades).toBe(1);
+    const byId = new Map(restored.trades.map((row) => [row.id, row]));
+    expect([...byId.keys()].sort()).toEqual(['bad', 'huge', 'kept', 'kinds', 'old', 'short', 'side']);
+    expect(restored.skipped.trades).toBeUndefined();
+    expect(byId.get('kept')).toMatchObject({ stopPrice: 19_990, targetPrice: 20_020 });
+    expect(byId.get('old')?.stopPrice).toBeUndefined();
+    expect(byId.get('bad')).toMatchObject({ pnl: 100, targetPrice: 20_020 });
+    expect(byId.get('bad')).not.toHaveProperty('stopPrice');
+    for (const id of ['side', 'kinds', 'huge']) {
+      expect(byId.get(id), id).not.toHaveProperty('stopPrice');
+      expect(byId.get(id), id).not.toHaveProperty('targetPrice');
+      expect(byId.get(id)?.pnl, id).toBe(100);
+    }
+    expect(byId.get('short')).toMatchObject({ pnl: -200, stopPrice: 20_010, targetPrice: 19_990 });
   });
 });
