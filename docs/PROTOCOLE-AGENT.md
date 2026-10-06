@@ -53,7 +53,7 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | `portfolio_snapshot` | lecture | Portefeuille consolidé : valeur nette, poches, exposition |
 | `market_levels` | lecture | Dernier prix, PDH / PDL / PDC, Opening Range, VWAP, ATR (source nommée, démo marquée `synthetic`) ; `feed`, `ageSec`, `stale` au-delà de 120 s pour la série du pont |
 | `working_orders` | lecture | Ordres NinjaTrader actifs et derniers terminés, tenus par le process principal : état NinjaTrader, `byAgent` (tag `canto-agent`, seul à porter `orderId`), `complete`, `asOf`, `unconfirmed` |
-| `market_quote` | lecture | Dernière cotation reçue du pont (bid, ask, last, heure, `ageMs`, `stale` au-delà de 10 s). Ne s'abonne pas : sans cotation reçue, `available: false` et la raison |
+| `market_quote` | lecture | Dernière cotation reçue du pont (bid, ask, last, heure, `ageMs`, `stale` au-delà de 10 s). Ne s'abonne pas : sans cotation reçue, `available: false` et la raison. Visual, lui, s'abonne à l'instrument affiché seulement si le trader le demande (historique, puis direct) |
 | `desk_events` | lecture | Événements du desk depuis un curseur (voir § 4) |
 | `create_note` / `branch_note` / `link_notes` | écriture | Notes |
 | `annotate_session` | écriture | Note et tags d'une séance (remplace) |
