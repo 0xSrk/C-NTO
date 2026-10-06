@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routeFill, type FollowerState, type MasterFill, type RouteContext } from '@/engine/copier/router';
 import { coerceCopierSync, packCopierSync } from '@/engine/copier/sync';
 import { DEFAULT_COPIER, type CopierTopology } from '@/engine/copier/types';
@@ -182,5 +182,63 @@ describe('A17.4 l’hôte passe au routeur le latent des suiveurs lu sur le pont
     await settle();
     expect(brief(m.submitted)).toEqual(['SimA buy 2 NQ 12-26']);
     host.dispose();
+  });
+});
+
+describe('A17.5 le process principal reçoit les séances des suiveurs, onglet Copieur ouvert ou non', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('un trade importé hors de l’onglet part au process principal, et le plancher le lit', async () => {
+    const sent: unknown[] = [];
+    vi.stubGlobal('window', {
+      location: { search: '' },
+      canto: {
+        copier: {
+          configure: async (sync: unknown) => {
+            sent.push(JSON.parse(JSON.stringify(sync)));
+            return true;
+          },
+        },
+      },
+    });
+    vi.resetModules();
+    const { startCopierSync } = await import('@/store/copierSync');
+    const { useCopier } = await import('@/store/copier');
+    const { useJournal } = await import('@/store/journal');
+    const { setUserPlans } = await import('@/engine/propfirm');
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const account = (role: 'maitre' | 'suiveur', ntAccount: string, planId?: string) => ({ id: ntAccount, name: ntAccount, role, ntAccount, enabled: true, sizing: rule.sizing, symbolMap: rule.symbolMap, createdAt: 0, ...(planId ? { planId } : {}) });
+    setUserPlans([PLAN]);
+    try {
+      useJournal.setState({ sessions: [], trades: [] });
+      useCopier.setState({ ready: false, accounts: [], config: { ...DEFAULT_COPIER, latencyBudgetMs: 60_000, newsBlackout: false, windowStart: '00:00', windowEnd: '23:59' } });
+      const stop = startCopierSync();
+      expect(startCopierSync()).toBe(stop);
+      await flush();
+      // Comptes du Copieur pas encore chargés : rien ne part.
+      expect(sent).toEqual([]);
+      useCopier.setState({ ready: true, accounts: [account('maitre', 'Sim101'), account('suiveur', 'SimA', PLAN.id)] });
+      await flush();
+      expect(sent).toHaveLength(1);
+      const first = coerceCopierSync(sent.at(-1))!;
+      expect(brief(routeFill(fill('buy', 1), first.topology, ctx({ states: first.states })).orders)).toEqual(['SimA buy 1 NQ 12-26']);
+      // Le pont importe la journée du suiveur dans le journal, onglet fermé : un seul envoi, et le plancher refuse.
+      const { sessions, trades } = case16('SimA');
+      useJournal.setState({ sessions });
+      useJournal.setState({ trades });
+      await flush();
+      expect(sent).toHaveLength(2);
+      const next = coerceCopierSync(sent.at(-1))!;
+      expect(routeFill(fill('buy', 1), next.topology, ctx({ states: next.states })).refused.map((r) => r.reason)).toEqual(['floor']);
+      stop();
+      useJournal.setState({ sessions: [], trades: [] });
+      await flush();
+      expect(sent).toHaveLength(2);
+    } finally {
+      setUserPlans([]);
+    }
   });
 });

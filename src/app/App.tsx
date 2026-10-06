@@ -7,6 +7,7 @@ import { useAgent } from '@/store/agent';
 import { useDeskEvents } from '@/store/deskEvents';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
+import { startCopierSync } from '@/store/copierSync';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useLinks } from '@/store/links';
@@ -123,10 +124,12 @@ export function App() {
   const [admitted, setAdmitted] = useState(false);
   const tab = useUi((u) => u.tab);
   // La passerelle MCP rouvre et les événements des agents se collectent après l'ouverture du desk, jamais avant.
+  // Le Copieur reçoit ses séances dès l'ouverture, onglet ouvert ou non (plancher des suiveurs).
   const admit = useCallback(() => {
     setAdmitted(true);
     void useAgent.getState().resumeMcp();
     useDeskEvents.getState().start();
+    startCopierSync();
   }, []);
 
   useEffect(() => {
