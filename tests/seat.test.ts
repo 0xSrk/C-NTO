@@ -1,4 +1,5 @@
 import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { RELEASE_PUBLIC_KEYS } from '../electron/release-keys';
 import { releaseMessage, verifyReleaseSignature } from '../electron/release-signature';
@@ -109,5 +110,17 @@ describe('siège nominatif : vérification', () => {
     // Une signature de Release, recollée dans une ligne, ne vaut pas siège.
     const releaseSig = sign(null, releaseMessage('3.4.0', `SIEGE1.${payload}`), lab.priv).toString('base64url');
     expect(verifySeatLine(`SIEGE1.${payload}.${releaseSig}`, keys)).toEqual({ ok: false, reason: 'signature' });
+  });
+});
+
+describe('siège nominatif : discrétion', () => {
+  it('ni le README ni les nouveautés du desk ne mentionnent le siège', () => {
+    const seat = /si[eè]ge|named seat|asiento|SIEGE1|seat-keys|issue-seat/i;
+    for (const file of ['README.md', 'src/engine/changelog/changelog.json']) {
+      const hits = readFileSync(file, 'utf8')
+        .split('\n')
+        .filter((line) => seat.test(line));
+      expect(hits, file).toEqual([]);
+    }
   });
 });
