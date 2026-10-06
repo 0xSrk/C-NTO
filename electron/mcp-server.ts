@@ -191,9 +191,37 @@ function toolTitle(name: string, locale: AppLocale): string | undefined {
   return titles ? uiText(locale, ...titles) : undefined;
 }
 
+/** Propriétés de tête des lectures. `additionalProperties` reste vrai : le schéma ne ferme pas l'objet. */
+const READ_OUTPUT_HEADS: Record<string, readonly string[]> = {
+  desk_overview: ['sessions', 'netPnl', 'asOf'],
+  list_sessions: ['count', 'sessions', 'asOf'],
+  get_session: ['session', 'stats'],
+  search_notes: ['count', 'notes'],
+  read_note: ['id', 'title', 'body'],
+  calendar_events: ['events', 'personal'],
+  journal_breakdown: ['trades', 'asOf'],
+  monte_carlo: ['account', 'runs'],
+  bridge_status: ['link', 'accountsAt'],
+  portfolio_snapshot: ['pockets', 'bridge'],
+  market_levels: ['instrument', 'last'],
+  working_orders: ['orders', 'complete'],
+  market_quote: ['available', 'stale'],
+  propfirm_status: ['status', 'buffer'],
+  trader_memory: ['lessons', 'rules'],
+  discipline_status: ['day', 'loss'],
+  desk_events: ['cursor', 'events'],
+};
+
+export function outputSchemaFor(name: string): { type: 'object'; properties: Record<string, Record<string, never>>; additionalProperties: true } | undefined {
+  const heads = READ_OUTPUT_HEADS[name];
+  if (!heads || catalogKind(name) !== 'read') return undefined;
+  return { type: 'object', properties: Object.fromEntries(heads.map((key) => [key, {}])), additionalProperties: true };
+}
+
 function toMcpTool(t: McpToolInfo, locale: AppLocale) {
   const title = toolTitle(t.name, locale);
-  return { name: t.name, ...(title ? { title } : {}), description: t.description, inputSchema: t.parameters, annotations: annotations(t) };
+  const outputSchema = t.kind === 'read' ? outputSchemaFor(t.name) : undefined;
+  return { name: t.name, ...(title ? { title } : {}), description: t.description, inputSchema: t.parameters, ...(outputSchema ? { outputSchema } : {}), annotations: annotations(t) };
 }
 
 /**
@@ -213,7 +241,8 @@ function isFailure(name: string, result: unknown): boolean {
  */
 function toolResult(result: unknown, isError: boolean, motive?: string) {
   const text = TOOL_PREAMBLE + JSON.stringify(result ?? null);
-  const structured = result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result } : {};
+  // Un client qui valide `structuredContent` contre `outputSchema` rejette un refus : pas de contenu structuré alors.
+  const structured = !isError && result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result } : {};
   const content = [{ type: 'text', text }, ...(motive ? [{ type: 'text', text: motive }] : [])];
   return { content, ...structured, ...(isError ? { isError: true } : {}) };
 }

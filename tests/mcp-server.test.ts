@@ -3,7 +3,8 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { handleMcpHttp, loadOrCreateToken, McpGateway, MCP_PROTOCOL_VERSIONS, type McpContext, type McpRelay, type McpToolInfo } from '../electron/mcp-server';
+import { handleMcpHttp, loadOrCreateToken, McpGateway, MCP_PROTOCOL_VERSIONS, outputSchemaFor, type McpContext, type McpRelay, type McpToolInfo } from '../electron/mcp-server';
+import { DESK_TOOL_KINDS } from '@/engine/agent/catalog';
 import { TOOL_PREAMBLE } from '@/engine/agent/loop';
 
 const TOKEN = 'jeton-de-test-assez-long-pour-passer';
@@ -232,7 +233,7 @@ describe('passerelle MCP · protocole', () => {
     expect(content).toHaveLength(2);
     expect(JSON.parse(content[0]!.text.slice(content[0]!.text.indexOf('{')))).toEqual({ ok: false, reason: 'write_disabled' });
     expect(content[1]).toEqual({ type: 'text', text: motive });
-    expect(out.result?.structuredContent).toEqual({ ok: false, reason: 'write_disabled' });
+    expect(out.result?.structuredContent).toBeUndefined();
   });
 
   it('tools/list : un titre par outil, dans la langue du desk', async () => {
@@ -462,6 +463,33 @@ describe('passerelle MCP · serveur', () => {
     const limited = replies.filter((r) => r.status === 429);
     expect(limited.length).toBeGreaterThan(0);
     expect(limited.every((r) => r.headers.get('retry-after') === '1')).toBe(true);
+  });
+});
+
+function acceptsOutput(schema: { type: string; properties: Record<string, unknown>; additionalProperties: boolean }, value: unknown): boolean {
+  if (schema.type !== 'object' || schema.additionalProperties !== true) return false;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.keys(schema.properties).every((key) => key.length > 0);
+}
+
+describe('A14.4 schéma de sortie', () => {
+  it('chaque lecture a un schéma ouvert, un refus n’a pas de structuredContent', async () => {
+    for (const [name, kind] of Object.entries(DESK_TOOL_KINDS)) {
+      const schema = outputSchemaFor(name);
+      if (kind === 'write') {
+        expect(schema, name).toBeUndefined();
+        continue;
+      }
+      expect(schema, name).toMatchObject({ type: 'object', additionalProperties: true });
+      expect(acceptsOutput(schema!, { extra: true, [Object.keys(schema!.properties)[0]!]: 1 })).toBe(true);
+    }
+    const listed = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ allowWrites: true })));
+    const tools = listed.result?.tools as { name: string; outputSchema?: { type: string } }[];
+    expect(tools.find((t) => t.name === 'desk_overview')?.outputSchema?.type).toBe('object');
+    expect(tools.find((t) => t.name === 'create_note')?.outputSchema).toBeUndefined();
+    const refused = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'desk_overview' })), ctx({ relay: relay([], () => ({ result: { ok: false, error: 'non' } })) })));
+    expect(refused.result?.isError).toBe(true);
+    expect(refused.result?.structuredContent).toBeUndefined();
   });
 });
 
