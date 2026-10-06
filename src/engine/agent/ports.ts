@@ -74,6 +74,8 @@ export interface DeskPorts {
   events(opts: { cursor?: string; kinds?: readonly string[]; limit?: number }): DeskEventPage;
   /** Propose un ordre : le process principal garde, le fait confirmer par l'opérateur, puis le soumet. */
   proposeOrder(args: Record<string, unknown>): Promise<unknown>;
+  /** Horloge des lectures datées (`asOf`), epoch ms. Défaut : `Date.now()`. */
+  now?(): number;
 }
 
 export const BODY_MAX = 20_000;
