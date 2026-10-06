@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LineArea } from '@/design/charts/LineArea';
-import { Panel, Progress, Stat, Tag, cx } from '@/design/primitives';
-import { DRAWDOWN_LABEL, PROP_FIRMS, findPlan, type DrawdownType } from '@/engine/propfirm';
+import { Button, Panel, Progress, Stat, Tag, cx } from '@/design/primitives';
+import { DRAWDOWN_LABEL, PROP_FIRMS, evaluatePlan, findPlan, type DrawdownType } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtUsd, plural } from '@/lib/format';
 import { formatDateFr } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import s from './metrique.module.css';
+import { planTracking } from './drawdownLimit';
+import type { TabScope } from './range';
 import { useStats } from './useStats';
 
 function firmIdForPlan(planId: string): string {
@@ -72,9 +74,16 @@ function trPayoutNote(note: string): string {
   return note;
 }
 
-export function PropFirmView() {
+/**
+ * Onglet D : le plan rejoué sur tout l'historique d'un compte (`scopeFor('prop')`), jamais sur la
+ * période affichée. Avec un compte au filtre, c'est lui ; sinon le compte suivi des réglages.
+ */
+export function PropFirmView({ scope }: { scope: TabScope }) {
   const locale = useI18n((s) => s.locale);
-  const { plan, planEval, sessions, accounts, planAccount } = useStats();
+  const { plan, planEval: trackedEval, sessions: allSessions, accounts, planAccount: trackedAccount } = useStats();
+  const planAccount = scope.account ?? trackedAccount;
+  const planEval = useMemo(() => (plan && scope.account ? evaluatePlan(plan, scope.sessions, scope.trades, scope.account) : trackedEval), [plan, scope, trackedEval]);
+  const tracking = planTracking(scope.account, trackedAccount);
   const planId = useSettings((st) => st.settings.planId);
   const update = useSettings((st) => st.update);
   const [firmId, setFirmId] = useState(() => firmIdForPlan(planId));
@@ -274,7 +283,13 @@ export function PropFirmView() {
               title={tr('Rejeu du compte', 'Account replay', 'Repetición de la cuenta')}
               actions={
                 <>
-                  {accounts.length > 1 && (
+                  {tracking === 'suivre' && scope.account && (
+                    <Button size="sm" variant="ghost" onClick={() => update({ planAccount: scope.account ?? '' })}>
+                      {tr(`Suivre ce plan pour ${scope.account}`, `Track this plan for ${scope.account}`, `Seguir este plan para ${scope.account}`)}
+                    </Button>
+                  )}
+                  {tracking === 'suivi' && <Tag tone="mint">{tr('Plan suivi pour ce compte', 'Plan tracked for this account', 'Plan seguido para esta cuenta')}</Tag>}
+                  {accounts.length > 1 && !scope.account && (
                     <select value={planAccount} onChange={(e) => update({ planAccount: e.target.value })} style={{ height: 28, fontSize: 11, padding: '0 6px' }} title={tr('Compte rejoué contre le plan', 'Account replayed against the plan', 'Cuenta repetida contra el plan')}>
                       <option value="">{tr('Tous les comptes (agrégés par jour)', 'All accounts (aggregated by day)', 'Todas las cuentas (agregadas por día)')}</option>
                       {accounts.map((a) => (
@@ -302,7 +317,7 @@ export function PropFirmView() {
                   'The replay applies day after day: high-water update, floor calculation, breach, daily limit, consistency and minimum days. The target is validated on the day all conditions are met.',
                   'La repetición aplica día tras día: actualización del máximo, cálculo del suelo, ruptura, límite diario, consistencia y días mínimos. El objetivo se valida el día en que se reúnen todas las condiciones.',
                 )}{' '}
-                {plural(planEval.timeline.length, tr('journée rejouée', 'day replayed', 'día repetido'), tr('journées rejouées', 'days replayed', 'días repetidos'))} {tr('sur', 'over', 'sobre')} {plural(sessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}.
+                {plural(planEval.timeline.length, tr('journée rejouée', 'day replayed', 'día repetido'), tr('journées rejouées', 'days replayed', 'días repetidos'))} {tr('sur', 'over', 'sobre')} {plural((scope.account ? scope.sessions : allSessions).length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}.
               </p>
             </Panel>
           </>

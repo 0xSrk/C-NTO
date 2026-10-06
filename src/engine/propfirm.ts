@@ -237,7 +237,16 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
     let breached = false;
     let dayFloor = floor;
     for (const t of dayTrades) {
-      const adverse = cum - (t.mae ?? Math.max(0, -t.pnl));
+      // Positions ouvertes en même temps : leurs excursions défavorables s'additionnent (hypothèse
+      // prudente), à partir du seul P&L déjà réalisé à l'entrée. Sans chevauchement, c'est le calcul
+      // d'avant : cumul des trades sortis, moins l'excursion du trade.
+      let realized = 0;
+      let excursion = 0;
+      for (const u of dayTrades) {
+        if (u.exitTime <= t.entryTime) realized += u.pnl;
+        else if (u === t || (u.entryTime < t.exitTime && t.entryTime < u.exitTime)) excursion += u.mae ?? Math.max(0, -u.pnl);
+      }
+      const adverse = realized - excursion;
       const favorable = cum + (t.mfe ?? Math.max(0, t.pnl));
       if (adverse < intradayLow) intradayLow = adverse;
       if (favorable > intradayHigh) intradayHigh = favorable;
@@ -324,3 +333,28 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
     planVersion: plan.version,
   };
 }
+
+export interface PlanMargin {
+  /** Dernière séance rejouée : le rejeu s'arrête à l'objectif atteint ou à l'échec. */
+  date: string;
+  highWater: number;
+  floor: number;
+  /** Plus-bas du solde pendant la dernière séance rejouée, excursions défavorables comprises. */
+  lastLow: number;
+  /** Ce qui restait au plancher au pire moment de la dernière séance. */
+  margin: number;
+}
+
+/**
+ * Marge réelle d'un rejeu : plus-bas de la dernière séance (MAE comprise) moins le plancher en
+ * vigueur. Plus prudente que `buffer` (solde de clôture − plancher) : c'est la marge que la séance
+ * a vraiment laissée.
+ */
+export function planMargin(ev: PropEvaluation): PlanMargin | null {
+  const last = ev.timeline[ev.timeline.length - 1];
+  if (!last) return null;
+  const open = last.balance - last.dayPnl;
+  const lastLow = Math.min(last.balance, open + last.intradayLow);
+  return { date: last.date, highWater: ev.highWater, floor: ev.floor, lastLow, margin: lastLow - ev.floor };
+}
+

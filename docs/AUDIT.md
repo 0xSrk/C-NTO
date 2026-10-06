@@ -524,3 +524,27 @@ Tout ce qui est ajouté est en lecture : aucun invariant de la section 5 de `CLA
 **M1.4, trait du Lab (2026-10-06).** À la demande de l'ADMIN, A.02 reprend le style du Lab : fils d'un pixel légèrement lumineux, trame de points fixe à l'écran (plus dense contre la crête, dissoute vers zéro), repères au trait fin (« PLUS HAUT », « CREUX ») au lieu d'une flèche, pixel rouge signature (matrice 5 × 5, cœur blanc) au dernier pas. Trois séries personnalisées de `lightweight-charts` (`src/modules/metrique/equitySeries.ts`) peignent une géométrie pure (`equityPaint.ts`). Deux pièges, chacun couvert par un test rouge sans le correctif : `applyOptions` ignore un `null` posé sur un nombre (le carré de survol restait affiché), d'où la sentinelle `NONE` ; la bibliothèque ne recalcule pas l'abscisse des barres hors cadre (trait parasite au bord après un zoom), d'où des voisins replacés d'après l'espacement.
 
 **M1 (2026-10-06).** Livré : `equity-curve.test.ts` (grains séance et trade, même drawdown max que la tuile K.04, séance manuelle sans trade gardée en grain trade, sorties dans la même seconde) et `equity-chart.test.ts` (séries, couleurs lues dans les jetons, lecture au survol, bascule, molette, démontage). Vérifié dans le desk Electron réel sur le jeu de démonstration (30 jours et tout le journal, grains séance et trade, zoom).
+
+## 3.5.0 — Ajustement du module Métriques, étape 1 : corrections (2026-10-06)
+
+Cahier des charges de l'ADMIN : « Prompt d'ajustement du module Métriques · v4 », six étapes, validation de l'ADMIN entre chaque. Le document visait la v3.2.2 : chaque constat a été relu sur le HEAD avant correction. Une correction = un commit = un test rouge sans elle.
+
+| # | Constat (HEAD) | Correction | Test | Attendu | Obtenu |
+|---|---|---|---|---|---|
+| 1.1 | Jour d'entrée à New York (`metrics.ts`, `byWeekday` ; `Analyse.tsx`, trame et anneau) au lieu de la séance CME | `tradeDay`, `sessionDates`, `dayHourGrid` : jour = date de la séance, sinon `tradingDayOf` à la sortie ; heure = entrée ET | `metrics-day` | 28/09 +600, 29/09 −300 | idem, Séances = Analyse |
+| 1.2 | √252 sur les seuls jours tradés (`computeDailyStats`) | `calendarSeries` : journées de cotation de la période (lundi–vendredi hors fermetures `cmeSession`), jours sans séance à 0 ; Calmar sur ces journées ; champ `tradingDays` | `metrics-annualization` | 3,58 / 3,15 / 2,77 / 2,21 | 3,585 / 3,145 / 2,771 / 2,212 |
+| 1.3 | « BRUT » affiché sur un PF après frais ; deux `grossProfit` | `profitFactorBeforeFees`, `grossProfitBeforeFees`, `grossLossBeforeFees` ; K.03 affiche les deux | `metrics-profit-factor` | 0,907 / 1,222 | 0,907 / 1,222 |
+| 1.4 | Seul le Tableau de bord recevait le journal filtré | `scopeFor` : Analyse période + compte ; Firme prop compte seul ; Monte-Carlo compte obligatoire ; l'en-tête dit ce que l'onglet ignore | `metrics-scope` | — | conforme |
+| 1.5 | Une entrée par séance et par compte, horizon = taille de l'échantillon | `monteCarloSample` : un compte, une valeur par journée ; `monteCarlo()` inchangé | `metrics-montecarlo-account` | ≈ 0,661, 3 comptes = 1 | 0,6609 (avant : 0,946, horizon 180) |
+| 1.6 | Jauge K.04 : repli sur clôtures de la période | `planMargin` (plus-bas de la dernière séance − plancher), `drawdownGauge` sur tout l'historique du compte ; sans plan, calcul de la période signalé ; bouton « Suivre ce plan » ; marge datée | `metrics-gauge`, `drawdown-limit` | marge 175 | 53 000 / 50 100 / 50 275 / 175 (avant : 575) |
+| 1.7 | MAE de positions simultanées non additionnées (`evaluatePlan`) | Excursions des trades qui se chevauchent additionnées, depuis le P&L réalisé à l'entrée | `propfirm-overlap` | −1 200 | −1 200 (avant : −600) |
+
+**Règle 6 (consommateurs).** Comparaison avant / après sur la démo (`generateDemoJournal({ sessions: 140, seed: 2052, endDate: 2026-10-01 })`, `TZ=UTC`) : `monteCarlo()`, `drawdownSeries()` et `evaluatePlan()` identiques (la démo n'a aucun trade simultané) ; `computeTradeStats()` identique aux trois champs nouveaux près ; `computeDailyStats()` identique sauf Sharpe 2,696 → 2,576, Sortino 4,594 → 4,395, Calmar 9,944 → 9,099 (correction 1.2) et le champ `tradingDays`.
+
+**Signalé, non corrigé (hors périmètre).**
+- Agent : la description de `journal_breakdown` (`src/engine/agent/tools.ts:350`) dit « jour de semaine (heure de New York) » ; depuis 1.1 c'est la journée CME de la séance.
+- Copieur et Portefeuille : `evaluatePlan` est plus prudent quand des trades se chevauchent (1.7) ; la garde « marge prop » du Copieur refusera donc plus tôt dans ce cas.
+- Firme prop : `evaluatePlan` arrête le rejeu à l'objectif atteint ; la jauge 1.6 le dit et date la marge.
+- Labor Day, Thanksgiving, 3 juillet : `cmeSession` les marque écourtés (13 h), pas fermés ; ils comptent comme journées de cotation.
+
+**Décisions ouvertes appliquées par défaut.** n° 1 : Sharpe, Sortino et Calmar dans une section repliée A.05 du Tableau de bord, corrigés ; l'IC viendra avec l'étape 2. n° 4 : tables F20 à F22 non codées (étape 3), à fournir par l'ADMIN.
