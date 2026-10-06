@@ -787,15 +787,17 @@ L'ADMIN a confirmé les sept décisions du § 7 de `docs/THESE-AGENTIQUE.md`. De
 | Piste | Commits | Tests | Ce qui change |
 |---|---|---|---|
 | **A17 · Décisions** | `419c8d2` `b4b46da` | `agent-decisions` | A17.1 : `propose_order` refuse une ouverture qui enfreint une règle du trader (perte du jour atteinte, fenêtre d'un catalyseur majeur, instrument hors de la liste). Le renderer l'évalue comme la veille discipline (`traderRuleFor`, `detectRuleBreaches`) ; le process principal la relit (`parseTraderRule` : trois règles seulement, motif sur une ligne, borné) et refuse avant tout dialogue (`trader_rule`). Une réduction de risque passe toujours. A17.2 : la garde de l'agent et l'événement `prop_buffer` lisent la marge datée de la jauge K.04 (`planMargin`), latent négatif compris ; la marge de clôture seulement sans séance rejouée. |
+| **A17 · Copieur** | `1013c75` `3660b56` | `copier-floor` | A17.4 : le plancher des suiveurs lit la même marge datée (`planMargin`), diminuée du latent négatif du suiveur vu par le pont (`AccountView.unrealizedPnl`, `RouteContext.unrealized`) ; la marge de clôture seulement sans séance rejouée. Le process principal relit la MAE et la MFE des trades des suiveurs (`coerceCopierSync`) : sans elles, sa jauge n'était pas celle du desk. Une réduction de risque passe toujours. A17.5 : le desk envoie les séances des suiveurs au process principal dès son ouverture, puis à chaque changement du journal (`startCopierSync`), onglet Copieur ouvert ou non. |
 
 Échecs observés sans les correctifs :
 - A17.1 : `expected { ok: true, resulting: 1, …(1) } to deeply equal { ok: false, …(2) }` ; le process principal soumettait l'ordre (`expected { status: 'sent', … } to match object { status: 'refused', … }`) ; `parseTraderRule` et `traderRuleFor` absents.
 - A17.2 : `expected { liveBuffer: 1225, share: 0.49 } to deeply equal { liveBuffer: 175, share: 0.07 }` ; sur le cas 1.6, `expected 0.49 to be close to 0.07`.
+- A17.4 : sur le cas 1.6, le suiveur recevait l'ordre (`expected [ { account: 'SimA', …(5) } ] to deeply equal []`) ; un latent de −2 000 $ sur une marge entière ne refusait rien ; la MAE du dernier trade disparaissait au passage dans le process principal (`expected { id: 't59', …(11) } to match object { mae: 1100 }`) ; le pont ne transmettait pas le latent des comptes.
+- A17.5 : `startCopierSync` absent (`Cannot find package '@/store/copierSync'`).
 
 **Décisions consignées sans code.** 3 : l'agent ne s'abonne à aucune donnée de marché. 4 : l'AddOn 2.3.0 se prépare à part et n'entre dans une Release qu'après compilation et essai sur Sim. 5 : aucune promesse de conformité avec une prop firm tant qu'elle n'a pas répondu par écrit ; le README n'en fait aucune. 6 : le modèle du Lab entre comme préréglage épinglé quand l'ADMIN donne son hôte. 7 : rien hors de `127.0.0.1`.
 
-**Bilan.** P1 à P5 sont validées par la suite (`docs/THESE-AGENTIQUE.md` § 9) ; P5 attend l'hôte du modèle du Lab. Restent à voir dans le desk lancé : un client MCP réel, Visual sur Sim (A13.4).
+**Bilan.** P1 à P5 sont validées par la suite (`docs/THESE-AGENTIQUE.md` § 9) ; P5 attend l'hôte du modèle du Lab. Restent à voir dans le desk lancé : un client MCP réel, Visual sur Sim (A13.4), le refus `floor` d'un suiveur Sim en latent (A17.4).
 
-**Constats nouveaux, non corrigés.**
-- Le plancher des suiveurs du Copieur lit encore la marge de clôture (`replay.buffer`, `src/engine/copier/router.ts:144`). La décision 2 ne vise que la garde de l'agent et `prop_buffer` : même lecture pour le Copieur, ou non, à trancher par l'ADMIN.
+**Constat de la vague, tranché et corrigé.** Le plancher des suiveurs du Copieur lisait la marge de clôture (`replay.buffer`, `src/engine/copier/router.ts:144`). L'ADMIN a étendu la décision 2 au Copieur (« il doit tout lire ») : A17.4 et A17.5. Deux écarts relevés en chemin sont corrigés avec : le process principal perdait la MAE et la MFE des trades des suiveurs (`src/engine/copier/sync.ts:104`), et ne recevait leurs séances que l'onglet Copieur ouvert (`src/modules/copieur/Copieur.tsx:74`).
 

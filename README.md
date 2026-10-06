@@ -17,7 +17,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 [![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-967%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-973%20passed-000000?style=flat-square)](tests)
 [![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-e5263d?style=flat-square)](docs/DESIGN.md)
 [![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=e5263d&label=version)](package.json)
 [![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
@@ -80,7 +80,7 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 | **Context** | Official calendars (BLS, BEA, Fed, ECB, EIA, Treasury) plus an embedded 2026 snapshot · CME expirations computed locally · day’s notes |
 | **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph, and a branch from a selection |
 | **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · local MCP gateway for Claude, Codex, Cursor and any MCP client · its own JSON-RPC WebSocket, separate from the NT bridge |
-| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). The agent only **proposes** an order on a Sim account; you confirm each one in a desk window, and the desk refuses it first when it breaks your rules (day loss reached, catalyst window, instrument not allowed) or when the prop plan's dated buffer is under 25 %. Bot stays **design**. The Copier brings Sim followers to the master position (not fill by fill) only while armed; exits always go out |
+| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). The agent only **proposes** an order on a Sim account; you confirm each one in a desk window, and the desk refuses it first when it breaks your rules (day loss reached, catalyst window, instrument not allowed) or when the prop plan's dated buffer is under 25 %. Bot stays **design**. The Copier brings Sim followers to the master position (not fill by fill) only while armed; exits always go out, an opening needs the follower’s dated buffer above your floor |
 | **Portfolio** | Consolidated net value in a base currency. A missing exchange rate leaves that pocket out of the total |
 
 ---
@@ -476,12 +476,12 @@ Guardrails are **imposed** on every automation: circuit breaker at 30% of max DD
 
 </div>
 
-Persisted topology (accounts, rules, filters). Replication runs in the main process on the execution port ([`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md), Replication): a master fill becomes sized follower orders, after the time window, the catalyst blackout, and the follower’s prop-firm floor (`evaluatePlan`). Followers are `Sim*` accounts only. The router starts disarmed. Arming uses the same warning dialog as a live account (Cancel is the default). **Cut** disarms and cancels working follower orders. Flattening followers is an explicit option, off by default. The bridge kill switch still flattens authorized accounts and also disarms the router. A fill is remembered only after the broker accepts it, so a refusal can be sent again and a success is not sent twice.
+Persisted topology (accounts, rules, filters). Replication runs in the main process on the execution port ([`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md), Replication): a master fill becomes sized follower orders, after the time window, the catalyst blackout, and the follower’s prop-firm floor: its dated buffer (the K.04 gauge, read as the agent reads it), minus the follower’s unrealized loss. The desk sends the followers’ sessions to the main process as soon as it opens, Copier tab open or not. Followers are `Sim*` accounts only. The router starts disarmed. Arming uses the same warning dialog as a live account (Cancel is the default). **Cut** disarms and cancels working follower orders. Flattening followers is an explicit option, off by default. The bridge kill switch still flattens authorized accounts and also disarms the router. A fill is remembered only after the broker accepts it, so a refusal can be sent again and a success is not sent twice.
 
 | | |
 |---|---|
 | Sizing | fixed · ratio · risk, contract cap, NQ ↔ MNQ map |
-| Filters | local window, latency budget, floor margin (fraction of DD), stops / targets, catalyst blackout |
+| Filters | local window, latency budget, floor margin (fraction of DD, on the dated buffer, unrealized loss included), stops / targets, catalyst blackout |
 | Arming | disarmed on every launch; **Arm** confirms in the main process; **Cut** cancels working orders |
 
 ---
@@ -628,7 +628,7 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is arc
 
 The journal inside the desk lists the same releases, in French, English, and Spanish.
 
-- 3.5.0 — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. Session in progress and working orders at the top of Metrics, discipline rules, Visual follows the NinjaTrader bridge. The agent reads your rules and day loss and prepares the brief and the debrief; the desk refuses its proposed orders when they break your rules. (2026-10-06)
+- 3.5.0 — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. Session in progress and working orders at the top of Metrics, discipline rules, Visual follows the NinjaTrader bridge. The agent reads your rules and day loss and prepares the brief and the debrief; the desk refuses its proposed orders when they break your rules. The Copier's follower floor reads the same dated buffer. (2026-10-06)
 - 3.4.0 — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
 - 3.3.4 — Update over 3.3.3. Desk Unlocked in the desk type. The loading bar writes the Lab name in characters. (2026-10-05)
 - 3.3.3 — Desk Unlocked in the desk type. Red tip on the Λ. Compact module plate. (2026-10-05)
@@ -652,7 +652,7 @@ The journal inside the desk lists the same releases, in French, English, and Spa
 
 ## Roadmap
 
-Shipped in 3.5.0: the Metrics rework (interactive equity curve, corrected and reliable figures, risk and R, daily context, reading by context), the session in progress, discipline rules, Visual following the NinjaTrader bridge, and the agent's brief, debrief, memory and rule guards. Shipped in 3.4.0: the agent reads the whole desk and its events, the local MCP gateway, orders proposed by the agent and confirmed by the trader, and the security prerequisites (AddOn guard and mutual authentication, contract ceiling behind a dialog, position-based Copier, signed updates). Shipped in 3.3.4: the update the desk can see. Desk Unlocked stays in the desk type, and the loading bar writes the Lab name in characters. Shipped in 3.3.3: the Λ tip and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
+Shipped in 3.5.0: the Metrics rework (interactive equity curve, corrected and reliable figures, risk and R, daily context, reading by context), the session in progress, discipline rules, Visual following the NinjaTrader bridge, the agent's brief, debrief, memory and rule guards, and the Copier's follower floor on the dated buffer. Shipped in 3.4.0: the agent reads the whole desk and its events, the local MCP gateway, orders proposed by the agent and confirmed by the trader, and the security prerequisites (AddOn guard and mutual authentication, contract ceiling behind a dialog, position-based Copier, signed updates). Shipped in 3.3.4: the update the desk can see. Desk Unlocked stays in the desk type, and the loading bar writes the Lab name in characters. Shipped in 3.3.3: the Λ tip and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
 
 Still ahead of the desk: the agent remains a prototype — it proposes, it never submits — and Bot remains design: it sends no order. The Copier does not follow a real account in this version. NinjaTrader AddOn 2.3.0 (order fills and average price, full bridge snapshot) ships only once it has been compiled and tried on Sim. The Lab's model joins the agent presets when its host opens. What the Lab brings next is listed under [Services](#services).
 
