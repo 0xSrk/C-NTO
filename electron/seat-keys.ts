@@ -7,4 +7,5 @@
  */
 export const SEAT_PUBLIC_KEYS: readonly string[] = [
   // clés
+  '1azYh7NFM9DpSYOKCunzjmbNmWh6k2jXGQgqzFMfiY0',
 ];
