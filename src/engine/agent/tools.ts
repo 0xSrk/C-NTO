@@ -57,6 +57,11 @@ function journalSlice(ports: DeskPorts, args: Record<string, unknown>): { sessio
   return { sessions, trades: ports.trades().filter((t) => ids.has(t.sessionId)), account };
 }
 
+/** Comptes nommés d'une liste de séances, triés : la liste du sélecteur de l'écran Métrique. */
+function accountsOf(sessions: readonly Session[]): string[] {
+  return [...new Set(sessions.map((s) => s.account).filter((name): name is string => !!name))].sort();
+}
+
 /** Dernière valeur d'une ligne d'indicateur, ou null. */
 function lastLine(bars: Bar[], id: string, key: string, params: Record<string, number | string> = {}): number | null {
   const def = indicatorById(id);
@@ -396,11 +401,12 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'monte_carlo',
       kind: 'read',
       description:
-        'Projection Monte Carlo par bootstrap i.i.d. des PnL journaliers (ignore l’autocorrélation) : percentiles du PnL final et du drawdown max, probabilité de ruine et d’objectif. Par défaut, la ruine est le drawdown max du plan prop suivi et l’objectif son objectif de profit. Graine fixe : résultat reproductible.',
+        'Projection Monte Carlo par bootstrap i.i.d. des PnL journaliers (ignore l’autocorrélation) : percentiles du PnL final et du drawdown max, probabilité de ruine et d’objectif. Échantillon de l’onglet Monte-Carlo : un compte, une valeur par journée. Si la tranche couvre plusieurs comptes (comptes copiés), `account` est exigé : sans lui, l’outil rend `account_required` et la liste des comptes ; un seul compte est pris d’office. Par défaut, la ruine est le drawdown max du plan prop suivi et l’objectif son objectif de profit. Graine fixe : résultat reproductible.',
       parameters: {
         type: 'object',
         properties: {
           ...SLICE_PARAMS,
+          account: { type: 'string', description: 'Compte simulé (exigé si la tranche en couvre plusieurs)' },
           runs: { type: 'number', description: `Nombre de simulations (défaut 1000, au plus ${MC_MAX_RUNS})` },
           horizon: { type: 'number', description: `Journées simulées (défaut 60, au plus ${MC_MAX_HORIZON})` },
           ruinDrawdown: { type: 'number', description: 'Drawdown ($) qui vaut ruine (défaut : celui du plan suivi)' },
@@ -409,7 +415,25 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         additionalProperties: false,
       },
       async run(args) {
-        const { sessions, account } = journalSlice(ports, args);
+        // Comme l'onglet E : un échantillon ne mélange pas des comptes (copiés, ils compteraient double).
+        let chosen = str(args.account);
+        if (!chosen) {
+          const accounts = accountsOf(journalSlice(ports, { from: args.from, to: args.to }).sessions);
+          if (accounts.length > 1) {
+            return {
+              error: 'account_required',
+              message: tr(
+                `La période couvre ${accounts.length} comptes : précisez \`account\` (un échantillon ne mélange pas des comptes copiés).`,
+                `The range covers ${accounts.length} accounts: set \`account\` (a sample does not mix copied accounts).`,
+                `El período abarca ${accounts.length} cuentas: indique \`account\` (una muestra no mezcla cuentas copiadas).`,
+              ),
+              accounts,
+            };
+          }
+          chosen = accounts[0] ?? '';
+        }
+        const { sessions, account } = journalSlice(ports, { ...args, account: chosen });
+        // Une valeur par journée (séances du même jour réunies) : `monteCarloSample` de l'écran.
         const daily = aggregateByDate(sessions).map((d) => d.pnl);
         if (daily.length < MC_MIN_DAYS) {
           return { error: tr(`Échantillon trop court : ${daily.length} journée(s), ${MC_MIN_DAYS} au moins`, `Sample too short: ${daily.length} day(s), at least ${MC_MIN_DAYS}`, `Muestra demasiado corta: ${daily.length} día(s), al menos ${MC_MIN_DAYS}`) };
@@ -706,8 +730,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'monte_carlo':
       return tr(
         fallback,
-        'Monte Carlo projection by i.i.d. bootstrap of daily PnL (ignores autocorrelation): final PnL and max drawdown percentiles, ruin and target probabilities. By default, ruin is the tracked prop plan’s max drawdown and the target its profit target. Fixed seed: reproducible.',
-        'Proyección Monte Carlo por bootstrap i.i.d. de los PnL diarios (ignora la autocorrelación): percentiles del PnL final y del drawdown máx., probabilidades de ruina y de objetivo. Por defecto, la ruina es el drawdown máx. del plan prop seguido y el objetivo su objetivo de beneficio. Semilla fija: reproducible.',
+        'Monte Carlo projection by i.i.d. bootstrap of daily PnL (ignores autocorrelation): final PnL and max drawdown percentiles, ruin and target probabilities. Sample of the Monte Carlo tab: one account, one value per day. If the range covers several accounts (copied accounts), `account` is required: without it, the tool returns `account_required` and the account list; a single account is taken as is. By default, ruin is the tracked prop plan’s max drawdown and the target its profit target. Fixed seed: reproducible.',
+        'Proyección Monte Carlo por bootstrap i.i.d. de los PnL diarios (ignora la autocorrelación): percentiles del PnL final y del drawdown máx., probabilidades de ruina y de objetivo. Muestra de la pestaña Monte Carlo: una cuenta, un valor por día. Si el período abarca varias cuentas (cuentas copiadas), `account` es obligatorio: sin él, la herramienta devuelve `account_required` y la lista de cuentas; una sola cuenta se toma tal cual. Por defecto, la ruina es el drawdown máx. del plan prop seguido y el objetivo su objetivo de beneficio. Semilla fija: reproducible.',
       );
     case 'bridge_status':
       return tr(

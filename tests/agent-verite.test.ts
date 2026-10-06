@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { toolBlurb, toolSchemas } from '@/engine/agent/tools';
 import { groupIntoSessions } from '@/engine/import/ninjatrader';
 import { computeTradeStats, sessionDates } from '@/engine/metrics';
+import { monteCarlo } from '@/engine/montecarlo';
 import { evaluatePlan, findPlan, planMargin, setUserPlans, type PropPlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
 import { useI18n } from '@/i18n';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { drawdownGauge } from '@/modules/metrique/drawdownLimit';
+import { monteCarloSample, scopeFor } from '@/modules/metrique/range';
 import { callTool } from './helpers/agentEval';
 import { fakePorts } from './helpers/deskPorts';
 import { DEMO_ACCOUNT, DEMO_PLAN, demoDesk } from './helpers/demoDesk';
@@ -136,5 +138,51 @@ describe('A6.2 marge datée du plan : celle de la jauge K.04, à côté de buffe
     expect(status.passedOn).toBe(ev.passedOn);
     expect(status.margin?.date).toBe(planMargin(ev)!.date);
     expect(status.margin?.margin).toBe(r2(planMargin(ev)!.margin));
+  });
+});
+
+/** Le compte de la démo copié sur `Sim101` : mêmes journées, mêmes PnL. */
+function copied(sessions: readonly Session[], account: string): Session[] {
+  return sessions.map((row) => ({ ...row, id: `${row.id}_${account}`, account }));
+}
+
+type McOut = { error?: string; message?: string; accounts?: string[]; account?: string | null; sampleDays?: number; runs?: number; horizon?: number; finalPnl?: Record<string, number>; targetProbability?: number | null };
+
+describe('A6.3 monte_carlo : un compte, comme l’onglet E', () => {
+  it('plusieurs comptes sans `account` : account_required et la liste, message en trois langues', async () => {
+    const desk = demoDesk();
+    const ports = fakePorts({ ...desk.ports, sessions: () => [...desk.sessions, ...copied(desk.sessions, 'Sim101')], trades: () => desk.trades });
+    const messages = new Set<string>();
+    for (const locale of ['fr', 'en', 'es'] as const) {
+      useI18n.setState({ locale });
+      const out = await callTool<McOut>(ports, 'monte_carlo');
+      expect(out.error, locale).toBe('account_required');
+      expect(out.accounts, locale).toEqual([DEMO_ACCOUNT, 'Sim101']);
+      messages.add(out.message ?? '');
+    }
+    useI18n.setState({ locale: 'fr' });
+    expect(messages.size).toBe(3);
+  });
+
+  it('avec `account` : l’échantillon et la projection de l’écran, comptes copiés écartés', async () => {
+    const desk = demoDesk();
+    const all = [...desk.sessions, ...copied(desk.sessions, 'Sim101')];
+    const ports = fakePorts({ ...desk.ports, sessions: () => all, trades: () => desk.trades });
+    const out = await callTool<McOut>(ports, 'monte_carlo', { account: DEMO_ACCOUNT });
+    const plan = findPlan(DEMO_PLAN)!;
+    const sample = monteCarloSample(scopeFor('mc', all, desk.trades, 'tout', '2026-10-01', DEMO_ACCOUNT), 'seances');
+    const screen = monteCarlo(sample, { runs: 1000, horizon: 60, seed: 1337, ruinDrawdown: plan.maxDrawdown, target: plan.profitTarget })!;
+    expect(out).toMatchObject({ account: DEMO_ACCOUNT, sampleDays: sample.length, runs: screen.runs, horizon: screen.horizon });
+    expect(out.finalPnl?.p50).toBe(r2(screen.finalPnl.p50));
+    expect(out.targetProbability).toBe(r2(screen.targetProbability!, 4));
+  });
+
+  it('un seul compte : pris d’office ; runs et horizon rendus sont ceux de la projection', async () => {
+    const desk = demoDesk();
+    const implicit = await callTool<McOut>(desk.ports, 'monte_carlo');
+    const explicit = await callTool<McOut>(desk.ports, 'monte_carlo', { account: DEMO_ACCOUNT });
+    expect(implicit).toEqual(explicit);
+    expect(implicit).toMatchObject({ account: DEMO_ACCOUNT, runs: 1000, horizon: 60 });
+    expect(await callTool<McOut>(desk.ports, 'monte_carlo', { runs: 150.6, horizon: 2 })).toMatchObject({ runs: 151, horizon: 5 });
   });
 });
