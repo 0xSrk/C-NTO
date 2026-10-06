@@ -700,3 +700,26 @@ Reprise sur `main` (`c0d7753`). Un ticket = un commit = un test. Invariants de `
 | **A11 · Garde** | `A11.6` | `calendar-offline` | Les synchronisations de calendrier ne suivent plus les redirections : `redirect: 'manual'` (Electron 43.7.1, `net.fetch` transmet le mode au `ClientRequest`, qui annule au lieu de suivre). Un 3xx rendu quand même est refusé ; le 304 reste le rejeu du cache. L'état de la source porte « Redirection refusée ». |
 
 **Constats nouveaux, non corrigés.** Aucun sur cette piste.
+
+### Revue des étapes 3 à 5 des Métriques et des PR #103 à #109 (2026-10-06)
+
+Les relecteurs ont relu chaque étape, puis rejoué chaque PR : typecheck, tests, correctif retiré pour voir le test tomber. Chaque bloquant a été relu dans le code. Les corrections, dans l'ordre, sont au § 5 de `docs/BRIEF-AGENTIQUE-VAGUE-2.md`.
+
+Les six PR ouvertes (#104 à #109) s'empilent sur `main` sans conflit de code ; seul `docs/AUDIT.md` frotte. Empilées : typecheck vert, 864 tests verts, `electron:compile` et build verts. Constats sur `main` (`d9b39aa`) :
+
+| # | Constat | Preuve |
+|---|---|---|
+| T17 | La matrice R-R reçoit le R/R **prévu** comme R/R réalisé ; sans objectif saisi (démo, import), il vaut 1. Bloquant. | `src/modules/metrique/RiskReading.tsx:46-53` |
+| T18 | Le stop et l'objectif saisis acceptent tout nombre fini, alors que `CHECKS` écarte tout le trade, P&L compris, à la restauration. La virgule donne `NaN` sans message. | `src/modules/metrique/Sessions.tsx:287-290`, `src/store/db.ts:444-445` |
+| T19 | Les barres journalières sont rangées par journée CME, alors qu'un CSV journalier est lu à minuit local. Sur un poste à UTC+2 ou plus, la fiche D contient les prix de D+1. | `src/engine/metricsContext.ts:73`, `src/engine/bars.ts:127` |
+| T20 | Le dédoublonnage des copies ignore le compte. Deux exécutions d'un même compte dans la même seconde comptent pour une ; un suiveur en micros n'est pas fusionné. | `src/engine/metricsContext.ts:181-183`, `:254-257` |
+| T21 | « Après une perte » prend le trade précédent par ordre de sortie, même s'il était encore ouvert à l'entrée. | `src/engine/metricsContext.ts:298-305` |
+| T22 | La fenêtre de publication est inversée : elle retient de 30 min avant à 5 min après, au lieu de 5 min avant à 30 min après. Bloquant. | `src/modules/metrique/ContextAxis.tsx:107` |
+| T23 | La permutation teste la moyenne absolue du groupe, pas son écart à la moyenne générale. | `src/engine/inference.ts:94`, `src/engine/contextReading.ts:120`, `:250` |
+| T24 | Un groupe d'un seul trade n'est pas rapproché de la moyenne : variance nulle, poids 1. | `src/engine/contextReading.ts:109` |
+| T25 | Le régime vient de la série active (autre racine, ou démo) et classe les trades de toutes les racines ; leurs points sont moyennés ensemble. | `src/modules/metrique/ContextAxis.tsx:74`, `:96-118` |
+| T26 | Le verdict juge sur 30 trades, pas sur 30 journées comparables. | `src/engine/contextReading.ts:144` |
+| T27 | Le régime « de la veille » est lu sur `days[index-1]`, alors que la fiche du jour est déjà arrêtée à la veille : D−2. Deux lectures du cahier : décision de l'ADMIN. | `src/modules/metrique/ContextAxis.tsx:88-89`, `:126-128` |
+| T28 | Les PR #97 à #99 ont été fusionnées dans des branches intermédiaires, puis rapatriées par #102. Le commit `d9b39aa` porte un trailer d'attribution d'outil. Les descriptions des PR #97 à #109 portent des liens de session. Contraire à `CLAUDE.md` § 1. | `git log -1 d9b39aa`, PR #97 à #109 |
+
+Vérifié sans défaut : l'ATR `atrSeries` est identique bit à bit à l'ancien indicateur ; Garman-Klass est arrêté à la veille ; les formules de `riskConsole.ts` sont justes ; aucune des fonctions figées par la règle 6 n'est modifiée.
