@@ -91,6 +91,7 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
+    workingOrders: async () => null,
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),

@@ -16,6 +16,7 @@ export function fakePorts(over: Partial<DeskPorts> = {}): DeskPorts {
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
+    workingOrders: async () => null,
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
