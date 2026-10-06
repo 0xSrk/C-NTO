@@ -2,10 +2,12 @@ import { create } from 'zustand';
 import type { DeskEventKind } from '@/engine/agent/catalog';
 import { DeskEventLog, dueCatalysts, fillData, linkTransition, orderData, propBufferAlert, propLiveBuffer, type DeskEvent, type PropBufferInput } from '@/engine/agent/events';
 import { dailyLossAlert, ThresholdWatch, type DailyLossInput } from '@/engine/agent/events';
-import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, majorCatalysts, tradingDayNow, type DisciplineEntry } from '@/engine/discipline';
+import { AGENT_TRADER_RULES, type AgentTraderRuleBlock } from '@/engine/agent/orders';
+import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, majorCatalysts, tradingDayNow, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
-import { evaluatePlan, findPlan } from '@/engine/propfirm';
+import { evaluatePlan, findPlan, planMargin } from '@/engine/propfirm';
+import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { addDays, etDateKey } from '@/lib/time';
 import { useBridge } from './bridge';
@@ -54,8 +56,10 @@ function trackedPlan(): { input: PropBufferInput; key: string } | null {
   const nt = useBridge.getState().nt;
   const live = nt?.link === 'live' ? nt.accounts.filter((a) => !planAccount || a.name === planAccount) : [];
   const unrealized = live.reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
+  // Marge datée de la jauge K.04 : la garde de l'agent et l'alerte la lisent comme l'écran (décision 2 de l'ADMIN).
+  const dated = planMargin(ev);
   return {
-    input: { planId: plan.id, account: planAccount, maxDrawdown: plan.maxDrawdown, buffer: ev.buffer, floor: ev.floor, balance: ev.balance, unrealized },
+    input: { planId: plan.id, account: planAccount, maxDrawdown: plan.maxDrawdown, buffer: ev.buffer, margin: dated?.margin ?? null, marginDate: dated?.date ?? null, floor: ev.floor, balance: ev.balance, unrealized },
     key: `${plan.id}|${plan.version}|${planAccount}`,
   };
 }
@@ -210,6 +214,39 @@ function disciplineWatcher(): { onEvent: (event: DeskEvent) => void; dispose: ()
       timers.clear();
     },
   };
+}
+
+/** Motif d'une règle enfreinte par une ouverture proposée, dans la langue du desk. */
+function ruleDetail(finding: DisciplineFinding): string {
+  const d = finding.detail;
+  if (finding.kind === 'after_daily_limit') {
+    const source = d.source === 'plan' ? tr('plan prop', 'prop plan', 'plan prop') : tr('règle du trader', 'trader rule', 'regla del trader');
+    return tr(`perte du jour ${d.loss} $ ≥ limite ${d.limit} $ (${source})`, `day loss ${d.loss} $ ≥ limit ${d.limit} $ (${source})`, `pérdida del día ${d.loss} $ ≥ límite ${d.limit} $ (${source})`);
+  }
+  if (finding.kind === 'catalyst_window') {
+    return tr(`${d.title} à ${d.timeET} ET : pas d’entrée à ± ${d.windowMin} min`, `${d.title} at ${d.timeET} ET: no entry within ± ${d.windowMin} min`, `${d.title} a las ${d.timeET} ET: ninguna entrada a ± ${d.windowMin} min`);
+  }
+  const allowed = Array.isArray(d.allowed) ? d.allowed.join(', ') : '';
+  const symbol = typeof d.symbol === 'string' ? d.symbol : finding.instrument;
+  return tr(`${symbol} hors des instruments autorisés (${allowed})`, `${symbol} is not an allowed instrument (${allowed})`, `${symbol} fuera de los instrumentos autorizados (${allowed})`);
+}
+
+/**
+ * Règle du trader qu'une ouverture proposée par l'agent enfreindrait à `now` : perte du jour atteinte, fenêtre
+ * d'un catalyseur majeur, instrument hors de la liste (décision 1 de l'ADMIN, 2026-10-06). Même lecture que la
+ * veille discipline au fill d'entrée (`detectRuleBreaches`) ; le process principal la relit et refuse l'ouverture.
+ */
+export function traderRuleFor(proposal: { account: string; instrument: string; qty: number }, now = Date.now()): AgentTraderRuleBlock | null {
+  const { traderRules, planId, planAccount } = useSettings.getState().settings;
+  const { trades } = useJournal.getState();
+  const limit = dailyLimit(traderRules, findPlan(planId));
+  const entry: DisciplineEntry = { id: 'proposition', account: proposal.account, instrument: proposal.instrument, qty: proposal.qty, time: now };
+  const findings = detectRuleBreaches([entry], { rules: traderRules, closed: trades, catalysts: catalystsAround(now), limit, limitAccount: planAccount, unrealized: liveUnrealized(planAccount) });
+  for (const rule of AGENT_TRADER_RULES) {
+    const found = findings.find((f) => f.kind === rule);
+    if (found) return { rule, detail: ruleDetail(found) };
+  }
+  return null;
 }
 
 const localYears = new Map<number, CalEvent[]>();

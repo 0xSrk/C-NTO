@@ -7,6 +7,7 @@ import {
   coerceAgentPolicy,
   guardProposal,
   parseProposal,
+  parseTraderRule,
   raisedLimits,
   type AgentOrderPolicy,
   type AgentOrderProposal,
@@ -236,8 +237,9 @@ export class AgentOrderHost {
   /**
    * Une proposition de l'agent : gardes, dialogue (45 s, Refuser par défaut), puis soumission par le pont
    * avec le tag `canto-agent`. `propShare` : marge du plan suivi si le compte est le sien, calculée par le renderer.
+   * `traderRule` : règle du trader que l'ouverture enfreindrait, évaluée par le renderer ; relue ici (`parseTraderRule`).
    */
-  async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null): Promise<AgentOrderOutcome> {
+  async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule: unknown = null): Promise<AgentOrderOutcome> {
     // La cadence compte chaque proposition, refusées comprises (mal formée, agent désactivé, en attente) :
     // la garde lit les précédentes. Au plus le plafond de la cadence est retenu (10).
     const now = this.now();
@@ -258,6 +260,7 @@ export class AgentOrderHost {
       recent,
       busy: this.pending,
       propShare: typeof propShare === 'number' && Number.isFinite(propShare) ? propShare : null,
+      traderRule: parseTraderRule(traderRule),
     });
     const summary = `${p.side} ${p.qty} ${p.instrument} ${p.type} compte=${p.account} origine=${origin}`;
     if (!verdict.ok) {

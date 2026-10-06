@@ -124,8 +124,32 @@ export function raisedLimits(current: AgentOrderPolicy, next: AgentOrderPolicy):
   return AGENT_ORDER_LIMITS.filter((key) => next[key] > current[key]);
 }
 
-export const AGENT_ORDER_REFUSALS = ['disabled', 'not_sim', 'busy', 'link', 'orders_closed', 'rate', 'quantity', 'position', 'prop_buffer'] as const;
+export const AGENT_ORDER_REFUSALS = ['disabled', 'not_sim', 'busy', 'link', 'orders_closed', 'rate', 'quantity', 'position', 'prop_buffer', 'trader_rule'] as const;
 export type AgentOrderRefusal = (typeof AGENT_ORDER_REFUSALS)[number];
+
+/**
+ * Règles du trader qui refusent une ouverture de l'agent (décision 1 de l'ADMIN, 2026-10-06) : perte du jour
+ * atteinte, fenêtre d'un catalyseur majeur, instrument hors de la liste. Le renderer les évalue comme la veille
+ * discipline (`detectRuleBreaches`) ; le process principal ne retient que ces trois-là.
+ */
+export const AGENT_TRADER_RULES = ['after_daily_limit', 'catalyst_window', 'instrument_not_allowed'] as const;
+export type AgentTraderRule = (typeof AGENT_TRADER_RULES)[number];
+export interface AgentTraderRuleBlock {
+  rule: AgentTraderRule;
+  /** Motif lisible, dans la langue du desk : une ligne, borné. */
+  detail: string;
+}
+/** Longueur du motif d'une règle enfreinte. */
+export const AGENT_RULE_DETAIL_MAX = 200;
+
+/** Règle enfreinte transmise par le renderer : une des trois règles décidées, sinon rien ; motif sur une ligne, sans bidi. */
+export function parseTraderRule(raw: unknown): AgentTraderRuleBlock | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const { rule, detail } = raw as { rule?: unknown; detail?: unknown };
+  if (typeof rule !== 'string' || !(AGENT_TRADER_RULES as readonly string[]).includes(rule)) return null;
+  const text = typeof detail === 'string' ? detail.replace(LINE_BREAK_RE, ' ').replace(BIDI_RE, '').replace(OTHER_CONTROL_RE, '').trim().slice(0, AGENT_RULE_DETAIL_MAX) : '';
+  return { rule: rule as AgentTraderRule, detail: text };
+}
 
 export interface AgentOrderSnapshot {
   now: number;
@@ -141,6 +165,8 @@ export interface AgentOrderSnapshot {
   busy: boolean;
   /** Part restante du drawdown maximal si le compte est celui du plan suivi ; `null` sinon. */
   propShare: number | null;
+  /** Règle du trader que l'ouverture enfreindrait ; absente ou `null` : aucune. */
+  traderRule?: AgentTraderRuleBlock | null;
 }
 
 export function signedQty(p: Pick<AgentOrderProposal, 'side' | 'qty'>): number {
@@ -155,7 +181,7 @@ export function reducesRisk(position: number, resulting: number): boolean {
 /**
  * Gardes de l'agent, avant toute question à l'opérateur. Plus strictes que celles du pont : comptes
  * `Sim*` seulement (jamais un compte réel, même autorisé à la main), une proposition à la fois, cadence,
- * quantité, position atteinte, marge prop. Une réduction de risque n'est bornée que par la quantité.
+ * quantité, position atteinte, marge prop, règles du trader. Une réduction de risque n'est bornée que par la quantité.
  */
 export function guardProposal(
   p: AgentOrderProposal,
@@ -178,5 +204,6 @@ export function guardProposal(
   if (!reducing && snap.propShare !== null && snap.propShare <= AGENT_PROP_FLOOR) {
     return { ok: false, reason: 'prop_buffer', detail: `marge du plan prop à ${Math.round(snap.propShare * 100)} % du drawdown maximal : l’agent ne peut plus ouvrir` };
   }
+  if (!reducing && snap.traderRule) return { ok: false, reason: 'trader_rule', detail: snap.traderRule.detail || 'règle du trader enfreinte' };
   return { ok: true, resulting, reducing };
 }

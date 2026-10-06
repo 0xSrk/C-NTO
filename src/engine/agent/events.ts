@@ -148,24 +148,36 @@ export interface PropBufferInput {
   /** '' = tous les comptes. */
   account: string;
   maxDrawdown: number;
-  /** Marge du rejeu du journal (`evaluatePlan().buffer`). */
+  /** Marge de clôture du rejeu du journal (`evaluatePlan().buffer`). */
   buffer: number;
+  /**
+   * Marge datée de la jauge K.04 (`planMargin().margin`) : plus-bas de la dernière séance rejouée moins le
+   * plancher. Elle fait foi quand elle existe (décision 2 de l'ADMIN, 2026-10-06) ; absente : la marge de clôture.
+   */
+  margin?: number | null;
+  /** Journée de la marge datée. */
+  marginDate?: string | null;
   floor: number;
   balance: number;
   /** PnL latent du compte suivi, d'après le pont ; 0 hors pont. */
   unrealized: number;
 }
 
-/** Marge en direct et part restante du drawdown maximal ; `null` sans drawdown ou sans marge lisible. */
-export function propLiveBuffer(input: Pick<PropBufferInput, 'maxDrawdown' | 'buffer' | 'unrealized'>): { liveBuffer: number; share: number } | null {
-  if (!(input.maxDrawdown > 0) || !Number.isFinite(input.buffer)) return null;
-  const liveBuffer = input.buffer + Math.min(0, Number.isFinite(input.unrealized) ? input.unrealized : 0);
+/**
+ * Marge en direct et part restante du drawdown maximal ; `null` sans drawdown ou sans marge lisible. La marge
+ * datée de la jauge (plus-bas de la dernière séance) fait foi, la marge de clôture seulement sans elle.
+ */
+export function propLiveBuffer(input: Pick<PropBufferInput, 'maxDrawdown' | 'buffer' | 'margin' | 'unrealized'>): { liveBuffer: number; share: number } | null {
+  const base = typeof input.margin === 'number' && Number.isFinite(input.margin) ? input.margin : input.buffer;
+  if (!(input.maxDrawdown > 0) || !Number.isFinite(base)) return null;
+  const liveBuffer = base + Math.min(0, Number.isFinite(input.unrealized) ? input.unrealized : 0);
   return { liveBuffer, share: liveBuffer / input.maxDrawdown };
 }
 
 /**
- * Marge en direct : celle du rejeu, diminuée d'un latent négatif (un latent positif ne compte pas :
- * il ne relève pas le plancher avant la clôture). Rend un événement quand un seuil est franchi vers le bas.
+ * Marge en direct : la marge datée du rejeu (sinon celle de clôture), diminuée d'un latent négatif (un latent
+ * positif ne compte pas : il ne relève pas le plancher avant la clôture). Rend un événement quand un seuil est
+ * franchi vers le bas.
  */
 export function propBufferAlert(prevLevel: number, input: PropBufferInput): { level: number; data: Record<string, unknown> | null } {
   const live = propLiveBuffer(input);
@@ -183,6 +195,7 @@ export function propBufferAlert(prevLevel: number, input: PropBufferInput): { le
       remainingShare: Math.round(share * 1000) / 1000,
       liveBuffer: Math.round(liveBuffer * 100) / 100,
       journalBuffer: Math.round(input.buffer * 100) / 100,
+      ...(typeof input.margin === 'number' && Number.isFinite(input.margin) ? { margin: Math.round(input.margin * 100) / 100, marginDate: input.marginDate ?? null } : {}),
       unrealized: Math.round(input.unrealized * 100) / 100,
       maxDrawdown: input.maxDrawdown,
       floor: input.floor,

@@ -4,7 +4,7 @@ Toute session d'agent sur ce dépôt, quel que soit l'outil, suit les règles de
 
 ## Travail en cours
 
-**Couche agentique, vague 2** : `docs/BRIEF-AGENTIQUE-VAGUE-2.md`. Le brief contient l'ordre de lecture, la carte du code, les pièges, les tickets dans l'ordre et ce qui reste à l'ADMIN.
+**Couche agentique** : vagues 1 à 3 livrées en 3.5.0, décisions de l'ADMIN arrêtées (`docs/THESE-AGENTIQUE.md` § 7, bilan au § 9). La suite attend l'ADMIN : AddOn 2.3.0 (compilation et essai sur Sim), hôte du modèle du Lab. Avant toute modification, lis `docs/BRIEF-AGENTIQUE-VAGUE-2.md` : ordre de lecture, carte du code, pièges des tests.
 
 ## Ce qui ne se négocie pas (résumé de `CLAUDE.md`)
 

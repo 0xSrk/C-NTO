@@ -26,8 +26,16 @@ export interface AgentOrderPolicy {
 export const AGENT_ORDER_DEFAULTS: AgentOrderPolicy;
 export const AGENT_ORDER_BOUNDS: { readonly maxQty: readonly [1, 50]; readonly maxPosition: readonly [1, 100]; readonly perMinute: readonly [1, 10] };
 export const AGENT_ORDER_LIMITS: readonly ('maxQty' | 'maxPosition' | 'perMinute')[];
-export const AGENT_ORDER_REFUSALS: readonly ['disabled', 'not_sim', 'busy', 'link', 'orders_closed', 'rate', 'quantity', 'position', 'prop_buffer'];
+export const AGENT_ORDER_REFUSALS: readonly ['disabled', 'not_sim', 'busy', 'link', 'orders_closed', 'rate', 'quantity', 'position', 'prop_buffer', 'trader_rule'];
 export type AgentOrderRefusal = (typeof AGENT_ORDER_REFUSALS)[number];
+export const AGENT_TRADER_RULES: readonly ['after_daily_limit', 'catalyst_window', 'instrument_not_allowed'];
+export type AgentTraderRule = (typeof AGENT_TRADER_RULES)[number];
+export interface AgentTraderRuleBlock {
+  rule: AgentTraderRule;
+  detail: string;
+}
+export const AGENT_RULE_DETAIL_MAX: number;
+export function parseTraderRule(raw: unknown): AgentTraderRuleBlock | null;
 export interface AgentOrderSnapshot {
   now: number;
   link: string;
@@ -36,6 +44,7 @@ export interface AgentOrderSnapshot {
   recent: readonly number[];
   busy: boolean;
   propShare: number | null;
+  traderRule?: AgentTraderRuleBlock | null;
 }
 export function parseProposal(raw: unknown): { ok: true; proposal: AgentOrderProposal } | { ok: false; detail: string };
 export function coerceAgentPolicy(raw: unknown, enabled?: boolean): AgentOrderPolicy;

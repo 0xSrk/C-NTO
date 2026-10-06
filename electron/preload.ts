@@ -74,7 +74,7 @@ contextBridge.exposeInMainWorld('canto', {
     enable: () => ipcRenderer.invoke('agent-orders:enable'),
     disable: () => ipcRenderer.invoke('agent-orders:disable'),
     limits: (raw: unknown) => ipcRenderer.invoke('agent-orders:limits', raw),
-    propose: (raw: unknown, origin: string, propShare: number | null) => ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare),
+    propose: (raw: unknown, origin: string, propShare: number | null, traderRule: unknown = null) => ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare, traderRule),
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),

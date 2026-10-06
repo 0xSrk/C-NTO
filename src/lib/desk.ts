@@ -122,7 +122,8 @@ export interface AgentOrdersApi {
   disable: () => Promise<AgentOrderStatus>;
   /** Relever une limite passe par un dialogue du process principal. */
   limits: (raw: Partial<Pick<AgentOrderStatus, 'maxQty' | 'maxPosition' | 'perMinute'>>) => Promise<AgentOrderStatus>;
-  propose: (raw: unknown, origin: AgentOrderOrigin, propShare: number | null) => Promise<AgentOrderOutcome>;
+  /** `traderRule` : règle du trader que l'ouverture enfreindrait (`traderRuleFor`), relue par le process principal. */
+  propose: (raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule?: { rule: string; detail: string } | null) => Promise<AgentOrderOutcome>;
 }
 
 /** Siège nominatif : le process principal vérifie le code ; le renderer ne reçoit que le nom signé. */
