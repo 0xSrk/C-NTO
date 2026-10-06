@@ -278,7 +278,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'get_session',
       kind: 'read',
       description:
-        `Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans \`account\`, rend \`ambiguous\` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (\`truncated\`, \`tradeCount\`) ; les statistiques portent sur tous. Les tags de la séance : au plus ${TAGS_MAX}, ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).`,
+        `Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans \`account\`, rend \`ambiguous\` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (\`truncated\`, \`tradeCount\`) ; les statistiques portent sur tous. Les tags de la séance et ceux de chaque trade : au plus ${TAGS_MAX}, ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).`,
       parameters: {
         type: 'object',
         properties: {
@@ -315,7 +315,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           session: { ...row, tags: boundedTags.tags, ...(boundedTags.tagsTruncated ? { tagsTruncated: true } : {}), ...(executionIds ? { executionCount: executionIds.length } : {}) },
           stats: { winRate: round(stats.winRate, 4), ...profitFactorOf(stats.profitFactor), expectancy: round(stats.expectancy), maxDrawdown: round(stats.maxDrawdown), avgDurationMin: round(stats.avgDurationMs / 60000, 1) },
           ...(own.length > shown.length ? { truncated: true, tradeCount: own.length } : {}),
-          trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, tags: t.tags })),
+          // Tags du trade bornés comme ceux de la séance ; un trade sans tags reste sans champ.
+          trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, ...(t.tags ? boundTags(t.tags) : {}) })),
         };
       },
     },
@@ -1033,8 +1034,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'get_session':
       return tr(
         fallback,
-        `Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without \`account\`, returns \`ambiguous\` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (\`truncated\`, \`tradeCount\`); the statistics cover them all. Session tags: at most ${TAGS_MAX}, ${TAG_LEN_MAX} characters (\`tagsTruncated\`).`,
-        `Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin \`account\`, devuelve \`ambiguous\` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (\`truncated\`, \`tradeCount\`); las estadísticas los cubren todos. Etiquetas de la sesión: como máximo ${TAGS_MAX}, ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).`,
+        `Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without \`account\`, returns \`ambiguous\` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (\`truncated\`, \`tradeCount\`); the statistics cover them all. Tags of the session and of each trade: at most ${TAGS_MAX}, ${TAG_LEN_MAX} characters (\`tagsTruncated\`).`,
+        `Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin \`account\`, devuelve \`ambiguous\` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (\`truncated\`, \`tradeCount\`); las estadísticas los cubren todos. Etiquetas de la sesión y de cada trade: como máximo ${TAGS_MAX}, ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).`,
       );
     case 'annotate_session':
       return tr(fallback, 'Adds or replaces a session note and/or its tags.', 'Añade o sustituye la nota de una sesión y/o sus etiquetas.');
