@@ -55,6 +55,11 @@ describe('coerceSettings', () => {
     expect(coerceSettings({ falseDiscoveryRate: 0.01 }, base).falseDiscoveryRate).toBe(base.falseDiscoveryRate);
     expect(coerceSettings({ stabilityWindow: 40 }, base).stabilityWindow).toBe(40);
     expect(coerceSettings({ stabilityWindow: 9 }, base).stabilityWindow).toBe(base.stabilityWindow);
+    expect(coerceSettings({ regimeConfirm: 2 }, base).regimeConfirm).toBe(2);
+    expect(coerceSettings({ regimeConfirm: 4 }, base).regimeConfirm).toBe(base.regimeConfirm);
+    expect(coerceSettings({ regimeConfirm: 2.5 }, base).regimeConfirm).toBe(base.regimeConfirm);
+    expect(coerceSettings({ regimeMinSessions: 5 }, base).regimeMinSessions).toBe(5);
+    expect(coerceSettings({ regimeMinSessions: 2 }, base).regimeMinSessions).toBe(base.regimeMinSessions);
     expect(coerceSettings({ riskBasePoints: 1.5 }, base).riskBasePoints).toBe(1.5);
     expect(coerceSettings({ riskBasePoints: 25 }, base).riskBasePoints).toBe(base.riskBasePoints);
     expect(coerceSettings({ volLtPoints: -0.4 }, base).volLtPoints).toBe(-0.4);
