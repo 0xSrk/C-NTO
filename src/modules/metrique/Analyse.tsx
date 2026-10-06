@@ -7,6 +7,7 @@ import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } fr
 import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
+import { useSettings } from '@/store/settings';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import { fmtPct, fmtPoints, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import s from './metrique.module.css';
@@ -245,6 +246,8 @@ function ExcursionField({ pts, max }: { pts: { mae: number; mfe: number; pnl: nu
 /** Onglet C : le journal filtré par la période et le compte de l'en-tête (`scopeFor('analyse')`). */
 export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
   const locale = useI18n((s) => s.locale);
+  const markerMinTrades = useSettings((st) => st.settings.markerMinTrades);
+  const falseDiscoveryRate = useSettings((st) => st.settings.falseDiscoveryRate);
   const t = useMemo(() => computeTradeStats(trades, sessionDates(sessions)), [trades, sessions]);
   const [rankMode, setRankMode] = useState<'strategie' | 'tag' | 'taille'>('strategie');
 
@@ -368,6 +371,7 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
     const verdicts = markerVerdicts(
       built.ordered.map((row) => row.pnl),
       built.candidates,
+      { minTrades: markerMinTrades, fdr: falseDiscoveryRate },
     );
     const byId = new Map(built.candidates.map((c) => [c.id, c]));
     return verdicts
@@ -379,7 +383,7 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
         });
         return { id: v.id, kind: v.kind, dollars: rows.reduce((sum, row) => sum + row.pnl, 0), points: aggregatePoints(rows).points };
       });
-  }, [trades, days]);
+  }, [trades, days, markerMinTrades, falseDiscoveryRate]);
 
   const rankRows = rankMode === 'strategie' ? byStrategy : rankMode === 'tag' ? byTag : byQty;
   const rankLabel = rankMode === 'strategie' ? tr('Stratégie', 'Strategy', 'Estrategia') : rankMode === 'tag' ? 'Tag' : tr('Taille', 'Size', 'Tamaño');

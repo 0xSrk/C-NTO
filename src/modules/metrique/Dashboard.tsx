@@ -60,7 +60,7 @@ export function Dashboard({
   const planId = useSettings((st) => st.settings.planId);
   const planAccount = useSettings((st) => st.settings.planAccount);
   const metricAccount = useUi((st) => st.metricAccount);
-  const stabilityWindow = 20;
+  const stabilityWindow = useSettings((st) => st.settings.stabilityWindow);
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
   const daily = useMemo(() => computeDailyStats(sessions, startingBalance, stabilityWindow, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to, stabilityWindow]);
   const dailyPnls = useMemo(() => dailyResultSeries(sessions), [sessions]);
