@@ -655,6 +655,7 @@ ipcMain.handle('marketdata:history', (e, req: unknown) => {
 });
 
 ipcMain.handle('ntbridge:status', (e) => (trusted(e) ? ntBridge?.publicStatus() ?? null : null));
+ipcMain.handle('ntbridge:orders', (e) => (trusted(e) ? ntBridge?.orders() ?? null : null));
 ipcMain.handle('ntbridge:rotate-token', (e) => (trusted(e) && ntBridge ? ntBridge.rotateToken() : { hasToken: false }));
 ipcMain.handle('ntbridge:write-config', (e) => (trusted(e) && ntBridge ? ntBridge.writeConfig() : { ok: false, error: 'pont indisponible' }));
 ipcMain.handle('ntbridge:allow-account', async (e, name: unknown) => {

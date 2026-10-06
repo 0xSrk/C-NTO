@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld('canto', {
     setMaxContracts: (n: number) => ipcRenderer.invoke('ntbridge:max-contracts', n),
     order: (payload: unknown) => ipcRenderer.invoke('ntbridge:order', payload),
     killSwitch: () => ipcRenderer.invoke('ntbridge:killswitch'),
+    orders: () => ipcRenderer.invoke('ntbridge:orders'),
+    onOrder: (cb: (change: unknown) => void) => subscribe('ntbridge:order-state', cb),
     onStatus: (cb: (status: unknown) => void) => subscribe('ntbridge:status', cb),
     onExecution: (cb: (payload: { csv: string; executionId: string; fill?: Record<string, unknown> }) => void) => subscribe('ntbridge:execution', cb),
   },
