@@ -110,16 +110,23 @@ export function garmanKlassVariance(bar: Pick<DailyBar, 'open' | 'high' | 'low' 
   return Number.isFinite(variance) ? Math.max(0, variance) : null;
 }
 
-/** Volatilité annualisée sur les `window` séances qui précèdent `index` (clôture de la veille). */
+/**
+ * Volatilité annualisée sur les `window` séances qui précèdent `index` (clôture de la veille).
+ * Une séance invalide (prix ≤ 0, plus-haut sous le plus-bas) est écartée de la moyenne au lieu d'effacer
+ * la fenêtre : elle ne gèle pas le régime. Moins de la moitié de séances valides : pas de volatilité.
+ */
 export function garmanKlassAnnualized(days: readonly DailyBar[], index: number, window: number): number | undefined {
   if (index < window || window < 1) return undefined;
   let sum = 0;
+  let valid = 0;
   for (let i = index - window; i < index; i++) {
     const variance = garmanKlassVariance(days[i]!);
-    if (variance == null) return undefined;
+    if (variance == null) continue;
     sum += variance;
+    valid += 1;
   }
-  return Math.sqrt((sum / window) * 252);
+  if (valid === 0 || valid * 2 < window) return undefined;
+  return Math.sqrt((sum / valid) * 252);
 }
 
 /** Régime brut, sans délai. Égalité : CT ≤ MT et MT ≤ LT. */
@@ -239,7 +246,11 @@ function tertile(value: number, history: readonly number[]): VolBand | undefined
   return 'haute';
 }
 
+/** Séances d'historique qu'une fiche demande avant d'avoir ses volatilités. */
+export const CONTEXT_HISTORY = 90;
+
 export interface MetricsContext {
+  /** La dernière fiche a ses `CONTEXT_HISTORY` séances d'historique. */
   sufficient: boolean;
   days: DayContext[];
   trades: TradeContext[];
@@ -247,7 +258,8 @@ export interface MetricsContext {
 
 /**
  * Fiche par journée de cotation et par racine, jours sans trade compris.
- * Moins de 90 séances de barres : les volatilités restent vides.
+ * Le seuil se juge fiche par fiche : une fiche précédée de moins de 90 séances a ses volatilités vides,
+ * et la longueur de la série ne change jamais une fiche antérieure.
  * Les volatilités et l'ATR utilisés comme cause s'arrêtent à la clôture de la veille.
  */
 export function buildMetricsContext(input: {
@@ -265,7 +277,7 @@ export function buildMetricsContext(input: {
   const minStay = input.minStay ?? 5;
   const root = standardRoot(input.root);
   const daily = toDailyBars(input.bars, input.timeframe);
-  const sufficient = daily.length >= 90;
+  const sufficient = daily.length > CONTEXT_HISTORY;
   const sessionDate = new Map((input.sessions ?? []).map((session) => [session.id, session.date]));
   const mine = input.trades.filter((trade) => standardRoot(trade.instrument) === root && Number.isFinite(trade.pnl));
   const dayOf = (trade: Trade) => sessionDate.get(trade.sessionId) ?? sessionKeyOf(trade.entryTime / 1000);
@@ -285,12 +297,13 @@ export function buildMetricsContext(input: {
   const rawCycles: (VolCycle | null)[] = [];
   const drafts: DayContext[] = daily.map((day, index) => {
     const previous = index > 0 ? daily[index - 1] : undefined;
-    const hv5 = sufficient ? garmanKlassAnnualized(daily, index, 5) : undefined;
-    const hv10 = sufficient ? garmanKlassAnnualized(daily, index, 10) : undefined;
-    const hv15 = sufficient ? garmanKlassAnnualized(daily, index, 15) : undefined;
-    const hv30 = sufficient ? garmanKlassAnnualized(daily, index, 30) : undefined;
-    const hv60 = sufficient ? garmanKlassAnnualized(daily, index, 60) : undefined;
-    const hv90 = sufficient ? garmanKlassAnnualized(daily, index, 90) : undefined;
+    const enough = index >= CONTEXT_HISTORY;
+    const hv5 = enough ? garmanKlassAnnualized(daily, index, 5) : undefined;
+    const hv10 = enough ? garmanKlassAnnualized(daily, index, 10) : undefined;
+    const hv15 = enough ? garmanKlassAnnualized(daily, index, 15) : undefined;
+    const hv30 = enough ? garmanKlassAnnualized(daily, index, 30) : undefined;
+    const hv60 = enough ? garmanKlassAnnualized(daily, index, 60) : undefined;
+    const hv90 = enough ? garmanKlassAnnualized(daily, index, 90) : undefined;
     const volCT = average(hv5, hv10);
     const volMT = average(hv15, hv30);
     const volLT = average(hv60, hv90);

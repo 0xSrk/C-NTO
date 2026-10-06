@@ -105,6 +105,34 @@ describe('fiche de contexte', () => {
     }
   });
 
+  it('applique le seuil de 90 séances fiche par fiche : tronquer avant la séance 90 ne change rien avant', () => {
+    const full = buildMetricsContext({ root: 'NQ', bars, trades: [] });
+    for (const cutoff of [dates[40]!, dates[89]!, dates[90]!]) {
+      const kept = bars.filter((_, index) => dates[index]! <= cutoff);
+      const partial = buildMetricsContext({ root: 'NQ', bars: kept, trades: [] });
+      expect(partial.days.filter((day) => day.date < cutoff)).toEqual(full.days.filter((day) => day.date < cutoff));
+    }
+    expect(full.days.slice(0, 90).every((day) => day.volCT == null && day.volMT == null && day.volLT == null && day.volBand == null)).toBe(true);
+    expect(full.days[90]).toMatchObject({ volCT: expect.any(Number), volMT: expect.any(Number), volLT: expect.any(Number) });
+    expect(buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 90), trades: [] }).sufficient).toBe(false);
+    expect(buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 91), trades: [] }).sufficient).toBe(true);
+  });
+
+  it('une barre invalide ne gèle pas le régime', () => {
+    const regimes = (rows: DayContext[]) => {
+      const out: VolCycle[] = [];
+      for (const day of rows) if (day.volCycle && out.at(-1) !== day.volCycle) out.push(day.volCycle);
+      return out;
+    };
+    const clean = buildMetricsContext({ root: 'NQ', bars, trades: [] }).days;
+    expect(regimes(clean.slice(171))).toEqual(['expansion', 'decrue', 'compression', 'choc']);
+    for (const broken of [{ low: 0 }, { high: 19_000, low: 21_000 }]) {
+      const days = buildMetricsContext({ root: 'NQ', bars: bars.map((bar, index) => (index === 170 ? { ...bar, ...broken } : bar)), trades: [] }).days;
+      expect(days.slice(171).every((day) => day.volCT != null && day.volMT != null && day.volLT != null)).toBe(true);
+      expect(regimes(days.slice(171))).toEqual(regimes(clean.slice(171)));
+    }
+  });
+
   it('garde les jours sans trade et ne triple pas les contrats copiés', () => {
     const slice = bars.slice(0, 100);
     const day = dates[20]!;
