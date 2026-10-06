@@ -12,7 +12,7 @@ import { fmtNum } from '@/lib/format';
 import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
 import { db, type AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
-import { deskEventLog, useDeskEvents } from '@/store/deskEvents';
+import { dailyLossReached, useDeskEvents } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -152,7 +152,9 @@ export default function Agent() {
 
   const day = tradingDayNow(now);
   const tradesToday = sessions.reduce((n, row) => n + (row.date === day ? row.tradeCount : 0), 0);
-  const dailyLossFull = deskEventLog.read({ kinds: ['daily_loss'], limit: 200 }).events.some((event) => event.data.day === day && event.data.threshold === 1);
+  // Perte du jour recalculée du journal, des réglages et du pont (l'anneau d'événements, lui, repart vide au
+  // redémarrage) : à l'horloge, quand le journal change ou qu'un événement du desk arrive, pas à chaque jeton du flux.
+  const dailyLossFull = useMemo(() => dailyLossReached(now), [now, sessions, lastEvent]);
   const due = routineDue(now, { tradesToday, dailyLossFull, seen });
   const launch = async (which: RoutineCue) => {
     if (streaming) return;

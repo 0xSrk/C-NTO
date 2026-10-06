@@ -197,7 +197,7 @@ const userMessages = () => fake.added.filter((m) => m.role === 'user').map((m) =
  * Journée CME `day` perdue au-delà de la limite du trader (500 $) : le journal porte la perte, et le desk
  * a rangé l'événement `daily_loss` à 100 % comme il le fait en direct.
  */
-function dailyLossReached(day: string, at: number): void {
+function lossBeyondLimit(day: string, at: number): void {
   useSettings.setState({ settings: { ...DEFAULT_SETTINGS, traderRules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 500 } } });
   useJournal.setState({ sessions: [session(`s-${day}`, day, -650, 3)], trades: [] });
   deskEventLog.push('daily_loss', { day, account: null, threshold: 1, breached: true, consumed: 1.3, loss: 650, limit: 500, source: 'trader', realized: -650, unrealized: 0 }, at);
@@ -238,7 +238,7 @@ describe('onglet Agent · routines', () => {
     // Mardi 6 octobre, 20 h à New York : la journée CME en cours est celle du mercredi 7 (18 h → 17 h).
     const now = zonedToUtc('2026-10-06', '20:00', ET_ZONE);
     clock(now);
-    dailyLossReached('2026-10-07', now);
+    lossBeyondLimit('2026-10-07', now);
     const node = await mount();
     const debrief = routineButton(node, 'Débrief');
     expect(cue(debrief)).toBe(true);
@@ -302,7 +302,7 @@ describe('onglet Agent · routines', () => {
     // Mardi 6 octobre, 8 h 20 à New York : perte du jour déjà atteinte, la pastille du débrief est allumée.
     const start = zonedToUtc('2026-10-06', '08:20', ET_ZONE);
     clock(start);
-    dailyLossReached('2026-10-06', start);
+    lossBeyondLimit('2026-10-06', start);
     const node = await mount();
     expect(cue(routineButton(node, 'Débrief'))).toBe(true);
     expect(cue(routineButton(node, 'Brief'))).toBe(false);
@@ -332,5 +332,55 @@ describe('onglet Agent · routines', () => {
     expect(fake.provider).toBe(1);
     expect(userMessages()).toHaveLength(1);
     expect(fake.puts).toEqual([{ key: 'agent.routineSeen', value: { debrief: '2026-10-06' } }]);
+  });
+
+  it('A12.7 perte du jour recalculée du journal : après un redémarrage (anneau vide), le débrief reste proposé', async () => {
+    // Jeudi 8 octobre, 11 h à New York : avant l'heure du débrief, aucun daily_loss rangé pour cette journée.
+    const now = zonedToUtc('2026-10-08', '11:00', ET_ZONE);
+    clock(now);
+    expect(deskEventLog.read({ kinds: ['daily_loss'], limit: 200 }).events.some((event) => event.data.day === '2026-10-08')).toBe(false);
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, traderRules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 500 } } });
+    useJournal.setState({ sessions: [session('s-thu', '2026-10-08', -520, 2)], trades: [] });
+    const node = await mount();
+    expect(cue(routineButton(node, 'Débrief'))).toBe(true);
+
+    // Sous la limite : rien.
+    await act(async () => {
+      useJournal.setState({ sessions: [session('s-thu', '2026-10-08', -480, 2)], trades: [] });
+    });
+    expect(cue(routineButton(node, 'Débrief'))).toBe(false);
+    // Limite du plan suivi (Take Profit Trader 50K : 1 100 $), sans règle du trader ; un autre compte ne compte pas.
+    await act(async () => {
+      useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: 'tpt-50', planAccount: 'PA-1' } });
+      useJournal.setState({ sessions: [session('s-thu', '2026-10-08', -1_150, 2), session('s-sim', '2026-10-08', 900, 1, 'Sim101')], trades: [] });
+    });
+    expect(cue(routineButton(node, 'Débrief'))).toBe(true);
+    await act(async () => {
+      useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: 'tpt-50', planAccount: 'Sim101' } });
+      useJournal.setState({ sessions: [session('s-thu', '2026-10-08', -1_150, 2), session('s-sim', '2026-10-08', 900, 1, 'Sim101')], trades: [] });
+    });
+    expect(cue(routineButton(node, 'Débrief'))).toBe(false);
+    expect(fake.provider).toBe(0);
+  });
+
+  it('A12.7 le texte de la routine suit la langue du desk : anglais, puis espagnol', async () => {
+    const now = zonedToUtc('2026-10-06', '08:45', ET_ZONE);
+    clock(now);
+    const node = await mount();
+    for (const locale of ['en', 'es'] as const) {
+      await act(async () => {
+        useI18n.setState({ locale });
+      });
+      await click(routineButton(node, 'Brief'));
+      await settle();
+    }
+    const text = (locale: 'en' | 'es') => {
+      const out = renderRoutine('pre_session_brief', { date: '2026-10-06' }, { locale, allowWrites: true, now });
+      return out.ok ? out.text : '';
+    };
+    expect(userMessages()).toEqual([text('en'), text('es')]);
+    expect(userMessages()[0]).toMatch(/^Prepare the pre-session brief for Tuesday 2026-10-06 \(New York time\)/);
+    expect(userMessages()[1]).toMatch(/^Prepara el brief previo a la sesión del martes 2026-10-06 \(hora de Nueva York\)/);
+    expect(fake.provider).toBe(2);
   });
 });
