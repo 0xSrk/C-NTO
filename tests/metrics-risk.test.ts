@@ -44,7 +44,7 @@ describe('risque du trade', () => {
     const matrix = rrMatrix(0.4, 1.5);
     const col = matrix.rewardRisks.indexOf(1.5);
     expect(matrix.cells[0]?.[col]).toBeCloseTo(0);
-    expect(matrix.cells[0]?.[matrix.realized.col]).toBeCloseTo(0);
+    expect(matrix.cells[0]?.[matrix.realized?.col ?? -1]).toBeCloseTo(0);
     expect(matrix.winRates[1]).toBeCloseTo(0.5);
     expect(matrix.winRates[2]).toBeCloseTo(0.3);
     expect(matrix.winRates[3]).toBeCloseTo(0.25);

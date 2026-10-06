@@ -10,6 +10,7 @@ import {
   horizonSigma,
   longestLossStreak,
   rateAfterStreak,
+  realizedRewardRisk,
   rrMatrix,
   sigmaBand,
   sigmaDistance,
@@ -43,14 +44,13 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
     const rows = trades.map((trade) => ({ trade, risk: tradeRisk(trade, settings.riskPerContract, capital) }));
     const known = rows.filter((row) => row.risk.source !== 'absent');
     const allFixed = known.length > 0 && known.every((row) => row.risk.source === 'fixe');
-    const withRr = known.filter((row) => row.risk.plannedRr != null && row.risk.realizedR != null);
-    const meanPlanned = withRr.length ? withRr.reduce((sum, row) => sum + (row.risk.plannedRr ?? 0), 0) / withRr.length : null;
     const wins = trades.filter((trade) => trade.pnl > 0).length;
     const losses = trades.filter((trade) => trade.pnl < 0).length;
     const decisive = wins + losses;
     const winRate = decisive ? wins / decisive : 0;
     const posterior = betaPosterior(wins, losses);
-    const matrix = rrMatrix(winRate, meanPlanned ?? 1, [settings.rrShiftUp, -settings.rrShiftDown, -settings.rrShiftFar], posterior.low);
+    // Le point réalisé croise le taux réalisé et le R/R réalisé (gain moyen ÷ |perte moyenne|), jamais le R/R prévu.
+    const matrix = rrMatrix(winRate, realizedRewardRisk(trades), [settings.rrShiftUp, -settings.rrShiftDown, -settings.rrShiftFar], posterior.low);
     const byDay = new Map<string, number[]>();
     for (const row of rows) {
       const day = days.get(row.trade.sessionId) ?? row.trade.sessionId;
@@ -94,7 +94,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
       }
       for (const [band, bandDays] of byBand) sigmaGroups.set(band, [...bandDays.values()]);
     }
-    return { known, allFixed, meanPlanned, winRate, posterior, matrix, expectancyCi, respect, streaks, decisive, sigmaGroups };
+    return { known, allFixed, winRate, posterior, matrix, expectancyCi, respect, streaks, decisive, sigmaGroups };
   }, [trades, sessions, settings.riskPerContract, settings.impliedVol, settings.rrShiftUp, settings.rrShiftDown, settings.rrShiftFar, capital, base.points]);
 
   const lossRun = useMemo(() => (reading.decisive > 0 ? longestLossStreak(reading.decisive, 1 - reading.winRate) : null), [reading.decisive, reading.winRate]);
@@ -126,7 +126,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
             {reading.matrix.rewardRisks.map((rr, index) => (
               <th key={`${rr}-${index}`} className="num">
                 {fmtRatio(rr, 2)}
-                {index === reading.matrix.realized.col ? ' R' : ''}
+                {index === reading.matrix.realized?.col ? ' R' : ''}
               </th>
             ))}
           </tr>
@@ -138,7 +138,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
               {row.map((cell, colIndex) => (
                 <td key={colIndex} className={`num ${signClass(cell)}`}>
                   {fmtRatio(cell, 2)}
-                  {rowIndex === reading.matrix.realized.row && colIndex === reading.matrix.realized.col ? ' ·' : ''}
+                  {rowIndex === reading.matrix.realized?.row && colIndex === reading.matrix.realized.col ? ' ·' : ''}
                 </td>
               ))}
             </tr>
