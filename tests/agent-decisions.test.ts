@@ -8,7 +8,11 @@ import { DEFAULT_TRADER_RULES, type TraderRules } from '@/engine/discipline';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
 import type { Session, Trade } from '@/engine/types';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
-import { traderRuleFor } from '@/store/deskEvents';
+import { propBufferAlert, propLiveBuffer } from '@/engine/agent/events';
+import { groupIntoSessions } from '@/engine/import/ninjatrader';
+import { evaluatePlan, findPlan, planMargin, setUserPlans, type PropPlan } from '@/engine/propfirm';
+import { useBridge } from '@/store/bridge';
+import { trackedPropShare, traderRuleFor } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
@@ -110,3 +114,54 @@ describe('A17.1 le renderer lit la règle enfreinte par la proposition, comme la
     expect(traderRuleFor(proposal, NOW)).toBeNull();
   });
 });
+
+describe('A17.2 la garde de l’agent et l’alerte prop_buffer lisent la marge datée de la jauge K.04 (décision 2)', () => {
+  const base = { planId: 'apex-50', account: 'A', maxDrawdown: 2_500, buffer: 1_225, floor: 48_000, balance: 49_225 };
+
+  it('la marge datée remplace la marge de clôture ; un latent négatif la diminue encore', () => {
+    expect(propLiveBuffer({ ...base, margin: 175, unrealized: 0 })).toEqual({ liveBuffer: 175, share: 0.07 });
+    expect(propLiveBuffer({ ...base, margin: 175, unrealized: -100 })).toEqual({ liveBuffer: 75, share: 0.03 });
+    expect(propLiveBuffer({ ...base, margin: 175, unrealized: 400 })?.liveBuffer).toBe(175);
+    // Sans séance rejouée (aucune marge datée), la marge de clôture reste la référence.
+    expect(propLiveBuffer({ ...base, margin: null, unrealized: 0 })?.liveBuffer).toBe(1_225);
+    const alert = propBufferAlert(0, { ...base, margin: 175, marginDate: '2026-09-22', unrealized: 0 });
+    expect(alert.data).toMatchObject({ liveBuffer: 175, margin: 175, marginDate: '2026-09-22', journalBuffer: 1_225, remainingShare: 0.07 });
+  });
+
+  it('cas 1.6 : la garde lit 7 % (la jauge), plus 49 % (la clôture), et refuse d’ouvrir', () => {
+    // Cas 1.6 de AUDIT : 60 jours ouvrés depuis le 01/07/2026, compte A, un trade NQ par jour, MAE de 1 100 $ le dernier.
+    const days: string[] = [];
+    for (let t = Date.parse('2026-07-01T12:00:00Z'); days.length < 60; t += 86_400_000) {
+      const dow = new Date(t).getUTCDay();
+      if (dow >= 1 && dow <= 5) days.push(new Date(t).toISOString().slice(0, 10));
+    }
+    const pnlOf = (i: number) => (i <= 14 ? 200 : i <= 29 ? -60 : i <= 58 ? -25 : -50);
+    const trades: Trade[] = days.map((date, i) => {
+      const pnl = pnlOf(i);
+      const entry = Date.parse(`${date}T10:00:00-04:00`);
+      return { id: `t${i}`, sessionId: '', instrument: 'NQ', account: 'A', direction: 'long', qty: 1, entryTime: entry, exitTime: entry + 3_600_000, entryPrice: 20_000, exitPrice: 20_000 + pnl / 20, pnl, commission: 0, mae: i === 59 ? 1_100 : Math.max(0, -pnl) };
+    });
+    const sessions = groupIntoSessions(trades, 18, 'csv');
+    const plan: PropPlan = { ...findPlan('apex-50')!, id: 'cas-16', source: 'user', profitTarget: 1e9 };
+    setUserPlans([plan]);
+    try {
+      useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: plan.id, planAccount: 'A' } });
+      useJournal.setState({ sessions, trades });
+      useBridge.setState({ nt: null });
+      const ev = evaluatePlan(plan, sessions, trades, 'A');
+      const gauge = planMargin(ev)!;
+      expect(gauge.margin).toBe(175);
+      expect(ev.buffer / plan.maxDrawdown).toBeCloseTo(0.49, 2);
+      const share = trackedPropShare('A');
+      expect(share).toBeCloseTo(gauge.margin / plan.maxDrawdown, 6);
+      // La part lue pour le compte du plan refuse une ouverture (seuil 25 %), là où 49 % la laissait passer.
+      expect(guardProposal(order(), ON, snap({ propShare: share }))).toMatchObject({ ok: false, reason: 'prop_buffer' });
+      expect(guardProposal(order(), ON, snap({ propShare: ev.buffer / plan.maxDrawdown })).ok).toBe(true);
+    } finally {
+      setUserPlans([]);
+      useSettings.setState({ settings: { ...DEFAULT_SETTINGS } });
+      useJournal.setState({ sessions: [], trades: [] });
+    }
+  });
+});
+

@@ -124,7 +124,7 @@ describe('A6.2 marge datée du plan : celle de la jauge K.04, à côté de buffe
     for (const out of [overview.plan, status]) {
       expect(out.margin).toEqual(expected);
       expect(out.margin?.margin).toBe(175);
-      // `buffer` (clôture − plancher) ne bouge pas : la garde A5 et l'événement prop_buffer le lisent.
+      // `buffer` (clôture − plancher) ne bouge pas ; la garde A5 et l'événement prop_buffer lisent `margin` (décision 2, A17.2).
       expect(out.buffer).toBe(r2(ev.buffer));
       expect(out.buffer).not.toBe(out.margin?.margin);
       expect(out.passedOn).toBeNull();

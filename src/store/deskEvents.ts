@@ -6,7 +6,7 @@ import { AGENT_TRADER_RULES, type AgentTraderRuleBlock } from '@/engine/agent/or
 import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, majorCatalysts, tradingDayNow, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
-import { evaluatePlan, findPlan } from '@/engine/propfirm';
+import { evaluatePlan, findPlan, planMargin } from '@/engine/propfirm';
 import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { addDays, etDateKey } from '@/lib/time';
@@ -56,8 +56,10 @@ function trackedPlan(): { input: PropBufferInput; key: string } | null {
   const nt = useBridge.getState().nt;
   const live = nt?.link === 'live' ? nt.accounts.filter((a) => !planAccount || a.name === planAccount) : [];
   const unrealized = live.reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
+  // Marge datée de la jauge K.04 : la garde de l'agent et l'alerte la lisent comme l'écran (décision 2 de l'ADMIN).
+  const dated = planMargin(ev);
   return {
-    input: { planId: plan.id, account: planAccount, maxDrawdown: plan.maxDrawdown, buffer: ev.buffer, floor: ev.floor, balance: ev.balance, unrealized },
+    input: { planId: plan.id, account: planAccount, maxDrawdown: plan.maxDrawdown, buffer: ev.buffer, margin: dated?.margin ?? null, marginDate: dated?.date ?? null, floor: ev.floor, balance: ev.balance, unrealized },
     key: `${plan.id}|${plan.version}|${planAccount}`,
   };
 }
