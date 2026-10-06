@@ -154,6 +154,24 @@ describe('fiche de contexte', () => {
     expect(opposite?.trades).toBe(2);
   });
 
+  it('« après une perte » lit le dernier trade du compte sorti avant l’entrée', () => {
+    const day = dates[40]!;
+    const at = (clock: string) => zonedToUtc(day, clock, ET_ZONE);
+    const span = (id: string, account: string, from: string, to: string, pnl: number): Trade => ({ ...trade(id, day, account), entryTime: at(from), exitTime: at(to), pnl });
+    const trades = [
+      span('x', 'A', '10:00', '10:30', -300), // perte, encore ouverte à 10:05
+      span('y', 'A', '10:05', '10:40', 150),
+      span('z', 'A', '10:35', '10:50', 80), // X est sorti à 10:30, Y sort à 10:40
+      span('w', 'A', '10:45', '11:00', 40), // Y (gain) est le dernier sorti
+      span('r', 'A', '11:00', '11:10', 10), // sortie de W à l'instant de l'entrée : W compte
+      span('b', 'B', '09:00', '09:50', -500), // autre compte
+      span('c', 'A', '09:55', '10:00', 20),
+    ];
+    const { trades: rows } = buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 100), trades });
+    const afterLoss = Object.fromEntries(rows.map((row) => [row.tradeId, row.afterLoss]));
+    expect(afterLoss).toEqual({ x: false, y: false, z: true, w: false, r: false, b: false, c: false });
+  });
+
   it('aligne l’ATR de la fiche sur l’indicateur des barres journalières', () => {
     const daily = toDailyBars(bars);
     const series = atrSeries(daily.map((day, index) => ({ time: index, open: day.open, high: day.high, low: day.low, close: day.close, volume: 0 })));

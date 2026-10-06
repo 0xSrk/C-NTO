@@ -337,14 +337,30 @@ export function buildMetricsContext(input: {
   const dayByDate = new Map(days.map((day, index) => [day.date, { day, index }]));
   const sizes = mine.map((trade) => standardEquivalentQty(trade)).filter((qty) => qty > 0).sort((a, b) => a - b);
   const medianSize = sizes.length === 0 ? 0 : sizes.length % 2 ? sizes[(sizes.length - 1) / 2]! : ((sizes[sizes.length / 2 - 1] ?? 0) + (sizes[sizes.length / 2] ?? 0)) / 2;
-  const orderedTrades = [...mine].sort((a, b) => a.exitTime - b.exitTime || a.id.localeCompare(b.id));
-  const previousByAccount = new Map<string, Trade>();
-  const afterLoss = new Map<string, boolean>();
-  for (const trade of orderedTrades) {
+  // « Après une perte » : le dernier trade du même compte sorti au plus tard à l'entrée. Un trade encore
+  // ouvert à l'entrée ne compte pas, même s'il sort avant le trade lu.
+  const exitsByAccount = new Map<string, Trade[]>();
+  for (const trade of mine) {
     const account = trade.account ?? '';
-    const previous = previousByAccount.get(account);
+    const list = exitsByAccount.get(account) ?? [];
+    list.push(trade);
+    exitsByAccount.set(account, list);
+  }
+  for (const list of exitsByAccount.values()) list.sort((a, b) => a.exitTime - b.exitTime || a.id.localeCompare(b.id));
+  const afterLoss = new Map<string, boolean>();
+  for (const trade of mine) {
+    const list = exitsByAccount.get(trade.account ?? '') ?? [];
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid]!.exitTime <= trade.entryTime) lo = mid + 1;
+      else hi = mid;
+    }
+    let index = lo - 1;
+    while (index >= 0 && list[index]!.id === trade.id) index -= 1;
+    const previous = index >= 0 ? list[index] : undefined;
     afterLoss.set(trade.id, previous != null && previous.pnl < 0);
-    previousByAccount.set(account, trade);
   }
   const ranked = new Map<string, number>();
   const byAccountDay = new Map<string, Trade[]>();
