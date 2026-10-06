@@ -245,7 +245,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'list_sessions',
       kind: 'read',
       description:
-        `Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source \`demo\` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (\`noteTruncated\`) : get_session la rend entière. Au plus ${TAGS_MAX} tags de ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).` + PROVENANCE_FR,
+        `Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source \`demo\` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (\`noteTruncated\`) : get_session la rend entière. Au plus ${TAGS_MAX} tags de ${TAG_LEN_MAX} caractères (\`tagsTruncated\`). \`truncated\` à la racine dès qu’une note ou des tags sont coupés.` + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
@@ -264,11 +264,13 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           .filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account))
           .sort((a, b) => b.date.localeCompare(a.date))
           .slice(0, limit);
+        // `truncated` à la racine : une note ou des tags coupés dans la liste.
         let cut = false;
         const list = rows.map((s) => {
           const note = excerpt(s.note);
           if (note.cut) cut = true;
           const tags = boundTags(s.tags);
+          if (tags.tagsTruncated) cut = true;
           return { id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: tags.tags, ...(tags.tagsTruncated ? { tagsTruncated: true } : {}), rating: s.rating, note: note.text, ...(note.cut ? { noteTruncated: true } : {}) };
         });
         return { count: list.length, ...(cut ? { truncated: true } : {}), sessions: list, ...provenance(ports, rows) };
@@ -1028,8 +1030,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'list_sessions':
       return tr(
         fallback,
-        `Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The \`demo\` source is the demo dataset. A note longer than 280 characters is cut (\`noteTruncated\`): get_session returns it whole. At most ${TAGS_MAX} tags of ${TAG_LEN_MAX} characters (\`tagsTruncated\`).` + PROVENANCE_EN,
-        `Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente \`demo\` es el juego de demostración. Una nota de más de 280 caracteres se corta (\`noteTruncated\`): get_session la devuelve entera. Como máximo ${TAGS_MAX} etiquetas de ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).` + PROVENANCE_ES,
+        `Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The \`demo\` source is the demo dataset. A note longer than 280 characters is cut (\`noteTruncated\`): get_session returns it whole. At most ${TAGS_MAX} tags of ${TAG_LEN_MAX} characters (\`tagsTruncated\`). \`truncated\` at the root as soon as a note or tags are cut.` + PROVENANCE_EN,
+        `Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente \`demo\` es el juego de demostración. Una nota de más de 280 caracteres se corta (\`noteTruncated\`): get_session la devuelve entera. Como máximo ${TAGS_MAX} etiquetas de ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`). \`truncated\` en la raíz en cuanto se corta una nota o etiquetas.` + PROVENANCE_ES,
       );
     case 'get_session':
       return tr(

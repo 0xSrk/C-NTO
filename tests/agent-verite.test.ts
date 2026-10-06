@@ -449,4 +449,34 @@ describe('A6.11 tags bornés', () => {
     expect(bare && 'tags' in bare).toBe(false);
     expect(bare?.tagsTruncated).toBeUndefined();
   });
+
+  it('A6.11c : la coupe en longueur seule est signalée, et list_sessions la remonte à la racine', async () => {
+    type Tagged = { tags: string[]; tagsTruncated?: boolean };
+    const long = 'l'.repeat(TAG_LEN_MAX + 1);
+    // Trois tags (sous la limite de 20), dont un de 41 caractères.
+    const tags = ['revue', long, 'ouverture'];
+    const start = zonedToUtc('2026-09-28', '09:30', ET_ZONE);
+    const ports = fakePorts({
+      sessions: () => [session('lng', '2026-09-28', 'Sim101', 10, { tags, note: 'courte' })],
+      trades: () => [trade('t1', 'lng', start, start + 60_000, 10, { tags })],
+    });
+    const listed = await callTool<{ truncated?: boolean; sessions: (Tagged & { noteTruncated?: boolean })[] }>(ports, 'list_sessions');
+    const detail = await callTool<{ truncated?: boolean; session: Tagged; trades: Tagged[] }>(ports, 'get_session', { id: 'lng' });
+    for (const rendered of [listed.sessions[0]!, detail.session, detail.trades[0]!]) {
+      expect(rendered.tags).toEqual(['revue', 'l'.repeat(TAG_LEN_MAX), 'ouverture']);
+      expect(rendered.tagsTruncated).toBe(true);
+    }
+    // La note est entière : seule la coupe des tags lève le `truncated` racine.
+    expect(listed.sessions[0]?.noteTruncated).toBeUndefined();
+    expect(listed.truncated).toBe(true);
+    // get_session garde `truncated` pour les trades au-delà de 200 (avec `tradeCount`), comme avant.
+    expect(detail.truncated).toBeUndefined();
+
+    // Vingt tags, dont un d'exactement 40 caractères : rien n'est coupé.
+    const fit = Array.from({ length: TAGS_MAX }, (_, i) => (i === 0 ? 'e'.repeat(TAG_LEN_MAX) : `t${i}`));
+    const whole = await callTool<{ truncated?: boolean; sessions: Tagged[] }>(fakePorts({ sessions: () => [session('fit', '2026-09-28', 'Sim101', 1, { tags: fit })] }), 'list_sessions');
+    expect(whole.sessions[0]?.tags).toEqual(fit);
+    expect(whole.sessions[0]?.tagsTruncated).toBeUndefined();
+    expect(whole.truncated).toBeUndefined();
+  });
 });
