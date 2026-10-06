@@ -6,6 +6,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { expectancyR, realizedRewardRisk, rrMatrix } from '@/engine/riskConsole';
 import type { Session, Trade } from '@/engine/types';
+import { useI18n } from '@/i18n';
+import { RiskReading } from '@/modules/metrique/RiskReading';
 
 function session(id: string, date: string): Session {
   return { id, date, account: 'Sim101', instruments: ['NQ'], source: 'csv', tradeCount: 1, pnl: 0, grossProfit: 0, grossLoss: 0, commission: 0, tags: [], createdAt: 0, updatedAt: 0 };
@@ -25,8 +27,6 @@ let root: Root | null = null;
 let host: HTMLElement | null = null;
 
 async function mount(trades: Trade[]) {
-  const { RiskReading } = await import('@/modules/metrique/RiskReading');
-  const { useI18n } = await import('@/i18n');
   useI18n.setState({ locale: 'fr' });
   host = document.createElement('div');
   document.body.append(host);

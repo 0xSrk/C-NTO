@@ -6,6 +6,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { horizonSigma, sigmaWidths, tickDecimals } from '@/engine/riskConsole';
 import type { Session, Trade } from '@/engine/types';
+import { useI18n } from '@/i18n';
+import { Sessions } from '@/modules/metrique/Sessions';
+import { useJournal } from '@/store/journal';
+import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -50,10 +54,6 @@ afterEach(() => {
 
 describe('Séances › largeurs implicites', () => {
   it('affiche le 6E à son pas (0,01365), pas 0,0, et une ligne par instrument', async () => {
-    const { Sessions } = await import('@/modules/metrique/Sessions');
-    const { useJournal } = await import('@/store/journal');
-    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
-    const { useI18n } = await import('@/i18n');
     const session: Session = { id: 's1', date: '2026-09-01', account: 'Sim101', instruments: ['6E', 'NQ', 'MNQ'], source: 'csv', tradeCount: trades.length, pnl: 0, grossProfit: 0, grossLoss: 0, commission: 0, tags: [], createdAt: 0, updatedAt: 0 };
     useI18n.setState({ locale: 'fr' });
     useSettings.setState({ settings: { ...DEFAULT_SETTINGS, impliedVol: 0.2 } });

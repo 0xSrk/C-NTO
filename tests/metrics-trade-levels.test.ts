@@ -6,6 +6,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readTradeLevel } from '@/engine/riskConsole';
 import type { Session, Trade } from '@/engine/types';
+import { useI18n } from '@/i18n';
+import { Sessions } from '@/modules/metrique/Sessions';
+import { useJournal } from '@/store/journal';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -65,9 +68,6 @@ afterEach(() => {
 
 describe('Séances › saisie du stop et de l’objectif', () => {
   async function mount() {
-    const { Sessions } = await import('@/modules/metrique/Sessions');
-    const { useJournal } = await import('@/store/journal');
-    const { useI18n } = await import('@/i18n');
     const updateTrade = vi.fn(async () => undefined);
     useI18n.setState({ locale: 'fr' });
     useJournal.setState({ sessions: [session], trades: [trade], updateTrade });
@@ -109,7 +109,6 @@ describe('Séances › saisie du stop et de l’objectif', () => {
 
   it('dit le refus dans la langue du desk', async () => {
     const { type, alerts } = await mount();
-    const { useI18n } = await import('@/i18n');
     await act(async () => useI18n.setState({ locale: 'en' }));
     await type('Initial target', '19990');
     expect(alerts()).toEqual(['Target refused: on a long, it sits above the entry (20,000.00).']);
