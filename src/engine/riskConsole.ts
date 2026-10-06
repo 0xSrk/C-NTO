@@ -374,7 +374,10 @@ export function betaPosterior(wins: number, losses: number): { mean: number; low
   return { mean: a / (a + b), low: betaQuantile(0.05, a, b), high: betaQuantile(0.95, a, b) };
 }
 
-/** Taux de réussite des trades qui suivent exactement `streak` gains ou pertes. */
+/**
+ * Taux de réussite des trades qui suivent exactement `streak` gains ou pertes. Un trade nul qui suit la
+ * série n'entre pas au dénominateur, comme dans le taux de base ; un nul dans la série l'interrompt.
+ */
 export function rateAfterStreak(pnls: readonly number[], streak: number, side: 'loss' | 'win'): { count: number; wins: number; winRate: number | null } {
   if (!Number.isInteger(streak) || streak < 1) return { count: 0, wins: 0, winRate: null };
   let count = 0;
@@ -390,7 +393,7 @@ export function rateAfterStreak(pnls: readonly number[], streak: number, side: '
       }
     }
     const current = pnls[i];
-    if (!matched || current == null || !Number.isFinite(current)) continue;
+    if (!matched || current == null || !Number.isFinite(current) || current === 0) continue;
     count += 1;
     if (current > 0) wins += 1;
   }
