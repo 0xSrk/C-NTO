@@ -384,3 +384,26 @@ describe('onglet Agent · routines', () => {
     expect(fake.provider).toBe(2);
   });
 });
+
+describe('onglet Agent · envoi', () => {
+  it('A12.8 deux envois rapprochés : un seul part, le second ne range rien et n’appelle pas le fournisseur', async () => {
+    const first = useAgent.getState().send('première question');
+    const second = useAgent.getState().send('seconde question');
+    await Promise.all([first, second]);
+    await settle();
+    expect(fake.added.filter((m) => m.role === 'user').map((m) => m.content)).toEqual(['première question']);
+    expect(fake.provider).toBe(1);
+    expect(useAgent.getState().streaming).toBe(false);
+  });
+
+  it('A12.8 un échec du coffre à l’envoi rend la main : erreur affichée, le flux n’est pas bloqué', async () => {
+    const add = (db as unknown as { agentMessages: { add: unknown } }).agentMessages;
+    add.add = async () => {
+      throw new Error('coffre plein');
+    };
+    await useAgent.getState().send('question');
+    expect(useAgent.getState().streaming).toBe(false);
+    expect(useAgent.getState().error).toBe('coffre plein');
+    expect(fake.provider).toBe(0);
+  });
+});

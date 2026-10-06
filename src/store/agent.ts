@@ -228,12 +228,19 @@ export const useAgent = create<AgentState>((set, get) => ({
 
   async send(text) {
     // Non réentrant : un seul flux à la fois (abortController global, état de stream partagé).
+    // Le verrou se prend avant le premier `await` : de deux envois rapprochés, un seul part.
     if (get().streaming) return;
+    set({ streaming: true, streamText: '', error: null, notice: null, pendingTool: null });
     const { settings } = useSettings.getState();
     const { conversationId } = get();
     const userMsg: AgentMessage = { id: uid('m'), conversationId, role: 'user', content: text, createdAt: Date.now() };
-    await db.agentMessages.add(userMsg);
-    set({ messages: [...get().messages, userMsg], streaming: true, streamText: '', error: null, notice: null, pendingTool: null });
+    try {
+      await db.agentMessages.add(userMsg);
+    } catch (e) {
+      set({ streaming: false, error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    set({ messages: [...get().messages, userMsg] });
 
     abortController = new AbortController();
     const signal = abortController.signal;
