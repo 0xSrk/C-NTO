@@ -236,21 +236,44 @@
   width: 14px;
 }
 .eqLegend i.eqKeyLine {
-  height: 2px;
-  background: var(--pos);
+  height: 1px;
+  background: var(--text-0);
+  box-shadow: 0 0 4px var(--text-1);
 }
 .eqLegend i.eqKeyPeak {
-  border-top: 1px dotted var(--text-2);
+  height: 1px;
+  background: linear-gradient(90deg, var(--text-2) 1px, transparent 1px) 0 0 / 4px 1px repeat-x;
 }
-.eqLegend i.eqKeyBar {
-  width: 6px;
+.eqLegend i.eqKeyStem {
+  position: relative;
+  width: 1px;
   height: 9px;
-  background: var(--mint-line);
+  margin: 0 4px;
+  background: var(--pos);
+  box-shadow: 0 0 3px var(--mint-line);
+}
+.eqLegend i.eqKeyStem::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 3px;
+  height: 3px;
+  background: var(--pos);
 }
 .eqLegend i.eqKeyDd {
   height: 8px;
-  background: var(--ember-soft);
+  background: radial-gradient(circle, var(--neg) 0.7px, transparent 1.1px) 0 0 / 4px 4px;
   border-top: 1px solid var(--neg);
+}
+.eqKeyPixel {
+  width: 9px;
+  height: 9px;
+  fill: var(--gold);
+  filter: drop-shadow(0 0 3px var(--gold-line));
+}
+.eqKeyPixel .eqPixelCore {
+  fill: var(--text-0);
 }
 .eqLegend .eqHelp {
   margin-left: auto;
