@@ -197,7 +197,10 @@ function toolTitle(name: string, locale: AppLocale): string | undefined {
   return titles ? uiText(locale, ...titles) : undefined;
 }
 
-/** Propriétés de tête des lectures. `additionalProperties` reste vrai : le schéma ne ferme pas l'objet. */
+/**
+ * Propriétés de tête des lectures, clés de leur sortie normale (vérifiées sur le desk de démo).
+ * Aucune n'est requise (sans pont, une lecture en rend moins) ; `additionalProperties` reste vrai : le schéma ne ferme pas l'objet.
+ */
 const READ_OUTPUT_HEADS: Record<string, readonly string[]> = {
   desk_overview: ['sessions', 'netPnl', 'asOf'],
   list_sessions: ['count', 'sessions', 'asOf'],
@@ -210,11 +213,11 @@ const READ_OUTPUT_HEADS: Record<string, readonly string[]> = {
   bridge_status: ['link', 'accountsAt'],
   portfolio_snapshot: ['pockets', 'bridge'],
   market_levels: ['instrument', 'last'],
-  working_orders: ['orders', 'complete'],
+  working_orders: ['active', 'recent', 'complete'],
   market_quote: ['available', 'stale'],
   propfirm_status: ['status', 'buffer'],
   trader_memory: ['lessons', 'rules'],
-  discipline_status: ['day', 'loss'],
+  discipline_status: ['day', 'dailyLoss'],
   desk_events: ['cursor', 'events'],
 };
 

@@ -7,6 +7,14 @@ import { DeskRelay, mcpRelay } from '../electron/desk-relay';
 import { handleMcpHttp, loadOrCreateToken, McpGateway, MCP_PROTOCOL_VERSIONS, outputSchemaFor, type McpContext, type McpRelay, type McpToolInfo } from '../electron/mcp-server';
 import { DESK_TOOL_KINDS } from '@/engine/agent/catalog';
 import { TOOL_PREAMBLE } from '@/engine/agent/loop';
+import type { DeskPorts } from '@/engine/agent/ports';
+import { executeDeskTool } from '@/engine/agent/runner';
+import { describedDeskTools } from '@/engine/agent/tools';
+import type { Bar, BarSeries } from '@/engine/bars';
+import { OrderBook } from '@/engine/execution/orderBook';
+import { QuoteBook } from '@/engine/marketdata/quotes';
+import { ET_ZONE, zonedToUtc } from '@/lib/time';
+import { DEMO_ACCOUNT, DEMO_END, demoDesk } from './helpers/demoDesk';
 
 const TOKEN = 'jeton-de-test-assez-long-pour-passer';
 const TOOLS: McpToolInfo[] = [
@@ -517,6 +525,58 @@ describe('A14.4 schéma de sortie', () => {
     const refused = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'desk_overview' })), ctx({ relay: relay([], () => ({ result: { ok: false, error: 'non' } })) })));
     expect(refused.result?.isError).toBe(true);
     expect(refused.result?.structuredContent).toBeUndefined();
+  });
+
+  it('A14.11 chaque propriété de tête déclarée existe dans la vraie sortie de l’outil, sur le desk de démo', async () => {
+    // Desk de démo, avec un pont vivant, un livre d'ordres, une cotation et une série de barres : chaque lecture rend sa sortie normale.
+    const desk = demoDesk();
+    const at = Date.parse(DEMO_END);
+    const quotes = new QuoteBook();
+    quotes.apply({ instrument: 'MNQ 12-26', time: at - 1_500, bid: 21_000, ask: 21_000.25, last: 21_000.25 }, at - 1_000);
+    const book = new OrderBook();
+    book.setLink('live', at);
+    book.apply({ account: 'Sim101', orderId: 'nt-1', instrument: 'MNQ 12-26', side: 'buy', type: 'limit', qty: 1, state: 'Working', limit: 21_000.25 }, at + 1_000);
+    const bars: Bar[] = [];
+    for (const [date, base] of [['2026-09-29', 21_000], ['2026-09-30', 21_100]] as const) {
+      for (let t = zonedToUtc(date, '09:30', ET_ZONE) / 1000, px = base; t <= zonedToUtc(date, '15:55', ET_ZONE) / 1000; t += 300, px += 1) {
+        bars.push({ time: t, open: px, high: px + 2, low: px - 1, close: px + 1, volume: 100 });
+      }
+    }
+    const series: BarSeries = { id: 'nt8:NQ:5', instrument: 'NQ', timeframe: 5, label: 'NQ 12-26 · 5 min · NinjaTrader', source: 'nt8-bridge', bars, createdAt: 0 };
+    const ports: DeskPorts = {
+      ...desk.ports,
+      bridge: async () => ({
+        nt: { link: 'live', addonVersion: '2.3.0', heartbeatLatencyMs: 12, ordersOpen: true, maxContractsPerOrder: 5, accounts: [{ name: DEMO_ACCOUNT, cashValue: 50_000, realizedPnl: 0, unrealizedPnl: -40, positions: [] }], accountsAt: at },
+        copier: null,
+      }),
+      workingOrders: async () => book.view(at + 2_000),
+      marketQuotes: () => quotes.all(),
+      barSeries: async () => [series],
+    };
+    // Le relais du desk : catalogue de desk.describe, appels par executeDeskTool (source orch), comme le renderer.
+    const demoRelay: McpRelay = {
+      tools: async () => describedDeskTools(),
+      call: async (name, args) => ({ result: await executeDeskTool(ports, name, args, { source: 'orch' }) }),
+    };
+    const args: Record<string, Record<string, unknown>> = {
+      get_session: { id: desk.sessions[0]!.id },
+      read_note: { id: 'n_plan' },
+      calendar_events: { from: '2026-09-01', to: '2026-10-31' },
+      market_levels: { instrument: 'NQ' },
+      market_quote: { instrument: 'MNQ' },
+    };
+    const listed = (await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: demoRelay })))).result?.tools as { name: string; outputSchema?: { properties: Record<string, unknown> } }[];
+    expect(listed.map((t) => t.name).sort()).toEqual(Object.keys(DESK_TOOL_KINDS).filter((name) => DESK_TOOL_KINDS[name as keyof typeof DESK_TOOL_KINDS] === 'read').sort());
+    const missing: string[] = [];
+    for (const tool of listed) {
+      const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: tool.name, arguments: args[tool.name] ?? {} })), ctx({ relay: demoRelay })));
+      expect(out.result?.isError, tool.name).toBeUndefined();
+      const structured = out.result?.structuredContent as Record<string, unknown>;
+      const heads = Object.keys(tool.outputSchema?.properties ?? {});
+      expect(heads.length, tool.name).toBeGreaterThan(0);
+      for (const key of heads) if (!Object.hasOwn(structured, key)) missing.push(`${tool.name} · ${key}`);
+    }
+    expect(missing).toEqual([]);
   });
 });
 
