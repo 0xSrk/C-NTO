@@ -4,6 +4,11 @@ import { defineConfig } from 'vitest/config';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 
+// Fuseau fixe pour toute la suite, quel que soit celui du poste : la démo (`dateKeyLocal`) et
+// `drawdownSeries` lisent le fuseau du process. Posé ici, avant le lancement des workers, qui en
+// héritent dès leur premier `Date` ; `test.env` le repose dans chaque worker.
+process.env.TZ = 'UTC';
+
 /** Le process Electron type ses imports moteur via des `.d.ts`. Vitest exécute les sources. */
 function engineSource(importer: string | undefined, source: string): string | null {
   if (!importer) return null;
@@ -42,5 +47,6 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    env: { TZ: 'UTC' },
   },
 });
