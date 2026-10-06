@@ -91,12 +91,12 @@ export function readAxis(
     byKey.set(sample.key, list);
   }
   const dayKeys = new Map<string, { days: number; traded: number }>();
-  const tradedDates = new Set(samples.filter((sample) => sample.key).map((sample) => sample.date));
+  const tradedPairs = new Set(samples.filter((sample) => sample.key).map((sample) => `${sample.key}|${sample.date}`));
   for (const day of calendar) {
     if (!day.key) continue;
     const row = dayKeys.get(day.key) ?? { days: 0, traded: 0 };
     row.days += 1;
-    if (tradedDates.has(day.date)) row.traded += 1;
+    if (tradedPairs.has(`${day.key}|${day.date}`)) row.traded += 1;
     dayKeys.set(day.key, row);
   }
   const keys = [...byKey.keys()].sort();
