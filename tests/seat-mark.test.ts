@@ -6,10 +6,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { scrambleFrame, scrambleSteps, SEAT_ALPHABET, SEAT_PROMPT, SEAT_STEP_MS, SEAT_STEPS } from '@/app/seatScramble';
+import { glyphDelays, glyphsAt, glyphsDuration, SEAT_ALPHABET, SEAT_DOMINO, SEAT_DWELL_MS, SEAT_EMERGE, SEAT_PROMPT, SEAT_REFORM_MS } from '@/app/seatGlyphs';
 
 const LINE = 'SIEGE1.eyJhcnRlZmFjdCI6IjAwMiJ9.c2lnbmF0dXJl';
-const ALL_STEPS_MS = SEAT_STEPS * SEAT_STEP_MS;
+const PROMPT_MS = glyphsDuration([...SEAT_PROMPT].length, SEAT_DOMINO);
 
 let root: Root | null = null;
 let host: HTMLElement | null = null;
@@ -44,6 +44,17 @@ function typeInto(input: HTMLInputElement, text: string) {
 }
 
 const key = (el: Element, k: string) => act(async () => void el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));
+const hover = () => act(async () => void button().dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+const leave = () => act(async () => void button().dispatchEvent(new MouseEvent('mouseout', { bubbles: true })));
+/** Le curseur reste 2 s sur les barres : le geste s'éveille. */
+async function awaken() {
+  await hover();
+  await advance(SEAT_DWELL_MS);
+}
+/** Phase lue sur la classe de chaque glyphe (`wait`, `fall`, `rise`, `set`). */
+const phases = (spans: Element[]) => spans.map((g) => (/wait/.test(g.className) ? 'wait' : /set/.test(g.className) ? 'set' : 'turn'));
+const promptGlyphs = () => [...host!.querySelectorAll('[class*="prompt"] > span')];
+const nameGlyphs = () => [...host!.querySelectorAll('[title] > [aria-hidden] > span')];
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
@@ -55,15 +66,35 @@ afterEach(() => {
   delete (window as unknown as { canto?: unknown }).canto;
 });
 
-describe('geste du siège : lettres déterministes', () => {
-  it('six temps, lettre (3i + 7t) mod 6, puis la cible', () => {
-    expect(scrambleFrame('abcd', 0)).toBe(['S', 'R', 'S', 'R'].join(''));
-    expect(scrambleFrame('abcd', 1)).toBe(['I', 'Λ', 'I', 'Λ'].join(''));
-    for (let t = 0; t < SEAT_STEPS; t++) expect([...scrambleFrame(SEAT_PROMPT, t)].every((c) => (SEAT_ALPHABET as readonly string[]).includes(c))).toBe(true);
-    expect(scrambleFrame(SEAT_PROMPT, SEAT_STEPS)).toBe(SEAT_PROMPT);
-    expect(scrambleFrame('0xSrk', 3)).toBe(scrambleFrame('0xSrk', 3));
-    expect(scrambleSteps(false)).toEqual([0, 1, 2, 3, 4, 5]);
-    expect(scrambleSteps(true)).toEqual([5, 4, 3, 2, 1, 0]);
+describe('geste du siège : glyphes déterministes', () => {
+  it('domino : les glyphes partent un à un, du premier au dernier, à intervalle régulier', () => {
+    const delays = glyphDelays(13, SEAT_DOMINO);
+    expect(delays).toEqual(delays.map((_, i) => i * SEAT_DOMINO.stagger));
+    expect(glyphsDuration(13, SEAT_DOMINO)).toBe(12 * SEAT_DOMINO.stagger + SEAT_DOMINO.spin);
+  });
+
+  it('émergence : du dernier glyphe (côté barres) au premier, plus lente et irrégulière, toujours la même', () => {
+    const delays = glyphDelays(5, SEAT_EMERGE);
+    expect(delays[4]).toBe(0);
+    for (let i = 0; i < 4; i++) expect(delays[i]!).toBeGreaterThan(delays[i + 1]!);
+    const gaps = delays.slice(0, 4).map((d, i) => d - delays[i + 1]!);
+    expect(new Set(gaps).size).toBeGreaterThan(1);
+    expect(glyphDelays(5, SEAT_EMERGE)).toEqual(delays);
+    expect(SEAT_EMERGE.stagger).toBeGreaterThan(SEAT_DOMINO.stagger * 3);
+    expect(SEAT_EMERGE.spin).toBeGreaterThan(SEAT_DOMINO.spin * 2);
+    // Un nom de 24 caractères ne dépasse pas la durée prévue.
+    expect(glyphsDuration(24, SEAT_EMERGE)).toBeLessThanOrEqual(SEAT_EMERGE.maxTotal);
+  });
+
+  it('chaque glyphe attend, tourne sur les lettres du Lab, puis se pose', () => {
+    expect(glyphsAt('0xSrk', -1, SEAT_EMERGE).every((g) => g.phase === 'wait')).toBe(true);
+    const mid = glyphsAt('0xSrk', 400, SEAT_EMERGE);
+    expect(mid[4]!.phase).not.toBe('wait');
+    expect(mid[0]!.phase).toBe('wait');
+    for (const g of mid.filter((x) => x.phase === 'turn')) expect(SEAT_ALPHABET as readonly string[]).toContain(g.char);
+    const end = glyphsAt('0xSrk', glyphsDuration(5, SEAT_EMERGE), SEAT_EMERGE);
+    expect(end.every((g) => g.phase === 'set')).toBe(true);
+    expect(end.map((g) => g.char).join('')).toBe('0xSrk');
   });
 });
 
@@ -84,30 +115,66 @@ describe('geste du siège dans le pied', () => {
     expect(el.textContent).toBe('[ SIΞRRΛSKΛ ]');
   });
 
-  it('le survol révèle <insert code> sans prendre le focus ; le quitter rend les barres', async () => {
+  it('rien avant 2 s de survol : ni lettres, ni champ, même au clic', async () => {
     const { el } = await mountSeat({ status: async () => null, submit: vi.fn() });
-    await act(async () => void button().dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
-    expect(el.querySelector('[data-bars]')).toBeNull();
-    await advance(SEAT_STEP_MS);
-    expect(el.textContent).not.toContain(SEAT_PROMPT);
-    await advance(ALL_STEPS_MS);
-    expect(el.textContent).toContain(SEAT_PROMPT);
-    expect(field()).toBeNull();
-    expect(document.activeElement).toBe(document.body);
-    await act(async () => void button().dispatchEvent(new MouseEvent('mouseout', { bubbles: true })));
+    await hover();
+    await advance(SEAT_DWELL_MS - 10);
     expect(el.querySelector('[data-bars]')).not.toBeNull();
-    expect(el.textContent).not.toContain(SEAT_PROMPT);
+    expect(promptGlyphs()).toHaveLength(0);
+    await act(async () => void button().click());
+    expect(field()).toBeNull();
+    // Partir avant l'éveil remet le compte à zéro.
+    await leave();
+    await hover();
+    await advance(SEAT_DWELL_MS - 10);
+    expect(promptGlyphs()).toHaveLength(0);
   });
 
-  it('mouvement réduit : le littéral apparaît sans tourner', async () => {
-    const { el } = await mountSeat({ status: async () => null, submit: vi.fn() }, true);
-    await act(async () => void button().dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
-    expect(el.textContent).toContain(SEAT_PROMPT);
+  it('après 2 s, les barres se défont en domino jusqu’à <insert code>, sans prendre le focus', async () => {
+    const { el } = await mountSeat({ status: async () => null, submit: vi.fn() });
+    await awaken();
+    expect(button().className).toMatch(/armed/);
+    await advance(4 * SEAT_DOMINO.stagger + 10);
+    const early = phases(promptGlyphs());
+    expect(early[0]).not.toBe('wait');
+    expect(early.at(-1)).toBe('wait');
+    // Le domino avance dans l'ordre : aucun glyphe parti après un glyphe encore en attente.
+    expect(early.indexOf('wait')).toBeGreaterThan(0);
+    expect(early.slice(early.indexOf('wait')).every((p) => p === 'wait')).toBe(true);
+    await advance(PROMPT_MS);
+    expect(phases(promptGlyphs()).every((p) => p === 'set')).toBe(true);
+    expect(promptGlyphs().map((g) => g.textContent).join('')).toBe(SEAT_PROMPT);
+    expect(field()).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    await leave();
+    expect(el.querySelector('[data-bars]')).not.toBeNull();
+    expect(promptGlyphs()).toHaveLength(0);
+  });
+
+  it('au clavier, le focus tenu 2 s éveille aussi le geste', async () => {
+    await mountSeat({ status: async () => null, submit: vi.fn() });
+    await act(async () => button().focus());
+    await advance(SEAT_DWELL_MS - 10);
+    expect(promptGlyphs()).toHaveLength(0);
+    await advance(10);
+    expect(promptGlyphs().length).toBe([...SEAT_PROMPT].length);
+  });
+
+  it('mouvement réduit : après 2 s, le littéral paraît d’un coup ; le nom aussi', async () => {
+    const submit = vi.fn(async () => ({ ok: true as const, client: '0xSrk' }));
+    await mountSeat({ status: async () => null, submit }, true);
+    await awaken();
+    expect(phases(promptGlyphs()).every((p) => p === 'set')).toBe(true);
+    await act(async () => void button().click());
+    await act(async () => typeInto(field()!, LINE));
+    await key(field()!, 'Enter');
+    expect(phases(nameGlyphs()).every((p) => p === 'set')).toBe(true);
   });
 
   it('un code accepté affiche le nom signé avant les barres, jamais la ligne saisie', async () => {
     const submit = vi.fn(async () => ({ ok: true as const, client: '0xSrk' }));
     const { el } = await mountSeat({ status: async () => null, submit });
+    await awaken();
     await act(async () => void button().click());
     const input = field()!;
     expect(input.getAttribute('aria-label')).toBe('Inscrire un siège');
@@ -116,7 +183,15 @@ describe('geste du siège dans le pied', () => {
     await act(async () => typeInto(input, LINE));
     await key(input, 'Enter');
     expect(submit).toHaveBeenCalledWith(LINE);
-    await advance(ALL_STEPS_MS);
+    // Les barres se reforment d'abord : le nom n'a pas encore paru.
+    expect(phases(nameGlyphs()).every((p) => p === 'wait')).toBe(true);
+    await advance(SEAT_REFORM_MS + 150);
+    // Puis il sort des barres : le dernier glyphe d'abord, le premier encore caché.
+    const rising = phases(nameGlyphs());
+    expect(rising.at(-1)).not.toBe('wait');
+    expect(rising[0]).toBe('wait');
+    await advance(glyphsDuration(5, SEAT_EMERGE));
+    expect(phases(nameGlyphs()).every((p) => p === 'set')).toBe(true);
     const name = el.querySelector('[title]')!;
     expect(name.getAttribute('title')).toBe('0xSrk');
     expect(name.textContent).toContain('0xSrk');
@@ -133,10 +208,11 @@ describe('geste du siège dans le pied', () => {
     const submit = vi.fn(async () => ({ ok: false as const }));
     const { el, useUi } = await mountSeat({ status: async () => ({ client: 'Λ-Testeur' }), submit });
     expect(el.querySelector('[title]')?.getAttribute('title')).toBe('Λ-Testeur');
+    await awaken();
     await act(async () => void button().click());
     await act(async () => typeInto(field()!, 'Admin'));
     await key(field()!, 'Enter');
-    await advance(ALL_STEPS_MS);
+    await advance(SEAT_REFORM_MS);
     expect(el.querySelector('[title]')?.getAttribute('title')).toBe('Λ-Testeur');
     expect(el.textContent).not.toContain('Admin');
     expect(useUi.getState().toasts.map((t) => t.text)).toContain('Siège refusé');
@@ -146,11 +222,13 @@ describe('geste du siège dans le pied', () => {
   it('Échap referme le champ et oublie le texte', async () => {
     const submit = vi.fn();
     const { el } = await mountSeat({ status: async () => null, submit });
+    await awaken();
     await act(async () => void button().click());
     await act(async () => typeInto(field()!, 'SIEGE1.abc'));
     await key(field()!, 'Escape');
     expect(field()).toBeNull();
     expect(submit).not.toHaveBeenCalled();
+    await awaken();
     await act(async () => void button().click());
     expect(field()!.value).toBe('');
     expect(el.textContent).not.toContain('SIEGE1.abc');

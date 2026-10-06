@@ -69,22 +69,24 @@ Le seul accès est dans les barres. Au repos, rien ne change : pas de curseur te
 
 Dans le desk, les barres sont enveloppées dans un `button`. Son nom accessible est `tr('Inscrire un siège', 'Register a seat', 'Inscribir un asiento')` ; les barres restent `aria-hidden`.
 
-**Révéler.** Au survol ou au focus clavier du bouton, les barres se défont en lettres. Les lettres tournent pendant six temps de 70 ms (420 ms) puis se posent sur le littéral `<insert code>`, chevrons compris. Ce littéral n'est pas traduit : c'est la marque du geste.
+**S'attarder.** Le geste ne s'éveille que si le curseur reste **2 s** sur les barres (ou le focus clavier, 2 s sur le bouton). Partir avant ne laisse aucune trace et remet le compte à zéro. Avant l'éveil, un clic ou Entrée ne fait rien : les barres ne sont que des barres.
 
-À chaque temps `t` (0 à 5), la position `i` prend la lettre `S I Ξ R Λ K` d'index `(3i + 7t) mod 6`. Pas de `Math.random` : le geste est le même à chaque fois.
+**Révéler, en domino.** Éveillé, le bloc s'élargit en douceur (700 ms) de la largeur des barres à celle du littéral. Les glyphes de `<insert code>` tombent alors un à un, de gauche à droite, à 85 ms d'intervalle. Chacun bascule depuis le haut et tourne 340 ms sur les lettres `S I Ξ R Λ K` avant de se poser. Sous la vague, les barres s'effacent de gauche à droite. L'ensemble dure environ 1,4 s. Le littéral, chevrons compris, n'est pas traduit : c'est la marque du geste.
+
+Au pas `k`, le glyphe `i` montre la lettre d'index `(3i + 7k) mod 6`. Pas de `Math.random` : le geste est le même à chaque fois.
 
 Couleur `var(--gold)`, halo léger `0 0 3px var(--gold-line)`. Quitter le bouton (souris ou focus) sans l'ouvrir rend les barres.
 
-**Ouvrir.** Le survol ne fait que révéler : il ne prend jamais le focus, pour ne pas voler la frappe d'un autre champ quand la souris passe sur le pied. Un clic, ou Entrée / Espace au clavier, remplace le bouton par le champ et y met le focus.
+**Ouvrir.** L'éveil ne prend jamais le focus, pour ne pas voler la frappe d'un autre champ. Une fois éveillé, un clic, ou Entrée / Espace au clavier, remplace le bouton par le champ et y met le focus.
 
 **Saisir.** Le champ est `<insert code>` lui-même : ni bordure, ni fond, ni placeholder. Ce qui est tapé ou collé prend la place du littéral, caractère par caractère, dans le même rouge léger. Le champ a le même nom accessible que le bouton. Les codes étant longs, on les colle ; le champ défile sur sa largeur.
 
 - Entrée soumet.
 - Échap, ou la perte du focus sans soumission, rend les barres. Le texte saisi est oublié.
 
-**Mouvement réduit.** Sous `prefers-reduced-motion: reduce`, les lettres ne tournent pas : le littéral, puis le nom, apparaissent directement. La règle CSS du bas de `tokens.css` ne touche pas les minuteries JavaScript, donc le composant lit lui-même la préférence.
+**Mouvement réduit.** Sous `prefers-reduced-motion: reduce`, l'attente de 2 s demeure, mais rien ne tourne ni ne tombe : le littéral, puis le nom, apparaissent d'un coup. La règle CSS du bas de `tokens.css` ne touche pas les minuteries JavaScript, donc le composant lit lui-même la préférence.
 
-La largeur du littéral (13 caractères) dépasse celle des barres (64 px) : pendant le geste, le bloc s'élargit vers la gauche. Hors geste, il retrouve exactement les barres.
+La largeur du littéral (13 caractères) dépasse celle des barres (64 px) : éveillé, le bloc s'élargit vers la gauche. Hors geste, il retrouve exactement les barres.
 
 ---
 
@@ -93,10 +95,15 @@ La largeur du littéral (13 caractères) dépasse celle des barres (64 px) : pen
 Un seul geste :
 
 1. Le champ se verrouille pendant la vérification.
-2. Code accepté : le champ se referme et les barres se reforment dans leur rectangle de 64 × 10 px. Dans les mêmes 420 ms, le nœud du nom apparaît avant les barres : ses lettres tournent dans l'ordre inverse (`t` de 5 à 0) et se posent sur le nom signé.
+2. Code accepté : le champ se referme et les barres se reforment dans leur rectangle de 64 × 10 px (600 ms). Puis le nom **sort des barres**, glyphe après glyphe : le dernier, côté barres, d'abord, jusqu'au premier.
+   - Chaque glyphe glisse depuis les barres, flou puis net, et tourne environ 1,1 s sur les lettres du Lab avant de se poser.
+   - L'écart entre deux glyphes est d'environ 340 ms, légèrement irrégulier, mais toujours le même : le mouvement est organique sans être aléatoire.
+   - Pour un nom long, l'écart se resserre : le tout ne dépasse pas 6 s.
+   - La place du nom est réservée dès le départ : les barres et `[ SIΞRRΛSKΛ ]` ne bougent pas pendant l'émergence.
+   - Au lancement suivant, le nom est déjà là : il n'émerge pas.
 3. Code refusé : le champ se referme, les barres reviennent, le nom déjà affiché reste. Un toast dit `tr('Siège refusé', 'Seat refused', 'Asiento rechazado')`, sans motif ni copie de la ligne.
 
-Le geste reste disponible : un nouveau survol révèle `<insert code>` sur les barres seulement. Le nom affiché ne s'efface pas pendant la saisie. Un code valide le remplace.
+Le geste reste disponible : 2 s de survol révèlent de nouveau `<insert code>` sur les barres seulement. Le nom affiché ne s'efface pas pendant la saisie. Un code valide le remplace.
 
 ---
 

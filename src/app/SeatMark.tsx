@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { tr, useI18n } from '@/i18n';
 import { desk, type SeatApi } from '@/lib/desk';
 import { useUi } from '@/store/ui';
-import { scrambleFrame, scrambleSteps, SEAT_PROMPT, SEAT_STEP_MS, SEAT_STEPS } from './seatScramble';
+import { glyphDelays, glyphsAt, glyphsDuration, SEAT_DOMINO, SEAT_DWELL_MS, SEAT_EMERGE, SEAT_PROMPT, SEAT_REFORM_MS, SEAT_TICK_MS, type GlyphPlan } from './seatGlyphs';
 import s from './seatMark.module.css';
 
 /**
@@ -17,77 +17,126 @@ export function SeatMark({ children }: { children: ReactNode }) {
 
 type Mode = 'rest' | 'open' | 'locked';
 
+const PROMPT_LENGTH = [...SEAT_PROMPT].length;
+const PROMPT_DURATION = glyphsDuration(PROMPT_LENGTH, SEAT_DOMINO);
+/** Les barres s'effacent sous la vague : elles commencent sous le quatrième glyphe et finissent avec elle. */
+const WIPE_DELAY = glyphDelays(PROMPT_LENGTH, SEAT_DOMINO)[3] ?? 0;
+
 function reducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-/** Fait tourner `target` (six temps de 70 ms) puis le pose ; directement sous mouvement réduit. */
-function useScramble(): { text: string; run: (target: string, reverse: boolean) => void; stop: () => void; set: (text: string) => void } {
-  const [text, setText] = useState('');
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const stop = useCallback(() => {
-    for (const t of timers.current.splice(0)) clearTimeout(t);
+/**
+ * Horloge d'un geste : `t` avance par pas de 30 ms jusqu'à `duration`, après `delay` (pendant lequel
+ * `t` vaut -1 : rien n'est encore paru). Sous mouvement réduit, `t` saute directement à la fin.
+ */
+function useGestureClock(): { t: number | null; start: (duration: number, delay?: number) => void; stop: () => void } {
+  const [t, setT] = useState<number | null>(null);
+  const timers = useRef<{ wait?: ReturnType<typeof setTimeout>; tick?: ReturnType<typeof setInterval> }>({});
+  const clear = useCallback(() => {
+    clearTimeout(timers.current.wait);
+    clearInterval(timers.current.tick);
+    timers.current = {};
   }, []);
-  const run = useCallback(
-    (target: string, reverse: boolean) => {
-      stop();
+  const stop = useCallback(() => {
+    clear();
+    setT(null);
+  }, [clear]);
+  const start = useCallback(
+    (duration: number, delay = 0) => {
+      clear();
       if (reducedMotion()) {
-        setText(target);
+        setT(duration);
         return;
       }
-      scrambleSteps(reverse).forEach((step, k) => {
-        timers.current.push(setTimeout(() => setText(scrambleFrame(target, step)), k * SEAT_STEP_MS));
-      });
-      timers.current.push(setTimeout(() => setText(target), SEAT_STEPS * SEAT_STEP_MS));
+      const run = () => {
+        let now = 0;
+        setT(0);
+        timers.current.tick = setInterval(() => {
+          now += SEAT_TICK_MS;
+          if (now >= duration) {
+            clearInterval(timers.current.tick);
+            setT(duration);
+          } else setT(now);
+        }, SEAT_TICK_MS);
+      };
+      if (delay > 0) {
+        setT(-1);
+        timers.current.wait = setTimeout(run, delay);
+      } else run();
     },
-    [stop],
+    [clear],
   );
-  useEffect(() => stop, [stop]);
-  return { text, run, stop, set: setText };
+  useEffect(() => clear, [clear]);
+  return { t, start, stop };
+}
+
+/** Une rangée de glyphes au temps `t` ; ceux qui attendent gardent leur place, invisibles. */
+function Glyphs({ text, t, plan, turnClass }: { text: string; t: number; plan: GlyphPlan; turnClass: string | undefined }) {
+  return (
+    <>
+      {glyphsAt(text, t, plan).map((g, i) => (
+        <span
+          key={i}
+          className={g.phase === 'wait' ? s.wait : g.phase === 'turn' ? turnClass : s.set}
+          style={g.phase === 'turn' ? { animationDuration: `${plan.spin}ms` } : undefined}
+        >
+          {g.char}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function SeatGesture({ api, children }: { api: SeatApi; children: ReactNode }) {
   useI18n((st) => st.locale);
   const toast = useUi((u) => u.toast);
   const [client, setClient] = useState<string | null>(null);
-  const name = useScramble();
-  const prompt = useScramble();
   const [mode, setMode] = useState<Mode>('rest');
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
+  const [armed, setArmed] = useState(false);
   const [value, setValue] = useState('');
   const [reform, setReform] = useState(false);
+  const prompt = useGestureClock();
+  const name = useGestureClock();
   const input = useRef<HTMLInputElement>(null);
   const label = tr('Inscrire un siège', 'Register a seat', 'Inscribir un asiento');
 
-  const { set: setName } = name;
   useEffect(() => {
     let live = true;
     api
       .status()
       .then((seat) => {
-        // Au lancement, le nom est déjà là : il ne tourne pas.
-        if (live && seat) {
-          setClient(seat.client);
-          setName(seat.client);
-        }
+        // Au lancement, le nom est déjà là : il n'émerge pas.
+        if (live && seat) setClient(seat.client);
       })
       .catch(() => undefined);
     return () => {
       live = false;
     };
-  }, [api, setName]);
+  }, [api]);
 
-  const revealed = mode === 'rest' && (hover || focus);
-  const { run: runPrompt, stop: stopPrompt } = prompt;
+  // Le geste ne s'éveille qu'après 2 s de présence sur les barres ; partir avant ne laisse aucune trace.
+  const engaged = mode === 'rest' && (hover || focus);
   useEffect(() => {
-    if (!revealed) {
+    if (!engaged) {
+      setArmed(false);
+      return;
+    }
+    const id = setTimeout(() => setArmed(true), SEAT_DWELL_MS);
+    return () => clearTimeout(id);
+  }, [engaged]);
+
+  const { start: startPrompt, stop: stopPrompt } = prompt;
+  useEffect(() => {
+    if (!armed) {
       stopPrompt();
       return;
     }
     setReform(false);
-    runPrompt(SEAT_PROMPT, false);
-  }, [revealed, runPrompt, stopPrompt]);
+    startPrompt(PROMPT_DURATION);
+  }, [armed, startPrompt, stopPrompt]);
 
   useEffect(() => {
     if (mode === 'open') input.current?.focus();
@@ -107,7 +156,8 @@ function SeatGesture({ api, children }: { api: SeatApi; children: ReactNode }) {
     const result = await api.submit(line).catch(() => ({ ok: false as const }));
     if (result.ok) {
       setClient(result.client);
-      name.run(result.client, true);
+      // Les barres se reforment, puis le nom en sort, glyphe après glyphe.
+      name.start(glyphsDuration([...result.client].length, SEAT_EMERGE), SEAT_REFORM_MS);
     } else {
       toast(tr('Siège refusé', 'Seat refused', 'Asiento rechazado'), 'warn');
     }
@@ -120,27 +170,34 @@ function SeatGesture({ api, children }: { api: SeatApi; children: ReactNode }) {
     <>
       {client && (
         <span className={s.name} title={client}>
-          <span aria-hidden>{name.text}</span>
+          <span aria-hidden>{name.t === null ? client : <Glyphs text={client} t={name.t} plan={SEAT_EMERGE} turnClass={s.rise} />}</span>
           <span className={s.srOnly}>{client}</span>
         </span>
       )}
       {mode === 'rest' ? (
         <button
           type="button"
-          className={s.trigger}
+          className={armed ? `${s.trigger} ${s.armed}` : s.trigger}
           aria-label={label}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           onClick={() => {
+            // Avant l'éveil, les barres ne sont que des barres.
+            if (!armed) return;
             setValue('');
             setMode('open');
           }}
         >
-          {revealed ? (
-            <span className={s.prompt} aria-hidden>
-              {prompt.text}
+          {armed && prompt.t !== null ? (
+            <span className={s.row} aria-hidden>
+              <span className={s.wipe} style={{ animationDelay: `${WIPE_DELAY}ms`, animationDuration: `${PROMPT_DURATION - WIPE_DELAY}ms` }}>
+                {children}
+              </span>
+              <span className={s.prompt}>
+                <Glyphs text={SEAT_PROMPT} t={prompt.t} plan={SEAT_DOMINO} turnClass={s.fall} />
+              </span>
             </span>
           ) : (
             <span className={reform ? s.reform : s.bars} onAnimationEnd={() => setReform(false)}>
@@ -172,7 +229,7 @@ function SeatGesture({ api, children }: { api: SeatApi; children: ReactNode }) {
               if (mode === 'open') close();
             }}
           />
-          {typed < [...SEAT_PROMPT].length && (
+          {typed < PROMPT_LENGTH && (
             <span className={s.rest} aria-hidden>
               {[...SEAT_PROMPT].slice(typed).join('')}
             </span>
