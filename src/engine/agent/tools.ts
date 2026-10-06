@@ -4,7 +4,7 @@ import { resolveSymbol } from '@/engine/instruments';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { tr } from '@/i18n';
-import { aggregateByDate, computeDailyStats, computeTradeStats, type Bucket } from '@/engine/metrics';
+import { aggregateByDate, computeDailyStats, computeTradeStats, sessionDates, type Bucket } from '@/engine/metrics';
 import { monteCarlo } from '@/engine/montecarlo';
 import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
@@ -347,14 +347,16 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'journal_breakdown',
       kind: 'read',
       description:
-        'Ventilations du journal : par heure d’entrée et par jour de semaine (heure de New York), par instrument, long / short. Filtres optionnels de dates et de compte. Seuls les créneaux qui portent des trades sont rendus.',
+        'Ventilations du journal, comme l’onglet Analyse : par heure d’entrée (heure de New York), par jour de semaine de la séance (journée de cotation CME, 18 h → 17 h ET : un trade du dimanche soir compte le lundi), par instrument, long / short. Filtres optionnels de dates et de compte. Seuls les créneaux qui portent des trades sont rendus.',
       parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
       async run(args) {
-        const { trades, account } = journalSlice(ports, args);
-        const t = computeTradeStats(trades);
+        const { sessions, trades, account } = journalSlice(ports, args);
+        // Même clé de jour que l'onglet Analyse : la date de la séance de chaque trade.
+        const t = computeTradeStats(trades, sessionDates(sessions));
         const dir = (d: typeof t.long) => ({ trades: d.count, pnl: round(d.pnl), winRate: round(d.winRate, 4), avgPnl: round(d.avgPnl) });
         return {
           timezone: 'America/New_York',
+          dayBasis: 'cme_session',
           account: account || null,
           trades: t.count,
           netPnl: round(t.netPnl),
@@ -652,8 +654,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'journal_breakdown':
       return tr(
         fallback,
-        'Journal breakdowns: by entry hour and weekday (New York time), by instrument, long / short. Optional date and account filters. Only slots with trades are returned.',
-        'Desgloses del diario: por hora de entrada y día de la semana (hora de Nueva York), por instrumento, largo / corto. Filtros opcionales de fechas y cuenta. Solo se devuelven las franjas con trades.',
+        'Journal breakdowns, as on the Analysis tab: by entry hour (New York time), by weekday of the session (CME trading day, 6 pm → 5 pm ET: a Sunday-evening trade counts on Monday), by instrument, long / short. Optional date and account filters. Only slots with trades are returned.',
+        'Desgloses del diario, como en la pestaña Análisis: por hora de entrada (hora de Nueva York), por día de la semana de la sesión (jornada de negociación CME, 18 h → 17 h ET: un trade del domingo por la noche cuenta el lunes), por instrumento, largo / corto. Filtros opcionales de fechas y cuenta. Solo se devuelven las franjas con trades.',
       );
     case 'monte_carlo':
       return tr(
