@@ -126,4 +126,76 @@ describe('collecte des événements dans le desk', () => {
     expect(useDeskEvents.getState().running).toBe(false);
     expect(onExecution).toBeNull();
   });
+
+  it('perte du jour et discipline : seuils une fois chacun, constats à chaque fill d’entrée', async () => {
+    vi.useFakeTimers();
+    // 09:00 à New York, le 14 octobre 2026 : le CPI estimé de 08:30 est passé.
+    vi.setSystemTime(Date.UTC(2026, 9, 14, 13, 0));
+    const pushed: [string, { seq: number; data: Record<string, unknown> }][] = [];
+    const listeners: ((p: unknown) => void)[] = [];
+    vi.stubGlobal('window', {
+      location: { search: '' },
+      canto: {
+        orchestrator: { broadcast: (event: string, payload: never) => pushed.push([event, payload]) },
+        ntbridge: {
+          onExecution: (cb: (p: unknown) => void) => {
+            listeners.push(cb);
+            return () => listeners.splice(listeners.indexOf(cb), 1);
+          },
+        },
+      },
+    });
+    vi.resetModules();
+    const { useDeskEvents, PROP_THROTTLE_MS, DISCIPLINE_SETTLE_MS } = await import('@/store/deskEvents');
+    const { useBridge } = await import('@/store/bridge');
+    const { useJournal } = await import('@/store/journal');
+    const { useMacro } = await import('@/store/macro');
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: 'tpt-50', planAccount: 'PA-1', traderRules: { ...DEFAULT_SETTINGS.traderRules, maxDailyLoss: 500, maxTradesPerDay: 1, catalystBlackoutMin: 45 } } });
+    useJournal.setState({ sessions: [], trades: [] });
+    useMacro.setState({ events: [] });
+    const nt = (unrealizedPnl: number) => ({ link: 'live', addonVersion: '2.2.0', accounts: [{ name: 'PA-1', cashValue: 50_000, realizedPnl: 0, unrealizedPnl, positions: [] }, { name: 'Sim101', cashValue: 0, realizedPnl: 0, unrealizedPnl: -9_000, positions: [] }] }) as never;
+    useBridge.setState({ nt: nt(0) });
+    const kinds = (k: string) => pushed.filter(([kind]) => kind === k).map(([, p]) => p.data);
+
+    const stop = useDeskEvents.getState().start();
+    await vi.advanceTimersByTimeAsync(PROP_THROTTLE_MS);
+    expect(kinds('daily_loss')).toEqual([]);
+    // Latent −260 sur une limite de 500 (règle du trader, plus basse que les 1 100 $ du plan) : 52 %.
+    useBridge.setState({ nt: nt(-260) });
+    await vi.advanceTimersByTimeAsync(PROP_THROTTLE_MS);
+    // Perte réalisée −300 et latent −100 : 80 %. Un latent positif ne compterait pas.
+    const exit = Date.UTC(2026, 9, 14, 12, 58);
+    useJournal.setState({
+      sessions: [{ id: 's1', date: '2026-10-14', account: 'PA-1', instruments: ['MNQ'], source: 'ninjatrader', tradeCount: 1, pnl: -300, grossProfit: 0, grossLoss: -300, commission: 0, tags: [], createdAt: 0, updatedAt: 0 }],
+      trades: [{ id: 't1', sessionId: 's1', instrument: 'MNQ', account: 'PA-1', direction: 'long', qty: 1, entryTime: exit - 18 * 60_000, exitTime: exit, entryPrice: 20_000, exitPrice: 19_850, pnl: -300, commission: 0 }],
+    });
+    useBridge.setState({ nt: nt(-100) });
+    await vi.advanceTimersByTimeAsync(PROP_THROTTLE_MS);
+    useBridge.setState({ nt: nt(-90) });
+    await vi.advanceTimersByTimeAsync(PROP_THROTTLE_MS);
+    expect(kinds('daily_loss').map((d) => [d.threshold, d.loss, d.limit, d.source, d.day])).toEqual([
+      [0.5, 260, 500, 'trader', '2026-10-14'],
+      [0.75, 400, 500, 'trader', '2026-10-14'],
+    ]);
+
+    // Fill d'entrée 1 NQ deux minutes après la perte, puis son remplissage partiel, puis une sortie.
+    const fill = (quantity: number, entryExit: string, account = 'PA-1') => ({ account, instrument: 'NQ 12-26', action: 'Buy', quantity, price: 21_000, time: Date.now(), entryExit });
+    for (const cb of listeners) cb({ csv: '', executionId: 'x1', fill: fill(1, 'Entry') });
+    const entrySeq = pushed.at(-1)?.[1].seq;
+    await vi.advanceTimersByTimeAsync(500);
+    for (const cb of listeners) cb({ csv: '', executionId: 'x2', fill: fill(1, 'Entry') });
+    for (const cb of listeners) cb({ csv: '', executionId: 'x3', fill: fill(1, 'Exit', 'Sim101') });
+    expect(kinds('discipline')).toEqual([]);
+    await vi.advanceTimersByTimeAsync(DISCIPLINE_SETTLE_MS);
+    const found = kinds('discipline');
+    expect(found.map((d) => d.finding)).toEqual(['revenge_entry', 'size_up_after_loss', 'catalyst_window', 'over_max_trades']);
+    expect(found.every((d) => d.fillSeq === entrySeq && d.account === 'PA-1' && d.day === '2026-10-14')).toBe(true);
+    expect(found[2]?.detail).toMatchObject({ title: 'Inflation CPI', windowMin: 45 });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(kinds('discipline')).toHaveLength(4);
+
+    stop();
+  });
 });
