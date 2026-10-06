@@ -7,6 +7,7 @@ import { ENTITY_TYPES, LINK_AUTHORS, LINK_KINDS, PREDICATES, type Link } from '@
 import { buildEquityPoints } from '@/engine/portfolio/equity';
 import { CREATABLE_POCKET_KINDS, assertNoCryptoPockets, type CashBalance, type EquityPoint, type FxRate, type Pocket, type Position } from '@/engine/portfolio/types';
 import type { Instrument, Session, Trade } from '@/engine/types';
+import { coerceRoutineSeen } from '@/engine/agent/routineDue';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
@@ -596,6 +597,7 @@ const CHECKS: Record<string, Check> = {
  */
 const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
   'agent.conversation': (v) => (isStr(v, 64) && v.length > 0 ? v : undefined),
+  'agent.routineSeen': (v) => coerceRoutineSeen(v),
   'chart.active': (v) => (v === null || isStr(v, 200) ? v : undefined),
   'chart.indicators': (v) => {
     if (!Array.isArray(v) || v.length > 50) return undefined;
