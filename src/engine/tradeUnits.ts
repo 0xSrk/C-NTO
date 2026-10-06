@@ -1,5 +1,5 @@
 import { getInstrument, hasInstrument, standardCounterpart } from './instruments';
-import type { Trade } from './types';
+import { TRADE_SCHEMA_VERSION, type TagEvent, type Trade } from './types';
 
 type TradeQty = Pick<Trade, 'pnl' | 'commission' | 'qty' | 'instrument'>;
 
@@ -49,6 +49,28 @@ export function exitReasonOf(exitName?: string): ExitReason {
   if (name.includes('target') || name.includes('objectif') || name.includes('profit') || name.includes('cible')) return 'objectif';
   if (name.includes('manual') || name.includes('manuel') || name.includes('close') || name.includes('flat')) return 'manuel';
   return 'autre';
+}
+
+export type TagTiming = 'intention' | 'jugement' | 'inconnue';
+
+/** Intention si l'étiquette est posée avant la sortie, jugement après, inconnue sans date. */
+export function tagTiming(trade: Pick<Trade, 'exitTime' | 'tagEvents'>, tag: string): TagTiming {
+  const events = (trade.tagEvents ?? []).filter((event) => event.tag === tag && event.at != null && Number.isFinite(event.at));
+  const at = events[events.length - 1]?.at;
+  if (at == null) return 'inconnue';
+  return at <= trade.exitTime ? 'intention' : 'jugement';
+}
+
+/** Pose datée : les étiquettes nouvelles reçoivent `at`, les anciennes gardent leur absence de date. */
+export function stampTradeTags(trade: Pick<Trade, 'tags' | 'tagEvents'>, tags: readonly string[], at: number): { tags: string[]; tagEvents: TagEvent[]; schemaVersion: number } {
+  const clean = [...new Set(tags.map((tag) => tag.trim()).filter((tag) => tag.length > 0 && tag.length <= 40))].slice(0, 50);
+  const prev = new Set(trade.tags ?? []);
+  const next = new Set(clean);
+  const events = (trade.tagEvents ?? []).filter((event) => next.has(event.tag));
+  for (const tag of clean) {
+    if (!prev.has(tag)) events.push({ tag, at });
+  }
+  return { tags: clean, tagEvents: events, schemaVersion: TRADE_SCHEMA_VERSION };
 }
 export function aggregatePoints(trades: readonly TradeQty[]): PointsAggregate {
   let dollars = 0;

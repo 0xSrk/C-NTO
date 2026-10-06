@@ -29,6 +29,11 @@ export interface Trade {
   entryName?: string;
   exitName?: string;
   tags?: string[];
+  /**
+   * Pose de chaque étiquette. `at` est l'instant de la pose.
+   * Une étiquette ancienne, sans entrée ou sans `at`, est une inconnue.
+   */
+  tagEvents?: TagEvent[];
   /** Risque planifié en USD, pour les multiples de R */
   risk?: number;
   /** Identifiants d'exécutions NT ayant formé ce trade */
@@ -39,6 +44,15 @@ export interface Trade {
   contractMonth?: string;
   schemaVersion?: number;
 }
+
+export interface TagEvent {
+  tag: string;
+  /** epoch ms. Absent : étiquette posée avant ce champ. */
+  at?: number;
+}
+
+/** Fiche trade qui porte `tagEvents`. Les fiches plus anciennes, sans ce champ, restent lisibles. */
+export const TRADE_SCHEMA_VERSION = 2;
 
 export interface Session {
   id: string;

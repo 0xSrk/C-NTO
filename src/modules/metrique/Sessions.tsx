@@ -271,6 +271,39 @@ const SessionRow = memo(function SessionRow({
   );
 });
 
+function TradeTagField({ trade }: { trade: Trade }) {
+  const updateTrade = useJournal((j) => j.updateTrade);
+  const [value, setValue] = useState('');
+  const tags = trade.tags ?? [];
+  const add = () => {
+    const tag = value.trim();
+    setValue('');
+    if (!tag || tags.includes(tag)) return;
+    void updateTrade(trade.id, { tags: [...tags, tag] });
+  };
+  return (
+    <div className={s.tags} style={{ marginTop: 4 }}>
+      {tags.map((tag) => (
+        <span key={tag}>
+          {tag}{' '}
+          <button type="button" onClick={() => void updateTrade(trade.id, { tags: tags.filter((x) => x !== tag) })} style={{ color: 'inherit', opacity: 0.7 }} aria-label={`${tr('Retirer', 'Remove', 'Quitar')} ${tag}`}>
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && add()}
+        onBlur={add}
+        placeholder={tr('+ tag', '+ tag', '+ etiqueta')}
+        aria-label={tr('Étiquette du trade', 'Trade tag', 'Etiqueta del trade')}
+        style={{ height: 22, padding: '0 6px', fontSize: 11, width: 72 }}
+      />
+    </div>
+  );
+}
+
 function SessionDetail({ session, trades, onDeleted }: { session: Session; trades: Trade[]; onDeleted: () => void }) {
   useI18n((s) => s.locale);
   const updateSession = useJournal((j) => j.updateSession);
@@ -464,6 +497,7 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
                         {t.direction === 'long' ? 'L' : 'S'} {t.qty}
                       </Tag>{' '}
                       <span className="dim">{t.instrument}</span>
+                      <TradeTagField trade={t} />
                     </td>
                     <td className="num muted" style={{ lineHeight: 1.25 }}>
                       {fmtPrice(t.entryPrice)}

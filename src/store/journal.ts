@@ -9,6 +9,7 @@ import { listenWorker } from '@/lib/worker';
 import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { summarizeTrades } from '@/engine/metrics';
 import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
+import { stampTradeTags } from '@/engine/tradeUnits';
 import { uid } from '@/lib/id';
 import { db, type ImportedExecution, type StoredOpenLot } from './db';
 import { withJournalLock } from './lock';
@@ -179,8 +180,11 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 
   async updateTrade(id, patch) {
-    await db.trades.update(id, patch);
-    set({ trades: get().trades.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+    const current = get().trades.find((t) => t.id === id);
+    if (!current) return;
+    const next = patch.tags ? { ...patch, ...stampTradeTags(current, patch.tags, Date.now()) } : patch;
+    await db.trades.update(id, next);
+    set({ trades: get().trades.map((t) => (t.id === id ? { ...t, ...next } : t)) });
     scheduleOntologyRecompute();
   },
 

@@ -446,6 +446,7 @@ const CHECKS: Record<string, Check> = {
     opt(r.entryName, (v) => isStr(v, 200)) &&
     opt(r.exitName, (v) => isStr(v, 200)) &&
     opt(r.tags, (v) => isStrArray(v, 50, 40)) &&
+    opt(r.tagEvents, (v) => Array.isArray(v) && v.length <= 50 && v.every((e) => isRec(e) && isStr(e.tag, 40) && opt(e.at, isNum))) &&
     opt(r.executionIds, (v) => isStrArray(v, 64, 200)) &&
     opt(r.orderIds, (v) => isStrArray(v, 64, 200)) &&
     opt(r.contractMonth, (v) => isStr(v, 16)),

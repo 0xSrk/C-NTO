@@ -4,7 +4,7 @@ import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, dayHourGrid, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
-import { aggregatePoints, exitReasonOf, type ExitReason } from '@/engine/tradeUnits';
+import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
@@ -78,6 +78,12 @@ function weekdayLabel(key: string): string {
 }
 
 function displayGroupKey(key: string): string {
+  const timed = /^(intention|jugement|inconnue):(.*)$/.exec(key);
+  if (timed) {
+    const kind =
+      timed[1] === 'intention' ? tr('intention', 'intention', 'intención') : timed[1] === 'jugement' ? tr('jugement', 'judgment', 'juicio') : tr('inconnue', 'unknown', 'desconocida');
+    return `${timed[2]} · ${kind}`;
+  }
   if (key === 'Sans stratégie') return tr('Sans stratégie', 'No strategy', 'Sin estrategia');
   if (['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'].includes(key)) return weekdayLabel(key);
   return key;
@@ -243,7 +249,7 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
   const [rankMode, setRankMode] = useState<'strategie' | 'tag' | 'taille'>('strategie');
 
   const byStrategy = useMemo(() => groupBy(trades, (x) => [x.strategy ?? 'Sans stratégie']), [trades]);
-  const byTag = useMemo(() => groupBy(trades.filter((x) => x.tags?.length), (x) => x.tags ?? []), [trades]);
+  const byTag = useMemo(() => groupBy(trades.filter((x) => x.tags?.length), (x) => (x.tags ?? []).map((tag) => `${tagTiming(x, tag)}:${tag}`)), [trades]);
   const byInstrument = useMemo(() => groupBy(trades, (x) => [x.instrument]), [trades]);
   const byQty = useMemo(() => groupBy(trades, (x) => [`${x.qty} ct`]).sort((a, b) => parseInt(a.key) - parseInt(b.key)), [trades]);
 
