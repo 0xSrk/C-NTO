@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
+import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
 import { fmtInt, fmtPct, fmtRatio, plural } from '@/lib/format';
@@ -8,7 +9,7 @@ import { dateTimeFormatter, parseDateKey } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './dashboard.module.css';
-import { metricDrawdownLimit } from './drawdownLimit';
+import { drawdownGauge, metricDrawdownLimit } from './drawdownLimit';
 import { EquityCard } from './EquityChart';
 import type { MetricRange } from './range';
 import type { Session, Trade } from '@/engine/types';
@@ -34,6 +35,7 @@ export function Dashboard({
   trades,
   range,
   period,
+  history,
   journalEmpty,
   onImport,
   onDemo,
@@ -44,6 +46,8 @@ export function Dashboard({
   range: MetricRange;
   /** Bornes de la période affichée : la base des ratios annualisés. `from` nul : depuis la première séance. */
   period: { from: string | null; to: string };
+  /** Tout l'historique du compte filtré : le plancher d'un plan n'en dépend pas de la période. */
+  history: { sessions: Session[]; trades: Trade[] };
   journalEmpty: boolean;
   onImport: () => void;
   onDemo: () => void;
@@ -57,6 +61,10 @@ export function Dashboard({
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
   const daily = useMemo(() => computeDailyStats(sessions, startingBalance, 20, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to]);
   const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount });
+  const gauge = useMemo(
+    () => drawdownGauge({ plan: limit != null ? (findPlan(planId) ?? null) : null, account: metricAccount, history, maxDrawdown: daily.maxDrawdown, startingBalance }),
+    [limit, planId, metricAccount, history, daily.maxDrawdown, startingBalance],
+  );
   const breakeven = breakevenWinRate(stats.payoffRatio);
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
   const last = ordered.slice(-5).reverse();
@@ -77,7 +85,6 @@ export function Dashboard({
   const winPart = Math.abs(stats.avgWin);
   const lossPart = Math.abs(stats.avgLoss);
   const split = winPart + lossPart || 1;
-  const ddRatio = limit && limit > 0 ? Math.min(1, daily.maxDrawdown / limit) : daily.maxDrawdown > 0 ? Math.min(1, daily.maxDrawdown / (startingBalance || daily.maxDrawdown)) : 0;
   const pf = Number.isFinite(stats.profitFactor) ? Math.min(3, stats.profitFactor) : 3;
 
   if (journalEmpty) {
@@ -236,23 +243,37 @@ export function Dashboard({
           <div className={s.kHead}>
             <span>
               <span className={s.code}>K.04 </span>
-              <span className={s.kName}>{tr('Drawdown max', 'Max drawdown', 'Drawdown máx.')}</span>
+              <span className={s.kName}>{gauge.kind === 'plan' ? tr('Marge au plancher', 'Margin to floor', 'Margen al suelo') : tr('Drawdown max', 'Max drawdown', 'Drawdown máx.')}</span>
             </span>
-            {limit != null ? (
+            {gauge.limit != null ? (
               <span className={s.hint}>
-                / <Montant value={limit} />
+                / <Montant value={gauge.limit} />
               </span>
             ) : null}
           </div>
-          <Montant className={`${s.kValue} ${s.neg}`} value={-daily.maxDrawdown} />
+          {gauge.kind === 'plan' ? <Montant className={`${s.kValue} ${gauge.margin < gauge.limit * 0.25 ? s.neg : ''}`} value={gauge.margin} /> : <Montant className={`${s.kValue} ${s.neg}`} value={-gauge.maxDrawdown} />}
           <div>
             <div className={s.hatch} aria-hidden>
-              <i style={{ width: `${ddRatio * 100}%` }} />
+              <i style={{ width: `${gauge.used * 100}%` }} />
             </div>
-            <div className={s.pair}>
-              <span className={s.hint}>{limit != null && limit > 0 ? `${fmtPct(daily.maxDrawdown / limit, 1)} ${tr('DE LA LIMITE', 'OF THE LIMIT', 'DEL LÍMITE')}` : ''}</span>
-              <span className={s.hint}>{plural(daily.maxDrawdownDays, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
-            </div>
+            {gauge.kind === 'plan' ? (
+              <div className={s.pair}>
+                <span className={s.hint}>
+                  {tr('PLANCHER', 'FLOOR', 'SUELO')} {fmtInt(gauge.floor)} · {tr('PLUS-HAUT', 'HIGH', 'MÁXIMO')} {fmtInt(gauge.highWater)}
+                </span>
+                <span className={s.hint}>
+                  {tr('PLUS-BAS DERNIÈRE SÉANCE', 'LAST SESSION LOW', 'MÍNIMO ÚLTIMA SESIÓN')} {fmtInt(gauge.lastLow)}
+                </span>
+              </div>
+            ) : (
+              <div className={s.pair}>
+                <span className={s.hint}>
+                  {gauge.limit != null && gauge.limit > 0 ? `${fmtPct(gauge.maxDrawdown / gauge.limit, 1)} ${tr('DE LA LIMITE', 'OF THE LIMIT', 'DEL LÍMITE')} · ` : ''}
+                  {tr('SUR CLÔTURES, PÉRIODE AFFICHÉE', 'ON CLOSES, SHOWN RANGE', 'EN CIERRES, PERÍODO MOSTRADO')}
+                </span>
+                <span className={s.hint}>{plural(daily.maxDrawdownDays, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
+              </div>
+            )}
           </div>
         </div>
       </section>

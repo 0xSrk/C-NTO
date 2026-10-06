@@ -134,6 +134,8 @@ export default function Metrique() {
   const asOf = etDateKey(Date.now());
   const filtered = useMemo(() => filterJournal(sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
   const ordered = useMemo(() => [...filtered.sessions].sort((a, b) => a.date.localeCompare(b.date)), [filtered.sessions]);
+  // Tout l'historique du compte filtré : la marge d'un plan suivi ne dépend pas de la période.
+  const history = useMemo(() => scopeFor('prop', sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
   const scope = useMemo(() => (view === 'analyse' || view === 'prop' || view === 'mc' ? scopeFor(view, sessions, trades, range, asOf, metricAccount) : null), [view, sessions, trades, range, asOf, metricAccount]);
   // Ce que l'onglet fait des filtres de l'en-tête.
   const scopeNote =
@@ -236,6 +238,7 @@ export default function Metrique() {
             trades={filtered.trades}
             range={range}
             period={{ from: rangeFrom(range, asOf), to: asOf }}
+            history={history}
             journalEmpty={sessions.length === 0}
             onImport={() => setModal('import')}
             onDemo={onDemo}

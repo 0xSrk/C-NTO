@@ -324,3 +324,26 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
     planVersion: plan.version,
   };
 }
+
+export interface PlanMargin {
+  highWater: number;
+  floor: number;
+  /** Plus-bas du solde pendant la dernière séance rejouée, excursions défavorables comprises. */
+  lastLow: number;
+  /** Ce qui restait au plancher au pire moment de la dernière séance. */
+  margin: number;
+}
+
+/**
+ * Marge réelle d'un rejeu : plus-bas de la dernière séance (MAE comprise) moins le plancher en
+ * vigueur. Plus prudente que `buffer` (solde de clôture − plancher) : c'est la marge que la séance
+ * a vraiment laissée.
+ */
+export function planMargin(ev: PropEvaluation): PlanMargin | null {
+  const last = ev.timeline[ev.timeline.length - 1];
+  if (!last) return null;
+  const open = last.balance - last.dayPnl;
+  const lastLow = Math.min(last.balance, open + last.intradayLow);
+  return { highWater: ev.highWater, floor: ev.floor, lastLow, margin: lastLow - ev.floor };
+}
+
