@@ -1,7 +1,7 @@
 /**
  * Mémoire du trader pour l'agent : ses règles actives, le plan prop suivi, ses leçons, son playbook et sa
- * note « Plan de trading ». Pur. Seules les notes écrites par le trader comptent : une note d'agent
- * (`by: 'agent'`) n'y entre jamais, sinon elle deviendrait une consigne permanente.
+ * note « Plan de trading ». Pur. Une note d'agent (`by: 'agent'`) n'y entre que si le trader l'a adoptée
+ * (`adoptedAt`), sinon elle deviendrait une consigne permanente.
  */
 import { tr } from '@/i18n';
 import type { TraderRules } from '../discipline';
@@ -106,7 +106,7 @@ export function traderMemory(input: TraderMemoryInput): TraderMemory {
     const isLesson = tags.some((t) => LESSONS.has(t));
     const isPlaybook = tags.some((t) => PLAYBOOK.has(t));
     if (!isPlan && !isLesson && !isPlaybook) continue;
-    if (n.by === 'agent') {
+    if (n.by === 'agent' && !(typeof n.adoptedAt === 'number' && Number.isFinite(n.adoptedAt))) {
       excludedAgentNotes++;
       continue;
     }

@@ -18,6 +18,8 @@ export interface DeskNote {
   question?: string;
   /** `agent` : note écrite par un agent IA. Absent : le trader. */
   by?: 'agent';
+  /** Pose du trader qui reprend une note d'agent dans sa mémoire. Absent : non adoptée. */
+  adoptedAt?: number;
 }
 
 export interface DeskCalendarEntry {

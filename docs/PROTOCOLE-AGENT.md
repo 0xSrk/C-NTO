@@ -45,7 +45,7 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | `search_notes` / `read_note` | lecture | Coffre de notes |
 | `calendar_events` | lecture | Catalyseurs officiels fusionnés, repères locaux, entrées personnelles (100 au plus, corps coupé à 280 caractères) |
 | `propfirm_status` | lecture | Rejeu du plan prop sur le compte suivi : `buffer`, `margin` datée, `passedOn` / `failedOn` |
-| `trader_memory` | lecture | Mémoire du trader : règles chiffrées actives, plan prop suivi, note « Plan de trading », leçons (#leçon) et playbook (#strategie), avec auteur et date ; les notes d'agent n'y entrent pas |
+| `trader_memory` | lecture | Mémoire du trader : règles chiffrées actives, plan prop suivi, note « Plan de trading », leçons (#leçon) et playbook (#strategie), avec auteur et date ; une note d'agent n'y entre que si le trader l'a adoptée (`adoptedAt`). Aucun outil ne pose ce champ |
 | `discipline_status` | lecture | Journée CME en cours sur le compte suivi : perte du jour (réalisé + latent négatif), limite retenue et sa source, part consommée, trades du jour face au maximum, dérives et écarts du jour, prochain catalyseur majeur et sa fenêtre. Constate, ne bloque rien |
 | `journal_breakdown` | lecture | Profit factor de la tranche (`noLoss` sans perte) ; ventilations par heure d'entrée (New York), jour de la séance (journée CME, `dayBasis: cme_session`), instrument, long / short |
 | `monte_carlo` | lecture | Projection bootstrap i.i.d. sur un compte (`account_required` si la tranche en couvre plusieurs) : percentiles, ruine, objectif (graine fixe) |
