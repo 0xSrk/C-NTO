@@ -17,3 +17,13 @@ describe('metricDrawdownLimit', () => {
     expect(metricDrawdownLimit({ ...base, selected: 'PA-4471', planId: 'inconnu' })).toBeNull();
   });
 });
+
+describe('planTracking', () => {
+  it('propose de suivre le plan pour le compte filtré, le dit une fois suivi, rien sans filtre', async () => {
+    const { planTracking } = await import('@/modules/metrique/drawdownLimit');
+    expect(planTracking('A', '')).toBe('suivre');
+    expect(planTracking('A', 'B')).toBe('suivre');
+    expect(planTracking('A', 'A')).toBe('suivi');
+    expect(planTracking(null, 'A')).toBeNull();
+  });
+});

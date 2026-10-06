@@ -45,3 +45,12 @@ export function drawdownGauge(input: {
   return { kind: 'clotures', limit, maxDrawdown: dd, used };
 }
 
+
+/**
+ * Lien entre le compte filtré et le plan suivi (Firme prop) : `suivre` propose de suivre le plan
+ * pour ce compte, `suivi` le dit ; sans compte filtré, rien (le sélecteur des comptes s'en charge).
+ */
+export function planTracking(filtered: string | null, tracked: string): 'suivre' | 'suivi' | null {
+  if (!filtered) return null;
+  return tracked === filtered ? 'suivi' : 'suivre';
+}
