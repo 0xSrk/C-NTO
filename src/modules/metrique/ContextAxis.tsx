@@ -1,23 +1,15 @@
 import { useMemo, useState } from 'react';
 import { tableClass } from '@/design/primitives';
-import { comparableSet, readAxis, tradingDaysBetween, weekdayKey, type AxisRow, type ReadingSample, type ReadingVerdict } from '@/engine/contextReading';
-import { sessionDates } from '@/engine/metrics';
-import { buildMetricsContext } from '@/engine/metricsContext';
-import { findPlan } from '@/engine/propfirm';
-import { horizonSigma, sigmaBand, sigmaDistance, tradeRisk } from '@/engine/riskConsole';
+import type { AxisRow, ReadingVerdict } from '@/engine/contextReading';
 import type { Session, Trade } from '@/engine/types';
-import { pointsPerContract } from '@/engine/tradeUnits';
 import { tr, useI18n } from '@/i18n';
-import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import { fmtPct, fmtRatio, signClass } from '@/lib/format';
 import { useBars } from '@/store/bars';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
+import { AXES, axisReading, type Axis } from './axisReading';
 import s from './metrique.module.css';
-
-const AXES = ['regime', 'band', 'release', 'rank', 'afterLoss', 'risk', 'sigma', 'weekday', 'hour'] as const;
-type Axis = (typeof AXES)[number];
 
 function axisLabel(axis: Axis): string {
   const labels: Record<Axis, [string, string, string]> = {
@@ -70,69 +62,7 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
   const events = useMacro((st) => st.events);
   const settings = useSettings((st) => st.settings);
   const metricAccount = useUi((st) => st.metricAccount);
-  const rows = useMemo(() => {
-    const chosen = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
-    const context = chosen
-      ? buildMetricsContext({
-          root: chosen.instrument,
-          bars: chosen.bars,
-          trades,
-          sessions,
-          events: events.map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),
-          confirm: settings.regimeConfirm,
-          minStay: settings.regimeMinSessions,
-        })
-      : null;
-    const dates = sessionDates(sessions);
-    const days = context?.days ?? [];
-    const cycleOf = new Map(days.map((day, index) => [day.date, index > 0 ? days[index - 1]?.volCycle : undefined]));
-    const bandOf = new Map(days.map((day, index) => [day.date, index > 0 ? days[index - 1]?.volBand : undefined]));
-    const infoOf = new Map((context?.trades ?? []).map((row) => [row.tradeId, row]));
-    const plan = metricAccount && settings.planAccount === metricAccount ? findPlan(settings.planId) : null;
-    const capital = plan?.maxDrawdown && plan.maxDrawdown > 0 ? plan.maxDrawdown : settings.startingBalance;
-    const span = [...dates.values()].sort();
-    const bounds = tradingDaysBetween(span[0] ?? '', span.at(-1) ?? '');
-    const samples: ReadingSample[] = [];
-    for (const trade of trades) {
-      const date = dates.get(trade.sessionId) ?? '';
-      if (!date) continue;
-      const info = infoOf.get(trade.id);
-      let key: string | null = null;
-      if (axis === 'weekday') key = weekdayKey(date);
-      else if (axis === 'hour') key = String(zonedWallClock(trade.entryTime, ET_ZONE).hour);
-      else if (axis === 'regime') key = cycleOf.get(date) ?? null;
-      else if (axis === 'band') key = bandOf.get(date) ?? null;
-      else if (axis === 'afterLoss' && info) key = info.afterLoss ? 'perte' : 'gain';
-      else if (axis === 'rank' && info) key = String(info.rankInDay);
-      else if (axis === 'release' && info?.minutesToRelease != null) key = info.minutesToRelease >= -settings.releaseBefore && info.minutesToRelease <= settings.releaseAfter ? 'pres' : 'loin';
-      else if (axis === 'risk') {
-        const risk = tradeRisk(trade, settings.riskPerContract, capital);
-        if (risk.lossPct != null) key = risk.lossPct <= settings.riskBasePoints / 100 ? 'dans' : 'dessus';
-      } else if (axis === 'sigma' && settings.impliedVol != null) {
-        const risk = tradeRisk(trade, settings.riskPerContract, capital);
-        const distance = sigmaDistance(risk.stopPoints, horizonSigma(trade.entryPrice, settings.impliedVol, 252));
-        key = distance == null ? null : sigmaBand(distance);
-      }
-      if (!key) continue;
-      samples.push({ date, exitTime: trade.exitTime, points: pointsPerContract(trade), key });
-    }
-    const hourKeys = [...new Set(samples.map((sample) => sample.key))];
-    const calendar =
-      axis === 'weekday'
-        ? bounds.map((date) => ({ date, key: weekdayKey(date) }))
-        : axis === 'hour'
-          ? bounds.flatMap((date) => hourKeys.map((key) => ({ date, key })))
-          : axis === 'regime'
-            ? days.map((day, index) => ({ date: day.date, key: index > 0 ? (days[index - 1]?.volCycle ?? null) : null }))
-            : axis === 'band'
-              ? days.map((day, index) => ({ date: day.date, key: index > 0 ? (days[index - 1]?.volBand ?? null) : null }))
-              : [];
-    const rows = readAxis(samples, calendar, { minTrades: settings.markerMinTrades, fdr: settings.falseDiscoveryRate, draws: 800, seed: 1 });
-    const last = [...days].reverse().find((day) => day.volCycle && day.volBand);
-    const comparable = last?.volCycle && last.volBand ? comparableSet(days, last.volCycle, last.volBand) : null;
-    const thin = comparable != null && ((comparable.hausse?.count ?? 0) < 30 || (comparable.baisse?.count ?? 0) < 30);
-    return { rows, thin };
-  }, [axis, series, activeId, events, trades, sessions, settings, metricAccount]);
+  const rows = useMemo(() => axisReading({ axis, sessions, trades, series, activeId, events, settings, metricAccount }), [axis, series, activeId, events, trades, sessions, settings, metricAccount]);
   return (
     <div className={s.trame}>
       <header className={s.trameHead}>
