@@ -5,6 +5,9 @@ import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, dayHourGrid, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
 import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
+import { buildMetricsContext } from '@/engine/metricsContext';
+import { useBars } from '@/store/bars';
+import { useMacro } from '@/store/macro';
 import { RiskReading } from './RiskReading';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
@@ -104,6 +107,38 @@ function markerName(id: string, kind: 'slot' | 'duration' | 'strategy'): string 
   }
   if (kind === 'duration') return id.slice('duration:'.length);
   return displayGroupKey(id.slice('strategy:'.length));
+}
+
+function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
+  const series = useBars((st) => st.series);
+  const activeId = useBars((st) => st.activeId);
+  const events = useMacro((st) => st.events);
+  const confirm = useSettings((st) => st.settings.regimeConfirm);
+  const minStay = useSettings((st) => st.settings.regimeMinSessions);
+  const note = useMemo(() => {
+    const chosen = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
+    if (!chosen || chosen.bars.length === 0) return null;
+    const result = buildMetricsContext({
+      root: chosen.instrument,
+      bars: chosen.bars,
+      trades,
+      sessions,
+      events: events.map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),
+      confirm,
+      minStay,
+    });
+    if (!result.sufficient) return { enough: false as const };
+    const last = result.days.at(-1);
+    return { enough: true as const, date: last?.date, cycle: last?.volCycle };
+  }, [series, activeId, events, trades, sessions, confirm, minStay]);
+  if (!note || !note.enough) {
+    return <p className={s.note}>{tr('Historique de barres insuffisant', 'Bar history is too short', 'Historial de barras insuficiente')}</p>;
+  }
+  return (
+    <p className={s.note}>
+      {tr('Contexte', 'Context', 'Contexto')} {note.date ?? '—'} · {note.cycle ?? '—'}
+    </p>
+  );
 }
 
 function exitReasonLabel(reason: ExitReason): string {
@@ -540,6 +575,7 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
         </header>
         <InkRank rows={rankRows} label={rankLabel} />
       </section>
+      <ContextNote sessions={sessions} trades={trades} />
       <RiskReading sessions={sessions} trades={trades} />
     </div>
   );

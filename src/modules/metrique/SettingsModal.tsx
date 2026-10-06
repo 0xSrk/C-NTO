@@ -90,6 +90,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('Fausses découvertes', 'False discoveries', 'Falsos descubrimientos')} hint={tr('2,5 % à 10 % · départ 5 %', '2.5% to 10% · default 5%', '2,5 % a 10 % · inicio 5 %')}>
           <input type="number" min={2.5} max={10} step={0.5} value={Math.round(settings.falseDiscoveryRate * 1000) / 10} onChange={(e) => update({ falseDiscoveryRate: Number(e.target.value) / 100 })} />
         </Field>
+        <Field label={tr('Confirmation d’un régime', 'Regime confirmation', 'Confirmación de un régimen')} hint={tr('1 à 3 séances · départ 2', '1 to 3 sessions · default 2', '1 a 3 sesiones · inicio 2')}>
+          <input type="number" min={1} max={3} step={1} value={settings.regimeConfirm} onChange={(e) => update({ regimeConfirm: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Durée minimale d’un régime', 'Minimum regime length', 'Duración mínima de un régimen')} hint={tr('3 à 10 séances · départ 5', '3 to 10 sessions · default 5', '3 a 10 sesiones · inicio 5')}>
+          <input type="number" min={3} max={10} step={1} value={settings.regimeMinSessions} onChange={(e) => update({ regimeMinSessions: Number(e.target.value) })} />
+        </Field>
         <Field label={tr('Fenêtre de stabilité', 'Stability window', 'Ventana de estabilidad')} hint={tr('10 à 40 séances · départ 20', '10 to 40 sessions · default 20', '10 a 40 sesiones · inicio 20')}>
           <input type="number" min={10} max={40} step={1} value={settings.stabilityWindow} onChange={(e) => update({ stabilityWindow: Number(e.target.value) })} />
         </Field>

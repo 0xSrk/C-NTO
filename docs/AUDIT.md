@@ -594,3 +594,18 @@ Moteur `src/engine/riskConsole.ts`. Les tables F20, F21 et F22 ne sont pas inven
 
 **Décisions.** n° 3 : capital de risque = perte maximale du plan si le compte filtré est le compte suivi, sinon capital de référence. n° 4 : tables non fournies, signalées provisoires.
 
+## 3.5.0 — Ajustement du module Métriques, étape 4 : contexte du jour (2026-10-06)
+
+`atrSeries` (`src/engine/atr.ts`) est la fonction pure de l'ATR de Wilder. L'indicateur `atr` l'appelle ; `tests/atr-series.test.ts` vérifie l'égalité des valeurs. `buildMetricsContext` (`src/engine/metricsContext.ts`) produit une fiche par séance CME et par racine, jours sans trade compris. Les volatilités de Garman-Klass (annualisées, moyenne des fenêtres 5/10, 15/30 et 60/90) s'arrêtent à la clôture de la veille. Moins de 90 séances : champs de volatilité vides, l'onglet C affiche « Historique de barres insuffisant ».
+
+| # | Ajustement | Test | Attendu | Obtenu |
+|---|---|---|---|---|
+| 4 | Régimes sur une volatilité 12 % puis choc, hausse, redescente | `metrics-context` | choc, puis expansion, puis décrue, puis compression, délais 2 et 5 | conforme |
+| 4 | Historique tronqué | `metrics-context` | fiches antérieures identiques | conforme, trois dates |
+| 4 | Jours sans trade, comptes copiés | `metrics-context` | `traded: false` ; trois copies = 1 contrat | conforme |
+| 4 | ATR | `metrics-context`, `atr-series` | identique à l'indicateur sur les barres journalières | conforme |
+
+**Réglages 1 et 2.** Confirmation d'un régime 1/2/3, durée minimale 3/5/10. Les ajustements Vol-LT et Cross-Vol restent à zéro à l'écran : les tables F21 et F22 ne sont pas fournies, le déclencheur n'est pas inventé. Les volatilités sont dans la fiche pour quand les tables arriveront.
+
+**Règle 6.** Inchangée. `indicators.ts` ne change que l'appel à `atrSeries`.
+
