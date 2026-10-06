@@ -50,6 +50,39 @@ function openSession(day: string): boolean {
  * Rien le samedi, le dimanche (hors séance) ni un jour fermé.
  * Une routine déjà proposée pour cette journée CME ne l'est plus.
  */
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Journée vue, ou `undefined` si la valeur n'est pas lisible (coffre ancien : la clé est absente). */
+export function coerceRoutineSeen(value: unknown): RoutineSeen | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const row = value as Record<string, unknown>;
+  const pick = (key: 'brief' | 'debrief'): string | undefined | null => {
+    if (row[key] === undefined) return undefined;
+    return typeof row[key] === 'string' && DATE_KEY.test(row[key]) ? row[key] : null;
+  };
+  const brief = pick('brief');
+  const debrief = pick('debrief');
+  if (brief === null || debrief === null) return undefined;
+  const out: RoutineSeen = {};
+  if (brief) out.brief = brief;
+  if (debrief) out.debrief = debrief;
+  return out;
+}
+
+export type RoutineCue = 'brief' | 'debrief';
+
+const ROUTINE_OF = { brief: 'pre_session_brief', debrief: 'session_debrief' } as const;
+
+/**
+ * Sans clic, la journée vue ne change pas et `run` n'est pas appelé.
+ * Le clic lance la routine et retient la journée CME, une fois.
+ */
+export function pressRoutine(which: RoutineCue, due: RoutineDue, seen: RoutineSeen, pressed: boolean, run: (name: (typeof ROUTINE_OF)[RoutineCue]) => void): RoutineSeen {
+  if (!pressed) return seen;
+  run(ROUTINE_OF[which]);
+  return { ...seen, [which]: due.day };
+}
+
 export function routineDue(now: number, ctx: RoutineDueContext): RoutineDue {
   const day = tradingDayKey(now, 18, ET_ZONE);
   if (!openSession(day)) return { day, brief: false, debrief: false };

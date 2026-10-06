@@ -56,17 +56,17 @@ La couche agentique de CΛNTO, c'est donc **vérité, vigilance, discipline et p
 
 ## 4. Architecture
 
-| Couche | Rôle | En place (3.4.0) | Vague 1 (cette branche) |
-|---|---|---|---|
-| **L0 · Vérité** | Moteurs de l'écran, purs | `metrics`, `propfirm`, `inference`, `montecarlo` | Les outils rejoignent l'écran : journée CME, marge datée, compte exigé, période |
-| **L1 · Perception** | Outils de lecture | 13 outils, une liste (`catalog.ts`) | `asOf`, `sources`, sorties bornées, schémas typés ; ordres en cours, cotation, comptes datés |
-| **L2 · Mémoire** | Ce que le trader a décidé | Notes, ontologie, signature `agent` | Règles chiffrées, leçons, playbook ; `trader_memory` ; consigne enrichie, datée à New York |
-| **L3 · Vigilance** | Ce qui arrive pendant la séance | `fill`, `prop_buffer`, `catalyst`, `bridge_link`, `agent_order` | `daily_loss`, `discipline`, `order` |
-| **L4 · Discipline** | Les règles appliquées au journal | — | Perte du jour sur la journée CME, dérives après une perte, écarts aux règles ; `discipline_status` |
-| **L5 · Action gardée** | Un ordre proposé, confirmé | `propose_order`, gardes du main, dialogue 45 s | Dialogue non falsifiable, cadence qui compte tout, instrument normalisé |
-| **L6 · Porte** | Les agents du marché | MCP local, orchestrateur, `desk_events` | Type lu par le main, indications, titres, consignes, prompts, appels en vol bornés, résultats étiquetés |
-| **Preuve** | Ce qui le démontre | Tests unitaires par outil | Fournisseur scripté, desk de démonstration, scénarios dorés, injection, `TZ=UTC` |
-| **Garde** | Ce qui ne doit jamais céder | Hôtes épinglés, clé au main, CSP | Redirections refusées, clé liée à son hôte, chaînes externes bornées |
+| Couche | Rôle | En place (3.4.0) | Vague 1 | Vague 2 |
+|---|---|---|---|---|
+| **L0 · Vérité** | Moteurs de l'écran, purs | `metrics`, `propfirm`, `inference`, `montecarlo` | Les outils rejoignent l'écran : journée CME, marge datée, compte exigé, période | — |
+| **L1 · Perception** | Outils de lecture | 13 outils, une liste (`catalog.ts`) | `asOf`, `sources`, sorties bornées, schémas typés ; ordres en cours, cotation, comptes datés | — |
+| **L2 · Mémoire** | Ce que le trader a décidé | Notes, ontologie, signature `agent` | Règles chiffrées, leçons, playbook ; `trader_memory` ; consigne enrichie, datée à New York | — |
+| **L3 · Vigilance** | Ce qui arrive pendant la séance | `fill`, `prop_buffer`, `catalyst`, `bridge_link`, `agent_order` | `daily_loss`, `discipline`, `order` | — |
+| **L4 · Discipline** | Les règles appliquées au journal | — | Perte du jour sur la journée CME, dérives après une perte, écarts aux règles ; `discipline_status` | — |
+| **L5 · Action gardée** | Un ordre proposé, confirmé | `propose_order`, gardes du main, dialogue 45 s | Dialogue non falsifiable, cadence qui compte tout, instrument normalisé | — |
+| **L6 · Porte** | Les agents du marché | MCP local, orchestrateur, `desk_events` | Type lu par le main, indications, titres, consignes, prompts, appels en vol bornés, résultats étiquetés | Brief et débrief proposés dans l'agent embarqué ; le clic du trader seul envoie le prompt |
+| **Preuve** | Ce qui le démontre | Tests unitaires par outil | Fournisseur scripté, desk de démonstration, scénarios dorés, injection, `TZ=UTC` | — |
+| **Garde** | Ce qui ne doit jamais céder | Hôtes épinglés, clé au main, CSP | Redirections refusées, clé liée à son hôte, chaînes externes bornées | — |
 
 Règle de construction : le moteur reste pur (`src/engine`), les outils reçoivent des ports, le process principal garde, l'interface confirme. Chaque couche se teste sans la suivante.
 

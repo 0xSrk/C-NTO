@@ -3,14 +3,17 @@ import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { llmKeyBound } from '@/engine/agent/llm';
+import { coerceRoutineSeen, pressRoutine, routineDue, type RoutineCue, type RoutineSeen } from '@/engine/agent/routineDue';
 import { DESK_TOOLS, toolBlurb } from '@/engine/agent/tools';
+import { tradingDayNow } from '@/engine/discipline';
 import { tr, useI18n } from '@/i18n';
 import { desk, isDesk } from '@/lib/desk';
 import { fmtNum } from '@/lib/format';
 import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
-import type { AgentMessage } from '@/store/db';
+import { db, type AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
-import { useDeskEvents } from '@/store/deskEvents';
+import { deskEventLog, useDeskEvents } from '@/store/deskEvents';
+import { useJournal } from '@/store/journal';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
@@ -74,6 +77,7 @@ export default function Agent() {
   const eventCount = useDeskEvents((e) => e.count);
   const lastEvent = useDeskEvents((e) => e.last);
   const send = useAgent((a) => a.send);
+  const runRoutine = useAgent((a) => a.runRoutine);
   const stop = useAgent((a) => a.stop);
   const newConversation = useAgent((a) => a.newConversation);
   const probe = useAgent((a) => a.probe);
@@ -96,6 +100,9 @@ export default function Agent() {
   const update = useSettings((st) => st.update);
   const toast = useUi((u) => u.toast);
   const [draft, setDraft] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const [seen, setSeen] = useState<RoutineSeen>({});
+  const sessions = useJournal((j) => j.sessions);
   const [probeState, setProbeState] = useState<{ ok: boolean; detail: string; models?: string[] } | null>(null);
   const [probing, setProbing] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -126,6 +133,34 @@ export default function Agent() {
   useEffect(() => {
     if (streaming) stickToBottom.current = true;
   }, [streaming]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    let cancel = false;
+    void db.settings.get('agent.routineSeen').then((row) => {
+      const value = coerceRoutineSeen(row?.value);
+      if (!cancel && value) setSeen(value);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
+  const day = tradingDayNow(now);
+  const tradesToday = sessions.reduce((n, row) => n + (row.date === day ? row.tradeCount : 0), 0);
+  const dailyLossFull = deskEventLog.read({ kinds: ['daily_loss'], limit: 200 }).events.some((event) => event.data.day === day && event.data.threshold === 1);
+  const due = routineDue(now, { tradesToday, dailyLossFull, seen });
+  const launch = (which: RoutineCue) => {
+    const next = pressRoutine(which, due, seen, true, (name) => {
+      void runRoutine(name);
+    });
+    setSeen(next);
+    void db.settings.put({ key: 'agent.routineSeen', value: next });
+  };
 
   const submit = () => {
     const text = draft.trim();
@@ -202,6 +237,16 @@ export default function Agent() {
               )}
             </div>
             <div className={s.composer}>
+              <div className={s.routines}>
+                <Button size="sm" variant="ghost" onClick={() => launch('brief')}>
+                  {tr('Brief', 'Brief', 'Brief')}
+                  {due.brief ? <i className={s.cue} aria-hidden /> : null}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => launch('debrief')}>
+                  {tr('Débrief', 'Debrief', 'Debrief')}
+                  {due.debrief ? <i className={s.cue} aria-hidden /> : null}
+                </Button>
+              </div>
               {visibleMessages.length > 0 && (
                 <div className={s.suggestions}>
                   {sugs.slice(0, 3).map((sg) => (

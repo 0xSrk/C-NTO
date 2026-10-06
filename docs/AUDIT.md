@@ -690,3 +690,13 @@ Cinq sous-agents, un par piste, chacun dans son worktree ; fusion et intégratio
 - Deux passages complets de la suite, sous une charge machine élevée pendant la vague, ont montré chacun un échec non identifié ; quatre passages complets ensuite, puis trois sur la branche intégrée, sont verts.
 
 **Reste.** Vague 2 : brief et débrief dans l'agent embarqué, adoption d'une leçon proposée par l'agent, ressources MCP et schémas de sortie, configuration Codex et Claude Desktop, affichage du livre des ordres et de la séance en cours, abonnement de Visual au flux (D2). Vague 3, à l'ADMIN : `docs/THESE-AGENTIQUE.md` § 7.
+
+## Couche agentique du trader — vague 2 (2026-10-06)
+
+Reprise sur `main` (`c0d7753`). Un ticket = un commit = un test. Invariants de `CLAUDE.md` § 5 inchangés. `ninjatrader/CantoBridge.cs` ne change pas.
+
+| Piste | Commits | Tests | Ce qui change |
+|---|---|---|---|
+| **A12 · Routines** | `A12.1` `A12.2` `A12.3` | `agent-routine-due`, `agent-routine-run`, `agent-routine-cue` | `routineDue` : brief 8 h 30–9 h 30 heure de New York un jour de séance, débrief après 16 h 15 s'il y a des trades ou dès un `daily_loss` à 100 %, une fois par journée CME. `runRoutine` envoie `renderRoutine` ; outils coupés, avis en trois langues, rien n'est envoyé. Onglet Agent : boutons Brief et Débrief, pastille, journée vue dans `agent.routineSeen`. |
+
+**Constats nouveaux, non corrigés.** Aucun sur cette piste.

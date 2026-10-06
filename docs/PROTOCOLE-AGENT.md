@@ -77,6 +77,8 @@ Trois routines, définies dans `src/engine/agent/routines.ts` (module pur, sans 
 
 `annotate_session` et `create_note` ne sont cités qu'avec *écriture autorisée*, et après accord explicite du trader ; `propose_order` jamais. Les arguments sont contrôlés en format, longueur et jeu de caractères ; sinon `-32602`.
 
+L'agent embarqué propose les mêmes textes. *Brief* entre 8 h 30 et 9 h 30 heure de New York, un jour de séance CME ; *Débrief* après 16 h 15 s'il y a des trades du jour, ou dès qu'un `daily_loss` à 100 % est franchi. Rien le samedi, le dimanche hors séance, ni un jour fermé. Une pastille, une fois par routine et par journée CME (`agent.routineSeen` dans les réglages). Le clic du trader envoie le texte dans la langue du desk. Les outils du desk coupés : un avis, rien n'est envoyé. `allowWrites` suit *outils du desk* : les écritures citées passent par la confirmation du trader. Rien ne part sans ce clic.
+
 ## 2. Brancher un client
 
 Le panneau copie la configuration avec l'adresse et le jeton. **Le jeton y figure en clair : ne le partagez pas, renouvelez-le s'il a circulé.**
