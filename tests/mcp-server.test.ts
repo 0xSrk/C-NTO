@@ -543,4 +543,30 @@ describe('A14.3 ressources MCP', () => {
     expect(unknown.error?.code).toBe(-32002);
     expect(calls.some((c) => c.name === 'create_note' || c.name === 'propose_order')).toBe(false);
   });
+
+  it('A14.7 un refus du desk ou un échec de l’outil rend -32002 avec son motif, jamais une ressource réussie', async () => {
+    // Réponses telles que le renderer les relaie (`onRequest`) : le motif suit le résultat, ou n'est que dans le résultat.
+    const answer = (name: string) => {
+      if (name === 'read_note') return { result: { error: 'Note introuvable' }, error: 'Note introuvable' };
+      if (name === 'get_session') return { result: { error: 'Séance introuvable' } };
+      if (name === 'propfirm_status') return { result: { ok: false, reason: 'unknown_tool' }, error: 'Outil inconnu' };
+      return { result: { ok: false, reason: 'args_too_large' } };
+    };
+    const read = async (uri: string, locale?: 'fr' | 'en' | 'es') => result(await handleMcpHttp(post(rpc('resources/read', { uri })), ctx({ relay: relay([], answer), locale })));
+    const note = await read('canto://note/n_01K6Z9QWERTY2345');
+    expect(note.error).toEqual({ code: -32002, message: 'Note introuvable' });
+    expect(note.result).toBeUndefined();
+    expect((await read('canto://session/2026-10-06')).error).toEqual({ code: -32002, message: 'Séance introuvable' });
+    expect((await read('canto://plan/tracked')).error).toEqual({ code: -32002, message: 'Outil inconnu' });
+    const bare = await read('canto://desk/overview');
+    expect(bare.error?.code).toBe(-32002);
+    expect(bare.error?.message).toBe('Ressource illisible : canto://desk/overview (args_too_large)');
+    expect((await read('canto://desk/overview', 'en')).error?.message).toBe('Resource unreadable: canto://desk/overview (args_too_large)');
+
+    // Une séance ambiguë est une réponse (les candidates), pas un refus.
+    const ambiguous = relay([], () => ({ result: { ambiguous: true, sessions: [{ id: 's1' }, { id: 's2' }] } }));
+    const both = await result(await handleMcpHttp(post(rpc('resources/read', { uri: 'canto://session/2026-10-06' })), ctx({ relay: ambiguous })));
+    expect(both.error).toBeUndefined();
+    expect(JSON.parse((both.result?.contents as { text: string }[])[0]!.text)).toMatchObject({ ambiguous: true });
+  });
 });

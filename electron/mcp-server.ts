@@ -257,6 +257,15 @@ function toolError(message: string) {
   return { content: [{ type: 'text', text: message }], isError: true };
 }
 
+/** Motif d'une ressource refusée : celui du desk (relais, puis `error` ou `detail` du résultat), sinon un motif générique. */
+function resourceMotive(locale: AppLocale, uri: string, result: unknown, error?: string): string {
+  const rec = result && typeof result === 'object' && !Array.isArray(result) ? (result as Record<string, unknown>) : {};
+  const motive = error || (typeof rec.error === 'string' && rec.error) || (typeof rec.detail === 'string' && rec.detail);
+  if (motive) return motive;
+  const reason = typeof rec.reason === 'string' && rec.reason ? ` (${rec.reason})` : '';
+  return uiText(locale, `Ressource illisible : ${uri}${reason}`, `Resource unreadable: ${uri}${reason}`, `Recurso ilegible: ${uri}${reason}`);
+}
+
 /** Code JSON-RPC du desk fermé ou muet (le même que l'orchestrateur). */
 const DESK_UNAVAILABLE = -32002;
 
@@ -361,6 +370,8 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       }
       const { result, error } = await ctx.relay.call(target.tool, target.args);
       if (error && (result === null || result === undefined)) return { error: { code: DESK_UNAVAILABLE, message: error } };
+      // Refus du desk ou échec de l'outil (note, séance introuvable) : une erreur de ressource, pas une lecture réussie.
+      if (error || isFailure(target.tool, result)) return { error: { code: DESK_UNAVAILABLE, message: resourceMotive(locale, uri, result, error) } };
       return { result: { contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(result ?? null) }] } };
     }
     case 'prompts/get': {
