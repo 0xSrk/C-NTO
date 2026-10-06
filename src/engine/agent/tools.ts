@@ -13,6 +13,7 @@ import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
 import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
+import { AGENT_ORDER_BOUNDS } from './orders';
 import { clampToolArgs, type DeskPorts } from './ports';
 
 export interface DeskTool extends ToolSchema {
@@ -24,19 +25,25 @@ export interface DeskTool extends ToolSchema {
 const CALENDAR_MAX_YEARS = 3;
 const CALENDAR_MAX_EVENTS = 300;
 /** Projection bornée : l'outil s'exécute dans le renderer, sans worker (≤ 500 000 tirages). */
+const MC_MIN_RUNS = 100;
 const MC_MAX_RUNS = 2000;
+const MC_MIN_HORIZON = 5;
 const MC_MAX_HORIZON = 250;
 const MC_MIN_DAYS = 10;
 const MC_SEED = 1337;
 /** Sorties bornées : une note ou une entrée de calendrier tient en un extrait, une séance en 200 trades. */
 const EXCERPT_MAX = 280;
 const SESSION_TRADES_MAX = 200;
+const SESSIONS_MAX = 200;
+const NOTES_MAX = 50;
 const CALENDAR_MAX_PERSONAL = 100;
 /** Indicateurs calculés sur les dernières barres seulement (≈ 17 jours en 1 min). */
 const LEVELS_MAX_BARS = 25_000;
 
 const round = (v: number, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** Motif JSON Schema des dates `YYYY-MM-DD`, le même que `DATE_RE`. */
+const DATE_PATTERN = DATE_RE.source;
 
 /** Propriétés déclarées dans le schéma d'un outil (tout autre argument est retiré avant exécution). */
 function declaredKeys(tool: DeskTool | undefined): readonly string[] {
@@ -103,8 +110,8 @@ function pickSeries(all: BarSeries[], symbol: string | null, timeframe: number |
 }
 
 const SLICE_PARAMS = {
-  from: { type: 'string', description: 'Date de début incluse (YYYY-MM-DD)' },
-  to: { type: 'string', description: 'Date de fin incluse (YYYY-MM-DD)' },
+  from: { type: 'string', pattern: DATE_PATTERN, description: 'Date de début incluse (YYYY-MM-DD)' },
+  to: { type: 'string', pattern: DATE_PATTERN, description: 'Date de fin incluse (YYYY-MM-DD)' },
   account: { type: 'string', description: 'Compte (défaut : tous les comptes)' },
 } as const;
 
@@ -195,10 +202,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       parameters: {
         type: 'object',
         properties: {
-          from: { type: 'string', description: 'Date de début incluse (YYYY-MM-DD)' },
-          to: { type: 'string', description: 'Date de fin incluse (YYYY-MM-DD)' },
-          account: { type: 'string', description: 'Compte (défaut : tous les comptes)' },
-          limit: { type: 'number', description: 'Nombre max de séances (défaut 30)' },
+          ...SLICE_PARAMS,
+          limit: { type: 'integer', minimum: 1, maximum: SESSIONS_MAX, description: `Nombre max de séances (défaut 30, au plus ${SESSIONS_MAX})` },
         },
         additionalProperties: false,
       },
@@ -206,7 +211,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const from = str(args.from);
         const to = str(args.to);
         const account = str(args.account);
-        const limit = Math.min(200, Math.max(1, num(args.limit, 30)));
+        const limit = Math.min(SESSIONS_MAX, Math.max(1, num(args.limit, 30)));
         const rows = ports
           .sessions()
           .filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account))
@@ -228,7 +233,11 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         'Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans `account`, rend `ambiguous` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (`truncated`, `tradeCount`) ; les statistiques portent sur tous.',
       parameters: {
         type: 'object',
-        properties: { id: { type: 'string' }, date: { type: 'string' }, account: { type: 'string', description: 'Compte de la séance cherchée par date' } },
+        properties: {
+          id: { type: 'string' },
+          date: { type: 'string', pattern: DATE_PATTERN, description: 'Date de la séance (YYYY-MM-DD)' },
+          account: { type: 'string', description: 'Compte de la séance cherchée par date' },
+        },
         additionalProperties: false,
       },
       async run(args) {
@@ -284,10 +293,15 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'search_notes',
       kind: 'read',
       description: 'Recherche plein texte dans le coffre de notes (titre, corps, tags). Retourne des extraits.',
-      parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number' } }, required: ['query'], additionalProperties: false },
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: NOTES_MAX, description: `Nombre max de notes (défaut 10, au plus ${NOTES_MAX})` } },
+        required: ['query'],
+        additionalProperties: false,
+      },
       async run(args) {
         const q = str(args.query).toLowerCase();
-        const limit = Math.min(50, Math.max(1, num(args.limit, 10)));
+        const limit = Math.min(NOTES_MAX, Math.max(1, num(args.limit, 10)));
         const hits = ports
           .notes()
           .filter((n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q) || n.tags.some((t) => t.includes(q)))
@@ -362,7 +376,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       description: 'Relie deux notes par un prédicat déjà connu. N’invente pas de relation.',
       parameters: {
         type: 'object',
-        properties: { from: { type: 'string' }, to: { type: 'string' }, predicate: { type: 'string' } },
+        properties: { from: { type: 'string' }, to: { type: 'string' }, predicate: { type: 'string', enum: [...PREDICATES] } },
         required: ['from', 'to', 'predicate'],
         additionalProperties: false,
       },
@@ -387,9 +401,9 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       parameters: {
         type: 'object',
         properties: {
-          from: { type: 'string', description: 'Date de début incluse (YYYY-MM-DD)' },
-          to: { type: 'string', description: 'Date de fin incluse (YYYY-MM-DD)' },
-          minImpact: { type: 'number', description: 'Impact minimal 1 (mineur) à 3 (majeur), défaut 1' },
+          from: SLICE_PARAMS.from,
+          to: SLICE_PARAMS.to,
+          minImpact: { type: 'integer', minimum: 1, maximum: 3, description: 'Impact minimal 1 (mineur) à 3 (majeur), défaut 1' },
         },
         required: ['from', 'to'],
         additionalProperties: false,
@@ -472,9 +486,9 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         properties: {
           ...SLICE_PARAMS,
           account: { type: 'string', description: 'Compte simulé (exigé si la tranche en couvre plusieurs)' },
-          runs: { type: 'number', description: `Nombre de simulations (défaut 1000, au plus ${MC_MAX_RUNS})` },
-          horizon: { type: 'number', description: `Journées simulées (défaut 60, au plus ${MC_MAX_HORIZON})` },
-          ruinDrawdown: { type: 'number', description: 'Drawdown ($) qui vaut ruine (défaut : celui du plan suivi)' },
+          runs: { type: 'integer', minimum: MC_MIN_RUNS, maximum: MC_MAX_RUNS, description: `Nombre de simulations (défaut 1000, ${MC_MIN_RUNS} à ${MC_MAX_RUNS})` },
+          horizon: { type: 'integer', minimum: MC_MIN_HORIZON, maximum: MC_MAX_HORIZON, description: `Journées simulées (défaut 60, ${MC_MIN_HORIZON} à ${MC_MAX_HORIZON})` },
+          ruinDrawdown: { type: 'number', minimum: 0, description: 'Drawdown ($) qui vaut ruine (défaut : celui du plan suivi)' },
           target: { type: 'number', description: 'Objectif de profit ($) (défaut : celui du plan suivi)' },
         },
         additionalProperties: false,
@@ -504,8 +518,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           return { error: tr(`Échantillon trop court : ${daily.length} journée(s), ${MC_MIN_DAYS} au moins`, `Sample too short: ${daily.length} day(s), at least ${MC_MIN_DAYS}`, `Muestra demasiado corta: ${daily.length} día(s), al menos ${MC_MIN_DAYS}`) };
         }
         const plan = findPlan(ports.planId());
-        const runs = Math.min(MC_MAX_RUNS, Math.max(100, Math.round(num(args.runs, 1000))));
-        const horizon = Math.min(MC_MAX_HORIZON, Math.max(5, Math.round(num(args.horizon, 60))));
+        const runs = Math.min(MC_MAX_RUNS, Math.max(MC_MIN_RUNS, Math.round(num(args.runs, 1000))));
+        const horizon = Math.min(MC_MAX_HORIZON, Math.max(MC_MIN_HORIZON, Math.round(num(args.horizon, 60))));
         const ruinDrawdown = num(args.ruinDrawdown, plan?.maxDrawdown ?? Number.NaN);
         const target = num(args.target, plan?.profitTarget ?? Number.NaN);
         const r = monteCarlo(daily, { runs, horizon, seed: MC_SEED, ruinDrawdown: Number.isFinite(ruinDrawdown) ? ruinDrawdown : undefined, target: Number.isFinite(target) ? target : undefined });
@@ -611,8 +625,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         type: 'object',
         properties: {
           instrument: { type: 'string', description: 'Racine ou contrat (NQ, MNQ 12-26, ES…). Défaut : la première série disponible' },
-          timeframe: { type: 'number', description: 'Unité en minutes (défaut : la plus fine disponible)' },
-          openingRangeMinutes: { type: 'number', description: 'Durée de l’Opening Range (5 à 60, défaut 15)' },
+          timeframe: { type: 'integer', minimum: 1, description: 'Unité en minutes (défaut : la plus fine disponible)' },
+          openingRangeMinutes: { type: 'integer', minimum: 5, maximum: 60, description: 'Durée de l’Opening Range (5 à 60, arrondie à 5, défaut 15)' },
         },
         additionalProperties: false,
       },
@@ -650,7 +664,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           account: { type: 'string', description: 'Compte NinjaTrader Sim (ex. Sim101)' },
           instrument: { type: 'string', description: 'Nom NinjaTrader complet (ex. MNQ 12-26)' },
           side: { type: 'string', enum: ['buy', 'sell'] },
-          qty: { type: 'number', description: 'Contrats, entier ≥ 1' },
+          qty: { type: 'integer', minimum: 1, maximum: AGENT_ORDER_BOUNDS.maxQty[1], description: 'Contrats, entier ≥ 1 (le desk applique sa propre limite par ordre)' },
           type: { type: 'string', enum: ['market', 'limit', 'stop'], description: 'market par défaut' },
           limit: { type: 'number', description: 'Prix limite (type limit)' },
           stop: { type: 'number', description: 'Prix stop (type stop)' },
@@ -673,7 +687,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         properties: {
           cursor: { type: 'string', description: 'Curseur rendu par l’appel précédent' },
           kinds: { type: 'array', items: { type: 'string', enum: [...DESK_EVENT_KINDS] }, description: 'Types à lire, tous par défaut' },
-          limit: { type: 'number', description: `Événements par page, 1 à ${EVENTS_PAGE_MAX}, défaut ${EVENTS_PAGE_DEFAULT}` },
+          limit: { type: 'integer', minimum: 1, maximum: EVENTS_PAGE_MAX, description: `Événements par page, 1 à ${EVENTS_PAGE_MAX}, défaut ${EVENTS_PAGE_DEFAULT}` },
         },
         additionalProperties: false,
       },
