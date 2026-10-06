@@ -690,3 +690,13 @@ Cinq sous-agents, un par piste, chacun dans son worktree ; fusion et intégratio
 - Deux passages complets de la suite, sous une charge machine élevée pendant la vague, ont montré chacun un échec non identifié ; quatre passages complets ensuite, puis trois sur la branche intégrée, sont verts.
 
 **Reste.** Vague 2 : brief et débrief dans l'agent embarqué, adoption d'une leçon proposée par l'agent, ressources MCP et schémas de sortie, configuration Codex et Claude Desktop, affichage du livre des ordres et de la séance en cours, abonnement de Visual au flux (D2). Vague 3, à l'ADMIN : `docs/THESE-AGENTIQUE.md` § 7.
+
+## Couche agentique du trader — vague 2 (2026-10-06)
+
+Reprise sur `main` (`c0d7753`). Un ticket = un commit = un test. Invariants de `CLAUDE.md` § 5 inchangés. `ninjatrader/CantoBridge.cs` ne change pas.
+
+| Piste | Commits | Tests | Ce qui change |
+|---|---|---|---|
+| **A13 · Séance** | `A13.1` `A13.2` `A13.3` | `live-session`, `live-orders`, `visual-nt-follow`, `design-guard` | Tête de Métrique, pont `live` seulement : P&L réalisé et latent, solde, positions, fraîcheur (`bridgeIsFresh`, 10 s frais, 10 min périmé), perte du jour face à la limite, trades face au maximum. Ordres en cours lus par `orders()` et `onOrder`, livre incomplet nommé, `byAgent` marqué, aucune action. Visual suit l'instrument affiché à la demande (historique puis direct) et se désabonne au changement et au démontage. L'agent ne s'abonne pas. |
+
+**Constats nouveaux, non corrigés.** Aucun sur cette piste.
