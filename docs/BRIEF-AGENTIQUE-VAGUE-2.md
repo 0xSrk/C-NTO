@@ -6,7 +6,7 @@ Date : 2026-10-06
 Dépôt : `0xSrk/C-NTO`
 Base : `main` à `d9b39aa` (vague 1, étapes 3 à 5 des Métriques, A11.6)
 Mis à jour : 2026-10-06, après la revue des PR #97 à #109 (§ 5)
-État : § 5.1, § 5.2 et § 5.3 faits, sur la branche `agentique/vague-2` (`docs/AUDIT.md` › « vague 2 › Corrections ») ; la suite est la vague 3, aux décisions de l'ADMIN (`docs/THESE-AGENTIQUE.md` § 7)
+État : § 5.1, § 5.2 et § 5.3 faits, sur la branche `agentique/vague-2` (`docs/AUDIT.md` › « vague 2 › Corrections ») ; décisions de la vague 3 arrêtées le 2026-10-06 (`docs/THESE-AGENTIQUE.md` § 7), règles du trader et marge datée en garde livrées (A17)
 Version `package.json` : `3.4.0`, à ne pas toucher
 
 Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vague 1 l'a laissée. Tu modifies **ce dépôt uniquement**. Tu ne réinventes pas l'architecture : elle est décrite au § 2 et elle tient.
@@ -101,10 +101,12 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 
 ## 4. Hors périmètre : décisions de l'ADMIN (ne pas coder)
 
+Arrêtées le 2026-10-06 (`docs/THESE-AGENTIQUE.md` § 7) : les règles du trader et la marge datée de la jauge gardent désormais `propose_order` (A17.1, A17.2) ; l'abonnement de marché par l'agent et toute ouverture hors de `127.0.0.1` sont refusés ; l'AddOn 2.3.0 et le modèle du Lab attendent l'ADMIN. Les points ci-dessous restent la règle pour tout ticket qui n'en reçoit pas d'autre.
+
 - **Gardes de `propose_order`.**
   - Ne touche pas `guardProposal` (`src/engine/agent/orders.ts`) ni les gardes d'`electron/agent-orders.ts`, sauf pour **refuser plus**, et seulement si un ticket le demande.
   - Refuser un ordre contraire aux règles du trader est une décision ouverte.
-- **Marge de la garde A5 et de `prop_buffer`.** Elles lisent `buffer` plus le latent (`src/store/deskEvents.ts`, `src/store/agentOrders.ts`, `propShare`). Garde `buffer` tel quel.
+- **Marge de la garde A5 et de `prop_buffer`.** Elles lisent la marge datée de la jauge K.04, latent négatif compris (A17.2, `src/store/deskEvents.ts`, `propShare`). Ne pas revenir à `buffer`.
 - **Abonnement aux données de marché par l'agent.** `market_quote` reste une lecture du cache.
 - **`ninjatrader/CantoBridge.cs`** (AddOn 2.3.0, D3) : ne pas modifier.
 - **Réservé à l'ADMIN** : version de `package.json`, tag, Release, fusion dans `main`, clés de publication et de siège.

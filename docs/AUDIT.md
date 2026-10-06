@@ -779,3 +779,23 @@ Les § 5.1 et 5.2 du brief sont faits : un ticket, un commit, un test, rouge san
 **§ 5.3.** A6.12 et A6.13 suivent sur la même branche (`agent-metriques`, différentiels contre `tradeRisk` et `buildMetricsContext`). Trois ports nouveaux : `riskPerContract`, `activeSeriesId`, `regimeRules`. L'onglet Analyse et `day_context` choisissent la série par la même fonction, `contextSeries`.
 
 **Intégration.** Une seule branche, `agentique/vague-2`, à fusionner dans `main` par un commit de fusion, sans squash : la fusion ferme #104 à #109. `npm run typecheck` vert, **958** tests verts (190 fichiers ; 864 après empilement des six PR), trois passages complets et un à `TZ=America/New_York` ; `npm run electron:compile` et `npm run build` verts.
+
+## Couche agentique du trader — vague 3 : décisions de l'ADMIN (2026-10-06)
+
+L'ADMIN a confirmé les sept décisions du § 7 de `docs/THESE-AGENTIQUE.md`. Deux se codent, les cinq autres se consignent ; `CLAUDE.md` § 3 et § 5 les portent. Un ticket = un commit = un test, rouge sans le correctif. `ninjatrader/CantoBridge.cs` ne change pas.
+
+| Piste | Commits | Tests | Ce qui change |
+|---|---|---|---|
+| **A17 · Décisions** | `419c8d2` `b4b46da` | `agent-decisions` | A17.1 : `propose_order` refuse une ouverture qui enfreint une règle du trader (perte du jour atteinte, fenêtre d'un catalyseur majeur, instrument hors de la liste). Le renderer l'évalue comme la veille discipline (`traderRuleFor`, `detectRuleBreaches`) ; le process principal la relit (`parseTraderRule` : trois règles seulement, motif sur une ligne, borné) et refuse avant tout dialogue (`trader_rule`). Une réduction de risque passe toujours. A17.2 : la garde de l'agent et l'événement `prop_buffer` lisent la marge datée de la jauge K.04 (`planMargin`), latent négatif compris ; la marge de clôture seulement sans séance rejouée. |
+
+Échecs observés sans les correctifs :
+- A17.1 : `expected { ok: true, resulting: 1, …(1) } to deeply equal { ok: false, …(2) }` ; le process principal soumettait l'ordre (`expected { status: 'sent', … } to match object { status: 'refused', … }`) ; `parseTraderRule` et `traderRuleFor` absents.
+- A17.2 : `expected { liveBuffer: 1225, share: 0.49 } to deeply equal { liveBuffer: 175, share: 0.07 }` ; sur le cas 1.6, `expected 0.49 to be close to 0.07`.
+
+**Décisions consignées sans code.** 3 : l'agent ne s'abonne à aucune donnée de marché. 4 : l'AddOn 2.3.0 se prépare à part et n'entre dans une Release qu'après compilation et essai sur Sim. 5 : aucune promesse de conformité avec une prop firm tant qu'elle n'a pas répondu par écrit ; le README n'en fait aucune. 6 : le modèle du Lab entre comme préréglage épinglé quand l'ADMIN donne son hôte. 7 : rien hors de `127.0.0.1`.
+
+**Bilan.** P1 à P5 sont validées par la suite (`docs/THESE-AGENTIQUE.md` § 9) ; P5 attend l'hôte du modèle du Lab. Restent à voir dans le desk lancé : un client MCP réel, Visual sur Sim (A13.4).
+
+**Constats nouveaux, non corrigés.**
+- Le plancher des suiveurs du Copieur lit encore la marge de clôture (`replay.buffer`, `src/engine/copier/router.ts:144`). La décision 2 ne vise que la garde de l'agent et `prop_buffer` : même lecture pour le Copieur, ou non, à trancher par l'ADMIN.
+

@@ -2,7 +2,7 @@
 
 # Thèse — la couche agentique du trader
 
-Rédigée le 6 octobre 2026, sur `main` à 3.4.0 (plan 3.3.4 soldé, Métriques 3.5.0 étapes 1 et 2 fusionnées). Elle fixe le cap de la couche agentique et la façon de prouver qu'on l'atteint. Le plan, les constats et leurs preuves sont dans `docs/AUDIT.md` › « Couche agentique du trader ». Le contrat technique est dans `docs/PROTOCOLE-AGENT.md`.
+Rédigée le 6 octobre 2026, sur `main` à 3.4.0 (plan 3.3.4 soldé, Métriques 3.5.0 étapes 1 et 2 fusionnées). Elle fixe le cap de la couche agentique et la façon de prouver qu'on l'atteint. Les décisions du § 7 ont été arrêtées par l'ADMIN le 6 octobre 2026 ; le bilan des propositions, vagues 1 à 3 livrées (3.5.0), est au § 9. Le plan, les constats et leurs preuves sont dans `docs/AUDIT.md` › « Couche agentique du trader ». Le contrat technique est dans `docs/PROTOCOLE-AGENT.md`.
 
 ## 0. En une phrase
 
@@ -56,16 +56,16 @@ La couche agentique de CΛNTO, c'est donc **vérité, vigilance, discipline et p
 
 ## 4. Architecture
 
-| Couche | Rôle | En place (3.4.0) | Vague 1 (cette branche) |
+| Couche | Rôle | En place (3.4.0) | Vagues 1 à 3 (3.5.0) |
 |---|---|---|---|
 | **L0 · Vérité** | Moteurs de l'écran, purs | `metrics`, `propfirm`, `inference`, `montecarlo` | Les outils rejoignent l'écran : journée CME, marge datée, compte exigé, période |
-| **L1 · Perception** | Outils de lecture | 13 outils, une liste (`catalog.ts`) | `asOf`, `sources`, sorties bornées, schémas typés ; ordres en cours, cotation, comptes datés |
-| **L2 · Mémoire** | Ce que le trader a décidé | Notes, ontologie, signature `agent` | Règles chiffrées, leçons, playbook ; `trader_memory` ; consigne enrichie, datée à New York |
+| **L1 · Perception** | Outils de lecture | 13 outils, une liste (`catalog.ts`) | `asOf`, `sources`, sorties bornées, schémas typés ; ordres en cours, cotation, comptes datés ; risque et R de chaque trade, contexte du jour (`day_context`) |
+| **L2 · Mémoire** | Ce que le trader a décidé | Notes, ontologie, signature `agent` | Règles chiffrées, leçons, playbook ; `trader_memory` ; consigne enrichie, datée à New York ; leçon d'agent adoptée par le trader |
 | **L3 · Vigilance** | Ce qui arrive pendant la séance | `fill`, `prop_buffer`, `catalyst`, `bridge_link`, `agent_order` | `daily_loss`, `discipline`, `order` |
 | **L4 · Discipline** | Les règles appliquées au journal | — | Perte du jour sur la journée CME, dérives après une perte, écarts aux règles ; `discipline_status` |
-| **L5 · Action gardée** | Un ordre proposé, confirmé | `propose_order`, gardes du main, dialogue 45 s | Dialogue non falsifiable, cadence qui compte tout, instrument normalisé |
-| **L6 · Porte** | Les agents du marché | MCP local, orchestrateur, `desk_events` | Type lu par le main, indications, titres, consignes, prompts, appels en vol bornés, résultats étiquetés |
-| **Preuve** | Ce qui le démontre | Tests unitaires par outil | Fournisseur scripté, desk de démonstration, scénarios dorés, injection, `TZ=UTC` |
+| **L5 · Action gardée** | Un ordre proposé, confirmé | `propose_order`, gardes du main, dialogue 45 s | Dialogue non falsifiable, cadence qui compte tout, instrument normalisé ; règles du trader et marge datée de la jauge en garde |
+| **L6 · Porte** | Les agents du marché | MCP local, orchestrateur, `desk_events` | Type lu par le main, indications, titres, consignes, prompts, appels en vol bornés, résultats étiquetés ; ressources et schémas de sortie, refus dans la langue du desk, brief et débrief dans l'onglet Agent |
+| **Preuve** | Ce qui le démontre | Tests unitaires par outil | Fournisseur scripté, desk de démonstration, scénarios dorés, injection, `TZ=UTC` ; différentiels contre `tradeRisk` et `buildMetricsContext` |
 | **Garde** | Ce qui ne doit jamais céder | Hôtes épinglés, clé au main, CSP | Redirections refusées, clé liée à son hôte, chaînes externes bornées |
 
 Règle de construction : le moteur reste pur (`src/engine`), les outils reçoivent des ports, le process principal garde, l'interface confirme. Chaque couche se teste sans la suivante.
@@ -85,19 +85,22 @@ La couche agentique est au niveau quand, sur `main` :
 
 | Vague | Contenu | Qui |
 |---|---|---|
-| **1 · Fondations** (cette branche) | A6 Vérité, A7 Preuve, A8 Porte, A9 Séance, A10 Discipline et mémoire, A11 Garde | Sous-agents, un ticket = un commit = un test |
-| **2 · Routines** | Brief et débrief dans l'agent embarqué (mêmes textes que les prompts MCP), adoption d'une leçon proposée par l'agent, ressources MCP et schémas de sortie, configuration Codex et Claude Desktop, abonnement de Visual au flux NinjaTrader (D2) | Sous-agents |
-| **3 · Décisions** | Voir § 7 | ADMIN |
+| **1 · Fondations** (livrée, 3.5.0) | A6 Vérité, A7 Preuve, A8 Porte, A9 Séance, A10 Discipline et mémoire, A11 Garde | Sous-agents, un ticket = un commit = un test |
+| **2 · Routines** (livrée, 3.5.0) | Brief et débrief dans l'agent embarqué (mêmes textes que les prompts MCP), adoption d'une leçon proposée par l'agent, ressources MCP et schémas de sortie, configuration Codex et Claude Desktop, abonnement de Visual au flux NinjaTrader (D2) ; l'agent lit les nouvelles Métriques | Sous-agents |
+| **3 · Décisions** (arrêtées le 6 octobre 2026) | § 7 : règles du trader et marge datée en garde (livrées, 3.5.0) | ADMIN, puis sous-agents |
+| **4 · Suite** | AddOn 2.3.0, après compilation et essai sur Sim ; modèle du Lab à son ouverture ; position écrite des prop firms | ADMIN |
 
-## 7. Décisions ouvertes pour l'ADMIN
+## 7. Décisions de l'ADMIN (6 octobre 2026)
 
-1. **Règles du trader comme gardes.** Refuser un `propose_order` qui enfreint une règle du trader : perte du jour atteinte, fenêtre de catalyseur, instrument non autorisé. C'est un renforcement, mais il touche l'invariant « Agent » de `CLAUDE.md`.
-2. **Marge datée dans la garde A5 et dans `prop_buffer`.** Les outils rendent désormais la marge de la jauge K.04 (plus-bas de la dernière séance), mais la garde et l'alerte lisent encore la marge de clôture.
-3. **Abonnement aux données de marché par l'agent.** `market_quote` lit la dernière cotation reçue sans s'abonner.
-4. **AddOn 2.3.0 (D3).** Remplissage et prix moyen des ordres, instantané complet du pont. À compiler dans NinjaTrader 8 et à essayer sur Sim.
-5. **Position écrite des prop firms** sur un ordre proposé par une IA puis confirmé par le trader, avant tout argument commercial.
-6. **Modèle du Lab (Artefact 003)** : hôte, modèle, entrée dans `electron/llm-host.ts`.
-7. **Ouverture hors de la machine** (connecteur cloud, ChatGPT) : non, sauf décision contraire.
+L'ADMIN a confirmé les sept propositions le 6 octobre 2026. `CLAUDE.md` § 5 en porte les invariants.
+
+1. **Règles du trader comme gardes : oui.** `propose_order` refuse une ouverture qui enfreint une règle du trader : perte du jour atteinte, fenêtre d'un catalyseur majeur, instrument hors de la liste. Une réduction de risque passe toujours. La limite d'entrées par journée reste une veille, sans refus. Livrée : A17.1.
+2. **Marge datée dans la garde et l'alerte : oui.** La garde de l'agent et l'événement `prop_buffer` lisent la marge de la jauge K.04 (plus-bas de la dernière séance moins le plancher), latent négatif compris ; la marge de clôture seulement sans séance rejouée. Sur le cas 1.6, la garde lit 7 % au lieu de 49 %. Livrée : A17.2.
+3. **Abonnement de l'agent aux données de marché : non.** L'agent lit ce que le trader a ouvert : Visual s'abonne sur son geste, `market_quote` et `market_levels` ne s'abonnent à rien.
+4. **AddOn 2.3.0 (D3) : oui, hors de la 3.5.0.** Remplissage et prix moyen des ordres, instantané complet du pont. Il se prépare sur une branche à part et n'entre dans une Release qu'après compilation dans NinjaTrader 8 et essai sur Sim par l'ADMIN. Le desk reste compatible avec l'AddOn 2.2.0.
+5. **Position écrite des prop firms : avant toute communication.** Aucune promesse de conformité avec Apex, Topstep ou une autre firme (README, site, Release) tant qu'elles n'ont pas répondu par écrit sur un ordre proposé par une IA puis confirmé par le trader. La démarche est à l'ADMIN.
+6. **Modèle du Lab (Artefact 003) : un préréglage épinglé, à son ouverture.** Il se branche comme les autres fournisseurs : une entrée dans `electron/llm-host.ts` et dans les préréglages, clé au process principal, aucune redirection suivie. Hôte et nom du modèle à fournir par l'ADMIN ; d'ici là, l'emplacement reste vide.
+7. **Ouverture hors de la machine : non.** La porte reste sur `127.0.0.1` : ni tunnel, ni connecteur cloud, ni ChatGPT branché sur le desk.
 
 ## 8. Sources de la veille
 
@@ -116,3 +119,18 @@ Relevées le 6 octobre 2026. Plusieurs pages n'ont été lues qu'en extrait. À 
 - OWASP, MCP Security Cheat Sheet — https://cheatsheetseries.owasp.org/cheatsheets/MCP_Security_Cheat_Sheet.html
 - OWASP, Top 10 des applications agentiques 2026 — https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026
 - La « trifecta létale » — https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/
+
+## 9. Bilan des propositions (3.5.0)
+
+Vagues 1 à 3 livrées, le 6 octobre 2026. Chaque preuve est un test de la suite (191 fichiers), vert sous `TZ=UTC` comme sous `TZ=America/New_York`.
+
+| # | Preuve en place | Verdict |
+|---|---|---|
+| **P1 · Vérité** | Harnais différentiel : `agent-eval`, `agent-verite`, `agent-metriques` recalculent les attendus par les moteurs de l'écran (marge datée, journée CME, risque par trade, contexte du jour). | Validée |
+| **P2 · Séance** | Événements `daily_loss`, `discipline`, `order` ; outils `discipline_status`, `working_orders`, `market_quote`, `day_context` ; brief et débrief en prompts MCP et dans l'onglet Agent, au clic du trader. | Validée |
+| **P3 · Mémoire** | `trader_memory` et consigne enrichie ; une note d'agent n'y entre qu'adoptée par le trader ; outils coupés, rien ne part au fournisseur (`agent-memory`, `agent-adopt`, `agent-system-prompt`). | Validée |
+| **P4 · Garde** | Injection sur les cinq outils d'écriture, ordres activés compris (`agent-injection`) ; dialogue non falsifiable ; redirections refusées ; clé liée à son hôte ; règles du trader et marge datée en garde (`agent-decisions`). | Validée |
+| **P5 · Porte** | Outils typés et titrés, consignes, refus et erreurs dans la langue du desk, trois prompts, ressources et schémas de sortie (`mcp-server`, `mcp-catalog`, `desk-describe`, `orchestrator-locale`) ; Claude Code, Claude Desktop et Codex branchés par le panneau. | Validée ; le modèle du Lab attend son hôte (décision 6) |
+
+Les six critères du § 5 sont tenus par ces tests. Deux vérifications restent à faire dans le desk lancé, par l'ADMIN : un client MCP réel sur la passerelle, et Visual sur un compte Sim (`docs/AUDIT.md`, A13.4).
+
