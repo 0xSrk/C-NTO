@@ -690,3 +690,13 @@ Cinq sous-agents, un par piste, chacun dans son worktree ; fusion et intégratio
 - Deux passages complets de la suite, sous une charge machine élevée pendant la vague, ont montré chacun un échec non identifié ; quatre passages complets ensuite, puis trois sur la branche intégrée, sont verts.
 
 **Reste.** Vague 2 : brief et débrief dans l'agent embarqué, adoption d'une leçon proposée par l'agent, ressources MCP et schémas de sortie, configuration Codex et Claude Desktop, affichage du livre des ordres et de la séance en cours, abonnement de Visual au flux (D2). Vague 3, à l'ADMIN : `docs/THESE-AGENTIQUE.md` § 7.
+
+## Couche agentique du trader — vague 2 (2026-10-06)
+
+Reprise sur `main` (`c0d7753`). Un ticket = un commit = un test. Invariants de `CLAUDE.md` § 5 inchangés. `ninjatrader/CantoBridge.cs` ne change pas.
+
+| Piste | Commits | Tests | Ce qui change |
+|---|---|---|---|
+| **A14 · Porte** | `A14.1` `A14.2` `A14.3` `A14.4` `A14.5` | `desk-describe`, `mcp-server`, `mcp-clients` | `desk.describe` porte le titre dans la langue active. Messages HTTP 401, 403, 405, 413 et refus d’écriture en trois langues (429 déjà traduit). Ressources MCP : `canto://desk/overview`, `canto://plan/tracked`, modèles séance et note, `-32002` si inconnue, lectures seules. `outputSchema` sur les lectures ; pas de `structuredContent` sous `isError`. Configurations Claude Desktop (`mcp-remote`) et Codex (`bearer_token_env_var`). |
+
+**Constats nouveaux, non corrigés.** Aucun sur cette piste.

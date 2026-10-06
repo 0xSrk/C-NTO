@@ -124,7 +124,15 @@ Claude Desktop lance ses serveurs locaux en stdio. Le pont `mcp-remote` (paquet 
 
 ### Codex (OpenAI)
 
-Codex tourne sur la machine : il se branche comme Claude Code, en serveur MCP HTTP avec l'en-tête `Authorization: Bearer <jeton>`. La syntaxe de configuration est celle de la documentation de Codex.
+Dans `~/.codex/config.toml`, syntaxe de la référence officielle (`mcp_servers.<id>.url`, `bearer_token_env_var` : le nom de la variable, pas le jeton) :
+
+```toml
+[mcp_servers.canto]
+url = "http://127.0.0.1:47118/mcp"
+bearer_token_env_var = "CANTO_MCP_TOKEN"
+```
+
+Exporter `CANTO_MCP_TOKEN` avec le jeton avant de lancer Codex. Un `bearer_token` en clair est rejeté.
 
 ### ChatGPT (web et application)
 

@@ -15,7 +15,7 @@ import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvid
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
 import { AgentOrdersPanel } from './AgentOrdersPanel';
-import { claudeCodeCommand, mcpJsonConfig } from './mcpClients';
+import { claudeCodeCommand, claudeDesktopConfig, codexConfig, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
 import s from './agent.module.css';
 
@@ -410,6 +410,8 @@ export default function Agent() {
                     {(
                       [
                         ['claude', tr('Copier pour Claude Code', 'Copy for Claude Code', 'Copiar para Claude Code'), claudeCodeCommand],
+                        ['desktop', tr('Copier pour Claude Desktop', 'Copy for Claude Desktop', 'Copiar para Claude Desktop'), claudeDesktopConfig],
+                        ['codex', tr('Copier pour Codex', 'Copy for Codex', 'Copiar para Codex'), (url: string, _token: string) => codexConfig(url)],
                         ['json', tr('Copier la configuration JSON', 'Copy JSON configuration', 'Copiar la configuración JSON'), mcpJsonConfig],
                       ] as const
                     ).map(([id, label, build]) => (
@@ -421,9 +423,11 @@ export default function Agent() {
                           const conn = await mcpConnection();
                           if (conn) await navigator.clipboard?.writeText(build(conn.url, conn.token));
                           toast(
-                            conn
-                              ? tr('Copié. Le jeton y figure : ne le partagez pas.', 'Copied. It contains the token: do not share it.', 'Copiado. Contiene el token: no lo comparta.')
-                              : tr('Passerelle indisponible.', 'Gateway unavailable.', 'Pasarela no disponible.'),
+                            !conn
+                              ? tr('Passerelle indisponible.', 'Gateway unavailable.', 'Pasarela no disponible.')
+                              : id === 'codex'
+                                ? tr('Copié. Exportez CANTO_MCP_TOKEN avec le jeton avant de lancer Codex.', 'Copied. Export CANTO_MCP_TOKEN with the token before starting Codex.', 'Copiado. Exporte CANTO_MCP_TOKEN con el token antes de lanzar Codex.')
+                                : tr('Copié. Le jeton y figure : ne le partagez pas.', 'Copied. It contains the token: do not share it.', 'Copiado. Contiene el token: no lo comparta.'),
                             conn ? 'ok' : 'warn',
                           );
                         }}
