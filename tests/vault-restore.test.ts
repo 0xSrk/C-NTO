@@ -470,6 +470,21 @@ describe('restoreVault (tables simulées)', () => {
     expect(await tables.equityPoints.toArray()).toEqual([{ pocketId: 'p1', date: '2026-09-15', equity: 50100, pnl: 100, currency: 'USD' }]);
   });
 
+  it('hôte de la clé : un coffre qui change l’URL de base ne déplace pas la clé locale ; une clé reprise d’un coffre perd l’hôte de l’ancienne', async () => {
+    const agent = { ...DEFAULT_SETTINGS.agent, baseUrl: 'https://api.openai.com/v1', apiKeyEncrypted: 'blob-local', apiKeyHost: 'api.openai.com' };
+    await tables.settings.put({ key: 'settings', value: { ...DEFAULT_SETTINGS, agent } });
+    await restoreVault(JSON.stringify(buildVaultV2({ appVersion: 't', sessions: [], trades: [], notes: [], settings: { agent: { baseUrl: 'https://openrouter.ai/api/v1', apiKeyHost: 'openrouter.ai' } } })));
+    let stored = (await tables.settings.get('settings'))!.value as typeof DEFAULT_SETTINGS;
+    expect(stored.agent).toMatchObject({ baseUrl: 'https://openrouter.ai/api/v1', apiKeyEncrypted: 'blob-local', apiKeyHost: 'api.openai.com' });
+
+    await tables.settings.put({ key: 'settings', value: { ...DEFAULT_SETTINGS, agent } });
+    await restoreVault(JSON.stringify({ artefact: 'CΛNTO', sessions: [], settings: [{ key: 'settings', value: { agent: { apiKey: 'sk-plain', baseUrl: 'https://openrouter.ai/api/v1' } } }] }));
+    stored = (await tables.settings.get('settings'))!.value as typeof DEFAULT_SETTINGS;
+    expect(stored.agent.apiKey).toBe('sk-plain');
+    expect(stored.agent.apiKeyEncrypted).toBeUndefined();
+    expect(stored.agent.apiKeyHost).toBeUndefined();
+  });
+
   it('coffre v1 avec clé en clair (navigateur) : reprise en clair hors shell', async () => {
     await restoreVault(JSON.stringify({ artefact: 'CΛNTO', sessions: [], settings: [{ key: 'settings', value: { agent: { apiKey: 'sk-plain' } } }, { key: 'evil', value: 1 }] }));
     const stored = (await tables.settings.get('settings'))!.value as { agent: { apiKey: string } };

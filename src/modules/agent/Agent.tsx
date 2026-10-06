@@ -2,6 +2,7 @@ import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 're
 import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
+import { llmKeyBound } from '@/engine/agent/llm';
 import { DESK_TOOLS, toolBlurb } from '@/engine/agent/tools';
 import { tr, useI18n } from '@/i18n';
 import { desk, isDesk } from '@/lib/desk';
@@ -101,6 +102,8 @@ export default function Agent() {
   const stickToBottom = useRef(true);
   const sugs = suggestions();
   const systemPromptValue = isDefaultAgentPrompt(agent.systemPrompt) ? defaultAgentPrompt() : agent.systemPrompt;
+  // Clé saisie pour un autre hôte : le process principal ne l'envoie pas à celui-ci.
+  const keyElsewhere = !!agent.apiKeyEncrypted && !!agent.apiKeyHost && !llmKeyBound(agent.baseUrl, agent.apiKeyHost);
 
   // Défilement automatique seulement si l'opérateur était déjà en bas (≈ 40 px) : remonter
   // pour relire un message n'est plus interrompu par chaque jeton.
@@ -293,19 +296,25 @@ export default function Agent() {
               <Field
                 label={tr('Clé API', 'API key', 'Clave API')}
                 hint={
-                  keyEncrypted
+                  keyElsewhere
                     ? tr(
-                        'chiffrée au repos par le trousseau du système · jamais exportée',
-                        'encrypted at rest by the system keychain · never exported',
-                        'cifrada en reposo por el llavero del sistema · nunca exportada',
+                        `clé saisie pour ${agent.apiKeyHost} : elle n’est pas envoyée à ce fournisseur · ressaisissez-la pour celui-ci`,
+                        `key entered for ${agent.apiKeyHost}: it is not sent to this provider · enter it again for this one`,
+                        `clave introducida para ${agent.apiKeyHost}: no se envía a este proveedor · vuelva a introducirla para este`,
                       )
-                    : isDesk
-                      ? tr('stockée dans le coffre local · jamais exportée', 'stored in the local vault · never exported', 'almacenada en la caja local · nunca exportada')
-                      : tr(
-                          'mode navigateur : stockée en clair dans le coffre local, jamais exportée',
-                          'browser mode: stored in cleartext in the local vault, never exported',
-                          'modo navegador: almacenada en claro en la caja local, nunca exportada',
+                    : keyEncrypted
+                      ? tr(
+                          'chiffrée au repos par le trousseau du système · jamais exportée',
+                          'encrypted at rest by the system keychain · never exported',
+                          'cifrada en reposo por el llavero del sistema · nunca exportada',
                         )
+                      : isDesk
+                        ? tr('stockée dans le coffre local · jamais exportée', 'stored in the local vault · never exported', 'almacenada en la caja local · nunca exportada')
+                        : tr(
+                            'mode navigateur : stockée en clair dans le coffre local, jamais exportée',
+                            'browser mode: stored in cleartext in the local vault, never exported',
+                            'modo navegador: almacenada en claro en la caja local, nunca exportada',
+                          )
                 }
               >
                 <input

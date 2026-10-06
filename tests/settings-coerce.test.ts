@@ -134,6 +134,22 @@ describe('coerceAgentConfig', () => {
     // Présent mais vide : effacé.
     expect(coerceAgentConfig({ apiKeyEncrypted: '' }, { ...base, apiKeyEncrypted: 'keep' }).apiKeyEncrypted).toBeUndefined();
   });
+
+  it('hôte de la clé : saisi avec elle, gardé au changement de fournisseur, déduit pour un coffre ancien', () => {
+    const openai = { ...base, baseUrl: 'https://api.openai.com/v1', apiKeyEncrypted: 'blob' };
+    // Coffre ancien (sans le champ) : la clé reste liée à l'hôte de l'URL de base courante.
+    expect(coerceAgentConfig(openai, base).apiKeyHost).toBe('api.openai.com');
+    // Changer de préréglage ne déplace pas la clé.
+    const bound = coerceAgentConfig(openai, base);
+    expect(coerceAgentConfig({ baseUrl: 'https://openrouter.ai/api/v1' }, bound)).toMatchObject({ baseUrl: 'https://openrouter.ai/api/v1', apiKeyEncrypted: 'blob', apiKeyHost: 'api.openai.com' });
+    expect(coerceAgentConfig({ ...bound, baseUrl: 'http://localhost:11434/v1' }, base).apiKeyHost).toBe('api.openai.com');
+    // Valeur invalide : retombe sur la base, puis sur l'hôte courant.
+    expect(coerceAgentConfig({ ...openai, apiKeyHost: 'evil.example/x' }, base).apiKeyHost).toBe('api.openai.com');
+    expect(coerceAgentConfig({ ...openai, apiKeyHost: 42 }, bound).apiKeyHost).toBe('api.openai.com');
+    // Sans clé, pas d'hôte.
+    expect(coerceAgentConfig({ baseUrl: 'https://api.openai.com/v1' }, base).apiKeyHost).toBeUndefined();
+    expect(coerceAgentConfig({ apiKeyEncrypted: '' }, bound).apiKeyHost).toBeUndefined();
+  });
 });
 
 describe('allowlist de restauration (coffre)', () => {
