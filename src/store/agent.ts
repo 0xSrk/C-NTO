@@ -56,8 +56,11 @@ interface AgentState {
   linkLog: LinkLogEntry[];
   load: () => Promise<void>;
   send: (text: string) => Promise<void>;
-  /** Lance une routine dans la langue active. Outils coupés : avis, rien n'est envoyé. */
-  runRoutine: (name: string, args?: Record<string, unknown>) => Promise<void>;
+  /**
+   * Lance une routine dans la langue active ; rend vrai si elle part. Faux pendant un flux (rien ne part),
+   * outils coupés ou routine invalide (avis).
+   */
+  runRoutine: (name: string, args?: Record<string, unknown>) => Promise<boolean>;
   stop: () => void;
   newConversation: () => Promise<void>;
   probe: () => Promise<{ ok: boolean; detail: string; models?: string[] }>;
@@ -282,6 +285,8 @@ export const useAgent = create<AgentState>((set, get) => ({
   },
 
   async runRoutine(name, args) {
+    // Un flux est en cours : `send` n'est pas réentrant, la routine ne partirait pas.
+    if (get().streaming) return false;
     const { settings } = useSettings.getState();
     const locale = useI18n.getState().locale;
     if (!settings.agent.toolsEnabled) {
@@ -293,14 +298,15 @@ export const useAgent = create<AgentState>((set, get) => ({
         ),
         error: null,
       });
-      return;
+      return false;
     }
     const rendered = renderRoutine(name, args ?? {}, { locale, allowWrites: settings.agent.toolsEnabled, now: Date.now() });
     if (!rendered.ok) {
       set({ notice: rendered.detail, error: null });
-      return;
+      return false;
     }
     await get().send(rendered.text);
+    return true;
   },
 
   stop() {

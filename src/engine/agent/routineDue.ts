@@ -71,7 +71,8 @@ export function coerceRoutineSeen(value: unknown): RoutineSeen | undefined {
 
 export type RoutineCue = 'brief' | 'debrief';
 
-const ROUTINE_OF = { brief: 'pre_session_brief', debrief: 'session_debrief' } as const;
+/** Routine lancée par chaque bouton de l'onglet Agent. */
+export const ROUTINE_OF = { brief: 'pre_session_brief', debrief: 'session_debrief' } as const;
 
 /**
  * Sans clic, la journée vue ne change pas et `run` n'est pas appelé.

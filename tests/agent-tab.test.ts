@@ -255,4 +255,46 @@ describe('onglet Agent · routines', () => {
     expect(fake.provider).toBe(1);
     expect(cue(routineButton(node, 'Débrief'))).toBe(false);
   });
+
+  it('A12.5 la journée n’est vue que si la routine part : outils coupés ou flux en cours, rien n’est retenu', async () => {
+    const now = zonedToUtc('2026-10-06', '08:45', ET_ZONE);
+    clock(now);
+    // Outils coupés : un avis, rien n'est envoyé ni retenu, la pastille reste.
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, agent: { ...DEFAULT_SETTINGS.agent, toolsEnabled: false } } });
+    const node = await mount();
+    expect(cue(routineButton(node, 'Brief'))).toBe(true);
+    await click(routineButton(node, 'Brief'));
+    await settle();
+    expect(fake.puts).toEqual([]);
+    expect(userMessages()).toEqual([]);
+    expect(useAgent.getState().notice).toMatch(/outils du desk sont coupés/);
+    expect(cue(routineButton(node, 'Brief'))).toBe(true);
+    expect(await useAgent.getState().runRoutine('pre_session_brief', { date: '2026-10-06' })).toBe(false);
+
+    // Flux en cours : boutons désactivés ; la routine ne part pas et rien n'est retenu.
+    await act(async () => {
+      useSettings.setState({ settings: { ...DEFAULT_SETTINGS } });
+      useAgent.setState({ streaming: true, notice: null });
+    });
+    expect(routineButton(node, 'Brief').disabled).toBe(true);
+    expect(routineButton(node, 'Débrief').disabled).toBe(true);
+    await click(routineButton(node, 'Brief'));
+    await settle();
+    expect(await useAgent.getState().runRoutine('pre_session_brief', { date: '2026-10-06' })).toBe(false);
+    expect(fake.puts).toEqual([]);
+    expect(userMessages()).toEqual([]);
+    expect(fake.provider).toBe(0);
+
+    // Flux terminé : le clic part, et la journée CME est retenue.
+    await act(async () => {
+      useAgent.setState({ streaming: false });
+    });
+    expect(routineButton(node, 'Brief').disabled).toBe(false);
+    await click(routineButton(node, 'Brief'));
+    await settle();
+    expect(userMessages()).toHaveLength(1);
+    expect(fake.provider).toBe(1);
+    expect(fake.puts).toEqual([{ key: 'agent.routineSeen', value: { brief: '2026-10-06' } }]);
+    expect(cue(routineButton(node, 'Brief'))).toBe(false);
+  });
 });
