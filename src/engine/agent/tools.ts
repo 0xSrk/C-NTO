@@ -15,7 +15,7 @@ import type { BookOrder } from '@/engine/execution/orderBook';
 import { findQuote, QUOTE_STALE_MS } from '@/engine/marketdata/quotes';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
-import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
+import { DESK_EVENT_KINDS, DESK_TOOL_TITLES, isDeskEventKind, ORDER_TOOLS } from './catalog';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
 import { AGENT_ORDER_BOUNDS } from './orders';
 import { traderMemory, type MemoryNote } from './memory';
@@ -1114,6 +1114,14 @@ export function toolBlurb(name: string, fallback: string): string {
 
 export function toolSchemas(): ToolSchema[] {
   return DESK_TOOLS.map(({ name, description, parameters }) => ({ name, description: toolBlurb(name, description), parameters }));
+}
+
+/** Catalogue annoncé par `desk.describe` : le titre suit la langue du desk. */
+export function describedDeskTools(): (ToolSchema & { kind: 'read' | 'write'; title: string })[] {
+  return toolSchemas().map((tool) => {
+    const titles = DESK_TOOL_TITLES[tool.name as keyof typeof DESK_TOOL_TITLES];
+    return { ...tool, kind: toolKind(tool.name), title: tr(titles[0], titles[1], titles[2]) };
+  });
 }
 
 export function toolKind(name: string): 'read' | 'write' {
