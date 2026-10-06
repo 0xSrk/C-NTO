@@ -23,8 +23,9 @@ Agent IA › **Agents externes · MCP** › *Ouvrir la passerelle*. Elle se rouv
 | Authentification | `Authorization: Bearer <jeton>`. Jeton persistant (`userData/mcp-token.json`, mode `0600`), renouvelable dans le panneau. Comparaison à temps constant |
 | Révisions | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`. Une révision inconnue reçoit la plus récente |
 | Mode | Sans état, réponses `application/json`. `GET` et `DELETE` rendent `405` |
-| Méthodes | `initialize`, `ping`, `tools/list`, `tools/call`, `prompts/list`, `prompts/get`. Le reste rend `-32601`. Un message sans `jsonrpc: "2.0"`, avec un `id` qui n'est ni chaîne ni nombre, ou un `id` sans `method` (hors réponse du client) rend `400` / `-32600` |
-| Capacités | `tools` et `prompts` (`listChanged: false`) : après une bascule d'*écriture autorisée*, reconnecter le client |
+| Méthodes | `initialize`, `ping`, `tools/list`, `tools/call`, `prompts/list`, `prompts/get`, `resources/list`, `resources/templates/list`, `resources/read`. Le reste rend `-32601`. Un message sans `jsonrpc: "2.0"`, avec un `id` qui n'est ni chaîne ni nombre, ou un `id` sans `method` (hors réponse du client) rend `400` / `-32600` |
+| Capacités | `tools`, `prompts` et `resources` (`listChanged: false`, ressources sans abonnement) : après une bascule d'*écriture autorisée*, reconnecter le client |
+| Ressources | `canto://desk/overview` (`desk_overview`), `canto://plan/tracked` (`propfirm_status`), modèles `canto://session/{date}` (`get_session`) et `canto://note/{id}` (`read_note`). Chaque lecture passe par le relais, typée par `DESK_TOOL_KINDS`. URI inconnue : `-32002`. Aucune écriture |
 | Refus avant lecture du corps | `Origin` présent (navigateur) → `403` ; `Host` hors loopback → `403` ; jeton absent ou faux → `401` ; puis, jeton vérifié : plus de 40 requêtes / s ou plus de 8 appels en cours → `429` avec `Retry-After: 1` ; corps > 1 Mo → `413` |
 | Délai | 15 s au plus pour une réponse du desk, 55 s pour `propose_order` (le trader a 45 s pour répondre). Desk fermé ou muet : `tools/list` rend l'erreur `-32002` (ouvrir le desk, puis reconnecter le client), `tools/call` un résultat `isError` lisible |
 | Langue | Consignes d'`initialize`, titres d'outils et prompts dans la langue du desk (fr, en, es) |

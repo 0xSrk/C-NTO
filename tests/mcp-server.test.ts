@@ -291,7 +291,7 @@ describe('passerelle MCP · protocole', () => {
   });
 
   it('méthode inconnue : -32601', async () => {
-    const out = await result(await handleMcpHttp(post(rpc('resources/list')), ctx()));
+    const out = await result(await handleMcpHttp(post(rpc('sampling/createMessage')), ctx()));
     expect(out.error?.code).toBe(-32601);
   });
 });
@@ -301,7 +301,7 @@ describe('passerelle MCP · prompts', () => {
 
   it('initialize annonce prompts ; prompts/list rend les trois routines et leurs arguments, dans la langue du desk', async () => {
     const init = await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-11-25' })), ctx()));
-    expect(init.result?.capabilities).toEqual({ tools: { listChanged: false }, prompts: { listChanged: false } });
+    expect(init.result?.capabilities).toEqual({ tools: { listChanged: false }, prompts: { listChanged: false }, resources: { subscribe: false, listChanged: false } });
     const list = async (locale?: 'fr' | 'en' | 'es') =>
       (await result(await handleMcpHttp(post(rpc('prompts/list')), ctx({ locale })))).result?.prompts as { name: string; title: string; description: string; arguments: { name: string; description: string; required: boolean }[] }[];
     const fr = await list();
@@ -462,5 +462,31 @@ describe('passerelle MCP · serveur', () => {
     const limited = replies.filter((r) => r.status === 429);
     expect(limited.length).toBeGreaterThan(0);
     expect(limited.every((r) => r.headers.get('retry-after') === '1')).toBe(true);
+  });
+});
+
+describe('A14.3 ressources MCP', () => {
+  it('liste, modèles, lecture par un outil de lecture, URI inconnue en -32002', async () => {
+    const calls: { name: string; args: unknown }[] = [];
+    const answer = (name: string) => {
+      if (name === 'get_session') return { result: { session: { date: '2026-10-06' } } };
+      if (name === 'read_note') return { result: { id: 'n1', title: 'Plan' } };
+      if (name === 'propfirm_status') return { result: { status: 'ok' } };
+      return { result: { sessions: 2 } };
+    };
+    const out = async (method: string, params: unknown = {}) => result(await handleMcpHttp(post(rpc(method, params)), ctx({ relay: relay(calls, answer) })));
+    const list = await out('resources/list');
+    expect((list.result?.resources as { uri: string }[]).map((r) => r.uri)).toEqual(['canto://desk/overview', 'canto://plan/tracked']);
+    const templates = await out('resources/templates/list');
+    expect((templates.result?.resourceTemplates as { uriTemplate: string }[]).map((r) => r.uriTemplate)).toEqual(['canto://session/{date}', 'canto://note/{id}']);
+    const session = await out('resources/read', { uri: 'canto://session/2026-10-06' });
+    expect(calls).toContainEqual({ name: 'get_session', args: { date: '2026-10-06' } });
+    expect(JSON.parse((session.result?.contents as { text: string }[])[0]!.text)).toEqual({ session: { date: '2026-10-06' } });
+    const note = await out('resources/read', { uri: 'canto://note/n1' });
+    expect(calls).toContainEqual({ name: 'read_note', args: { id: 'n1' } });
+    expect(JSON.parse((note.result?.contents as { text: string }[])[0]!.text).id).toBe('n1');
+    const unknown = await out('resources/read', { uri: 'canto://order/submit' });
+    expect(unknown.error?.code).toBe(-32002);
+    expect(calls.some((c) => c.name === 'create_note' || c.name === 'propose_order')).toBe(false);
   });
 });

@@ -90,6 +90,17 @@ export interface McpToolInfo {
 }
 
 /** Type d'un outil selon le catalogue du process principal ; `undefined` hors catalogue. */
+/** URI fixe ou modèle → outil de lecture. Une écriture n'est jamais exposée. */
+function resourceTarget(uri: string): { tool: string; args: Record<string, unknown> } | null {
+  if (uri === 'canto://desk/overview') return { tool: 'desk_overview', args: {} };
+  if (uri === 'canto://plan/tracked') return { tool: 'propfirm_status', args: {} };
+  const session = /^canto:\/\/session\/(\d{4}-\d{2}-\d{2})$/.exec(uri);
+  if (session?.[1]) return { tool: 'get_session', args: { date: session[1] } };
+  const note = /^canto:\/\/note\/([^/?#]+)$/.exec(uri);
+  if (note?.[1]) return { tool: 'read_note', args: { id: decodeURIComponent(note[1]) } };
+  return null;
+}
+
 function catalogKind(name: string): 'read' | 'write' | undefined {
   return Object.hasOwn(DESK_TOOL_KINDS, name) ? DESK_TOOL_KINDS[name] : undefined;
 }
@@ -241,7 +252,7 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       return {
         result: {
           protocolVersion: negotiateVersion(params.protocolVersion),
-          capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } },
+          capabilities: { tools: { listChanged: false }, prompts: { listChanged: false }, resources: { subscribe: false, listChanged: false } },
           serverInfo: { name: 'canto', title: 'CΛNTO', version: ctx.serverVersion },
           instructions: mcpInstructions(locale, ctx.allowWrites),
         },
@@ -289,6 +300,34 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
           })),
         },
       };
+    case 'resources/list':
+      return {
+        result: {
+          resources: [
+            { uri: 'canto://desk/overview', name: uiText(locale, 'Vue d’ensemble du desk', 'Desk overview', 'Vista general del desk'), mimeType: 'application/json' },
+            { uri: 'canto://plan/tracked', name: uiText(locale, 'Plan prop suivi', 'Tracked prop plan', 'Plan prop seguido'), mimeType: 'application/json' },
+          ],
+        },
+      };
+    case 'resources/templates/list':
+      return {
+        result: {
+          resourceTemplates: [
+            { uriTemplate: 'canto://session/{date}', name: uiText(locale, 'Séance du journal', 'Journal session', 'Sesión del diario'), mimeType: 'application/json' },
+            { uriTemplate: 'canto://note/{id}', name: uiText(locale, 'Note du coffre', 'Vault note', 'Nota de la caja'), mimeType: 'application/json' },
+          ],
+        },
+      };
+    case 'resources/read': {
+      const uri = typeof params.uri === 'string' ? params.uri : '';
+      const target = resourceTarget(uri);
+      if (!target || catalogKind(target.tool) !== 'read') {
+        return { error: { code: DESK_UNAVAILABLE, message: uiText(locale, `Ressource inconnue : ${uri || '(sans uri)'}`, `Unknown resource: ${uri || '(no uri)'}`, `Recurso desconocido: ${uri || '(sin uri)'}`) } };
+      }
+      const { result, error } = await ctx.relay.call(target.tool, target.args);
+      if (error && (result === null || result === undefined)) return { error: { code: DESK_UNAVAILABLE, message: error } };
+      return { result: { contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(result ?? null) }] } };
+    }
     case 'prompts/get': {
       // Les écritures n'apparaissent dans le texte que si le trader les a autorisées ; propose_order jamais.
       const out = renderRoutine(params.name, params.arguments, { locale, allowWrites: ctx.allowWrites, now: (ctx.now ?? Date.now)() });
