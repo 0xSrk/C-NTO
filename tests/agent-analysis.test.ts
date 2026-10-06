@@ -46,7 +46,8 @@ describe('journal_breakdown', () => {
       { key: '10', trades: 1, pnl: -50, winRate: 0 },
       { key: '21', trades: 1, pnl: 100, winRate: 1 },
     ]);
-    expect((out.byWeekday as { key: string }[]).map((b) => b.key)).toEqual(['lun', 'mar']);
+    // Lundi 21:30 ET appartient à la séance CME du mardi 15/09, comme sa séance s1 (1.1).
+    expect((out.byWeekday as { key: string }[]).map((b) => b.key)).toEqual(['mar']);
     expect((out.byInstrument as { key: string }[]).map((b) => b.key).sort()).toEqual(['ES', 'NQ']);
     expect(out.direction).toMatchObject({ long: { trades: 1, pnl: 100 }, short: { trades: 1, pnl: -50 } });
   });

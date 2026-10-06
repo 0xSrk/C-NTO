@@ -1,4 +1,5 @@
-import { ET_ZONE, zonedWallClock } from '@/lib/time';
+import { ET_ZONE, tradingDayKey, zonedWallClock } from '@/lib/time';
+import { getInstrument, hasInstrument, tradingDayOf } from './instruments';
 import type { Instrument, Session, Trade } from './types';
 
 export interface EquityPoint {
@@ -279,7 +280,58 @@ function directionStats(trades: Trade[]): DirectionStats {
 
 export const WEEKDAY_KEYS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
 
-export function computeTradeStats(input: Trade[]): TradeStats {
+/**
+ * Journée d'un trade : la date de sa séance (journée de cotation CME, 18 h → 17 h ET). Sans séance
+ * connue, la journée de l'instrument à la sortie, comme à l'import (`groupIntoSessions`).
+ * C'est l'unique axe « jour » des ventilations : un trade du dimanche soir appartient au lundi.
+ */
+export function tradeDay(trade: Trade, sessionDate?: string): string {
+  if (sessionDate) return sessionDate;
+  return hasInstrument(trade.instrument) ? tradingDayOf(trade.exitTime, getInstrument(trade.instrument)) : tradingDayKey(trade.exitTime, 18, ET_ZONE);
+}
+
+/** Jour de semaine (0 = dimanche) d'une date `YYYY-MM-DD`, sans fuseau. */
+export function weekdayOf(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1)).getUTCDay();
+}
+
+/** Date de séance par identifiant de séance : la clé des ventilations par jour. */
+export function sessionDates(sessions: readonly Session[]): Map<string, string> {
+  return new Map(sessions.map((row) => [row.id, row.date]));
+}
+
+export interface DayHourCell {
+  /** Jour de semaine de la séance (0 = dimanche). */
+  dow: number;
+  /** Heure d'entrée à New York. */
+  hour: number;
+  pnl: number;
+  n: number;
+}
+
+/** Trame jour × heure : jour de la séance, heure d'entrée à New York. */
+export function dayHourGrid(trades: readonly Trade[], days?: ReadonlyMap<string, string>): DayHourCell[] {
+  const cells = new Map<string, DayHourCell>();
+  for (const t of trades) {
+    if (!Number.isFinite(t.pnl)) continue;
+    const dow = weekdayOf(tradeDay(t, days?.get(t.sessionId)));
+    const hour = zonedWallClock(t.entryTime, ET_ZONE).hour;
+    const key = `${dow}|${hour}`;
+    const cell = cells.get(key);
+    if (cell) {
+      cell.pnl += t.pnl;
+      cell.n++;
+    } else cells.set(key, { dow, hour, pnl: t.pnl, n: 1 });
+  }
+  return [...cells.values()];
+}
+
+/**
+ * Statistiques par trade. `days` (date de séance par `sessionId`, voir `sessionDates`) fixe le jour
+ * des ventilations ; sans elle, la journée CME de l'instrument à la sortie.
+ */
+export function computeTradeStats(input: Trade[], days?: ReadonlyMap<string, string>): TradeStats {
   const trades = input.filter((t) => Number.isFinite(t.pnl)).sort((a, b) => a.exitTime - b.exitTime);
   const pnls = trades.map((t) => t.pnl);
   const count = trades.length;
@@ -373,8 +425,8 @@ export function computeTradeStats(input: Trade[]): TradeStats {
       (t) => String(zonedWallClock(t.entryTime, ET_ZONE).hour),
       Array.from({ length: 24 }, (_, i) => String(i)),
     ),
-    // Même fuseau que les heures : le jour d'entrée à New York, pas celui du poste.
-    byWeekday: bucketize(trades, (t) => WEEKDAY_KEYS[zonedWallClock(t.entryTime, ET_ZONE).weekday] ?? 'dim', WEEKDAY_KEYS),
+    // Le jour de la séance (journée CME), pas le jour civil de l'entrée.
+    byWeekday: bucketize(trades, (t) => WEEKDAY_KEYS[weekdayOf(tradeDay(t, days?.get(t.sessionId)))] ?? 'dim', WEEKDAY_KEYS),
     byInstrument: bucketize(trades, (t) => t.instrument, instruments),
     equity: dd.equity,
     pnls,

@@ -2,8 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { Bars, Histogram } from '@/design/charts/Bars';
 import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
-import { histogram, WEEKDAY_KEYS } from '@/engine/metrics';
-import { ET_ZONE, zonedWallClock } from '@/lib/time';
+import { dayHourGrid, histogram, sessionDates, WEEKDAY_KEYS } from '@/engine/metrics';
 import type { Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
@@ -215,7 +214,7 @@ function ExcursionField({ pts, max }: { pts: { mae: number; mfe: number; pnl: nu
 
 export function Analyse() {
   const locale = useI18n((s) => s.locale);
-  const { trades, tradeStats: t } = useStats();
+  const { sessions, trades, tradeStats: t } = useStats();
   const [rankMode, setRankMode] = useState<'strategie' | 'tag' | 'taille'>('strategie');
 
   const byStrategy = useMemo(() => groupBy(trades, (x) => [x.strategy ?? 'Sans stratégie']), [trades]);
@@ -247,20 +246,15 @@ export function Analyse() {
     });
   }, [trades, locale]);
 
+  // Jour = séance du trade (journée CME, comme l'onglet Séances), heure = entrée à New York.
+  const grid = useMemo(() => dayHourGrid(trades, sessionDates(sessions)), [trades, sessions]);
+
   const heat = useMemo(() => {
     const acc = new Map<number, { pnl: number; n: number }>();
     const hoursSeen = new Set<number>();
-    for (const x of trades) {
-      const clock = zonedWallClock(x.entryTime, ET_ZONE);
-      const dow = clock.weekday;
-      const h = clock.hour;
-      hoursSeen.add(h);
-      const k = dow * 24 + h;
-      const cur = acc.get(k);
-      if (cur) {
-        cur.pnl += x.pnl;
-        cur.n++;
-      } else acc.set(k, { pnl: x.pnl, n: 1 });
+    for (const cell of grid) {
+      hoursSeen.add(cell.hour);
+      acc.set(cell.dow * 24 + cell.hour, { pnl: cell.pnl, n: cell.n });
     }
     const hours = [...hoursSeen].sort((a, b) => a - b);
     const rows = [1, 2, 3, 4, 5];
@@ -275,21 +269,18 @@ export function Analyse() {
     });
     const best = candidates.reduce<{ dow: number; h: number; pnl: number } | null>((accBest, c) => (!accBest || c.pnl > accBest.pnl ? c : accBest), null);
     return { rows: rows.map((d) => weekdayLabel(WEEKDAY_KEYS[d] ?? '')), cols: hours.map((h) => `${h}h`), cells, best, hours };
-  }, [trades, locale]);
+  }, [grid, locale]);
 
   const byDow = useMemo(() => {
     const acc = new Map<number, { pnl: number; n: number }>();
-    for (const x of trades) {
-      // Même référentiel que la trame horaire : jour de semaine en heure de New York.
-      const dow = zonedWallClock(x.entryTime, ET_ZONE).weekday;
-      if (dow === 0 || dow === 6) continue;
-      const cur = acc.get(dow) ?? { pnl: 0, n: 0 };
-      cur.pnl += x.pnl;
-      cur.n++;
-      acc.set(dow, cur);
+    for (const cell of grid) {
+      const cur = acc.get(cell.dow) ?? { pnl: 0, n: 0 };
+      cur.pnl += cell.pnl;
+      cur.n += cell.n;
+      acc.set(cell.dow, cur);
     }
     return [1, 2, 3, 4, 5].map((d) => ({ key: WEEKDAY_KEYS[d] ?? '', pnl: acc.get(d)?.pnl ?? 0, n: acc.get(d)?.n ?? 0 }));
-  }, [trades]);
+  }, [grid]);
 
   const scatter = useMemo(() => {
     const pts: { mae: number; mfe: number; pnl: number }[] = [];
