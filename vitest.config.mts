@@ -20,6 +20,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'copier/sync': 'src/engine/copier/sync.ts',
     'agent/catalog': 'src/engine/agent/catalog.ts',
     'agent/orders': 'src/engine/agent/orders.ts',
+    'agent/routines': 'src/engine/agent/routines.ts',
   };
   const hit = map[rel];
   return hit ? path.join(root, hit) : null;

@@ -172,9 +172,15 @@ const deskRelay = new DeskRelay((req) => {
 });
 let mcp: McpGateway | null = null;
 function mcpGateway(): McpGateway {
-  mcp ??= new McpGateway(app.getPath('userData'), mcpRelay(deskRelay), app.getVersion(), (status) => {
-    if (win && !win.isDestroyed()) win.webContents.send('mcp:status', status);
-  });
+  mcp ??= new McpGateway(
+    app.getPath('userData'),
+    mcpRelay(deskRelay),
+    app.getVersion(),
+    (status) => {
+      if (win && !win.isDestroyed()) win.webContents.send('mcp:status', status);
+    },
+    () => readLocaleFile(app.getPath('userData')),
+  );
   return mcp;
 }
 let bridge: NinjaBridge | null = null;

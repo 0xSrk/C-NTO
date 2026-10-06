@@ -21,6 +21,7 @@
     "../src/engine/copier/position.ts",
     "../src/engine/copier/sync.ts",
     "../src/engine/agent/catalog.ts",
-    "../src/engine/agent/orders.ts"
+    "../src/engine/agent/orders.ts",
+    "../src/engine/agent/routines.ts"
   ]
 }
