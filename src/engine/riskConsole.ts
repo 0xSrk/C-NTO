@@ -81,3 +81,26 @@ export function expectancy(winRate: number, avgWin: number, avgLoss: number): nu
 export function expectancyR(winRate: number, rewardRisk: number): number {
   return winRate * rewardRisk - (1 - winRate);
 }
+
+export interface RrMatrix {
+  /** Taux de réussite de chaque ligne, dans l'ordre. */
+  winRates: number[];
+  /** R/R de chaque colonne. La dernière est le R/R réalisé. */
+  rewardRisks: number[];
+  /** Espérance en R. */
+  cells: number[][];
+  /** Ligne et colonne du point réalisé. */
+  realized: { row: number; col: number };
+}
+
+/**
+ * Matrice R-R. Lignes : taux réalisé, puis les écarts (en points de taux, 0,10 = 10 points),
+ * puis la borne basse. Colonnes : 1 ; 1,5 ; 2 ; 2,5 ; 3 et le R/R réalisé.
+ */
+export function rrMatrix(winRate: number, realizedRr: number, offsets: readonly number[] = [0.1, -0.1, -0.15], winRateLow = winRate): RrMatrix {
+  const winRates = [winRate, ...offsets.map((offset) => winRate + offset), winRateLow].map((rate) => Math.min(1, Math.max(0, rate)));
+  const grid = [1, 1.5, 2, 2.5, 3];
+  const rewardRisks = Number.isFinite(realizedRr) && realizedRr > 0 ? [...grid, realizedRr] : grid;
+  const cells = winRates.map((rate) => rewardRisks.map((rr) => expectancyR(rate, rr)));
+  return { winRates, rewardRisks, cells, realized: { row: 0, col: rewardRisks.length - 1 } };
+}
