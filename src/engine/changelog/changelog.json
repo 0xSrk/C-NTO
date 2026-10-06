@@ -398,6 +398,34 @@
           "En la barra de carga, SIΞRRΛSKΛ va en caracteres."
         ]
       }
+    },
+    {
+      "version": "3.4.0",
+      "date": "2026-10-06",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "L’agent lit tout le desk : ventilations, Monte-Carlo, pont NinjaTrader, portefeuille, niveaux de marché et événements du desk.",
+          "Passerelle MCP locale : Claude, Codex, Cursor et tout client MCP se branchent sur le desk, en lecture tant que l’écriture n’est pas autorisée.",
+          "L’agent peut proposer un ordre sur un compte Sim : le desk le garde, vous le confirmez dans sa fenêtre. Désactivé à chaque ouverture.",
+          "Sécurité : l’AddOn NinjaTrader 2.2.0 vérifie le desk, le Copieur suit les positions, les mises à jour sont signées par le Lab.",
+          "Siège nominatif : un code du Lab inscrit le nom du testeur en bas à droite du desk."
+        ],
+        "en": [
+          "The agent reads the whole desk: breakdowns, Monte Carlo, NinjaTrader bridge, portfolio, market levels and desk events.",
+          "Local MCP gateway: Claude, Codex, Cursor and any MCP client connect to the desk, read only until writing is allowed.",
+          "The agent can propose an order on a Sim account: the desk guards it, you confirm it in its window. Off each time the desk opens.",
+          "Security: NinjaTrader AddOn 2.2.0 checks the desk, the Copier follows positions, updates are signed by the Lab.",
+          "Named seat: a code from the Lab writes the tester’s name at the bottom right of the desk."
+        ],
+        "es": [
+          "El agente lee todo el desk: desgloses, Monte Carlo, puente NinjaTrader, cartera, niveles de mercado y eventos del desk.",
+          "Pasarela MCP local: Claude, Codex, Cursor y cualquier cliente MCP se conectan al desk, en lectura mientras la escritura no esté autorizada.",
+          "El agente puede proponer una orden en una cuenta Sim: el desk la controla y usted la confirma en su ventana. Desactivado en cada apertura.",
+          "Seguridad: el AddOn NinjaTrader 2.2.0 verifica el desk, el Copiador sigue las posiciones, las actualizaciones van firmadas por el Lab.",
+          "Asiento nominativo: un código del Lab inscribe el nombre del probador abajo a la derecha del desk."
+        ]
+      }
     }
   ]
 }

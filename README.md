@@ -2,13 +2,13 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.3.4 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.4.0 · DESK OUTPUT`**
 
 # CΛNTO
 
 ### A local trading desk for CME Group futures (Nasdaq, S&P, Russell, Dow, crude, gold, euro FX)
 
-An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and a Copier that replicates in simulation. **v3.3.4** installs natively on **macOS, Windows, and Linux**. Data stays on the machine. On arrival the desk stays closed until it opens.
+An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and a Copier that replicates in simulation. **v3.4.0** installs natively on **macOS, Windows, and Linux**. Data stays on the machine. On arrival the desk stays closed until it opens.
 
 > Personal noncommercial use is free under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use goes through **SIΞRRΛSKΛ Lab**. Versions 3.1.0 through 3.3.1 published under MIT remain under MIT.
 
@@ -49,7 +49,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 6. [`06 · AGT` AI agent](#ai-agent) — prototype
 7. [`07 · BOT` Bot](#bot) — design
 8. [`08 · CPY` Copier](#copier) — simulation, disarmed on launch
-9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
+9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge) · [Named seat](#named-seat)
 10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
 11. [Versions](#versions) · [Roadmap](#roadmap) · [Services](#services) · [Disclaimer](#disclaimer)
 
@@ -59,14 +59,14 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 
 CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. On arrival the desk stays closed; it opens onto the modules only after that. Personal noncommercial use is free. Commercial use goes through the Lab.
 
-| Module | In 3.3.4 |
+| Module | In 3.4.0 |
 |---|---|
 | `01 · MET` Metrics | Journal, prop replay, Monte Carlo |
 | `02 · VIS` Visual | Registry candles, indicators, live bars when the NT8 bridge is connected |
 | `03 · CAL` Calendar | Official sources: BLS, BEA, Federal Reserve, ECB, EIA, TreasuryDirect, plus an embedded snapshot. FRED only with a key you type. CME expirations are computed locally |
 | `04 · NTE` Notes | Markdown vault, typed links, and a branch from a selection |
 | `05 · PTF` Portfolio | Local net value, exposure, distance to prop thresholds, Monte Carlo on the consolidated series |
-| `06 · AGT` Agent | Prototype. Desk tools, write confirmation, LLM through the main process |
+| `06 · AGT` Agent | Prototype. Reads the whole desk and its events, local MCP gateway, proposes orders on Sim accounts that you confirm. LLM through the main process |
 | `07 · BOT` Bot | Design. No order is sent |
 | `08 · CPY` Copier | Simulation only. Disarmed on every launch. Real follower accounts are not in this version |
 
@@ -78,27 +78,27 @@ CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group f
 | **See** | Candles for the instrument registry (NQ, ES, RTY, YM, CL, GC, 6E, and their micros) · indicator catalog · one session projected · live bars when the NT8 bridge is connected |
 | **Context** | Official calendars (BLS, BEA, Fed, ECB, EIA, Treasury) plus an embedded 2026 snapshot · CME expirations computed locally · day’s notes |
 | **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph, and a branch from a selection |
-| **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · its own JSON-RPC WebSocket, separate from the NT bridge |
-| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). Bot stays **design**. The Copier brings Sim followers to the master position (not fill by fill) only while armed; exits always go out |
+| **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · local MCP gateway for Claude, Codex, Cursor and any MCP client · its own JSON-RPC WebSocket, separate from the NT bridge |
+| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). The agent only **proposes** an order on a Sim account; you confirm each one in a desk window. Bot stays **design**. The Copier brings Sim followers to the master position (not fill by fill) only while armed; exits always go out |
 | **Portfolio** | Consolidated net value in a base currency. A missing exchange rate leaves that pocket out of the total |
 
 ---
 
 ## Get started
 
-**v3.3.4** is the current release. The desk offers it as an update over 3.3.3. Desk Unlocked is set in the desk type, the loading bar writes SIΞRRΛSKΛ in characters, the Λ keeps its red tip, and each module title sits in a compact plate. It stays under the PolyForm Noncommercial License 1.0.0, with the execution port, the Copier on the rail as `08 · CPY`, note branches, and a desk that stays closed on arrival. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
+**v3.4.0** is the current release. The agent reads the whole desk and its events, external agents connect through a local MCP gateway, and the agent can propose an order on a Sim account that you confirm in a desk window. NinjaTrader AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, and installers are verified against `SHA256SUMS.txt` signed by the Lab. A code from the Lab writes a tester's name at the bottom right of the desk. It stays under the PolyForm Noncommercial License 1.0.0. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
 
 | OS | Installer | What you get |
 |---|---|---|
-| **macOS** 12+ (Apple silicon and Intel) | `CANTO-3.3.4-mac-universal.dmg` | Application in `/Applications`. The file bridge lives in the desk. |
-| **Windows** 10 / 11 (x64 and ARM) | `CANTO-3.3.4-win-x64-setup.exe` (or `arm64`) | NSIS wizard (choose the folder, shortcut). Portable: `CANTO-3.3.4-win-x64-portable.exe`. |
-| **Linux** x64 and ARM64 | `CANTO-3.3.4-linux-x86_64.AppImage` or `CANTO-3.3.4-linux-amd64.deb` | ARM64: `linux-arm64.AppImage` and `linux-arm64.deb`. |
+| **macOS** 12+ (Apple silicon and Intel) | `CANTO-3.4.0-mac-universal.dmg` | Application in `/Applications`. The file bridge lives in the desk. |
+| **Windows** 10 / 11 (x64 and ARM) | `CANTO-3.4.0-win-x64-setup.exe` (or `arm64`) | NSIS wizard (choose the folder, shortcut). Portable: `CANTO-3.4.0-win-x64-portable.exe`. |
+| **Linux** x64 and ARM64 | `CANTO-3.4.0-linux-x86_64.AppImage` or `CANTO-3.4.0-linux-amd64.deb` | ARM64: `linux-arm64.AppImage` and `linux-arm64.deb`. |
 
 <a id="installer"></a>
 
 ### macOS
 
-1. Download the DMG from the [GitHub Release v3.3.4](https://github.com/0xSrk/C-NTO/releases/tag/v3.3.4), or run `npm run dist:mac` on a Mac.
+1. Download the DMG from the [GitHub Release v3.4.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.4.0), or run `npm run dist:mac` on a Mac.
 2. Open the DMG and drag **CΛNTO** into **Applications**.
 3. First launch: right-click the app › **Open** (the DMG is not Apple-signed; Gatekeeper asks for this confirmation once).
 4. The launcher, then the desk, open. Metrics › NinjaTrader bridge creates `~/Documents/NinjaTrader 8/export/CANTO` and watches it.
@@ -109,9 +109,9 @@ From source (development): double-click `CANTO.command`, or `chmod +x CANTO.sh &
 
 ### Windows
 
-1. Run `CANTO-3.3.4-win-x64-setup.exe` (or `arm64` on Windows ARM).
+1. Run `CANTO-3.4.0-win-x64-setup.exe` (or `arm64` on Windows ARM).
 2. Choose the folder, finish the wizard, and open **CΛNTO** from the Start menu.
-3. No-install variant: `CANTO-3.3.4-win-x64-portable.exe`.
+3. No-install variant: `CANTO-3.4.0-win-x64-portable.exe`.
 4. Metrics › NinjaTrader bridge › default folder `Documents\NinjaTrader 8\export\CANTO`.
 5. Real time: `CantoBridge.cs` ships in `resources/ninjatrader/` next to the executable (sources: `ninjatrader/CantoBridge.cs`). Copy it to `Documents\NinjaTrader 8\bin\Custom\AddOns\`, then NinjaScript Editor › Compile (F5). In the desk, **Write the NinjaTrader configuration** so the AddOn reads `bridge.json` (port and token) and opens the WebSocket. The CSV file is still written in parallel.
 
@@ -121,8 +121,8 @@ From source: double-click `CANTO.cmd`. The Electron binary is downloaded and ext
 
 ### Linux
 
-1. **AppImage** (no system install): `chmod +x CANTO-3.3.4-linux-x86_64.AppImage && ./CANTO-3.3.4-linux-x86_64.AppImage`. ARM64: `CANTO-3.3.4-linux-arm64.AppImage`.
-2. **Debian / Ubuntu**: `sudo apt install ./CANTO-3.3.4-linux-amd64.deb` (ARM64: `CANTO-3.3.4-linux-arm64.deb`), then launch `canto` or **CΛNTO** from the menu.
+1. **AppImage** (no system install): `chmod +x CANTO-3.4.0-linux-x86_64.AppImage && ./CANTO-3.4.0-linux-x86_64.AppImage`. ARM64: `CANTO-3.4.0-linux-arm64.AppImage`.
+2. **Debian / Ubuntu**: `sudo apt install ./CANTO-3.4.0-linux-amd64.deb` (ARM64: `CANTO-3.4.0-linux-arm64.deb`), then launch `canto` or **CΛNTO** from the menu.
 3. The bridge creates `~/Documents/NinjaTrader 8/export/CANTO`. Same rule as macOS: the AddOn runs inside NinjaTrader 8 on Windows; the Linux desk imports the CSVs from that folder.
 
 From source: `chmod +x CANTO.sh && ./CANTO.sh`.
@@ -179,7 +179,7 @@ Every install opens on the **launcher** — desk language, version check, and th
 
 | State | Behavior |
 |---|---|
-| Up to date | The button shows `v3.3.4` (quiet) |
+| Up to date | The button shows `v3.4.0` (quiet) |
 | Update available | The button turns **amber / yellow** — one click installs and relaunches |
 
 ---
@@ -529,6 +529,14 @@ Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**. Compiling the A
 
 ---
 
+<a id="named-seat"></a>
+
+## Named seat
+
+A code from the Lab writes a tester's name at the bottom right of the desk, just before the bars. Hover or focus the bars: they turn into `<insert code>`. Click, paste the code, press Enter. The main process checks the code's Ed25519 signature against the Lab's seat keys (`electron/seat-keys.ts`, separate from the release keys) and shows the **signed** name, never the typed text. The code stays in the desk's data folder and is checked again at each launch. Without a code, nothing changes: the desk opens as before. Reference: [docs/SIEGE-NOMINATIF.md](docs/SIEGE-NOMINATIF.md).
+
+---
+
 <div align="center">
 
 **`ARCH · SHELL · ENGINE · VAULT`**
@@ -612,6 +620,7 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is arc
 
 The journal inside the desk lists the same releases, in French, English, and Spanish.
 
+- 3.4.0 — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. Named seat. (2026-10-06)
 - 3.3.4 — Update over 3.3.3. Desk Unlocked in the desk type. The loading bar writes the Lab name in characters. (2026-10-05)
 - 3.3.3 — Desk Unlocked in the desk type. Red tip on the Λ. Compact module plate. (2026-10-05)
 - 3.3.2 — PolyForm Noncommercial 1.0.0. Personal noncommercial use is free. Commercial use goes through the Lab. (2026-10-04)
@@ -634,9 +643,9 @@ The journal inside the desk lists the same releases, in French, English, and Spa
 
 ## Roadmap
 
-Shipped in 3.3.4: the update the desk can see. Desk Unlocked stays in the desk type, and the loading bar writes the Lab name in characters. Shipped in 3.3.3: the Λ tip and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
+Shipped in 3.4.0: the agent reads the whole desk and its events, the local MCP gateway, orders proposed by the agent and confirmed by the trader, the security prerequisites (AddOn guard and mutual authentication, contract ceiling behind a dialog, position-based Copier, signed updates), and the named seat. Shipped in 3.3.4: the update the desk can see. Desk Unlocked stays in the desk type, and the loading bar writes the Lab name in characters. Shipped in 3.3.3: the Λ tip and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
 
-Still ahead of the desk: the agent remains a prototype, and Bot remains design — it sends no order. The Copier does not follow a real account in this version. What the Lab brings next is listed under [Services](#services).
+Still ahead of the desk: the agent remains a prototype — it proposes, it never submits — and Bot remains design: it sends no order. The Copier does not follow a real account in this version. What the Lab brings next is listed under [Services](#services).
 
 ---
 
@@ -654,7 +663,7 @@ The desk can already point at a provider you configure yourself. The Lab’s ser
 
 ## Disclaimer
 
-The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. The desk stays closed on arrival.
+The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The agent can only propose an order on a Sim account, and each one waits for your confirmation in a desk window. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. The desk stays closed on arrival.
 
 ## License
 
@@ -680,6 +689,6 @@ Fonts shipped with the desk (copied next to the launcher at build time, license 
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.3.4`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.4.0`**
 
 </div>
