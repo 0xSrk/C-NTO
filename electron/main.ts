@@ -163,7 +163,7 @@ function fallBackToSoftware(reason: string): void {
 }
 let win: BrowserWindow | null = null;
 let launcherWin: BrowserWindow | null = null;
-const orchestrator = new Orchestrator();
+const orchestrator = new Orchestrator(() => readLocaleFile(app.getPath('userData')));
 /** Requêtes MCP relayées au renderer sur le canal de l'orchestrateur (`clientId` = `mcp`). */
 const deskRelay = new DeskRelay(
   (req) => {
