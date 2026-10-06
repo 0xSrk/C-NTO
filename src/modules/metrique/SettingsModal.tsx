@@ -84,6 +84,15 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('Risque par contrat ($)', 'Risk per contract ($)', 'Riesgo por contrato ($)')} hint={tr("pour les multiples de R à l'import", 'for R multiples on import', 'para los múltiplos de R en la importación')}>
           <input type="number" min={0} step={5} value={settings.riskPerContract} onChange={(e) => update({ riskPerContract: Number(e.target.value) || 0 })} />
         </Field>
+        <Field label={tr('Trades minimum d’un repère', 'Minimum trades for a marker', 'Trades mínimos de un referente')} hint={tr('20 à 50 · départ 30', '20 to 50 · default 30', '20 a 50 · inicio 30')}>
+          <input type="number" min={20} max={50} step={1} value={settings.markerMinTrades} onChange={(e) => update({ markerMinTrades: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Fausses découvertes', 'False discoveries', 'Falsos descubrimientos')} hint={tr('2,5 % à 10 % · départ 5 %', '2.5% to 10% · default 5%', '2,5 % a 10 % · inicio 5 %')}>
+          <input type="number" min={2.5} max={10} step={0.5} value={Math.round(settings.falseDiscoveryRate * 1000) / 10} onChange={(e) => update({ falseDiscoveryRate: Number(e.target.value) / 100 })} />
+        </Field>
+        <Field label={tr('Fenêtre de stabilité', 'Stability window', 'Ventana de estabilidad')} hint={tr('10 à 40 séances · départ 20', '10 to 40 sessions · default 20', '10 a 40 sesiones · inicio 20')}>
+          <input type="number" min={10} max={40} step={1} value={settings.stabilityWindow} onChange={(e) => update({ stabilityWindow: Number(e.target.value) })} />
+        </Field>
         <Field label={tr('Canal de mise à jour', 'Update channel', 'Canal de actualización')} className={s.full} hint={tr('un clone git tire origin/main et relance ; sans git, page GitHub', 'a git clone pulls origin/main and restarts; without git, GitHub page', 'un clon git tira origin/main y reinicia; sin git, página GitHub')}>
           <select value={settings.updateChannel} onChange={(e) => update({ updateChannel: e.target.value === 'dev' ? 'dev' : 'release' })}>
             <option value="release">{tr('release — installeur (page GitHub)', 'release — installer (GitHub page)', 'release — instalador (página GitHub)')}</option>

@@ -1,62 +1,66 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { Fragment, useMemo, useState, type CSSProperties } from 'react';
 import { Bars, Histogram } from '@/design/charts/Bars';
 import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
-import { computeTradeStats, dayHourGrid, histogram, sessionDates, WEEKDAY_KEYS } from '@/engine/metrics';
+import { computeTradeStats, dayHourGrid, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
+import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
+import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
-import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
+import { useSettings } from '@/store/settings';
+import { ET_ZONE, zonedWallClock } from '@/lib/time';
+import { fmtPct, fmtPoints, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import s from './metrique.module.css';
 
 interface GroupRow {
   key: string;
   count: number;
   pnl: number;
+  points: number | null;
   winRate: number;
   profitFactor: number;
   expectancy: number;
   avgDurationMs: number;
 }
 
-interface GroupAcc {
-  count: number;
-  pnl: number;
-  wins: number;
-  grossProfit: number;
-  grossLoss: number;
-  durationMs: number;
-}
-
-/** Agrégat léger O(n) par groupe (six champs) — pas besoin des statistiques complètes ici. */
+/** Agrégat par groupe : dollars et points par contrat (une seule racine). */
 function groupBy(trades: Trade[], keyOf: (t: Trade) => string[]): GroupRow[] {
-  const map = new Map<string, GroupAcc>();
+  const map = new Map<string, Trade[]>();
   for (const t of trades) {
     if (!Number.isFinite(t.pnl)) continue;
     for (const k of keyOf(t)) {
-      let acc = map.get(k);
-      if (!acc) {
-        acc = { count: 0, pnl: 0, wins: 0, grossProfit: 0, grossLoss: 0, durationMs: 0 };
-        map.set(k, acc);
-      }
-      acc.count++;
-      acc.pnl += t.pnl;
-      if (t.pnl > 0) {
-        acc.wins++;
-        acc.grossProfit += t.pnl;
-      } else if (t.pnl < 0) acc.grossLoss += t.pnl;
-      acc.durationMs += Math.max(0, t.exitTime - t.entryTime);
+      const list = map.get(k);
+      if (list) list.push(t);
+      else map.set(k, [t]);
     }
   }
   return [...map.entries()]
-    .map(([key, a]) => ({
-      key,
-      count: a.count,
-      pnl: a.pnl,
-      winRate: a.count ? a.wins / a.count : 0,
-      profitFactor: a.grossLoss !== 0 ? a.grossProfit / Math.abs(a.grossLoss) : a.grossProfit > 0 ? Infinity : 0,
-      expectancy: a.count ? a.pnl / a.count : 0,
-      avgDurationMs: a.count ? a.durationMs / a.count : 0,
-    }))
+    .map(([key, list]) => {
+      let pnl = 0;
+      let wins = 0;
+      let grossProfit = 0;
+      let grossLoss = 0;
+      let durationMs = 0;
+      for (const t of list) {
+        pnl += t.pnl;
+        if (t.pnl > 0) {
+          wins++;
+          grossProfit += t.pnl;
+        } else if (t.pnl < 0) grossLoss += t.pnl;
+        durationMs += Math.max(0, t.exitTime - t.entryTime);
+      }
+      const count = list.length;
+      return {
+        key,
+        count,
+        pnl,
+        points: aggregatePoints(list).points,
+        winRate: count ? wins / count : 0,
+        profitFactor: grossLoss !== 0 ? grossProfit / Math.abs(grossLoss) : grossProfit > 0 ? Infinity : 0,
+        expectancy: count ? pnl / count : 0,
+        avgDurationMs: count ? durationMs / count : 0,
+      };
+    })
     .sort((a, b) => b.pnl - a.pnl);
 }
 
@@ -75,9 +79,37 @@ function weekdayLabel(key: string): string {
 }
 
 function displayGroupKey(key: string): string {
+  const timed = /^(intention|jugement|inconnue):(.*)$/.exec(key);
+  if (timed) {
+    const kind =
+      timed[1] === 'intention' ? tr('intention', 'intention', 'intención') : timed[1] === 'jugement' ? tr('jugement', 'judgment', 'juicio') : tr('inconnue', 'unknown', 'desconocida');
+    return `${timed[2]} · ${kind}`;
+  }
   if (key === 'Sans stratégie') return tr('Sans stratégie', 'No strategy', 'Sin estrategia');
   if (['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'].includes(key)) return weekdayLabel(key);
   return key;
+}
+
+function markerKindLabel(kind: 'slot' | 'duration' | 'strategy'): string {
+  if (kind === 'slot') return tr('Créneau', 'Slot', 'Franja');
+  if (kind === 'duration') return tr('Durée', 'Duration', 'Duración');
+  return tr('Vecteur', 'Vector', 'Vector');
+}
+
+function markerName(id: string, kind: 'slot' | 'duration' | 'strategy'): string {
+  if (kind === 'slot') {
+    const [, dow, hour] = id.split(':');
+    return `${weekdayLabel(WEEKDAY_KEYS[Number(dow)] ?? '')} ${hour}h`;
+  }
+  if (kind === 'duration') return id.slice('duration:'.length);
+  return displayGroupKey(id.slice('strategy:'.length));
+}
+
+function exitReasonLabel(reason: ExitReason): string {
+  if (reason === 'stop') return tr('Stop', 'Stop', 'Stop');
+  if (reason === 'objectif') return tr('Objectif', 'Target', 'Objetivo');
+  if (reason === 'manuel') return tr('Manuel', 'Manual', 'Manual');
+  return tr('Autre', 'Other', 'Otro');
 }
 
 /** Bandes d’encre proportionnelles — lecture visuelle du PnL sans tableau. */
@@ -103,7 +135,7 @@ function InkRank({ rows, label }: { rows: GroupRow[]; label: string }) {
             <div className={s.inkMeta}>
               <b>{displayGroupKey(r.key)}</b>
               <small>
-                {plural(r.count, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · {fmtPct(r.winRate, 0)} · PF {fmtRatio(r.profitFactor)}
+                {plural(r.count, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · {fmtPct(r.winRate, 0)} · PF {fmtRatio(r.profitFactor)} · {fmtPoints(r.points)}
               </small>
             </div>
             <div className={s.inkTrack}>
@@ -214,40 +246,69 @@ function ExcursionField({ pts, max }: { pts: { mae: number; mfe: number; pnl: nu
 /** Onglet C : le journal filtré par la période et le compte de l'en-tête (`scopeFor('analyse')`). */
 export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
   const locale = useI18n((s) => s.locale);
+  const markerMinTrades = useSettings((st) => st.settings.markerMinTrades);
+  const falseDiscoveryRate = useSettings((st) => st.settings.falseDiscoveryRate);
   const t = useMemo(() => computeTradeStats(trades, sessionDates(sessions)), [trades, sessions]);
   const [rankMode, setRankMode] = useState<'strategie' | 'tag' | 'taille'>('strategie');
 
   const byStrategy = useMemo(() => groupBy(trades, (x) => [x.strategy ?? 'Sans stratégie']), [trades]);
-  const byTag = useMemo(() => groupBy(trades.filter((x) => x.tags?.length), (x) => x.tags ?? []), [trades]);
+  const byTag = useMemo(() => groupBy(trades.filter((x) => x.tags?.length), (x) => (x.tags ?? []).map((tag) => `${tagTiming(x, tag)}:${tag}`)), [trades]);
   const byInstrument = useMemo(() => groupBy(trades, (x) => [x.instrument]), [trades]);
   const byQty = useMemo(() => groupBy(trades, (x) => [`${x.qty} ct`]).sort((a, b) => parseInt(a.key) - parseInt(b.key)), [trades]);
 
   const durationBuckets = useMemo(() => {
-    const edges = [2, 5, 10, 20, 40, 90, Infinity];
-    const labels = ['< 2m', '2–5m', '5–10m', '10–20m', '20–40m', '40–90m', '> 90m'];
-    const acc = labels.map(() => ({ n: 0, wins: 0, pnl: 0 }));
+    const acc = new Map<string, { n: number; wins: number; pnl: number; rows: Trade[] }>();
+    for (const label of DURATION_LABELS) acc.set(label, { n: 0, wins: 0, pnl: 0, rows: [] });
     for (const x of trades) {
-      const m = (x.exitTime - x.entryTime) / 60000;
-      const i = edges.findIndex((edge) => m < edge);
-      const b = acc[i === -1 ? acc.length - 1 : i];
-      if (!b) continue;
-      b.n++;
-      b.pnl += x.pnl;
-      if (x.pnl > 0) b.wins++;
+      const bucket = acc.get(durationLabel(x.entryTime, x.exitTime));
+      if (!bucket) continue;
+      bucket.n++;
+      bucket.pnl += x.pnl;
+      if (x.pnl > 0) bucket.wins++;
+      bucket.rows.push(x);
     }
-    return labels.map((label, i) => {
-      const cell = acc[i] ?? { n: 0, wins: 0, pnl: 0 };
+    return DURATION_LABELS.map((label) => {
+      const cell = acc.get(label) ?? { n: 0, wins: 0, pnl: 0, rows: [] as Trade[] };
+      const points = aggregatePoints(cell.rows).points;
       return {
         key: label,
         value: cell.pnl,
         label,
-        hint: `${plural(cell.n, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · ${cell.n ? fmtPct(cell.wins / cell.n, 0) : '—'} ${tr('réussite', 'win rate', 'acierto')}`,
+        hint: `${plural(cell.n, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · ${cell.n ? fmtPct(cell.wins / cell.n, 0) : '—'} ${tr('réussite', 'win rate', 'acierto')} · ${fmtPoints(points)}`,
       };
     });
   }, [trades, locale]);
 
+  const byExit = useMemo(() => {
+    const reasons: ExitReason[] = ['stop', 'objectif', 'manuel', 'autre'];
+    const groups = new Map<ExitReason, Trade[]>(reasons.map((reason) => [reason, []]));
+    for (const trade of trades) {
+      if (!Number.isFinite(trade.pnl)) continue;
+      groups.get(exitReasonOf(trade.exitName))?.push(trade);
+    }
+    return reasons.map((reason) => {
+      const rows = groups.get(reason) ?? [];
+      const duration = rows.length ? rows.reduce((sum, row) => sum + Math.max(0, row.exitTime - row.entryTime), 0) / rows.length : null;
+      return { reason, n: rows.length, duration, points: aggregatePoints(rows).points, dollars: rows.reduce((sum, row) => sum + row.pnl, 0) };
+    });
+  }, [trades]);
+
   // Jour = séance du trade (journée CME, comme l'onglet Séances), heure = entrée à New York.
-  const grid = useMemo(() => dayHourGrid(trades, sessionDates(sessions)), [trades, sessions]);
+  const days = useMemo(() => sessionDates(sessions), [sessions]);
+  const grid = useMemo(() => dayHourGrid(trades, days), [trades, days]);
+  const slotTrades = useMemo(() => {
+    const map = new Map<string, Trade[]>();
+    for (const trade of trades) {
+      if (!Number.isFinite(trade.pnl)) continue;
+      const dow = weekdayOf(tradeDay(trade, days.get(trade.sessionId)));
+      const hour = zonedWallClock(trade.entryTime, ET_ZONE).hour;
+      const key = `${dow}|${hour}`;
+      const list = map.get(key);
+      if (list) list.push(trade);
+      else map.set(key, [trade]);
+    }
+    return map;
+  }, [trades, days]);
 
   const heat = useMemo(() => {
     const acc = new Map<number, { pnl: number; n: number }>();
@@ -259,28 +320,36 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
     const hours = [...hoursSeen].sort((a, b) => a - b);
     const rows = [1, 2, 3, 4, 5];
     const cells: HeatCell[] = [];
-    const candidates: { dow: number; h: number; pnl: number }[] = [];
     rows.forEach((dow, ri) => {
       hours.forEach((h, ci) => {
         const cur = acc.get(dow * 24 + h);
-        cells.push({ row: ri, col: ci, value: cur ? cur.pnl : null, hint: plural(cur?.n ?? 0, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades')) });
-        if (cur) candidates.push({ dow, h, pnl: cur.pnl });
+        const points = aggregatePoints(slotTrades.get(`${dow}|${h}`) ?? []).points;
+        cells.push({
+          row: ri,
+          col: ci,
+          value: cur ? cur.pnl : null,
+          hint: cur ? `${plural(cur.n, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · ${fmtPoints(points)}` : undefined,
+        });
       });
     });
-    const best = candidates.reduce<{ dow: number; h: number; pnl: number } | null>((accBest, c) => (!accBest || c.pnl > accBest.pnl ? c : accBest), null);
-    return { rows: rows.map((d) => weekdayLabel(WEEKDAY_KEYS[d] ?? '')), cols: hours.map((h) => `${h}h`), cells, best, hours };
-  }, [grid, locale]);
+    return { rows: rows.map((d) => weekdayLabel(WEEKDAY_KEYS[d] ?? '')), cols: hours.map((h) => `${h}h`), cells, hours };
+  }, [grid, slotTrades, locale]);
 
   const byDow = useMemo(() => {
-    const acc = new Map<number, { pnl: number; n: number }>();
-    for (const cell of grid) {
-      const cur = acc.get(cell.dow) ?? { pnl: 0, n: 0 };
-      cur.pnl += cell.pnl;
-      cur.n += cell.n;
-      acc.set(cell.dow, cur);
+    const acc = new Map<number, Trade[]>();
+    for (const trade of trades) {
+      if (!Number.isFinite(trade.pnl)) continue;
+      const dow = weekdayOf(tradeDay(trade, days.get(trade.sessionId)));
+      const list = acc.get(dow);
+      if (list) list.push(trade);
+      else acc.set(dow, [trade]);
     }
-    return [1, 2, 3, 4, 5].map((d) => ({ key: WEEKDAY_KEYS[d] ?? '', pnl: acc.get(d)?.pnl ?? 0, n: acc.get(d)?.n ?? 0 }));
-  }, [grid]);
+    return [1, 2, 3, 4, 5].map((d) => {
+      const list = acc.get(d) ?? [];
+      const agg = aggregatePoints(list);
+      return { key: WEEKDAY_KEYS[d] ?? '', pnl: agg.dollars, points: agg.points, n: list.length };
+    });
+  }, [trades, days]);
 
   const scatter = useMemo(() => {
     const pts: { mae: number; mfe: number; pnl: number }[] = [];
@@ -297,22 +366,24 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
 
   const rHist = useMemo(() => (t.rMultiples.length ? histogram(t.rMultiples, 20) : null), [t.rMultiples]);
 
-  const insights = useMemo(() => {
-    const bestDur = [...durationBuckets].sort((a, b) => b.value - a.value)[0];
-    const bestStrat = byStrategy[0];
-    const edge = t.expectancy;
-    return {
-      bestHour: heat.best ? `${weekdayLabel(WEEKDAY_KEYS[heat.best.dow] ?? '')} ${heat.best.h}h` : '—',
-      bestHourPnl: heat.best?.pnl ?? 0,
-      bestDur: bestDur?.key ?? '—',
-      bestDurPnl: bestDur?.value ?? 0,
-      bestStrat: bestStrat ? displayGroupKey(bestStrat.key) : '—',
-      bestStratPnl: bestStrat?.pnl ?? 0,
-      edge,
-      wr: t.winRate,
-      pf: t.profitFactor,
-    };
-  }, [heat, durationBuckets, byStrategy, t, locale]);
+  const rail = useMemo(() => {
+    const built = analysisCandidates(trades, days);
+    const verdicts = markerVerdicts(
+      built.ordered.map((row) => row.pnl),
+      built.candidates,
+      { minTrades: markerMinTrades, fdr: falseDiscoveryRate },
+    );
+    const byId = new Map(built.candidates.map((c) => [c.id, c]));
+    return verdicts
+      .filter((v) => v.kept)
+      .map((v) => {
+        const rows = (byId.get(v.id)?.indices ?? []).flatMap((i) => {
+          const row = built.ordered[i];
+          return row ? [row] : [];
+        });
+        return { id: v.id, kind: v.kind, dollars: rows.reduce((sum, row) => sum + row.pnl, 0), points: aggregatePoints(rows).points };
+      });
+  }, [trades, days, markerMinTrades, falseDiscoveryRate]);
 
   const rankRows = rankMode === 'strategie' ? byStrategy : rankMode === 'tag' ? byTag : byQty;
   const rankLabel = rankMode === 'strategie' ? tr('Stratégie', 'Strategy', 'Estrategia') : rankMode === 'tag' ? 'Tag' : tr('Taille', 'Size', 'Tamaño');
@@ -334,29 +405,34 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
       <p className={s.note}>{tr('Jours : séance CME du trade (18 h → 17 h ET). Heures : entrée à New York.', 'Days: the trade’s CME session (6 p.m. → 5 p.m. ET). Hours: entry in New York.', 'Días: sesión CME del trade (18 h → 17 h ET). Horas: entrada en Nueva York.')}</p>
       {/* Rail d’insights — lecture immédiate */}
       <section className={s.insightRail} aria-label={tr('Repères d’analyse', 'Analysis markers', 'Referencias de análisis')}>
-        <div className={s.insight}>
-          <span className={s.insightK}>{tr('Créneau fort', 'Strong slot', 'Franja fuerte')}</span>
-          <b>{insights.bestHour}</b>
-          <em className={signClass(insights.bestHourPnl)}>{fmtUsd(insights.bestHourPnl, { sign: true })}</em>
-        </div>
-        <i className={s.insightSep} />
-        <div className={s.insight}>
-          <span className={s.insightK}>{tr('Durée fertile', 'Fertile duration', 'Duración fértil')}</span>
-          <b>{insights.bestDur}</b>
-          <em className={signClass(insights.bestDurPnl)}>{fmtUsd(insights.bestDurPnl, { sign: true })}</em>
-        </div>
-        <i className={s.insightSep} />
-        <div className={s.insight}>
-          <span className={s.insightK}>{tr('Vecteur', 'Vector', 'Vector')}</span>
-          <b title={insights.bestStrat}>{insights.bestStrat.length > 18 ? `${insights.bestStrat.slice(0, 16)}…` : insights.bestStrat}</b>
-          <em className={signClass(insights.bestStratPnl)}>{fmtUsd(insights.bestStratPnl, { sign: true })}</em>
-        </div>
+        {rail.length === 0 ? (
+          <div className={s.insight}>
+            <span className={s.insightK}>{tr('Repères', 'Markers', 'Referentes')}</span>
+            <p className={s.note}>{tr('Aucun repère solide sur cette période', 'No solid marker on this period', 'Ningún referente sólido en este período')}</p>
+          </div>
+        ) : (
+          rail.map((marker, index) => {
+            const name = markerName(marker.id, marker.kind);
+            return (
+              <Fragment key={marker.id}>
+                {index > 0 ? <i className={s.insightSep} /> : null}
+                <div className={s.insight}>
+                  <span className={s.insightK}>{markerKindLabel(marker.kind)}</span>
+                  <b title={name}>{name.length > 18 ? `${name.slice(0, 16)}…` : name}</b>
+                  <em className={signClass(marker.dollars)}>
+                    {fmtUsd(marker.dollars, { sign: true })} · {fmtPoints(marker.points)}
+                  </em>
+                </div>
+              </Fragment>
+            );
+          })
+        )}
         <i className={s.insightSep} />
         <div className={s.insight}>
           <span className={s.insightK}>{tr('Espérance', 'Expectancy', 'Esperanza')}</span>
-          <b className={signClass(insights.edge)}>{fmtUsd(insights.edge, { cents: true })}</b>
+          <b className={signClass(t.expectancy)}>{fmtUsd(t.expectancy, { cents: true })}</b>
           <em>
-            WR {fmtPct(insights.wr, 0)} · PF {fmtRatio(insights.pf)}
+            WR {fmtPct(t.winRate, 0)} · PF {fmtRatio(t.profitFactor)}
           </em>
         </div>
         <i className={s.insightSep} />
@@ -394,7 +470,9 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
               <li key={d.key}>
                 <span>{weekdayLabel(d.key)}</span>
                 <b className={signClass(d.pnl)}>{fmtUsd(d.pnl, { sign: true })}</b>
-                <small>{plural(d.n, 't')}</small>
+                <small>
+                  {plural(d.n, 't')} · {fmtPoints(d.points)}
+                </small>
               </li>
             ))}
           </ul>
@@ -411,6 +489,12 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
             </div>
           </header>
           <Bars data={durationBuckets} height={200} formatY={(v) => fmtUsd(v)} />
+          {byExit.map((row) => (
+            <p key={row.reason} className={s.note}>
+              {exitReasonLabel(row.reason)} · {row.n ? `${Math.round((row.duration ?? 0) / 60_000)} min` : '—'} ·{' '}
+              {row.n ? `${fmtUsd(row.dollars, { sign: true })} · ${fmtPoints(row.points)}` : tr('aucun trade', 'no trade', 'ningún trade')}
+            </p>
+          ))}
         </div>
         <div className={s.midBlock}>
           <header className={s.trameHead}>

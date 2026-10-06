@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
+import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, ratioIntervals, rollingBands, sessionWinRateSeries } from '@/engine/inference';
+import { aggregatePoints } from '@/engine/tradeUnits';
 import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
-import { fmtInt, fmtPct, fmtRatio, plural } from '@/lib/format';
+import { fmtInt, fmtPct, fmtPoints, fmtRatio, fmtUsd, plural } from '@/lib/format';
 import { dateTimeFormatter, parseDateKey } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -58,9 +60,21 @@ export function Dashboard({
   const planId = useSettings((st) => st.settings.planId);
   const planAccount = useSettings((st) => st.settings.planAccount);
   const metricAccount = useUi((st) => st.metricAccount);
+  const stabilityWindow = useSettings((st) => st.settings.stabilityWindow);
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
-  const daily = useMemo(() => computeDailyStats(sessions, startingBalance, 20, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to]);
+  const daily = useMemo(() => computeDailyStats(sessions, startingBalance, stabilityWindow, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to, stabilityWindow]);
+  const dailyPnls = useMemo(() => dailyResultSeries(sessions), [sessions]);
+  const band = useMemo(() => rollingBands(dailyPnls, stabilityWindow).at(-1) ?? null, [dailyPnls]);
+  const shift = useMemo(() => cusum(dailyPnls), [dailyPnls]);
+  const winAcf = useMemo(() => autocorrelations(sessionWinRateSeries(sessions, trades)), [sessions, trades]);
+  const pnlAcf = useMemo(() => autocorrelations(dailyPnls), [dailyPnls]);
   const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount });
+  const trackedPlan = limit != null ? (findPlan(planId) ?? null) : null;
+  const allocated = useMemo(
+    () => (trackedPlan ? allocatedRiskStats(sessions, trackedPlan.maxDrawdown, { from: period.from ?? undefined, to: period.to }) : null),
+    [trackedPlan, sessions, period.from, period.to],
+  );
+  const ratioCi = useMemo(() => ratioIntervals(sessions, startingBalance, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to]);
   const gauge = useMemo(
     () => drawdownGauge({ plan: limit != null ? (findPlan(planId) ?? null) : null, account: metricAccount, history, maxDrawdown: daily.maxDrawdown, startingBalance }),
     [limit, planId, metricAccount, history, daily.maxDrawdown, startingBalance],
@@ -79,6 +93,18 @@ export function Dashboard({
   }, [trades]);
   const peak = Math.max(...ordered.map((row) => Math.abs(row.pnl)), 1);
   const instruments = stats.byInstrument.filter((row) => row.count > 0);
+  const instrumentPoints = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof aggregatePoints>>();
+    const groups = new Map<string, Trade[]>();
+    for (const trade of trades) {
+      if (!Number.isFinite(trade.pnl)) continue;
+      const list = groups.get(trade.instrument);
+      if (list) list.push(trade);
+      else groups.set(trade.instrument, [trade]);
+    }
+    for (const [key, list] of groups) map.set(key, aggregatePoints(list));
+    return map;
+  }, [trades]);
   const best = ordered.reduce<Session | null>((win, row) => (!win || row.pnl > win.pnl ? row : win), null);
   const names = [...new Set(ordered.flatMap((row) => row.instruments))].slice(0, 3);
   const winSessions = ordered.filter((row) => row.pnl > 0).length;
@@ -291,7 +317,7 @@ export function Dashboard({
             <span className={s.code}>A.03 </span>
             <span className={s.kName}>{tr('Par instrument', 'By instrument', 'Por instrumento')}</span>
           </span>
-          <span className={s.hint}>{tr('NET USD', 'NET USD', 'NETO USD')}</span>
+          <span className={s.hint}>{tr('NET · POINTS', 'NET · POINTS', 'NETO · PUNTOS')}</span>
         </div>
         <div>
           {instruments.slice(0, 6).map((row) => (
@@ -302,6 +328,8 @@ export function Dashboard({
               </span>
               <span className={s.hint} style={{ gridColumn: '1 / -1', justifySelf: 'end' }}>
                 <Montant value={row.pnl} />
+                {' · '}
+                {fmtPoints(instrumentPoints.get(row.key)?.points)}
               </span>
               <div className={s.share}>
                 <i style={{ width: `${stats.count ? (row.count / stats.count) * 100 : 0}%` }} />
@@ -381,20 +409,31 @@ export function Dashboard({
             <span className={s.code}>A.05 </span>
             <span className={s.kName}>{tr('Ratios annualisés', 'Annualized ratios', 'Ratios anualizados')}</span>
           </span>
-          <span className={s.hint}>SHARPE · SORTINO · CALMAR</span>
+          <span className={s.hint}>SHARPE · SORTINO · CALMAR · IC 90 %</span>
         </summary>
         <div className={s.ratioRow}>
           <span>
             <span className={s.hint}>Sharpe</span>
             <span className={s.ratioValue}>{fmtRatio(daily.sharpe)}</span>
+            <span className={s.hint}>{fmtRatio(ratioCi.sharpe.low)} – {fmtRatio(ratioCi.sharpe.high)}</span>
           </span>
           <span>
             <span className={s.hint}>Sortino</span>
             <span className={s.ratioValue}>{fmtRatio(daily.sortino)}</span>
+            <span className={s.hint}>{fmtRatio(ratioCi.sortino.low)} – {fmtRatio(ratioCi.sortino.high)}</span>
           </span>
           <span>
             <span className={s.hint}>Calmar</span>
             <span className={s.ratioValue}>{fmtRatio(daily.calmar)}</span>
+            <span className={s.hint}>{fmtRatio(ratioCi.calmar.low)} – {fmtRatio(ratioCi.calmar.high)}</span>
+          </span>
+          <span>
+            <span className={s.hint}>SQN</span>
+            <span className={s.ratioValue}>{fmtRatio(stats.sqn)}</span>
+          </span>
+          <span>
+            <span className={s.hint}>Kelly</span>
+            <span className={s.ratioValue}>{fmtPct(stats.kelly, 1)}</span>
           </span>
           <p className={s.hint}>
             {tr(
@@ -403,8 +442,52 @@ export function Dashboard({
               `rf = 0 · √252 · ${plural(daily.tradingDays, 'jornada de cotización', 'jornadas de cotización')} en el período, días sin sesión contados en cero`,
             )}
           </p>
+          {allocated && trackedPlan ? (
+            <p className={s.hint}>
+              {tr(
+                `Rapportés à la perte maximale du plan (${fmtInt(trackedPlan.maxDrawdown)} $), pas au capital nominal · repli ${fmtPct(allocated.maxDrawdownPct, 1)} · Calmar ${fmtRatio(allocated.calmar)} · Ulcer ${fmtRatio(allocated.ulcerIndex, 4)}`,
+                `Relative to the plan’s maximum loss (${fmtInt(trackedPlan.maxDrawdown)} $), not the nominal capital · drawdown ${fmtPct(allocated.maxDrawdownPct, 1)} · Calmar ${fmtRatio(allocated.calmar)} · Ulcer ${fmtRatio(allocated.ulcerIndex, 4)}`,
+                `Respecto de la pérdida máxima del plan (${fmtInt(trackedPlan.maxDrawdown)} $), no del capital nominal · retroceso ${fmtPct(allocated.maxDrawdownPct, 1)} · Calmar ${fmtRatio(allocated.calmar)} · Ulcer ${fmtRatio(allocated.ulcerIndex, 4)}`,
+              )}
+            </p>
+          ) : null}
         </div>
       </details>
+
+      <section className={`${s.card} ${s.pad} ${s.span12}`}>
+        <div className={s.cardHead}>
+          <span className={s.kName}>{tr('Suivi de stabilité', 'Stability tracking', 'Seguimiento de estabilidad')}</span>
+          <span className={s.hint}>{plural(stabilityWindow, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
+        </div>
+        <p className={s.hint}>
+          {band
+            ? tr(
+                `Espérance de la fenêtre ${fmtUsd(band.mean, { sign: true, cents: true })} · bande ${fmtUsd(band.low, { sign: true, cents: true })} – ${fmtUsd(band.high, { sign: true, cents: true })}`,
+                `Window expectancy ${fmtUsd(band.mean, { sign: true, cents: true })} · band ${fmtUsd(band.low, { sign: true, cents: true })} – ${fmtUsd(band.high, { sign: true, cents: true })}`,
+                `Esperanza de la ventana ${fmtUsd(band.mean, { sign: true, cents: true })} · banda ${fmtUsd(band.low, { sign: true, cents: true })} – ${fmtUsd(band.high, { sign: true, cents: true })}`,
+              )
+            : '—'}
+        </p>
+        <p className={s.hint}>
+          {shift.alert
+            ? tr(
+                `Alerte CUSUM${shift.crossedAt != null && daily.rolling[shift.crossedAt] ? ` · ${daily.rolling[shift.crossedAt]!.date}` : ''}`,
+                `CUSUM alert${shift.crossedAt != null && daily.rolling[shift.crossedAt] ? ` · ${daily.rolling[shift.crossedAt]!.date}` : ''}`,
+                `Alerta CUSUM${shift.crossedAt != null && daily.rolling[shift.crossedAt] ? ` · ${daily.rolling[shift.crossedAt]!.date}` : ''}`,
+              )
+            : tr('CUSUM dans les bornes (k = 0,5 σ, h = 5 σ)', 'CUSUM inside the limits (k = 0.5 σ, h = 5 σ)', 'CUSUM dentro de los límites (k = 0,5 σ, h = 5 σ)')}
+        </p>
+        <p className={s.hint}>
+          {tr('Taux de réussite', 'Win rate', 'Tasa de acierto')}{' '}
+          {winAcf.map((row) => `${row.lag}:${fmtRatio(row.rho)}${row.outside ? '*' : ''}`).join(' · ')}
+          {winAcf[0] ? ` · ±${fmtRatio(winAcf[0].band)}` : ''}
+        </p>
+        <p className={s.hint}>
+          {tr('Résultat journalier', 'Daily result', 'Resultado diario')}{' '}
+          {pnlAcf.map((row) => `${row.lag}:${fmtRatio(row.rho)}${row.outside ? '*' : ''}`).join(' · ')}
+          {pnlAcf[0] ? ` · ±${fmtRatio(pnlAcf[0].band)}` : ''}
+        </p>
+      </section>
     </div>
   );
 }

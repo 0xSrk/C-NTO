@@ -53,6 +53,12 @@ export interface Settings {
   userPlans: PropPlan[];
   boundaryHour: number;
   riskPerContract: number;
+  /** Trades minimum pour qu'un repère entre dans le rail. */
+  markerMinTrades: number;
+  /** Taux de fausses découvertes du rail (Benjamini-Hochberg). */
+  falseDiscoveryRate: number;
+  /** Fenêtre du suivi de stabilité, en séances. */
+  stabilityWindow: number;
   calendarView: 'grille' | 'flux';
   /** Zoom UI : multiplicateur (auto) ou facteur absolu (manuel), 0.75–1.5 */
   uiZoom: number;
@@ -87,6 +93,9 @@ export const DEFAULT_SETTINGS: Settings = {
   userPlans: [],
   boundaryHour: 0,
   riskPerContract: 0,
+  markerMinTrades: 30,
+  falseDiscoveryRate: 0.05,
+  stabilityWindow: 20,
   calendarView: 'grille',
   uiZoom: 1,
   uiZoomAuto: true,
@@ -201,6 +210,9 @@ export function coerceSettings(raw: unknown, base: Settings): Settings {
     userPlans: 'userPlans' in r ? keepUserPlans(r.userPlans) : base.userPlans,
     boundaryHour: pickNum(r.boundaryHour, 0, 23, base.boundaryHour, true),
     riskPerContract: pickNum(r.riskPerContract, 0, 1e9, base.riskPerContract),
+    markerMinTrades: pickNum(r.markerMinTrades, 20, 50, base.markerMinTrades, true),
+    falseDiscoveryRate: pickNum(r.falseDiscoveryRate, 0.025, 0.1, base.falseDiscoveryRate),
+    stabilityWindow: pickNum(r.stabilityWindow, 10, 40, base.stabilityWindow, true),
     calendarView: pickEnum(r.calendarView, ['grille', 'flux'] as const, base.calendarView),
     uiZoom: pickNum(r.uiZoom, 0.5, 2, base.uiZoom),
     uiZoomAuto: pickBool(r.uiZoomAuto, base.uiZoomAuto),
@@ -227,7 +239,7 @@ function coercePortfolio(raw: unknown, base: Settings['portfolio']): Settings['p
 }
 
 /** Clés d'un coffre autorisées à écraser les réglages locaux (jamais orchestrateur, sauvegarde, hôtes LLM, secrets). */
-export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
+export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
 export const RESTORABLE_AGENT_KEYS = ['provider', 'baseUrl', 'model', 'systemPrompt', 'temperature', 'toolsEnabled'] as const;
 
 /** Ne garde d'un objet `settings` de coffre que les clés restaurables (typées ensuite par `coerceSettings`). */

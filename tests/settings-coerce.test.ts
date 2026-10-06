@@ -48,6 +48,13 @@ describe('coerceSettings', () => {
     expect(coerceSettings({ boundaryHour: 17.5 }, base).boundaryHour).toBe(base.boundaryHour);
     expect(coerceSettings({ boundaryHour: 18 }, base).boundaryHour).toBe(18);
     expect(coerceSettings({ riskPerContract: -5 }, base).riskPerContract).toBe(base.riskPerContract);
+    expect(coerceSettings({ markerMinTrades: 30 }, base).markerMinTrades).toBe(30);
+    expect(coerceSettings({ markerMinTrades: 19 }, base).markerMinTrades).toBe(base.markerMinTrades);
+    expect(coerceSettings({ markerMinTrades: 30.5 }, base).markerMinTrades).toBe(base.markerMinTrades);
+    expect(coerceSettings({ falseDiscoveryRate: 0.05 }, base).falseDiscoveryRate).toBe(0.05);
+    expect(coerceSettings({ falseDiscoveryRate: 0.01 }, base).falseDiscoveryRate).toBe(base.falseDiscoveryRate);
+    expect(coerceSettings({ stabilityWindow: 40 }, base).stabilityWindow).toBe(40);
+    expect(coerceSettings({ stabilityWindow: 9 }, base).stabilityWindow).toBe(base.stabilityWindow);
     expect(coerceSettings({ uiZoom: 0.4 }, base).uiZoom).toBe(base.uiZoom);
     expect(coerceSettings({ uiZoom: 2.5 }, base).uiZoom).toBe(base.uiZoom);
     expect(coerceSettings({ uiZoom: 1.25 }, base).uiZoom).toBe(1.25);
