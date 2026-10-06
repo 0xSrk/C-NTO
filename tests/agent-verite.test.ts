@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { TAG_LEN_MAX, TAGS_MAX } from '@/engine/agent/ports';
 import { toolBlurb, toolSchemas } from '@/engine/agent/tools';
 import { groupIntoSessions } from '@/engine/import/ninjatrader';
 import { computeDailyStats, computeTradeStats, sessionDates } from '@/engine/metrics';
@@ -404,5 +405,24 @@ describe('A6.10 payoff sans perte', () => {
     const withLoss = await callTool<Record<string, unknown>>(desk.ports, 'desk_overview', { from: mixed.date, to: mixed.date, account: DEMO_ACCOUNT });
     expect(withLoss.payoffRatio).toBe(r2(mixedStats.payoffRatio));
     expect(withLoss.noLoss).toBeUndefined();
+  });
+});
+
+describe('A6.11 tags bornés', () => {
+  it('une séance importée de 500 tags est coupée à 20 de 40 caractères', async () => {
+    const tags = Array.from({ length: 500 }, (_, i) => (i === 0 ? 't'.repeat(80) : `tag-${i}`));
+    const row = session('imp', '2026-09-28', 'Sim101', 10, { tags });
+    const ports = fakePorts({ sessions: () => [row] });
+    const listed = await callTool<{ sessions: { tags: string[]; tagsTruncated?: boolean }[] }>(ports, 'list_sessions');
+    const detail = await callTool<{ session: { tags: string[]; tagsTruncated?: boolean } }>(ports, 'get_session', { id: 'imp' });
+    for (const rendered of [listed.sessions[0]!, detail.session]) {
+      expect(rendered.tags).toHaveLength(TAGS_MAX);
+      expect(rendered.tags.every((tag) => tag.length <= TAG_LEN_MAX)).toBe(true);
+      expect(rendered.tags[0]).toBe('t'.repeat(TAG_LEN_MAX));
+      expect(rendered.tagsTruncated).toBe(true);
+    }
+    const plain = await callTool<{ sessions: { tags: string[]; tagsTruncated?: boolean }[] }>(fakePorts({ sessions: () => [session('c', '2026-09-28', 'Sim101', 1, { tags: ['revue'] })] }), 'list_sessions');
+    expect(plain.sessions[0]?.tags).toEqual(['revue']);
+    expect(plain.sessions[0]?.tagsTruncated).toBeUndefined();
   });
 });
