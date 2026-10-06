@@ -380,13 +380,17 @@ export function computeTradeStats(input: Trade[], days?: ReadonlyMap<string, str
   const expectancy = count ? netPnl / count : 0;
   const std = stddev(pnls);
   // Van Tharp : SQN sur les R-multiples dès que chaque trade a un risque ; sinon sur le PnL $.
+  // Plafond √min(n, 100) : au-delà, √n mesure la taille de l'échantillon, plus l'avantage.
   const rMultiples = trades.filter((t) => t.risk && t.risk > 0).map((t) => t.pnl / (t.risk as number));
   const sqnOnR = rMultiples.length === count && count > 0;
   const sqnSample = sqnOnR ? rMultiples : pnls;
   const sqnStd = stddev(sqnSample);
-  const sqn = sqnSample.length > 1 && sqnStd > EPS ? (Math.sqrt(sqnSample.length) * mean(sqnSample)) / sqnStd : 0;
-  const lossRate = count ? losses / count : 0;
-  const kelly = Number.isFinite(payoffRatio) && payoffRatio > 0 ? winRate - lossRate / payoffRatio : winRate;
+  const sqn = sqnSample.length > 1 && sqnStd > EPS ? (Math.sqrt(Math.min(sqnSample.length, 100)) * mean(sqnSample)) / sqnStd : 0;
+  // Kelly sans les trades nuls : un PnL à zéro n'est ni un gain ni une perte.
+  const decisive = count - breakeven;
+  const kellyWinRate = decisive ? wins / decisive : 0;
+  const kellyLossRate = decisive ? losses / decisive : 0;
+  const kelly = Number.isFinite(payoffRatio) && payoffRatio > 0 ? kellyWinRate - kellyLossRate / payoffRatio : kellyWinRate;
 
   const signs = pnls.map((p) => (p > 0 ? 1 : p < 0 ? -1 : 0));
   const st = streaks(signs);
