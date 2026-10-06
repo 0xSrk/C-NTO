@@ -211,6 +211,52 @@ export function horizonSigma(price: number, annualVol: number, periodsPerYear: n
   return (price * annualVol) / Math.sqrt(periodsPerYear);
 }
 
+/** Décimales d'un pas de cotation : 0,25 → 2 ; 1 → 0 ; 0,00005 → 5. Pas inconnu : 2. */
+export function tickDecimals(tickSize: number): number {
+  if (!(tickSize > 0) || !Number.isFinite(tickSize)) return 2;
+  for (let digits = 0; digits < 10; digits++) {
+    const scaled = tickSize * 10 ** digits;
+    if (Math.abs(scaled - Math.round(scaled)) < 1e-9) return digits;
+  }
+  return 10;
+}
+
+export interface SigmaWidthRow {
+  instrument: string;
+  /** Cours de référence : entrée du premier trade de l'instrument. */
+  price: number;
+  /** Pas de cotation du registre. Null pour un instrument hors registre (largeurs non arrondies). */
+  tickSize: number | null;
+  /** Décimales d'affichage : celles du pas. */
+  decimals: number;
+  day: number;
+  week: number;
+  month: number;
+}
+
+/**
+ * Largeurs ±1 σ jour (252), semaine (52) et mois (12), une ligne par instrument dans l'ordre des trades.
+ * Chaque instrument a son cours (entrée de son premier trade) et son pas de cotation : les largeurs
+ * sont arrondies au pas et s'affichent avec ses décimales.
+ */
+export function sigmaWidths(trades: readonly { instrument: string; entryPrice: number }[], annualVol: number): SigmaWidthRow[] {
+  const rows: SigmaWidthRow[] = [];
+  const seen = new Set<string>();
+  for (const trade of trades) {
+    if (seen.has(trade.instrument)) continue;
+    const price = trade.entryPrice;
+    const day = horizonSigma(price, annualVol, 252);
+    if (!Number.isFinite(day)) continue;
+    seen.add(trade.instrument);
+    const tick = hasInstrument(trade.instrument) ? getInstrument(trade.instrument).tickSize : 0;
+    const tickSize = tick > 0 ? tick : null;
+    const decimals = tickSize ? tickDecimals(tickSize) : 2;
+    const step = (value: number) => (tickSize ? Number((Math.round(value / tickSize) * tickSize).toFixed(decimals)) : value);
+    rows.push({ instrument: trade.instrument, price, tickSize, decimals, day: step(day), week: step(horizonSigma(price, annualVol, 52)), month: step(horizonSigma(price, annualVol, 12)) });
+  }
+  return rows;
+}
+
 /** Distance en σ. Null si σ n'est pas connu (pas de volatilité implicite, volCT à l'étape 4). */
 export function sigmaDistance(points: number | null, sigma: number | null): number | null {
   if (points == null || sigma == null || !(sigma > 0) || !Number.isFinite(points)) return null;
