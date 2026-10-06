@@ -1,3 +1,4 @@
+import { aggregateByDate } from '@/engine/metrics';
 import type { Session, Trade } from '@/engine/types';
 
 export type MetricRange = '7j' | '30j' | '90j' | 'tout';
@@ -53,4 +54,14 @@ export function scopeFor(tab: ScopedTab, sessions: readonly Session[], trades: r
   if (tab === 'prop') return { ...filterJournal(sessions, trades, 'tout', asOf, account), account, ignores: ['periode'], needsAccount: false };
   if (tab === 'mc' && !account) return { sessions: [], trades: [], account: null, ignores: [], needsAccount: true };
   return { ...filterJournal(sessions, trades, range, asOf, account), account, ignores: [], needsAccount: false };
+}
+
+/**
+ * Échantillon du Monte-Carlo : un compte, une valeur par journée (séances du même jour réunies),
+ * ou une par trade. L'horizon par défaut vaut donc le nombre de journées du compte, jamais
+ * journées × comptes copiés.
+ */
+export function monteCarloSample(scope: Pick<TabScope, 'sessions' | 'trades'>, level: 'seances' | 'trades'): number[] {
+  if (level === 'trades') return scope.trades.map((row) => row.pnl);
+  return aggregateByDate(scope.sessions).map((row) => row.pnl);
 }

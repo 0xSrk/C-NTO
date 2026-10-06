@@ -6,7 +6,7 @@ import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
 import { listenWorker } from '@/lib/worker';
 import s from './metrique.module.css';
-import type { TabScope } from './range';
+import { monteCarloSample, type TabScope } from './range';
 import { useStats } from './useStats';
 
 async function monteCarloOffthread(input: number[], opts: MonteCarloOptions = {}): Promise<MonteCarloResult | null> {
@@ -40,7 +40,7 @@ export function MonteCarloView({ scope }: { scope: TabScope }) {
   const [progress, setProgress] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  const sample = useMemo(() => (level === 'seances' ? sessions.map((x) => x.pnl) : trades.map((x) => x.pnl)), [level, sessions, trades]);
+  const sample = useMemo(() => monteCarloSample({ sessions, trades }, level), [level, sessions, trades]);
   const params = useDeferredValue(useMemo(() => ({ runs, horizon, seed, ruin, target }), [runs, horizon, seed, ruin, target]));
   const effective = clampMonteCarlo(params.runs, params.horizon === '' ? sample.length : params.horizon);
 
