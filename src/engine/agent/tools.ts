@@ -378,7 +378,10 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       description: 'Crée une note Markdown dans le coffre (les [[liens]] et #tags sont reconnus).',
       parameters: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, required: ['title', 'body'], additionalProperties: false },
       async run(args) {
-        const n = await ports.createNote(str(args.title, 'Note'), str(args.body), Array.isArray(args.tags) ? args.tags.map(String) : []);
+        // `adoptedAt` est un geste du trader : un argument de ce nom est ignoré.
+        const { adoptedAt: _adoptedAt, ...rest } = args;
+        void _adoptedAt;
+        const n = await ports.createNote(str(rest.title, 'Note'), str(rest.body), Array.isArray(rest.tags) ? rest.tags.map(String) : []);
         return { id: n.id, title: n.title };
       },
     },

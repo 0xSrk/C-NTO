@@ -31,6 +31,8 @@ export interface Note {
   question?: string;
   /** `agent` : créée par un agent IA. Absent : écrite par le trader. */
   by?: 'agent';
+  /** Instant où le trader a adopté une note d'agent. Absent : non adoptée. Un coffre ancien n'a pas le champ. */
+  adoptedAt?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -463,7 +465,8 @@ const CHECKS: Record<string, Check> = {
     opt(r.parentId, (v) => isStr(v, 200)) &&
     opt(r.ancre, (v) => isStr(v, 500)) &&
     opt(r.question, (v) => isStr(v, 200)) &&
-    opt(r.by, (v) => v === 'agent'),
+    opt(r.by, (v) => v === 'agent') &&
+    opt(r.adoptedAt, isNum),
   calendar: (r) => isDate(r.date) && isStr(r.title, 200) && isEnum(r.kind, ['note', 'event'] as const) && opt(r.time, (v) => isStr(v, 5) && TIME_RE.test(v)) && opt(r.body, (v) => isStr(v, 20_000)),
   settings: (r) => r.key !== 'settings' || isRec(r.value),
   copierAccounts: (r) =>
