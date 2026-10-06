@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
+import { aggregatePoints } from '@/engine/tradeUnits';
 import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
-import { fmtInt, fmtPct, fmtRatio, plural } from '@/lib/format';
+import { fmtInt, fmtPct, fmtPoints, fmtRatio, plural } from '@/lib/format';
 import { dateTimeFormatter, parseDateKey } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -79,6 +80,18 @@ export function Dashboard({
   }, [trades]);
   const peak = Math.max(...ordered.map((row) => Math.abs(row.pnl)), 1);
   const instruments = stats.byInstrument.filter((row) => row.count > 0);
+  const instrumentPoints = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof aggregatePoints>>();
+    const groups = new Map<string, Trade[]>();
+    for (const trade of trades) {
+      if (!Number.isFinite(trade.pnl)) continue;
+      const list = groups.get(trade.instrument);
+      if (list) list.push(trade);
+      else groups.set(trade.instrument, [trade]);
+    }
+    for (const [key, list] of groups) map.set(key, aggregatePoints(list));
+    return map;
+  }, [trades]);
   const best = ordered.reduce<Session | null>((win, row) => (!win || row.pnl > win.pnl ? row : win), null);
   const names = [...new Set(ordered.flatMap((row) => row.instruments))].slice(0, 3);
   const winSessions = ordered.filter((row) => row.pnl > 0).length;
@@ -291,7 +304,7 @@ export function Dashboard({
             <span className={s.code}>A.03 </span>
             <span className={s.kName}>{tr('Par instrument', 'By instrument', 'Por instrumento')}</span>
           </span>
-          <span className={s.hint}>{tr('NET USD', 'NET USD', 'NETO USD')}</span>
+          <span className={s.hint}>{tr('NET · POINTS', 'NET · POINTS', 'NETO · PUNTOS')}</span>
         </div>
         <div>
           {instruments.slice(0, 6).map((row) => (
@@ -302,6 +315,8 @@ export function Dashboard({
               </span>
               <span className={s.hint} style={{ gridColumn: '1 / -1', justifySelf: 'end' }}>
                 <Montant value={row.pnl} />
+                {' · '}
+                {fmtPoints(instrumentPoints.get(row.key)?.points)}
               </span>
               <div className={s.share}>
                 <i style={{ width: `${stats.count ? (row.count / stats.count) * 100 : 0}%` }} />
