@@ -136,10 +136,12 @@ function isFailure(name: string, result: unknown): boolean {
   return typeof rec.error === 'string' || rec.ok === false;
 }
 
-function toolResult(result: unknown, isError: boolean) {
+/** Résultat de l'outil ; le motif du desk, s'il en donne un, suit en second bloc texte. */
+function toolResult(result: unknown, isError: boolean, motive?: string) {
   const text = JSON.stringify(result ?? null);
   const structured = result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result } : {};
-  return { content: [{ type: 'text', text }], ...structured, ...(isError ? { isError: true } : {}) };
+  const content = [{ type: 'text', text }, ...(motive ? [{ type: 'text', text: motive }] : [])];
+  return { content, ...structured, ...(isError ? { isError: true } : {}) };
 }
 
 function toolError(message: string) {
@@ -202,7 +204,7 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       }
       const { result, error } = await ctx.relay.call(name, args);
       if (error && (result === null || result === undefined)) return { result: toolError(error) };
-      return { result: toolResult(result, !!error || isFailure(name, result)) };
+      return { result: toolResult(result, !!error || isFailure(name, result), error) };
     }
     default:
       return { error: { code: -32601, message: `Méthode non prise en charge : ${method}` } };

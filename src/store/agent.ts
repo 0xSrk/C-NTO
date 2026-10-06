@@ -160,7 +160,17 @@ export const useAgent = create<AgentState>((set, get) => ({
         const rec = result && typeof result === 'object' ? (result as Record<string, unknown>) : null;
         const reason = rec && typeof rec.reason === 'string' ? rec.reason : undefined;
         const err = rec && typeof rec.error === 'string' ? rec.error : undefined;
-        const denied = reason === 'write_disabled' ? 'Écriture désactivée : activer « écriture autorisée » dans Agent IA › Orchestrateur externe' : reason === 'unknown_tool' ? 'Outil inconnu' : err;
+        const mcp = req.clientId === MCP_CLIENT_ID;
+        const denied =
+          reason === 'write_disabled'
+            ? tr(
+                `Écriture désactivée : activer « écriture autorisée » dans Agent IA › ${mcp ? 'Agents externes · MCP' : 'Orchestrateur externe'}`,
+                `Writing disabled: turn on “write allowed” in AI Agent › ${mcp ? 'External agents · MCP' : 'External orchestrator'}`,
+                `Escritura desactivada: active « escritura autorizada » en Agente IA › ${mcp ? 'Agentes externos · MCP' : 'Orquestador externo'}`,
+              )
+            : reason === 'unknown_tool'
+              ? tr('Outil inconnu', 'Unknown tool', 'Herramienta desconocida')
+              : err;
         api.orchestrator.respond(req.id, req.clientId, result, denied);
         log(!denied, denied);
       });

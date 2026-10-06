@@ -137,6 +137,18 @@ describe('passerelle MCP · protocole', () => {
     expect(silent.result).toEqual({ content: [{ type: 'text', text: 'Desk indisponible' }], isError: true });
   });
 
+  it('refus du desk avec un résultat et un motif : le motif reste, en second bloc texte', async () => {
+    const motive = 'Écriture désactivée : activer « écriture autorisée » dans Agent IA › Agents externes · MCP';
+    const both = relay([], () => ({ result: { ok: false, reason: 'write_disabled' }, error: motive }));
+    const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'create_note', arguments: {} })), ctx({ relay: both, allowWrites: true })));
+    const content = out.result?.content as { type: string; text: string }[];
+    expect(out.result?.isError).toBe(true);
+    expect(content).toHaveLength(2);
+    expect(JSON.parse(content[0]!.text.slice(content[0]!.text.indexOf('{')))).toEqual({ ok: false, reason: 'write_disabled' });
+    expect(content[1]).toEqual({ type: 'text', text: motive });
+    expect(out.result?.structuredContent).toEqual({ ok: false, reason: 'write_disabled' });
+  });
+
   it('propose_order refusé par le trader : un résultat, pas une erreur ; refus du desk et échec du pont restent isError', async () => {
     const order: McpToolInfo = { name: 'propose_order', description: 'Propose un ordre', parameters: { type: 'object', properties: {} }, kind: 'write' };
     const answering = (outcome: Record<string, unknown>): McpRelay => ({ tools: async () => [...TOOLS, order], call: async () => ({ result: outcome }) });
