@@ -6,7 +6,6 @@ import {
   daySide,
   decomposeExact,
   labelRelease,
-  laggedValue,
   readAxis,
   releaseContrast,
   semiOpenClasses,
@@ -15,10 +14,59 @@ import {
   weekdayKey,
   type ReadingSample,
 } from '@/engine/contextReading';
+import type { Bar, BarSeries } from '@/engine/bars';
 import { sessionDates } from '@/engine/metrics';
-import type { DayContext } from '@/engine/metricsContext';
+import { buildMetricsContext, type DayContext } from '@/engine/metricsContext';
 import { pointsPerContract } from '@/engine/tradeUnits';
-import { ET_ZONE, zonedWallClock } from '@/lib/time';
+import type { Session, Trade } from '@/engine/types';
+import { ET_ZONE, zonedToUtc, zonedWallClock } from '@/lib/time';
+import { axisReading, type AxisSettings } from '@/modules/metrique/axisReading';
+
+const AXIS_SETTINGS: AxisSettings = {
+  regimeConfirm: 2,
+  regimeMinSessions: 5,
+  releaseBefore: 5,
+  releaseAfter: 30,
+  markerMinTrades: 30,
+  falseDiscoveryRate: 0.05,
+  riskPerContract: 0,
+  riskBasePoints: 1.5,
+  impliedVol: null,
+  startingBalance: 50_000,
+  planAccount: '',
+  planId: 'apex-50',
+};
+
+function weekdays(start: string, count: number): string[] {
+  const out: string[] = [];
+  let cursor = start;
+  while (out.length < count) {
+    const dow = new Date(`${cursor}T12:00:00Z`).getUTCDay();
+    if (dow !== 0 && dow !== 6) out.push(cursor);
+    const [y, m, d] = cursor.split('-').map(Number);
+    cursor = new Date(Date.UTC(y ?? 2024, (m ?? 1) - 1, (d ?? 1) + 1)).toISOString().slice(0, 10);
+  }
+  return out;
+}
+
+/** Séance dont la variance de Garman-Klass annualisée vaut `sigma` (ouverture = clôture). */
+function barAt(date: string, sigma: number): Bar {
+  const half = Math.sqrt((2 * sigma * sigma) / 252) / 2;
+  return { time: zonedToUtc(date, '12:00', ET_ZONE) / 1000, open: 20_000, close: 20_000, high: 20_000 * Math.exp(half), low: 20_000 * Math.exp(-half), volume: 1 };
+}
+
+function nqSeries(bars: Bar[]): BarSeries {
+  return { id: 'nq', instrument: 'NQ', timeframe: 1440, label: 'NQ', source: 'csv', bars, createdAt: 0 };
+}
+
+function daySession(date: string): Session {
+  return { id: `s-${date}`, date, account: 'Sim101', instruments: ['NQ'], source: 'csv', tradeCount: 1, pnl: 200, grossProfit: 200, grossLoss: 0, commission: 0, tags: [], createdAt: 0, updatedAt: 0 };
+}
+
+function dayTrade(date: string): Trade {
+  const entry = zonedToUtc(date, '10:00', ET_ZONE);
+  return { id: `t-${date}`, sessionId: `s-${date}`, instrument: 'NQ', account: 'Sim101', direction: 'long', qty: 1, entryTime: entry, exitTime: entry + 60_000, entryPrice: 20_000, exitPrice: 20_010, pnl: 200, commission: 0 };
+}
 
 describe('lecture par contexte', () => {
   it('retrouve exactement le gain moyen par journée', () => {
@@ -32,20 +80,53 @@ describe('lecture par contexte', () => {
     expect(term?.perDay).toBeCloseTo(gross / 3, 8);
   });
 
-  it('classe le jour du changement avec le régime de la veille', () => {
-    expect(laggedValue(['compression', 'compression', 'expansion'])).toEqual([undefined, 'compression', 'compression']);
-    const samples: ReadingSample[] = [
-      { date: '2026-01-05', exitTime: 1, points: 1, key: 'compression' },
-      { date: '2026-01-06', exitTime: 2, points: 1, key: 'compression' },
-      { date: '2026-01-07', exitTime: 3, points: 100, key: 'compression' },
-    ];
-    const rows = readAxis(samples, [
-      { date: '2026-01-05', key: null },
-      { date: '2026-01-06', key: 'compression' },
-      { date: '2026-01-07', key: 'compression' },
-    ], { minTrades: 30, draws: 50 });
-    expect(rows.map((row) => row.key)).toEqual(['compression']);
-    expect(rows[0]?.trades).toBe(3);
+  it('classe le jour du changement avec sa propre fiche, arrêtée à la veille', () => {
+    const dates = weekdays('2024-01-02', 240);
+    // Volatilité qui décroît doucement (compression), puis un choc modéré à partir de la séance 133.
+    const bars = dates.map((date, index) => barAt(date, index < 133 ? 0.3 - (0.1 * index) / 133 : 0.26));
+    const traded = dates.slice(120, 170);
+    const input = {
+      sessions: traded.map((date) => daySession(date)),
+      trades: traded.map((date) => dayTrade(date)),
+      series: [nqSeries(bars)],
+      activeId: 'nq',
+      events: [],
+      settings: AXIS_SETTINGS,
+      metricAccount: null,
+    };
+    const { days } = buildMetricsContext({ root: 'NQ', bars, trades: [], confirm: AXIS_SETTINGS.regimeConfirm, minStay: AXIS_SETTINGS.regimeMinSessions });
+    const sheet = new Map(days.map((day) => [day.date, day]));
+    const shock = days.findIndex((day, index) => index > 0 && day.volCycle === 'choc' && days[index - 1]?.volCycle !== 'choc');
+    const changeDay = days[shock]!.date;
+    expect(days[shock - 1]?.volCycle).toBe('compression');
+    expect(traded).toContain(changeDay);
+
+    const keysOf = (axis: 'regime' | 'band', over: Partial<typeof input> = {}) => new Map(axisReading({ axis, ...input, ...over }).samples.map((sample) => [sample.date, sample.key]));
+    const regime = keysOf('regime');
+    const band = keysOf('band');
+    // Le jour où la fiche passe en choc, ses trades sont classés « choc », pas avec la fiche de la veille.
+    expect(regime.get(changeDay)).toBe('choc');
+    for (const date of traded) {
+      expect(regime.get(date)).toBe(sheet.get(date)?.volCycle);
+      expect(band.get(date)).toBe(sheet.get(date)?.volBand);
+    }
+    const bandShift = days.findIndex((day, index) => index > shock && day.volBand !== days[index - 1]?.volBand);
+    expect(band.get(days[bandShift]!.date)).toBe(days[bandShift]!.volBand);
+    expect(days[bandShift]!.volBand).not.toBe(days[bandShift - 1]!.volBand);
+
+    // Aucune fuite : la barre du jour D ne change ni le régime ni la bande de ses trades, seulement la fiche du lendemain.
+    const at = dates.indexOf(changeDay);
+    const shaken = bars.map((bar, index) => (index === at ? { ...bar, high: bar.high * 1.05, low: bar.low * 0.95, close: bar.close * 1.03 } : bar));
+    const moved = { series: [nqSeries(shaken)] };
+    const shakenRegime = keysOf('regime', moved);
+    const shakenBand = keysOf('band', moved);
+    for (const date of traded.filter((day) => day <= changeDay)) {
+      expect(shakenRegime.get(date)).toBe(regime.get(date));
+      expect(shakenBand.get(date)).toBe(band.get(date));
+    }
+    const next = buildMetricsContext({ root: 'NQ', bars: shaken, trades: [] }).days[at + 1];
+    expect(next?.volCT).not.toBe(days[at + 1]?.volCT);
+
     expect(daySide(0)).toBeNull();
     expect(daySide(1)).toBe('hausse');
     expect(daySide(-1)).toBe('baisse');

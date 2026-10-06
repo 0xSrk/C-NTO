@@ -68,8 +68,9 @@ export function axisReading(input: AxisReadingInput): AxisReading {
     : null;
   const dates = sessionDates(sessions);
   const days = context?.days ?? [];
-  const cycleOf = new Map(days.map((day, index) => [day.date, index > 0 ? days[index - 1]?.volCycle : undefined]));
-  const bandOf = new Map(days.map((day, index) => [day.date, index > 0 ? days[index - 1]?.volBand : undefined]));
+  // Fiche de la journée elle-même : ses volatilités s'arrêtent déjà à la clôture de la veille (`buildMetricsContext`).
+  const cycleOf = new Map(days.map((day) => [day.date, day.volCycle]));
+  const bandOf = new Map(days.map((day) => [day.date, day.volBand]));
   const infoOf = new Map((context?.trades ?? []).map((row) => [row.tradeId, row]));
   const plan = metricAccount && settings.planAccount === metricAccount ? findPlan(settings.planId) : null;
   const capital = plan?.maxDrawdown && plan.maxDrawdown > 0 ? plan.maxDrawdown : settings.startingBalance;
@@ -107,9 +108,9 @@ export function axisReading(input: AxisReadingInput): AxisReading {
       : axis === 'hour'
         ? bounds.flatMap((date) => hourKeys.map((key) => ({ date, key })))
         : axis === 'regime'
-          ? days.map((day, index) => ({ date: day.date, key: index > 0 ? (days[index - 1]?.volCycle ?? null) : null }))
+          ? days.map((day) => ({ date: day.date, key: day.volCycle ?? null }))
           : axis === 'band'
-            ? days.map((day, index) => ({ date: day.date, key: index > 0 ? (days[index - 1]?.volBand ?? null) : null }))
+            ? days.map((day) => ({ date: day.date, key: day.volBand ?? null }))
             : [];
   const rows = readAxis(samples, calendar, { minTrades: settings.markerMinTrades, fdr: settings.falseDiscoveryRate, draws: 800, seed: 1 });
   const last = [...days].reverse().find((day) => day.volCycle && day.volBand);

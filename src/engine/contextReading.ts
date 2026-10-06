@@ -30,11 +30,6 @@ export interface ReadingSample {
 
 const WEEKDAY_KEYS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'] as const;
 
-/** La journée D est lue avec la valeur de la veille. La première journée n'a pas de veille. */
-export function laggedValue<T>(values: readonly (T | undefined)[]): (T | undefined)[] {
-  return values.map((_, index) => (index > 0 ? values[index - 1] : undefined));
-}
-
 export function weekdayKey(date: string): string {
   return WEEKDAY_KEYS[weekdayOf(date)] ?? 'dim';
 }
@@ -73,7 +68,8 @@ function halfPersists(points: readonly number[], exitTimes: readonly number[]): 
 
 /**
  * Une ligne par valeur d'axe. Les groupes sans trade ne sont pas créés.
- * `calendar` donne, pour chaque journée, la valeur d'axe qui la classe (déjà décalée d'un jour si c'est un régime).
+ * `calendar` donne, pour chaque journée, la valeur d'axe qui la classe. Pour un régime ou une bande,
+ * c'est la fiche de la journée, déjà arrêtée à la clôture de la veille : aucun décalage de plus.
  */
 export function readAxis(
   samples: readonly ReadingSample[],

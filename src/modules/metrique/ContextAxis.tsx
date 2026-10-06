@@ -68,7 +68,13 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
       <header className={s.trameHead}>
         <div>
           <h3>{tr('Lecture par contexte', 'Reading by context', 'Lectura por contexto')}</h3>
-          <p>{tr('Un axe à la fois. Le régime et la bande sont ceux de la veille.', 'One axis at a time. Regime and band are those of the previous day.', 'Un eje a la vez. El régimen y la banda son los del día anterior.')}</p>
+          <p>
+            {tr(
+              'Un axe à la fois. Le régime et la bande d’une journée sont ceux de sa fiche, arrêtée à la clôture de la veille.',
+              'One axis at a time. A day’s regime and band come from its own sheet, set at the previous close.',
+              'Un eje a la vez. El régimen y la banda de una jornada son los de su ficha, fijada al cierre del día anterior.',
+            )}
+          </p>
         </div>
       </header>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
