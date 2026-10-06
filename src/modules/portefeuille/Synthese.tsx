@@ -6,6 +6,7 @@ import type { Exposure } from '@/engine/portfolio/exposure';
 import { convertAmount } from '@/engine/portfolio/fx';
 import { PROP_DRAWDOWN_ALERT } from '@/engine/portfolio/risk';
 import { LEVERAGE_WARN, type BridgeSnapshot, type Coeur, type EquityPoint, type FxRate, type Pocket, type PocketKind, type PocketValuation } from '@/engine/portfolio/types';
+import { engineNote, sourceTag } from './labels';
 import { Projection } from './Projection';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct } from '@/lib/format';
@@ -53,17 +54,6 @@ export function windowDrawdown(series: readonly { date: string; equity: number }
     current = dd;
   }
   return { current, worst };
-}
-
-function sourceTag(pocket: Pocket, valuation: PocketValuation, snapshots: readonly BridgeSnapshot[], now: number): string {
-  if (valuation.mark === 'pont') {
-    const snap = snapshots.find((row) => row.account === (pocket.account ?? ''));
-    if (snap) return `PONT · ${Math.max(0, Math.round((now - snap.at) / 1000))} S`;
-    return 'PONT';
-  }
-  if (valuation.mark === 'journal') return 'JOURNAL';
-  if (valuation.mark === 'saisi') return 'SAISIE';
-  return 'PRIX';
 }
 
 export function Synthese({
@@ -384,7 +374,7 @@ export function Synthese({
             {tr('CONCENTRATION', 'CONCENTRATION', 'CONCENTRACIÓN')} {fmtPct(expo.concentration, 1)} {tr('SUR', 'ON', 'EN')} {top.key}
           </p>
         ) : null}
-        {expo.notes.length > 0 ? <p className={s.note}>{expo.notes.map((row) => `${pocketName(row.pocketId)} · ${row.text}`).join(' — ')}</p> : null}
+        {expo.notes.length > 0 ? <p className={s.note}>{expo.notes.map((row) => `${pocketName(row.pocketId)} · ${engineNote(row.text)}`).join(' — ')}</p> : null}
       </section>
 
       <section className={`${s.card} ${s.pad} ${s.span8}`}>
