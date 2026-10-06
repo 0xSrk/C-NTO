@@ -1,6 +1,6 @@
 import { mulberry32 } from '@/lib/rng';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
-import { aggregateByDate, calendarSeries, drawdownSeries, mean, percentile, stddev, tradeDay, weekdayOf, type DailyStatsOptions } from './metrics';
+import { aggregateByDate, calendarSeries, computeDailyStats, drawdownSeries, mean, percentile, stddev, tradeDay, weekdayOf, type DailyStatsOptions } from './metrics';
 import type { Session, Trade } from './types';
 
 /** Tirages des tests de permutation et des intervalles par blocs. */
@@ -475,4 +475,76 @@ export function allocatedRiskStats(sessions: readonly Session[], maxLoss: number
   const annualized = series.length ? (net / maxLoss) * (252 / series.length) : 0;
   const calmar = maxDrawdownPct > 1e-9 ? annualized / maxDrawdownPct : 0;
   return { maxDrawdown: path.maxDrawdown, maxDrawdownPct, calmar, ulcerIndex, tradingDays: series.length };
+}
+
+export interface RatioInterval {
+  value: number;
+  low: number;
+  high: number;
+}
+
+const ANNUALIZATION = Math.sqrt(252);
+
+function ratiosOf(pnls: readonly number[], startingBalance: number): { sharpe: number; sortino: number; calmar: number } {
+  const returns = pnls.map((pnl) => (startingBalance > 0 ? pnl / startingBalance : 0));
+  const meanR = mean(returns);
+  const stdR = stddev(returns);
+  const downside = Math.sqrt(mean(returns.map((r) => Math.min(0, r) ** 2)));
+  const sharpe = stdR > 1e-9 ? (meanR / stdR) * ANNUALIZATION : 0;
+  const sortino = downside > 1e-9 ? (meanR / downside) * ANNUALIZATION : 0;
+  const path = drawdownSeries(
+    pnls.map((pnl, index) => ({ t: index, pnl })),
+    startingBalance,
+  );
+  const net = pnls.reduce((sum, pnl) => sum + pnl, 0);
+  const annualized = pnls.length && startingBalance > 0 ? (net / startingBalance) * (252 / pnls.length) : 0;
+  const calmar = path.maxDrawdownPct > 1e-9 ? annualized / path.maxDrawdownPct : 0;
+  return { sharpe, sortino, calmar };
+}
+
+function circularBlockSample(series: readonly number[], rand: () => number, blockLength: number): number[] {
+  const n = series.length;
+  const out: number[] = [];
+  const length = Math.max(1, blockLength);
+  while (out.length < n) {
+    const start = Math.floor(rand() * n);
+    const take = Math.min(length, n - out.length);
+    for (let j = 0; j < take; j++) out.push(series[(start + j) % n] ?? 0);
+  }
+  return out;
+}
+
+/**
+ * IC à 90 % de Sharpe, Sortino et Calmar par le même bootstrap de blocs que l'espérance.
+ * La valeur affichée est celle de `computeDailyStats`.
+ */
+export function ratioIntervals(
+  sessions: readonly Session[],
+  startingBalance: number,
+  opts: DailyStatsOptions & { draws?: number; seed?: number; level?: number } = {},
+): { sharpe: RatioInterval; sortino: RatioInterval; calmar: RatioInterval } {
+  const daily = computeDailyStats([...sessions], startingBalance, 20, opts);
+  const series = calendarSeries(aggregateByDate([...sessions]), opts).filter((x) => Number.isFinite(x));
+  const draws = Math.max(1, Math.floor(opts.draws ?? INFERENCE_DRAWS));
+  const level = opts.level ?? 0.9;
+  const empty = { sharpe: { value: daily.sharpe, low: daily.sharpe, high: daily.sharpe }, sortino: { value: daily.sortino, low: daily.sortino, high: daily.sortino }, calmar: { value: daily.calmar, low: daily.calmar, high: daily.calmar } };
+  if (series.length === 0) return empty;
+  const rand = mulberry32(opts.seed ?? 1);
+  const block = blockLengthOf(series.length);
+  const sharpes: number[] = [];
+  const sortinos: number[] = [];
+  const calmars: number[] = [];
+  for (let draw = 0; draw < draws; draw++) {
+    const sample = circularBlockSample(series, rand, block);
+    const ratios = ratiosOf(sample, startingBalance);
+    sharpes.push(ratios.sharpe);
+    sortinos.push(ratios.sortino);
+    calmars.push(ratios.calmar);
+  }
+  const alpha = (1 - level) / 2;
+  const bound = (values: number[], value: number): RatioInterval => {
+    values.sort((a, b) => a - b);
+    return { value, low: percentile(values, alpha), high: percentile(values, 1 - alpha) };
+  };
+  return { sharpe: bound(sharpes, daily.sharpe), sortino: bound(sortinos, daily.sortino), calmar: bound(calmars, daily.calmar) };
 }

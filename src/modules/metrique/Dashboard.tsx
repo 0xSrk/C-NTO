@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
-import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, rollingBands, sessionWinRateSeries } from '@/engine/inference';
+import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, ratioIntervals, rollingBands, sessionWinRateSeries } from '@/engine/inference';
 import { aggregatePoints } from '@/engine/tradeUnits';
 import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
@@ -74,6 +74,7 @@ export function Dashboard({
     () => (trackedPlan ? allocatedRiskStats(sessions, trackedPlan.maxDrawdown, { from: period.from ?? undefined, to: period.to }) : null),
     [trackedPlan, sessions, period.from, period.to],
   );
+  const ratioCi = useMemo(() => ratioIntervals(sessions, startingBalance, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to]);
   const gauge = useMemo(
     () => drawdownGauge({ plan: limit != null ? (findPlan(planId) ?? null) : null, account: metricAccount, history, maxDrawdown: daily.maxDrawdown, startingBalance }),
     [limit, planId, metricAccount, history, daily.maxDrawdown, startingBalance],
@@ -408,20 +409,31 @@ export function Dashboard({
             <span className={s.code}>A.05 </span>
             <span className={s.kName}>{tr('Ratios annualisés', 'Annualized ratios', 'Ratios anualizados')}</span>
           </span>
-          <span className={s.hint}>SHARPE · SORTINO · CALMAR</span>
+          <span className={s.hint}>SHARPE · SORTINO · CALMAR · IC 90 %</span>
         </summary>
         <div className={s.ratioRow}>
           <span>
             <span className={s.hint}>Sharpe</span>
             <span className={s.ratioValue}>{fmtRatio(daily.sharpe)}</span>
+            <span className={s.hint}>{fmtRatio(ratioCi.sharpe.low)} – {fmtRatio(ratioCi.sharpe.high)}</span>
           </span>
           <span>
             <span className={s.hint}>Sortino</span>
             <span className={s.ratioValue}>{fmtRatio(daily.sortino)}</span>
+            <span className={s.hint}>{fmtRatio(ratioCi.sortino.low)} – {fmtRatio(ratioCi.sortino.high)}</span>
           </span>
           <span>
             <span className={s.hint}>Calmar</span>
             <span className={s.ratioValue}>{fmtRatio(daily.calmar)}</span>
+            <span className={s.hint}>{fmtRatio(ratioCi.calmar.low)} – {fmtRatio(ratioCi.calmar.high)}</span>
+          </span>
+          <span>
+            <span className={s.hint}>SQN</span>
+            <span className={s.ratioValue}>{fmtRatio(stats.sqn)}</span>
+          </span>
+          <span>
+            <span className={s.hint}>Kelly</span>
+            <span className={s.ratioValue}>{fmtPct(stats.kelly, 1)}</span>
           </span>
           <p className={s.hint}>
             {tr(
