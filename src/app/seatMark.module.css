@@ -1,0 +1,119 @@
+/*
+ * Siège nominatif dans le pied (docs/SIEGE-NOMINATIF.md). Le rouge du desk seulement :
+ * var(--gold) pour le nom (halo plein, celui de .versionDot), var(--gold-line) pour le halo
+ * léger du geste. Le pied est en capitales : le nom et le littéral gardent leur casse.
+ */
+.name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  color: var(--gold);
+  text-shadow: 0 0 6px var(--gold);
+}
+
+.trigger {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: default;
+}
+
+/* Le contenu change au survol : les clics visent toujours le bouton, jamais un nœud remplacé. */
+.trigger > * {
+  pointer-events: none;
+}
+
+.bars,
+.reform {
+  display: inline-flex;
+}
+
+.reform {
+  transform-origin: right center;
+  animation: seat-reform 420ms var(--ease-out);
+}
+
+@keyframes seat-reform {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.prompt,
+.input,
+.rest {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  white-space: pre;
+  color: var(--gold);
+  text-shadow: 0 0 3px var(--gold-line);
+}
+
+.field {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  /* La largeur du littéral : 13 caractères mono, approche comprise. */
+  width: calc(13 * (1ch + 0.08em));
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  /* À la hauteur du texte : le filet de focus du desk encadre la ligne, pas tout le pied. */
+  height: 1.6em;
+  line-height: 1.6em;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  caret-color: var(--gold);
+}
+
+.rest {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--typed, 0) * (1ch + 0.08em));
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (forced-colors: active) {
+  .name,
+  .prompt,
+  .input,
+  .rest {
+    color: CanvasText;
+    text-shadow: none;
+  }
+}

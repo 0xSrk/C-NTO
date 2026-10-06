@@ -22,6 +22,8 @@ import { parseLocale, readLocaleFile, uiText, writeLocaleFile, type AppLocale } 
 import { FolderGrants, isSafeBackupName } from './folder-grants';
 import { planUserData } from './user-data';
 import { initMainLog, mainLog } from './main-log';
+import { SeatHost } from './seat';
+import { SEAT_PUBLIC_KEYS } from './seat-keys';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 /**
@@ -798,6 +800,11 @@ ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propSh
   const from = typeof origin === 'string' && AGENT_ORIGINS.has(origin) ? (origin as 'llm' | 'mcp' | 'orch') : 'orch';
   return agentOrders.propose(raw, from, typeof propShare === 'number' ? propShare : null);
 });
+
+/* ─── Siège nominatif : le nom vient du code signé, vérifié ici (docs/SIEGE-NOMINATIF.md) ─── */
+const seat = new SeatHost({ userDataDir: app.getPath('userData'), keys: SEAT_PUBLIC_KEYS, log: mainLog });
+ipcMain.handle('seat:status', (e) => (trusted(e) ? seat.status() : null));
+ipcMain.handle('seat:submit', (e, line: unknown) => (trusted(e) && typeof line === 'string' && line.length <= 4096 ? seat.submit(line) : { ok: false }));
 
 /* ─── Passerelle MCP (agents externes) ─── */
 const MCP_IDLE = { running: false, port: 0, calls: 0 };

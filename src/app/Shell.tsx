@@ -12,6 +12,7 @@ import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
+import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
@@ -303,7 +304,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
         <div className={s.statusRight}>
           <span className={s.sigEnd}>
-            <Barcode />
+            <SeatMark>
+              <Barcode />
+            </SeatMark>
             <span>[ SIΞRRΛSKΛ ]</span>
           </span>
         </div>
