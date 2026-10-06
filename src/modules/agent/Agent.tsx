@@ -457,6 +457,8 @@ export default function Agent() {
                         ['claude', tr('Copier pour Claude Code', 'Copy for Claude Code', 'Copiar para Claude Code'), claudeCodeCommand],
                         ['desktop', tr('Copier pour Claude Desktop', 'Copy for Claude Desktop', 'Copiar para Claude Desktop'), claudeDesktopConfig],
                         ['codex', tr('Copier pour Codex', 'Copy for Codex', 'Copiar para Codex'), (url: string, _token: string) => codexConfig(url)],
+                        // Le jeton de la passerelle MCP, pour CANTO_MCP_TOKEN (Codex) : celui de l'orchestrateur est un autre jeton.
+                        ['token', tr('Copier le jeton MCP', 'Copy MCP token', 'Copiar el token MCP'), (_url: string, token: string) => token],
                         ['json', tr('Copier la configuration JSON', 'Copy JSON configuration', 'Copiar la configuración JSON'), mcpJsonConfig],
                       ] as const
                     ).map(([id, label, build]) => (
@@ -471,8 +473,18 @@ export default function Agent() {
                             !conn
                               ? tr('Passerelle indisponible.', 'Gateway unavailable.', 'Pasarela no disponible.')
                               : id === 'codex'
-                                ? tr('Copié. Exportez CANTO_MCP_TOKEN avec le jeton avant de lancer Codex.', 'Copied. Export CANTO_MCP_TOKEN with the token before starting Codex.', 'Copiado. Exporte CANTO_MCP_TOKEN con el token antes de lanzar Codex.')
-                                : tr('Copié. Le jeton y figure : ne le partagez pas.', 'Copied. It contains the token: do not share it.', 'Copiado. Contiene el token: no lo comparta.'),
+                                ? tr(
+                                    'Copié. Exportez CANTO_MCP_TOKEN avec le jeton MCP (« Copier le jeton MCP ») avant de lancer Codex.',
+                                    'Copied. Export CANTO_MCP_TOKEN with the MCP token (“Copy MCP token”) before starting Codex.',
+                                    'Copiado. Exporte CANTO_MCP_TOKEN con el token MCP (« Copiar el token MCP ») antes de lanzar Codex.',
+                                  )
+                                : id === 'token'
+                                  ? tr(
+                                      'Jeton MCP copié : exportez-le dans CANTO_MCP_TOKEN pour Codex. Ne le partagez pas.',
+                                      'MCP token copied: export it as CANTO_MCP_TOKEN for Codex. Do not share it.',
+                                      'Token MCP copiado: expórtelo en CANTO_MCP_TOKEN para Codex. No lo comparta.',
+                                    )
+                                  : tr('Copié. Le jeton y figure : ne le partagez pas.', 'Copied. It contains the token: do not share it.', 'Copiado. Contiene el token: no lo comparta.'),
                             conn ? 'ok' : 'warn',
                           );
                         }}
