@@ -49,7 +49,9 @@ export interface Session {
   source: SessionSource;
   tradeCount: number;
   pnl: number;
+  /** Trades gagnants **avant** commissions (P&L + commission). Le P&L de la séance, lui, est net. */
   grossProfit: number;
+  /** Trades perdants **avant** commissions (négatif). */
   grossLoss: number;
   commission: number;
   tags: string[];

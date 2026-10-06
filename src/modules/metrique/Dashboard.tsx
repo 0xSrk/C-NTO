@@ -213,9 +213,12 @@ export function Dashboard({
               <span className={s.code}>K.03 </span>
               <span className={s.kName}>{tr('Profit factor', 'Profit factor', 'Profit factor')}</span>
             </span>
-            <span className={s.hint}>{tr('BRUT', 'GROSS', 'BRUTO')}</span>
+            <span className={s.hint}>{tr('APRÈS FRAIS', 'AFTER FEES', 'TRAS COMISIONES')}</span>
           </div>
           <span className={s.kValue}>{Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2).replace('.', ',') : '∞'}</span>
+          <span className={s.hint}>
+            {tr('AVANT FRAIS', 'BEFORE FEES', 'ANTES DE COMISIONES')} {Number.isFinite(stats.profitFactorBeforeFees) ? stats.profitFactorBeforeFees.toFixed(2).replace('.', ',') : '∞'}
+          </span>
           <Jauge
             min={0}
             max={3}

@@ -32,10 +32,19 @@ export interface TradeStats {
   breakeven: number;
   winRate: number;
   netPnl: number;
+  /** Somme des trades gagnants, **après** commissions (P&L net de chaque trade). */
   grossProfit: number;
+  /** Somme des trades perdants, **après** commissions (négative). */
   grossLoss: number;
+  /** Somme des trades gagnants **avant** commissions (P&L + commission), comme `Session.grossProfit`. */
+  grossProfitBeforeFees: number;
+  /** Somme des trades perdants **avant** commissions (négative), comme `Session.grossLoss`. */
+  grossLossBeforeFees: number;
   commission: number;
+  /** Profit factor **après** commissions : `grossProfit / |grossLoss|`. */
   profitFactor: number;
+  /** Profit factor **avant** commissions : ce que le marché a donné, sans les frais. */
+  profitFactorBeforeFees: number;
   expectancy: number;
   expectancyR: number | null;
   payoffRatio: number;
@@ -360,6 +369,14 @@ export function computeTradeStats(input: Trade[], days?: ReadonlyMap<string, str
   const avgLoss = losses ? grossLoss / losses : 0;
   const payoffRatio = avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : wins ? Infinity : 0;
   const profitFactor = grossLoss !== 0 ? grossProfit / Math.abs(grossLoss) : grossProfit > 0 ? Infinity : 0;
+  let grossProfitBeforeFees = 0;
+  let grossLossBeforeFees = 0;
+  for (const t of trades) {
+    const gross = t.pnl + (t.commission || 0);
+    if (gross > 0) grossProfitBeforeFees += gross;
+    else grossLossBeforeFees += gross;
+  }
+  const profitFactorBeforeFees = grossLossBeforeFees !== 0 ? grossProfitBeforeFees / Math.abs(grossLossBeforeFees) : grossProfitBeforeFees > 0 ? Infinity : 0;
   const expectancy = count ? netPnl / count : 0;
   const std = stddev(pnls);
   // Van Tharp : SQN sur les R-multiples dès que chaque trade a un risque ; sinon sur le PnL $.
@@ -401,8 +418,11 @@ export function computeTradeStats(input: Trade[], days?: ReadonlyMap<string, str
     netPnl,
     grossProfit,
     grossLoss,
+    grossProfitBeforeFees,
+    grossLossBeforeFees,
     commission,
     profitFactor,
+    profitFactorBeforeFees,
     expectancy,
     expectancyR,
     payoffRatio,
