@@ -64,13 +64,30 @@ export interface DailyBar {
   close: number;
 }
 
-/** Une bougie journalière par séance CME, dans l'ordre. Les barres intrajournalières sont repliées. */
-export function toDailyBars(bars: readonly Bar[]): DailyBar[] {
+/** Unité, en minutes, à partir de laquelle une barre porte une date civile (barre journalière ou plus). */
+export const DAILY_TIMEFRAME = 1440;
+
+/**
+ * Date civile d'une barre journalière. Un CSV journalier est lu à minuit **local** (`importBarsCsv`),
+ * soit de 11 h UTC la veille (poste à UTC+13) à 11 h UTC le jour même (UTC−11, exclu) : avancer de 13 h
+ * puis lire la date UTC rend la date du fichier, quel que soit le fuseau du poste qui relit la série.
+ * Une barre datée de l'ouverture de la séance (18 h ET la veille) tombe aussi sur sa séance.
+ */
+export function dailyBarDate(timeSec: number): string {
+  return new Date((timeSec + 13 * 3600) * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Une bougie journalière par séance, dans l'ordre. Les barres intrajournalières sont repliées sur la
+ * séance CME (bascule 18 h ET) ; à partir de 1 440 min (`timeframe`), chaque barre garde sa date civile.
+ */
+export function toDailyBars(bars: readonly Bar[], timeframe?: number): DailyBar[] {
+  const dayOf = timeframe != null && timeframe >= DAILY_TIMEFRAME ? dailyBarDate : sessionKeyOf;
   const ordered = [...bars].filter((bar) => Number.isFinite(bar.time)).sort((a, b) => a.time - b.time);
   const map = new Map<string, DailyBar>();
   const dates: string[] = [];
   for (const bar of ordered) {
-    const date = sessionKeyOf(bar.time);
+    const date = dayOf(bar.time);
     const current = map.get(date);
     if (!current) {
       map.set(date, { date, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
@@ -93,16 +110,23 @@ export function garmanKlassVariance(bar: Pick<DailyBar, 'open' | 'high' | 'low' 
   return Number.isFinite(variance) ? Math.max(0, variance) : null;
 }
 
-/** Volatilité annualisée sur les `window` séances qui précèdent `index` (clôture de la veille). */
+/**
+ * Volatilité annualisée sur les `window` séances qui précèdent `index` (clôture de la veille).
+ * Une séance invalide (prix ≤ 0, plus-haut sous le plus-bas) est écartée de la moyenne au lieu d'effacer
+ * la fenêtre : elle ne gèle pas le régime. Moins de la moitié de séances valides : pas de volatilité.
+ */
 export function garmanKlassAnnualized(days: readonly DailyBar[], index: number, window: number): number | undefined {
   if (index < window || window < 1) return undefined;
   let sum = 0;
+  let valid = 0;
   for (let i = index - window; i < index; i++) {
     const variance = garmanKlassVariance(days[i]!);
-    if (variance == null) return undefined;
+    if (variance == null) continue;
     sum += variance;
+    valid += 1;
   }
-  return Math.sqrt((sum / window) * 252);
+  if (valid === 0 || valid * 2 < window) return undefined;
+  return Math.sqrt((sum / valid) * 252);
 }
 
 /** Régime brut, sans délai. Égalité : CT ≤ MT et MT ≤ LT. */
@@ -178,8 +202,33 @@ function average(a: number | undefined, b: number | undefined): number | undefin
   return (a + b) / 2;
 }
 
-function fingerprint(trade: Trade): string {
-  return [trade.instrument, trade.direction, trade.qty, trade.entryTime, trade.exitTime, trade.entryPrice, trade.exitPrice, trade.pnl].join('|');
+/** Écart maximal d'entrée et de sortie entre un trade et sa copie sur un autre compte. */
+export const COPY_WINDOW_MS = 2_000;
+
+/**
+ * Une décision par groupe de copies. Une copie est un trade d'un **autre** compte, même racine, même sens,
+ * entrée et sortie à `COPY_WINDOW_MS` au plus du premier trade du groupe : un suiveur en micros ou rempli
+ * une seconde plus tard est fusionné. Deux trades d'un même compte ne se fusionnent jamais. Le groupe garde
+ * son premier trade (entrée la plus tôt), compté ensuite en équivalent standard.
+ */
+export function mergeCopies(trades: readonly Trade[]): Trade[] {
+  const ordered = [...trades].sort((a, b) => a.entryTime - b.entryTime || a.exitTime - b.exitTime || (a.account ?? '').localeCompare(b.account ?? '') || a.id.localeCompare(b.id));
+  const groups: { lead: Trade; root: string; accounts: Set<string> }[] = [];
+  for (const trade of ordered) {
+    const account = trade.account ?? '';
+    const root = standardRoot(trade.instrument);
+    const group = groups.find(
+      (row) =>
+        !row.accounts.has(account) &&
+        row.root === root &&
+        row.lead.direction === trade.direction &&
+        Math.abs(row.lead.entryTime - trade.entryTime) <= COPY_WINDOW_MS &&
+        Math.abs(row.lead.exitTime - trade.exitTime) <= COPY_WINDOW_MS,
+    );
+    if (group) group.accounts.add(account);
+    else groups.push({ lead: trade, root, accounts: new Set([account]) });
+  }
+  return groups.map((row) => row.lead);
 }
 
 function releaseMs(date: string, timeET: string | undefined): number | null {
@@ -197,7 +246,11 @@ function tertile(value: number, history: readonly number[]): VolBand | undefined
   return 'haute';
 }
 
+/** Séances d'historique qu'une fiche demande avant d'avoir ses volatilités. */
+export const CONTEXT_HISTORY = 90;
+
 export interface MetricsContext {
+  /** La dernière fiche a ses `CONTEXT_HISTORY` séances d'historique. */
   sufficient: boolean;
   days: DayContext[];
   trades: TradeContext[];
@@ -205,12 +258,15 @@ export interface MetricsContext {
 
 /**
  * Fiche par journée de cotation et par racine, jours sans trade compris.
- * Moins de 90 séances de barres : les volatilités restent vides.
+ * Le seuil se juge fiche par fiche : une fiche précédée de moins de 90 séances a ses volatilités vides,
+ * et la longueur de la série ne change jamais une fiche antérieure.
  * Les volatilités et l'ATR utilisés comme cause s'arrêtent à la clôture de la veille.
  */
 export function buildMetricsContext(input: {
   root: string;
   bars: readonly Bar[];
+  /** Unité des barres, en minutes (`BarSeries.timeframe`). À partir de 1 440 : date civile de chaque barre. */
+  timeframe?: number;
   trades: readonly Trade[];
   sessions?: readonly Session[];
   events?: readonly ContextEvent[];
@@ -220,8 +276,8 @@ export function buildMetricsContext(input: {
   const confirm = input.confirm ?? 2;
   const minStay = input.minStay ?? 5;
   const root = standardRoot(input.root);
-  const daily = toDailyBars(input.bars);
-  const sufficient = daily.length >= 90;
+  const daily = toDailyBars(input.bars, input.timeframe);
+  const sufficient = daily.length > CONTEXT_HISTORY;
   const sessionDate = new Map((input.sessions ?? []).map((session) => [session.id, session.date]));
   const mine = input.trades.filter((trade) => standardRoot(trade.instrument) === root && Number.isFinite(trade.pnl));
   const dayOf = (trade: Trade) => sessionDate.get(trade.sessionId) ?? sessionKeyOf(trade.entryTime / 1000);
@@ -241,18 +297,17 @@ export function buildMetricsContext(input: {
   const rawCycles: (VolCycle | null)[] = [];
   const drafts: DayContext[] = daily.map((day, index) => {
     const previous = index > 0 ? daily[index - 1] : undefined;
-    const hv5 = sufficient ? garmanKlassAnnualized(daily, index, 5) : undefined;
-    const hv10 = sufficient ? garmanKlassAnnualized(daily, index, 10) : undefined;
-    const hv15 = sufficient ? garmanKlassAnnualized(daily, index, 15) : undefined;
-    const hv30 = sufficient ? garmanKlassAnnualized(daily, index, 30) : undefined;
-    const hv60 = sufficient ? garmanKlassAnnualized(daily, index, 60) : undefined;
-    const hv90 = sufficient ? garmanKlassAnnualized(daily, index, 90) : undefined;
+    const enough = index >= CONTEXT_HISTORY;
+    const hv5 = enough ? garmanKlassAnnualized(daily, index, 5) : undefined;
+    const hv10 = enough ? garmanKlassAnnualized(daily, index, 10) : undefined;
+    const hv15 = enough ? garmanKlassAnnualized(daily, index, 15) : undefined;
+    const hv30 = enough ? garmanKlassAnnualized(daily, index, 30) : undefined;
+    const hv60 = enough ? garmanKlassAnnualized(daily, index, 60) : undefined;
+    const hv90 = enough ? garmanKlassAnnualized(daily, index, 90) : undefined;
     const volCT = average(hv5, hv10);
     const volMT = average(hv15, hv30);
     const volLT = average(hv60, hv90);
-    const unique = new Map<string, Trade>();
-    for (const trade of byDate.get(day.date) ?? []) if (!unique.has(fingerprint(trade))) unique.set(fingerprint(trade), trade);
-    const copies = [...unique.values()];
+    const copies = mergeCopies(byDate.get(day.date) ?? []);
     let contracts = 0;
     for (const trade of copies) contracts += standardEquivalentQty(trade);
     const atr14 = atr[index] ?? undefined;
@@ -295,14 +350,30 @@ export function buildMetricsContext(input: {
   const dayByDate = new Map(days.map((day, index) => [day.date, { day, index }]));
   const sizes = mine.map((trade) => standardEquivalentQty(trade)).filter((qty) => qty > 0).sort((a, b) => a - b);
   const medianSize = sizes.length === 0 ? 0 : sizes.length % 2 ? sizes[(sizes.length - 1) / 2]! : ((sizes[sizes.length / 2 - 1] ?? 0) + (sizes[sizes.length / 2] ?? 0)) / 2;
-  const orderedTrades = [...mine].sort((a, b) => a.exitTime - b.exitTime || a.id.localeCompare(b.id));
-  const previousByAccount = new Map<string, Trade>();
-  const afterLoss = new Map<string, boolean>();
-  for (const trade of orderedTrades) {
+  // « Après une perte » : le dernier trade du même compte sorti au plus tard à l'entrée. Un trade encore
+  // ouvert à l'entrée ne compte pas, même s'il sort avant le trade lu.
+  const exitsByAccount = new Map<string, Trade[]>();
+  for (const trade of mine) {
     const account = trade.account ?? '';
-    const previous = previousByAccount.get(account);
+    const list = exitsByAccount.get(account) ?? [];
+    list.push(trade);
+    exitsByAccount.set(account, list);
+  }
+  for (const list of exitsByAccount.values()) list.sort((a, b) => a.exitTime - b.exitTime || a.id.localeCompare(b.id));
+  const afterLoss = new Map<string, boolean>();
+  for (const trade of mine) {
+    const list = exitsByAccount.get(trade.account ?? '') ?? [];
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid]!.exitTime <= trade.entryTime) lo = mid + 1;
+      else hi = mid;
+    }
+    let index = lo - 1;
+    while (index >= 0 && list[index]!.id === trade.id) index -= 1;
+    const previous = index >= 0 ? list[index] : undefined;
     afterLoss.set(trade.id, previous != null && previous.pnl < 0);
-    previousByAccount.set(account, trade);
   }
   const ranked = new Map<string, number>();
   const byAccountDay = new Map<string, Trade[]>();

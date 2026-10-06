@@ -5,6 +5,7 @@ import type { IndicatorInstance } from '@/engine/indicators';
 import { NOTE_STATUTS, type NoteStatut } from '@/engine/ontology/header';
 import { ENTITY_TYPES, LINK_AUTHORS, LINK_KINDS, PREDICATES, type Link } from '@/engine/ontology/schema';
 import { buildEquityPoints } from '@/engine/portfolio/equity';
+import { TRADE_LEVEL_KEYS, tradeLevelIssue } from '@/engine/riskConsole';
 import { CREATABLE_POCKET_KINDS, assertNoCryptoPockets, type CashBalance, type EquityPoint, type FxRate, type Pocket, type Position } from '@/engine/portfolio/types';
 import type { Instrument, Session, Trade } from '@/engine/types';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
@@ -618,6 +619,29 @@ const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
   },
 };
 
+/**
+ * Stop et objectif initiaux d'un coffre, avant le contrôle des lignes : un prix aberrant (pas un nombre,
+ * hors de ]0 ; 1e6], du mauvais côté de l'entrée, comme à la saisie) retire le champ et garde le trade et son P&L.
+ * Les autres lignes passent telles quelles : leur contrôle reste celui de `CHECKS`.
+ */
+function dropAberrantTradeLevels(input: unknown): unknown {
+  if (!Array.isArray(input) || input.length > MAX_ROWS) return input;
+  return input.map((item: unknown) => {
+    if (!isRec(item) || Object.prototype.hasOwnProperty.call(item, '__proto__') || Object.prototype.hasOwnProperty.call(item, 'constructor')) return item;
+    const direction = item.direction;
+    if (direction !== 'long' && direction !== 'short') return item;
+    const entryPrice = isNum(item.entryPrice) ? item.entryPrice : Number.NaN;
+    const aberrant = TRADE_LEVEL_KEYS.filter((key) => {
+      const value = item[key];
+      return value !== undefined && (!isNum(value) || tradeLevelIssue(key, value, { direction, entryPrice }) !== null);
+    });
+    if (aberrant.length === 0) return item;
+    const kept: Record<string, unknown> = { ...item };
+    for (const key of aberrant) delete kept[key];
+    return kept;
+  });
+}
+
 function coerceSessions(list: Session[]): Session[] {
   const now = Date.now();
   return list.map((s) => ({
@@ -677,7 +701,7 @@ export function prepareVaultRestore(json: string): PreparedVault {
   assertNoCryptoPockets(parsed.pockets);
   const skipped: SkippedRows = {};
   const sessions = coerceSessions(rows<Session>(parsed.sessions, 'id', 'sessions', CHECKS.sessions!, skipped));
-  const trades = rows<Trade>(parsed.trades, 'id', 'trades', CHECKS.trades!, skipped);
+  const trades = rows<Trade>(dropAberrantTradeLevels(parsed.trades), 'id', 'trades', CHECKS.trades!, skipped);
   const notes = rows<Note>(parsed.notes, 'id', 'notes', CHECKS.notes!, skipped);
   const calendar = rows<CalendarEntry>(parsed.calendar, 'id', 'calendar', CHECKS.calendar!, skipped);
   // Réglages : allowlist stricte (jamais orchestrateur, dossier/chiffrement de sauvegarde, canal de mise à

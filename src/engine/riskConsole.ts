@@ -69,6 +69,49 @@ export function tradeRisk(trade: RiskInput, riskPerContract = 0, riskCapital = 0
   return { source, risk, potentialGain, plannedRr, realizedR, lossPct, stopPoints, targetPoints };
 }
 
+export const TRADE_LEVEL_KEYS = ['stopPrice', 'targetPrice'] as const;
+export type TradeLevelKey = (typeof TRADE_LEVEL_KEYS)[number];
+/** `format` : illisible ; `range` : hors de ]0 ; 1e6] ; `side` : du mauvais côté de l'entrée. */
+export type TradeLevelIssue = 'format' | 'range' | 'side';
+
+/** Plafond d'un prix au coffre (`CHECKS`). */
+export const TRADE_LEVEL_MAX = 1e6;
+
+/**
+ * Prix saisi : chiffres, une virgule ou un point décimal, espaces de groupe tolérés (« 19 990,25 »).
+ * Rien d'autre : ni exposant, ni deux séparateurs, ni lettres. NaN si illisible.
+ */
+export function parsePriceInput(raw: string): number {
+  const match = /^([+\-−]?)(\d+(?:[.,]\d+)?|[.,]\d+)$/.exec(raw.replace(/\s+/g, ''));
+  if (!match) return Number.NaN;
+  const value = Number((match[2] ?? '').replace(',', '.'));
+  return match[1] === '-' || match[1] === '−' ? -value : value;
+}
+
+/**
+ * Contrôle d'un stop ou d'un objectif initial : dans ]0 ; 1e6], et du bon côté de l'entrée.
+ * Achat : stop < entrée < objectif. Vente : objectif < entrée < stop. Entrée inconnue : côté non jugé.
+ */
+export function tradeLevelIssue(key: TradeLevelKey, value: number, trade: { direction: 'long' | 'short'; entryPrice: number }): TradeLevelIssue | null {
+  if (!Number.isFinite(value)) return 'format';
+  if (!(value > 0) || value > TRADE_LEVEL_MAX) return 'range';
+  if (!Number.isFinite(trade.entryPrice)) return null;
+  const below = (key === 'stopPrice') === (trade.direction === 'long');
+  return (below ? value < trade.entryPrice : value > trade.entryPrice) ? null : 'side';
+}
+
+/** Lecture d'une saisie de stop ou d'objectif. Vide : le champ est effacé (`value: null`). */
+export function readTradeLevel(
+  raw: string,
+  key: TradeLevelKey,
+  trade: { direction: 'long' | 'short'; entryPrice: number },
+): { ok: true; value: number | null } | { ok: false; issue: TradeLevelIssue } {
+  if (raw.trim() === '') return { ok: true, value: null };
+  const value = parsePriceInput(raw);
+  const issue = tradeLevelIssue(key, value, trade);
+  return issue ? { ok: false, issue } : { ok: true, value };
+}
+
 /** Taux de réussite de seuil : 1 / (1 + R/R). */
 export function thresholdWinRate(rewardRisk: number): number {
   if (!(rewardRisk > 0) || !Number.isFinite(rewardRisk)) return Number.NaN;
@@ -85,27 +128,51 @@ export function expectancyR(winRate: number, rewardRisk: number): number {
   return winRate * rewardRisk - (1 - winRate);
 }
 
+/**
+ * R/R réalisé : gain moyen ÷ |perte moyenne|, sur le PnL après frais. Les trades nuls ne comptent ni
+ * comme gain ni comme perte, comme dans le taux de réussite de la matrice. NaN sans perte.
+ */
+export function realizedRewardRisk(trades: readonly { pnl: number }[]): number {
+  let wins = 0;
+  let gains = 0;
+  let losses = 0;
+  let lost = 0;
+  for (const trade of trades) {
+    if (!Number.isFinite(trade.pnl)) continue;
+    if (trade.pnl > 0) {
+      wins += 1;
+      gains += trade.pnl;
+    } else if (trade.pnl < 0) {
+      losses += 1;
+      lost += -trade.pnl;
+    }
+  }
+  if (losses === 0) return Number.NaN;
+  return (wins ? gains / wins : 0) / (lost / losses);
+}
+
 export interface RrMatrix {
   /** Taux de réussite de chaque ligne, dans l'ordre. */
   winRates: number[];
-  /** R/R de chaque colonne. La dernière est le R/R réalisé. */
+  /** R/R de chaque colonne. La dernière est le R/R réalisé, s'il est connu. */
   rewardRisks: number[];
   /** Espérance en R. */
   cells: number[][];
-  /** Ligne et colonne du point réalisé. */
-  realized: { row: number; col: number };
+  /** Ligne et colonne du point réalisé. Null sans R/R réalisé : aucune colonne ne le porte. */
+  realized: { row: number; col: number } | null;
 }
 
 /**
  * Matrice R-R. Lignes : taux réalisé, puis les écarts (en points de taux, 0,10 = 10 points),
- * puis la borne basse. Colonnes : 1 ; 1,5 ; 2 ; 2,5 ; 3 et le R/R réalisé.
+ * puis la borne basse. Colonnes : 1 ; 1,5 ; 2 ; 2,5 ; 3 et le R/R réalisé (`realizedRewardRisk`).
  */
 export function rrMatrix(winRate: number, realizedRr: number, offsets: readonly number[] = [0.1, -0.1, -0.15], winRateLow = winRate): RrMatrix {
   const winRates = [winRate, ...offsets.map((offset) => winRate + offset), winRateLow].map((rate) => Math.min(1, Math.max(0, rate)));
   const grid = [1, 1.5, 2, 2.5, 3];
-  const rewardRisks = Number.isFinite(realizedRr) && realizedRr > 0 ? [...grid, realizedRr] : grid;
+  const known = Number.isFinite(realizedRr) && realizedRr > 0;
+  const rewardRisks = known ? [...grid, realizedRr] : grid;
   const cells = winRates.map((rate) => rewardRisks.map((rr) => expectancyR(rate, rr)));
-  return { winRates, rewardRisks, cells, realized: { row: 0, col: rewardRisks.length - 1 } };
+  return { winRates, rewardRisks, cells, realized: known ? { row: 0, col: rewardRisks.length - 1 } : null };
 }
 
 /**
@@ -142,6 +209,52 @@ export function floorMicroContracts(standardContracts: number, ratio = 10): numb
 export function horizonSigma(price: number, annualVol: number, periodsPerYear: number): number {
   if (!(price > 0) || !(annualVol > 0) || !(periodsPerYear > 0)) return Number.NaN;
   return (price * annualVol) / Math.sqrt(periodsPerYear);
+}
+
+/** Décimales d'un pas de cotation : 0,25 → 2 ; 1 → 0 ; 0,00005 → 5. Pas inconnu : 2. */
+export function tickDecimals(tickSize: number): number {
+  if (!(tickSize > 0) || !Number.isFinite(tickSize)) return 2;
+  for (let digits = 0; digits < 10; digits++) {
+    const scaled = tickSize * 10 ** digits;
+    if (Math.abs(scaled - Math.round(scaled)) < 1e-9) return digits;
+  }
+  return 10;
+}
+
+export interface SigmaWidthRow {
+  instrument: string;
+  /** Cours de référence : entrée du premier trade de l'instrument. */
+  price: number;
+  /** Pas de cotation du registre. Null pour un instrument hors registre (largeurs non arrondies). */
+  tickSize: number | null;
+  /** Décimales d'affichage : celles du pas. */
+  decimals: number;
+  day: number;
+  week: number;
+  month: number;
+}
+
+/**
+ * Largeurs ±1 σ jour (252), semaine (52) et mois (12), une ligne par instrument dans l'ordre des trades.
+ * Chaque instrument a son cours (entrée de son premier trade) et son pas de cotation : les largeurs
+ * sont arrondies au pas et s'affichent avec ses décimales.
+ */
+export function sigmaWidths(trades: readonly { instrument: string; entryPrice: number }[], annualVol: number): SigmaWidthRow[] {
+  const rows: SigmaWidthRow[] = [];
+  const seen = new Set<string>();
+  for (const trade of trades) {
+    if (seen.has(trade.instrument)) continue;
+    const price = trade.entryPrice;
+    const day = horizonSigma(price, annualVol, 252);
+    if (!Number.isFinite(day)) continue;
+    seen.add(trade.instrument);
+    const tick = hasInstrument(trade.instrument) ? getInstrument(trade.instrument).tickSize : 0;
+    const tickSize = tick > 0 ? tick : null;
+    const decimals = tickSize ? tickDecimals(tickSize) : 2;
+    const step = (value: number) => (tickSize ? Number((Math.round(value / tickSize) * tickSize).toFixed(decimals)) : value);
+    rows.push({ instrument: trade.instrument, price, tickSize, decimals, day: step(day), week: step(horizonSigma(price, annualVol, 52)), month: step(horizonSigma(price, annualVol, 12)) });
+  }
+  return rows;
 }
 
 /** Distance en σ. Null si σ n'est pas connu (pas de volatilité implicite, volCT à l'étape 4). */
@@ -261,7 +374,10 @@ export function betaPosterior(wins: number, losses: number): { mean: number; low
   return { mean: a / (a + b), low: betaQuantile(0.05, a, b), high: betaQuantile(0.95, a, b) };
 }
 
-/** Taux de réussite des trades qui suivent exactement `streak` gains ou pertes. */
+/**
+ * Taux de réussite des trades qui suivent exactement `streak` gains ou pertes. Un trade nul qui suit la
+ * série n'entre pas au dénominateur, comme dans le taux de base ; un nul dans la série l'interrompt.
+ */
 export function rateAfterStreak(pnls: readonly number[], streak: number, side: 'loss' | 'win'): { count: number; wins: number; winRate: number | null } {
   if (!Number.isInteger(streak) || streak < 1) return { count: 0, wins: 0, winRate: null };
   let count = 0;
@@ -277,7 +393,7 @@ export function rateAfterStreak(pnls: readonly number[], streak: number, side: '
       }
     }
     const current = pnls[i];
-    if (!matched || current == null || !Number.isFinite(current)) continue;
+    if (!matched || current == null || !Number.isFinite(current) || current === 0) continue;
     count += 1;
     if (current > 0) wins += 1;
   }
