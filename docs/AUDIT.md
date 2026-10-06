@@ -548,3 +548,28 @@ Cahier des charges de l'ADMIN : « Prompt d'ajustement du module Métriques · v
 - Labor Day, Thanksgiving, 3 juillet : `cmeSession` les marque écourtés (13 h), pas fermés ; ils comptent comme journées de cotation.
 
 **Décisions ouvertes appliquées par défaut.** n° 1 : Sharpe, Sortino et Calmar dans une section repliée A.05 du Tableau de bord, corrigés ; l'IC viendra avec l'étape 2. n° 4 : tables F20 à F22 non codées (étape 3), à fournir par l'ADMIN.
+
+## 3.5.0 — Ajustement du module Métriques, étape 2 : fiabilité des chiffres (2026-10-06)
+
+Onglets A, B et C. Moteur dans `src/engine/inference.ts` (bootstrap par blocs, permutation, Benjamini-Hochberg, écart détectable, rapprochement) et `src/engine/tradeUnits.ts` (points, motif de sortie, étiquettes). `computeDailyStats`, `drawdownSeries`, `monteCarlo` et `evaluatePlan` ne changent pas de résultat. Le test `metrics-rule6` fige ces sorties sur un cas construit.
+
+| # | Ajustement | Test | Attendu | Obtenu |
+|---|---|---|---|---|
+| 2.1 | IC 90 % par blocs circulaires, longueur arrondie de n^(1/3), 5 000 tirages, centre = moyenne observée | `metrics-inference`, `metrics-step2` | [12 ; 135] $, centre ≈ 73 $ (± 10 $) | [12,14 ; 122,23] $, centre 66,66 $. Le centre et la borne basse sont dans la tolérance. La borne haute est à 13 $ sous 135 ± 10. Longueur de bloc 5, non ajustée pour coller au chiffre. |
+| 2.2 rail | Repère retenu seulement avec ≥ 30 trades, p de permutation corrigée < 5 %, même signe et au moins la moitié de l'ampleur sur la seconde moitié | `metrics-markers`, `metrics-step2` | « Vendredi 9 h » (+2 800 $, 33 trades) hors du rail, p ≈ 0,5 | 33 trades, +2 799,52 $, hors du rail. p = 0,080 (pas 0,5). La seconde moitié est à −14 $ : le signe se renverse. Aucun repère de la démo n'est retenu. |
+| 2.2 SQN | √min(n, 100) | `metrics-sqn`, `metrics-step2` | ≈ 0,95 (2,07 avant le plafond) | 0,954 |
+| 2.2 Kelly | Taux hors trades de PnL nul | `metrics-sqn` | inchangé sans nul | conforme ; le cas à un nul change le Kelly |
+| 2.2 autocorr. | Pearson, décalages 1 à 5, bande ± 1,96/√n | `metrics-autocorr`, `metrics-step2` | ordre 1 ≈ 0,23, hors bande | 0,235, bande 0,166 |
+| 2.2 écart | 2,8 × σ × √(1/n₁ + 1/n₂) × √deff | `metrics-inference`, `metrics-step2` | ≈ 0,31 R et 0,51 R | σ des R = 1,270, n = 470, ICC négatif donc deff = 1 : 0,328 R et 0,547 R. C'est la formule, pas un calage. |
+| 2.2 A+ | Étiquette sans date = inconnue | `metrics-tags`, `metrics-step2` | 90 gagnants sur 95, catégorie inconnue | 90 / 95, toutes inconnues |
+
+**Écran.** A.05 : IC 90 % de Sharpe, Sortino et Calmar, SQN plafonné, Kelly. Si le compte filtré est le compte du plan suivi : repli, Calmar et Ulcer rapportés à `plan.maxDrawdown`. Bloc « Suivi de stabilité » : dernière fenêtre (réglage, départ 20), bande ± 1,96 σ/√n, alerte CUSUM (k = 0,5 σ, h = 5 σ), autocorrélations. B : saisie d'étiquette sur le trade, date posée à l'instant de la pose. C : rail filtré ou « Aucun repère solide sur cette période » ; dollars et points par contrat ; tags classés intention / jugement / inconnue ; durée moyenne par motif de sortie.
+
+**Réglages livrés.** 3, 4 et 6 seulement (minimum de trades 20/30/50, fausses découvertes 2,5 %/5 %/10 %, fenêtre 10/20/40), dans `Settings`, `coerceSettings`, `RESTORABLE_SETTING_KEYS`, trois langues. Les neuf autres attendent l'étape qui les lit.
+
+**Règle 6.** `metrics-rule6` reste vert : `monteCarlo`, `drawdownSeries`, `evaluatePlan`, et `computeTradeStats` / `computeDailyStats` sur un cas de moins de 100 trades sans PnL nul. Effet assumé : `desk_overview.sqn` baisse dès que n > 100 (démo : 2,07 → 0,954). Le Kelly de l'agent ne change que s'il y a des trades nuls. `journal_breakdown` dit encore « heure de New York » pour le jour : déjà signalé à l'étape 1, non repris.
+
+**Décisions ouvertes.** n° 1 : IC ajouté dans A.05 replié. n° 2 : l'heure de l'étiquette est celle de la pose, pas une saisie. n° 3 : perte maximale du plan quand le compte filtré est le compte suivi, sinon le capital de référence (Sharpe et Sortino restent sur ce capital). n° 4 : tables F20 à F22 toujours non codées. Le rapprochement vers la moyenne est livré (`shrinkTowardMean`) et testé ; l'affichage des petits groupes attend l'étape 5.
+
+**Hors de cette étape.** Étapes 3 à 6, NinjaTrader, version `package.json`, changelog 3.5.0, extraction de l'ATR.
+

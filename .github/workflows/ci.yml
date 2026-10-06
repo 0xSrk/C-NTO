@@ -43,6 +43,8 @@ jobs:
           exit 1
       - run: npm run typecheck
       - run: npm test
+        env:
+          TZ: UTC
       - run: npm run build
 
   dist:
