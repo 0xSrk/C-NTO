@@ -59,6 +59,18 @@ export interface Settings {
   falseDiscoveryRate: number;
   /** Fenêtre du suivi de stabilité, en séances. */
   stabilityWindow: number;
+  /** Risque de base par trade, en points de pourcentage (1,5 = 1,5 %). Provisoire : pas de table F20. */
+  riskBasePoints: number;
+  /** Ajustement Vol-LT, en points de risque. Provisoire : pas de table F21. */
+  volLtPoints: number;
+  /** Ajustement Cross-Vol, en points de risque. Provisoire : pas de table F22. */
+  crossVolPoints: number;
+  /** Volatilité implicite annuelle. Null tant qu'elle n'est pas saisie. */
+  impliedVol: number | null;
+  /** Écarts de taux de la matrice R-R, en fraction (0,10 = 10 points). */
+  rrShiftUp: number;
+  rrShiftDown: number;
+  rrShiftFar: number;
   calendarView: 'grille' | 'flux';
   /** Zoom UI : multiplicateur (auto) ou facteur absolu (manuel), 0.75–1.5 */
   uiZoom: number;
@@ -96,6 +108,13 @@ export const DEFAULT_SETTINGS: Settings = {
   markerMinTrades: 30,
   falseDiscoveryRate: 0.05,
   stabilityWindow: 20,
+  riskBasePoints: 1.5,
+  volLtPoints: -0.4,
+  crossVolPoints: -0.15,
+  impliedVol: null,
+  rrShiftUp: 0.1,
+  rrShiftDown: 0.1,
+  rrShiftFar: 0.15,
   calendarView: 'grille',
   uiZoom: 1,
   uiZoomAuto: true,
@@ -213,6 +232,13 @@ export function coerceSettings(raw: unknown, base: Settings): Settings {
     markerMinTrades: pickNum(r.markerMinTrades, 20, 50, base.markerMinTrades, true),
     falseDiscoveryRate: pickNum(r.falseDiscoveryRate, 0.025, 0.1, base.falseDiscoveryRate),
     stabilityWindow: pickNum(r.stabilityWindow, 10, 40, base.stabilityWindow, true),
+    riskBasePoints: pickNum(r.riskBasePoints, 0, 20, base.riskBasePoints),
+    volLtPoints: pickNum(r.volLtPoints, -0.6, -0.2, base.volLtPoints),
+    crossVolPoints: pickNum(r.crossVolPoints, -0.25, -0.1, base.crossVolPoints),
+    impliedVol: !('impliedVol' in r) ? base.impliedVol : pickImpliedVol(r.impliedVol, base.impliedVol),
+    rrShiftUp: pickNum(r.rrShiftUp, 0.05, 0.15, base.rrShiftUp),
+    rrShiftDown: pickNum(r.rrShiftDown, 0.05, 0.15, base.rrShiftDown),
+    rrShiftFar: pickNum(r.rrShiftFar, 0.05, 0.15, base.rrShiftFar),
     calendarView: pickEnum(r.calendarView, ['grille', 'flux'] as const, base.calendarView),
     uiZoom: pickNum(r.uiZoom, 0.5, 2, base.uiZoom),
     uiZoomAuto: pickBool(r.uiZoomAuto, base.uiZoomAuto),
@@ -239,7 +265,13 @@ function coercePortfolio(raw: unknown, base: Settings['portfolio']): Settings['p
 }
 
 /** Clés d'un coffre autorisées à écraser les réglages locaux (jamais orchestrateur, sauvegarde, hôtes LLM, secrets). */
-export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
+export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'riskBasePoints', 'volLtPoints', 'crossVolPoints', 'impliedVol', 'rrShiftUp', 'rrShiftDown', 'rrShiftFar', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
+
+function pickImpliedVol(v: unknown, base: number | null): number | null {
+  if (v === null) return null;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0.01 || v > 3) return base;
+  return v;
+}
 export const RESTORABLE_AGENT_KEYS = ['provider', 'baseUrl', 'model', 'systemPrompt', 'temperature', 'toolsEnabled'] as const;
 
 /** Ne garde d'un objet `settings` de coffre que les clés restaurables (typées ensuite par `coerceSettings`). */
