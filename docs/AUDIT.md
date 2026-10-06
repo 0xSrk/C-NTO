@@ -496,3 +496,29 @@ Le correctif du kill switch (S2) suit en parallèle, sur sa propre branche.
 **S5 (2026-10-05).** Les desks n'installent une mise à jour que si `SHA256SUMS.txt` porte la signature Ed25519 d'une clé du Lab embarquée (`electron/release-keys.ts`), liée à la version. La CI publie la Release en brouillon ; l'ADMIN la signe sur son poste (`scripts/sign-release.mjs`) et la publie. La clé privée ne passe ni par le dépôt ni par GitHub (`docs/PUBLICATION.md`). Reste à l'ADMIN : générer la clé et committer la clé publique ; la signature de code des installeurs reste une décision séparée. Les prérequis S1 à S5 sont levés : A5 peut commencer.
 
 **A5 (2026-10-05).** L'agent propose, il ne soumet pas. `propose_order` (embarqué, MCP, orchestrateur) passe par le process principal, qui garde avant toute question : comptes `Sim*` seulement, même si un compte réel est autorisé à la main ; une proposition à la fois ; pont en ligne ; canal d'ordres ouvert (fermé après le kill switch) ; limites propres à l'agent, contrats par ordre (1), position atteinte (2), propositions par minute (3) ; marge du plan prop suivi au-dessus de 25 %. Une réduction de risque n'est bornée que par la quantité. Le trader confirme chaque ordre dans une fenêtre du process principal (Refuser par défaut, 45 s) ; l'ordre part avec le tag `canto-agent`, puis passe les gardes du pont et de l'AddOn. Désactivé à chaque ouverture du desk ; l'activer et relever une limite passent par une fenêtre du process principal. Chaque proposition est tracée (`agent_order`, signée `agent`) et poussée aux orchestrateurs. Code : `src/engine/agent/orders.ts`, `electron/agent-orders.ts`, `src/store/agentOrders.ts` ; tests `agent-orders`, `agent-orders-host`, `agent-propose-order`, `agent-orders-labels`. L'invariant « Agent » de `CLAUDE.md` est mis à jour en conséquence (décision de l'ADMIN). Le plan 3.3.4 est soldé ; restent la marge journalière et l'essai sur Sim par l'ADMIN (AddOn 2.2.0).
+
+## 3.5.0 — Métrique et données NinjaTrader (2026-10-06)
+
+Demande de l'ADMIN : un meilleur graphique dans l'onglet Métrique, et les données de NinjaTrader branchées dans le desk, pour le trader comme pour l'agent.
+
+### Constats
+
+**`01 · MET` — courbe d'équité.** A.02 était un SVG figé (`src/modules/metrique/Dashboard.tsx`, `EquityCurve`, supprimé par M1.2) : un point par séance, ni survol ni zoom, deux graduations. `lightweight-charts` est déjà une dépendance (`src/modules/visual/Chart.tsx`) : aucune dépendance nouvelle.
+
+**Pont NinjaTrader.** Les exécutions entrent seules dans le journal quand le socket est en ligne (`src/store/bridge.ts:152-156`, puis `importCsv`). Le reste arrive au process principal mais ne sert pas :
+
+- **États d'ordre.** `bridge.order` devient un événement `order` (`electron/nt-bridge/execution-port.ts:64-79`) que son seul abonné ignore (`electron/nt-bridge/copier-host.ts:103-107`). Aucun canal vers le renderer, aucun outil d'agent : ni l'écran ni l'agent ne savent si un ordre, même proposé par l'agent, est en attente, rempli ou annulé.
+- **Comptes.** Solde, P&L réalisé et latent, positions arrivent toutes les 5 s dans le statut du pont. Le P&L réalisé n'est affiché nulle part ; `BridgeAccountsView` l'omet (`src/engine/portfolio/view.ts:8-11`). L'instantané n'a pas d'horodatage : `bridgeSnapshots` le date de l'instant du rendu (`view.ts:14-17`), d'où « PONT · 0 S » permanent (`src/modules/portefeuille/Synthese.tsx:58-63`).
+- **Données de marché.** Le circuit existe de bout en bout (`marketdata:subscribe` / `history`, `createNt8Port`), mais aucun code du desk ne s'abonne : `createPort('nt8-bridge')` n'est appelé nulle part hors tests (`src/engine/marketdata/index.ts:28-36`). Ticks et cotations sont reçus puis ignorés (`src/store/bridge.ts:157-165`).
+- **AddOn 2.2.0.** Trois valeurs de compte seulement (`ninjatrader/CantoBridge.cs:501-534`) ; `bridge.snapshot` répond un objet vide (`CantoBridge.cs:634`) ; les mises à jour d'ordre n'ont ni quantité remplie ni prix moyen ; pas de rattrapage des exécutions par le socket.
+
+### Plan
+
+- **M1 · Courbe d'équité** — `src/engine/equityCurve.ts` (pur) : un pas par séance ou par trade, plus haut, drawdown, plus grand recul. A.02 (`src/modules/metrique/EquityChart.tsx`) : équité au-dessus et sous zéro, plus haut en pointillé, P&L par pas, drawdown sous l'eau, lecture au survol, Ctrl + molette pour zoomer (la molette seule fait défiler la page), double-clic pour tout revoir. Couleurs lues dans les jetons.
+- **D1 · Comptes et ordres en direct** — bloc « Séance en cours » en tête de Métrique quand le pont est en ligne (P&L du jour réalisé et latent, solde, positions, fraîcheur) ; horodatage des instantanés ; livre des ordres en cours tenu par le process principal, affiché, poussé à l'agent (événement d'état d'ordre, outil `working_orders`).
+- **D2 · Données de marché** — Visual s'abonne à un instrument et une unité NinjaTrader (historique puis direct, dernier prix) ; `market_levels` sur les barres NinjaTrader ; outil de cotation pour l'agent.
+- **D3 · AddOn 2.3.0** — valeurs de compte étendues, `bridge.snapshot` complet, ordres avec remplissage, rattrapage des exécutions. Compilation par l'ADMIN dans NinjaTrader 8, vérification sur compte Sim. Le desk reste compatible avec 2.2.0.
+
+Tout ce qui est ajouté est en lecture : aucun invariant de la section 5 de `CLAUDE.md` ne bouge.
+
+**M1 (2026-10-06).** Livré : `equity-curve.test.ts` (grains séance et trade, même drawdown max que la tuile K.04, séance manuelle sans trade gardée en grain trade, sorties dans la même seconde) et `equity-chart.test.ts` (séries, couleurs lues dans les jetons, lecture au survol, bascule, molette, démontage). Vérifié dans le desk Electron réel sur le jeu de démonstration (30 jours et tout le journal, grains séance et trade, zoom).
