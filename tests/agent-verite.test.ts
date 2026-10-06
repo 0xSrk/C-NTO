@@ -383,3 +383,26 @@ describe('A6.8 profit factor d’une tranche, et « sans perte » dit comme tel'
     }
   });
 });
+
+describe('A6.10 payoff sans perte', () => {
+  it('une tranche sans perte dit noLoss pour le payoff, pas null', async () => {
+    const desk = demoDesk();
+    const byId = new Map<string, Trade[]>();
+    for (const x of desk.trades) byId.set(x.sessionId, [...(byId.get(x.sessionId) ?? []), x]);
+    const day = desk.sessions.find((x) => (byId.get(x.id) ?? []).every((t) => t.pnl > 0) && (byId.get(x.id)?.length ?? 0) > 1)!;
+    const stats = computeTradeStats(byId.get(day.id)!);
+    expect(stats.payoffRatio).toBe(Infinity);
+    const slice = { from: day.date, to: day.date, account: DEMO_ACCOUNT };
+    const out = await callTool<Record<string, unknown>>(desk.ports, 'desk_overview', slice);
+    expect(out.noLoss).toBe(true);
+    expect(out.payoffRatio).toBeUndefined();
+    const mixed = desk.sessions.find((x) => {
+      const rows = byId.get(x.id) ?? [];
+      return rows.some((t) => t.pnl > 0) && rows.some((t) => t.pnl < 0);
+    })!;
+    const mixedStats = computeTradeStats(byId.get(mixed.id)!);
+    const withLoss = await callTool<Record<string, unknown>>(desk.ports, 'desk_overview', { from: mixed.date, to: mixed.date, account: DEMO_ACCOUNT });
+    expect(withLoss.payoffRatio).toBe(r2(mixedStats.payoffRatio));
+    expect(withLoss.noLoss).toBeUndefined();
+  });
+});
