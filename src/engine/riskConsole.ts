@@ -104,3 +104,33 @@ export function rrMatrix(winRate: number, realizedRr: number, offsets: readonly 
   const cells = winRates.map((rate) => rewardRisks.map((rr) => expectancyR(rate, rr)));
   return { winRates, rewardRisks, cells, realized: { row: 0, col: rewardRisks.length - 1 } };
 }
+
+/**
+ * Risque ajusté en points de pourcentage (1,5 = 1,5 %).
+ * Sans les tables F20–F22, le recommandé est le risque de base.
+ * Les ajustements sont des points de risque (négatifs). Plafonné par la perte % du trade
+ * et par zéro. `provisional` rappelle que les tables ne sont pas encore celles de la console.
+ */
+export function adjustedRiskPoints(basePoints: number, adjustments: readonly number[] = [], lossPoints = Infinity): { points: number; provisional: true } {
+  const raw = basePoints + adjustments.reduce((sum, item) => sum + item, 0);
+  const capped = Math.min(raw, Number.isFinite(lossPoints) ? lossPoints : raw);
+  return { points: Math.max(0, capped), provisional: true };
+}
+
+/** Notionnel = capital × risque ajusté ÷ perte %. Les deux risques sont en points de pourcentage. */
+export function theoreticalNotional(capital: number, adjustedPoints: number, lossPoints: number): number {
+  if (!(capital > 0) || !(lossPoints > 0) || !(adjustedPoints >= 0)) return 0;
+  return (capital * adjustedPoints) / lossPoints;
+}
+
+/** Contrats théoriques, en unité du contrat dont `pointValue` est donné. Arrondi à l'inférieur fait par l'appelant. */
+export function theoreticalContracts(capital: number, adjustedPoints: number, stopPoints: number, pointValue: number): number {
+  if (!(capital > 0) || !(adjustedPoints >= 0) || !(stopPoints > 0) || !(pointValue > 0)) return 0;
+  return (capital * (adjustedPoints / 100)) / (stopPoints * pointValue);
+}
+
+/** Équivalent micro, arrondi à l'inférieur. `ratio` 10 : 0,475 NQ → 4 MNQ. */
+export function floorMicroContracts(standardContracts: number, ratio = 10): number {
+  if (!(standardContracts > 0) || !(ratio > 0)) return 0;
+  return Math.floor(standardContracts * ratio + 1e-9);
+}
