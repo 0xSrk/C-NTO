@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
+import { autocorrelations, cusum, dailyResultSeries, rollingBands, sessionWinRateSeries } from '@/engine/inference';
 import { aggregatePoints } from '@/engine/tradeUnits';
 import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
-import { fmtInt, fmtPct, fmtPoints, fmtRatio, plural } from '@/lib/format';
+import { fmtInt, fmtPct, fmtPoints, fmtRatio, fmtUsd, plural } from '@/lib/format';
 import { dateTimeFormatter, parseDateKey } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -59,8 +60,14 @@ export function Dashboard({
   const planId = useSettings((st) => st.settings.planId);
   const planAccount = useSettings((st) => st.settings.planAccount);
   const metricAccount = useUi((st) => st.metricAccount);
+  const stabilityWindow = 20;
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
-  const daily = useMemo(() => computeDailyStats(sessions, startingBalance, 20, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to]);
+  const daily = useMemo(() => computeDailyStats(sessions, startingBalance, stabilityWindow, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to, stabilityWindow]);
+  const dailyPnls = useMemo(() => dailyResultSeries(sessions), [sessions]);
+  const band = useMemo(() => rollingBands(dailyPnls, stabilityWindow).at(-1) ?? null, [dailyPnls]);
+  const shift = useMemo(() => cusum(dailyPnls), [dailyPnls]);
+  const winAcf = useMemo(() => autocorrelations(sessionWinRateSeries(sessions, trades)), [sessions, trades]);
+  const pnlAcf = useMemo(() => autocorrelations(dailyPnls), [dailyPnls]);
   const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount });
   const gauge = useMemo(
     () => drawdownGauge({ plan: limit != null ? (findPlan(planId) ?? null) : null, account: metricAccount, history, maxDrawdown: daily.maxDrawdown, startingBalance }),
@@ -420,6 +427,41 @@ export function Dashboard({
           </p>
         </div>
       </details>
+
+      <section className={`${s.card} ${s.pad} ${s.span12}`}>
+        <div className={s.cardHead}>
+          <span className={s.kName}>{tr('Suivi de stabilité', 'Stability tracking', 'Seguimiento de estabilidad')}</span>
+          <span className={s.hint}>{plural(stabilityWindow, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
+        </div>
+        <p className={s.hint}>
+          {band
+            ? tr(
+                `Espérance de la fenêtre ${fmtUsd(band.mean, { sign: true, cents: true })} · bande ${fmtUsd(band.low, { sign: true, cents: true })} – ${fmtUsd(band.high, { sign: true, cents: true })}`,
+                `Window expectancy ${fmtUsd(band.mean, { sign: true, cents: true })} · band ${fmtUsd(band.low, { sign: true, cents: true })} – ${fmtUsd(band.high, { sign: true, cents: true })}`,
+                `Esperanza de la ventana ${fmtUsd(band.mean, { sign: true, cents: true })} · banda ${fmtUsd(band.low, { sign: true, cents: true })} – ${fmtUsd(band.high, { sign: true, cents: true })}`,
+              )
+            : '—'}
+        </p>
+        <p className={s.hint}>
+          {shift.alert
+            ? tr(
+                `Alerte CUSUM${shift.crossedAt != null && daily.rolling[shift.crossedAt] ? ` · ${daily.rolling[shift.crossedAt]!.date}` : ''}`,
+                `CUSUM alert${shift.crossedAt != null && daily.rolling[shift.crossedAt] ? ` · ${daily.rolling[shift.crossedAt]!.date}` : ''}`,
+                `Alerta CUSUM${shift.crossedAt != null && daily.rolling[shift.crossedAt] ? ` · ${daily.rolling[shift.crossedAt]!.date}` : ''}`,
+              )
+            : tr('CUSUM dans les bornes (k = 0,5 σ, h = 5 σ)', 'CUSUM inside the limits (k = 0.5 σ, h = 5 σ)', 'CUSUM dentro de los límites (k = 0,5 σ, h = 5 σ)')}
+        </p>
+        <p className={s.hint}>
+          {tr('Taux de réussite', 'Win rate', 'Tasa de acierto')}{' '}
+          {winAcf.map((row) => `${row.lag}:${fmtRatio(row.rho)}${row.outside ? '*' : ''}`).join(' · ')}
+          {winAcf[0] ? ` · ±${fmtRatio(winAcf[0].band)}` : ''}
+        </p>
+        <p className={s.hint}>
+          {tr('Résultat journalier', 'Daily result', 'Resultado diario')}{' '}
+          {pnlAcf.map((row) => `${row.lag}:${fmtRatio(row.rho)}${row.outside ? '*' : ''}`).join(' · ')}
+          {pnlAcf[0] ? ` · ±${fmtRatio(pnlAcf[0].band)}` : ''}
+        </p>
+      </section>
     </div>
   );
 }

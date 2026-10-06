@@ -1,6 +1,6 @@
 import { mulberry32 } from '@/lib/rng';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
-import { aggregateByDate, mean, percentile, tradeDay, weekdayOf } from './metrics';
+import { aggregateByDate, mean, percentile, stddev, tradeDay, weekdayOf } from './metrics';
 import type { Session, Trade } from './types';
 
 /** Tirages des tests de permutation et des intervalles par blocs. */
@@ -395,4 +395,49 @@ export function sessionWinRateSeries(sessions: readonly Session[], trades: reado
 /** Résultat journalier : une valeur par date de séance. */
 export function dailyResultSeries(sessions: readonly Session[]): number[] {
   return aggregateByDate([...sessions]).map((day) => day.pnl);
+}
+
+export interface RollingBand {
+  mean: number;
+  low: number;
+  high: number;
+}
+
+/** Bande ± 1,96 × σ / √n de la fenêtre glissante déjà utilisée pour le bloc de stabilité. */
+export function rollingBands(series: readonly number[], window: number): RollingBand[] {
+  const width = Math.max(1, Math.floor(window));
+  return series.map((_, index) => {
+    const slice = series.slice(Math.max(0, index - width + 1), index + 1).filter((x) => Number.isFinite(x));
+    const center = mean(slice);
+    const se = slice.length > 0 ? stddev(slice) / Math.sqrt(slice.length) : 0;
+    return { mean: center, low: center - 1.96 * se, high: center + 1.96 * se };
+  });
+}
+
+export interface CusumResult {
+  alert: boolean;
+  /** Index de la première sortie, dans la série finie. */
+  crossedAt: number | null;
+  upper: number;
+  lower: number;
+  sigma: number;
+}
+
+/** CUSUM tabulaire : k = 0,5 σ, h = 5 σ, cible = moyenne de la série. */
+export function cusum(input: readonly number[]): CusumResult {
+  const series = input.filter((x) => Number.isFinite(x));
+  const sigma = stddev(series);
+  const target = mean(series);
+  const allowance = 0.5 * sigma;
+  const limit = 5 * sigma;
+  let upper = 0;
+  let lower = 0;
+  let crossedAt: number | null = null;
+  if (!(sigma > 0)) return { alert: false, crossedAt: null, upper: 0, lower: 0, sigma };
+  series.forEach((value, index) => {
+    upper = Math.max(0, upper + (value - target) - allowance);
+    lower = Math.max(0, lower - (value - target) - allowance);
+    if (crossedAt == null && (upper > limit || lower > limit)) crossedAt = index;
+  });
+  return { alert: crossedAt != null, crossedAt, upper, lower, sigma };
 }
