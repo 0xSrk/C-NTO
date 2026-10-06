@@ -3,10 +3,11 @@ import { IconExport, IconLink, IconPlus, IconSettings } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Segmented, Tag } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
+import { findPlan } from '@/engine/propfirm';
 import { openTextFile, saveTextFile } from '@/lib/desk';
 import { exportVault, restoreVault } from '@/store/db';
 import { useLinks } from '@/store/links';
-import { fmtInt, plural } from '@/lib/format';
+import { fmtInt, fmtUsd, plural, signClass } from '@/lib/format';
 import { etDateKey } from '@/lib/time';
 import { tr, useI18n } from '@/i18n';
 import { useJournal } from '@/store/journal';
@@ -31,6 +32,7 @@ import { Sessions } from './Sessions';
 import { SettingsModal } from './SettingsModal';
 import d from './dashboard.module.css';
 import { filterJournal, rangeFrom, scopeFor, type MetricRange } from './range';
+import { liveSession } from './liveSession';
 
 type View = 'bord' | 'seances' | 'analyse' | 'prop' | 'mc';
 
@@ -54,6 +56,20 @@ export default function Metrique() {
   const reloadSettings = useSettings((st) => st.load);
   const bridgeStatus = useBridge((b) => b.status);
   const bridgeLive = isBridgeLive(bridgeStatus);
+  const nt = useBridge((b) => b.nt);
+  const traderRules = useSettings((st) => st.settings.traderRules);
+  const planId = useSettings((st) => st.settings.planId);
+  const head = liveSession({
+    link: nt?.link ?? 'absent',
+    now: Date.now(),
+    accountsAt: nt?.accountsAt,
+    accounts: nt?.accounts ?? [],
+    account: metricAccount ?? '',
+    sessions,
+    trades,
+    rules: traderRules,
+    plan: findPlan(planId),
+  });
   const backupIncludeHeavy = useSettings((st) => st.settings.backupIncludeHeavy);
 
   const onExportCsv = async () => {
@@ -204,6 +220,42 @@ export default function Metrique() {
         <span className={d.scopeNote}>{scopeNote}</span>
       </div>
       <ModuleContent>
+        {head && (
+          <div className={d.live}>
+            <span>
+              {tr('Réalisé', 'Realized', 'Realizado')}
+              <b className={signClass(head.realized)}>{fmtUsd(head.realized, { sign: true })}</b>
+            </span>
+            <span>
+              {tr('Latent', 'Unrealized', 'Latente')}
+              <b className={signClass(head.unrealized)}>{fmtUsd(head.unrealized, { sign: true })}</b>
+            </span>
+            <span>
+              {tr('Solde', 'Balance', 'Saldo')}
+              <b>{fmtUsd(head.balance)}</b>
+            </span>
+            <span>
+              {tr('Positions', 'Positions', 'Posiciones')}
+              <b>{head.positions.length ? head.positions.map((p) => `${p.quantity} ${p.instrument}`).join(' · ') : '—'}</b>
+            </span>
+            <span>
+              {tr('Perte du jour', 'Day loss', 'Pérdida del día')}
+              <b>
+                {fmtUsd(head.loss)}
+                {head.limit ? ` / ${fmtUsd(head.limit.amount)}` : ''}
+                {head.limit ? ` · ${head.limit.source === 'plan' ? tr('plan', 'plan', 'plan') : tr('règle', 'rule', 'regla')}` : ''}
+              </b>
+            </span>
+            <span>
+              {tr('Trades', 'Trades', 'Trades')}
+              <b>
+                {head.maxTrades ? `${fmtInt(head.trades)} / ${fmtInt(head.maxTrades)}` : fmtInt(head.trades)}
+                {' · '}
+                {head.fresh ? tr('frais', 'fresh', 'reciente') : tr('périmé', 'stale', 'caducado')}
+              </b>
+            </span>
+          </div>
+        )}
         <div className={d.tools}>
           <Button variant="ghost" onClick={() => setModal('pont')}>
             <IconLink size={14} /> {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
