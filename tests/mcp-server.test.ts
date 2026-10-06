@@ -175,6 +175,18 @@ describe('passerelle MCP · protocole', () => {
     expect(out.result?.structuredContent).toEqual({ ok: false, reason: 'write_disabled' });
   });
 
+  it('tools/list : un titre par outil, dans la langue du desk', async () => {
+    const titles = async (locale?: 'fr' | 'en' | 'es') =>
+      ((await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ locale, allowWrites: true })))).result?.tools as { name: string; title?: string }[]).map((t) => [t.name, t.title]);
+    expect(await titles()).toEqual([
+      ['desk_overview', 'Vue d’ensemble du desk'],
+      ['create_note', 'Créer une note'],
+      ['annotate_session', 'Annoter une séance'],
+    ]);
+    expect((await titles('en'))[0]).toEqual(['desk_overview', 'Desk overview']);
+    expect((await titles('es'))[2]).toEqual(['annotate_session', 'Anotar una sesión']);
+  });
+
   it('tools/list : indications lues dans le catalogue ; propose_order destructif et ouvert sur le monde', async () => {
     const order: McpToolInfo = { name: 'propose_order', description: 'Propose un ordre', parameters: { type: 'object', properties: {} }, kind: 'write' };
     const withOrder: McpRelay = { tools: async () => [...TOOLS, order], call: async () => ({ result: null }) };

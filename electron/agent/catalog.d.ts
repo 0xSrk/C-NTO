@@ -18,3 +18,4 @@ export interface DeskToolHints {
   openWorld: boolean;
 }
 export const DESK_TOOL_HINTS: Readonly<Record<string, DeskToolHints>>;
+export const DESK_TOOL_TITLES: Readonly<Record<string, readonly [fr: string, en: string, es: string]>>;

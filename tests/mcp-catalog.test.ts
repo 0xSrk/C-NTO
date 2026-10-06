@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DESK_TOOL_HINTS, DESK_TOOL_KINDS } from '@/engine/agent/catalog';
+import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES } from '@/engine/agent/catalog';
 
 const names = Object.keys(DESK_TOOL_KINDS) as (keyof typeof DESK_TOOL_KINDS)[];
 
@@ -20,5 +20,17 @@ describe('catalogue · indications d’outil', () => {
     expect(DESK_TOOL_HINTS.annotate_session).toEqual({ readOnly: false, destructive: true, idempotent: true, openWorld: false });
     expect(DESK_TOOL_HINTS.propose_order).toEqual({ readOnly: false, destructive: true, idempotent: false, openWorld: true });
     expect(DESK_TOOL_HINTS.create_note).toEqual({ readOnly: false, destructive: false, idempotent: false, openWorld: false });
+  });
+});
+
+describe('catalogue · titres d’outil', () => {
+  it('chaque outil du catalogue a un titre en français, anglais et espagnol, et rien d’autre', () => {
+    expect(Object.keys(DESK_TOOL_TITLES ?? {}).sort()).toEqual([...names].sort());
+    for (const name of names) {
+      const titles = DESK_TOOL_TITLES[name];
+      expect(titles, name).toHaveLength(3);
+      for (const t of titles) expect(t.trim().length, name).toBeGreaterThan(2);
+      expect(new Set(titles).size, `${name} : titres traduits`).toBeGreaterThan(1);
+    }
   });
 });

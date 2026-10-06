@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
-import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, ORDER_TOOLS } from './agent/catalog';
+import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES, ORDER_TOOLS } from './agent/catalog';
 import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
@@ -125,8 +125,15 @@ function annotations(t: McpToolInfo) {
   };
 }
 
-function toMcpTool(t: McpToolInfo) {
-  return { name: t.name, description: t.description, inputSchema: t.parameters, annotations: annotations(t) };
+/** Titre de l'outil dans la langue du desk, lu au catalogue. */
+function toolTitle(name: string, locale: AppLocale): string | undefined {
+  const titles = Object.hasOwn(DESK_TOOL_TITLES, name) ? DESK_TOOL_TITLES[name] : undefined;
+  return titles ? uiText(locale, ...titles) : undefined;
+}
+
+function toMcpTool(t: McpToolInfo, locale: AppLocale) {
+  const title = toolTitle(t.name, locale);
+  return { name: t.name, ...(title ? { title } : {}), description: t.description, inputSchema: t.parameters, annotations: annotations(t) };
 }
 
 /**
@@ -193,7 +200,7 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       const tools = await deskTools(ctx);
       // Une liste vide resterait chez le client : il n'aurait aucun outil jusqu'à sa reconnexion.
       if (!tools.length) return { error: { code: DESK_UNAVAILABLE, message: deskSilent(locale, 'list') } };
-      return { result: { tools: tools.filter((t) => t.kind === 'read' || ctx.allowWrites).map(toMcpTool) } };
+      return { result: { tools: tools.filter((t) => t.kind === 'read' || ctx.allowWrites).map((t) => toMcpTool(t, locale)) } };
     }
     case 'tools/call': {
       const name = typeof params.name === 'string' ? params.name : '';

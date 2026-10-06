@@ -71,6 +71,28 @@ export const DESK_TOOL_HINTS: Record<DeskToolName, DeskToolHints> = {
   propose_order: { readOnly: false, destructive: true, idempotent: false, openWorld: true },
 };
 
+/** Titre lisible de chaque outil : français, anglais, espagnol (`title` de `tools/list`). */
+export const DESK_TOOL_TITLES: Record<DeskToolName, readonly [fr: string, en: string, es: string]> = {
+  desk_overview: ['Vue d’ensemble du desk', 'Desk overview', 'Vista general del desk'],
+  list_sessions: ['Séances du journal', 'Journal sessions', 'Sesiones del diario'],
+  get_session: ['Détail d’une séance', 'Session detail', 'Detalle de una sesión'],
+  search_notes: ['Rechercher dans les notes', 'Search notes', 'Buscar en las notas'],
+  read_note: ['Lire une note', 'Read a note', 'Leer una nota'],
+  calendar_events: ['Calendrier des catalyseurs', 'Catalyst calendar', 'Calendario de catalizadores'],
+  journal_breakdown: ['Ventilations du journal', 'Journal breakdowns', 'Desgloses del diario'],
+  monte_carlo: ['Projection Monte Carlo', 'Monte Carlo projection', 'Proyección Monte Carlo'],
+  bridge_status: ['Pont NinjaTrader et Copieur', 'NinjaTrader bridge and Copier', 'Puente NinjaTrader y Copiador'],
+  portfolio_snapshot: ['Portefeuille consolidé', 'Consolidated portfolio', 'Cartera consolidada'],
+  market_levels: ['Niveaux de marché', 'Market levels', 'Niveles de mercado'],
+  propfirm_status: ['Statut du plan prop firm', 'Prop firm plan status', 'Estado del plan prop firm'],
+  desk_events: ['Événements du desk', 'Desk events', 'Eventos del desk'],
+  annotate_session: ['Annoter une séance', 'Annotate a session', 'Anotar una sesión'],
+  create_note: ['Créer une note', 'Create a note', 'Crear una nota'],
+  branch_note: ['Ouvrir une note fille', 'Branch a note', 'Abrir una nota hija'],
+  link_notes: ['Relier deux notes', 'Link two notes', 'Relacionar dos notas'],
+  propose_order: ['Proposer un ordre Sim au trader', 'Propose a Sim order to the trader', 'Proponer una orden Sim al trader'],
+};
+
 /** Méthodes du protocole de l'orchestrateur, hors outils. */
 export const ORCH_PROTOCOL_METHODS = ['desk.auth', 'desk.describe', 'desk.ping'] as const;
 
