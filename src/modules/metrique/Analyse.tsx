@@ -331,7 +331,7 @@ export function Analyse() {
 
   return (
     <div className={s.analyse}>
-      <p className={s.note}>{tr('Sharpe : rf = 0, annualisation √252, séances agrégées par date Globex.', 'Sharpe: rf = 0, √252 annualization, sessions aggregated by Globex date.', 'Sharpe: rf = 0, anualización √252, sesiones agregadas por fecha Globex.')}</p>
+      <p className={s.note}>{tr('Jours : séance CME du trade (18 h → 17 h ET). Heures : entrée à New York.', 'Days: the trade’s CME session (6 p.m. → 5 p.m. ET). Hours: entry in New York.', 'Días: sesión CME del trade (18 h → 17 h ET). Horas: entrada en Nueva York.')}</p>
       {/* Rail d’insights — lecture immédiate */}
       <section className={s.insightRail} aria-label={tr('Repères d’analyse', 'Analysis markers', 'Referencias de análisis')}>
         <div className={s.insight}>

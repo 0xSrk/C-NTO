@@ -3,7 +3,7 @@ import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from 
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
-import { fmtInt, fmtPct, plural } from '@/lib/format';
+import { fmtInt, fmtPct, fmtRatio, plural } from '@/lib/format';
 import { dateTimeFormatter, parseDateKey } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -33,6 +33,7 @@ export function Dashboard({
   sessions,
   trades,
   range,
+  period,
   journalEmpty,
   onImport,
   onDemo,
@@ -41,6 +42,8 @@ export function Dashboard({
   sessions: Session[];
   trades: Trade[];
   range: MetricRange;
+  /** Bornes de la période affichée : la base des ratios annualisés. `from` nul : depuis la première séance. */
+  period: { from: string | null; to: string };
   journalEmpty: boolean;
   onImport: () => void;
   onDemo: () => void;
@@ -52,7 +55,7 @@ export function Dashboard({
   const planAccount = useSettings((st) => st.settings.planAccount);
   const metricAccount = useUi((st) => st.metricAccount);
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
-  const daily = useMemo(() => computeDailyStats(sessions, startingBalance), [sessions, startingBalance]);
+  const daily = useMemo(() => computeDailyStats(sessions, startingBalance, 20, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to]);
   const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount });
   const breakeven = breakevenWinRate(stats.payoffRatio);
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
@@ -342,6 +345,37 @@ export function Dashboard({
           </tbody>
         </table>
       </section>
+
+      <details className={`${s.card} ${s.span12} ${s.ratios}`}>
+        <summary className={s.cardHead}>
+          <span>
+            <span className={s.code}>A.05 </span>
+            <span className={s.kName}>{tr('Ratios annualisés', 'Annualized ratios', 'Ratios anualizados')}</span>
+          </span>
+          <span className={s.hint}>SHARPE · SORTINO · CALMAR</span>
+        </summary>
+        <div className={s.ratioRow}>
+          <span>
+            <span className={s.hint}>Sharpe</span>
+            <span className={s.ratioValue}>{fmtRatio(daily.sharpe)}</span>
+          </span>
+          <span>
+            <span className={s.hint}>Sortino</span>
+            <span className={s.ratioValue}>{fmtRatio(daily.sortino)}</span>
+          </span>
+          <span>
+            <span className={s.hint}>Calmar</span>
+            <span className={s.ratioValue}>{fmtRatio(daily.calmar)}</span>
+          </span>
+          <p className={s.hint}>
+            {tr(
+              `rf = 0 · √252 · ${plural(daily.tradingDays, 'journée de cotation', 'journées de cotation')} sur la période, jours sans séance comptés à zéro`,
+              `rf = 0 · √252 · ${plural(daily.tradingDays, 'trading day', 'trading days')} in the range, days without a session counted as zero`,
+              `rf = 0 · √252 · ${plural(daily.tradingDays, 'jornada de cotización', 'jornadas de cotización')} en el período, días sin sesión contados en cero`,
+            )}
+          </p>
+        </div>
+      </details>
     </div>
   );
 }

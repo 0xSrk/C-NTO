@@ -1,3 +1,4 @@
+import { cmeSession } from '@/lib/cmeClosed';
 import { ET_ZONE, tradingDayKey, zonedWallClock } from '@/lib/time';
 import { getInstrument, hasInstrument, tradingDayOf } from './instruments';
 import type { Instrument, Session, Trade } from './types';
@@ -99,8 +100,18 @@ export interface DailyStats {
   gainToPain: number;
   maxConsecWinDays: number;
   maxConsecLossDays: number;
+  /** Journées de cotation de la période : la base des ratios annualisés (jours sans séance = 0). */
+  tradingDays: number;
   equity: EquityPoint[];
   rolling: RollingPoint[];
+}
+
+export interface DailyStatsOptions {
+  /** Première et dernière journée de la période (`YYYY-MM-DD`). Défaut : première et dernière séance. */
+  from?: string;
+  to?: string;
+  /** Journée de cotation ? Défaut : lundi à vendredi, hors fermetures CME (`cmeSession`). */
+  isTradingDay?: (date: string) => boolean;
 }
 
 export interface RollingPoint {
@@ -436,6 +447,40 @@ export function computeTradeStats(input: Trade[], days?: ReadonlyMap<string, str
 
 const ANNUALIZATION = Math.sqrt(252);
 
+/** Lundi à vendredi, hors journées CME fermées. */
+export function cmeTradingDay(date: string): boolean {
+  const dow = weekdayOf(date);
+  return dow >= 1 && dow <= 5 && !cmeSession(date).closed;
+}
+
+function nextDate(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, (d ?? 1) + 1)).toISOString().slice(0, 10);
+}
+
+/**
+ * Série journalière sur le calendrier de cotation de la période : une journée sans séance vaut 0.
+ * Une séance datée hors calendrier (jour férié travaillé, saisie) est gardée : aucun P&L ne se perd.
+ */
+export function calendarSeries(days: readonly { date: string; pnl: number }[], opts: DailyStatsOptions = {}): number[] {
+  const first = days[0]?.date;
+  const last = days[days.length - 1]?.date;
+  const from = opts.from ?? first;
+  const to = opts.to ?? last;
+  if (!from || !to || from > to) return days.map((day) => day.pnl);
+  const isTradingDay = opts.isTradingDay ?? cmeTradingDay;
+  const pnlOf = new Map(days.map((day) => [day.date, day.pnl]));
+  const out: number[] = [];
+  for (let date = from; date <= to; date = nextDate(date)) {
+    const pnl = pnlOf.get(date);
+    if (pnl !== undefined) out.push(pnl);
+    else if (isTradingDay(date)) out.push(0);
+  }
+  // Séances hors de la période demandée : comptées quand même, la série ne perd rien.
+  for (const day of days) if (day.date < from || day.date > to) out.push(day.pnl);
+  return out;
+}
+
 /** Agrège les séances par journée civile (plusieurs comptes le même jour = une journée). */
 export function aggregateByDate(sessionsInput: Session[]): { date: string; pnl: number; tradeCount: number }[] {
   const byDate = new Map<string, { date: string; pnl: number; tradeCount: number }>();
@@ -450,7 +495,12 @@ export function aggregateByDate(sessionsInput: Session[]): { date: string; pnl: 
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function computeDailyStats(sessionsInput: Session[], startingBalance = 50_000, rollingWindow = 20): DailyStats {
+/**
+ * Statistiques par journée. Sharpe, Sortino et Calmar s'annualisent sur les journées de cotation de
+ * la période (`opts`), jours sans séance compris à 0 : annualiser les seuls jours tradés gonfle les
+ * ratios d'un trader qui ne trade pas tous les jours.
+ */
+export function computeDailyStats(sessionsInput: Session[], startingBalance = 50_000, rollingWindow = 20, opts: DailyStatsOptions = {}): DailyStats {
   const sessions = aggregateByDate(sessionsInput);
   const pnls = sessions.map((s) => s.pnl);
   const days = sessions.length;
@@ -460,7 +510,8 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
   const avgDay = days ? netPnl / days : 0;
   const stdDay = stddev(pnls);
 
-  const returns = pnls.map((p) => p / startingBalance);
+  const series = calendarSeries(sessions, opts);
+  const returns = series.map((p) => p / startingBalance);
   const meanR = mean(returns);
   const stdR = stddev(returns);
   const downside = Math.sqrt(mean(returns.map((r) => Math.min(0, r) ** 2)));
@@ -471,8 +522,8 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
     sessions.map((s) => ({ t: new Date(`${s.date}T12:00:00`).getTime(), pnl: s.pnl })),
     startingBalance,
   );
-  // Calmar ici = rendement linéaire annualisé (net / capital × 252 / jours) / drawdown %, pas un CAGR.
-  const annualizedReturn = days ? (netPnl / startingBalance) * (252 / days) : 0;
+  // Calmar ici = rendement linéaire annualisé (net / capital × 252 / journées de cotation) / drawdown %, pas un CAGR.
+  const annualizedReturn = series.length ? (netPnl / startingBalance) * (252 / series.length) : 0;
   const calmar = dd.maxDrawdownPct > EPS ? annualizedReturn / dd.maxDrawdownPct : 0;
 
   const totalProfitDays = winDaysArr.reduce((s, p) => s + p, 0);
@@ -528,6 +579,7 @@ export function computeDailyStats(sessionsInput: Session[], startingBalance = 50
     gainToPain,
     maxConsecWinDays: st.maxWins,
     maxConsecLossDays: st.maxLosses,
+    tradingDays: series.length,
     equity: dd.equity,
     rolling,
   };

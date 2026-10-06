@@ -30,7 +30,7 @@ import { PropFirmView } from './PropFirmView';
 import { Sessions } from './Sessions';
 import { SettingsModal } from './SettingsModal';
 import d from './dashboard.module.css';
-import { filterJournal, type MetricRange } from './range';
+import { filterJournal, rangeFrom, type MetricRange } from './range';
 
 type View = 'bord' | 'seances' | 'analyse' | 'prop' | 'mc';
 
@@ -224,6 +224,7 @@ export default function Metrique() {
             sessions={filtered.sessions}
             trades={filtered.trades}
             range={range}
+            period={{ from: rangeFrom(range, asOf), to: asOf }}
             journalEmpty={sessions.length === 0}
             onImport={() => setModal('import')}
             onDemo={onDemo}
