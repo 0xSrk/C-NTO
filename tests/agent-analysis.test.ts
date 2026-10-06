@@ -29,6 +29,8 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
     proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
+    // Horloge fixe : `asOf` daté, résultats comparables d'un appel à l'autre.
+    now: () => now,
   };
 }
 

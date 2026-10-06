@@ -42,6 +42,8 @@ export interface DemoDeskOptions {
   orderPolicy?: AgentOrderPolicy;
   /** Réponse de l'opérateur au dialogue d'ordre du process principal ; défaut : Refuser. */
   confirmOrder?: (p: AgentOrderProposal) => boolean;
+  /** Horloge du desk (epoch ms) ; défaut : fin du jeu de démo. */
+  now?: number;
 }
 
 export interface DemoDesk {
@@ -123,12 +125,13 @@ export function demoDesk(opts: DemoDeskOptions = {}): DemoDesk {
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
+    now: () => opts.now ?? Date.parse(opts.end ?? DEMO_END),
     async proposeOrder(args) {
       // Même ordre que le process principal : lecture, garde, dialogue de l'opérateur, soumission.
       const outcome = ((): Record<string, unknown> => {
         const parsed = parseProposal(args);
         if (!parsed.ok) return { ok: false, status: 'refused', reason: 'invalid', detail: parsed.detail };
-        const now = Date.parse(opts.end ?? DEMO_END);
+        const now = opts.now ?? Date.parse(opts.end ?? DEMO_END);
         const verdict = guardProposal(parsed.proposal, policy, { now, link: 'live', ordersOpen: true, position: 0, recent: proposedAt, busy: false, propShare: null });
         proposedAt.push(now);
         if (!verdict.ok) return { ok: false, status: 'refused', reason: verdict.reason, detail: verdict.detail };

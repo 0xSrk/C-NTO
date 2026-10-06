@@ -244,3 +244,67 @@ describe('A6.4 desk_overview : période et compte, comme le Tableau de bord', ()
     expect(out.plan).toMatchObject({ status: ev.status, buffer: r2(ev.buffer) });
   });
 });
+
+type Provenance = { asOf?: string; sources?: Record<string, number>; demo?: boolean };
+
+describe('A6.5 chaque lecture du journal est datée et sourcée', () => {
+  const NOW = Date.parse('2026-10-02T13:45:00Z');
+  /** Un vrai journal NinjaTrader, mêlé au jeu de démo comme le fait « Jeu de démonstration ». */
+  const real = [session('r1', '2026-09-28', 'Sim101', 250), session('r2', '2026-09-29', 'Sim101', -120), session('r3', '2026-09-30', 'Sim101', 80)];
+
+  it('asOf vient de l’horloge du desk ; sources compte les séances lues ; demo signale la démo mêlée', async () => {
+    const desk = demoDesk({ extra: { sessions: real, trades: [] }, now: NOW });
+    const calls: [string, Record<string, unknown>, number][] = [
+      ['desk_overview', {}, desk.sessions.length],
+      ['journal_breakdown', {}, desk.sessions.length],
+      ['monte_carlo', { account: DEMO_ACCOUNT }, desk.sessions.length - real.length],
+      ['propfirm_status', {}, desk.sessions.length - real.length],
+      ['list_sessions', { limit: 200 }, 143],
+    ];
+    for (const [name, args, count] of calls) {
+      const out = await callTool<Provenance>(desk.ports, name, args);
+      expect(out.asOf, name).toBe(new Date(NOW).toISOString());
+      const sources = out.sources ?? {};
+      expect(Object.values(sources).reduce((a, b) => a + b, 0), name).toBe(Math.min(count, 200));
+      expect(out.demo, name).toBe(true);
+    }
+    const overview = await callTool<Provenance>(desk.ports, 'desk_overview');
+    expect(overview.sources).toEqual({ demo: desk.sessions.length - real.length, ninjatrader: real.length });
+    const own = await callTool<Provenance>(desk.ports, 'desk_overview', { account: 'Sim101' });
+    expect(own.sources).toEqual({ ninjatrader: real.length });
+    expect(own.demo).toBeUndefined();
+  });
+
+  it('list_sessions rend le compte et la source de chaque séance, et filtre par compte', async () => {
+    const desk = demoDesk({ extra: { sessions: real, trades: [] }, now: NOW });
+    const out = await callTool<{ count: number; sessions: { id: string; account: string | null; source: string }[] }>(desk.ports, 'list_sessions', { account: 'Sim101' });
+    expect(out.count).toBe(3);
+    expect(out.sessions.map((x) => [x.id, x.account, x.source])).toEqual([
+      ['r3', 'Sim101', 'ninjatrader'],
+      ['r2', 'Sim101', 'ninjatrader'],
+      ['r1', 'Sim101', 'ninjatrader'],
+    ]);
+  });
+
+  it('get_session : une date portée par plusieurs comptes est ambiguë sans `account`', async () => {
+    const both = [session('a', '2026-09-28', 'Sim101', 250), session('b', '2026-09-28', 'Sim102', 250)];
+    const ports = fakePorts({ sessions: () => both });
+    const out = await callTool<{ ambiguous?: boolean; candidates?: { id: string; account: string | null }[]; session?: Session }>(ports, 'get_session', { date: '2026-09-28' });
+    expect(out.ambiguous).toBe(true);
+    expect(out.candidates?.map((c) => [c.id, c.account])).toEqual([
+      ['a', 'Sim101'],
+      ['b', 'Sim102'],
+    ]);
+    expect(out.session).toBeUndefined();
+    const picked = await callTool<{ session?: Session }>(ports, 'get_session', { date: '2026-09-28', account: 'Sim102' });
+    expect(picked.session?.id).toBe('b');
+    expect((await callTool<{ session?: Session }>(ports, 'get_session', { id: 'a' })).session?.id).toBe('a');
+  });
+
+  it('get_session : deux séances du même compte le même jour, la première comme avant', async () => {
+    const twice = [session('a1', '2026-09-28', 'Sim101', 100), session('a2', '2026-09-28', 'Sim101', 50)];
+    const out = await callTool<{ ambiguous?: boolean; session?: Session }>(fakePorts({ sessions: () => twice }), 'get_session', { date: '2026-09-28' });
+    expect(out.ambiguous).toBeUndefined();
+    expect(out.session?.id).toBe('a1');
+  });
+});

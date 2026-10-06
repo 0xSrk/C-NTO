@@ -62,6 +62,16 @@ function accountsOf(sessions: readonly Session[]): string[] {
   return [...new Set(sessions.map((s) => s.account).filter((name): name is string => !!name))].sort();
 }
 
+/**
+ * Date et provenance d'une lecture du journal : instant de la lecture, séances lues par source,
+ * `demo` quand le jeu de démonstration y est compté (il s'ajoute au vrai journal).
+ */
+function provenance(ports: DeskPorts, sessions: readonly Session[]): { asOf: string; sources: Record<string, number>; demo?: true } {
+  const sources: Record<string, number> = {};
+  for (const s of sessions) sources[s.source] = (sources[s.source] ?? 0) + 1;
+  return { asOf: new Date(ports.now?.() ?? Date.now()).toISOString(), sources, ...(sources.demo ? { demo: true as const } : {}) };
+}
+
 /** Dernière valeur d'une ligne d'indicateur, ou null. */
 function lastLine(bars: Bar[], id: string, key: string, params: Record<string, number | string> = {}): number | null {
   const def = indicatorById(id);
@@ -97,6 +107,11 @@ function datedMargin(ev: PropEvaluation): { date: string; lastLow: number | null
   return m ? { date: m.date, lastLow: round(m.lastLow), floor: round(m.floor), margin: round(m.margin) } : null;
 }
 
+/** Fin de description des lectures du journal datées et sourcées (`provenance`), dans les trois langues. */
+const PROVENANCE_FR = ' Rend `asOf` (instant de la lecture), `sources` (séances lues par source) et `demo: true` quand le jeu de démonstration y est compté.';
+const PROVENANCE_EN = ' Returns `asOf` (time of the read), `sources` (sessions read per source) and `demo: true` when the demo dataset is counted.';
+const PROVENANCE_ES = ' Devuelve `asOf` (instante de la lectura), `sources` (sesiones leídas por fuente) y `demo: true` cuando se cuenta el juego de demostración.';
+
 function buckets(list: Bucket[]) {
   return list.filter((b) => b.count > 0).map((b) => ({ key: b.key, trades: b.count, pnl: round(b.pnl), winRate: round(b.winRate, 4) }));
 }
@@ -108,7 +123,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'desk_overview',
       kind: 'read',
       description:
-        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.',
+        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.' + PROVENANCE_FR,
       parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
       async run(args) {
         const from = str(args.from);
@@ -158,18 +173,21 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
                 targetProgress: round(evalr?.targetProgress ?? 0, 4),
               }
             : null,
+          ...provenance(ports, sessions),
         };
       },
     },
     {
       name: 'list_sessions',
       kind: 'read',
-      description: 'Liste les séances de trading (date, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtre optionnel par bornes de dates YYYY-MM-DD.',
+      description:
+        'Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source `demo` désigne le jeu de démonstration.' + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
           from: { type: 'string', description: 'Date de début incluse (YYYY-MM-DD)' },
           to: { type: 'string', description: 'Date de fin incluse (YYYY-MM-DD)' },
+          account: { type: 'string', description: 'Compte (défaut : tous les comptes)' },
           limit: { type: 'number', description: 'Nombre max de séances (défaut 30)' },
         },
         additionalProperties: false,
@@ -177,23 +195,25 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       async run(args) {
         const from = str(args.from);
         const to = str(args.to);
+        const account = str(args.account);
         const limit = Math.min(200, Math.max(1, num(args.limit, 30)));
-        const list = ports
+        const rows = ports
           .sessions()
-          .filter((s) => (!from || s.date >= from) && (!to || s.date <= to))
+          .filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account))
           .sort((a, b) => b.date.localeCompare(a.date))
-          .slice(0, limit)
-          .map((s) => ({ id: s.id, date: s.date, account: s.account, pnl: round(s.pnl), trades: s.tradeCount, tags: s.tags, rating: s.rating, note: s.note }));
-        return { count: list.length, sessions: list };
+          .slice(0, limit);
+        const list = rows.map((s) => ({ id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: s.tags, rating: s.rating, note: s.note }));
+        return { count: list.length, sessions: list, ...provenance(ports, rows) };
       },
     },
     {
       name: 'get_session',
       kind: 'read',
-      description: 'Détail d’une séance et de ses trades (par id ou par date YYYY-MM-DD).',
+      description:
+        'Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans `account`, rend `ambiguous` et les séances candidates : relancer avec leur id ou le compte.',
       parameters: {
         type: 'object',
-        properties: { id: { type: 'string' }, date: { type: 'string' } },
+        properties: { id: { type: 'string' }, date: { type: 'string' }, account: { type: 'string', description: 'Compte de la séance cherchée par date' } },
         additionalProperties: false,
       },
       async run(args) {
@@ -201,7 +221,17 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const trades = ports.trades();
         const id = str(args.id);
         const date = str(args.date);
-        const s = sessions.find((x) => x.id === id) ?? sessions.find((x) => x.date === date);
+        const account = str(args.account);
+        const onDate = sessions.filter((x) => x.date === date && (!account || (x.account ?? '') === account));
+        const byId = id ? sessions.find((x) => x.id === id) : undefined;
+        if (!byId && new Set(onDate.map((x) => x.account ?? '')).size > 1) {
+          return {
+            ambiguous: true,
+            note: tr('Plusieurs comptes ont une séance ce jour-là : relancer avec `id` ou `account`.', 'Several accounts have a session that day: call again with `id` or `account`.', 'Varias cuentas tienen una sesión ese día: volver a llamar con `id` o `account`.'),
+            candidates: onDate.map((x) => ({ id: x.id, date: x.date, account: x.account ?? null, source: x.source, pnl: round(x.pnl), trades: x.tradeCount })),
+          };
+        }
+        const s = byId ?? onDate[0];
         if (!s) return { error: tr('Séance introuvable', 'Session not found', 'Sesión no encontrada') };
         const own = trades.filter((t) => t.sessionId === s.id).sort((a, b) => a.exitTime - b.exitTime);
         const stats = computeTradeStats(own);
@@ -384,7 +414,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'journal_breakdown',
       kind: 'read',
       description:
-        'Ventilations du journal, comme l’onglet Analyse : par heure d’entrée (heure de New York), par jour de semaine de la séance (journée de cotation CME, 18 h → 17 h ET : un trade du dimanche soir compte le lundi), par instrument, long / short. Filtres optionnels de dates et de compte. Seuls les créneaux qui portent des trades sont rendus.',
+        'Ventilations du journal, comme l’onglet Analyse : par heure d’entrée (heure de New York), par jour de semaine de la séance (journée de cotation CME, 18 h → 17 h ET : un trade du dimanche soir compte le lundi), par instrument, long / short. Filtres optionnels de dates et de compte. Seuls les créneaux qui portent des trades sont rendus.' + PROVENANCE_FR,
       parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
       async run(args) {
         const { sessions, trades, account } = journalSlice(ports, args);
@@ -402,6 +432,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           byWeekday: buckets(t.byWeekday),
           byInstrument: buckets(t.byInstrument),
           direction: { long: dir(t.long), short: dir(t.short) },
+          ...provenance(ports, sessions),
         };
       },
     },
@@ -409,7 +440,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'monte_carlo',
       kind: 'read',
       description:
-        'Projection Monte Carlo par bootstrap i.i.d. des PnL journaliers (ignore l’autocorrélation) : percentiles du PnL final et du drawdown max, probabilité de ruine et d’objectif. Échantillon de l’onglet Monte-Carlo : un compte, une valeur par journée. Si la tranche couvre plusieurs comptes (comptes copiés), `account` est exigé : sans lui, l’outil rend `account_required` et la liste des comptes ; un seul compte est pris d’office. Par défaut, la ruine est le drawdown max du plan prop suivi et l’objectif son objectif de profit. Graine fixe : résultat reproductible.',
+        'Projection Monte Carlo par bootstrap i.i.d. des PnL journaliers (ignore l’autocorrélation) : percentiles du PnL final et du drawdown max, probabilité de ruine et d’objectif. Échantillon de l’onglet Monte-Carlo : un compte, une valeur par journée. Si la tranche couvre plusieurs comptes (comptes copiés), `account` est exigé : sans lui, l’outil rend `account_required` et la liste des comptes ; un seul compte est pris d’office. Par défaut, la ruine est le drawdown max du plan prop suivi et l’objectif son objectif de profit. Graine fixe : résultat reproductible.' + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
@@ -467,6 +498,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           ruinProbability: r.ruinProbability === null ? null : round(r.ruinProbability, 4),
           target: Number.isFinite(target) ? target : null,
           targetProbability: r.targetProbability === null ? null : round(r.targetProbability, 4),
+          ...provenance(ports, sessions),
         };
       },
     },
@@ -636,7 +668,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'propfirm_status',
       kind: 'read',
       description:
-        'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`) : la marge de la jauge K.04, plus prudente. Le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec (`failedOn`). Par défaut, le plan et le compte suivis par l’écran Métrique.',
+        'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`) : la marge de la jauge K.04, plus prudente. Le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec (`failedOn`). Par défaut, le plan et le compte suivis par l’écran Métrique.' + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
@@ -669,6 +701,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           daysTraded: r.daysTraded,
           consistency: r.consistency,
           dailyLossBreaches: r.dailyLossBreaches,
+          ...provenance(ports, account ? sessions.filter((s) => (s.account ?? '') === account) : sessions),
         };
       },
     },
@@ -704,13 +737,21 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'desk_overview':
       return tr(
         fallback,
-        'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.',
-        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.',
+        'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.' + PROVENANCE_EN,
+        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.' + PROVENANCE_ES,
       );
     case 'list_sessions':
-      return tr(fallback, 'Lists trading sessions (date, PnL, trade count, tags, note), newest first. Optional YYYY-MM-DD date bounds.', 'Lista las sesiones (fecha, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtro opcional por fechas YYYY-MM-DD.');
+      return tr(
+        fallback,
+        'Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The `demo` source is the demo dataset.' + PROVENANCE_EN,
+        'Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente `demo` es el juego de demostración.' + PROVENANCE_ES,
+      );
     case 'get_session':
-      return tr(fallback, 'Detail of a session and its trades (by id or YYYY-MM-DD date).', 'Detalle de una sesión y sus trades (por id o por fecha YYYY-MM-DD).');
+      return tr(
+        fallback,
+        'Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without `account`, returns `ambiguous` and the candidate sessions: call again with their id or the account.',
+        'Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin `account`, devuelve `ambiguous` y las sesiones candidatas: volver a llamar con su id o la cuenta.',
+      );
     case 'annotate_session':
       return tr(fallback, 'Adds or replaces a session note and/or its tags.', 'Añade o sustituye la nota de una sesión y/o sus etiquetas.');
     case 'search_notes':
@@ -732,14 +773,14 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'journal_breakdown':
       return tr(
         fallback,
-        'Journal breakdowns, as on the Analysis tab: by entry hour (New York time), by weekday of the session (CME trading day, 6 pm → 5 pm ET: a Sunday-evening trade counts on Monday), by instrument, long / short. Optional date and account filters. Only slots with trades are returned.',
-        'Desgloses del diario, como en la pestaña Análisis: por hora de entrada (hora de Nueva York), por día de la semana de la sesión (jornada de negociación CME, 18 h → 17 h ET: un trade del domingo por la noche cuenta el lunes), por instrumento, largo / corto. Filtros opcionales de fechas y cuenta. Solo se devuelven las franjas con trades.',
+        'Journal breakdowns, as on the Analysis tab: by entry hour (New York time), by weekday of the session (CME trading day, 6 pm → 5 pm ET: a Sunday-evening trade counts on Monday), by instrument, long / short. Optional date and account filters. Only slots with trades are returned.' + PROVENANCE_EN,
+        'Desgloses del diario, como en la pestaña Análisis: por hora de entrada (hora de Nueva York), por día de la semana de la sesión (jornada de negociación CME, 18 h → 17 h ET: un trade del domingo por la noche cuenta el lunes), por instrumento, largo / corto. Filtros opcionales de fechas y cuenta. Solo se devuelven las franjas con trades.' + PROVENANCE_ES,
       );
     case 'monte_carlo':
       return tr(
         fallback,
-        'Monte Carlo projection by i.i.d. bootstrap of daily PnL (ignores autocorrelation): final PnL and max drawdown percentiles, ruin and target probabilities. Sample of the Monte Carlo tab: one account, one value per day. If the range covers several accounts (copied accounts), `account` is required: without it, the tool returns `account_required` and the account list; a single account is taken as is. By default, ruin is the tracked prop plan’s max drawdown and the target its profit target. Fixed seed: reproducible.',
-        'Proyección Monte Carlo por bootstrap i.i.d. de los PnL diarios (ignora la autocorrelación): percentiles del PnL final y del drawdown máx., probabilidades de ruina y de objetivo. Muestra de la pestaña Monte Carlo: una cuenta, un valor por día. Si el período abarca varias cuentas (cuentas copiadas), `account` es obligatorio: sin él, la herramienta devuelve `account_required` y la lista de cuentas; una sola cuenta se toma tal cual. Por defecto, la ruina es el drawdown máx. del plan prop seguido y el objetivo su objetivo de beneficio. Semilla fija: reproducible.',
+        'Monte Carlo projection by i.i.d. bootstrap of daily PnL (ignores autocorrelation): final PnL and max drawdown percentiles, ruin and target probabilities. Sample of the Monte Carlo tab: one account, one value per day. If the range covers several accounts (copied accounts), `account` is required: without it, the tool returns `account_required` and the account list; a single account is taken as is. By default, ruin is the tracked prop plan’s max drawdown and the target its profit target. Fixed seed: reproducible.' + PROVENANCE_EN,
+        'Proyección Monte Carlo por bootstrap i.i.d. de los PnL diarios (ignora la autocorrelación): percentiles del PnL final y del drawdown máx., probabilidades de ruina y de objetivo. Muestra de la pestaña Monte Carlo: una cuenta, un valor por día. Si el período abarca varias cuentas (cuentas copiadas), `account` es obligatorio: sin él, la herramienta devuelve `account_required` y la lista de cuentas; una sola cuenta se toma tal cual. Por defecto, la ruina es el drawdown máx. del plan prop seguido y el objetivo su objetivo de beneficio. Semilla fija: reproducible.' + PROVENANCE_ES,
       );
     case 'bridge_status':
       return tr(
@@ -774,8 +815,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'propfirm_status':
       return tr(
         fallback,
-        'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`): the K.04 gauge margin, more conservative. The replay stops at the target reached (`passedOn`) or at failure (`failedOn`). Defaults to the plan and account tracked by the Metrics screen.',
-        'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`): el margen del indicador K.04, más prudente. El rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso (`failedOn`). Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.',
+        'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`): the K.04 gauge margin, more conservative. The replay stops at the target reached (`passedOn`) or at failure (`failedOn`). Defaults to the plan and account tracked by the Metrics screen.' + PROVENANCE_EN,
+        'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`): el margen del indicador K.04, más prudente. El rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso (`failedOn`). Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.' + PROVENANCE_ES,
       );
     default:
       return fallback;
