@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adjustedRiskPoints, expectancy, expectancyR, floorMicroContracts, rrMatrix, theoreticalContracts, theoreticalNotional, thresholdWinRate, tradeRisk } from '@/engine/riskConsole';
+import { adjustedRiskPoints, expectancy, expectancyR, floorMicroContracts, horizonSigma, rrMatrix, sigmaBand, sigmaDistance, theoreticalContracts, theoreticalNotional, thresholdWinRate, tradeRisk } from '@/engine/riskConsole';
 
 describe('risque du trade', () => {
   it('achat de 2 MNQ, stop à 10 points, sortie à +60 $ : 40 $, +1,5 R, source stop', () => {
@@ -58,5 +58,17 @@ describe('risque du trade', () => {
     expect(floorMicroContracts(0.475, 10)).toBe(4);
     expect(adjustedRiskPoints(1.5).points).toBeCloseTo(1.5);
     expect(adjustedRiskPoints(1.5, [-0.4, -0.15], 0.5).points).toBeCloseTo(0.5);
+  });
+
+  it('mesure une distance de stop en σ du jour à partir de la volatilité implicite', () => {
+    const sigma = horizonSigma(20_000, 0.16, 252);
+    expect(sigma).toBeCloseTo((20_000 * 0.16) / Math.sqrt(252));
+    expect(sigmaDistance(10, sigma)).toBeCloseTo(10 / sigma);
+    expect(sigmaBand(0.2)).toBe('<0.25');
+    expect(sigmaBand(0.25)).toBe('0.25-0.5');
+    expect(sigmaBand(0.5)).toBe('0.5-1');
+    expect(sigmaBand(1)).toBe('>1');
+    expect(sigmaDistance(10, null)).toBeNull();
+    expect(horizonSigma(20_000, 0.16, 52)).toBeGreaterThan(sigma);
   });
 });
