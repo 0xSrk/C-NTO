@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateNasdaqEvents } from '@/engine/calendar';
-import { dayLoss, DEFAULT_TRADER_RULES, tradingDayNow } from '@/engine/discipline';
+import { dailyLimit, dayLoss, DEFAULT_TRADER_RULES, tradingDayNow } from '@/engine/discipline';
 import { OrderBook } from '@/engine/execution/orderBook';
 import { traderMemory } from '@/engine/agent/memory';
 import { QUOTE_STALE_MS } from '@/engine/marketdata/quotes';
@@ -97,12 +97,37 @@ describe('agent · scénarios dorés', () => {
   });
 });
 
+/** Mercredi 30 septembre 2026, 15 h à New York : la journée CME du compte de démo porte des trades et une perte. */
+const DISCIPLINE_NOW = Date.parse('2026-09-30T19:00:00Z');
+
 describe('A16.1 outils de la vague 1', () => {
-  it('discipline_status : la perte du jour est celle de dayLoss', async () => {
-    const desk = demoDesk();
-    const out = await callTool<{ dailyLoss: { loss: number | null } }>(desk.ports, 'discipline_status');
-    const loss = dayLoss({ sessions: desk.sessions, trades: desk.trades, day: tradingDayNow(Date.now()), account: DEMO_ACCOUNT, unrealized: 0 });
-    expect(out.dailyLoss.loss).toBe(Math.round(loss.loss * 100) / 100);
+  afterEach(() => vi.useRealTimers());
+
+  it.each([
+    { name: 'règle du trader', planId: DEMO_PLAN, rules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 500 } },
+    { name: 'limite du plan prop', planId: 'tpt-50', rules: DEFAULT_TRADER_RULES },
+  ])('discipline_status ($name) : perte du jour de dayLoss, limite et source de dailyLimit', async ({ planId, rules }) => {
+    const desk = demoDesk({ planId });
+    // Horloge simulée : l'outil lit Date.now() ; seul Date est simulé, les promesses suivent leur cours.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(DISCIPLINE_NOW);
+    const out = await callTool<{ day: string; dailyLoss: { loss: number; limit: number | null; source: string | null; ruleLimit: number | null; planLimit: number | null }; trades: { today: number } }>(
+      { ...desk.ports, traderRules: () => rules },
+      'discipline_status',
+      {},
+      DISCIPLINE_NOW,
+    );
+    const day = tradingDayNow(DISCIPLINE_NOW);
+    const loss = dayLoss({ sessions: desk.sessions, trades: desk.trades, day, account: DEMO_ACCOUNT, unrealized: 0 });
+    const limit = dailyLimit(rules, findPlan(planId));
+    expect(out.day).toBe(day);
+    // Une journée qui porte des trades et une perte : l'attendu n'est pas 0 = 0.
+    expect(loss.trades).toBeGreaterThan(0);
+    expect(out.trades.today).toBe(loss.trades);
+    expect(loss.loss).toBeGreaterThan(0);
+    expect(out.dailyLoss.loss).toBe(r2(loss.loss));
+    expect(limit).not.toBeNull();
+    expect(out.dailyLoss).toMatchObject({ limit: limit!.amount, source: limit!.source, ruleLimit: limit!.trader, planLimit: limit!.plan });
   });
 
   it('trader_memory : une note d’agent est absente', async () => {
