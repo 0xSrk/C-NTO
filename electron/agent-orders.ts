@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
+  AGENT_ORDER_BOUNDS,
   AGENT_ORDER_TAG,
   AGENT_RATE_WINDOW_MS,
   coerceAgentPolicy,
@@ -237,10 +238,13 @@ export class AgentOrderHost {
    * avec le tag `canto-agent`. `propShare` : marge du plan suivi si le compte est le sien, calculée par le renderer.
    */
   async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null): Promise<AgentOrderOutcome> {
+    // La cadence compte chaque proposition, refusées comprises (mal formée, agent désactivé, en attente) :
+    // la garde lit les précédentes. Au plus le plafond de la cadence est retenu (10).
+    const now = this.now();
+    const recent = this.recent.filter((t) => now - t < AGENT_RATE_WINDOW_MS);
+    this.recent = [...recent, now].slice(-AGENT_ORDER_BOUNDS.perMinute[1]);
     const parsed = parseProposal(raw);
     if (!parsed.ok) return { status: 'refused', reason: 'invalid', detail: parsed.detail };
-    const now = this.now();
-    this.recent = this.recent.filter((t) => now - t < AGENT_RATE_WINDOW_MS);
     const view = this.deps.bridge();
     // Le dialogue, les gardes et l'ordre portent les noms du pont : ceux dont la position vient d'être lue.
     const held = heldPosition(view, parsed.proposal.account, parsed.proposal.instrument);
@@ -251,12 +255,10 @@ export class AgentOrderHost {
       link: view?.link ?? 'absent',
       ordersOpen: view?.ordersOpen ?? false,
       position,
-      recent: this.recent,
+      recent,
       busy: this.pending,
       propShare: typeof propShare === 'number' && Number.isFinite(propShare) ? propShare : null,
     });
-    // La cadence compte les propositions examinées, refusées comprises ; pas celles d'un agent désactivé ou en attente.
-    if (verdict.ok || (verdict.reason !== 'busy' && verdict.reason !== 'disabled')) this.recent.push(now);
     const summary = `${p.side} ${p.qty} ${p.instrument} ${p.type} compte=${p.account} origine=${origin}`;
     if (!verdict.ok) {
       this.deps.log(`agent proposition refusée ${summary} motif=${verdict.reason}`);

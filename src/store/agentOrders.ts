@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AGENT_ORDER_DEFAULTS, AGENT_REASON_MAX } from '@/engine/agent/orders';
+import { AGENT_ORDER_DEFAULTS, AGENT_RATE_WINDOW_MS, AGENT_REASON_MAX } from '@/engine/agent/orders';
 import { desk, type AgentOrderOrigin, type AgentOrderOutcome, type AgentOrderStatus } from '@/lib/desk';
 import { recordDeskEvent, trackedPropShare } from './deskEvents';
 import { useSettings } from './settings';
@@ -68,6 +68,31 @@ export function agentOrderEventData(args: Record<string, unknown>, origin: Agent
   return data;
 }
 
+/**
+ * Événements `agent_order` rangés dans le journal du desk (500 au plus). Un ordre envoyé l'est toujours ;
+ * les autres issues, au plus 10 par minute et 60 par heure : une rafale de propositions ne vide pas le
+ * journal. Le premier événement rangé ensuite dit combien n'ont pas été rangées (`suppressed`).
+ */
+export const AGENT_ORDER_EVENT_LIMITS = { perMinute: 10, perHour: 60 } as const;
+const HOUR_MS = 3_600_000;
+let journaled: number[] = [];
+let suppressed = 0;
+
+function journalProposal(data: Record<string, unknown>, status: AgentOrderOutcome['status'], now = Date.now()): void {
+  journaled = journaled.filter((t) => now - t < HOUR_MS);
+  const lastMinute = journaled.filter((t) => now - t < AGENT_RATE_WINDOW_MS).length;
+  if (status !== 'sent' && (lastMinute >= AGENT_ORDER_EVENT_LIMITS.perMinute || journaled.length >= AGENT_ORDER_EVENT_LIMITS.perHour)) {
+    suppressed += 1;
+    return;
+  }
+  journaled.push(now);
+  if (suppressed) {
+    data.suppressed = suppressed;
+    suppressed = 0;
+  }
+  recordDeskEvent('agent_order', data);
+}
+
 export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
   status: AGENT_ORDERS_OFF,
   available: !!desk?.agentOrders,
@@ -118,7 +143,7 @@ export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
       outcome,
     };
     set({ last: trace });
-    recordDeskEvent('agent_order', agentOrderEventData(args, origin, outcome));
+    journalProposal(agentOrderEventData(args, origin, outcome), outcome.status);
     return outcome;
   },
 }));

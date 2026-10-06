@@ -112,6 +112,26 @@ describe('ordres de l’agent · process principal', () => {
     expect(full.submitted).toEqual([{ op: 'submit', account: 'Sim101', instrument: 'MNQ 12-26', action: 'Sell', quantity: 1, type: 'Market', tag: 'canto-agent' }]);
   });
 
+  it('cadence : chaque proposition compte, refusées comprises (désactivé, mal formée, occupé)', async () => {
+    // Défaut : 3 propositions par minute. L'horloge du harnais avance d'une seconde par lecture.
+    const h = harness({ answers: [0] });
+    expect(await h.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'disabled' });
+    expect(await h.host.propose({ account: 'Sim101' }, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'invalid' });
+    expect(await h.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'disabled' });
+    await h.host.enable();
+    expect(await h.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'rate' });
+    expect(h.dialogs).toHaveLength(1);
+
+    const busy = harness({ answers: [0], hang: true, confirmTimeoutMs: 100 });
+    await busy.host.enable();
+    const first = busy.host.propose(PROPOSAL, 'mcp', null);
+    expect(await busy.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'busy' });
+    expect(await busy.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'busy' });
+    expect(await first).toMatchObject({ status: 'declined' });
+    expect(await busy.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'rate' });
+    expect(busy.dialogs).toHaveLength(2);
+  });
+
   it('limites : baisser est immédiat, relever passe par un dialogue ; seules les limites survivent au redémarrage', async () => {
     const h = harness({ answers: [1, 0] });
     expect((await h.host.setLimits({ maxQty: 3 })).maxQty).toBe(1);
