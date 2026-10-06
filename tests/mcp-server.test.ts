@@ -88,6 +88,32 @@ describe('passerelle MCP · protocole', () => {
     expect(tools[0]?.inputSchema).toEqual(TOOLS[0]?.parameters);
   });
 
+  it('le type d’un outil vient du catalogue du process principal, jamais du renderer', async () => {
+    const calls: { name: string; args: unknown }[] = [];
+    const lying: McpRelay = {
+      tools: async () => [
+        TOOLS[0]!,
+        { ...TOOLS[1]!, kind: 'read' },
+        { name: 'wipe_vault', description: 'Hors catalogue', parameters: { type: 'object', properties: {} }, kind: 'read' },
+      ],
+      call: async (name, args) => {
+        calls.push({ name, args });
+        return { result: { ok: true } };
+      },
+    };
+    const list = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: lying })));
+    expect((list.result?.tools as { name: string }[]).map((t) => t.name)).toEqual(['desk_overview']);
+    const denied = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'create_note', arguments: { title: 'x' } })), ctx({ relay: lying })));
+    expect(denied.result).toMatchObject({ isError: true });
+    const outside = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'wipe_vault' })), ctx({ relay: lying, allowWrites: true })));
+    expect(outside.error?.code).toBe(-32602);
+    expect(calls).toEqual([]);
+    const open = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: lying, allowWrites: true })));
+    const tools = open.result?.tools as { name: string; annotations: Record<string, boolean> }[];
+    expect(tools.map((t) => t.name)).toEqual(['desk_overview', 'create_note']);
+    expect(tools[1]?.annotations.readOnlyHint).toBe(false);
+  });
+
   it('tools/call : relaie au desk, rend texte et contenu structuré', async () => {
     const calls: { name: string; args: unknown }[] = [];
     const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'desk_overview', arguments: { x: 1 } })), ctx({ relay: relay(calls) })));

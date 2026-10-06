@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
+import { DESK_TOOL_KINDS } from './agent/catalog';
 import { tokensMatch } from './secure-token';
 
 /**
@@ -33,7 +34,23 @@ export interface McpToolInfo {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
+  /** Type déclaré par le renderer : ignoré, le process principal le lit dans `DESK_TOOL_KINDS`. */
   kind: 'read' | 'write';
+}
+
+/** Type d'un outil selon le catalogue du process principal ; `undefined` hors catalogue. */
+function catalogKind(name: string): 'read' | 'write' | undefined {
+  return Object.hasOwn(DESK_TOOL_KINDS, name) ? DESK_TOOL_KINDS[name] : undefined;
+}
+
+/** Outils relayés par le desk, gardés s'ils sont au catalogue, typés par lui. */
+async function deskTools(ctx: McpContext): Promise<McpToolInfo[]> {
+  const out: McpToolInfo[] = [];
+  for (const t of await ctx.relay.tools()) {
+    const kind = catalogKind(t.name);
+    if (kind) out.push({ ...t, kind });
+  }
+  return out;
 }
 
 /** Accès au desk : le process principal relaie au renderer. */
@@ -132,13 +149,13 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
     case 'ping':
       return { result: {} };
     case 'tools/list': {
-      const tools = await ctx.relay.tools();
+      const tools = await deskTools(ctx);
       return { result: { tools: tools.filter((t) => t.kind === 'read' || ctx.allowWrites).map(toMcpTool) } };
     }
     case 'tools/call': {
       const name = typeof params.name === 'string' ? params.name : '';
       const args = params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments) ? (params.arguments as Record<string, unknown>) : {};
-      const catalog = await ctx.relay.tools();
+      const catalog = await deskTools(ctx);
       // Catalogue vide : le desk est fermé ou muet, pas l'outil inconnu.
       if (!catalog.length) return { result: toolError('Desk indisponible : la fenêtre de CΛNTO est fermée ou ne répond pas.') };
       const tool = catalog.find((t) => t.name === name);
