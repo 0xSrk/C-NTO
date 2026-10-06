@@ -690,3 +690,13 @@ Cinq sous-agents, un par piste, chacun dans son worktree ; fusion et intégratio
 - Deux passages complets de la suite, sous une charge machine élevée pendant la vague, ont montré chacun un échec non identifié ; quatre passages complets ensuite, puis trois sur la branche intégrée, sont verts.
 
 **Reste.** Vague 2 : brief et débrief dans l'agent embarqué, adoption d'une leçon proposée par l'agent, ressources MCP et schémas de sortie, configuration Codex et Claude Desktop, affichage du livre des ordres et de la séance en cours, abonnement de Visual au flux (D2). Vague 3, à l'ADMIN : `docs/THESE-AGENTIQUE.md` § 7.
+
+## Couche agentique du trader — vague 2 (2026-10-06)
+
+Reprise sur `main` (`c0d7753`). Un ticket = un commit = un test. Invariants de `CLAUDE.md` § 5 inchangés. `ninjatrader/CantoBridge.cs` ne change pas.
+
+| Piste | Commits | Tests | Ce qui change |
+|---|---|---|---|
+| **A15 · Mémoire** | `A15.1` `A15.2` | `agent-adopt`, `note-adopt`, `design-guard` | `Note.adoptedAt` facultatif, lisible par un coffre ancien, rejeté s'il n'est pas un nombre. `adopt` est un geste du trader ; `create_note` ignore l'argument. `traderMemory` garde une note d'agent seulement si elle est adoptée. L'onglet Notes montre « Adopter » et la date. |
+
+**Constats nouveaux, non corrigés.** Aucun sur cette piste.

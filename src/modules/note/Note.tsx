@@ -13,7 +13,7 @@ import type { Note as NoteType } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useLinks } from '@/store/links';
 import { useMacro } from '@/store/macro';
-import { byTitle, extractLinks, useNotes } from '@/store/notes';
+import { byTitle, canAdopt, extractLinks, useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
 import { Graph } from './Graph';
 import { renderNote } from './markdown';
@@ -522,6 +522,16 @@ function Meta({ note, notes, onOpen, onOpenTitle, onStatut }: { note: NoteType; 
             ))}
           </select>
         </label>
+        {canAdopt(note) && (
+          <Button size="sm" onClick={() => void useNotes.getState().adopt(note.id)}>
+            {tr('Adopter', 'Adopt', 'Adoptar')}
+          </Button>
+        )}
+        {typeof note.adoptedAt === 'number' && (
+          <small>
+            {tr('Adoptée le', 'Adopted on', 'Adoptada el')} {formatDateFr(dateKeyLocal(new Date(note.adoptedAt)), { short: true })}
+          </small>
+        )}
         <small>
           {note.by === 'agent' && (
             <>

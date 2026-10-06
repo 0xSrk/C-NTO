@@ -167,6 +167,11 @@ interface NotesState {
   dailyNote: (date: string, seed?: string) => Promise<Note>;
 }
 
+/** Bouton « Adopter » : seulement une note d'agent pas encore reprise par le trader. */
+export function canAdopt(note: { by?: string; adoptedAt?: number }): boolean {
+  return note.by === 'agent' && typeof note.adoptedAt !== 'number';
+}
+
 export function byTitle(notes: Note[], title: string): Note | undefined {
   const t = title.trim().toLowerCase();
   return notes.find((n) => n.title.trim().toLowerCase() === t);
