@@ -4,7 +4,7 @@ import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, dayHourGrid, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
-import { aggregatePoints } from '@/engine/tradeUnits';
+import { aggregatePoints, exitReasonOf, type ExitReason } from '@/engine/tradeUnits';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
@@ -96,6 +96,13 @@ function markerName(id: string, kind: 'slot' | 'duration' | 'strategy'): string 
   }
   if (kind === 'duration') return id.slice('duration:'.length);
   return displayGroupKey(id.slice('strategy:'.length));
+}
+
+function exitReasonLabel(reason: ExitReason): string {
+  if (reason === 'stop') return tr('Stop', 'Stop', 'Stop');
+  if (reason === 'objectif') return tr('Objectif', 'Target', 'Objetivo');
+  if (reason === 'manuel') return tr('Manuel', 'Manual', 'Manual');
+  return tr('Autre', 'Other', 'Otro');
 }
 
 /** Bandes d’encre proportionnelles — lecture visuelle du PnL sans tableau. */
@@ -262,6 +269,20 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
       };
     });
   }, [trades, locale]);
+
+  const byExit = useMemo(() => {
+    const reasons: ExitReason[] = ['stop', 'objectif', 'manuel', 'autre'];
+    const groups = new Map<ExitReason, Trade[]>(reasons.map((reason) => [reason, []]));
+    for (const trade of trades) {
+      if (!Number.isFinite(trade.pnl)) continue;
+      groups.get(exitReasonOf(trade.exitName))?.push(trade);
+    }
+    return reasons.map((reason) => {
+      const rows = groups.get(reason) ?? [];
+      const duration = rows.length ? rows.reduce((sum, row) => sum + Math.max(0, row.exitTime - row.entryTime), 0) / rows.length : null;
+      return { reason, n: rows.length, duration, points: aggregatePoints(rows).points, dollars: rows.reduce((sum, row) => sum + row.pnl, 0) };
+    });
+  }, [trades]);
 
   // Jour = séance du trade (journée CME, comme l'onglet Séances), heure = entrée à New York.
   const days = useMemo(() => sessionDates(sessions), [sessions]);
@@ -458,6 +479,12 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
             </div>
           </header>
           <Bars data={durationBuckets} height={200} formatY={(v) => fmtUsd(v)} />
+          {byExit.map((row) => (
+            <p key={row.reason} className={s.note}>
+              {exitReasonLabel(row.reason)} · {row.n ? `${Math.round((row.duration ?? 0) / 60_000)} min` : '—'} ·{' '}
+              {row.n ? `${fmtUsd(row.dollars, { sign: true })} · ${fmtPoints(row.points)}` : tr('aucun trade', 'no trade', 'ningún trade')}
+            </p>
+          ))}
         </div>
         <div className={s.midBlock}>
           <header className={s.trameHead}>

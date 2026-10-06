@@ -39,7 +39,17 @@ export interface PointsAggregate {
   root: string | null;
 }
 
-/** Dollars toujours sommés. Les points ne se mélangent pas d'une racine à l'autre. */
+/** Motif de sortie lu dans le nom NinjaTrader. Absent ou non reconnu : autre. */
+export type ExitReason = 'stop' | 'objectif' | 'manuel' | 'autre';
+
+export function exitReasonOf(exitName?: string): ExitReason {
+  const name = exitName?.trim().toLowerCase() ?? '';
+  if (!name) return 'autre';
+  if (name.includes('stop')) return 'stop';
+  if (name.includes('target') || name.includes('objectif') || name.includes('profit') || name.includes('cible')) return 'objectif';
+  if (name.includes('manual') || name.includes('manuel') || name.includes('close') || name.includes('flat')) return 'manuel';
+  return 'autre';
+}
 export function aggregatePoints(trades: readonly TradeQty[]): PointsAggregate {
   let dollars = 0;
   let pointSum = 0;
