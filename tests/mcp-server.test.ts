@@ -94,7 +94,7 @@ describe('passerelle MCP · messages JSON-RPC', () => {
 });
 
 describe('passerelle MCP · protocole', () => {
-  it('initialize : version du client si connue, sinon la plus récente ; capacité tools seulement', async () => {
+  it('initialize : version du client si connue, sinon la plus récente', async () => {
     const known = await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })), ctx()));
     expect(known.result).toMatchObject({ protocolVersion: '2025-06-18', capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'canto', version: '3.3.4' } });
     expect(typeof known.result?.instructions).toBe('string');
@@ -277,6 +277,57 @@ describe('passerelle MCP · protocole', () => {
   it('méthode inconnue : -32601', async () => {
     const out = await result(await handleMcpHttp(post(rpc('resources/list')), ctx()));
     expect(out.error?.code).toBe(-32601);
+  });
+});
+
+describe('passerelle MCP · prompts', () => {
+  const NOW = Date.UTC(2026, 9, 6, 14, 0);
+
+  it('initialize annonce prompts ; prompts/list rend les trois routines et leurs arguments, dans la langue du desk', async () => {
+    const init = await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-11-25' })), ctx()));
+    expect(init.result?.capabilities).toEqual({ tools: { listChanged: false }, prompts: { listChanged: false } });
+    const list = async (locale?: 'fr' | 'en' | 'es') =>
+      (await result(await handleMcpHttp(post(rpc('prompts/list')), ctx({ locale })))).result?.prompts as { name: string; title: string; description: string; arguments: { name: string; description: string; required: boolean }[] }[];
+    const fr = await list();
+    expect(fr.map((p) => [p.name, p.arguments.map((a) => a.name)])).toEqual([
+      ['pre_session_brief', ['date', 'instrument']],
+      ['session_debrief', ['date', 'account']],
+      ['prop_plan_review', ['planId', 'account']],
+    ]);
+    expect(fr[0]?.title).toBe('Brief d’avant-séance');
+    expect(fr.every((p) => p.description && p.arguments.every((a) => a.required === false && a.description))).toBe(true);
+    expect((await list('en'))[1]?.title).toBe('Session debrief');
+    expect((await list('es'))[2]?.title).toBe('Revisión del plan prop firm');
+  });
+
+  it('prompts/get : un message utilisateur qui dit quels outils de lecture appeler ; écritures selon le desk', async () => {
+    const get = async (over: Partial<McpContext>, name: string, args: Record<string, unknown> = {}) =>
+      (await result(await handleMcpHttp(post(rpc('prompts/get', { name, arguments: args })), ctx({ now: () => NOW, ...over })))).result as {
+        description: string;
+        messages: { role: string; content: { type: string; text: string } }[];
+      };
+    const closed = await get({}, 'session_debrief', { date: '2026-10-05', account: 'Sim101' });
+    expect(closed.description).toMatch(/séance/);
+    expect(closed.messages).toHaveLength(1);
+    expect(closed.messages[0]?.role).toBe('user');
+    expect(closed.messages[0]?.content.type).toBe('text');
+    const body = closed.messages[0]!.content.text;
+    expect(body).toMatch(/get_session avec date = "2026-10-05"/);
+    expect(body).not.toMatch(/annotate_session|create_note|propose_order/);
+    const open = (await get({ allowWrites: true }, 'session_debrief', { date: '2026-10-05' })).messages[0]!.content.text;
+    expect(open).toMatch(/annotate_session/);
+    expect(open).not.toMatch(/propose_order/);
+    const brief = (await get({ locale: 'en' }, 'pre_session_brief')).messages[0]!.content.text;
+    expect(brief).toMatch(/Tuesday 2026-10-06/);
+  });
+
+  it('prompts/get : routine inconnue ou arguments invalides → -32602', async () => {
+    const code = async (params: unknown) => (await result(await handleMcpHttp(post(rpc('prompts/get', params)), ctx()))).error;
+    expect((await code({ name: 'place_order' }))?.code).toBe(-32602);
+    expect((await code({}))?.code).toBe(-32602);
+    expect((await code({ name: 'pre_session_brief', arguments: { date: '2026-13-01' } }))?.code).toBe(-32602);
+    expect((await code({ name: 'pre_session_brief', arguments: { side: 'buy' } }))?.message).toMatch(/side/);
+    expect((await code({ name: 'prop_plan_review', arguments: { account: 42 } }))?.code).toBe(-32602);
   });
 });
 

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES, ORDER_TOOLS, TOOL_PREAMBLE } from './agent/catalog';
+import { renderRoutine, ROUTINES } from './agent/routines';
 import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
@@ -10,7 +11,9 @@ import { tokensMatch } from './secure-token';
  * Passerelle MCP (Model Context Protocol) du desk : transport HTTP « streamable », sans état,
  * réponses JSON, sur 127.0.0.1 seulement. Un agent externe (Claude Code, Claude Desktop, Cursor,
  * Codex…) y lit le desk avec les mêmes outils que l'agent embarqué. Chaque appel est relayé au
- * renderer, qui exécute l'outil par `executeDeskTool` (source `orch`).
+ * renderer, qui exécute l'outil par `executeDeskTool` (source `orch`). Noms, types, titres et
+ * indications des outils viennent du catalogue du process principal ; les prompts sont les routines
+ * de `src/engine/agent/routines.ts`.
  *
  * Garde-fous : jeton porteur obligatoire (comparaison à temps constant), en-tête `Origin` refusé
  * (un navigateur l'envoie toujours), `Host` limité au loopback (rebinding DNS), corps ≤ 1 Mo,
@@ -115,6 +118,8 @@ export interface McpContext {
   relay: McpRelay;
   /** Langue du desk (`userData/locale.json`) ; français par défaut. */
   locale?: AppLocale;
+  /** Horloge des prompts (date par défaut : ce jour à New York). */
+  now?: () => number;
 }
 
 export interface McpHttpRequest {
@@ -236,7 +241,7 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       return {
         result: {
           protocolVersion: negotiateVersion(params.protocolVersion),
-          capabilities: { tools: { listChanged: false } },
+          capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } },
           serverInfo: { name: 'canto', title: 'CΛNTO', version: ctx.serverVersion },
           instructions: mcpInstructions(locale, ctx.allowWrites),
         },
@@ -263,6 +268,23 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       const { result, error } = await ctx.relay.call(name, args);
       if (error && (result === null || result === undefined)) return { result: toolError(error) };
       return { result: toolResult(result, !!error || isFailure(name, result), error) };
+    }
+    case 'prompts/list':
+      return {
+        result: {
+          prompts: ROUTINES.map((r) => ({
+            name: r.name,
+            title: uiText(locale, ...r.title),
+            description: uiText(locale, ...r.description),
+            arguments: r.arguments.map((a) => ({ name: a.name, description: uiText(locale, ...a.description), required: false })),
+          })),
+        },
+      };
+    case 'prompts/get': {
+      // Les écritures n'apparaissent dans le texte que si le trader les a autorisées ; propose_order jamais.
+      const out = renderRoutine(params.name, params.arguments, { locale, allowWrites: ctx.allowWrites, now: (ctx.now ?? Date.now)() });
+      if (!out.ok) return { error: { code: -32602, message: out.detail } };
+      return { result: { description: out.description, messages: [{ role: 'user', content: { type: 'text', text: out.text } }] } };
     }
     default:
       return { error: { code: -32601, message: `Méthode non prise en charge : ${method}` } };
