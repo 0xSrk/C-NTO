@@ -155,6 +155,24 @@ describe('lecture par contexte', () => {
     expect(contrast.significant).toBe(true);
   });
 
+  it('juge le verdict sur 30 journées distinctes, pas sur 30 trades', () => {
+    const dates = weekdays('2025-01-06', 40);
+    const swing = (index: number) => (index % 2 ? 3 : -3);
+    const samples: ReadingSample[] = dates.flatMap((date, day) => [
+      // 60 trades serrés sur 12 journées, et 40 trades sur 40 journées : même écart à la moyenne.
+      ...(day < 12 ? [0, 1, 2, 3, 4].map((k) => ({ date, exitTime: day * 100 + k, points: swing(k + day), key: 'serre' })) : []),
+      { date, exitTime: day * 100 + 10, points: swing(day), key: 'etale' },
+      ...[0, 1, 2, 3].map((k) => ({ date, exitTime: day * 100 + 20 + k, points: 12 + swing(k), key: 'reste' })),
+    ]);
+    const rows = readAxis(samples, [], { draws: 400, seed: 1 });
+    const serre = rows.find((row) => row.key === 'serre');
+    const etale = rows.find((row) => row.key === 'etale');
+    expect(serre?.trades).toBe(60);
+    expect(serre?.verdict).toBe('insuffisant');
+    expect(etale?.trades).toBe(40);
+    expect(etale?.verdict).toBe('confirme');
+  });
+
   it('ferme les classes d’amplitude à 100 % et ignore les vides', () => {
     const classes = semiOpenClasses([0, 5, 10, 15, Number.NaN], [0, 10, 20]);
     expect(classes.reduce((sum, row) => sum + row.count, 0)).toBe(4);

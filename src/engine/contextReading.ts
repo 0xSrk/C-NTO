@@ -67,17 +67,22 @@ function halfPersists(points: readonly number[], exitTimes: readonly number[], c
   return { same: Math.abs(half) + 1e-9 >= 0.5 * Math.abs(all), flipped: false };
 }
 
+/** Journées distinctes sous lesquelles un groupe n'a pas de verdict : des trades d'une même journée ne sont pas indépendants. */
+export const MIN_READING_DAYS = 30;
+
 /**
  * Une ligne par valeur d'axe. Les groupes sans trade ne sont pas créés.
  * `calendar` donne, pour chaque journée, la valeur d'axe qui la classe. Pour un régime ou une bande,
  * c'est la fiche de la journée, déjà arrêtée à la clôture de la veille : aucun décalage de plus.
+ * Verdict « insuffisant » sous `minDays` journées distinctes (30) ou sous `minTrades` trades.
  */
 export function readAxis(
   samples: readonly ReadingSample[],
   calendar: readonly { date: string; key: string | null }[],
-  opts: { minTrades?: number; fdr?: number; draws?: number; seed?: number } = {},
+  opts: { minTrades?: number; minDays?: number; fdr?: number; draws?: number; seed?: number } = {},
 ): AxisRow[] {
   const minTrades = opts.minTrades ?? 30;
+  const minDays = opts.minDays ?? MIN_READING_DAYS;
   const fdr = opts.fdr ?? 0.05;
   const draws = opts.draws ?? 2_000;
   const byKey = new Map<string, ReadingSample[]>();
@@ -141,7 +146,7 @@ export function readAxis(
     const day = dayKeys.get(key);
     const half = halfPersists(points, finite.map((sample) => sample.exitTime), grand);
     let verdict: ReadingVerdict = 'non concluant';
-    if (finite.length < minTrades) verdict = 'insuffisant';
+    if (finite.length < minTrades || byDate.size < minDays) verdict = 'insuffisant';
     else if (significant.has(index) && half.flipped) verdict = 'renverse';
     else if (significant.has(index) && half.same) verdict = 'confirme';
     return {
