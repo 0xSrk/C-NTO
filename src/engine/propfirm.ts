@@ -237,7 +237,16 @@ export function evaluatePlan(plan: PropPlan, sessionsInput: Session[], trades: T
     let breached = false;
     let dayFloor = floor;
     for (const t of dayTrades) {
-      const adverse = cum - (t.mae ?? Math.max(0, -t.pnl));
+      // Positions ouvertes en même temps : leurs excursions défavorables s'additionnent (hypothèse
+      // prudente), à partir du seul P&L déjà réalisé à l'entrée. Sans chevauchement, c'est le calcul
+      // d'avant : cumul des trades sortis, moins l'excursion du trade.
+      let realized = 0;
+      let excursion = 0;
+      for (const u of dayTrades) {
+        if (u.exitTime <= t.entryTime) realized += u.pnl;
+        else if (u === t || (u.entryTime < t.exitTime && t.entryTime < u.exitTime)) excursion += u.mae ?? Math.max(0, -u.pnl);
+      }
+      const adverse = realized - excursion;
       const favorable = cum + (t.mfe ?? Math.max(0, t.pnl));
       if (adverse < intradayLow) intradayLow = adverse;
       if (favorable > intradayHigh) intradayHigh = favorable;
