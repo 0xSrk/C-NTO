@@ -6,6 +6,7 @@ Date : 2026-10-06
 Dépôt : `0xSrk/C-NTO`
 Base : `main` à `d9b39aa` (vague 1, étapes 3 à 5 des Métriques, A11.6)
 Mis à jour : 2026-10-06, après la revue des PR #97 à #109 (§ 5)
+État : § 5.1 et § 5.2 faits, sur la branche `agentique/vague-2` (`docs/AUDIT.md` › « vague 2 › Corrections ») ; reste le § 5.3
 Version `package.json` : `3.4.0`, à ne pas toucher
 
 Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vague 1 l'a laissée. Tu modifies **ce dépôt uniquement**. Tu ne réinventes pas l'architecture : elle est décrite au § 2 et elle tient.
@@ -60,19 +61,19 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 | Ports | `src/engine/agent/ports.ts` | Un port nouveau s'ajoute partout :<br>• `livePorts` (`src/store/agent.ts`) ;<br>• `EMPTY_PORTS` ;<br>• `tests/helpers/deskPorts.ts` ;<br>• `tests/helpers/demoDesk.ts` ;<br>• les faux ports de plusieurs tests (`grep -rn "bridge: async" tests`). |
 | Boucle | `src/engine/agent/loop.ts`, `context.ts`, `runner.ts` | • `runAgentTurn` : `MAX_TOOL_ROUNDS` = 6, chaque appel reçoit un résultat ;<br>• `fitHistory` ;<br>• `executeDeskTool` : source `llm` ou `orch`, `confirmFn`, `allowWrite`. |
 | Consigne | `src/store/agent.ts` | • `agentSystemPrompt(settings, memory, now)` : la mémoire n'entre que si `settings.agent.toolsEnabled` ;<br>• `deskClock` : heure de New York et journée CME. |
-| Mémoire | `src/engine/agent/memory.ts` | • `traderMemory` et `memoryDigest` ;<br>• les notes `by: 'agent'` sont **exclues** (`excludedAgentNotes`). |
+| Mémoire | `src/engine/agent/memory.ts` | • `traderMemory` et `memoryDigest` ;<br>• les notes `by: 'agent'` sont **exclues** (`excludedAgentNotes`), sauf celles que le trader a adoptées (`adoptedAt`) : elles entrent en gardant `by: 'agent'`. |
 | Discipline | `src/engine/discipline.ts` | • `TraderRules`, `coerceTraderRules`, `tradingDayNow`, `dayLoss`, `dailyLimit`, `detectDrifts`, `detectRuleBreaches`, `majorCatalysts` ;<br>• `Settings.traderRules` ;<br>• `DisciplineFields` dans `src/modules/metrique/SettingsModal.tsx`. |
 | Événements | `src/engine/agent/events.ts`, `src/store/deskEvents.ts` | • `DeskEventLog` : 500 entrées, en mémoire ;<br>• `propBufferAlert`, `dailyLossAlert`, `ThresholdWatch` (hystérésis, premier passage muet). |
-| Routines | `src/engine/agent/routines.ts` | • **Aucun import** (compilé pour le process principal) ;<br>• `ROUTINES` : `pre_session_brief`, `session_debrief`, `prop_plan_review` ;<br>• `renderRoutine(name, args, { locale, allowWrites, now })` ;<br>• servies **seulement** en prompts MCP pour l'instant. |
-| MCP | `electron/mcp-server.ts`, `electron/desk-relay.ts` | • Écrit à la main, **sans SDK** ;<br>• type d'outil lu dans `DESK_TOOL_KINDS`, jamais dans la réponse du renderer ;<br>• 8 appels en vol au plus ;<br>• `tools` et `prompts`, sans `resources`. |
-| Orchestrateur | `electron/orchestrator.ts` | WebSocket JSON-RPC, `desk.describe` construit dans `src/store/agent.ts` (`onRequest`). |
+| Routines | `src/engine/agent/routines.ts` | • **Aucun import** (compilé pour le process principal) ;<br>• `ROUTINES` : `pre_session_brief`, `session_debrief`, `prop_plan_review` ;<br>• `renderRoutine(name, args, { locale, allowWrites, now })` ;<br>• servies en prompts MCP, et proposées dans l'onglet Agent (`routineDue`, `runRoutine`) : rien ne part sans le clic du trader. |
+| MCP | `electron/mcp-server.ts`, `electron/desk-relay.ts` | • Écrit à la main, **sans SDK** ;<br>• type d'outil lu dans `DESK_TOOL_KINDS`, jamais dans la réponse du renderer ;<br>• 8 appels en vol au plus ;<br>• `tools`, `prompts` et `resources` (lecture seule ; `{id}` validé dans le process principal) ;<br>• refus et erreurs dans la langue du desk, `name` stables. |
+| Orchestrateur | `electron/orchestrator.ts` | WebSocket JSON-RPC, `desk.describe` construit dans `src/store/agent.ts` (`onRequest`), avec `kind` et `title`. Refus dans la langue du desk. |
 | Ordres proposés | `src/engine/agent/orders.ts`, `electron/agent-orders.ts`, `src/store/agentOrders.ts` | • `parseProposal` (contrôle et bidi refusés), `guardProposal`, `AgentOrderHost`, `heldPosition` ;<br>• dialogue du process principal, Refuser par défaut, 45 s. |
-| Séance | `src/engine/execution/orderBook.ts`, `electron/nt-bridge/order-book-host.ts`, `src/engine/marketdata/quotes.ts` | • IPC `ntbridge:orders` et `ntbridge:order-state` ;<br>• preload `desk.ntbridge.orders()` et `onOrder` ;<br>• `bridgeQuotes` dans `src/store/bridge.ts` ;<br>• `accountsAt` sur le statut du pont. |
+| Séance | `src/engine/execution/orderBook.ts`, `electron/nt-bridge/order-book-host.ts`, `src/engine/marketdata/quotes.ts` | • IPC `ntbridge:orders` et `ntbridge:order-state` ;<br>• preload `desk.ntbridge.orders()` et `onOrder` ;<br>• `bridgeQuotes` dans `src/store/bridge.ts` ;<br>• `accountsAt` sur le statut du pont ;<br>• Visual suit le flux sur geste du trader (`src/modules/visual/ntFollow.ts`, `ntContract.ts`) ; `validateHistory` (`electron/nt-bridge/protocol.ts`) borne `marketdata.history`. |
 | LLM | `electron/llm-host.ts`, `src/store/settings.ts` | • `llmFetch` refuse toute redirection ;<br>• `keyFor` et `llmKeyHost` ;<br>• champ `apiKeyHost`. |
 | Harnais | `tests/helpers/scriptedLlm.ts`, `demoDesk.ts`, `agentEval.ts` | • `runScenario` pilote la **vraie** boucle et le vrai `executeDeskTool` ;<br>• attendus recalculés par les moteurs de l'écran, jamais en dur. |
-| Métriques, étape 3 (R et risque) | `src/engine/riskConsole.ts`, `src/modules/metrique/RiskReading.tsx`, `Sessions.tsx` | • `tradeRisk`, `rrMatrix`, `expectancyR`, `adjustedRiskPoints`, `horizonSigma`, `sigmaBand`, `bernoulliRun`, `longestLossStreak`, `betaPosterior`, `rateAfterStreak`, `dayBlockedMeanCi` ;<br>• `Trade.stopPrice` et `targetPrice` facultatifs (`TRADE_SCHEMA_VERSION` = 3) ;<br>• tables F20 à F22 absentes : Vol-LT et Cross-Vol stockés, non appliqués. |
+| Métriques, étape 3 (R et risque) | `src/engine/riskConsole.ts`, `src/modules/metrique/RiskReading.tsx`, `Sessions.tsx` | • `tradeRisk`, `rrMatrix` (au R/R réalisé de `realizedRewardRisk`), `expectancyR`, `adjustedRiskPoints`, `horizonSigma`, `sigmaBand`, `bernoulliRun`, `longestLossStreak`, `betaPosterior`, `rateAfterStreak`, `dayBlockedMeanCi` ;<br>• `Trade.stopPrice` et `targetPrice` facultatifs (`TRADE_SCHEMA_VERSION` = 3) ;<br>• tables F20 à F22 absentes : Vol-LT et Cross-Vol stockés, non appliqués. |
 | Métriques, étape 4 (contexte du jour) | `src/engine/atr.ts`, `src/engine/metricsContext.ts` | • `atrSeries` (l'indicateur `atr` l'appelle) ;<br>• `toDailyBars`, `garmanKlassAnnualized` (arrêté à la veille), `stabilizeVolCycles`, `buildMetricsContext` ;<br>• `DayContext` : régime, bande, volatilités. |
-| Métriques, étape 5 (lecture par contexte) | `src/engine/contextReading.ts`, `src/modules/metrique/ContextAxis.tsx` | • `readAxis`, `laggedValue`, `decomposeExact`, `inReleaseWindow`, `labelRelease`, `releaseContrast` ;<br>• la trame jour × heure de l'onglet C est remplacée. |
+| Métriques, étape 5 (lecture par contexte) | `src/engine/contextReading.ts`, `src/modules/metrique/ContextAxis.tsx` | • `readAxis`, `decomposeExact`, `inReleaseWindow`, `labelRelease`, `releaseContrast`, `comparableSet` ;<br>• `src/modules/metrique/axisReading.ts` porte la lecture de l'onglet : une racine, la fiche du jour arrêtée à la veille (décision T27) ;<br>• `contextLabels.ts` nomme régimes et bandes ;<br>• la trame jour × heure de l'onglet C est remplacée. |
 
 ---
 
@@ -117,11 +118,15 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 
 Revue du 2026-10-06 : chaque PR a été rejouée (typecheck, tests, correctif retiré pour voir le test tomber) et chaque bloquant a été relu dans le code.
 
-**Ordre.** D'abord 5.1, pour libérer la file. Ensuite les deux bloquants de 5.2 (M4.7, M6.4) : ils faussent des chiffres affichés aujourd'hui. Puis le reste de 5.2, et enfin 5.3. Les constats de `main` sont aussi consignés dans `docs/AUDIT.md` (T17 à T28).
+**État.** 5.1 et 5.2 sont faits : tickets, commits et tests dans `docs/AUDIT.md`, « vague 2 › Corrections ». La suite est 5.3.
+
+**Ordre suivi.** D'abord 5.1, pour libérer la file. Ensuite les deux bloquants de 5.2 (M4.7, M6.4) : ils faussent des chiffres affichés aujourd'hui. Puis le reste de 5.2, et enfin 5.3. Les constats de `main` sont aussi consignés dans `docs/AUDIT.md` (T17 à T28).
 
 **Bilan.** Ensemble, les six PR ouvertes s'empilent sur `main` sans conflit de code. Après empilement : typecheck vert, 864 tests verts, `electron:compile` et build verts. Le protocole est suivi, et aucun invariant ni point du § 4 n'est touché.
 
-### 5.1 Les six PR ouvertes : corriger sur leur branche, puis rebaser sur `main`
+### 5.1 Les six PR ouvertes : corriger sur leur branche, puis rebaser sur `main` (fait)
+
+Fait autrement : les six PR sont intégrées par fusion sur `agentique/vague-2`, puis corrigées sur cette branche ; leurs commits gardent leur empreinte, et la fusion de la branche ferme #104 à #109.
 
 **Pour toutes**
 - Rebaser sur `origin/main`.
@@ -188,7 +193,7 @@ Revue du 2026-10-06 : chaque PR a été rejouée (typecheck, tests, correctif re
 - `trader_memory` : ajouter une leçon du trader, sinon `[]` égale `[]`.
 - `market_quote` : un `time` différent de `receivedAt`, et un témoin frais.
 
-### 5.2 Métriques : corriger les étapes 3 à 5 (lignes de `main` à `d9b39aa`)
+### 5.2 Métriques : corriger les étapes 3 à 5 (lignes de `main` à `d9b39aa`) (fait)
 
 **Étape 3 (R et risque)**
 - **M4.7 placer le R/R réalisé dans la matrice. Bloquant.**
@@ -232,7 +237,7 @@ Revue du 2026-10-06 : chaque PR a été rejouée (typecheck, tests, correctif re
   - `tailLoss` dans sa branche GPD (`contextReading.ts:345`, `:359-360`) ;
   - le test du contrôle décalé vise une date sans trade (`metrics-reading.test.ts:69-70`) ;
   - clés traduites, primitive `Segmented` et `aria-pressed` (`ContextAxis.tsx:61`, `:146`, `:161`).
-- **À l'ADMIN, ne rien changer sans décision.** Pour le régime « de la veille », la fiche du jour D est déjà arrêtée à la clôture de D−1. L'onglet relit pourtant `days[index-1]`, donc D−2 (`ContextAxis.tsx:88-89`, `:126-128`), alors que `comparableSet` lit la fiche du jour. Le cahier admet les deux lectures.
+- **Régime « de la veille » (T27) : décidé.** La fiche du jour D est déjà arrêtée à la clôture de D−1 ; l'onglet relisait `days[index-1]`, donc D−2. Décision déléguée par l'ADMIN : la journée se classe par sa propre fiche, comme `comparableSet` (M6.10).
 
 ### 5.3 L'agent lit les nouvelles Métriques (après 5.2)
 
@@ -255,7 +260,7 @@ Revue du 2026-10-06 : chaque PR a été rejouée (typecheck, tests, correctif re
 
 ## 6. Vague 2 : tickets d'origine (livrés en PR #103 à #109, pour référence)
 
-A11.6 est fusionné (#103). Les autres tickets sont en PR ouvertes ; leurs corrections sont au § 5.1.
+A11.6 est fusionné (#103). Les autres tickets sont intégrés et corrigés sur `agentique/vague-2` (§ 5.1).
 
 Chaque ticket donne ce qu'il faut lire, le constat à vérifier sur le HEAD, ce qu'il faut faire et le test. Un constat absent du HEAD : « déjà là », zéro diff.
 

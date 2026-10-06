@@ -586,13 +586,15 @@ Moteur `src/engine/riskConsole.ts`. Les tables F20, F21 et F22 ne sont pas inven
 | 3.4 | σ = cours × vol ÷ √périodes | `metrics-risk` | classes [0 ; 0,25) [0,25 ; 0,5) [0,5 ; 1) [1 ; ∞) | conforme, vol implicite seulement |
 | 3.5 | Bernoulli, série, Bayes | `metrics-series` | 0,0778 / 0,0102 ; moyenne ≈ 6,0 et 95e rang 9 ; 0,549 [0,468 ; 0,629] | conforme |
 
-**Écran.** B : stop initial et objectif initial sur chaque trade ; risque, R/R prévu, R réalisé et source. Mention si tout est en risque fixe. Largeurs ±1 σ jour / semaine / mois si une volatilité implicite est saisie, sans niveau atteint (il faut la clôture de la veille). C : matrice R-R, espérance avec IC par blocs de journées, respect du risque de base, Bernoulli, série de pertes, Bayes, taux après 1 à 3 gains ou pertes, tranches de stop en σ.
+**Écran.** B : stop initial et objectif initial sur chaque trade ; risque, R/R prévu, R réalisé et source. Mention si tout est en risque fixe. Largeurs ±1 σ jour / semaine / mois par instrument, au pas de cotation, si une volatilité implicite est saisie, sans niveau atteint (il faut la clôture de la veille). C : matrice R-R au R/R réalisé (gain moyen ÷ \|perte moyenne\|, NaN sans perte), espérance avec IC par blocs de journées, respect du risque de base, Bernoulli, série de pertes, Bayes, taux après 1 à 3 gains ou pertes, tranches de stop en σ.
 
-**Coffre.** `stopPrice` et `targetPrice` facultatifs. `TRADE_SCHEMA_VERSION` passe à 3. Un coffre sans ces champs reste lisible ; un prix aberrant est écarté.
+**Coffre.** `stopPrice` et `targetPrice` facultatifs. `TRADE_SCHEMA_VERSION` passe à 3. Un coffre sans ces champs reste lisible. Un prix aberrant est retiré à la restauration ; le trade et son P&L sont gardés. La saisie accepte la virgule et refuse, avec un message, un prix hors de ]0 ; 1e6] ou du mauvais côté de la direction.
 
 **Règle 6.** Aucune des fonctions figées (`monteCarlo`, `drawdownSeries`, `evaluatePlan`, `computeTradeStats`, `computeDailyStats`) n'est réécrite.
 
 **Décisions.** n° 3 : capital de risque = perte maximale du plan si le compte filtré est le compte suivi, sinon capital de référence. n° 4 : tables non fournies, signalées provisoires.
+
+**Corrections (2026-10-06).** M4.7 à M4.11, après la revue (T17, T18) : voir « Couche agentique du trader — vague 2 › Corrections ».
 
 ## 3.5.0 — Ajustement du module Métriques, étape 4 : contexte du jour (2026-10-06)
 
@@ -609,20 +611,23 @@ Moteur `src/engine/riskConsole.ts`. Les tables F20, F21 et F22 ne sont pas inven
 
 **Règle 6.** Inchangée. `indicators.ts` ne change que l'appel à `atrSeries`.
 
+**Corrections (2026-10-06).** Une barre journalière est datée par sa date civile ; les copies ne fusionnent qu'entre comptes différents ; « après une perte » lit le dernier trade sorti avant l'entrée ; le seuil de 90 séances se juge par fiche ; une barre invalide ne gèle plus le régime ; le contexte du jour est traduit et jamais lu sur une série de démonstration. M5.5 à M5.10 (T19 à T21, T25) : voir « Couche agentique du trader — vague 2 › Corrections ».
+
 ## 3.5.0 — Ajustement du module Métriques, étape 5 : lecture par contexte (2026-10-06)
 
-La trame jour × heure de l'onglet C est remplacée par une lecture à axe choisi (régime, bande, publication, rang, après une perte, risque, stop en σ, jour, heure). Le régime et la bande qui classent une journée sont ceux de la veille. Les petits groupes sont rapprochés de la moyenne. Un verdict est confirmé seulement s'il passe le rail de l'étape 2.
+La trame jour × heure de l'onglet C est remplacée par une lecture à axe choisi (régime, bande, publication, rang, après une perte, risque, stop en σ, jour, heure). Le régime et la bande qui classent une journée sont ceux de sa propre fiche, arrêtée à la clôture de la veille (décision T27). Une lecture ne porte que sur une racine. Les petits groupes, un seul trade compris, sont rapprochés de la moyenne. La permutation compare un groupe à la moyenne générale. Un verdict est confirmé seulement s'il passe le rail de l'étape 2.
 
 | # | Ajustement | Test | Attendu | Obtenu |
 |---|---|---|---|---|
 | 5.1 | Jour et heure sur la démo | `metrics-reading` | aucun verdict confirmé | conforme |
 | 5.2 | Décomposition | `metrics-reading` | le produit retrouve le gain moyen par journée | égal à 10⁻⁸ près |
-| 5.2 | Contrôle décalé d'une semaine | `metrics-reading` | l'effet planté disparaît | significatif en place, non significatif décalé |
+| 5.2 | Contrôle décalé d'une semaine | `metrics-reading` | l'effet planté disparaît, sur une journée tradée | significatif en place, non significatif décalé |
 | 8 | Classes d'amplitude | `metrics-reading` | total = nombre de journées, cumul 100 %, vides sans effet | conforme |
-| 8 | Changement de régime | `metrics-reading` | le jour du changement garde la valeur de la veille | conforme |
-| 5.4 | Queue | `metrics-reading` | empirique dès 250, Pareto dès 500 | conforme |
+| 8 | Changement de régime | `metrics-reading` | le jour du changement se classe par sa propre fiche, arrêtée à la veille | conforme |
+| 5.3 | Publication | `metrics-axis` | CPI 08:30 : entrée 08:00 « loin », 08:45 « proche » ; « proche » de n'importe quelle publication | conforme |
+| 5.4 | Queue | `metrics-reading` | empirique dès 250 ; Pareto dès 500, seuil au quantile 10 %, extrapolée au niveau 5 % ; ES empirique | conforme |
 
-Réglage 5 : 5 min avant une publication (5 à 10), 30 min après (15 à 60). Moins de 30 journées comparables : le texte « pas assez de journées comparables » est le verdict « pas assez de données » de l'axe. Les trois questions (décomposition, publications, comportement) sont dans le moteur ; l'écran montre l'axe et son verdict.
+Réglage 5 : 5 min avant une publication (5 à 10), 30 min après (15 à 60). Un verdict demande 30 journées distinctes ; en dessous, l'axe dit « pas assez de données ». Les trois questions (décomposition, publications, comportement) sont dans le moteur ; l'écran montre l'axe et son verdict.
 
 
 ## Couche agentique du trader — thèse et vague 1 (2026-10-06)
@@ -698,8 +703,25 @@ Reprise sur `main` (`c0d7753`). Un ticket = un commit = un test. Invariants de `
 | Piste | Commits | Tests | Ce qui change |
 |---|---|---|---|
 | **A11 · Garde** | `A11.6` | `calendar-offline` | Les synchronisations de calendrier ne suivent plus les redirections : `redirect: 'manual'` (Electron 43.7.1, `net.fetch` transmet le mode au `ClientRequest`, qui annule au lieu de suivre). Un 3xx rendu quand même est refusé ; le 304 reste le rejeu du cache. L'état de la source porte « Redirection refusée ». |
+| **A6 · Vérité** | `928d3ea` `33c43da`, puis `520f7e4` `d10c80a` | `agent-verite` | Payoff `noLoss` sans perte. Tags de la séance et de chaque trade de `get_session`, et de `list_sessions`, bornés à 20 de 40 caractères (`tagsTruncated`), remontés au `truncated` racine |
+| **A12 · Routines** | `38e0c93` `da0a1bf` `88393e6`, puis `2ad0a6a` `13e859c` `3ed64ff` `c5e1a27` `92fe34a` | `agent-routine-due`, `agent-routine-run`, `agent-routine-cue`, `agent-tab` | Brief et débrief proposés dans l'onglet Agent (`routineDue`, minutes entamées, garde du soir), datés de la journée CME. La journée n'est retenue que si la routine part. Perte du jour recalculée du journal : la pastille tient après un redémarrage. Boutons inactifs pendant un flux, un seul envoi à la fois. Rien ne part sans clic, prouvé sur le composant |
+| **A13 · Séance** | `2d95844` `1d208d0` `1cb7c4c`, puis `4811b9c` `97d3e1a` `ed48ddb` `3c50654` | `live-session`, `live-orders`, `metrique-live-session`, `metrique-live-orders`, `visual-nt-follow`, `visual-nt-addon`, `visual-follow-reset`, `nt-bridge-history` | Séance en cours en tête de Métrique, sur le compte suivi, nommé ; sa fraîcheur vieillit. Ordres en cours seulement avec un pont, ordres non confirmés marqués. Visual suit le flux NinjaTrader : 5 jours d'historique en secondes, validés par le process principal, contrat complet, échec affiché, source étiquetée, barres vidées au changement de série. Lecture seule |
+| **A14 · Porte** | `8e84e49` `e3eef9a` `e1fca9e` `ed238eb` `7a403fa`, puis `ba07d0a` `ad7737c` `8427cff` `c06f09d` `5250aeb` `1fa308d` `3c19062` | `desk-describe`, `desk-relay`, `mcp-clients`, `mcp-server`, `agent-tab`, `orchestrator-locale` | Titres dans `desk.describe`. Ressources MCP : `{id}` validé dans le process principal, refus du desk en `-32002`. `outputSchema` par lecture, propriétés vérifiées sur la démo. Configurations Claude Desktop et Codex, *Copier le jeton MCP*. `name` stables ; refus et erreurs dans la langue du desk, orchestrateur compris |
+| **A15 · Mémoire adoptée** | `fe4367e` `1e017ff`, puis `9639f6c` `432b48c` `b59fbb6` | `agent-adopt`, `note-adopt` | Le trader adopte une note d'agent dans l'onglet Notes (`adoptedAt`). Elle entre dans `trader_memory` en gardant `by: agent`. Aucun outil ne pose ce champ ni ne réécrit une note adoptée. À la restauration, un `adoptedAt` illisible est retiré, la note gardée |
+| **A16 · Preuve** | `c016ab8` `c66894f`, puis `084bfcc` `8d2c3bf` `217feea` | `agent-eval`, `agent-injection` | Outils de la vague 1 dans le harnais. `discipline_status` probant : horloge au 2026-09-30, perte non nulle, limite et source comparées. Injection par `desk_events` sur les cinq outils d'écriture, ordres activés compris (`declined`). `trader_memory` avec une leçon, `market_quote` avec un témoin frais |
 
-**Constats nouveaux, non corrigés.** Aucun sur cette piste.
+Les PR #104 à #109 sont intégrées par fusion, puis corrigées sur la même branche (§ 5.1 du brief) ; leurs commits gardent leur empreinte. Deux constats de l'intégration sont corrigés en plus : l'orchestrateur répondait en français seul (`electron/orchestrator.ts:224-270`, A14.12) ; deux envois rapprochés partaient tous les deux, le verrou étant pris après le premier `await` (`src/store/agent.ts:231-236`, A12.8).
+
+**À vérifier par l'ADMIN sur compte Sim (A13.4).** `CantoBridge.cs` ne change pas ; Visual s'appuie sur l'AddOn 2.2.0 tel qu'il est.
+- `Instrument.GetInstrument("NQ")` refuse, `"NQ 12-26"` répond, sous `FullName` exact.
+- `TriggerCustomEvent` et `WaitOne(15000)` sur le même fil : un historique vide au bout de 15 s signalerait un blocage.
+- Barres en direct horodatées à l'ouverture, désabonnement à « Ne plus suivre », contrat pendant la semaine de bascule.
+- `scripts/fake-addon.mjs` ne répond pas à `marketdata.history` : la vérification se fait sur NinjaTrader.
+
+**Constats nouveaux, non corrigés.**
+- `read_note` et `search_notes` ne rendent pas `adoptedAt` : l'adoption ne se lit que dans `trader_memory`.
+- Le rail de l'étape 2 ne centre pas sa permutation ; l'option `centered` sert la lecture par contexte seulement. Le centrer changerait la démo : « durée 5–10 min » serait retenu à p = 0,003, et vendredi 9 h passerait de p = 0,080 à 0,156. Décision de l'ADMIN.
+- Trois suites complètes lancées en même temps sur 4 cœurs : `launcher-transfer` et `seat-tools` dépassent le délai de 5 s ; seuls, ils prennent 0,7 s. Ce sont sans doute les « échecs non identifiés » de la vague 1. Ce n'est pas un défaut du code ; leurs délais ne changent pas.
 
 ### Revue des étapes 3 à 5 des Métriques et des PR #103 à #109 (2026-10-06)
 
@@ -723,3 +745,35 @@ Les six PR ouvertes (#104 à #109) s'empilent sur `main` sans conflit de code ; 
 | T28 | Les PR #97 à #99 ont été fusionnées dans des branches intermédiaires, puis rapatriées par #102. Le commit `d9b39aa` porte un trailer d'attribution d'outil. Les descriptions des PR #97 à #109 portent des liens de session. Contraire à `CLAUDE.md` § 1. | `git log -1 d9b39aa`, PR #97 à #109 |
 
 Vérifié sans défaut : l'ATR `atrSeries` est identique bit à bit à l'ancien indicateur ; Garman-Klass est arrêté à la veille ; les formules de `riskConsole.ts` sont justes ; aucune des fonctions figées par la règle 6 n'est modifiée.
+
+### Corrections (2026-10-06)
+
+Les § 5.1 et 5.2 du brief sont faits : un ticket, un commit, un test, rouge sans le correctif. T17 à T27 sont corrigés ; T28 est réglé par le protocole (brief § 1, règles 10 à 14), une branche au nom neutre et des descriptions de PR sans lien de session. `e76ef6f` sort l'import des écrans du délai de chaque test (M4.7 à M4.9).
+
+| Ticket | Constat | Ce qui change | Commit | Test |
+|---|---|---|---|---|
+| M4.7 | T17 | La matrice lit le R/R réalisé : gain moyen ÷ \|perte moyenne\|, NaN sans perte (`realizedRewardRisk`) | `41c1478` | `metrics-rr-realized` |
+| M4.8 | T18 | Virgule acceptée ; prix hors de ]0 ; 1e6] ou du mauvais côté de la direction refusé avec un message ; à la restauration, le champ aberrant est retiré, le trade gardé | `d0e590d` | `metrics-trade-levels` |
+| M4.9 | — | Largeurs ±1 σ par instrument, au pas de cotation : le 6E n'affiche plus 0,0 | `00b141d` | `metrics-sigma-widths` |
+| M4.10 | — | « IC 90 % », « 95e » et bornes de classes en trois langues | `9fa636f` | `metrics-risk-labels` |
+| M4.11 | — | `rateAfterStreak` exclut les trades nuls, comme le taux de base | `2db6137` | `metrics-series` |
+| M5.5 | T19 | Une barre journalière (pas ≥ 1 440 min) est datée par sa date civile : +13 h, puis date UTC | `475fda9` | `metrics-context` |
+| M5.6 | T20 | Les copies ne fusionnent qu'entre comptes différents, en équivalent standard | `2e26039` | `metrics-context` |
+| M5.7 | T21 | « Après une perte » : le dernier trade du compte sorti avant l'entrée | `3fd403a` | `metrics-context` |
+| M5.8 | — | Seuil de 90 séances jugé par fiche ; une barre invalide est écartée sans geler le régime | `6e396c6` | `metrics-context` |
+| M5.9 | — | Régime et bande traduits, instrument nommé | `d0d459a` | `metrics-context-note` |
+| M5.10 | T25 | Le contexte du jour n'est jamais lu sur une série de démonstration : une série réelle de la même racine, sinon un avis | `2a374e8` | `metrics-context-note` |
+| M6.4 | T22 | Fenêtre de publication remise dans le bon sens (`inReleaseWindow`) | `56f209c` | `metrics-axis` |
+| M6.5 | T23 | Permutation centrée sur la moyenne générale (option `centered`) | `56459ef` | `metrics-reading` |
+| M6.6 | T24 | Un groupe d'un seul trade est rapproché de la moyenne | `cc2bca8` | `metrics-axis` |
+| M6.7 | T25 | Une seule racine par lecture ; jamais le régime d'une série de démonstration | `722ff8b` | `metrics-axis` |
+| M6.8 | T26 | « Pas assez de données » sous 30 journées distinctes | `e529080` | `metrics-reading` |
+| M6.9 | — | Dénominateur « jours tradés » borné à la période ; `tailLoss` dans sa branche Pareto ; contrôle décalé sur une journée tradée ; `Segmented` et `aria-pressed` | `9f1ae53` | `metrics-reading`, `metrics-axis`, `context-axis-view` |
+| M6.10 | T27 | Une journée se classe par sa propre fiche, arrêtée à la clôture de la veille | `cd46d83` | `metrics-reading` |
+| M6.11 | — | Barres journalières des tests datées comme un CSV journalier (minuit UTC) | `35805f9` | `metrics-reading`, `metrics-axis` |
+| M6.12 | T22 | « Proche » : l'entrée tombe dans la fenêtre de n'importe quelle publication à 3 h au plus, pas seulement de la plus proche | `f3bf601` | `metrics-axis` |
+| M6.13 | — | Régime et bande de la vue par axe nommés comme le contexte du jour (es : « descenso ») | `a0ba0b9` | `metrics-context-note` |
+
+**Décision T27.** Déléguée par l'ADMIN le 2026-10-06. Une journée D se classe par sa propre fiche, déjà arrêtée à la clôture de D−1 : pas de décalage de plus. La lecture de l'onglet et `comparableSet` lisent la même fiche ; `laggedValue` est retiré, `src/modules/metrique/axisReading.ts` porte la lecture.
+
+**Intégration.** Une seule branche, `agentique/vague-2`, à fusionner dans `main` par un commit de fusion, sans squash : la fusion ferme #104 à #109. `npm run typecheck` vert, **951** tests verts (189 fichiers ; 864 après empilement des six PR), trois passages complets et un à `TZ=America/New_York` ; `npm run electron:compile` et `npm run build` verts.

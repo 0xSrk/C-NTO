@@ -119,7 +119,7 @@ Les barres sont en epoch **secondes** UTC. Les ticks, quotes et exécutions sont
 
 **Comptes datés.** Le statut du pont porte `accountsAt`, heure de réception du dernier `bridge.accounts`. Des comptes reçus il y a plus de 60 s ne sont plus tenus pour frais (Portefeuille, `portfolio_snapshot`).
 
-**Cotations.** Le renderer garde la dernière `marketdata.quote` reçue par instrument (`market_quote`) ; un bid ou un ask à 0 (côté pas encore reçu) devient `null`. Le desk ne s'abonne à rien de lui-même ; les ticks restent ignorés.
+**Cotations.** Le renderer garde la dernière `marketdata.quote` reçue par instrument (`market_quote`) ; un bid ou un ask à 0 (côté pas encore reçu) devient `null`. Le desk ne s'abonne à rien de lui-même : seul Visual s'abonne, quand le trader le demande (§ 4, « Historique et direct ») ; l'agent ne s'abonne à rien. Les ticks restent ignorés.
 
 ## 4. Desk → NinjaTrader (requêtes)
 
@@ -128,10 +128,12 @@ Les barres sont en epoch **secondes** UTC. Les ticks, quotes et exécutions sont
 | `bridge.snapshot` | `{}` | charge de `bridge.accounts` |
 | `marketdata.subscribe` | `{ instrument, kind: "bars" \| "tick" \| "quote", timeframe? }` | `{ subscriptionId }` |
 | `marketdata.unsubscribe` | `{ subscriptionId }` | `{ ok }` |
-| `marketdata.history` | `{ instrument, timeframe, from, to }` | `{ bars }` (plafond 50 000) |
+| `marketdata.history` | `{ instrument, timeframe, from, to }` (`from`, `to` en secondes) | `{ bars }` (plafond 50 000) |
 | `order.submit` | `{ account, instrument, action, quantity, type, limitPrice?, stopPrice?, oco?, tag }` | `{ orderId, latencyMs }` |
 | `order.cancel` | `{ account, orderId }` | `{ ok }` |
 | `order.flatten` | `{ account }` | `{ closed, cancelled }` (AddOn 2.1.1 ; `closed` seul avant) |
+
+**Historique et direct.** `from` et `to` sont des secondes Unix entières, `0 ≤ from ≤ to ≤ 253 402 300 799` (fin de l'an 9999, borne de `DateTime` : l'AddOn les lit par `FromUnixSeconds`). Le process principal valide les quatre champs avant l'envoi (`validateHistory`, `electron/nt-bridge/protocol.ts`) et attend 16 s au plus ; l'AddOn attend 15 s le chargement des barres. `instrument` est le contrat complet tel que NinjaTrader l'écrit (`NQ 12-26`) : l'AddOn le résout par `Instrument.GetInstrument` et répond sous `FullName`, et le port du desk rapproche la réponse par `resolveSymbol`. Visual propose le contrat (positions, puis exécutions, puis échéance trimestrielle ; champ modifiable), demande 5 jours jusqu'à maintenant, puis s'abonne aux barres en direct, sur geste du trader seulement. Un refus ou un échec s'affiche. Lecture seule : ni ordre, ni annulation.
 
 `action` ∈ `Buy` | `Sell` | `BuyToCover` | `SellShort`. `type` ∈ `Market` | `Limit` | `StopMarket` | `StopLimit`. `Order.Name = tag`. `order.flatten` appelle `account.Flatten` sur les instruments en position **et** sur ceux qui portent un ordre encore vivant (ni rempli, ni annulé, ni rejeté) : depuis l'AddOn 2.1.1, un ordre limite ou stop en attente sur un instrument à plat ne survit plus au kill switch. Compte non connecté : erreur explicite.
 
