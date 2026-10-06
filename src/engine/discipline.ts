@@ -4,7 +4,7 @@
  * Une règle à 0 (ou une liste vide) est inactive : elle ne signale rien.
  */
 import { ET_ZONE, tradingDayKey } from '@/lib/time';
-import { resolveSymbol } from './instruments';
+import { getInstrument, resolveSymbol } from './instruments';
 import { evaluatePlan, type PropPlan } from './propfirm';
 import type { Session, Trade } from './types';
 
@@ -165,4 +165,100 @@ export function dailyLimit(rules: Pick<TraderRules, 'maxDailyLoss'>, plan?: Pick
   if (trader !== null && (fromPlan === null || trader <= fromPlan)) return { amount: trader, source: 'trader', trader, plan: fromPlan };
   if (fromPlan !== null) return { amount: fromPlan, source: 'plan', trader, plan: fromPlan };
   return null;
+}
+
+/* ─── Dérives après une perte ─── */
+
+/** Entrée à juger : celle d'un trade du journal, ou un fill d'entrée reçu du pont. */
+export interface DisciplineEntry {
+  /** Identifiant stable : celui du trade, ou de l'exécution. */
+  id: string;
+  /** '' = sans compte. Deux comptes ne sont jamais appariés. */
+  account: string;
+  /** Racine ou contrat (NQ, MNQ 12-26). */
+  instrument: string;
+  qty: number;
+  /** Epoch ms. */
+  time: number;
+}
+
+export type DriftKind = 'revenge_entry' | 'size_up_after_loss';
+export type RuleBreachKind = 'catalyst_window' | 'over_max_trades' | 'after_daily_limit' | 'instrument_not_allowed';
+
+export interface DisciplineFinding {
+  /** `<type>:<entrée>` : le même constat garde le même identifiant d'un calcul à l'autre. */
+  id: string;
+  kind: DriftKind | RuleBreachKind;
+  /** `drift` : dérive après une perte ; `rule` : écart à une règle du trader. */
+  family: 'drift' | 'rule';
+  entryId: string;
+  account: string | null;
+  instrument: string;
+  /** Instant de l'entrée (ISO) et sa journée CME. */
+  at: string;
+  day: string;
+  detail: Record<string, string | number | boolean | null | string[]>;
+}
+
+/** Entrée d'un trade du journal. */
+export function entryOfTrade(trade: Trade): DisciplineEntry {
+  return { id: trade.id, account: trade.account ?? '', instrument: trade.instrument, qty: trade.qty, time: trade.entryTime };
+}
+
+/** Exposition d'une entrée : contrats × valeur du point du registre. `null` hors registre. */
+export function entryExposure(instrument: string, qty: number): number | null {
+  const symbol = resolveSymbol(instrument)?.symbol;
+  if (!symbol || !Number.isFinite(qty)) return null;
+  return Math.abs(qty) * getInstrument(symbol).pointValue;
+}
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+function finding(kind: DriftKind | RuleBreachKind, family: 'drift' | 'rule', entry: DisciplineEntry, detail: DisciplineFinding['detail']): DisciplineFinding {
+  return {
+    id: `${kind}:${entry.id}`,
+    kind,
+    family,
+    entryId: entry.id,
+    account: entry.account || null,
+    instrument: entry.instrument,
+    at: new Date(entry.time).toISOString(),
+    day: tradingDayNow(entry.time),
+    detail,
+  };
+}
+
+/** Dernière sortie du même compte avant l'entrée (le trade de l'entrée exclu). */
+function lastExitBefore(entry: DisciplineEntry, closed: readonly Trade[]): Trade | undefined {
+  let last: Trade | undefined;
+  for (const t of closed) {
+    if (t.id === entry.id || (t.account ?? '') !== entry.account || t.exitTime > entry.time || !Number.isFinite(t.pnl)) continue;
+    if (!last || t.exitTime > last.exitTime || (t.exitTime === last.exitTime && t.id > last.id)) last = t;
+  }
+  return last;
+}
+
+/**
+ * Dérives après une sortie perdante, sur le même compte :
+ * - `revenge_entry` : entrée dans les `revengeWindowMin` minutes (0 = inactive) ;
+ * - `size_up_after_loss` : la même journée CME, une exposition (contrats × valeur du point) plus forte que
+ *   celle du trade perdant (1 MNQ perdant puis 1 NQ : signalé).
+ * Seule la dernière sortie avant l'entrée compte : une sortie gagnante entre-temps efface la dérive.
+ */
+export function detectDrifts(entries: readonly DisciplineEntry[], closed: readonly Trade[], rules: Pick<TraderRules, 'revengeWindowMin'>): DisciplineFinding[] {
+  const out: DisciplineFinding[] = [];
+  for (const entry of entries) {
+    const loss = lastExitBefore(entry, closed);
+    if (!loss || !(loss.pnl < 0)) continue;
+    const minutes = (entry.time - loss.exitTime) / 60_000;
+    if (rules.revengeWindowMin > 0 && minutes <= rules.revengeWindowMin) {
+      out.push(finding('revenge_entry', 'drift', entry, { lossTradeId: loss.id, lossPnl: round2(loss.pnl), minutesAfterLoss: Math.round(minutes * 10) / 10, windowMin: rules.revengeWindowMin }));
+    }
+    const before = entryExposure(loss.instrument, loss.qty);
+    const now = entryExposure(entry.instrument, entry.qty);
+    if (before !== null && now !== null && now > before && tradingDayNow(entry.time) === tradingDayNow(loss.exitTime)) {
+      out.push(finding('size_up_after_loss', 'drift', entry, { lossTradeId: loss.id, lossPnl: round2(loss.pnl), lossExposure: before, entryExposure: now, ratio: Math.round((now / before) * 100) / 100 }));
+    }
+  }
+  return out;
 }
