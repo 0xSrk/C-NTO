@@ -62,14 +62,22 @@ export default function Metrique() {
   const nt = useBridge((b) => b.nt);
   const traderRules = useSettings((st) => st.settings.traderRules);
   const planId = useSettings((st) => st.settings.planId);
+  const planAccount = useSettings((st) => st.settings.planAccount);
+  // Horloge de la séance en cours : « frais » vieillit même quand le pont se tait.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
   useEffect(() => watchOrders(desk?.ntbridge, setBook), []);
   const orders = ordersPanel(book);
+  // Compte suivi, comme `discipline_status` et l'alerte `daily_loss` : pas le filtre du journal.
   const head = liveSession({
     link: nt?.link ?? 'absent',
-    now: Date.now(),
+    now,
     accountsAt: nt?.accountsAt,
     accounts: nt?.accounts ?? [],
-    account: metricAccount ?? '',
+    account: planAccount,
     sessions,
     trades,
     rules: traderRules,
@@ -227,6 +235,10 @@ export default function Metrique() {
       <ModuleContent>
         {head && (
           <div className={d.live}>
+            <span>
+              {tr('Compte suivi', 'Tracked account', 'Cuenta seguida')}
+              <b>{head.account ?? tr('tous les comptes', 'all accounts', 'todas las cuentas')}</b>
+            </span>
             <span>
               {tr('Réalisé', 'Realized', 'Realizado')}
               <b className={signClass(head.realized)}>{fmtUsd(head.realized, { sign: true })}</b>
