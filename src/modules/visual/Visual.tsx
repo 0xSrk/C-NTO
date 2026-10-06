@@ -7,19 +7,32 @@ import { INDICATORS, indicatorById, type IndicatorInstance, type IndicatorLine, 
 import type { Bar } from '@/engine/bars';
 import { DEFAULT_FUTURE, listInstruments } from '@/engine/instruments';
 import { createPort, type Nt8Transport } from '@/engine/marketdata';
-import { followNt } from './ntFollow';
 import type { Instrument } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { desk, openTextFile } from '@/lib/desk';
 import { fmtInt, fmtPrice, fmtUsd, plural, signClass } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { useBars } from '@/store/bars';
+import { useBridge } from '@/store/bridge';
+import { deskEventLog } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useUi } from '@/store/ui';
 import { Chart, type HoverInfo } from './Chart';
+import { contractsSeen } from './ntContract';
+import { NtFollowPanel, useNtFollow } from './NtFollowPanel';
 import s from './visual.module.css';
 
+/** Ports démo et CSV : toute la série, sans borne. Le pont, lui, demande une fenêtre finie (`historyWindow`). */
 const HISTORY_SPAN = { from: 0, to: Number.MAX_SAFE_INTEGER } as const;
+
+/** Contrats des exécutions reçues du pont pendant ce lancement, la plus récente d'abord. */
+function recentFills(): string[] {
+  return deskEventLog
+    .read({ kinds: ['fill'], limit: 200 })
+    .events.map((event) => event.data.instrument)
+    .filter((name): name is string => typeof name === 'string')
+    .reverse();
+}
 
 async function demoBars(timeframe: number, opts?: { days?: number; endDate?: string }): Promise<Bar[]> {
   const port = createPort('demo', { demo: { days: opts?.days ?? 12, endDate: opts?.endDate } });
@@ -188,8 +201,7 @@ export default function Visual() {
   const [catalog, setCatalog] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [sessionPick, setSessionPick] = useState<string>('');
-  const [liveBars, setLiveBars] = useState<Bar[] | null>(null);
-  const followRef = useRef<ReturnType<typeof followNt> | null>(null);
+  const nt = useBridge((b) => b.nt);
 
   useEffect(() => {
     if (!ready) load();
@@ -226,52 +238,16 @@ export default function Visual() {
       );
   }, [session, active, saveDemoSeries, toast]);
 
-  const chartBars = liveBars ?? active?.bars ?? null;
+  const feed = desk?.marketdata;
+  const transport = feed?.history ? (feed as Nt8Transport) : undefined;
+  const seen = useMemo(() => contractsSeen(nt?.accounts ?? [], recentFills()), [nt]);
+  const follow = useNtFollow({ instrument: active?.instrument ?? null, timeframe: active?.timeframe ?? null, transport, seen });
+
+  const chartBars = follow.bars ?? active?.bars ?? null;
   const lines = useIndicatorLines(chartBars, indicators);
 
   const onHover = useCallback((info: HoverInfo | null) => setHover(info), []);
   const lastBar = chartBars?.[chartBars.length - 1];
-
-  const stopFollow = useCallback(() => {
-    followRef.current?.stop();
-    followRef.current = null;
-    setLiveBars(null);
-  }, []);
-
-  useEffect(() => {
-    if (!followRef.current || !active) return;
-    followRef.current.retarget(active.instrument, active.timeframe);
-  }, [active]);
-
-  useEffect(() => () => followRef.current?.stop(), []);
-
-  const startFollow = () => {
-    if (!active) return;
-    const feed = desk?.marketdata;
-    if (!feed?.history || !feed.subscribe) {
-      toast(tr('Le pont NinjaTrader n’est pas ouvert.', 'The NinjaTrader bridge is not open.', 'El puente NinjaTrader no está abierto.'));
-      return;
-    }
-    stopFollow();
-    const port = createPort('nt8-bridge', { nt8: feed as Nt8Transport });
-    followRef.current = followNt(
-      port,
-      active.instrument,
-      active.timeframe,
-      (bars) => setLiveBars(bars),
-      (event) => {
-        if (event.kind !== 'bar') return;
-        setLiveBars((prev) => {
-          const list = prev ? [...prev] : [];
-          const at = list.findIndex((row) => row.time === event.bar.time);
-          if (at >= 0) list[at] = event.bar;
-          else list.push(event.bar);
-          list.sort((a, b) => a.time - b.time);
-          return list;
-        });
-      },
-    );
-  };
   const shownBar = hover?.bar ?? lastBar ?? null;
   const barDateKey = (time: number) => dateKeyLocal(new Date(time * 1000));
 
@@ -340,9 +316,6 @@ export default function Visual() {
                 <div className={s.legend}>
                   <div className={s.legendMain}>
                     <b>{active.instrument} · {active.timeframe}m</b>
-                    <Button size="sm" variant="ghost" onClick={liveBars ? stopFollow : startFollow}>
-                      {liveBars ? tr('Arrêter le pont', 'Stop the bridge', 'Detener el puente') : tr('Suivre le pont', 'Follow the bridge', 'Seguir el puente')}
-                    </Button>
                     {shownBar && (
                       <>
                         <span>{formatDateFr(barDateKey(shownBar.time), { short: true })} {formatTimeLocal(shownBar.time * 1000)}</span>
@@ -507,6 +480,8 @@ export default function Visual() {
                 {tr(') ou tout CSV OHLCV.', ') or any OHLCV CSV.', ') o cualquier CSV OHLCV.')}
               </div>
             </div>
+
+            <NtFollowPanel follow={follow} disabled={!active} />
           </aside>
         </div>
       </ModuleContent>
