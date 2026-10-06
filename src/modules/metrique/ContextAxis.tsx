@@ -76,6 +76,7 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
       ? buildMetricsContext({
           root: chosen.instrument,
           bars: chosen.bars,
+          timeframe: chosen.timeframe,
           trades,
           sessions,
           events: events.map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),

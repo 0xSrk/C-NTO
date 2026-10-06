@@ -108,7 +108,7 @@ function markerName(id: string, kind: 'slot' | 'duration' | 'strategy'): string 
   return displayGroupKey(id.slice('strategy:'.length));
 }
 
-function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
+export function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
   const series = useBars((st) => st.series);
   const activeId = useBars((st) => st.activeId);
   const events = useMacro((st) => st.events);
@@ -120,6 +120,7 @@ function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[
     const result = buildMetricsContext({
       root: chosen.instrument,
       bars: chosen.bars,
+      timeframe: chosen.timeframe,
       trades,
       sessions,
       events: events.map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),

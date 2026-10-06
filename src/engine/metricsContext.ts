@@ -64,13 +64,30 @@ export interface DailyBar {
   close: number;
 }
 
-/** Une bougie journalière par séance CME, dans l'ordre. Les barres intrajournalières sont repliées. */
-export function toDailyBars(bars: readonly Bar[]): DailyBar[] {
+/** Unité, en minutes, à partir de laquelle une barre porte une date civile (barre journalière ou plus). */
+export const DAILY_TIMEFRAME = 1440;
+
+/**
+ * Date civile d'une barre journalière. Un CSV journalier est lu à minuit **local** (`importBarsCsv`),
+ * soit de 11 h UTC la veille (poste à UTC+13) à 11 h UTC le jour même (UTC−11, exclu) : avancer de 13 h
+ * puis lire la date UTC rend la date du fichier, quel que soit le fuseau du poste qui relit la série.
+ * Une barre datée de l'ouverture de la séance (18 h ET la veille) tombe aussi sur sa séance.
+ */
+export function dailyBarDate(timeSec: number): string {
+  return new Date((timeSec + 13 * 3600) * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Une bougie journalière par séance, dans l'ordre. Les barres intrajournalières sont repliées sur la
+ * séance CME (bascule 18 h ET) ; à partir de 1 440 min (`timeframe`), chaque barre garde sa date civile.
+ */
+export function toDailyBars(bars: readonly Bar[], timeframe?: number): DailyBar[] {
+  const dayOf = timeframe != null && timeframe >= DAILY_TIMEFRAME ? dailyBarDate : sessionKeyOf;
   const ordered = [...bars].filter((bar) => Number.isFinite(bar.time)).sort((a, b) => a.time - b.time);
   const map = new Map<string, DailyBar>();
   const dates: string[] = [];
   for (const bar of ordered) {
-    const date = sessionKeyOf(bar.time);
+    const date = dayOf(bar.time);
     const current = map.get(date);
     if (!current) {
       map.set(date, { date, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
@@ -211,6 +228,8 @@ export interface MetricsContext {
 export function buildMetricsContext(input: {
   root: string;
   bars: readonly Bar[];
+  /** Unité des barres, en minutes (`BarSeries.timeframe`). À partir de 1 440 : date civile de chaque barre. */
+  timeframe?: number;
   trades: readonly Trade[];
   sessions?: readonly Session[];
   events?: readonly ContextEvent[];
@@ -220,7 +239,7 @@ export function buildMetricsContext(input: {
   const confirm = input.confirm ?? 2;
   const minStay = input.minStay ?? 5;
   const root = standardRoot(input.root);
-  const daily = toDailyBars(input.bars);
+  const daily = toDailyBars(input.bars, input.timeframe);
   const sufficient = daily.length >= 90;
   const sessionDate = new Map((input.sessions ?? []).map((session) => [session.id, session.date]));
   const mine = input.trades.filter((trade) => standardRoot(trade.instrument) === root && Number.isFinite(trade.pnl));

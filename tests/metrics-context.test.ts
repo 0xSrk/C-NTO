@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { atrSeries } from '@/engine/atr';
 import type { Bar } from '@/engine/bars';
-import { buildMetricsContext, rawVolCycle, stabilizeVolCycles, toDailyBars, type VolCycle } from '@/engine/metricsContext';
+import { buildMetricsContext, rawVolCycle, stabilizeVolCycles, toDailyBars, type DayContext, type VolCycle } from '@/engine/metricsContext';
 import type { Trade } from '@/engine/types';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 
@@ -150,5 +150,39 @@ describe('fiche de contexte', () => {
     const { sufficient, days } = buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 40), trades: [] });
     expect(sufficient).toBe(false);
     expect(days.every((day) => day.volCT == null && day.volCycle == null)).toBe(true);
+  });
+});
+
+describe('barres journalières lues à minuit local', () => {
+  // Un CSV journalier lu sur un poste à UTC+3 : chaque barre D est horodatée à 21 h UTC la veille.
+  const dates = weekdays('2024-01-02', 140);
+  const atMidnightUtcPlus3 = (date: string) => Date.parse(`${date}T00:00:00Z`) / 1000 - 3 * 3600;
+  const bars: Bar[] = dates.map((date, index) => {
+    const close = 20_000 + 10 * index + (index % 3) * 7;
+    const open = close - 5;
+    return { time: atMidnightUtcPlus3(date), open, high: close + 20 + (index % 7), low: open - 15 - (index % 5), close, volume: 1 };
+  });
+  const causes = (day: DayContext | undefined) => day && { volCT: day.volCT, volMT: day.volMT, volLT: day.volLT, hv30: day.hv30, hv60: day.hv60, hv90: day.hv90, volCycle: day.volCycle, volBand: day.volBand, prevClose: day.prevClose, gapAtr: day.gapAtr };
+
+  it('range chaque barre dans la fiche de sa date civile', () => {
+    const { days } = buildMetricsContext({ root: 'NQ', bars, trades: [], timeframe: 1440 });
+    expect(days.map((day) => day.date)).toEqual(dates);
+    days.forEach((day, index) => {
+      expect(day.dayRange).toBe(bars[index]!.high - bars[index]!.low);
+      if (index > 0) expect(day.prevClose).toBe(bars[index - 1]!.close);
+    });
+  });
+
+  it('ne fait pas fuir la barre de D dans la fiche de D', () => {
+    const index = dates.findIndex((date, i) => i >= 120 && new Date(`${date}T12:00:00Z`).getUTCDay() === 3);
+    const day = dates[index]!;
+    const next = dates[index + 1]!;
+    const base = buildMetricsContext({ root: 'NQ', bars, trades: [], timeframe: 1440 });
+    const moved = bars.map((bar, i) => (i === index ? { ...bar, high: bar.high + 400, low: bar.low - 400, close: bar.close + 300 } : bar));
+    const after = buildMetricsContext({ root: 'NQ', bars: moved, trades: [], timeframe: 1440 });
+    const before = base.days.find((row) => row.date === day);
+    expect(before?.volCT).toBeDefined();
+    expect(causes(after.days.find((row) => row.date === day))).toEqual(causes(before));
+    expect(after.days.find((row) => row.date === next)?.prevClose).toBe(moved[index]!.close);
   });
 });
