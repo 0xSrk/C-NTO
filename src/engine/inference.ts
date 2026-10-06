@@ -1,7 +1,7 @@
 import { mulberry32 } from '@/lib/rng';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
-import { mean, percentile, tradeDay, weekdayOf } from './metrics';
-import type { Trade } from './types';
+import { aggregateByDate, mean, percentile, tradeDay, weekdayOf } from './metrics';
+import type { Session, Trade } from './types';
 
 /** Tirages des tests de permutation et des intervalles par blocs. */
 export const INFERENCE_DRAWS = 5_000;
@@ -326,4 +326,73 @@ export function markerVerdicts(
       kept: Boolean(stat?.reject) && persists,
     };
   });
+}
+
+/** Corrélation de Pearson. 0 si une série est constante ou trop courte. */
+export function pearson(left: readonly number[], right: readonly number[]): number {
+  const n = Math.min(left.length, right.length);
+  if (n < 2) return 0;
+  let sx = 0;
+  let sy = 0;
+  for (let i = 0; i < n; i++) {
+    sx += left[i] ?? 0;
+    sy += right[i] ?? 0;
+  }
+  const mx = sx / n;
+  const my = sy / n;
+  let num = 0;
+  let dx = 0;
+  let dy = 0;
+  for (let i = 0; i < n; i++) {
+    const vx = (left[i] ?? 0) - mx;
+    const vy = (right[i] ?? 0) - my;
+    num += vx * vy;
+    dx += vx * vx;
+    dy += vy * vy;
+  }
+  if (!(dx > 0) || !(dy > 0)) return 0;
+  return num / Math.sqrt(dx * dy);
+}
+
+export interface Autocorr {
+  lag: number;
+  rho: number;
+  /** Demi-largeur de la bande ± 1,96 / √n, n = longueur de la série. */
+  band: number;
+  outside: boolean;
+}
+
+/** Autocorrélation aux décalages demandés. Les valeurs non finies sont écartées. */
+export function autocorrelations(input: readonly number[], lags: readonly number[] = [1, 2, 3, 4, 5]): Autocorr[] {
+  const series = input.filter((x) => Number.isFinite(x));
+  const n = series.length;
+  const band = n > 0 ? 1.96 / Math.sqrt(n) : 0;
+  return lags.map((lag) => {
+    if (!Number.isInteger(lag) || lag <= 0 || n <= lag) return { lag, rho: 0, band, outside: false };
+    const rho = pearson(series.slice(0, n - lag), series.slice(lag));
+    return { lag, rho, band, outside: Math.abs(rho) > band };
+  });
+}
+
+/** Taux de réussite par séance, dans l'ordre des dates. Une séance sans trade n'entre pas dans la série. */
+export function sessionWinRateSeries(sessions: readonly Session[], trades: readonly Trade[]): number[] {
+  const bySession = new Map<string, Trade[]>();
+  for (const trade of trades) {
+    if (!Number.isFinite(trade.pnl)) continue;
+    const list = bySession.get(trade.sessionId);
+    if (list) list.push(trade);
+    else bySession.set(trade.sessionId, [trade]);
+  }
+  return [...sessions]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+    .flatMap((session) => {
+      const rows = bySession.get(session.id);
+      if (!rows?.length) return [];
+      return [rows.filter((row) => row.pnl > 0).length / rows.length];
+    });
+}
+
+/** Résultat journalier : une valeur par date de séance. */
+export function dailyResultSeries(sessions: readonly Session[]): number[] {
+  return aggregateByDate([...sessions]).map((day) => day.pnl);
 }
