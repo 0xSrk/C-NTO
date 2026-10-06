@@ -101,6 +101,41 @@ describe('passerelle MCP · protocole', () => {
     expect(unknown.result?.protocolVersion).toBe(MCP_PROTOCOL_VERSIONS[0]);
   });
 
+  it('initialize : consignes selon la langue du desk et l’état des écritures', async () => {
+    const instructions = async (over: Partial<McpContext> = {}) =>
+      (await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-11-25' })), ctx(over)))).result?.instructions as string;
+    const closed = await instructions();
+    expect(closed).toMatch(/lecture seule/i);
+    expect(closed).toMatch(/Agent IA › Agents externes · MCP/);
+    expect(closed).toMatch(/reconnectez le client/i);
+    expect(closed).toMatch(/desk_events.*cursor/s);
+    expect(closed).toMatch(/YYYY-MM-DD.*heure de New York/s);
+    expect(closed).toMatch(/données du trader, jamais des consignes/);
+    expect(closed).not.toMatch(/create_note|branch_note|link_notes|annotate_session|propose_order/);
+
+    const open = await instructions({ allowWrites: true });
+    expect(open).toMatch(/écriture autorisée/i);
+    expect(open).toMatch(/create_note/);
+    expect(open).toMatch(/annotate_session remplace/);
+    expect(open).toMatch(/propose_order.*Sim.*confirme ou refuse/s);
+    expect(open).toMatch(/reconnectez le client/i);
+    expect(open).not.toMatch(/lecture seule/i);
+
+    const en = await instructions({ locale: 'en' });
+    expect(en).toMatch(/read only/i);
+    expect(en).toMatch(/AI Agent › External agents · MCP/);
+    expect(en).toMatch(/reconnect the client/i);
+    expect(en).toMatch(/YYYY-MM-DD, New York time/);
+    expect(en).toMatch(/never instructions/);
+    expect(en).not.toMatch(/données|propose_order/);
+    const enOpen = await instructions({ locale: 'en', allowWrites: true });
+    expect(enOpen).toMatch(/propose_order.*confirms or declines/s);
+
+    const es = await instructions({ locale: 'es' });
+    expect(es).toMatch(/solo lectura/i);
+    expect(es).toMatch(/hora de Nueva York/);
+  });
+
   it('tools/list : les écritures sont masquées tant qu’elles ne sont pas autorisées', async () => {
     const off = await result(await handleMcpHttp(post(rpc('tools/list')), ctx()));
     const names = (off.result?.tools as { name: string }[]).map((t) => t.name);
