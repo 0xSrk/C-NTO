@@ -56,8 +56,11 @@ function weekdays(start: string, count: number): string[] {
   return out;
 }
 
-function bar(date: string, time = '12:00'): Bar {
-  return { time: zonedToUtc(date, time, ET_ZONE) / 1000, open: 20_000, high: 20_010, low: 19_990, close: 20_000, volume: 1 };
+/** Barre journalière comme un CSV la lit : minuit local (la suite tourne en UTC). */
+const dailyTime = (date: string) => Date.parse(`${date}T00:00:00Z`) / 1000;
+
+function bar(date: string): Bar {
+  return { time: dailyTime(date), open: 20_000, high: 20_010, low: 19_990, close: 20_000, volume: 1 };
 }
 
 /** Une barre par séance ; volatilité qui décroît sur 100 séances, puis remonte d'un coup. */
@@ -65,7 +68,7 @@ function dailyBars(dates: readonly string[], level = 20_000, base = 0.3): Bar[] 
   return dates.map((date, index) => {
     const sigma = index < 100 ? base - (0.1 * index) / 100 : base;
     const half = Math.sqrt((2 * sigma * sigma) / 252) / 2;
-    return { time: zonedToUtc(date, '12:00', ET_ZONE) / 1000, open: level, close: level, high: level * Math.exp(half), low: level * Math.exp(-half), volume: 1 };
+    return { time: dailyTime(date), open: level, close: level, high: level * Math.exp(half), low: level * Math.exp(-half), volume: 1 };
   });
 }
 
@@ -138,8 +141,9 @@ describe('lecture par contexte, onglet C', () => {
   });
 
   it('borne à la période le dénominateur des jours tradés du régime et de la bande', () => {
-    const dates = weekdays('2024-01-02', 130);
-    const traded = dates.slice(100);
+    // La bande demande 90 séances avant la fiche, plus son propre historique : les 30 journées tradées en ont toutes une.
+    const dates = weekdays('2024-01-02', 170);
+    const traded = dates.slice(140);
     const input = { sessions: traded.map((date) => session(date)), trades: traded.map((date, day) => trade(`t${day}`, date, '10:00', 5)), series: [seriesOf('nq', 'NQ', dailyBars(dates))], activeId: 'nq' };
     for (const axis of ['regime', 'band'] as const) {
       const reading = read(axis, input);

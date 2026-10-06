@@ -53,7 +53,8 @@ function weekdays(start: string, count: number): string[] {
 /** Séance dont la variance de Garman-Klass annualisée vaut `sigma` (ouverture = clôture). */
 function barAt(date: string, sigma: number): Bar {
   const half = Math.sqrt((2 * sigma * sigma) / 252) / 2;
-  return { time: zonedToUtc(date, '12:00', ET_ZONE) / 1000, open: 20_000, close: 20_000, high: 20_000 * Math.exp(half), low: 20_000 * Math.exp(-half), volume: 1 };
+  // Barre journalière comme un CSV la lit : minuit local (la suite tourne en UTC).
+  return { time: Date.parse(`${date}T00:00:00Z`) / 1000, open: 20_000, close: 20_000, high: 20_000 * Math.exp(half), low: 20_000 * Math.exp(-half), volume: 1 };
 }
 
 function nqSeries(bars: Bar[]): BarSeries {
