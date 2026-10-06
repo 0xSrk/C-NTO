@@ -104,7 +104,8 @@ export function readAxis(
   const sigma = stddev(allPoints);
   const groups: ShrinkGroup[] = keys.map((key) => {
     const points = finiteOf(byKey.get(key) ?? []).map((sample) => sample.points as number);
-    return { n: points.length, mean: points.length ? points.reduce((sum, value) => sum + value, 0) / points.length : 0, variance: sampleVariance(points) };
+    // Un trade seul n'a pas de variance intra : NaN fait prendre la variance poolée, au lieu d'un 0 qui lui donnerait le poids 1.
+    return { n: points.length, mean: points.length ? points.reduce((sum, value) => sum + value, 0) / points.length : 0, variance: points.length < 2 ? Number.NaN : sampleVariance(points) };
   });
   const shrunk = shrinkTowardMean(groups);
   const eligibleIndex: number[] = [];

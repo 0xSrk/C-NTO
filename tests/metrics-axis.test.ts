@@ -44,6 +44,18 @@ function trade(id: string, date: string, time: string, points = 1, instrument = 
   };
 }
 
+function weekdays(start: string, count: number): string[] {
+  const out: string[] = [];
+  let cursor = start;
+  while (out.length < count) {
+    const dow = new Date(`${cursor}T12:00:00Z`).getUTCDay();
+    if (dow !== 0 && dow !== 6) out.push(cursor);
+    const [y, m, d] = cursor.split('-').map(Number);
+    cursor = new Date(Date.UTC(y ?? 2024, (m ?? 1) - 1, (d ?? 1) + 1)).toISOString().slice(0, 10);
+  }
+  return out;
+}
+
 function bar(date: string, time = '12:00'): Bar {
   return { time: zonedToUtc(date, time, ET_ZONE) / 1000, open: 20_000, high: 20_010, low: 19_990, close: 20_000, volume: 1 };
 }
@@ -64,5 +76,18 @@ describe('lecture par contexte, onglet C', () => {
     const reading = read('release', { sessions: [session(day)], trades, series: [seriesOf('nq', 'NQ', [bar(day)])], activeId: 'nq', events: [cpi] });
     const keyOf = new Map(reading.samples.map((sample) => [sample.tradeId, sample.key]));
     expect(Object.fromEntries(keyOf)).toEqual({ t0800: 'loin', t0827: 'pres', t0845: 'pres', t0905: 'loin' });
+  });
+
+  it('rapproche aussi de la moyenne une heure qui n’a qu’un trade', () => {
+    const dates = weekdays('2025-03-03', 20);
+    const trades = dates.flatMap((date, day) => [trade(`a${day}`, date, '09:40', day % 2 ? 14 : -6), trade(`b${day}`, date, '10:15', day % 2 ? 10 : -10)]);
+    trades.push(trade('lone', dates[7]!, '15:05', 40));
+    const reading = read('hour', { sessions: dates.map((date) => session(date)), trades });
+    const grand = (20 * 4 + 20 * 0 + 40) / 41;
+    const lone = reading.rows.find((row) => row.key === '15');
+    expect(lone?.trades).toBe(1);
+    expect(lone?.points ?? 40).toBeLessThan(40);
+    expect(lone?.points ?? 0).toBeGreaterThan(grand);
+    expect(reading.rows.find((row) => row.key === '9')?.points ?? 0).toBeLessThan(4);
   });
 });
