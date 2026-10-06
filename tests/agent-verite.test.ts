@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { toolBlurb, toolSchemas } from '@/engine/agent/tools';
 import { groupIntoSessions } from '@/engine/import/ninjatrader';
-import { computeTradeStats, sessionDates } from '@/engine/metrics';
+import { computeDailyStats, computeTradeStats, sessionDates } from '@/engine/metrics';
 import { monteCarlo } from '@/engine/montecarlo';
 import { evaluatePlan, findPlan, planMargin, setUserPlans, type PropPlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
 import { useI18n } from '@/i18n';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { drawdownGauge } from '@/modules/metrique/drawdownLimit';
-import { monteCarloSample, scopeFor } from '@/modules/metrique/range';
+import { filterJournal, monteCarloSample, rangeFrom, scopeFor } from '@/modules/metrique/range';
 import { callTool } from './helpers/agentEval';
 import { fakePorts } from './helpers/deskPorts';
 import { DEMO_ACCOUNT, DEMO_PLAN, demoDesk } from './helpers/demoDesk';
@@ -184,5 +184,63 @@ describe('A6.3 monte_carlo : un compte, comme l’onglet E', () => {
     expect(implicit).toEqual(explicit);
     expect(implicit).toMatchObject({ account: DEMO_ACCOUNT, runs: 1000, horizon: 60 });
     expect(await callTool<McOut>(desk.ports, 'monte_carlo', { runs: 150.6, horizon: 2 })).toMatchObject({ runs: 151, horizon: 5 });
+  });
+});
+
+describe('A6.4 desk_overview : période et compte, comme le Tableau de bord', () => {
+  it('sans argument, le résultat reste celui d’avant (tout le journal, trades sans séance compris)', async () => {
+    const desk = demoDesk();
+    const orphan = { ...desk.trades[0]!, id: 't_orphelin', sessionId: 's_inconnue', pnl: 1234 };
+    const sessions = [...desk.sessions, ...copied(desk.sessions.slice(-20), 'Sim101')];
+    const trades = [...desk.trades, orphan];
+    const ports = fakePorts({ ...desk.ports, sessions: () => sessions, trades: () => trades });
+    const out = await callTool<Record<string, unknown>>(ports, 'desk_overview');
+    const t = computeTradeStats(trades);
+    const d = computeDailyStats(sessions, desk.startingBalance);
+    expect(out).toMatchObject({
+      sessions: sessions.length,
+      trades: t.count,
+      netPnl: r2(t.netPnl),
+      winRate: r2(t.winRate, 4),
+      profitFactor: r2(t.profitFactor),
+      expectancy: r2(t.expectancy),
+      payoffRatio: r2(t.payoffRatio),
+      sqn: r2(t.sqn),
+      maxDrawdownTrades: r2(t.maxDrawdown),
+      sharpeDaily: r2(d.sharpe),
+      sortinoDaily: r2(d.sortino),
+      maxDrawdownDaily: r2(d.maxDrawdown),
+      winDayRate: r2(d.winDayRate, 4),
+      bestDay: r2(d.bestDay),
+      worstDay: r2(d.worstDay),
+      consistencyShare: r2(d.consistency, 4),
+      tradingDays: d.tradingDays,
+    });
+    expect(out.slice).toBeUndefined();
+  });
+
+  it('{from, to, account} : Sharpe, Sortino et profit factor du Tableau de bord sur la même tranche', async () => {
+    const desk = demoDesk();
+    const sessions = [...desk.sessions, ...copied(desk.sessions, 'Sim101')];
+    const ports = fakePorts({ ...desk.ports, sessions: () => sessions, trades: () => desk.trades });
+    const asOf = '2026-10-01';
+    const from = rangeFrom('90j', asOf)!;
+    const out = await callTool<Record<string, unknown>>(ports, 'desk_overview', { from, to: asOf, account: DEMO_ACCOUNT });
+    const shown = filterJournal(sessions, desk.trades, '90j', asOf, DEMO_ACCOUNT);
+    const daily = computeDailyStats(shown.sessions, desk.startingBalance, 20, { from, to: asOf });
+    const stats = computeTradeStats(shown.trades);
+    expect(out).toMatchObject({
+      sessions: shown.sessions.length,
+      trades: stats.count,
+      profitFactor: r2(stats.profitFactor),
+      sharpeDaily: r2(daily.sharpe),
+      sortinoDaily: r2(daily.sortino),
+      maxDrawdownDaily: r2(daily.maxDrawdown),
+      tradingDays: daily.tradingDays,
+      slice: { from, to: asOf, account: DEMO_ACCOUNT },
+    });
+    // Le plan suivi reste rejoué sur tout l'historique de son compte, pas sur la tranche.
+    const ev = evaluatePlan(findPlan(DEMO_PLAN)!, sessions, desk.trades, DEMO_ACCOUNT);
+    expect(out.plan).toMatchObject({ status: ev.status, buffer: r2(ev.buffer) });
   });
 });

@@ -108,17 +108,24 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'desk_overview',
       kind: 'read',
       description:
-        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.',
-      parameters: { type: 'object', properties: {}, additionalProperties: false },
-      async run() {
-        const sessions = ports.sessions();
-        const trades = ports.trades();
+        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.',
+      parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
+      async run(args) {
+        const from = str(args.from);
+        const to = str(args.to);
+        const sliced = !!(from || to || str(args.account));
+        // Sans tranche : tout le journal tel quel (trades sans séance compris), comme avant les filtres.
+        const slice = sliced ? journalSlice(ports, args) : null;
+        const sessions = slice?.sessions ?? ports.sessions();
+        const trades = slice?.trades ?? ports.trades();
         const t = computeTradeStats(trades);
-        const d = computeDailyStats(sessions, ports.startingBalance());
+        const d = computeDailyStats(sessions, ports.startingBalance(), undefined, { from: from || undefined, to: to || undefined });
         const plan = findPlan(ports.planId());
         const planAccount = ports.planAccount();
-        const evalr = plan ? evaluatePlan(plan, sessions, trades, planAccount || undefined) : null;
+        // Le plancher dépend de tout l'historique du compte : jamais la tranche.
+        const evalr = plan ? evaluatePlan(plan, ports.sessions(), ports.trades(), planAccount || undefined) : null;
         return {
+          ...(slice ? { slice: { from: from || null, to: to || null, account: slice.account || null } } : {}),
           sessions: sessions.length,
           trades: t.count,
           netPnl: round(t.netPnl),
@@ -135,6 +142,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           bestDay: round(d.bestDay),
           worstDay: round(d.worstDay),
           consistencyShare: round(d.consistency, 4),
+          tradingDays: d.tradingDays,
           plan: plan
             ? {
                 id: plan.id,
@@ -696,8 +704,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'desk_overview':
       return tr(
         fallback,
-        'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.',
-        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.',
+        'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.',
+        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.',
       );
     case 'list_sessions':
       return tr(fallback, 'Lists trading sessions (date, PnL, trade count, tags, note), newest first. Optional YYYY-MM-DD date bounds.', 'Lista las sesiones (fecha, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtro opcional por fechas YYYY-MM-DD.');
