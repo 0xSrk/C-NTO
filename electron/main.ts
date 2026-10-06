@@ -6,7 +6,7 @@ import { NinjaBridge } from './bridge';
 import { confirmCopierArm } from './nt-bridge/copier-host';
 import { AgentOrderHost } from './agent-orders';
 import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
-import { llmHostOk } from './llm-host';
+import { llmFetch, llmHostOk } from './llm-host';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
@@ -838,6 +838,16 @@ function joinLlmUrl(base: string, p: string): string {
   return `${base.replace(/\/+$/, '')}/${p.replace(/^\/+/, '')}`;
 }
 
+/** Une redirection du fournisseur n'est pas suivie : la clé et la conversation ne quittent pas l'hôte épinglé. */
+function llmRedirectRefusal(status: number, target: string): string {
+  const to = target ? ` → ${target}` : '';
+  return ui(
+    `Redirection du fournisseur LLM refusée (${status}${to}) : la clé et la conversation ne quittent pas l’hôte épinglé. Corrigez l’URL de base.`,
+    `LLM provider redirect refused (${status}${to}): the key and the conversation do not leave the pinned host. Fix the base URL.`,
+    `Redirección del proveedor LLM rechazada (${status}${to}): la clave y la conversación no salen del host fijado. Corrija la URL base.`,
+  );
+}
+
 async function readLlmError(res: Response): Promise<string> {
   const text = await res.text().catch(() => '');
   try {
@@ -880,14 +890,14 @@ ipcMain.handle('llm:probe', async (e, config: unknown) => {
   try {
     if (c.provider === 'anthropic') {
       if (!key) return { ok: false, detail: ui('Clé API requise.', 'API key required.', 'Clave API requerida.') };
-      const res = await fetch(joinLlmUrl(c.baseUrl, 'v1/models'), { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal });
+      const res = await llmFetch(joinLlmUrl(c.baseUrl, 'v1/models'), { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal }, llmRedirectRefusal);
       if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
       const j = (await res.json()) as { data?: { id: string }[] };
       return { ok: true, detail: ui(`${j.data?.length ?? 0} modèle(s) disponibles`, `${j.data?.length ?? 0} model(s) available`, `${j.data?.length ?? 0} modelo(s) disponibles`), models: j.data?.map((m) => m.id) };
     }
     const headers: Record<string, string> = {};
     if (key) headers.Authorization = `Bearer ${key}`;
-    const res = await fetch(joinLlmUrl(c.baseUrl, 'models'), { headers, signal });
+    const res = await llmFetch(joinLlmUrl(c.baseUrl, 'models'), { headers, signal }, llmRedirectRefusal);
     if (!res.ok) return { ok: false, detail: `${res.status} — ${await readLlmError(res)}` };
     const j = (await res.json()) as { data?: { id: string }[] };
     const models = j.data?.map((m) => m.id) ?? [];
@@ -960,7 +970,7 @@ async function streamOpenAiMain(
   const body = openAiRequestBody({ model, temperature, messages, tools, toolChoice });
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (key) headers.Authorization = `Bearer ${key}`;
-  const res = await fetch(joinLlmUrl(baseUrl, 'chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
+  const res = await llmFetch(joinLlmUrl(baseUrl, 'chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal }, llmRedirectRefusal);
   if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
   const parser = new OpenAiStreamParser(requestId);
   await sseData(res, signal, (data) => {
@@ -983,12 +993,16 @@ async function streamAnthropicMain(
   signal: AbortSignal,
 ): Promise<void> {
   const body = anthropicRequestBody({ model, temperature, messages, tools, toolChoice });
-  const res = await fetch(joinLlmUrl(baseUrl, 'v1/messages'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify(body),
-    signal,
-  });
+  const res = await llmFetch(
+    joinLlmUrl(baseUrl, 'v1/messages'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(body),
+      signal,
+    },
+    llmRedirectRefusal,
+  );
   if (!res.ok) throw new Error(`${res.status} — ${await readLlmError(res)}`);
   const parser = new AnthropicStreamParser(requestId, ui('Erreur du fournisseur pendant le flux', 'Provider error during the stream', 'Error del proveedor durante el flujo'));
   await sseData(res, signal, (data) => {
