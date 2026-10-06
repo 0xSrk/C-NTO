@@ -60,6 +60,27 @@ export function allowedSymbols(raw: unknown): string[] {
   return out;
 }
 
+/**
+ * Saisie libre d'une liste d'instruments (« MNQ, MES ; NQ 12-26 ») : racines du registre sans doublon, et
+ * ce qui n'a pas été reconnu. Séparateurs : virgule, point-virgule, retour à la ligne, puis espace.
+ */
+export function parseInstrumentList(text: string): { symbols: string[]; rejected: string[] } {
+  const symbols: string[] = [];
+  const rejected: string[] = [];
+  const keep = (token: string): boolean => {
+    const symbol = token.length <= 32 ? resolveSymbol(token)?.symbol : undefined;
+    if (!symbol) return false;
+    if (!symbols.includes(symbol) && symbols.length < ALLOWED_MAX) symbols.push(symbol);
+    return true;
+  };
+  for (const chunk of text.split(/[,;\n]+/)) {
+    const part = chunk.trim();
+    if (!part || keep(part)) continue;
+    for (const word of part.split(/\s+/)) if (word && !keep(word) && !rejected.includes(word)) rejected.push(word);
+  }
+  return { symbols, rejected };
+}
+
 /** Règles venant du stockage ou d'un coffre : chaque champ typé et borné, sinon celui de `base`. */
 export function coerceTraderRules(raw: unknown, base: TraderRules = DEFAULT_TRADER_RULES): TraderRules {
   const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
