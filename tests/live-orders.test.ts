@@ -27,11 +27,11 @@ const view: OrderBookView = {
 
 describe('A13.2 ordres en cours', () => {
   it('marque le livre incomplet et les ordres de l’agent, sans action', () => {
-    const panel = ordersPanel(view);
+    const panel = ordersPanel(view, 'live');
     expect(panel?.incomplete).toBe(INCOMPLETE_BOOK[0]);
-    expect(panel?.rows).toEqual([{ account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, state: 'Working', byAgent: true }]);
+    expect(panel?.rows).toEqual([{ account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, state: 'Working', byAgent: true, unconfirmed: false }]);
     expect(JSON.stringify(panel)).not.toMatch(/cancel|flatten|modifier|annuler/i);
-    expect(ordersPanel({ ...view, complete: true })?.incomplete).toBeNull();
+    expect(ordersPanel({ ...view, complete: true }, 'live')?.incomplete).toBeNull();
   });
 
   it('le démontage se désabonne', () => {

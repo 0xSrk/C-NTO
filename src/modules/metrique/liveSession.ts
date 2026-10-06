@@ -1,5 +1,8 @@
 /**
  * Séance en cours, en tête de Métrique. Pur : le pont `live` seulement.
+ * Le bloc se lit sur le compte suivi (`planAccount`), comme `discipline_status` et l'événement `daily_loss` :
+ * la perte du jour et sa limite à l'écran sont celles que l'agent et l'alerte voient. Le filtre de compte de
+ * Métrique reste celui du journal.
  * La fraîcheur est celle du portefeuille (`bridgeIsFresh`, 60 s) : 10 s est frais, 10 min ne l'est pas.
  */
 
@@ -21,7 +24,7 @@ export interface LiveSessionInput {
   now: number;
   accountsAt?: number | null;
   accounts: readonly LiveAccount[];
-  /** Compte suivi. Absent ou '' : tous les comptes du pont. */
+  /** Compte suivi (`planAccount`). Absent ou '' : tous les comptes du pont, comme `discipline_status`. */
   account?: string;
   sessions: readonly Session[];
   trades: readonly Trade[];
@@ -30,6 +33,8 @@ export interface LiveSessionInput {
 }
 
 export interface LiveSessionView {
+  /** Compte lu, `null` : tous les comptes. */
+  account: string | null;
   realized: number;
   unrealized: number;
   balance: number;
@@ -59,6 +64,7 @@ export function liveSession(input: LiveSessionInput): LiveSessionView | null {
   const limit = dailyLimit(input.rules, input.plan);
   const at = typeof input.accountsAt === 'number' && Number.isFinite(input.accountsAt) ? input.accountsAt : null;
   return {
+    account: account || null,
     realized: accounts.reduce((sum, row) => sum + (Number.isFinite(row.realizedPnl) ? row.realizedPnl : 0), 0),
     unrealized,
     balance: accounts.reduce((sum, row) => sum + (Number.isFinite(row.cashValue) ? row.cashValue : 0), 0),

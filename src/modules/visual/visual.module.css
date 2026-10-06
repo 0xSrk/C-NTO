@@ -142,6 +142,21 @@
   padding: 0 6px;
   font-size: 11px;
 }
+.follow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.follow input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--chip-h);
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+}
 .catalog {
   display: flex;
   flex-direction: column;

@@ -1,9 +1,10 @@
 /**
  * Ordres en cours, lecture seule. Le process principal tient le livre ; l'écran le relit
  * et se désabonne au démontage. Aucune action (annuler, modifier).
+ * Sans AddOn (lien `absent`), pas de panneau : rien à lire, et « livre incomplet » ne dirait rien au trader.
  */
 
-import type { OrderBookView, OrderChange } from '@/engine/execution/orderBook';
+import type { BookLink, OrderBookView, OrderChange } from '@/engine/execution/orderBook';
 
 export const INCOMPLETE_BOOK = ['livre incomplet (AddOn 2.2.0)', 'incomplete book (AddOn 2.2.0)', 'libro incompleto (AddOn 2.2.0)'] as const;
 
@@ -14,6 +15,8 @@ export interface OrderRow {
   qty: number;
   state: string;
   byAgent: boolean;
+  /** Vu avant la dernière coupure du pont, sans nouvelle depuis : son état peut avoir changé. */
+  unconfirmed: boolean;
 }
 
 export interface OrdersPanel {
@@ -21,8 +24,9 @@ export interface OrdersPanel {
   rows: OrderRow[];
 }
 
-export function ordersPanel(view: OrderBookView | null): OrdersPanel | null {
-  if (!view) return null;
+/** `link` : lien du pont au moment de l'affichage (statut poussé par le process principal). */
+export function ordersPanel(view: OrderBookView | null, link: BookLink): OrdersPanel | null {
+  if (!view || link === 'absent') return null;
   return {
     incomplete: view.complete ? null : INCOMPLETE_BOOK[0],
     rows: view.active.map((order) => ({
@@ -32,6 +36,7 @@ export function ordersPanel(view: OrderBookView | null): OrdersPanel | null {
       qty: order.qty,
       state: order.state,
       byAgent: order.byAgent,
+      unconfirmed: order.unconfirmed,
     })),
   };
 }

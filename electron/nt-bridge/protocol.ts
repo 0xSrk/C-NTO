@@ -152,6 +152,26 @@ export interface SubscribeParams {
   timeframe?: number;
 }
 
+/** `from` et `to` en epoch secondes, comme les barres. */
+export interface HistoryParams {
+  instrument: string;
+  timeframe: number;
+  from: number;
+  to: number;
+}
+
+/**
+ * Plus grande borne d'historique que l'AddOn sait convertir : `DateTime.MaxValue` en epoch secondes.
+ * `FromUnixSeconds` (`DateTime(1970).AddSeconds`) lève au-delà, et la requête échoue.
+ */
+export const HISTORY_MAX_SECONDS = 253_402_300_799;
+
+/**
+ * Attente de `marketdata.history`. L'AddOn 2.2.0 attend jusqu'à 15 s la réponse de NinjaTrader
+ * (`done.WaitOne(15000)`) avant de répondre : le desk attend un peu plus.
+ */
+export const HISTORY_TIMEOUT_MS = 16_000;
+
 const ACTIONS = new Set<OrderActionName>(['Buy', 'Sell', 'BuyToCover', 'SellShort']);
 const TYPES = new Set<OrderTypeName>(['Market', 'Limit', 'StopMarket', 'StopLimit']);
 
@@ -459,4 +479,16 @@ export function validateSubscribe(p: Record<string, unknown>): { ok: true; req: 
     req.timeframe = timeframe;
   }
   return { ok: true, req };
+}
+
+/** Fenêtre d'historique : entiers en secondes, `0 ≤ from ≤ to ≤ HISTORY_MAX_SECONDS`. Des millisecondes sortent de la borne. */
+export function validateHistory(p: Record<string, unknown>): { ok: true; req: HistoryParams } | { ok: false; code: number; message: string } {
+  const instrument = str(p.instrument, 64);
+  const timeframe = finite(p.timeframe);
+  const from = finite(p.from);
+  const to = finite(p.to);
+  if (!instrument || timeframe === null || !Number.isInteger(timeframe) || timeframe <= 0 || from === null || to === null || !Number.isInteger(from) || !Number.isInteger(to) || from < 0 || from > to || to > HISTORY_MAX_SECONDS) {
+    return { ok: false, code: ERR.PARAMS, message: 'marketdata.history invalide' };
+  }
+  return { ok: true, req: { instrument, timeframe, from, to } };
 }
