@@ -11,3 +11,10 @@ export const DESK_EVENT_KINDS: readonly ['fill', 'prop_buffer', 'catalyst', 'bri
 export type DeskEventKind = (typeof DESK_EVENT_KINDS)[number];
 export function isDeskEventKind(kind: unknown): kind is DeskEventKind;
 export const ORDER_TOOLS: readonly string[];
+export interface DeskToolHints {
+  readOnly: boolean;
+  destructive: boolean;
+  idempotent: boolean;
+  openWorld: boolean;
+}
+export const DESK_TOOL_HINTS: Readonly<Record<string, DeskToolHints>>;

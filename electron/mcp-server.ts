@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
-import { DESK_TOOL_KINDS, ORDER_TOOLS } from './agent/catalog';
+import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, ORDER_TOOLS } from './agent/catalog';
 import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
@@ -113,16 +113,20 @@ export function negotiateVersion(requested: unknown): string {
   return typeof requested === 'string' && (MCP_PROTOCOL_VERSIONS as readonly string[]).includes(requested) ? requested : MCP_PROTOCOL_VERSIONS[0];
 }
 
-const DESTRUCTIVE = new Set(['annotate_session']);
+/** Indications MCP lues au catalogue ; un outil sans entrée est traité en écriture prudente. */
+function annotations(t: McpToolInfo) {
+  const hints = Object.hasOwn(DESK_TOOL_HINTS, t.name) ? DESK_TOOL_HINTS[t.name] : undefined;
+  const read = t.kind === 'read' && hints?.readOnly === true;
+  return {
+    readOnlyHint: read,
+    destructiveHint: !read && (hints?.destructive ?? true),
+    idempotentHint: hints?.idempotent ?? false,
+    openWorldHint: hints?.openWorld ?? true,
+  };
+}
 
 function toMcpTool(t: McpToolInfo) {
-  const read = t.kind === 'read';
-  return {
-    name: t.name,
-    description: t.description,
-    inputSchema: t.parameters,
-    annotations: { readOnlyHint: read, destructiveHint: !read && DESTRUCTIVE.has(t.name), idempotentHint: read, openWorldHint: false },
-  };
+  return { name: t.name, description: t.description, inputSchema: t.parameters, annotations: annotations(t) };
 }
 
 /**

@@ -175,6 +175,16 @@ describe('passerelle MCP · protocole', () => {
     expect(out.result?.structuredContent).toEqual({ ok: false, reason: 'write_disabled' });
   });
 
+  it('tools/list : indications lues dans le catalogue ; propose_order destructif et ouvert sur le monde', async () => {
+    const order: McpToolInfo = { name: 'propose_order', description: 'Propose un ordre', parameters: { type: 'object', properties: {} }, kind: 'write' };
+    const withOrder: McpRelay = { tools: async () => [...TOOLS, order], call: async () => ({ result: null }) };
+    const out = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: withOrder, allowWrites: true })));
+    const byName = new Map((out.result?.tools as { name: string; annotations: Record<string, boolean> }[]).map((t) => [t.name, t.annotations]));
+    expect(byName.get('propose_order')).toEqual({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true });
+    expect(byName.get('annotate_session')).toEqual({ readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false });
+    expect(byName.get('desk_overview')).toEqual({ readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
+  });
+
   it('propose_order refusé par le trader : un résultat, pas une erreur ; refus du desk et échec du pont restent isError', async () => {
     const order: McpToolInfo = { name: 'propose_order', description: 'Propose un ordre', parameters: { type: 'object', properties: {} }, kind: 'write' };
     const answering = (outcome: Record<string, unknown>): McpRelay => ({ tools: async () => [...TOOLS, order], call: async () => ({ result: outcome }) });
