@@ -4,7 +4,8 @@
 
 Date : 2026-10-06
 Dépôt : `0xSrk/C-NTO`
-Base : `main` à `f93fa75` (PR #100, vague 1 fusionnée)
+Base : `main` à `d9b39aa` (vague 1, étapes 3 à 5 des Métriques, A11.6)
+Mis à jour : 2026-10-06, après la revue des PR #97 à #109 (§ 5)
 Version `package.json` : `3.4.0`, à ne pas toucher
 
 Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vague 1 l'a laissée. Tu modifies **ce dépôt uniquement**. Tu ne réinventes pas l'architecture : elle est décrite au § 2 et elle tient.
@@ -36,6 +37,17 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 9. **Consigne :**
    - une section « Couche agentique du trader — vague 2 » dans `docs/AUDIT.md`, nouveaux constats numérotés à partir de **T17** et cités `fichier:ligne` ;
    - `docs/PROTOCOLE-AGENT.md` mis à jour pour **tout** outil, événement ou comportement MCP qui change.
+10. **Chaque PR vise `main`**, jamais la branche d'une étape précédente. Les PR #97 à #99 ont été fusionnées dans des branches intermédiaires : `main` ne les a reçues qu'avec #102. Avant d'ouvrir ou de mettre à jour une PR : `git fetch origin main`, puis rebase.
+11. **Une seule section par vague dans `docs/AUDIT.md`.** A11.6 a ouvert « Couche agentique du trader — vague 2 » : ajoute une ligne à son tableau, n'ouvre jamais une seconde section. Les six PR #104 à #109 sont en conflit pour cette seule raison.
+12. **Un test prouve un comportement.** Ne compte pas un test qui :
+    - compare 0 à 0 ;
+    - vise une branche morte ;
+    - appelle une fonction d'aide au lieu du chemin réel ;
+    - ne tombe que sur « module introuvable ».
+
+    Pour chaque test, casse le moteur ou retire le correctif : il doit virer au rouge sur le résultat.
+13. **Description de PR propre.** Ni marqueurs `CURSOR_AGENT_PR_BODY_*`, ni liens « Open in Web / Open in Cursor » vers la session de l'agent : retire-les après chaque création ou mise à jour. Nom de branche neutre (`agentique/…`), jamais `cursor/…`.
+14. **Numéros de ligne.** Ceux du § 5 sont ceux de `main` à `d9b39aa`, ou du HEAD de la PR citée. Vérifie-les avant d'agir.
 
 ---
 
@@ -58,6 +70,9 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 | Séance | `src/engine/execution/orderBook.ts`, `electron/nt-bridge/order-book-host.ts`, `src/engine/marketdata/quotes.ts` | • IPC `ntbridge:orders` et `ntbridge:order-state` ;<br>• preload `desk.ntbridge.orders()` et `onOrder` ;<br>• `bridgeQuotes` dans `src/store/bridge.ts` ;<br>• `accountsAt` sur le statut du pont. |
 | LLM | `electron/llm-host.ts`, `src/store/settings.ts` | • `llmFetch` refuse toute redirection ;<br>• `keyFor` et `llmKeyHost` ;<br>• champ `apiKeyHost`. |
 | Harnais | `tests/helpers/scriptedLlm.ts`, `demoDesk.ts`, `agentEval.ts` | • `runScenario` pilote la **vraie** boucle et le vrai `executeDeskTool` ;<br>• attendus recalculés par les moteurs de l'écran, jamais en dur. |
+| Métriques, étape 3 (R et risque) | `src/engine/riskConsole.ts`, `src/modules/metrique/RiskReading.tsx`, `Sessions.tsx` | • `tradeRisk`, `rrMatrix`, `expectancyR`, `adjustedRiskPoints`, `horizonSigma`, `sigmaBand`, `bernoulliRun`, `longestLossStreak`, `betaPosterior`, `rateAfterStreak`, `dayBlockedMeanCi` ;<br>• `Trade.stopPrice` et `targetPrice` facultatifs (`TRADE_SCHEMA_VERSION` = 3) ;<br>• tables F20 à F22 absentes : Vol-LT et Cross-Vol stockés, non appliqués. |
+| Métriques, étape 4 (contexte du jour) | `src/engine/atr.ts`, `src/engine/metricsContext.ts` | • `atrSeries` (l'indicateur `atr` l'appelle) ;<br>• `toDailyBars`, `garmanKlassAnnualized` (arrêté à la veille), `stabilizeVolCycles`, `buildMetricsContext` ;<br>• `DayContext` : régime, bande, volatilités. |
+| Métriques, étape 5 (lecture par contexte) | `src/engine/contextReading.ts`, `src/modules/metrique/ContextAxis.tsx` | • `readAxis`, `laggedValue`, `decomposeExact`, `inReleaseWindow`, `labelRelease`, `releaseContrast` ;<br>• la trame jour × heure de l'onglet C est remplacée. |
 
 ---
 
@@ -98,7 +113,149 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 
 ---
 
-## 5. Vague 2 : tickets, dans cet ordre
+## 5. Maintenant : corrections, puis suite, dans cet ordre
+
+Revue du 2026-10-06 : chaque PR a été rejouée (typecheck, tests, correctif retiré pour voir le test tomber) et chaque bloquant a été relu dans le code.
+
+**Ordre.** D'abord 5.1, pour libérer la file. Ensuite les deux bloquants de 5.2 (M4.7, M6.4) : ils faussent des chiffres affichés aujourd'hui. Puis le reste de 5.2, et enfin 5.3. Les constats de `main` sont aussi consignés dans `docs/AUDIT.md` (T17 à T28).
+
+**Bilan.** Ensemble, les six PR ouvertes s'empilent sur `main` sans conflit de code. Après empilement : typecheck vert, 864 tests verts, `electron:compile` et build verts. Le protocole est suivi, et aucun invariant ni point du § 4 n'est touché.
+
+### 5.1 Les six PR ouvertes : corriger sur leur branche, puis rebaser sur `main`
+
+**Pour toutes**
+- Rebaser sur `origin/main`.
+- Ajouter la ligne de la piste au tableau « vague 2 » de `docs/AUDIT.md` (§ 1.11).
+- Nettoyer la description (§ 1.13).
+- Retirer tout trailer `Co-authored-by` des messages de commit.
+
+**#104 · A6.10, A6.11**
+- Borner aussi les tags de **chaque trade** de `get_session` (`src/engine/agent/tools.ts:318`, `tags: t.tags`) avec `boundTags`. Test : un trade de 500 tags.
+- Tester la coupe en longueur : 20 tags au plus, dont un de plus de 40 caractères (`tools.ts:76`).
+- Le `truncated` racine de `list_sessions` doit suivre aussi `tagsTruncated` (`tools.ts:270`, `:274`).
+
+**#105 · A12**
+- `runRoutine(name, { date: due.day })` (`Agent.tsx:159`) : le texte doit porter la journée CME, pas la date civile. Test : débrief à 20 h ET.
+- Ne marquer la journée vue que si l'envoi part. `runRoutine` rend un booléen, et les boutons sont désactivés pendant un flux (`Agent.tsx:157-163`).
+- Écrire un test du composant (jsdom, sur le modèle de `tests/changelog-journal.test.ts`) : avec `due.brief` vrai et les minuteries avancées, aucun `send` sans clic. Le test actuel vise une branche morte (`routineDue.ts:80-81`).
+- `Math.floor` au lieu de `Math.round` (`routineDue.ts:38`).
+- Tests manquants : la garde du soir ; le texte en anglais et en espagnol.
+- Calculer `dailyLossFull` par `dayLoss` / `dailyLimit`, au lieu de le lire dans l'anneau d'événements, perdu au redémarrage (`Agent.tsx:155`).
+- Retirer la colonne ajoutée au § 4 de `docs/THESE-AGENTIQUE.md`.
+
+**#106 · A13**
+
+*A13.3 à reprendre :*
+- **Borner l'historique.** Par exemple 5 jours jusqu'à maintenant, jamais `to: Number.MAX_SAFE_INTEGER` (`ntFollow.ts:36`), qui fait déborder `FromUnixSeconds` de l'AddOn (`CantoBridge.cs:993-995`).
+- **Demander le contrat complet** (`NQ 12-26`), ou filtrer par `resolveSymbol`. L'AddOn répond en nom complet et le port jette les barres demandées par racine (`src/engine/marketdata/adapters/nt8.ts:61`).
+- **Afficher l'échec.** Il est avalé aujourd'hui (`ntFollow.ts:37-38`).
+- **Vider les barres au changement d'instrument** (`Visual.tsx:241-244`).
+- **Libellés.** Étiqueter la source NinjaTrader, au lieu de « démo » ou « Import CSV » (`Visual.tsx:370`). Écrire « Ne plus suivre », au lieu de « Arrêter le pont » (`Visual.tsx:344`).
+- **Test** contre `createNt8Port`, avec un transport simulé qui répond en nom complet.
+
+*A13.1 :*
+- Lire la perte et la limite sur le même compte que `discipline_status`, ou n'appliquer le plan que si `metricAccount === planAccount` (`Metrique.tsx:72`, `:76`).
+- Faire avancer l'horloge par un tick de 30 s, comme dans `Portefeuille.tsx:184`.
+
+*A13.2 :*
+- N'afficher le panneau que si le lien n'est pas `absent` (`Metrique.tsx:264`).
+- Marquer les ordres `unconfirmed` (`liveOrders.ts:28`).
+
+**#107 · A14**
+- **Valider `{id}` dans le process principal, sans `decodeURIComponent`.** Motif `^canto:\/\/note\/([A-Za-z0-9_-]{1,64})$`, sinon `-32002`. Aujourd'hui, `canto://note/%E0%A4%A` rend une erreur 500 (`electron/mcp-server.ts:99-100`). Test.
+- Un refus du desk lu par `resources/read` rend `-32002` avec son motif, pas une ressource réussie (`mcp-server.ts:357-358`).
+- Tester `desk.describe` lui-même : `onRequest` avec un faux `desk`, pas la seule fonction d'aide.
+- Ajouter un bouton « Copier le jeton MCP » pour Codex. Celui de `Agent.tsx:526` copie le jeton de l'orchestrateur.
+- `name` reste stable, seul `title` est traduit (`mcp-server.ts:336-346`).
+- Traduire les derniers messages en trois langues : `desk-relay.ts:32`, `:38` ; `mcp-server.ts:304`, `:367`, `:380`, `:391-395`, `:452-455`.
+- `outputSchema` : la propriété `loss` n'existe pas, la vraie clé est `dailyLoss` (`mcp-server.ts:211`). Valider les propriétés de tête sur `demoDesk`.
+- `docs/PROTOCOLE-AGENT.md` : `title` dans `desk.describe`, langue des refus et des ressources, source de la syntaxe Codex.
+
+**#108 · A15**
+- `MemoryNote` garde `by: 'agent'` et `adoptedAt` pour une note d'agent adoptée. Aujourd'hui, `memory.ts:91` met `by: 'trader'` pour toutes les notes : provenance fausse.
+- Réécrire les descriptions qui disent qu'aucune note d'agent n'entre dans la mémoire (`tools.ts:886`, `:1104-1105`). Test.
+- À la restauration, un `adoptedAt` invalide retire le champ, pas la note (`db.ts:469`). Adapter `agent-adopt.test.ts:34-35`.
+- Test de garde : chaque outil d'écriture appliqué à une note adoptée laisse son corps, ses tags et `adoptedAt` inchangés.
+- Tester `adopt` dans le store et l'affichage du bouton.
+- Retirer le code mort (`tools.ts:381-383`).
+
+**#109 · A16**
+- `discipline_status` : simuler l'horloge au 2026-09-30T19:00Z, exiger `loss > 0`, et comparer aussi `limit` et `source` à `dailyLimit`. Aujourd'hui, `agent-eval.test.ts:104` compare 0 à 0.
+- Injection (`agent-injection.test.ts:141`) :
+  - `it.each` sur les cinq outils d'écriture ;
+  - vérifier `confirms` et `writes` ;
+  - ajouter une variante avec les ordres activés, qui attend `declined`.
+- `trader_memory` : ajouter une leçon du trader, sinon `[]` égale `[]`.
+- `market_quote` : un `time` différent de `receivedAt`, et un témoin frais.
+
+### 5.2 Métriques : corriger les étapes 3 à 5 (lignes de `main` à `d9b39aa`)
+
+**Étape 3 (R et risque)**
+- **M4.7 placer le R/R réalisé dans la matrice. Bloquant.**
+  - **Constat :** `RiskReading.tsx:46-53` appelle `rrMatrix(winRate, meanPlanned ?? 1, …)`, donc le R/R **prévu**. Il vaut 1 sans objectif saisi, soit pour la démo et pour tout journal importé.
+  - **Faire :** une fonction pure `realizedRewardRisk(trades)` = gain moyen ÷ |perte moyenne|, NaN sans perte.
+  - **Test :** 50 %, gain moyen +100, perte moyenne −200 → 0,5, et espérance −0,25 R.
+- **M4.8 contrôler le stop et l'objectif saisis.**
+  - **Constat :** `Sessions.tsx:287-290` accepte tout nombre fini, alors que `CHECKS` (`db.ts:444-445`) écarte **tout le trade et son P&L** à la restauration.
+  - **Faire :**
+    - accepter la virgule ;
+    - refuser visiblement une valeur hors de ]0 ; 1e6] ou du mauvais côté de la direction ;
+    - à la restauration, retirer le champ aberrant et garder le trade.
+- **M4.9 largeurs ±1 σ par instrument**, au pas de cotation (`Sessions.tsx:356`, `:516`). Aujourd'hui le 6E affiche « 0,0 ».
+- **M4.10 traduire** « IC 90 % », « 95e » et les bornes de classes (`RiskReading.tsx:26-29`, `:120`, `:155`).
+- **M4.11 exclure les trades nuls de `rateAfterStreak`**, comme le taux de base les exclut (`riskConsole.ts:280-282`).
+
+**Étape 4 (contexte du jour)**
+- **M5.5 dater les barres journalières par leur date civile.**
+  - **Constat :** `metricsContext.ts:73` les range par `sessionKeyOf`, alors qu'un CSV journalier est lu à minuit **local** (`bars.ts:127`). Sur un poste à UTC+2 ou plus, la fiche D contient les prix de D+1 : fuite du futur. Paris et New York tombent juste.
+  - **Test :** barres journalières horodatées à 21 h UTC la veille, soit minuit à UTC+3.
+- **M5.6 dédoublonner les copies entre comptes différents seulement**, en équivalent standard (`metricsContext.ts:181-183`, `:254-257`). Aujourd'hui :
+  - deux exécutions d'un même compte dans la même seconde comptent pour une ;
+  - un suiveur en micros n'est pas fusionné.
+- **M5.7 « après une perte » : le dernier trade du compte sorti avant l'entrée**, pas le précédent par ordre de sortie (`metricsContext.ts:298-305`).
+- **M5.8 seuils.**
+  - Le seuil de 90 séances s'applique par fiche, pas à toute la série (`metricsContext.ts:224`).
+  - Une barre invalide ne gèle pas le régime (`metricsContext.ts:131-136`).
+- **M5.9 libellés des régimes et des bandes en trois langues**, avec l'instrument nommé (`Analyse.tsx:138`).
+
+**Étape 5 (lecture par contexte)**
+- **M6.4 remettre la fenêtre de publication dans le bon sens. Bloquant.**
+  - **Constat :** `ContextAxis.tsx:107` calcule `m = publication − entrée` et retient de 30 min avant à 5 min après.
+  - **Faire :** `m >= -releaseAfter && m <= releaseBefore`, ou appeler `inReleaseWindow`.
+  - **Test :** CPI à 08:30 ; une entrée à 08:00 est « loin », une entrée à 08:45 « proche ».
+- **M6.5 centrer la permutation sur la moyenne générale** (`inference.ts:94`, repris par `contextReading.ts:120` et `:250`). Un groupe à 0 point, quand le reste fait +12, doit pouvoir être confirmé.
+- **M6.6 rapprocher aussi les groupes d'un seul trade de la moyenne** : `contextReading.ts:109` met leur variance à 0, donc leur poids à 1.
+- **M6.7 une seule racine par lecture.** Le régime vient de la série de cette racine, jamais de la démo, et les points ne se moyennent jamais entre racines (`ContextAxis.tsx:74`, `:96-118`).
+- **M6.8 verdict « insuffisant » sous 30 journées distinctes**, et non 30 trades (`contextReading.ts:144`).
+- **M6.9 points faibles :**
+  - borner à la période le dénominateur « jours tradés » (`ContextAxis.tsx:126-128`) ;
+  - `tailLoss` dans sa branche GPD (`contextReading.ts:345`, `:359-360`) ;
+  - le test du contrôle décalé vise une date sans trade (`metrics-reading.test.ts:69-70`) ;
+  - clés traduites, primitive `Segmented` et `aria-pressed` (`ContextAxis.tsx:61`, `:146`, `:161`).
+- **À l'ADMIN, ne rien changer sans décision.** Pour le régime « de la veille », la fiche du jour D est déjà arrêtée à la clôture de D−1. L'onglet relit pourtant `days[index-1]`, donc D−2 (`ContextAxis.tsx:88-89`, `:126-128`), alors que `comparableSet` lit la fiche du jour. Le cahier admet les deux lectures.
+
+### 5.3 L'agent lit les nouvelles Métriques (après 5.2)
+
+**A6.12 rendre le risque et le R de chaque trade dans `get_session`.**
+- **Faire :**
+  - `stopPrice`, `targetPrice` et `tradeRisk(...)` : montant, source, R/R prévu, R réalisé ;
+  - le capital se choisit comme dans `RiskReading.tsx:37-38` ;
+  - port `riskPerContract()`, ajouté partout (§ 2, ligne « Ports »).
+- **Test :** différentiel contre `tradeRisk`.
+
+**A6.13 outil de lecture `day_context(date?, instrument?)`.**
+- **Faire :**
+  - l'outil rend la fiche de `buildMetricsContext` pour une journée : régime, bande, volatilités arrêtées à la veille, ATR, `traded` ;
+  - sous 90 séances, il dit « historique insuffisant » ;
+  - catalogue (type, indications, titres), trois langues, `docs/PROTOCOLE-AGENT.md` ;
+  - ajouter `day_context` aux lectures de `pre_session_brief` (`tests/agent-routines.test.ts`).
+- **Test :** différentiel contre `buildMetricsContext`.
+
+---
+
+## 6. Vague 2 : tickets d'origine (livrés en PR #103 à #109, pour référence)
+
+A11.6 est fusionné (#103). Les autres tickets sont en PR ouvertes ; leurs corrections sont au § 5.1.
 
 Chaque ticket donne ce qu'il faut lire, le constat à vérifier sur le HEAD, ce qu'il faut faire et le test. Un constat absent du HEAD : « déjà là », zéro diff.
 
@@ -257,10 +414,11 @@ Chaque ticket donne ce qu'il faut lire, le constat à vérifier sur le HEAD, ce 
 
 ---
 
-## 6. Branches et PR
+## 7. Branches et PR
 
 - `git fetch origin main`, puis une branche par piste depuis `origin/main`, avec un nom neutre, sans nom d'outil. Exemple : `agentique/a12-routines`.
-- Une PR **brouillon** par piste, pour que chaque relecture reste courte. La fusion est l'acte de l'ADMIN.
+- Une PR **brouillon** par piste, **vers `main`**, pour que chaque relecture reste courte. La fusion est l'acte de l'ADMIN.
+- Une PR déjà ouverte se corrige sur sa branche (nouveaux commits), puis se rebase sur `main`. Ne pas en ouvrir une nouvelle pour la même piste.
 - La description de PR dit :
   - les tickets ;
   - les tests et les échecs observés sans le correctif ;
@@ -269,17 +427,17 @@ Chaque ticket donne ce qu'il faut lire, le constat à vérifier sur le HEAD, ce 
 
 ---
 
-## 7. Fini, c'est
+## 8. Fini, c'est
 
 - `npm run check` et `npm run electron:compile` verts, et trois passages complets de la suite verts.
-- `docs/AUDIT.md` : section « Couche agentique du trader — vague 2 », avec le tableau piste, commits, tests, ce qui change, puis les constats nouveaux non corrigés.
+- `docs/AUDIT.md` : **une seule** section « Couche agentique du trader — vague 2 » (ouverte par A11.6), avec le tableau piste, commits, tests, ce qui change, puis les constats nouveaux non corrigés.
 - `docs/PROTOCOLE-AGENT.md` à jour.
 - `docs/THESE-AGENTIQUE.md` : rien à changer, sauf le tableau du § 4 si une couche change d'état. Le § 7 reste à l'ADMIN.
 - Rien du § 4 de ce brief n'a été touché.
 
 ---
 
-## 8. Commandes
+## 9. Commandes
 
 ```bash
 npm ci                         # Node 22.12+
