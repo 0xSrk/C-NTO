@@ -55,6 +55,8 @@ export interface DeskPorts {
   planAccount(): string;
   /** Règles chiffrées du trader (Réglages › Discipline). L'agent les lit ; il ne les change pas. */
   traderRules(): TraderRules;
+  /** Risque fixe par contrat (réglage 7 des Métriques), source `fixe` du risque d'un trade ; 0 : inactif. */
+  riskPerContract(): number;
   updateSession(id: string, patch: { note?: string; tags?: string[] }): Promise<void>;
   notes(): DeskNote[];
   createNote(title: string, body: string, tags: string[]): Promise<{ id: string; title: string }>;

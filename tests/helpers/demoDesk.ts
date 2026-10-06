@@ -97,6 +97,7 @@ export function demoDesk(opts: DemoDeskOptions = {}): DemoDesk {
     planId: () => planId,
     planAccount: () => planAccount,
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     async updateSession(id, patch) {
       writes.push({ port: 'updateSession', id, patch });
       const row = sessions.find((s) => s.id === id);

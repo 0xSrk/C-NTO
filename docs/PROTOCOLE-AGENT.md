@@ -42,7 +42,7 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | Outil | Type | Rôle |
 |---|---|---|
 | `desk_overview` | lecture | Vue d'ensemble du journal, filtrable par période et compte (`from`, `to`, `account`, `tradingDays`) ; profit factor et payoff (`noLoss` sans perte) ; plan suivi : `buffer` (clôture − plancher), `margin` datée (marge de la jauge K.04), `passedOn` |
-| `list_sessions` / `get_session` | lecture | Journal : compte et source de chaque séance, filtre de compte, notes coupées à 280 caractères (`noteTruncated`), tags de la séance et de chaque trade au plus 20 de 40 caractères (`tagsTruncated`, remonté au `truncated` de `list_sessions`) ; `get_session` par id, ou par date et compte (`ambiguous` si plusieurs comptes), 200 trades au plus |
+| `list_sessions` / `get_session` | lecture | Journal : compte et source de chaque séance, filtre de compte, notes coupées à 280 caractères (`noteTruncated`), tags de la séance et de chaque trade au plus 20 de 40 caractères (`tagsTruncated`, remonté au `truncated` de `list_sessions`) ; `get_session` par id, ou par date et compte (`ambiguous` si plusieurs comptes), 200 trades au plus ; chaque trade y porte son stop et son objectif initiaux et `risk` (montant, source, R/R prévu, R réalisé, part de `riskCapital`), calculés comme l'onglet C (`tradeRisk`) |
 | `search_notes` / `read_note` | lecture | Coffre de notes |
 | `calendar_events` | lecture | Catalyseurs officiels fusionnés, repères locaux, entrées personnelles (100 au plus, corps coupé à 280 caractères) |
 | `propfirm_status` | lecture | Rejeu du plan prop sur le compte suivi : `buffer`, `margin` datée, `passedOn` / `failedOn` |

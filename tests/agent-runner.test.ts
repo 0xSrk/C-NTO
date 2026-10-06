@@ -13,6 +13,7 @@ function mockPorts(log: { writes: number }): DeskPorts {
     planId: () => 'apex-50',
     planAccount: () => '',
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     updateSession: async () => {
       log.writes++;
     },

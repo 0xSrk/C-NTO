@@ -15,6 +15,7 @@ function ports(over: Partial<DeskPorts> = {}): DeskPorts {
     planId: () => 'topstep-50',
     planAccount: () => '',
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),

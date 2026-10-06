@@ -10,6 +10,7 @@ export function fakePorts(over: Partial<DeskPorts> = {}): DeskPorts {
     planId: () => '',
     planAccount: () => '',
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),

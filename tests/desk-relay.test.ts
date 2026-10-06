@@ -82,6 +82,7 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     planId: () => 'topstep-50',
     planAccount: () => '',
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => {

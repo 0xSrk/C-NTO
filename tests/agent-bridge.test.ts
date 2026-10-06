@@ -12,6 +12,7 @@ function ports(view: DeskBridgeView): DeskPorts {
     planId: () => '',
     planAccount: () => '',
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),
