@@ -3,12 +3,13 @@ import { probeProvider, streamChat } from '@/engine/agent/llm';
 import { contextBudget, fitHistory } from '@/engine/agent/context';
 import { memoryBudget, memoryDigest, traderMemory, type TraderMemory } from '@/engine/agent/memory';
 import { MAX_TOOL_ROUNDS, runAgentTurn, toChatHistory } from '@/engine/agent/loop';
+import { renderRoutine } from '@/engine/agent/routines';
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { type DeskPorts } from '@/engine/agent/ports';
 import { tradingDayNow } from '@/engine/discipline';
 import { findPlan } from '@/engine/propfirm';
-import { tr } from '@/i18n';
+import { tr, useI18n } from '@/i18n';
 import { dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
 import { desk, type AgentOrderOrigin, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
@@ -55,6 +56,8 @@ interface AgentState {
   linkLog: LinkLogEntry[];
   load: () => Promise<void>;
   send: (text: string) => Promise<void>;
+  /** Lance une routine dans la langue active. Outils coupés : avis, rien n'est envoyé. */
+  runRoutine: (name: string, args?: Record<string, unknown>) => Promise<void>;
   stop: () => void;
   newConversation: () => Promise<void>;
   probe: () => Promise<{ ok: boolean; detail: string; models?: string[] }>;
@@ -276,6 +279,28 @@ export const useAgent = create<AgentState>((set, get) => ({
       set({ streaming: false, pendingTool: null });
       abortController = null;
     }
+  },
+
+  async runRoutine(name, args) {
+    const { settings } = useSettings.getState();
+    const locale = useI18n.getState().locale;
+    if (!settings.agent.toolsEnabled) {
+      set({
+        notice: tr(
+          'Les outils du desk sont coupés : le brief et le débrief ne partent pas.',
+          'Desk tools are off: the brief and the debrief are not sent.',
+          'Las herramientas del desk están cortadas: el brief y el debrief no se envían.',
+        ),
+        error: null,
+      });
+      return;
+    }
+    const rendered = renderRoutine(name, args ?? {}, { locale, allowWrites: settings.agent.toolsEnabled, now: Date.now() });
+    if (!rendered.ok) {
+      set({ notice: rendered.detail, error: null });
+      return;
+    }
+    await get().send(rendered.text);
   },
 
   stop() {
