@@ -28,6 +28,10 @@ const MC_MAX_RUNS = 2000;
 const MC_MAX_HORIZON = 250;
 const MC_MIN_DAYS = 10;
 const MC_SEED = 1337;
+/** Sorties bornées : une note ou une entrée de calendrier tient en un extrait, une séance en 200 trades. */
+const EXCERPT_MAX = 280;
+const SESSION_TRADES_MAX = 200;
+const CALENDAR_MAX_PERSONAL = 100;
 /** Indicateurs calculés sur les dernières barres seulement (≈ 17 jours en 1 min). */
 const LEVELS_MAX_BARS = 25_000;
 
@@ -38,6 +42,12 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function declaredKeys(tool: DeskTool | undefined): readonly string[] {
   const props = (tool?.parameters as { properties?: Record<string, unknown> } | undefined)?.properties;
   return props ? Object.keys(props) : [];
+}
+
+/** Extrait d'au plus `EXCERPT_MAX` caractères ; `cut` dit si le texte a été coupé. */
+function excerpt(text: string | undefined): { text: string | undefined; cut: boolean } {
+  if (text === undefined || text.length <= EXCERPT_MAX) return { text, cut: false };
+  return { text: `${text.slice(0, EXCERPT_MAX - 1)}…`, cut: true };
 }
 
 function str(v: unknown, fallback = ''): string {
@@ -181,7 +191,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'list_sessions',
       kind: 'read',
       description:
-        'Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source `demo` désigne le jeu de démonstration.' + PROVENANCE_FR,
+        'Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source `demo` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (`noteTruncated`) : get_session la rend entière.' + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
@@ -202,15 +212,20 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           .filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account))
           .sort((a, b) => b.date.localeCompare(a.date))
           .slice(0, limit);
-        const list = rows.map((s) => ({ id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: s.tags, rating: s.rating, note: s.note }));
-        return { count: list.length, sessions: list, ...provenance(ports, rows) };
+        let cut = false;
+        const list = rows.map((s) => {
+          const note = excerpt(s.note);
+          if (note.cut) cut = true;
+          return { id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: s.tags, rating: s.rating, note: note.text, ...(note.cut ? { noteTruncated: true } : {}) };
+        });
+        return { count: list.length, ...(cut ? { truncated: true } : {}), sessions: list, ...provenance(ports, rows) };
       },
     },
     {
       name: 'get_session',
       kind: 'read',
       description:
-        'Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans `account`, rend `ambiguous` et les séances candidates : relancer avec leur id ou le compte.',
+        'Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans `account`, rend `ambiguous` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (`truncated`, `tradeCount`) ; les statistiques portent sur tous.',
       parameters: {
         type: 'object',
         properties: { id: { type: 'string' }, date: { type: 'string' }, account: { type: 'string', description: 'Compte de la séance cherchée par date' } },
@@ -235,10 +250,14 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         if (!s) return { error: tr('Séance introuvable', 'Session not found', 'Sesión no encontrada') };
         const own = trades.filter((t) => t.sessionId === s.id).sort((a, b) => a.exitTime - b.exitTime);
         const stats = computeTradeStats(own);
+        // Les identifiants d'exécution ne servent pas à l'analyse : comptés, pas listés.
+        const { executionIds, ...row } = s;
+        const shown = own.slice(0, SESSION_TRADES_MAX);
         return {
-          session: s,
+          session: { ...row, ...(executionIds ? { executionCount: executionIds.length } : {}) },
           stats: { winRate: round(stats.winRate, 4), profitFactor: round(stats.profitFactor), expectancy: round(stats.expectancy), maxDrawdown: round(stats.maxDrawdown), avgDurationMin: round(stats.avgDurationMs / 60000, 1) },
-          trades: own.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, tags: t.tags })),
+          ...(own.length > shown.length ? { truncated: true, tradeCount: own.length } : {}),
+          trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, tags: t.tags })),
         };
       },
     },
@@ -364,7 +383,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'calendar_events',
       kind: 'read',
       description:
-        'Catalyseurs entre deux dates (au plus trois années civiles) : sources officielles synchronisées (BLS, BEA, Federal Reserve, BCE, EIA, Treasury, instantané embarqué) fusionnées avec les repères locaux (fériés, séances, expirations CME estimées), puis entrées personnelles. Chaque événement porte sa source et `estimated` quand la date est déduite.',
+        'Catalyseurs entre deux dates (au plus trois années civiles) : sources officielles synchronisées (BLS, BEA, Federal Reserve, BCE, EIA, Treasury, instantané embarqué) fusionnées avec les repères locaux (fériés, séances, expirations CME estimées), puis entrées personnelles (100 au plus, corps coupé à 280 caractères : `personalTruncated`). Chaque événement porte sa source et `estimated` quand la date est déduite.',
       parameters: {
         type: 'object',
         properties: {
@@ -389,6 +408,12 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const all = mergeCalendarEvents(local, ports.officialEvents()).filter((e) => e.date >= from && e.date <= to && e.impact >= minImpact);
         const events = all.slice(0, CALENDAR_MAX_EVENTS);
         const perso = ports.calendarEntries().filter((e) => e.date >= from && e.date <= to);
+        let personalCut = perso.length > CALENDAR_MAX_PERSONAL;
+        const personal = perso.slice(0, CALENDAR_MAX_PERSONAL).map((e) => {
+          const body = excerpt(e.body);
+          if (body.cut) personalCut = true;
+          return { date: e.date, time: e.time, kind: e.kind, title: e.title, body: body.text };
+        });
         return {
           count: all.length,
           ...(all.length > events.length ? { truncated: true } : {}),
@@ -406,7 +431,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
             ...(e.period ? { period: e.period } : {}),
             ...(e.instruments?.length ? { instruments: e.instruments } : {}),
           })),
-          personal: perso.map((e) => ({ date: e.date, time: e.time, kind: e.kind, title: e.title, body: e.body })),
+          personal,
+          ...(personalCut ? { personalCount: perso.length, personalTruncated: true } : {}),
         };
       },
     },
@@ -743,14 +769,14 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'list_sessions':
       return tr(
         fallback,
-        'Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The `demo` source is the demo dataset.' + PROVENANCE_EN,
-        'Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente `demo` es el juego de demostración.' + PROVENANCE_ES,
+        'Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The `demo` source is the demo dataset. A note longer than 280 characters is cut (`noteTruncated`): get_session returns it whole.' + PROVENANCE_EN,
+        'Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente `demo` es el juego de demostración. Una nota de más de 280 caracteres se corta (`noteTruncated`): get_session la devuelve entera.' + PROVENANCE_ES,
       );
     case 'get_session':
       return tr(
         fallback,
-        'Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without `account`, returns `ambiguous` and the candidate sessions: call again with their id or the account.',
-        'Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin `account`, devuelve `ambiguous` y las sesiones candidatas: volver a llamar con su id o la cuenta.',
+        'Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without `account`, returns `ambiguous` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (`truncated`, `tradeCount`); the statistics cover them all.',
+        'Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin `account`, devuelve `ambiguous` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (`truncated`, `tradeCount`); las estadísticas los cubren todos.',
       );
     case 'annotate_session':
       return tr(fallback, 'Adds or replaces a session note and/or its tags.', 'Añade o sustituye la nota de una sesión y/o sus etiquetas.');
@@ -767,8 +793,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'calendar_events':
       return tr(
         fallback,
-        'Catalysts between two dates (at most three calendar years): synced official sources (BLS, BEA, Federal Reserve, ECB, EIA, Treasury, embedded snapshot) merged with local markers (holidays, sessions, estimated CME expirations), then personal entries. Each event carries its source and `estimated` when the date is inferred.',
-        'Catalizadores entre dos fechas (como máximo tres años civiles): fuentes oficiales sincronizadas (BLS, BEA, Reserva Federal, BCE, EIA, Treasury, instantánea integrada) fusionadas con las referencias locales (festivos, sesiones, vencimientos CME estimados), y luego entradas personales. Cada evento lleva su fuente y `estimated` cuando la fecha se deduce.',
+        'Catalysts between two dates (at most three calendar years): synced official sources (BLS, BEA, Federal Reserve, ECB, EIA, Treasury, embedded snapshot) merged with local markers (holidays, sessions, estimated CME expirations), then personal entries (100 at most, body cut at 280 characters: `personalTruncated`). Each event carries its source and `estimated` when the date is inferred.',
+        'Catalizadores entre dos fechas (como máximo tres años civiles): fuentes oficiales sincronizadas (BLS, BEA, Reserva Federal, BCE, EIA, Treasury, instantánea integrada) fusionadas con las referencias locales (festivos, sesiones, vencimientos CME estimados), y luego entradas personales (100 como máximo, cuerpo cortado a 280 caracteres: `personalTruncated`). Cada evento lleva su fuente y `estimated` cuando la fecha se deduce.',
       );
     case 'journal_breakdown':
       return tr(

@@ -308,3 +308,48 @@ describe('A6.5 chaque lecture du journal est datée et sourcée', () => {
     expect(out.session?.id).toBe('a1');
   });
 });
+
+describe('A6.6 sorties bornées', () => {
+  it('list_sessions : 200 séances aux notes de 20 000 caractères tiennent sous 100 000 caractères', async () => {
+    const long = 'n'.repeat(20_000);
+    const many = Array.from({ length: 200 }, (_, i) =>
+      session(`s_${String(i).padStart(3, '0')}`, new Date(Date.parse('2026-01-01T12:00:00Z') + i * 86_400_000).toISOString().slice(0, 10), 'Sim101', i, { note: long, tags: ['revue', 'plan respecté'], rating: 3 }),
+    );
+    const desk = demoDesk({ journal: { sessions: many, trades: [] } });
+    const run = await callTool<{ truncated?: boolean; count: number; sessions: { note?: string; noteTruncated?: boolean }[] }>(desk.ports, 'list_sessions', { limit: 200 });
+    expect(run.count).toBe(200);
+    expect(run.truncated).toBe(true);
+    expect(run.sessions.every((x) => (x.note?.length ?? 0) <= 280 && x.noteTruncated === true)).toBe(true);
+    expect(JSON.stringify(run).length).toBeLessThan(100_000);
+    // Une note courte passe entière, sans marque.
+    const short = await callTool<{ truncated?: boolean; sessions: { note?: string; noteTruncated?: boolean }[] }>(fakePorts({ sessions: () => [session('c', '2026-09-28', 'Sim101', 1, { note: 'courte' })] }), 'list_sessions');
+    expect(short.truncated).toBeUndefined();
+    expect(short.sessions[0]).toMatchObject({ note: 'courte' });
+    expect(short.sessions[0]?.noteTruncated).toBeUndefined();
+  });
+
+  it('get_session : 200 trades au plus, identifiants d’exécution comptés, statistiques sur tous les trades', async () => {
+    const ids = Array.from({ length: 400 }, (_, i) => `exec-${i}`);
+    const big = session('s_big', '2026-09-28', 'Sim101', 0, { tradeCount: 250, executionIds: ids });
+    const start = zonedToUtc('2026-09-28', '09:30', ET_ZONE);
+    const many = Array.from({ length: 250 }, (_, i) => trade(`t${i}`, 's_big', start + i * 60_000, start + i * 60_000 + 30_000, i % 2 ? 10 : -10, { executionIds: ['a', 'b'] }));
+    const out = await callTool<{ session: Record<string, unknown>; trades: unknown[]; truncated?: boolean; tradeCount?: number; stats: { winRate: number } }>(fakePorts({ sessions: () => [big], trades: () => many }), 'get_session', { id: 's_big' });
+    expect(out.trades).toHaveLength(200);
+    expect(out.truncated).toBe(true);
+    expect(out.tradeCount).toBe(250);
+    expect(out.session.executionIds).toBeUndefined();
+    expect(out.session.executionCount).toBe(400);
+    expect(out.stats.winRate).toBe(r2(computeTradeStats(many).winRate, 4));
+    expect(JSON.stringify(out)).not.toContain('exec-');
+  });
+
+  it('calendar_events : entrées personnelles bornées en nombre et en longueur', async () => {
+    const entries = Array.from({ length: 150 }, (_, i) => ({ date: '2026-10-05', kind: 'note', title: `Entrée ${i}`, body: 'b'.repeat(5_000) }));
+    const out = await callTool<{ personal: { body?: string }[]; personalCount?: number; personalTruncated?: boolean }>(fakePorts({ calendarEntries: () => entries }), 'calendar_events', { from: '2026-10-01', to: '2026-10-31' });
+    expect(out.personal.length).toBeLessThanOrEqual(100);
+    expect(out.personal.every((e) => (e.body?.length ?? 0) <= 280)).toBe(true);
+    expect(out.personalCount).toBe(150);
+    expect(out.personalTruncated).toBe(true);
+    expect(JSON.stringify(out).length).toBeLessThan(60_000);
+  });
+});
