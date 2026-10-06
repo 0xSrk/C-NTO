@@ -3,7 +3,7 @@ import { Bars, Histogram } from '@/design/charts/Bars';
 import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
-import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
+import { aggregatePoints, exitReasonOf, standardRoot, tagTiming, type ExitReason } from '@/engine/tradeUnits';
 import { buildMetricsContext } from '@/engine/metricsContext';
 import { useBars } from '@/store/bars';
 import { useMacro } from '@/store/macro';
@@ -118,8 +118,11 @@ export function ContextNote({ sessions, trades }: { sessions: Session[]; trades:
   const confirm = useSettings((st) => st.settings.regimeConfirm);
   const minStay = useSettings((st) => st.settings.regimeMinSessions);
   const note = useMemo(() => {
-    const chosen = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
-    if (!chosen || chosen.bars.length === 0) return null;
+    const active = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
+    if (!active || active.bars.length === 0) return null;
+    // Jamais de fiche sur des prix synthétiques : une série réelle de la même racine, sinon rien.
+    const chosen = active.source !== 'demo' ? active : series.filter((row) => row.source !== 'demo' && row.bars.length > 0 && standardRoot(row.instrument) === standardRoot(active.instrument)).sort((a, b) => b.bars.length - a.bars.length)[0];
+    if (!chosen) return { demo: true as const };
     const result = buildMetricsContext({
       root: chosen.instrument,
       bars: chosen.bars,
@@ -134,6 +137,9 @@ export function ContextNote({ sessions, trades }: { sessions: Session[]; trades:
     const last = result.days.at(-1);
     return { enough: true as const, instrument: chosen.instrument, date: last?.date, cycle: last?.volCycle, band: last?.volBand };
   }, [series, activeId, events, trades, sessions, confirm, minStay]);
+  if (note && 'demo' in note) {
+    return <p className={s.note}>{tr('Série de démonstration : pas de contexte du jour sur des prix synthétiques', 'Demo series: no daily context on synthetic prices', 'Serie de demostración: sin contexto del día sobre precios sintéticos')}</p>;
+  }
   if (!note || !note.enough) {
     return <p className={s.note}>{tr('Historique de barres insuffisant', 'Bar history is too short', 'Historial de barras insuficiente')}</p>;
   }

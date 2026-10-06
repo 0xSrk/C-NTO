@@ -35,10 +35,10 @@ afterEach(() => {
   host = null;
 });
 
-async function noteText(series: BarSeries): Promise<string> {
+async function noteText(series: BarSeries, others: BarSeries[] = []): Promise<string> {
   useI18n.setState({ locale: 'fr' });
   useMacro.setState({ events: [] });
-  useBars.setState({ series: [series], activeId: series.id });
+  useBars.setState({ series: [series, ...others], activeId: series.id });
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -76,6 +76,25 @@ describe('Analyse › contexte du jour', () => {
     expect(host?.textContent).toBe('Context MNQ · 2024-09-23 · regime receding · band high');
     await act(async () => useI18n.setState({ locale: 'es' }));
     expect(host?.textContent).toBe('Contexto MNQ · 2024-09-23 · régimen descenso · banda alta');
+  });
+
+  it('ne lit jamais le contexte d’une série de démonstration : une série réelle de la même racine, sinon rien', async () => {
+    const dates = weekdays('2024-01-02', 140);
+    const daily = (level: number): Bar[] =>
+      dates.map((date, index) => {
+        const close = level + 10 * index;
+        return { time: Date.parse(`${date}T00:00:00Z`) / 1000, open: close - 5, high: close + 25, low: close - 30, close, volume: 1 };
+      });
+    const demo: BarSeries = { id: 'demo', instrument: 'NQ', timeframe: 1440, label: 'NQ · démo', source: 'demo', bars: daily(20_000), createdAt: 0 };
+    // Démo seule : aucune fiche n'est lue sur des prix synthétiques.
+    const alone = await noteText(demo);
+    expect(alone).not.toContain('Contexte NQ');
+    expect(alone).toContain('démonstration');
+    act(() => root?.unmount());
+    host?.remove();
+    // Démo active et série réelle NQ chargée : le contexte vient de la série réelle.
+    const real: BarSeries = { id: 'csv', instrument: 'NQ', timeframe: 1440, label: 'NQ · CSV', source: 'csv', bars: daily(18_000), createdAt: 0 };
+    expect(await noteText(demo, [real])).toContain('Contexte NQ · 2024-07-15');
   });
 });
 
