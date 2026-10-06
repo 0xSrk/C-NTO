@@ -14,7 +14,7 @@ import { eiaAdapter } from './eia';
 import { fedAdapter } from './fed';
 import { applyFredPatch, fredAdapter, FRED_OBS_URL, parseFredObservations } from './fred';
 import { treasuryAdapter } from './treasury';
-import type { CalendarEventRow, CalendarSourceStatus } from './types';
+import { boundCalendarRow, type CalendarEventRow, type CalendarSourceStatus } from './types';
 
 export const CALENDAR_UA = 'CANTO-Desk/2.0 (calendar)';
 
@@ -220,7 +220,11 @@ export async function runCalendarSync(opts: {
   }
 
   const byId = new Map<string, CalendarEventRow>();
-  for (const row of applyFredPatch(events, fredPatch)) byId.set(row.id, row);
+  // Un seul passage borne toutes les chaînes (adaptateurs, valeurs BLS et FRED, socle) avant le renderer et le modèle.
+  for (const row of applyFredPatch(events, fredPatch)) {
+    const bounded = boundCalendarRow(row);
+    byId.set(bounded.id, bounded);
+  }
   const merged = [...byId.values()].sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
   return { events: merged, sources };
 }

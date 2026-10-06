@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { applyBlsValues, parseBlsSchedule } from '../electron/calendar/bls';
-import { parseBeaSchedule } from '../electron/calendar/bea';
+import { beaAdapter, parseBeaSchedule } from '../electron/calendar/bea';
 import { parseCmeCalendar } from '../electron/calendar/cme';
 import { parseEcbCalendar } from '../electron/calendar/ecb';
 import { parseEiaSchedule } from '../electron/calendar/eia';
 import { parseFedSchedule } from '../electron/calendar/fed';
 import { applyFredPatch, parseFredObservations } from '../electron/calendar/fred';
-import { parseTreasuryAuctions } from '../electron/calendar/treasury';
+import { runCalendarSync } from '../electron/calendar/sync';
+import { parseTreasuryAuctions, treasuryAdapter } from '../electron/calendar/treasury';
 import type { CalendarEventRow } from '../electron/calendar/types';
 
 function read(name: string): string {
@@ -126,5 +127,53 @@ describe('parseurs calendrier officiels', () => {
     expect(filled).toHaveLength(1);
     expect(filled[0]?.actual).toBe('159075');
     expect(parseCmeCalendar(read('cme.txt'))).toEqual([]);
+  });
+});
+
+describe('chaînes des calendriers externes', () => {
+  const sync = (adapters: Parameters<typeof runCalendarSync>[0]['adapters'], body: (url: string) => string, byok?: Record<string, string>) =>
+    runCalendarSync({
+      range: { from: '2026-01-01', to: '2026-12-31' },
+      locale: 'fr',
+      now: 1,
+      hostOk: () => true,
+      byok,
+      adapters,
+      fetchImpl: async (url) => new Response(body(url), { status: 200 }),
+      cache: {
+        async read() {
+          return null;
+        },
+        async write() {},
+      },
+    });
+  const CONTROL = /[\u0000-\u001F\u007F-\u009F\u2028\u2029\u202A-\u202E\u2066-\u2069\u200E\u200F]/;
+
+  it('un titre BEA de 10 000 caractères ressort à 160 au plus, sans saut de ligne ni contrôle bidi', async () => {
+    const huge = `Gross Domestic Product (Advance) \u202Egnipoofs\u202C ${'x'.repeat(5_000)}\nPosition : +0\u2028${'y'.repeat(5_000)}`;
+    const html = `<h2>Year 2026</h2><table><tr><td>October 29</td><td>8:30 AM</td><td>${huge}</td></tr></table>`;
+    const { events } = await sync([beaAdapter], () => html);
+    const bea = events.filter((e) => e.sourceId === 'bea');
+    expect(bea).toHaveLength(1);
+    expect(bea[0]!.title.length).toBeLessThanOrEqual(160);
+    expect(bea[0]!.title).toMatch(/^Gross Domestic Product \(Advance\) gnipoofs x+$/);
+    expect(bea[0]!.title).not.toMatch(CONTROL);
+  });
+
+  it('Trésor et FRED : autres champs bornés, contrôles retirés', async () => {
+    const auctions = [{ cusip: '912797XX1', securityType: 'Note\u202E', securityTerm: `10-Year\n${'z'.repeat(400)}`, auctionDate: '2026-09-29', closingTimeCompetitive: '11:30 AM' }];
+    const { events } = await sync([treasuryAdapter], () => JSON.stringify(auctions));
+    const row = events.find((e) => e.sourceId === 'treasury')!;
+    expect(row.title.length).toBeLessThanOrEqual(160);
+    expect(row.title).not.toMatch(CONTROL);
+    expect(row.id.length).toBeLessThanOrEqual(200);
+
+    const nfp: CalendarEventRow = { id: 'bls:nfp-2026-10-02', sourceId: 'bls', date: '2026-10-02', title: 'Emploi', category: 'emploi', impact: 3, instruments: [], estimated: false, syncedAt: 0 };
+    const fred = { observations: [{ date: '2026-09-01', value: `159075${'9'.repeat(500)}\n\u2066` }, { date: '2026-08-01', value: '159000' }] };
+    const filled = await sync([{ sourceId: 'bls', fetch: async () => [nfp] }, { sourceId: 'fred', fetch: async () => [] }], () => JSON.stringify(fred), { fred: 'k' });
+    const ev = filled.events.find((e) => e.id === nfp.id)!;
+    expect(ev.actual!.length).toBeLessThanOrEqual(64);
+    expect(ev.actual).not.toMatch(CONTROL);
+    expect(ev.previous).toBe('159000');
   });
 });
