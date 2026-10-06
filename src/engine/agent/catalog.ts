@@ -47,7 +47,7 @@ export function orchMethodAllowed(method: string, allowWrites: boolean): boolean
 }
 
 /** Événements que le desk pousse aux agents (`desk.event` de l'orchestrateur) et range pour `desk_events`. */
-export const DESK_EVENT_KINDS = ['fill', 'prop_buffer', 'catalyst', 'bridge_link', 'agent_order'] as const;
+export const DESK_EVENT_KINDS = ['fill', 'prop_buffer', 'catalyst', 'bridge_link', 'agent_order', 'daily_loss', 'discipline'] as const;
 export type DeskEventKind = (typeof DESK_EVENT_KINDS)[number];
 
 export function isDeskEventKind(kind: unknown): kind is DeskEventKind {
