@@ -61,6 +61,8 @@ export interface NtBridgeStatus {
   addonVersion: string | null;
   ntVersion: string | null;
   accounts: { name: string; cashValue: number; realizedPnl: number; unrealizedPnl: number; positions: { instrument: string; quantity: number; avgPrice: number }[] }[];
+  /** Réception des derniers comptes par le process principal (epoch ms) ; `null` avant le premier envoi. */
+  accountsAt?: number | null;
   accountNames: string[];
   heartbeatLatencyMs: number | null;
   ordersOpen: boolean;

@@ -420,7 +420,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'bridge_status',
       kind: 'read',
       description:
-        'État en direct du pont NinjaTrader 8 et du Copieur : lien, latence, canal d’ordres ouvert ou fermé, plafond, comptes (cash, PnL réalisé et latent, positions), Copieur armé ou non, ordres routés, dernier refus. Lecture seule ; pour proposer un ordre au trader : propose_order.',
+        'État en direct du pont NinjaTrader 8 et du Copieur : lien, latence, canal d’ordres ouvert ou fermé, plafond, comptes (cash, PnL réalisé et latent, positions) et leur heure de réception (accountsAt), Copieur armé ou non, ordres routés, dernier refus. Lecture seule ; pour proposer un ordre au trader : propose_order.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const { nt, copier } = await ports.bridge();
@@ -431,6 +431,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           ...(live ? {} : { note: tr('Pont hors ligne : comptes et positions peuvent être périmés.', 'Bridge offline: accounts and positions may be stale.', 'Puente fuera de línea: cuentas y posiciones pueden estar desactualizadas.') }),
           addonVersion: nt.addonVersion,
           heartbeatLatencyMs: nt.heartbeatLatencyMs,
+          accountsAt: typeof nt.accountsAt === 'number' ? new Date(nt.accountsAt).toISOString() : null,
           ordersOpen: nt.ordersOpen,
           maxContractsPerOrder: nt.maxContractsPerOrder,
           accounts: nt.accounts.map((a) => ({
@@ -767,8 +768,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'bridge_status':
       return tr(
         fallback,
-        'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions), Copier armed or not, routed orders, last refusal. Read only; to propose an order to the trader: propose_order.',
-        'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura; para proponer una orden al trader: propose_order.',
+        'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions) and when they were received (accountsAt), Copier armed or not, routed orders, last refusal. Read only; to propose an order to the trader: propose_order.',
+        'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones) y su hora de recepción (accountsAt), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura; para proponer una orden al trader: propose_order.',
       );
     case 'portfolio_snapshot':
       return tr(

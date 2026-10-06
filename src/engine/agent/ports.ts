@@ -36,6 +36,8 @@ export interface DeskBridgeView {
     ordersOpen: boolean;
     maxContractsPerOrder: number;
     accounts: { name: string; cashValue: number; realizedPnl: number; unrealizedPnl: number; positions: { instrument: string; quantity: number; avgPrice: number }[] }[];
+    /** Réception des derniers comptes par le process principal (epoch ms) ; `null` ou absent : inconnue. */
+    accountsAt?: number | null;
   } | null;
   copier: { armed: boolean; routed: number; lastRefusal: { reason: string; account: string; instrument: string; qty: number } | null } | null;
 }

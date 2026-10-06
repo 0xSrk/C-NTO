@@ -96,6 +96,8 @@ export interface NtBridgeStatus {
   addonVersion: string | null;
   ntVersion: string | null;
   accounts: AccountSnapshot[];
+  /** Réception des derniers comptes (`bridge.accounts`), epoch ms ; `null` avant le premier envoi. */
+  accountsAt: number | null;
   accountNames: string[];
   heartbeatLatencyMs: number | null;
   ordersOpen: boolean;
@@ -158,6 +160,7 @@ export class NtBridgeServer {
   private helloOk = false;
   private hello: HelloParams | null = null;
   private accounts: AccountSnapshot[] = [];
+  private accountsAt: number | null = null;
   private accountNames: string[] = [];
   private ordersClosed = false;
   private nextId = 0;
@@ -239,6 +242,7 @@ export class NtBridgeServer {
       addonVersion: this.hello?.addonVersion ?? null,
       ntVersion: this.hello?.ntVersion ?? null,
       accounts: this.accounts,
+      accountsAt: this.accountsAt,
       accountNames: this.accountNames,
       heartbeatLatencyMs,
       ordersOpen: this.link === 'live' && !this.ordersClosed,
@@ -485,6 +489,7 @@ export class NtBridgeServer {
         return;
       case 'bridge.accounts':
         this.accounts = call.params.accounts;
+        this.accountsAt = this.clock.now();
         this.accountNames = call.params.accounts.map((row) => row.name);
         this.onAccounts?.(call.params.accounts);
         this.emitStatus();
