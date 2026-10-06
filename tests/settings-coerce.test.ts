@@ -55,6 +55,16 @@ describe('coerceSettings', () => {
     expect(coerceSettings({ falseDiscoveryRate: 0.01 }, base).falseDiscoveryRate).toBe(base.falseDiscoveryRate);
     expect(coerceSettings({ stabilityWindow: 40 }, base).stabilityWindow).toBe(40);
     expect(coerceSettings({ stabilityWindow: 9 }, base).stabilityWindow).toBe(base.stabilityWindow);
+    expect(coerceSettings({ riskBasePoints: 1.5 }, base).riskBasePoints).toBe(1.5);
+    expect(coerceSettings({ riskBasePoints: 25 }, base).riskBasePoints).toBe(base.riskBasePoints);
+    expect(coerceSettings({ volLtPoints: -0.4 }, base).volLtPoints).toBe(-0.4);
+    expect(coerceSettings({ volLtPoints: -0.1 }, base).volLtPoints).toBe(base.volLtPoints);
+    expect(coerceSettings({ crossVolPoints: -0.15 }, base).crossVolPoints).toBe(-0.15);
+    expect(coerceSettings({ impliedVol: null }, { ...base, impliedVol: 0.2 }).impliedVol).toBeNull();
+    expect(coerceSettings({ impliedVol: 0.16 }, base).impliedVol).toBe(0.16);
+    expect(coerceSettings({ impliedVol: 9 }, base).impliedVol).toBe(base.impliedVol);
+    expect(coerceSettings({ rrShiftFar: 0.15 }, base).rrShiftFar).toBe(0.15);
+    expect(coerceSettings({ rrShiftUp: 0.2 }, base).rrShiftUp).toBe(base.rrShiftUp);
     expect(coerceSettings({ uiZoom: 0.4 }, base).uiZoom).toBe(base.uiZoom);
     expect(coerceSettings({ uiZoom: 2.5 }, base).uiZoom).toBe(base.uiZoom);
     expect(coerceSettings({ uiZoom: 1.25 }, base).uiZoom).toBe(1.25);

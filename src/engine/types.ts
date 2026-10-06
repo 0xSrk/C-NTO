@@ -36,6 +36,10 @@ export interface Trade {
   tagEvents?: TagEvent[];
   /** Risque planifié en USD, pour les multiples de R */
   risk?: number;
+  /** Stop initial saisi. Source de risque `stop` quand il est présent. */
+  stopPrice?: number;
+  /** Objectif initial saisi. Sert au rapport gain/risque prévu. */
+  targetPrice?: number;
   /** Identifiants d'exécutions NT ayant formé ce trade */
   executionIds?: string[];
   /** Identifiants d'ordres NT (FIFO entrée puis sortie) */
@@ -51,8 +55,8 @@ export interface TagEvent {
   at?: number;
 }
 
-/** Fiche trade qui porte `tagEvents`. Les fiches plus anciennes, sans ce champ, restent lisibles. */
-export const TRADE_SCHEMA_VERSION = 2;
+/** Fiche trade qui porte `tagEvents`, `stopPrice` et `targetPrice`. Les fiches plus anciennes restent lisibles. */
+export const TRADE_SCHEMA_VERSION = 3;
 
 export interface Session {
   id: string;

@@ -441,6 +441,8 @@ const CHECKS: Record<string, Check> = {
     opt(r.mae, isNum) &&
     opt(r.mfe, isNum) &&
     opt(r.risk, isNum) &&
+    opt(r.stopPrice, (v) => inRange(v, 0, 1e6)) &&
+    opt(r.targetPrice, (v) => inRange(v, 0, 1e6)) &&
     opt(r.account, (v) => isStr(v, 64)) &&
     opt(r.strategy, (v) => isStr(v, 200)) &&
     opt(r.entryName, (v) => isStr(v, 200)) &&
