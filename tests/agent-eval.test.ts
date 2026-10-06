@@ -4,6 +4,7 @@ import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { computeTradeStats } from '@/engine/metrics';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
 import { etDateKey } from '@/lib/time';
+import { drawdownGauge } from '@/modules/metrique/drawdownLimit';
 import { filterJournal, scopeFor, shiftDateKey } from '@/modules/metrique/range';
 import { lastResult, readTool, runScenario, SCENARIO_NOW } from './helpers/agentEval';
 import { DEMO_ACCOUNT, DEMO_PLAN, demoDesk } from './helpers/demoDesk';
@@ -35,7 +36,7 @@ describe('agent · scénarios dorés', () => {
     expect(run.transcript.at(-1)).toEqual({ role: 'assistant', content: `Profit factor : ${r2(screen.profitFactor)}`, toolCalls: undefined });
   });
 
-  it('statut du plan suivi : le rejeu de l’onglet Firme prop, sur le compte suivi', async () => {
+  it('statut et marge du plan suivi : le rejeu de l’onglet Firme prop et la jauge K.04, sur le compte suivi', async () => {
     const desk = demoDesk();
     const run = await runScenario({
       ports: desk.ports,
@@ -50,6 +51,15 @@ describe('agent · scénarios dorés', () => {
     expect(overview.plan).toMatchObject({ id: plan.id, account: DEMO_ACCOUNT, status: ev.status, balance: r2(ev.balance), floor: r2(ev.floor), buffer: r2(ev.buffer), targetProgress: r2(ev.targetProgress, 4) });
     expect(status).toMatchObject({ account: DEMO_ACCOUNT, status: ev.status, balance: r2(ev.balance), highWater: r2(ev.highWater), floor: r2(ev.floor), buffer: r2(ev.buffer), daysTraded: ev.daysTraded });
     expect(status.failedOn).toBe(ev.failedOn);
+    expect(status.passedOn ?? undefined).toBe(ev.passedOn);
+    // La jauge K.04 lit la marge datée du même rejeu sur tout l'historique du compte.
+    const gauge = drawdownGauge({ plan, account: DEMO_ACCOUNT, history: scope, maxDrawdown: 0, startingBalance: desk.startingBalance });
+    expect(gauge.kind).toBe('plan');
+    if (gauge.kind === 'plan') {
+      const margin = { date: gauge.date, lastLow: r2(gauge.lastLow), floor: r2(gauge.floor), margin: r2(gauge.margin) };
+      expect(overview.plan.margin).toEqual(margin);
+      expect(status.margin).toEqual(margin);
+    }
   });
 
   it('catalyseurs de demain : la date vient de la consigne, la liste du calendrier fusionné de l’écran', async () => {

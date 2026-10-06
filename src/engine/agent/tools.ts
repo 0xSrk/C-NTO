@@ -7,7 +7,7 @@ import { tr } from '@/i18n';
 import { aggregateByDate, computeDailyStats, computeTradeStats, sessionDates, type Bucket } from '@/engine/metrics';
 import { monteCarlo } from '@/engine/montecarlo';
 import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
-import { evaluatePlan, findPlan } from '@/engine/propfirm';
+import { evaluatePlan, findPlan, planMargin, type PropEvaluation } from '@/engine/propfirm';
 import type { Bar, BarSeries } from '@/engine/bars';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
@@ -83,6 +83,15 @@ const SLICE_PARAMS = {
   account: { type: 'string', description: 'Compte (défaut : tous les comptes)' },
 } as const;
 
+/**
+ * Marge datée de la jauge K.04 (`planMargin`) : plus-bas de la dernière séance rejouée, excursions
+ * défavorables comprises, moins le plancher. Plus prudente que `buffer` (clôture − plancher).
+ */
+function datedMargin(ev: PropEvaluation): { date: string; lastLow: number | null; floor: number | null; margin: number | null } | null {
+  const m = planMargin(ev);
+  return m ? { date: m.date, lastLow: round(m.lastLow), floor: round(m.floor), margin: round(m.margin) } : null;
+}
+
 function buckets(list: Bucket[]) {
   return list.filter((b) => b.count > 0).map((b) => ({ key: b.key, trades: b.count, pnl: round(b.pnl), winRate: round(b.winRate, 4) }));
 }
@@ -93,7 +102,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
     {
       name: 'desk_overview',
       kind: 'read',
-      description: 'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique).',
+      description:
+        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const sessions = ports.sessions();
@@ -120,7 +130,21 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           bestDay: round(d.bestDay),
           worstDay: round(d.worstDay),
           consistencyShare: round(d.consistency, 4),
-          plan: plan ? { id: plan.id, firm: plan.firm, label: plan.label, account: planAccount || null, status: evalr?.status, balance: round(evalr?.balance ?? 0), floor: round(evalr?.floor ?? 0), buffer: round(evalr?.buffer ?? 0), targetProgress: round(evalr?.targetProgress ?? 0, 4) } : null,
+          plan: plan
+            ? {
+                id: plan.id,
+                firm: plan.firm,
+                label: plan.label,
+                account: planAccount || null,
+                status: evalr?.status,
+                balance: round(evalr?.balance ?? 0),
+                floor: round(evalr?.floor ?? 0),
+                buffer: round(evalr?.buffer ?? 0),
+                margin: evalr ? datedMargin(evalr) : null,
+                passedOn: evalr?.passedOn ?? null,
+                targetProgress: round(evalr?.targetProgress ?? 0, 4),
+              }
+            : null,
         };
       },
     },
@@ -579,7 +603,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
     {
       name: 'propfirm_status',
       kind: 'read',
-      description: 'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. Par défaut, le plan et le compte suivis par l’écran Métrique.',
+      description:
+        'Rejoue le journal contre le plan prop firm suivi : solde, plancher, marge, progression vers l’objectif, règle de consistance. `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`) : la marge de la jauge K.04, plus prudente. Le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec (`failedOn`). Par défaut, le plan et le compte suivis par l’écran Métrique.',
       parameters: {
         type: 'object',
         properties: {
@@ -595,7 +620,24 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         if (!plan) return { error: tr('Plan inconnu', 'Unknown plan', 'Plan desconocido') };
         const account = typeof args.account === 'string' ? args.account : ports.planAccount();
         const r = evaluatePlan(plan, sessions, trades, account || undefined);
-        return { plan, account: account || null, status: r.status, reason: r.reason, failedOn: r.failedOn, balance: round(r.balance), highWater: round(r.highWater), floor: round(r.floor), buffer: round(r.buffer), targetProgress: round(r.targetProgress, 4), remainingToTarget: round(r.remainingToTarget), daysTraded: r.daysTraded, consistency: r.consistency, dailyLossBreaches: r.dailyLossBreaches };
+        return {
+          plan,
+          account: account || null,
+          status: r.status,
+          reason: r.reason,
+          failedOn: r.failedOn,
+          passedOn: r.passedOn ?? null,
+          balance: round(r.balance),
+          highWater: round(r.highWater),
+          floor: round(r.floor),
+          buffer: round(r.buffer),
+          margin: datedMargin(r),
+          targetProgress: round(r.targetProgress, 4),
+          remainingToTarget: round(r.remainingToTarget),
+          daysTraded: r.daysTraded,
+          consistency: r.consistency,
+          dailyLossBreaches: r.dailyLossBreaches,
+        };
       },
     },
   ];
@@ -628,7 +670,11 @@ export const DESK_TOOLS: DeskTool[] = createDeskTools(EMPTY_PORTS);
 export function toolBlurb(name: string, fallback: string): string {
   switch (name) {
     case 'desk_overview':
-      return tr(fallback, 'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen).', 'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas).');
+      return tr(
+        fallback,
+        'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.',
+        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.',
+      );
     case 'list_sessions':
       return tr(fallback, 'Lists trading sessions (date, PnL, trade count, tags, note), newest first. Optional YYYY-MM-DD date bounds.', 'Lista las sesiones (fecha, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtro opcional por fechas YYYY-MM-DD.');
     case 'get_session':
@@ -694,7 +740,11 @@ export function toolBlurb(name: string, fallback: string): string {
         'Eventos del desk: fills de NinjaTrader, margen del plan prop seguido por debajo del 50 / 25 / 10 % del drawdown máximo o superado (latente de la cuenta incluido), catalizador mayor en los próximos 15 minutos, cambio del enlace del puente. Devolver `cursor` para leer solo los eventos siguientes; sin cursor, los más recientes. El registro guarda los últimos 500 eventos del lanzamiento en curso; `reset` señala un cursor de otro lanzamiento.',
       );
     case 'propfirm_status':
-      return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');
+      return tr(
+        fallback,
+        'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`): the K.04 gauge margin, more conservative. The replay stops at the target reached (`passedOn`) or at failure (`failedOn`). Defaults to the plan and account tracked by the Metrics screen.',
+        'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`): el margen del indicador K.04, más prudente. El rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso (`failedOn`). Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.',
+      );
     default:
       return fallback;
   }
