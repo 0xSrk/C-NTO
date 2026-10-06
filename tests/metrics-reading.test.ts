@@ -15,6 +15,7 @@ import {
   type ReadingSample,
 } from '@/engine/contextReading';
 import type { Bar, BarSeries } from '@/engine/bars';
+import { permutationPValues } from '@/engine/inference';
 import { sessionDates } from '@/engine/metrics';
 import { buildMetricsContext, type DayContext } from '@/engine/metricsContext';
 import { pointsPerContract } from '@/engine/tradeUnits';
@@ -130,6 +131,28 @@ describe('lecture par contexte', () => {
     expect(daySide(0)).toBeNull();
     expect(daySide(1)).toBe('hausse');
     expect(daySide(-1)).toBe('baisse');
+  });
+
+  it('confirme un groupe à 0 point quand le reste fait +12 : la permutation se centre sur la moyenne générale', () => {
+    const dates = weekdays('2025-01-06', 40);
+    const samples: ReadingSample[] = dates.flatMap((date, day) => [
+      { date, exitTime: day * 10, points: day % 2 ? 3 : -3, key: 'creux' },
+      ...[1, 2, 3, 4].map((k) => ({ date, exitTime: day * 10 + k, points: 12 + (k % 2 ? 3 : -3), key: 'reste' })),
+    ]);
+    const rows = readAxis(samples, [], { draws: 400, seed: 1 });
+    const creux = rows.find((row) => row.key === 'creux');
+    expect(creux?.trades).toBe(40);
+    expect(creux?.verdict).toBe('confirme');
+
+    const values = samples.map((sample) => sample.points as number);
+    const group = samples.flatMap((sample, index) => (sample.key === 'creux' ? [index] : []));
+    expect(permutationPValues(values, [group], { draws: 400, seed: 1, centered: true })[0]).toBeLessThan(0.01);
+    // Le rail de l'étape 2 garde la valeur absolue de la moyenne : un groupe à 0 n'y est jamais extrême.
+    expect(permutationPValues(values, [group], { draws: 400, seed: 1 })[0]).toBe(1);
+
+    const contrast = releaseContrast(samples.map((sample) => ({ points: sample.points as number, treated: sample.key === 'creux' })), { draws: 400, seed: 1 });
+    expect(contrast.diff).toBeCloseTo(-12, 8);
+    expect(contrast.significant).toBe(true);
   });
 
   it('ferme les classes d’amplitude à 100 % et ignore les vides', () => {

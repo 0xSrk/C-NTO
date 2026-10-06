@@ -54,14 +54,15 @@ function sampleVariance(values: readonly number[]): number {
   return sd * sd;
 }
 
-function halfPersists(points: readonly number[], exitTimes: readonly number[]): { same: boolean; flipped: boolean } {
+/** L'écart à `center` garde-t-il son signe et au moins la moitié de son ampleur sur la seconde moitié du groupe ? */
+function halfPersists(points: readonly number[], exitTimes: readonly number[], center: number): { same: boolean; flipped: boolean } {
   const order = points.map((value, index) => ({ value, time: exitTimes[index] ?? 0 })).sort((a, b) => a.time - b.time);
   if (order.length < 2) return { same: false, flipped: false };
   const mid = Math.floor(order.length / 2);
-  const all = order.reduce((sum, row) => sum + row.value, 0) / order.length;
+  const all = order.reduce((sum, row) => sum + row.value, 0) / order.length - center;
   const second = order.slice(mid);
   if (second.length === 0 || all === 0) return { same: false, flipped: false };
-  const half = second.reduce((sum, row) => sum + row.value, 0) / second.length;
+  const half = second.reduce((sum, row) => sum + row.value, 0) / second.length - center;
   if (Math.sign(half) !== Math.sign(all)) return { same: false, flipped: true };
   return { same: Math.abs(half) + 1e-9 >= 0.5 * Math.abs(all), flipped: false };
 }
@@ -99,6 +100,7 @@ export function readAxis(
   const finiteOf = (list: readonly ReadingSample[]) => list.filter((sample) => sample.points != null && Number.isFinite(sample.points));
   const finiteSamples = samples.filter((sample) => sample.points != null && Number.isFinite(sample.points));
   const allPoints = finiteSamples.map((sample) => sample.points as number);
+  const grand = allPoints.length ? allPoints.reduce((sum, value) => sum + value, 0) / allPoints.length : 0;
   const sigma = stddev(allPoints);
   const groups: ShrinkGroup[] = keys.map((key) => {
     const points = finiteOf(byKey.get(key) ?? []).map((sample) => sample.points as number);
@@ -113,7 +115,8 @@ export function readAxis(
     eligibleIndex.push(index);
     eligibleGroups.push(points.map((sample) => finiteSamples.indexOf(sample)));
   });
-  const pValues = eligibleGroups.length ? permutationPValues(allPoints, eligibleGroups, { draws, seed: opts.seed ?? 1 }) : [];
+  // Un groupe se juge contre la moyenne générale, pas contre zéro.
+  const pValues = eligibleGroups.length ? permutationPValues(allPoints, eligibleGroups, { draws, seed: opts.seed ?? 1, centered: true }) : [];
   // Benjamini-Hochberg local, pour ne pas importer la fonction si les p sont déjà filtrées.
   const order = pValues.map((p, index) => ({ p, index })).sort((a, b) => a.p - b.p);
   let cutoff = -1;
@@ -135,7 +138,7 @@ export function readAxis(
     const n2 = allPoints.length - points.length;
     const mde = points.length > 1 && n2 > 1 && sigma > 0 ? minimumDetectableEffect(sigma, points.length, n2) : null;
     const day = dayKeys.get(key);
-    const half = halfPersists(points, finite.map((sample) => sample.exitTime));
+    const half = halfPersists(points, finite.map((sample) => sample.exitTime), grand);
     let verdict: ReadingVerdict = 'non concluant';
     if (finite.length < minTrades) verdict = 'insuffisant';
     else if (significant.has(index) && half.flipped) verdict = 'renverse';
@@ -243,7 +246,7 @@ export function releaseContrast(samples: readonly ReleaseSample[], opts: { draws
   const diff = mean(treated.map((sample) => sample.points)) - mean(control.map((sample) => sample.points));
   const values = samples.map((sample) => sample.points);
   const group = samples.flatMap((sample, index) => (sample.treated ? [index] : []));
-  const p = permutationPValues(values, [group], { draws: opts.draws ?? 1_000, seed: opts.seed ?? 1 })[0] ?? 1;
+  const p = permutationPValues(values, [group], { draws: opts.draws ?? 1_000, seed: opts.seed ?? 1, centered: true })[0] ?? 1;
   return { diff, p, significant: p < (opts.fdr ?? 0.05) };
 }
 
