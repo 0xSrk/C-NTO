@@ -55,6 +55,22 @@ describe('routines du desk', () => {
     }
   });
 
+  it('brief et débrief lisent la mémoire et la discipline du trader, et ses événements de séance', () => {
+    const reads = (n: string) => ROUTINES.find((r) => r.name === n)!.reads;
+    expect(reads('pre_session_brief')).toEqual(expect.arrayContaining(['trader_memory', 'discipline_status']));
+    expect(reads('session_debrief')).toEqual(expect.arrayContaining(['trader_memory']));
+    for (const locale of LOCALES) {
+      expect(text('pre_session_brief', {}, locale)).toMatch(/"daily_loss"/);
+      const debrief = text('session_debrief', { date: '2026-10-05' }, locale);
+      for (const kind of ['order', 'daily_loss', 'discipline']) expect(debrief, `${locale} ${kind}`).toContain(`"${kind}"`);
+      // Étapes numérotées dans l'ordre, dans chaque langue.
+      for (const r of ROUTINES) {
+        const steps = (text(r.name, {}, locale).match(/^\d+(?=\. )/gm) ?? []).map(Number);
+        expect(steps, `${r.name} ${locale}`).toEqual(steps.map((_, i) => i + 1));
+      }
+    }
+  });
+
   it('écritures autorisées : le débrief propose annotate_session et create_note, après accord du trader', () => {
     const body = text('session_debrief', { date: '2026-10-05' }, 'fr', true);
     expect(body).toMatch(/annotate_session/);
