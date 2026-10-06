@@ -19,6 +19,10 @@
   flex: none;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
+  /* Au repos, exactement les barres ; éveillé, la largeur du littéral, atteinte en douceur. */
+  width: 64px;
+  transition: width 700ms var(--ease-out);
   padding: 0;
   margin: 0;
   border: 0;
@@ -34,6 +38,10 @@
   pointer-events: none;
 }
 
+.armed {
+  width: calc(13 * (1ch + 0.08em));
+}
+
 .bars,
 .reform {
   display: inline-flex;
@@ -41,7 +49,91 @@
 
 .reform {
   transform-origin: right center;
-  animation: seat-reform 420ms var(--ease-out);
+  animation: seat-reform 600ms var(--ease-out);
+}
+
+/* Éveillé : les barres restent à leur place et s'effacent sous la vague, de gauche à droite. */
+.row {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+
+.wipe {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: inline-flex;
+  transform: translateY(-50%);
+  animation-name: seat-wipe;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+@keyframes seat-wipe {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+/* Un glyphe garde sa place avant de paraître : rien ne bouge autour. */
+.wait,
+.set,
+.fall,
+.rise {
+  display: inline-block;
+  white-space: pre;
+}
+
+.wait {
+  opacity: 0;
+}
+
+/* Domino : chaque glyphe bascule depuis le haut et se pose sur sa ligne. */
+.fall {
+  transform-origin: 50% 100%;
+  animation-name: seat-fall;
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: both;
+}
+
+@keyframes seat-fall {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5em) rotate(-28deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Émergence : le glyphe sort du côté des barres, flou, puis se fixe. */
+.rise {
+  animation-name: seat-rise;
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: both;
+}
+
+@keyframes seat-rise {
+  from {
+    opacity: 0;
+    filter: blur(2.5px);
+    transform: translateX(0.9em);
+  }
+  55% {
+    opacity: 0.8;
+    filter: blur(0.6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
 }
 
 @keyframes seat-reform {
