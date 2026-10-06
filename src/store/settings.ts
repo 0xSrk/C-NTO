@@ -63,6 +63,10 @@ export interface Settings {
   regimeConfirm: number;
   /** Durée minimale d'un régime, en séances. */
   regimeMinSessions: number;
+  /** Minutes avant une publication. */
+  releaseBefore: number;
+  /** Minutes après une publication. */
+  releaseAfter: number;
   /** Risque de base par trade, en points de pourcentage (1,5 = 1,5 %). Provisoire : pas de table F20. */
   riskBasePoints: number;
   /** Ajustement Vol-LT, en points de risque. Provisoire : pas de table F21. */
@@ -114,6 +118,8 @@ export const DEFAULT_SETTINGS: Settings = {
   stabilityWindow: 20,
   regimeConfirm: 2,
   regimeMinSessions: 5,
+  releaseBefore: 5,
+  releaseAfter: 30,
   riskBasePoints: 1.5,
   volLtPoints: -0.4,
   crossVolPoints: -0.15,
@@ -240,6 +246,8 @@ export function coerceSettings(raw: unknown, base: Settings): Settings {
     stabilityWindow: pickNum(r.stabilityWindow, 10, 40, base.stabilityWindow, true),
     regimeConfirm: pickNum(r.regimeConfirm, 1, 3, base.regimeConfirm, true),
     regimeMinSessions: pickNum(r.regimeMinSessions, 3, 10, base.regimeMinSessions, true),
+    releaseBefore: pickNum(r.releaseBefore, 5, 10, base.releaseBefore, true),
+    releaseAfter: pickNum(r.releaseAfter, 15, 60, base.releaseAfter, true),
     riskBasePoints: pickNum(r.riskBasePoints, 0, 20, base.riskBasePoints),
     volLtPoints: pickNum(r.volLtPoints, -0.6, -0.2, base.volLtPoints),
     crossVolPoints: pickNum(r.crossVolPoints, -0.25, -0.1, base.crossVolPoints),
@@ -273,7 +281,7 @@ function coercePortfolio(raw: unknown, base: Settings['portfolio']): Settings['p
 }
 
 /** Clés d'un coffre autorisées à écraser les réglages locaux (jamais orchestrateur, sauvegarde, hôtes LLM, secrets). */
-export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'regimeConfirm', 'regimeMinSessions', 'riskBasePoints', 'volLtPoints', 'crossVolPoints', 'impliedVol', 'rrShiftUp', 'rrShiftDown', 'rrShiftFar', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
+export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'regimeConfirm', 'regimeMinSessions', 'releaseBefore', 'releaseAfter', 'riskBasePoints', 'volLtPoints', 'crossVolPoints', 'impliedVol', 'rrShiftUp', 'rrShiftDown', 'rrShiftFar', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
 
 function pickImpliedVol(v: unknown, base: number | null): number | null {
   if (v === null) return null;
