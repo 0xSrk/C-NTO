@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BaselineSeries, ColorType, createChart, createSeriesMarkers, CrosshairMode, HistogramSeries, LineSeries, LineStyle, type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time, type UTCTimestamp } from 'lightweight-charts';
+import { ColorType, createChart, CrosshairMode, LineStyle, type IChartApi, type ISeriesApi, type SeriesPartialOptions, type Time, type UTCTimestamp, type WhitespaceData } from 'lightweight-charts';
 import { Montant, Segmented } from '@/design/primitives';
 import { equityCurve, type EquityCurveData, type EquityGrain, type EquityStep } from '@/engine/equityCurve';
 import type { Session, Trade } from '@/engine/types';
@@ -8,9 +8,11 @@ import { fmtInt } from '@/lib/format';
 import { dateTimeFormatter } from '@/lib/time';
 import { chartHostReady, safePaneHeight } from '@/modules/visual/chartBox';
 import s from './dashboard.module.css';
+import { EquityTrait, NONE, StemTrait, UnderwaterTrait, type EquityRow, type Ink, type Marks, type TraitOptions } from './equitySeries';
 
 /**
- * Métrique › A.02 : courbe d'équité, P&L par pas et drawdown sous l'eau.
+ * Métrique › A.02 : courbe d'équité, P&L par pas et drawdown sous l'eau, au trait du Lab
+ * (fils d'un pixel légèrement lumineux, trame de points, pixel rouge signature au dernier pas).
  * Glisser déplace, Ctrl (⌘) + molette zoome, double-clic recadre : la molette seule fait défiler la page.
  */
 
@@ -25,24 +27,31 @@ const LOCAL_DAY: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit'
 const LOCAL_LONG: Intl.DateTimeFormatOptions = { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
 
 /** Couleurs lues dans les jetons (`tokens.css`) : le canevas ne lit pas les variables CSS. */
-function palette(el: HTMLElement) {
+function palette(el: HTMLElement): Ink & { line1: string; bg3: string } {
   const css = getComputedStyle(el);
   const v = (name: string) => css.getPropertyValue(name).trim() || 'gray';
   return {
+    line: v('--text-0'),
     pos: v('--pos'),
     neg: v('--neg'),
-    posSoft: v('--mint-soft'),
-    negSoft: v('--ember-soft'),
-    posLine: v('--mint-line'),
-    negLine: v('--ember-line'),
-    text0: v('--text-0'),
-    text2: v('--text-2'),
+    red: v('--gold'),
+    faint: v('--text-2'),
+    label: v('--text-1'),
+    zero: v('--line-2'),
     line1: v('--line-1'),
-    line2: v('--line-2'),
     bg3: v('--bg-3'),
     mono: css.getPropertyValue('--font-mono').trim() || 'monospace',
   };
 }
+
+/** Pixel signature en légende : la même matrice 5 × 5 que sur la courbe. */
+const PIXEL_KEY: [number, number, boolean, number][] = Array.from({ length: 25 }, (_, i) => {
+  const x = i % 5;
+  const y = Math.floor(i / 5);
+  const ring = Math.max(Math.abs(x - 2), Math.abs(y - 2));
+  const corner = Math.abs(x - 2) === 2 && Math.abs(y - 2) === 2;
+  return [x, y, ring === 0, corner ? 0.22 : ring === 2 ? 0.5 : 1];
+});
 
 const signed = (value: number) => (Math.round(value) > 0 ? `+${fmtInt(value)}` : fmtInt(value));
 
@@ -52,33 +61,43 @@ function stepLabel(step: EquityStep, grain: EquityGrain): string {
   return dateTimeFormatter(DAY_LONG).format(new Date(step.time * 1000));
 }
 
+type Trait = ISeriesApi<'Custom', Time, EquityRow | WhitespaceData<Time>, TraitOptions, SeriesPartialOptions<TraitOptions>>;
+
 interface Refs {
   chart: IChartApi;
-  equity: ISeriesApi<'Baseline'>;
-  peak: ISeriesApi<'Line'>;
-  pnl: ISeriesApi<'Histogram'>;
-  drawdown: ISeriesApi<'Baseline'>;
-  markers: ISeriesMarkersPluginApi<Time>;
-  colors: ReturnType<typeof palette>;
+  traits: Trait[];
   /** Dernière courbe dessinée : un rendu sans changement ne redessine pas. */
   drawn: EquityCurveData | null;
 }
 
+/** Repères du volet principal : le plus haut et le creux du plus grand drawdown, au trait. */
+function marksOf(curve: EquityCurveData): Marks {
+  let high = NONE;
+  curve.steps.forEach((step, i) => {
+    if (step.equity > 0 && (high === NONE || step.equity > (curve.steps[high]?.equity ?? 0))) high = i;
+  });
+  const top = curve.steps[high];
+  return {
+    high,
+    highLabel: top ? `${tr('PLUS HAUT', 'HIGH', 'MÁXIMO')} ${signed(top.equity)}` : '',
+    trough: curve.maxDrawdown?.trough ?? NONE,
+    troughLabel: curve.maxDrawdown ? `${tr('CREUX', 'TROUGH', 'VALLE')} −${fmtInt(curve.maxDrawdown.depth)}` : '',
+  };
+}
+
 function draw(refs: Refs, curve: EquityCurveData): void {
-  const { colors } = refs;
-  const ts = (step: EquityStep) => step.time as UTCTimestamp;
-  refs.equity.setData(curve.steps.map((step) => ({ time: ts(step), value: step.equity })));
-  refs.peak.setData(curve.steps.map((step) => ({ time: ts(step), value: step.peak })));
-  refs.pnl.setData(curve.steps.map((step) => (step.origin ? { time: ts(step) } : { time: ts(step), value: step.pnl, color: step.pnl < 0 ? colors.negLine : colors.posLine })));
-  refs.drawdown.setData(curve.steps.map((step) => ({ time: ts(step), value: step.drawdown })));
-  const trough = curve.maxDrawdown ? curve.steps[curve.maxDrawdown.trough] : undefined;
-  refs.markers.setMarkers(trough && curve.maxDrawdown ? [{ time: ts(trough), position: 'belowBar', shape: 'arrowUp', color: colors.neg, text: `−${fmtInt(curve.maxDrawdown.depth)}` }] : []);
+  const rows: EquityRow[] = curve.steps.map((step) => ({ time: step.time as UTCTimestamp, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl }));
+  const marks = marksOf(curve);
+  for (const trait of refs.traits) {
+    trait.applyOptions({ marks, focus: NONE });
+    trait.setData(rows);
+  }
   refs.chart.timeScale().fitContent();
   refs.drawn = curve;
 }
 
 export function EquityCard({ sessions, trades, className }: { sessions: Session[]; trades: Trade[]; className?: string }) {
-  useI18n((st) => st.locale);
+  const locale = useI18n((st) => st.locale);
   const [grain, setGrain] = useState<EquityGrain>('session');
   const curve = useMemo(() => equityCurve(sessions, trades, grain), [sessions, trades, grain]);
   const [hover, setHover] = useState<number | null>(null);
@@ -107,19 +126,19 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
           height,
           layout: {
             background: { type: ColorType.Solid, color: 'transparent' },
-            textColor: colors.text2,
+            textColor: colors.faint,
             fontFamily: colors.mono,
             fontSize: 10,
-            panes: { separatorColor: colors.line1, separatorHoverColor: colors.line2, enableResize: false },
+            panes: { separatorColor: colors.line1, separatorHoverColor: colors.zero, enableResize: false },
             attributionLogo: false,
           },
-          grid: { vertLines: { visible: false }, horzLines: { color: colors.line1, style: LineStyle.Dotted } },
+          grid: { vertLines: { visible: false }, horzLines: { color: colors.line1, style: LineStyle.SparseDotted } },
           crosshair: {
             mode: CrosshairMode.Magnet,
-            vertLine: { color: colors.text2, labelBackgroundColor: colors.bg3, width: 1, style: LineStyle.Dotted },
-            horzLine: { color: colors.text2, labelBackgroundColor: colors.bg3, width: 1, style: LineStyle.Dotted },
+            vertLine: { color: colors.faint, labelBackgroundColor: colors.bg3, width: 1, style: LineStyle.SparseDotted },
+            horzLine: { color: colors.faint, labelBackgroundColor: colors.bg3, width: 1, style: LineStyle.SparseDotted },
           },
-          rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
+          rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.2, bottom: 0.16 } },
           timeScale: {
             borderColor: colors.line1,
             rightOffset: 2,
@@ -141,44 +160,16 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
           handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
           handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: { time: true, price: false }, axisDoubleClickReset: true },
         });
-        const equity = chart.addSeries(BaselineSeries, {
-          baseValue: { type: 'price', price: 0 },
-          topLineColor: colors.pos,
-          topFillColor1: colors.posSoft,
-          topFillColor2: colors.posSoft,
-          bottomLineColor: colors.neg,
-          bottomFillColor1: colors.negSoft,
-          bottomFillColor2: colors.negSoft,
-          lineWidth: 2,
-          priceLineVisible: false,
-          crosshairMarkerRadius: 3,
-          priceFormat: { type: 'price', precision: 0, minMove: 1 },
-        });
-        const peak = chart.addSeries(LineSeries, { color: colors.text2, lineWidth: 1, lineStyle: LineStyle.Dotted, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat: { type: 'price', precision: 0, minMove: 1 } });
-        const pnl = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false, priceFormat: { type: 'price', precision: 0, minMove: 1 } }, 1);
-        const drawdown = chart.addSeries(
-          BaselineSeries,
-          {
-            baseValue: { type: 'price', price: 0 },
-            topLineColor: 'transparent',
-            topFillColor1: 'transparent',
-            topFillColor2: 'transparent',
-            bottomLineColor: colors.neg,
-            bottomFillColor1: colors.negSoft,
-            bottomFillColor2: colors.negSoft,
-            lineWidth: 1,
-            priceLineVisible: false,
-            lastValueVisible: false,
-            priceFormat: { type: 'price', precision: 0, minMove: 1 },
-          },
-          2,
-        );
+        const ink: Ink = colors;
+        const scale = { priceLineVisible: false, priceFormat: { type: 'price' as const, precision: 0, minMove: 1 } };
+        const equity = chart.addCustomSeries(new EquityTrait(), { ...scale, ink, color: ink.line, lastValueVisible: true });
+        const pnl = chart.addCustomSeries(new StemTrait(), { ...scale, ink, color: ink.faint, lastValueVisible: false }, 1);
+        const drawdown = chart.addCustomSeries(new UnderwaterTrait(), { ...scale, ink, color: ink.neg, lastValueVisible: false }, 2);
         const panes = chart.panes();
         const pnlHeight = safePaneHeight(PNL_PANE, height, panes.length);
         const ddHeight = safePaneHeight(DD_PANE, height, panes.length);
         if (pnlHeight) panes[1]?.setHeight(pnlHeight);
         if (ddHeight) panes[2]?.setHeight(ddHeight);
-        const markers = createSeriesMarkers(equity, []);
         chart.subscribeCrosshairMove((param) => {
           if (param.time === undefined || !param.point) {
             setHover(null);
@@ -187,7 +178,7 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
           const index = curveRef.current.steps.findIndex((step) => step.time === (param.time as number));
           setHover(index >= 0 ? index : null);
         });
-        refs.current = { chart, equity, peak, pnl, drawdown, markers, colors, drawn: null };
+        refs.current = { chart, traits: [equity, pnl, drawdown], drawn: null };
         draw(refs.current, curveRef.current);
       } catch {
         if (!disposed) setFault(true);
@@ -236,6 +227,16 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
     setHover(null);
     if (refs.current && refs.current.drawn !== curve) draw(refs.current, curve);
   }, [curve]);
+
+  // Les étiquettes des repères suivent la langue du desk.
+  useEffect(() => {
+    for (const trait of refs.current?.traits ?? []) trait.applyOptions({ marks: marksOf(curveRef.current) });
+  }, [locale]);
+
+  // Pas survolé : carré creux sur la crête, fil allumé, lueur sous l'eau.
+  useEffect(() => {
+    for (const trait of refs.current?.traits ?? []) trait.applyOptions({ focus: hover ?? NONE });
+  }, [hover]);
 
   const last = curve.steps.length - 1;
   const step = curve.steps[hover ?? last];
@@ -289,11 +290,19 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
           <i className={s.eqKeyPeak} /> {tr('Plus haut', 'High', 'Máximo')}
         </span>
         <span>
-          <i className={s.eqKeyBar} /> {tr('P&L par pas', 'P&L per step', 'P&L por paso')}
+          <i className={s.eqKeyStem} /> {tr('P&L par pas', 'P&L per step', 'P&L por paso')}
         </span>
         <span>
           <i className={s.eqKeyDd} /> {tr('Drawdown', 'Drawdown', 'Drawdown')}
           {curve.maxDrawdown ? ` max −${fmtInt(curve.maxDrawdown.depth)}` : ''}
+        </span>
+        <span>
+          <svg className={s.eqKeyPixel} viewBox="0 0 9 9" aria-hidden>
+            {PIXEL_KEY.map(([x, y, core, a]) => (
+              <rect key={`${x}-${y}`} x={x * 2} y={y * 2} width="1.4" height="1.4" className={core ? s.eqPixelCore : undefined} opacity={a} />
+            ))}
+          </svg>
+          {tr('Dernier pas', 'Last step', 'Último paso')}
         </span>
         <span className={s.eqHelp}>{tr('Ctrl + molette : zoom · double-clic : tout', 'Ctrl + wheel: zoom · double-click: all', 'Ctrl + rueda: zoom · doble clic: todo')}</span>
       </div>
