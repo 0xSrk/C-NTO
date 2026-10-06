@@ -18,15 +18,16 @@ import {
 } from '@/engine/riskConsole';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
-import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
+import { fmtNum, fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './metrique.module.css';
 
+/** Bornes des classes de stop en σ, au séparateur décimal de la langue du desk. */
 function bandLabel(band: string): string {
-  if (band === '<0.25') return '< 0,25 σ';
-  if (band === '0.25-0.5') return '0,25–0,5 σ';
-  if (band === '0.5-1') return '0,5–1 σ';
+  if (band === '<0.25') return `< ${fmtNum(0.25, 2)} σ`;
+  if (band === '0.25-0.5') return `${fmtNum(0.25, 2)}–${fmtNum(0.5, 1)} σ`;
+  if (band === '0.5-1') return `${fmtNum(0.5, 1)}–1 σ`;
   return '> 1 σ';
 }
 
@@ -117,7 +118,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
         <p className={s.note}>{tr('Tous les trades sont en risque fixe : le R n’apporte rien de plus que les dollars.', 'Every trade uses the fixed risk: R adds nothing beyond the dollars.', 'Todos los trades están en riesgo fijo: la R no aporta más que los dólares.')}</p>
       ) : null}
       <p className={s.note}>
-        {tr('Espérance', 'Expectancy', 'Esperanza')} {fmtUsd(reading.expectancyCi.center, { sign: true, cents: true })} · IC 90 % {fmtUsd(reading.expectancyCi.low, { sign: true, cents: true })} – {fmtUsd(reading.expectancyCi.high, { sign: true, cents: true })}
+        {tr('Espérance', 'Expectancy', 'Esperanza')} {fmtUsd(reading.expectancyCi.center, { sign: true, cents: true })} · {tr('IC 90 %', '90% CI', 'IC 90 %')} {fmtUsd(reading.expectancyCi.low, { sign: true, cents: true })} – {fmtUsd(reading.expectancyCi.high, { sign: true, cents: true })}
       </p>
       <table className={tableClass}>
         <thead>
@@ -152,7 +153,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
       </p>
       <p className={s.note}>
         Bernoulli 5 {tr('gains', 'wins', 'ganancias')} {fmtRatio(bernoulliRun(reading.winRate, 5), 4)} · 5 {tr('pertes', 'losses', 'pérdidas')} {fmtRatio(bernoulliRun(1 - reading.winRate, 5), 4)}
-        {lossRun ? ` · ${tr('série de pertes attendue', 'expected loss streak', 'serie de pérdidas esperada')} ${fmtRatio(lossRun.mean, 1)} · 95e ${lossRun.p95}` : ''}
+        {lossRun ? ` · ${tr('série de pertes attendue', 'expected loss streak', 'serie de pérdidas esperada')} ${fmtRatio(lossRun.mean, 1)} · ${tr('95e', '95th', '95.º')} ${lossRun.p95}` : ''}
         {' · '}
         Bayes {fmtPct(reading.posterior.mean, 1)} [{fmtPct(reading.posterior.low, 1)} ; {fmtPct(reading.posterior.high, 1)}]
       </p>
