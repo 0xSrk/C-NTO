@@ -135,6 +135,25 @@ describe('fiche de contexte', () => {
     expect(busy?.trades).toBe(1);
   });
 
+  it('ne fusionne que les copies entre comptes différents, en équivalent standard', () => {
+    const slice = bars.slice(0, 100);
+    const day = dates[30]!;
+    const sheet = (trades: Trade[]) => buildMetricsContext({ root: 'NQ', bars: slice, trades }).days.find((row) => row.date === day);
+    // Deux exécutions d'un même compte dans la même seconde : deux trades.
+    const twice = sheet([trade('a1', day, 'A'), trade('a2', day, 'A')]);
+    expect([twice?.trades, twice?.contracts]).toEqual([2, 2]);
+    // Suiveur en micros (10 MNQ pour 1 NQ) : une décision, un contrat standard.
+    const micro = sheet([trade('a1', day, 'A'), { ...trade('b1', day, 'B', 10), instrument: 'MNQ', pnl: 200 }]);
+    expect([micro?.trades, micro?.contracts]).toEqual([1, 1]);
+    // Suiveur rempli une seconde plus tard, à l'entrée comme à la sortie : fusionné.
+    const late = trade('c1', day, 'C');
+    const delayed = sheet([trade('a1', day, 'A'), { ...late, entryTime: late.entryTime + 1_000, exitTime: late.exitTime + 1_000, entryPrice: 20_000.25 }]);
+    expect([delayed?.trades, delayed?.contracts]).toEqual([1, 1]);
+    // Sens contraire sur un autre compte : deux décisions.
+    const opposite = sheet([trade('a1', day, 'A'), { ...trade('d1', day, 'D'), direction: 'short', pnl: -200 }]);
+    expect(opposite?.trades).toBe(2);
+  });
+
   it('aligne l’ATR de la fiche sur l’indicateur des barres journalières', () => {
     const daily = toDailyBars(bars);
     const series = atrSeries(daily.map((day, index) => ({ time: index, open: day.open, high: day.high, low: day.low, close: day.close, volume: 0 })));

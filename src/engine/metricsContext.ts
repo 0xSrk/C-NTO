@@ -195,8 +195,33 @@ function average(a: number | undefined, b: number | undefined): number | undefin
   return (a + b) / 2;
 }
 
-function fingerprint(trade: Trade): string {
-  return [trade.instrument, trade.direction, trade.qty, trade.entryTime, trade.exitTime, trade.entryPrice, trade.exitPrice, trade.pnl].join('|');
+/** Écart maximal d'entrée et de sortie entre un trade et sa copie sur un autre compte. */
+export const COPY_WINDOW_MS = 2_000;
+
+/**
+ * Une décision par groupe de copies. Une copie est un trade d'un **autre** compte, même racine, même sens,
+ * entrée et sortie à `COPY_WINDOW_MS` au plus du premier trade du groupe : un suiveur en micros ou rempli
+ * une seconde plus tard est fusionné. Deux trades d'un même compte ne se fusionnent jamais. Le groupe garde
+ * son premier trade (entrée la plus tôt), compté ensuite en équivalent standard.
+ */
+export function mergeCopies(trades: readonly Trade[]): Trade[] {
+  const ordered = [...trades].sort((a, b) => a.entryTime - b.entryTime || a.exitTime - b.exitTime || (a.account ?? '').localeCompare(b.account ?? '') || a.id.localeCompare(b.id));
+  const groups: { lead: Trade; root: string; accounts: Set<string> }[] = [];
+  for (const trade of ordered) {
+    const account = trade.account ?? '';
+    const root = standardRoot(trade.instrument);
+    const group = groups.find(
+      (row) =>
+        !row.accounts.has(account) &&
+        row.root === root &&
+        row.lead.direction === trade.direction &&
+        Math.abs(row.lead.entryTime - trade.entryTime) <= COPY_WINDOW_MS &&
+        Math.abs(row.lead.exitTime - trade.exitTime) <= COPY_WINDOW_MS,
+    );
+    if (group) group.accounts.add(account);
+    else groups.push({ lead: trade, root, accounts: new Set([account]) });
+  }
+  return groups.map((row) => row.lead);
 }
 
 function releaseMs(date: string, timeET: string | undefined): number | null {
@@ -269,9 +294,7 @@ export function buildMetricsContext(input: {
     const volCT = average(hv5, hv10);
     const volMT = average(hv15, hv30);
     const volLT = average(hv60, hv90);
-    const unique = new Map<string, Trade>();
-    for (const trade of byDate.get(day.date) ?? []) if (!unique.has(fingerprint(trade))) unique.set(fingerprint(trade), trade);
-    const copies = [...unique.values()];
+    const copies = mergeCopies(byDate.get(day.date) ?? []);
     let contracts = 0;
     for (const trade of copies) contracts += standardEquivalentQty(trade);
     const atr14 = atr[index] ?? undefined;
