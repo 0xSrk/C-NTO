@@ -5,7 +5,7 @@ import { memoryBudget, memoryDigest, traderMemory, type TraderMemory } from '@/e
 import { MAX_TOOL_ROUNDS, runAgentTurn, toChatHistory } from '@/engine/agent/loop';
 import { renderRoutine } from '@/engine/agent/routines';
 import { executeDeskTool } from '@/engine/agent/runner';
-import { toolKind, toolSchemas } from '@/engine/agent/tools';
+import { describedDeskTools, toolKind, toolSchemas } from '@/engine/agent/tools';
 import { type DeskPorts } from '@/engine/agent/ports';
 import { tradingDayNow } from '@/engine/discipline';
 import { findPlan } from '@/engine/propfirm';
@@ -182,7 +182,7 @@ export const useAgent = create<AgentState>((set, get) => ({
         const via = req.clientId === MCP_CLIENT_ID ? `mcp · ${req.method}` : req.method;
         const log = (ok: boolean, detail?: string) => pushLog(set, get, { direction: 'in', method: via, ok, detail });
         if (req.method === 'desk.describe') {
-          const tools = toolSchemas().map((t) => ({ ...t, kind: toolKind(t.name) }));
+          const tools = describedDeskTools();
           api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: APP_VERSION, tools });
           log(true);
           return;

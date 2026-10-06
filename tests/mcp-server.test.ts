@@ -3,7 +3,8 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { handleMcpHttp, loadOrCreateToken, McpGateway, MCP_PROTOCOL_VERSIONS, type McpContext, type McpRelay, type McpToolInfo } from '../electron/mcp-server';
+import { handleMcpHttp, loadOrCreateToken, McpGateway, MCP_PROTOCOL_VERSIONS, outputSchemaFor, type McpContext, type McpRelay, type McpToolInfo } from '../electron/mcp-server';
+import { DESK_TOOL_KINDS } from '@/engine/agent/catalog';
 import { TOOL_PREAMBLE } from '@/engine/agent/loop';
 
 const TOKEN = 'jeton-de-test-assez-long-pour-passer';
@@ -40,6 +41,22 @@ async function result(reply: { body?: string }) {
 }
 
 describe('passerelle MCP · garde-fous HTTP', () => {
+  it('langue en : 401, 403, 405, 413 et le refus d’écriture', async () => {
+    const unauthorized = await handleMcpHttp(post(rpc('ping'), { authorization: undefined }), ctx({ locale: 'en' }));
+    expect(unauthorized.status).toBe(401);
+    expect(JSON.parse(unauthorized.body ?? '{}').error.message).toMatch(/Bearer token required/);
+    const origin = await handleMcpHttp(post(rpc('ping'), { origin: 'https://evil.example' }), ctx({ locale: 'en' }));
+    expect(JSON.parse(origin.body ?? '{}').error.message).toMatch(/Origin refused/);
+    const method = await handleMcpHttp({ ...post(''), method: 'GET' }, ctx({ locale: 'en' }));
+    expect(method.status).toBe(405);
+    expect(JSON.parse(method.body ?? '{}').error.message).toMatch(/POST only/);
+    const big = await handleMcpHttp(post(rpc('ping'), { 'content-length': '99999999' }), ctx({ locale: 'en' }));
+    expect(big.status).toBe(413);
+    expect(JSON.parse(big.body ?? '{}').error.message).toMatch(/too large/);
+    const denied = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'create_note', arguments: { title: 'x' } })), ctx({ locale: 'en' })));
+    expect((denied.result?.content as { text: string }[])[0]?.text).toMatch(/Writing is disabled/);
+  });
+
   it('refuse sans jeton, avec un mauvais jeton, depuis un navigateur ou un autre hôte', async () => {
     expect((await handleMcpHttp(post(rpc('ping'), { authorization: undefined }), ctx())).status).toBe(401);
     const wrong = await handleMcpHttp(post(rpc('ping'), { authorization: 'Bearer faux' }), ctx());
@@ -216,7 +233,7 @@ describe('passerelle MCP · protocole', () => {
     expect(content).toHaveLength(2);
     expect(JSON.parse(content[0]!.text.slice(content[0]!.text.indexOf('{')))).toEqual({ ok: false, reason: 'write_disabled' });
     expect(content[1]).toEqual({ type: 'text', text: motive });
-    expect(out.result?.structuredContent).toEqual({ ok: false, reason: 'write_disabled' });
+    expect(out.result?.structuredContent).toBeUndefined();
   });
 
   it('tools/list : un titre par outil, dans la langue du desk', async () => {
@@ -275,7 +292,7 @@ describe('passerelle MCP · protocole', () => {
   });
 
   it('méthode inconnue : -32601', async () => {
-    const out = await result(await handleMcpHttp(post(rpc('resources/list')), ctx()));
+    const out = await result(await handleMcpHttp(post(rpc('sampling/createMessage')), ctx()));
     expect(out.error?.code).toBe(-32601);
   });
 });
@@ -285,7 +302,7 @@ describe('passerelle MCP · prompts', () => {
 
   it('initialize annonce prompts ; prompts/list rend les trois routines et leurs arguments, dans la langue du desk', async () => {
     const init = await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-11-25' })), ctx()));
-    expect(init.result?.capabilities).toEqual({ tools: { listChanged: false }, prompts: { listChanged: false } });
+    expect(init.result?.capabilities).toEqual({ tools: { listChanged: false }, prompts: { listChanged: false }, resources: { subscribe: false, listChanged: false } });
     const list = async (locale?: 'fr' | 'en' | 'es') =>
       (await result(await handleMcpHttp(post(rpc('prompts/list')), ctx({ locale })))).result?.prompts as { name: string; title: string; description: string; arguments: { name: string; description: string; required: boolean }[] }[];
     const fr = await list();
@@ -446,5 +463,58 @@ describe('passerelle MCP · serveur', () => {
     const limited = replies.filter((r) => r.status === 429);
     expect(limited.length).toBeGreaterThan(0);
     expect(limited.every((r) => r.headers.get('retry-after') === '1')).toBe(true);
+  });
+});
+
+function acceptsOutput(schema: { type: string; properties: Record<string, unknown>; additionalProperties: boolean }, value: unknown): boolean {
+  if (schema.type !== 'object' || schema.additionalProperties !== true) return false;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.keys(schema.properties).every((key) => key.length > 0);
+}
+
+describe('A14.4 schéma de sortie', () => {
+  it('chaque lecture a un schéma ouvert, un refus n’a pas de structuredContent', async () => {
+    for (const [name, kind] of Object.entries(DESK_TOOL_KINDS)) {
+      const schema = outputSchemaFor(name);
+      if (kind === 'write') {
+        expect(schema, name).toBeUndefined();
+        continue;
+      }
+      expect(schema, name).toMatchObject({ type: 'object', additionalProperties: true });
+      expect(acceptsOutput(schema!, { extra: true, [Object.keys(schema!.properties)[0]!]: 1 })).toBe(true);
+    }
+    const listed = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ allowWrites: true })));
+    const tools = listed.result?.tools as { name: string; outputSchema?: { type: string } }[];
+    expect(tools.find((t) => t.name === 'desk_overview')?.outputSchema?.type).toBe('object');
+    expect(tools.find((t) => t.name === 'create_note')?.outputSchema).toBeUndefined();
+    const refused = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'desk_overview' })), ctx({ relay: relay([], () => ({ result: { ok: false, error: 'non' } })) })));
+    expect(refused.result?.isError).toBe(true);
+    expect(refused.result?.structuredContent).toBeUndefined();
+  });
+});
+
+describe('A14.3 ressources MCP', () => {
+  it('liste, modèles, lecture par un outil de lecture, URI inconnue en -32002', async () => {
+    const calls: { name: string; args: unknown }[] = [];
+    const answer = (name: string) => {
+      if (name === 'get_session') return { result: { session: { date: '2026-10-06' } } };
+      if (name === 'read_note') return { result: { id: 'n1', title: 'Plan' } };
+      if (name === 'propfirm_status') return { result: { status: 'ok' } };
+      return { result: { sessions: 2 } };
+    };
+    const out = async (method: string, params: unknown = {}) => result(await handleMcpHttp(post(rpc(method, params)), ctx({ relay: relay(calls, answer) })));
+    const list = await out('resources/list');
+    expect((list.result?.resources as { uri: string }[]).map((r) => r.uri)).toEqual(['canto://desk/overview', 'canto://plan/tracked']);
+    const templates = await out('resources/templates/list');
+    expect((templates.result?.resourceTemplates as { uriTemplate: string }[]).map((r) => r.uriTemplate)).toEqual(['canto://session/{date}', 'canto://note/{id}']);
+    const session = await out('resources/read', { uri: 'canto://session/2026-10-06' });
+    expect(calls).toContainEqual({ name: 'get_session', args: { date: '2026-10-06' } });
+    expect(JSON.parse((session.result?.contents as { text: string }[])[0]!.text)).toEqual({ session: { date: '2026-10-06' } });
+    const note = await out('resources/read', { uri: 'canto://note/n1' });
+    expect(calls).toContainEqual({ name: 'read_note', args: { id: 'n1' } });
+    expect(JSON.parse((note.result?.contents as { text: string }[])[0]!.text).id).toBe('n1');
+    const unknown = await out('resources/read', { uri: 'canto://order/submit' });
+    expect(unknown.error?.code).toBe(-32002);
+    expect(calls.some((c) => c.name === 'create_note' || c.name === 'propose_order')).toBe(false);
   });
 });
