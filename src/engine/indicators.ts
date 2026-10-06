@@ -1,4 +1,5 @@
 import { ET_ZONE } from '@/lib/time';
+import { atrSeries } from './atr';
 import type { Bar } from './bars';
 
 export interface IndicatorParam {
@@ -321,26 +322,7 @@ export const INDICATORS: IndicatorDefinition[] = [
     params: [{ key: 'period', label: 'Période', type: 'number', default: 14, min: 2, max: 200, step: 1 }],
     compute: (bars, p) => {
       const period = Number(p.period);
-      const tr: number[] = bars.map((b, i) => {
-        if (i === 0) return b.high - b.low;
-        const pc = bars[i - 1]?.close ?? b.close;
-        return Math.max(b.high - b.low, Math.abs(b.high - pc), Math.abs(b.low - pc));
-      });
-      const out: (number | null)[] = new Array(bars.length).fill(null);
-      let prev: number | null = null;
-      let seed = 0;
-      for (let i = 0; i < tr.length; i++) {
-        if (i < period) {
-          seed += tr[i] ?? 0;
-          if (i === period - 1) {
-            prev = seed / period;
-            out[i] = prev;
-          }
-          continue;
-        }
-        prev = ((prev as number) * (period - 1) + (tr[i] ?? 0)) / period;
-        out[i] = prev;
-      }
+      const out = atrSeries(bars, period);
       return { id: 'atr', lines: [{ key: 'atr', label: `ATR ${period}`, color: PALETTE.violet, pane: 'pane', data: toLine(bars, out) }] };
     },
   },

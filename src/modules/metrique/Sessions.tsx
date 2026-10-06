@@ -1,6 +1,8 @@
-import { memo, useCallback, useDeferredValue, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { Fragment, memo, useCallback, useDeferredValue, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { IconTrash } from '@/app/icons';
 import { Button, Empty, Panel, Tag, cx, tableClass } from '@/design/primitives';
+import { findPlan } from '@/engine/propfirm';
+import { horizonSigma, tradeRisk, type RiskSource } from '@/engine/riskConsole';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtPrice, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
@@ -8,6 +10,7 @@ import { formatDuration, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { db } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
+import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './metrique.module.css';
 import { cachedTradeStats } from './useStats';
@@ -271,6 +274,32 @@ const SessionRow = memo(function SessionRow({
   );
 });
 
+function riskSourceLabel(source: RiskSource): string {
+  if (source === 'stop') return tr('stop', 'stop', 'stop');
+  if (source === 'saisi') return tr('saisi', 'entered', 'introducido');
+  if (source === 'fixe') return tr('fixe', 'fixed', 'fijo');
+  return '—';
+}
+
+function TradeLevels({ trade, riskPerContract, riskCapital }: { trade: Trade; riskPerContract: number; riskCapital: number }) {
+  const updateTrade = useJournal((j) => j.updateTrade);
+  const risk = tradeRisk(trade, riskPerContract, riskCapital);
+  const save = (key: 'stopPrice' | 'targetPrice', raw: string) => {
+    const value = raw.trim() === '' ? null : Number(raw);
+    if (value != null && !Number.isFinite(value)) return;
+    void updateTrade(trade.id, { [key]: value });
+  };
+  return (
+    <div className={s.note} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <span>
+        {riskSourceLabel(risk.source)} · {risk.risk == null ? '—' : fmtUsd(risk.risk, { cents: true })} · R/R {risk.plannedRr == null ? '—' : fmtRatio(risk.plannedRr, 2)} · {risk.realizedR == null ? '—' : `${fmtRatio(risk.realizedR, 2)} R`}
+      </span>
+      <input aria-label={tr('Stop initial', 'Initial stop', 'Stop inicial')} placeholder={tr('stop', 'stop', 'stop')} defaultValue={trade.stopPrice ?? ''} onBlur={(e) => save('stopPrice', e.target.value)} style={{ height: 22, width: 88, padding: '0 6px', fontSize: 11 }} />
+      <input aria-label={tr('Objectif initial', 'Initial target', 'Objetivo inicial')} placeholder={tr('objectif', 'target', 'objetivo')} defaultValue={trade.targetPrice ?? ''} onBlur={(e) => save('targetPrice', e.target.value)} style={{ height: 22, width: 88, padding: '0 6px', fontSize: 11 }} />
+    </div>
+  );
+}
+
 function TradeTagField({ trade }: { trade: Trade }) {
   const updateTrade = useJournal((j) => j.updateTrade);
   const [value, setValue] = useState('');
@@ -306,6 +335,8 @@ function TradeTagField({ trade }: { trade: Trade }) {
 
 function SessionDetail({ session, trades, onDeleted }: { session: Session; trades: Trade[]; onDeleted: () => void }) {
   useI18n((s) => s.locale);
+  const settings = useSettings((st) => st.settings);
+  const metricAccount = useUi((st) => st.metricAccount);
   const updateSession = useJournal((j) => j.updateSession);
   const deleteSession = useJournal((j) => j.deleteSession);
   const setTab = useUi((u) => u.setTab);
@@ -317,6 +348,13 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
   const [tagInput, setTagInput] = useState('');
   const stats = useMemo(() => cachedTradeStats(trades), [trades]);
   const sorted = useMemo(() => [...trades].sort((a, b) => a.exitTime - b.exitTime), [trades]);
+  const plan = metricAccount && settings.planAccount === metricAccount ? (findPlan(settings.planId) ?? null) : null;
+  const riskCapital = plan?.maxDrawdown && plan.maxDrawdown > 0 ? plan.maxDrawdown : settings.startingBalance;
+  const risks = useMemo(() => sorted.map((trade) => tradeRisk(trade, settings.riskPerContract, riskCapital)), [sorted, settings.riskPerContract, riskCapital]);
+  const knownRisks = risks.filter((risk) => risk.source !== 'absent');
+  const allFixed = knownRisks.length > 0 && knownRisks.every((risk) => risk.source === 'fixe');
+  const sigmaPrice = sorted[0]?.entryPrice ?? 0;
+  const daySigma = settings.impliedVol != null && sigmaPrice > 0 ? horizonSigma(sigmaPrice, settings.impliedVol, 252) : null;
   const net = trades.length ? trades.reduce((sum, t) => sum + t.pnl, 0) : session.pnl;
   const comm = trades.length ? trades.reduce((sum, t) => sum + (t.commission || 0), 0) : session.commission;
   const brut = net + comm;
@@ -472,8 +510,14 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
           />
         </div>
 
+        {allFixed ? <p className={s.note}>{tr('Tous les trades sont en risque fixe : le R n’apporte rien de plus que les dollars.', 'Every trade uses the fixed risk: R adds nothing beyond the dollars.', 'Todos los trades están en riesgo fijo: la R no aporta más que los dólares.')}</p> : null}
+        {daySigma != null ? (
+          <p className={s.note}>
+            {tr('Largeurs implicites', 'Implied widths', 'Anchuras implícitas')} ±1 σ {tr('jour', 'day', 'día')} {fmtRatio(daySigma, 1)} · {tr('semaine', 'week', 'semana')} {fmtRatio(horizonSigma(sigmaPrice, settings.impliedVol ?? 0, 52), 1)} · {tr('mois', 'month', 'mes')} {fmtRatio(horizonSigma(sigmaPrice, settings.impliedVol ?? 0, 12), 1)} {tr('points. Le niveau atteint par le plus-haut attend la clôture de la veille.', 'points. The high reached versus the previous close waits for that close.', 'puntos. El nivel alcanzado frente al cierre anterior espera ese cierre.')}
+          </p>
+        ) : null}
         {sorted.length > 0 ? (
-          <div className={s.tableWrap} style={{ maxHeight: 320 }}>
+          <div className={s.tableWrap} style={{ maxHeight: 480 }}>
             <table className={tableClass}>
               <thead>
                 <tr>
@@ -486,7 +530,8 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
               </thead>
               <tbody>
                 {sorted.map((t) => (
-                  <tr key={t.id}>
+                  <Fragment key={t.id}>
+                  <tr>
                     <td className="mono" style={{ lineHeight: 1.25 }}>
                       {formatTimeLocal(t.entryTime)}
                       <br />
@@ -509,6 +554,12 @@ function SessionDetail({ session, trades, onDeleted }: { session: Session; trade
                       {t.mae !== undefined ? fmtUsd(-t.mae) : '—'} / {t.mfe !== undefined ? fmtUsd(t.mfe) : '—'}
                     </td>
                   </tr>
+                  <tr>
+                    <td colSpan={5}>
+                      <TradeLevels trade={t} riskPerContract={settings.riskPerContract} riskCapital={riskCapital} />
+                    </td>
+                  </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

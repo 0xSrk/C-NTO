@@ -573,6 +573,57 @@ Onglets A, B et C. Moteur dans `src/engine/inference.ts` (bootstrap par blocs, p
 
 **Hors de cette étape.** Étapes 3 à 6, NinjaTrader, version `package.json`, changelog 3.5.0, extraction de l'ATR.
 
+## 3.5.0 — Ajustement du module Métriques, étape 3 : R et risque (2026-10-06)
+
+Moteur `src/engine/riskConsole.ts`. Les tables F20, F21 et F22 ne sont pas inventées. Tant qu'elles manquent, et tant que la fiche contexte n'existe pas, l'écran applique le risque de base seul (réglage 8, départ 1,5 %). Les ajustements Vol-LT et Cross-Vol sont stockés (réglages 9 et 10) et marqués provisoires ; ils ne s'appliquent pas encore. La mesure en σ n'utilise que la volatilité implicite saisie (réglage 11). `volCT` et l'élasticité attendent les étapes 4 et 5.
+
+| # | Ajustement | Test | Attendu | Obtenu |
+|---|---|---|---|---|
+| 3.1 | Risque = \|entrée − stop\| × valeur du point × quantité ; sinon risque saisi ; sinon fixe | `metrics-risk` | 2 MNQ, stop 19 990, +60 $ → 40 $, +1,5 R, source `stop` | conforme |
+| 3.1 | R/R, espérance, seuil | `metrics-risk` | 2 ; 875 ; 33,3 % | conforme |
+| 3.2 | Matrice en R | `metrics-risk` | 40 % et 1,5 → 0,00 R ; 50 % et 2 → +0,50 R | conforme |
+| 3.3 | Risque ajusté, notionnel, contrats | `metrics-risk` | 0,95 % ; 1 520 ; 0,475 NQ → 4 MNQ | conforme, avec les deux ajustements passés à la fonction. L'écran, lui, reste au risque de base. |
+| 3.4 | σ = cours × vol ÷ √périodes | `metrics-risk` | classes [0 ; 0,25) [0,25 ; 0,5) [0,5 ; 1) [1 ; ∞) | conforme, vol implicite seulement |
+| 3.5 | Bernoulli, série, Bayes | `metrics-series` | 0,0778 / 0,0102 ; moyenne ≈ 6,0 et 95e rang 9 ; 0,549 [0,468 ; 0,629] | conforme |
+
+**Écran.** B : stop initial et objectif initial sur chaque trade ; risque, R/R prévu, R réalisé et source. Mention si tout est en risque fixe. Largeurs ±1 σ jour / semaine / mois si une volatilité implicite est saisie, sans niveau atteint (il faut la clôture de la veille). C : matrice R-R, espérance avec IC par blocs de journées, respect du risque de base, Bernoulli, série de pertes, Bayes, taux après 1 à 3 gains ou pertes, tranches de stop en σ.
+
+**Coffre.** `stopPrice` et `targetPrice` facultatifs. `TRADE_SCHEMA_VERSION` passe à 3. Un coffre sans ces champs reste lisible ; un prix aberrant est écarté.
+
+**Règle 6.** Aucune des fonctions figées (`monteCarlo`, `drawdownSeries`, `evaluatePlan`, `computeTradeStats`, `computeDailyStats`) n'est réécrite.
+
+**Décisions.** n° 3 : capital de risque = perte maximale du plan si le compte filtré est le compte suivi, sinon capital de référence. n° 4 : tables non fournies, signalées provisoires.
+
+## 3.5.0 — Ajustement du module Métriques, étape 4 : contexte du jour (2026-10-06)
+
+`atrSeries` (`src/engine/atr.ts`) est la fonction pure de l'ATR de Wilder. L'indicateur `atr` l'appelle ; `tests/atr-series.test.ts` vérifie l'égalité des valeurs. `buildMetricsContext` (`src/engine/metricsContext.ts`) produit une fiche par séance CME et par racine, jours sans trade compris. Les volatilités de Garman-Klass (annualisées, moyenne des fenêtres 5/10, 15/30 et 60/90) s'arrêtent à la clôture de la veille. Moins de 90 séances : champs de volatilité vides, l'onglet C affiche « Historique de barres insuffisant ».
+
+| # | Ajustement | Test | Attendu | Obtenu |
+|---|---|---|---|---|
+| 4 | Régimes sur une volatilité 12 % puis choc, hausse, redescente | `metrics-context` | choc, puis expansion, puis décrue, puis compression, délais 2 et 5 | conforme |
+| 4 | Historique tronqué | `metrics-context` | fiches antérieures identiques | conforme, trois dates |
+| 4 | Jours sans trade, comptes copiés | `metrics-context` | `traded: false` ; trois copies = 1 contrat | conforme |
+| 4 | ATR | `metrics-context`, `atr-series` | identique à l'indicateur sur les barres journalières | conforme |
+
+**Réglages 1 et 2.** Confirmation d'un régime 1/2/3, durée minimale 3/5/10. Les ajustements Vol-LT et Cross-Vol restent à zéro à l'écran : les tables F21 et F22 ne sont pas fournies, le déclencheur n'est pas inventé. Les volatilités sont dans la fiche pour quand les tables arriveront.
+
+**Règle 6.** Inchangée. `indicators.ts` ne change que l'appel à `atrSeries`.
+
+## 3.5.0 — Ajustement du module Métriques, étape 5 : lecture par contexte (2026-10-06)
+
+La trame jour × heure de l'onglet C est remplacée par une lecture à axe choisi (régime, bande, publication, rang, après une perte, risque, stop en σ, jour, heure). Le régime et la bande qui classent une journée sont ceux de la veille. Les petits groupes sont rapprochés de la moyenne. Un verdict est confirmé seulement s'il passe le rail de l'étape 2.
+
+| # | Ajustement | Test | Attendu | Obtenu |
+|---|---|---|---|---|
+| 5.1 | Jour et heure sur la démo | `metrics-reading` | aucun verdict confirmé | conforme |
+| 5.2 | Décomposition | `metrics-reading` | le produit retrouve le gain moyen par journée | égal à 10⁻⁸ près |
+| 5.2 | Contrôle décalé d'une semaine | `metrics-reading` | l'effet planté disparaît | significatif en place, non significatif décalé |
+| 8 | Classes d'amplitude | `metrics-reading` | total = nombre de journées, cumul 100 %, vides sans effet | conforme |
+| 8 | Changement de régime | `metrics-reading` | le jour du changement garde la valeur de la veille | conforme |
+| 5.4 | Queue | `metrics-reading` | empirique dès 250, Pareto dès 500 | conforme |
+
+Réglage 5 : 5 min avant une publication (5 à 10), 30 min après (15 à 60). Moins de 30 journées comparables : le texte « pas assez de journées comparables » est le verdict « pas assez de données » de l'axe. Les trois questions (décomposition, publications, comportement) sont dans le moteur ; l'écran montre l'axe et son verdict.
+
 
 ## Couche agentique du trader — thèse et vague 1 (2026-10-06)
 

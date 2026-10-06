@@ -152,8 +152,40 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('Fausses découvertes', 'False discoveries', 'Falsos descubrimientos')} hint={tr('2,5 % à 10 % · départ 5 %', '2.5% to 10% · default 5%', '2,5 % a 10 % · inicio 5 %')}>
           <input type="number" min={2.5} max={10} step={0.5} value={Math.round(settings.falseDiscoveryRate * 1000) / 10} onChange={(e) => update({ falseDiscoveryRate: Number(e.target.value) / 100 })} />
         </Field>
+        <Field label={tr('Confirmation d’un régime', 'Regime confirmation', 'Confirmación de un régimen')} hint={tr('1 à 3 séances · départ 2', '1 to 3 sessions · default 2', '1 a 3 sesiones · inicio 2')}>
+          <input type="number" min={1} max={3} step={1} value={settings.regimeConfirm} onChange={(e) => update({ regimeConfirm: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Durée minimale d’un régime', 'Minimum regime length', 'Duración mínima de un régimen')} hint={tr('3 à 10 séances · départ 5', '3 to 10 sessions · default 5', '3 a 10 sesiones · inicio 5')}>
+          <input type="number" min={3} max={10} step={1} value={settings.regimeMinSessions} onChange={(e) => update({ regimeMinSessions: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Avant une publication (min)', 'Before a release (min)', 'Antes de una publicación (min)')} hint={tr('5 à 10 · départ 5', '5 to 10 · default 5', '5 a 10 · inicio 5')}>
+          <input type="number" min={5} max={10} step={1} value={settings.releaseBefore} onChange={(e) => update({ releaseBefore: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Après une publication (min)', 'After a release (min)', 'Después de una publicación (min)')} hint={tr('15 à 60 · départ 30', '15 to 60 · default 30', '15 a 60 · inicio 30')}>
+          <input type="number" min={15} max={60} step={1} value={settings.releaseAfter} onChange={(e) => update({ releaseAfter: Number(e.target.value) })} />
+        </Field>
         <Field label={tr('Fenêtre de stabilité', 'Stability window', 'Ventana de estabilidad')} hint={tr('10 à 40 séances · départ 20', '10 to 40 sessions · default 20', '10 a 40 sesiones · inicio 20')}>
           <input type="number" min={10} max={40} step={1} value={settings.stabilityWindow} onChange={(e) => update({ stabilityWindow: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Risque de base (%)', 'Base risk (%)', 'Riesgo base (%)')} hint={tr('provisoire · pas de table profil × direction', 'provisional · no profile × direction table', 'provisional · sin tabla perfil × dirección')} className={s.full}>
+          <input type="number" min={0} max={20} step={0.1} value={settings.riskBasePoints} onChange={(e) => update({ riskBasePoints: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Ajustement Vol-LT', 'Vol-LT adjustment', 'Ajuste Vol-LT')} hint={tr('points de risque · provisoire, appliqué avec le contexte', 'risk points · provisional, applied with context', 'puntos de riesgo · provisional, se aplica con el contexto')}>
+          <input type="number" min={-0.6} max={-0.2} step={0.05} value={settings.volLtPoints} onChange={(e) => update({ volLtPoints: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Ajustement Cross-Vol', 'Cross-Vol adjustment', 'Ajuste Cross-Vol')} hint={tr('points de risque · provisoire, appliqué avec le contexte', 'risk points · provisional, applied with context', 'puntos de riesgo · provisional, se aplica con el contexto')}>
+          <input type="number" min={-0.25} max={-0.1} step={0.05} value={settings.crossVolPoints} onChange={(e) => update({ crossVolPoints: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Volatilité implicite annuelle (%)', 'Annual implied volatility (%)', 'Volatilidad implícita anual (%)')} hint={tr('vide : les distances en σ attendent le contexte', 'empty: sigma distances wait for context', 'vacío: las distancias en σ esperan el contexto')}>
+          <input
+            type="number"
+            min={1}
+            max={300}
+            step={1}
+            value={settings.impliedVol == null ? '' : Math.round(settings.impliedVol * 1000) / 10}
+            placeholder="—"
+            onChange={(e) => update({ impliedVol: e.target.value === '' ? null : Number(e.target.value) / 100 })}
+          />
         </Field>
         <DisciplineFields rules={settings.traderRules} onChange={(traderRules) => update({ traderRules })} />
         <Field label={tr('Canal de mise à jour', 'Update channel', 'Canal de actualización')} className={s.full} hint={tr('un clone git tire origin/main et relance ; sans git, page GitHub', 'a git clone pulls origin/main and restarts; without git, GitHub page', 'un clon git tira origin/main y reinicia; sin git, página GitHub')}>

@@ -1,14 +1,17 @@
 import { Fragment, useMemo, useState, type CSSProperties } from 'react';
 import { Bars, Histogram } from '@/design/charts/Bars';
-import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
-import { computeTradeStats, dayHourGrid, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
+import { computeTradeStats, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
 import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
+import { buildMetricsContext } from '@/engine/metricsContext';
+import { useBars } from '@/store/bars';
+import { useMacro } from '@/store/macro';
+import { RiskReading } from './RiskReading';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { useSettings } from '@/store/settings';
-import { ET_ZONE, zonedWallClock } from '@/lib/time';
+import { ContextAxis } from './ContextAxis';
 import { fmtPct, fmtPoints, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import s from './metrique.module.css';
 
@@ -103,6 +106,38 @@ function markerName(id: string, kind: 'slot' | 'duration' | 'strategy'): string 
   }
   if (kind === 'duration') return id.slice('duration:'.length);
   return displayGroupKey(id.slice('strategy:'.length));
+}
+
+function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
+  const series = useBars((st) => st.series);
+  const activeId = useBars((st) => st.activeId);
+  const events = useMacro((st) => st.events);
+  const confirm = useSettings((st) => st.settings.regimeConfirm);
+  const minStay = useSettings((st) => st.settings.regimeMinSessions);
+  const note = useMemo(() => {
+    const chosen = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
+    if (!chosen || chosen.bars.length === 0) return null;
+    const result = buildMetricsContext({
+      root: chosen.instrument,
+      bars: chosen.bars,
+      trades,
+      sessions,
+      events: events.map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),
+      confirm,
+      minStay,
+    });
+    if (!result.sufficient) return { enough: false as const };
+    const last = result.days.at(-1);
+    return { enough: true as const, date: last?.date, cycle: last?.volCycle };
+  }, [series, activeId, events, trades, sessions, confirm, minStay]);
+  if (!note || !note.enough) {
+    return <p className={s.note}>{tr('Historique de barres insuffisant', 'Bar history is too short', 'Historial de barras insuficiente')}</p>;
+  }
+  return (
+    <p className={s.note}>
+      {tr('Contexte', 'Context', 'Contexto')} {note.date ?? '—'} · {note.cycle ?? '—'}
+    </p>
+  );
 }
 
 function exitReasonLabel(reason: ExitReason): string {
@@ -293,47 +328,8 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
     });
   }, [trades]);
 
-  // Jour = séance du trade (journée CME, comme l'onglet Séances), heure = entrée à New York.
+  // Jour = séance du trade (journée CME, comme l'onglet Séances).
   const days = useMemo(() => sessionDates(sessions), [sessions]);
-  const grid = useMemo(() => dayHourGrid(trades, days), [trades, days]);
-  const slotTrades = useMemo(() => {
-    const map = new Map<string, Trade[]>();
-    for (const trade of trades) {
-      if (!Number.isFinite(trade.pnl)) continue;
-      const dow = weekdayOf(tradeDay(trade, days.get(trade.sessionId)));
-      const hour = zonedWallClock(trade.entryTime, ET_ZONE).hour;
-      const key = `${dow}|${hour}`;
-      const list = map.get(key);
-      if (list) list.push(trade);
-      else map.set(key, [trade]);
-    }
-    return map;
-  }, [trades, days]);
-
-  const heat = useMemo(() => {
-    const acc = new Map<number, { pnl: number; n: number }>();
-    const hoursSeen = new Set<number>();
-    for (const cell of grid) {
-      hoursSeen.add(cell.hour);
-      acc.set(cell.dow * 24 + cell.hour, { pnl: cell.pnl, n: cell.n });
-    }
-    const hours = [...hoursSeen].sort((a, b) => a - b);
-    const rows = [1, 2, 3, 4, 5];
-    const cells: HeatCell[] = [];
-    rows.forEach((dow, ri) => {
-      hours.forEach((h, ci) => {
-        const cur = acc.get(dow * 24 + h);
-        const points = aggregatePoints(slotTrades.get(`${dow}|${h}`) ?? []).points;
-        cells.push({
-          row: ri,
-          col: ci,
-          value: cur ? cur.pnl : null,
-          hint: cur ? `${plural(cur.n, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · ${fmtPoints(points)}` : undefined,
-        });
-      });
-    });
-    return { rows: rows.map((d) => weekdayLabel(WEEKDAY_KEYS[d] ?? '')), cols: hours.map((h) => `${h}h`), cells, hours };
-  }, [grid, slotTrades, locale]);
 
   const byDow = useMemo(() => {
     const acc = new Map<number, Trade[]>();
@@ -443,20 +439,8 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
         </div>
       </section>
 
-      {/* Trame principale : heatmap héroïque + anneau semaine */}
       <section className={s.analyseHero}>
-        <div className={s.trame}>
-          <header className={s.trameHead}>
-            <div>
-              <h3>{tr('Trame horaire', 'Hourly frame', 'Trama horaria')}</h3>
-              <p>{tr('PnL par jour × heure ET d’entrée — densité d’avantage', 'PnL by day × ET entry hour — edge density', 'PnL por día × hora ET de entrada — densidad de ventaja')}</p>
-            </div>
-            <span className={s.trameLegend}>
-              <i className={s.legNeg} /> {tr('perte', 'loss', 'pérdida')} <i className={s.legPos} /> {tr('gain', 'win', 'ganancia')}
-            </span>
-          </header>
-          <Heatmap rows={heat.rows} cols={heat.cols} cells={heat.cells} height={220} formatValue={(v) => fmtUsd(v)} colLabelEvery={heat.cols.length > 14 ? 2 : 1} />
-        </div>
+        <ContextAxis sessions={sessions} trades={trades} />
         <aside className={s.ringPane}>
           <header className={s.trameHead}>
             <div>
@@ -539,6 +523,8 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
         </header>
         <InkRank rows={rankRows} label={rankLabel} />
       </section>
+      <ContextNote sessions={sessions} trades={trades} />
+      <RiskReading sessions={sessions} trades={trades} />
     </div>
   );
 }

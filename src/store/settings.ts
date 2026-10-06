@@ -66,6 +66,26 @@ export interface Settings {
   falseDiscoveryRate: number;
   /** Fenêtre du suivi de stabilité, en séances. */
   stabilityWindow: number;
+  /** Séances consécutives pour confirmer un nouveau régime. */
+  regimeConfirm: number;
+  /** Durée minimale d'un régime, en séances. */
+  regimeMinSessions: number;
+  /** Minutes avant une publication. */
+  releaseBefore: number;
+  /** Minutes après une publication. */
+  releaseAfter: number;
+  /** Risque de base par trade, en points de pourcentage (1,5 = 1,5 %). Provisoire : pas de table F20. */
+  riskBasePoints: number;
+  /** Ajustement Vol-LT, en points de risque. Provisoire : pas de table F21. */
+  volLtPoints: number;
+  /** Ajustement Cross-Vol, en points de risque. Provisoire : pas de table F22. */
+  crossVolPoints: number;
+  /** Volatilité implicite annuelle. Null tant qu'elle n'est pas saisie. */
+  impliedVol: number | null;
+  /** Écarts de taux de la matrice R-R, en fraction (0,10 = 10 points). */
+  rrShiftUp: number;
+  rrShiftDown: number;
+  rrShiftFar: number;
   /** Règles chiffrées du trader (0 / liste vide = inactive). L'agent les lit, il ne trade jamais. */
   traderRules: TraderRules;
   calendarView: 'grille' | 'flux';
@@ -105,6 +125,17 @@ export const DEFAULT_SETTINGS: Settings = {
   markerMinTrades: 30,
   falseDiscoveryRate: 0.05,
   stabilityWindow: 20,
+  regimeConfirm: 2,
+  regimeMinSessions: 5,
+  releaseBefore: 5,
+  releaseAfter: 30,
+  riskBasePoints: 1.5,
+  volLtPoints: -0.4,
+  crossVolPoints: -0.15,
+  impliedVol: null,
+  rrShiftUp: 0.1,
+  rrShiftDown: 0.1,
+  rrShiftFar: 0.15,
   traderRules: DEFAULT_TRADER_RULES,
   calendarView: 'grille',
   uiZoom: 1,
@@ -232,6 +263,17 @@ export function coerceSettings(raw: unknown, base: Settings): Settings {
     markerMinTrades: pickNum(r.markerMinTrades, 20, 50, base.markerMinTrades, true),
     falseDiscoveryRate: pickNum(r.falseDiscoveryRate, 0.025, 0.1, base.falseDiscoveryRate),
     stabilityWindow: pickNum(r.stabilityWindow, 10, 40, base.stabilityWindow, true),
+    regimeConfirm: pickNum(r.regimeConfirm, 1, 3, base.regimeConfirm, true),
+    regimeMinSessions: pickNum(r.regimeMinSessions, 3, 10, base.regimeMinSessions, true),
+    releaseBefore: pickNum(r.releaseBefore, 5, 10, base.releaseBefore, true),
+    releaseAfter: pickNum(r.releaseAfter, 15, 60, base.releaseAfter, true),
+    riskBasePoints: pickNum(r.riskBasePoints, 0, 20, base.riskBasePoints),
+    volLtPoints: pickNum(r.volLtPoints, -0.6, -0.2, base.volLtPoints),
+    crossVolPoints: pickNum(r.crossVolPoints, -0.25, -0.1, base.crossVolPoints),
+    impliedVol: !('impliedVol' in r) ? base.impliedVol : pickImpliedVol(r.impliedVol, base.impliedVol),
+    rrShiftUp: pickNum(r.rrShiftUp, 0.05, 0.15, base.rrShiftUp),
+    rrShiftDown: pickNum(r.rrShiftDown, 0.05, 0.15, base.rrShiftDown),
+    rrShiftFar: pickNum(r.rrShiftFar, 0.05, 0.15, base.rrShiftFar),
     traderRules: coerceTraderRules(r.traderRules, base.traderRules),
     calendarView: pickEnum(r.calendarView, ['grille', 'flux'] as const, base.calendarView),
     uiZoom: pickNum(r.uiZoom, 0.5, 2, base.uiZoom),
@@ -259,7 +301,13 @@ function coercePortfolio(raw: unknown, base: Settings['portfolio']): Settings['p
 }
 
 /** Clés d'un coffre autorisées à écraser les réglages locaux (jamais orchestrateur, sauvegarde, hôtes LLM, secrets). */
-export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'traderRules', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
+export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'regimeConfirm', 'regimeMinSessions', 'releaseBefore', 'releaseAfter', 'riskBasePoints', 'volLtPoints', 'crossVolPoints', 'impliedVol', 'rrShiftUp', 'rrShiftDown', 'rrShiftFar', 'traderRules', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
+
+function pickImpliedVol(v: unknown, base: number | null): number | null {
+  if (v === null) return null;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0.01 || v > 3) return base;
+  return v;
+}
 export const RESTORABLE_AGENT_KEYS = ['provider', 'baseUrl', 'model', 'systemPrompt', 'temperature', 'toolsEnabled'] as const;
 
 /** Ne garde d'un objet `settings` de coffre que les clés restaurables (typées ensuite par `coerceSettings`). */
