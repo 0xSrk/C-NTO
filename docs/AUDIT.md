@@ -573,3 +573,41 @@ Onglets A, B et C. Moteur dans `src/engine/inference.ts` (bootstrap par blocs, p
 
 **Hors de cette étape.** Étapes 3 à 6, NinjaTrader, version `package.json`, changelog 3.5.0, extraction de l'ATR.
 
+
+## Couche agentique du trader — thèse et vague 1 (2026-10-06)
+
+Demande de l'ADMIN : une thèse solide pour amener CΛNTO à son objectif, être la porte de la couche agentique IA du trader, et des sous-agents pour la bâtir. La thèse est dans `docs/THESE-AGENTIQUE.md`. Cinq lecteurs en lecture seule sur `8602cbb` : perception et vérité des outils, porte MCP, vigilance et mémoire, sûreté et évaluation, veille du marché. `npm run typecheck` vert, 140 fichiers de tests verts. Chaque constat ci-dessous a été relu sur le HEAD ; les plus graves l'ont été deux fois.
+
+### Constats
+
+| # | Constat | Preuve |
+|---|---|---|
+| T1 | `journal_breakdown` dit « jour de semaine (heure de New York) » et appelle `computeTradeStats` sans `sessionDates`, alors que l'onglet Analyse ventile par journée CME depuis 1.1. | `src/engine/agent/tools.ts:350`, `:354`, `src/modules/metrique/Analyse.tsx:251` |
+| T2 | `desk_overview` et `propfirm_status` rendent `buffer` (clôture − plancher) ; la jauge K.04 lit `planMargin` (plus-bas de la dernière séance). Sur le cas 1.6, l'agent dit 575, l'écran 175. | `tools.ts:123`, `src/engine/propfirm.ts:353` |
+| T3 | `monte_carlo` additionne les comptes copiés quand aucun compte n'est donné ; l'onglet E exige un compte (1.5). | `tools.ts:386-387` |
+| T4 | Aucune lecture du journal ne porte `asOf` ni sa source ; le jeu de démonstration se mêle au vrai journal sans le dire. `get_session` par date prend la première séance, tous comptes confondus. | `src/store/journal.ts:75-86`, `tools.ts:167` |
+| T5 | Sorties non bornées : notes de 200 séances, trades et `executionIds` d'une séance, entrées personnelles du calendrier. | `tools.ts:149`, `:172-174`, `:324` |
+| T6 | Ordres en cours, dernière cotation, perte du jour : rien n'est lisible par l'agent. L'événement `order` du port est ignoré, les cotations sont jetées. | `electron/nt-bridge/copier-host.ts:103-107`, `src/store/bridge.ts:157-165` |
+| T7 | Les comptes du pont ne sont pas datés : `bridgeSnapshots` les date de l'instant de l'appel, `bridgeIsFresh` est toujours vrai. | `src/engine/portfolio/view.ts:14-17`, `src/engine/portfolio/valuation.ts:106` |
+| T8 | Mémoire : aucune règle chiffrée du trader, la consigne ne contient que le texte du réglage et un horodatage UTC présenté comme « Date locale ». La perte du jour n'est jugée qu'au rejeu des journées closes. | `src/store/agent.ts:195-202`, `src/store/settings.ts:46-86`, `src/engine/propfirm.ts:277` |
+| T9 | Porte : le process principal lit le type (`read` / `write`) d'un outil MCP dans la réponse du renderer, alors que l'orchestrateur le lit dans `DESK_TOOL_KINDS`. | `electron/mcp-server.ts:136`, `:146`, `electron/desk-relay.ts:54-58`, `electron/orchestrator.ts:261` |
+| T10 | Porte : pas de plafond d'appels en vol ; débit compté avant le jeton ; desk muet rendu comme une liste vide ; ordre refusé par le trader marqué `isError` ; JSON-RPC mal formé accepté ; consignes figées en français ; résultats MCP non étiquetés ; ni titres ni prompts. | `electron/mcp-server.ts:29-30`, `:93-115`, `:135`, `:195-198`, `:319` |
+| T11 | Les `fetch` vers le fournisseur LLM suivent les redirections : un 307 vers un autre hôte emporte la clé et les données du desk hors de la liste épinglée. | `electron/main.ts:883`, `:890`, `:963`, `:986` |
+| T12 | La clé API n'est pas liée à son hôte : changer de préréglage garde la clé, que le main joint à tout hôte épinglé. | `src/modules/agent/Agent.tsx:250`, `electron/main.ts:926`, `:962`, `:988` |
+| T13 | `account`, `instrument` et `reason` d'un ordre proposé acceptent sauts de ligne et caractères bidi : une raison peut forger une fausse ligne « Position » dans le dialogue. La position est lue par égalité stricte du nom. | `src/engine/agent/orders.ts:46-50`, `electron/agent-orders.ts:95-110`, `:231` |
+| T14 | Les refus `disabled` et `busy` échappent à la cadence, que `PROTOCOLE-AGENT.md` § 5 dit pourtant « refusées comprises » ; un client peut vider l'anneau de 500 événements. | `electron/agent-orders.ts:242`, `src/store/agentOrders.ts:49` |
+| T15 | Titres et champs des calendriers externes non bornés jusqu'au modèle. | `electron/calendar/bea.ts:38`, `treasury.ts:98-104`, `fred.ts:39-41` |
+| T16 | Aucun harnais d'évaluation de l'agent ; `npm test` ne fixe pas le fuseau alors que `metrics-step2` exige UTC. | `tests/metrics-step2.test.ts:13`, `package.json:19` |
+
+Rien n'a été trouvé qui fasse partir un ordre sans le dialogue du process principal.
+
+### Plan
+
+- **A6 · Vérité** — T1 à T5 : journée CME, marge datée à côté de `buffer` (inchangé), compte exigé, période et compte pour `desk_overview`, `asOf` et `sources`, sorties bornées, schémas typés, profit factor d'une tranche.
+- **A7 · Preuve** — T16 : `TZ=UTC`, fournisseur scripté, desk de démonstration, scénarios dorés différentiels, injection.
+- **A8 · Porte** — T9, T10 : type lu par le main, appels en vol bornés, erreurs lisibles, indications et titres au catalogue, consignes selon l'état et la langue, résultats étiquetés, trois prompts.
+- **A9 · Séance** — T6, T7 : livre des ordres en cours, `working_orders`, événement `order`, `market_quote` sans abonnement, âge du flux dans `market_levels`, comptes datés. Aucun changement de l'AddOn.
+- **A10 · Discipline et mémoire** — T8 : règles chiffrées du trader, perte du jour sur la journée CME (18 h – 17 h ET, comme `tradeDay` et le rejeu du plan), dérives après une perte, écarts aux règles, `trader_memory`, `discipline_status`, consigne enrichie et datée à New York, événements `daily_loss` et `discipline`, réglages.
+- **A11 · Garde** — T11 à T15 : redirections refusées, clé liée à son hôte, dialogue non falsifiable, cadence qui compte tout, chaînes externes bornées.
+
+Tout ce qui est ajouté est en lecture, ou renforce une garde. Aucun invariant de la section 5 de `CLAUDE.md` n'est affaibli. Les gardes de `propose_order` ne changent que pour refuser plus (T13, T14).
