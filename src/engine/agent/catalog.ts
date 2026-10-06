@@ -18,6 +18,8 @@ export const DESK_TOOL_KINDS = {
   working_orders: 'read',
   market_quote: 'read',
   propfirm_status: 'read',
+  trader_memory: 'read',
+  discipline_status: 'read',
   desk_events: 'read',
   annotate_session: 'write',
   create_note: 'write',
@@ -65,6 +67,8 @@ export const DESK_TOOL_HINTS: Record<DeskToolName, DeskToolHints> = {
   working_orders: READ_HINTS,
   market_quote: READ_HINTS,
   propfirm_status: READ_HINTS,
+  trader_memory: READ_HINTS,
+  discipline_status: READ_HINTS,
   desk_events: READ_HINTS,
   // Remplace la note et les tags de la séance : le même appel répété laisse le même état.
   annotate_session: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
@@ -91,6 +95,8 @@ export const DESK_TOOL_TITLES: Record<DeskToolName, readonly [fr: string, en: st
   working_orders: ['Ordres en cours', 'Working orders', 'Órdenes en curso'],
   market_quote: ['Dernière cotation', 'Last quote', 'Última cotización'],
   propfirm_status: ['Statut du plan prop firm', 'Prop firm plan status', 'Estado del plan prop firm'],
+  trader_memory: ['Mémoire du trader', 'Trader memory', 'Memoria del trader'],
+  discipline_status: ['Discipline du jour', 'Today’s discipline', 'Disciplina del día'],
   desk_events: ['Événements du desk', 'Desk events', 'Eventos del desk'],
   annotate_session: ['Annoter une séance', 'Annotate a session', 'Anotar una sesión'],
   create_note: ['Créer une note', 'Create a note', 'Crear una nota'],
@@ -120,7 +126,7 @@ export function orchMethodAllowed(method: string, allowWrites: boolean): boolean
 }
 
 /** Événements que le desk pousse aux agents (`desk.event` de l'orchestrateur) et range pour `desk_events`. */
-export const DESK_EVENT_KINDS = ['fill', 'order', 'prop_buffer', 'catalyst', 'bridge_link', 'agent_order'] as const;
+export const DESK_EVENT_KINDS = ['fill', 'order', 'prop_buffer', 'catalyst', 'bridge_link', 'agent_order', 'daily_loss', 'discipline'] as const;
 export type DeskEventKind = (typeof DESK_EVENT_KINDS)[number];
 
 export function isDeskEventKind(kind: unknown): kind is DeskEventKind {

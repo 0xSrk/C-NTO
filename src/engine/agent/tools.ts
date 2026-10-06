@@ -8,6 +8,8 @@ import { aggregateByDate, computeDailyStats, computeTradeStats, sessionDates, ty
 import { monteCarlo } from '@/engine/montecarlo';
 import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { evaluatePlan, findPlan, planMargin, type PropEvaluation } from '@/engine/propfirm';
+import { dailyLimit, dayLoss, DEFAULT_TRADER_RULES, detectDrifts, detectRuleBreaches, entryOfTrade, majorCatalysts, tradingDayNow } from '@/engine/discipline';
+import { addDays, etDateKey } from '@/lib/time';
 import type { Bar, BarSeries } from '@/engine/bars';
 import type { BookOrder } from '@/engine/execution/orderBook';
 import { findQuote, QUOTE_STALE_MS } from '@/engine/marketdata/quotes';
@@ -16,6 +18,7 @@ import type { ToolSchema } from './llm';
 import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
 import { AGENT_ORDER_BOUNDS } from './orders';
+import { traderMemory, type MemoryNote } from './memory';
 import { clampToolArgs, type DeskPorts } from './ports';
 
 export interface DeskTool extends ToolSchema {
@@ -140,6 +143,24 @@ function datedMargin(ev: PropEvaluation): { date: string; lastLow: number | null
 const PROVENANCE_FR = ' Rend `asOf` (instant de la lecture), `sources` (séances lues par source) et `demo: true` quand le jeu de démonstration y est compté.';
 const PROVENANCE_EN = ' Returns `asOf` (time of the read), `sources` (sessions read per source) and `demo: true` when the demo dataset is counted.';
 const PROVENANCE_ES = ' Devuelve `asOf` (instante de la lectura), `sources` (sesiones leídas por fuente) y `demo: true` cuando se cuenta el juego de demostración.';
+
+/** Corps d'une note de la mémoire rendue à l'agent, borné. */
+const MEMORY_NOTE_MAX = 2000;
+const MEMORY_NOTES_MAX = 30;
+/** Constats de discipline rendus par appel, les plus récents. */
+const FINDINGS_MAX = 50;
+/** Horizon de recherche du prochain catalyseur majeur. */
+const CATALYST_HORIZON_DAYS = 7;
+
+function memoryNoteOut(n: MemoryNote) {
+  return { id: n.id, title: n.title, tags: n.tags, by: n.by, date: n.date, body: n.body.slice(0, MEMORY_NOTE_MAX), ...(n.body.length > MEMORY_NOTE_MAX ? { truncated: true } : {}) };
+}
+
+/** Latent du compte suivi ('' = tous), d'après le pont vivant ; 0 hors pont. */
+function trackedUnrealized(nt: Awaited<ReturnType<DeskPorts['bridge']>>['nt'], account: string): number {
+  if (nt?.link !== 'live') return 0;
+  return nt.accounts.filter((a) => !account || a.name === account).reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
+}
 
 function buckets(list: Bucket[]) {
   return list.filter((b) => b.count > 0).map((b) => ({ key: b.key, trades: b.count, pnl: round(b.pnl), winRate: round(b.winRate, 4) }));
@@ -855,6 +876,96 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         };
       },
     },
+    {
+      name: 'trader_memory',
+      kind: 'read',
+      description:
+        'Mémoire du trader : ses règles chiffrées actives (perte maximale du jour, trades par journée, fenêtre autour des catalyseurs majeurs, instruments autorisés, fenêtre de revanche), le plan prop suivi, sa note « Plan de trading », ses leçons (notes #leçon) et son playbook (notes #strategie), chacune avec son auteur et sa date. Les notes écrites par un agent n’y entrent pas (`excludedAgentNotes` les compte). Lecture seule.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      async run() {
+        const m = traderMemory({ rules: ports.traderRules(), plan: findPlan(ports.planId()), planAccount: ports.planAccount(), notes: ports.notes() });
+        return {
+          rules: m.rules,
+          plan: m.plan,
+          tradingPlan: m.tradingPlan ? memoryNoteOut(m.tradingPlan) : null,
+          lessons: m.lessons.slice(0, MEMORY_NOTES_MAX).map(memoryNoteOut),
+          playbook: m.playbook.slice(0, MEMORY_NOTES_MAX).map(memoryNoteOut),
+          ...(m.lessons.length > MEMORY_NOTES_MAX || m.playbook.length > MEMORY_NOTES_MAX ? { truncated: true } : {}),
+          excludedAgentNotes: m.excludedAgentNotes,
+        };
+      },
+    },
+    {
+      name: 'discipline_status',
+      kind: 'read',
+      description:
+        'Discipline de la journée CME en cours (18 h → 17 h, heure de New York) sur le compte suivi : perte du jour (réalisé du journal + latent négatif du pont), limite retenue (la plus basse de la règle du trader et du plan prop) et sa source, part consommée, trades du jour face au maximum, dérives après une perte (revanche, taille relevée) et écarts aux règles du jour, prochain catalyseur majeur et sa fenêtre. Lecture seule : constate, n’empêche rien.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      async run() {
+        const now = Date.now();
+        const day = tradingDayNow(now);
+        const rules = ports.traderRules();
+        const plan = findPlan(ports.planId());
+        const account = ports.planAccount();
+        const sessions = ports.sessions();
+        const trades = ports.trades();
+        const { nt } = await ports.bridge();
+        const loss = dayLoss({ sessions, trades, day, account, unrealized: trackedUnrealized(nt, account) });
+        const limit = dailyLimit(rules, plan);
+
+        const today = etDateKey(now);
+        const first = addDays(today, -1);
+        const last = addDays(today, CATALYST_HORIZON_DAYS);
+        const local: ReturnType<typeof generateNasdaqEvents> = [];
+        for (let y = Number(first.slice(0, 4)); y <= Number(last.slice(0, 4)); y++) local.push(...generateNasdaqEvents(y));
+        const window = rules.catalystBlackoutMin * 60_000;
+        const catalysts = majorCatalysts(mergeCalendarEvents(local, ports.officialEvents()).filter((e) => e.date >= first && e.date <= last));
+        const next = catalysts.find((c) => c.at + window >= now);
+
+        const entries = trades.filter((t) => tradingDayNow(t.entryTime) === day).map(entryOfTrade);
+        const findings = [...detectDrifts(entries, trades, rules), ...detectRuleBreaches(entries, { rules, closed: trades, catalysts, limit, limitAccount: account })].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+        const byAccount = new Map<string, number>();
+        for (const e of entries) byAccount.set(e.account, (byAccount.get(e.account) ?? 0) + 1);
+
+        return {
+          day,
+          now: new Date(now).toISOString(),
+          timezone: 'America/New_York',
+          account: account || null,
+          bridge: nt?.link ?? 'absent',
+          dailyLoss: {
+            realized: round(loss.realized),
+            unrealized: round(loss.unrealized),
+            loss: round(loss.loss),
+            intradayLow: round(loss.intradayLow),
+            limit: limit?.amount ?? null,
+            source: limit?.source ?? null,
+            ruleLimit: limit?.trader ?? null,
+            planLimit: limit?.plan ?? null,
+            consumed: limit ? round(loss.loss / limit.amount, 4) : null,
+            remaining: limit ? round(limit.amount - loss.loss) : null,
+            breached: limit ? loss.loss >= limit.amount : false,
+          },
+          trades: {
+            today: loss.trades,
+            max: rules.maxTradesPerDay > 0 ? rules.maxTradesPerDay : null,
+            byAccount: [...byAccount].map(([name, count]) => ({ account: name || null, trades: count })),
+          },
+          findings: findings.slice(-FINDINGS_MAX),
+          ...(findings.length > FINDINGS_MAX ? { truncated: true } : {}),
+          nextCatalyst: next
+            ? {
+                title: next.title,
+                at: new Date(next.at).toISOString(),
+                date: next.date,
+                timeET: next.timeET,
+                minutesUntil: Math.round((next.at - now) / 60_000),
+                window: rules.catalystBlackoutMin > 0 ? { minutes: rules.catalystBlackoutMin, from: new Date(next.at - window).toISOString(), to: new Date(next.at + window).toISOString(), active: Math.abs(now - next.at) <= window } : null,
+              }
+            : null,
+        };
+      },
+    },
   ];
 }
 
@@ -864,6 +975,7 @@ const EMPTY_PORTS: DeskPorts = {
   startingBalance: () => 0,
   planId: () => '',
   planAccount: () => '',
+  traderRules: () => DEFAULT_TRADER_RULES,
   updateSession: async () => undefined,
   notes: () => [],
   createNote: async () => ({ id: '', title: '' }),
@@ -982,6 +1094,18 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`): the K.04 gauge margin, more conservative. The replay stops at the target reached (`passedOn`) or at failure (`failedOn`). Defaults to the plan and account tracked by the Metrics screen.' + PROVENANCE_EN,
         'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`): el margen del indicador K.04, más prudente. El rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso (`failedOn`). Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.' + PROVENANCE_ES,
+      );
+    case 'trader_memory':
+      return tr(
+        fallback,
+        'Trader memory: their active numeric rules (max daily loss, trades per day, window around major catalysts, allowed instruments, revenge window), the tracked prop plan, their “Trading plan” note, their lessons (#lesson notes) and their playbook (#strategy notes), each with its author and date. Notes written by an agent are left out (`excludedAgentNotes` counts them). Read only.',
+        'Memoria del trader: sus reglas numéricas activas (pérdida máxima del día, trades por jornada, ventana alrededor de los catalizadores mayores, instrumentos autorizados, ventana de revancha), el plan prop seguido, su nota «Plan de trading», sus lecciones (notas #lección) y su playbook (notas #estrategia), cada una con su autor y su fecha. Las notas escritas por un agente no entran (`excludedAgentNotes` las cuenta). Solo lectura.',
+      );
+    case 'discipline_status':
+      return tr(
+        fallback,
+        'Discipline for the current CME day (6 pm → 5 pm, New York time) on the tracked account: daily loss (journal realized + negative bridge unrealized), the limit applied (the lower of the trader’s rule and the prop plan) and its source, share used, trades today against the maximum, drifts after a loss (revenge, size up) and rule breaches of the day, next major catalyst and its window. Read only: it reports, it blocks nothing.',
+        'Disciplina de la jornada CME en curso (18 h → 17 h, hora de Nueva York) en la cuenta seguida: pérdida del día (realizado del diario + latente negativo del puente), límite aplicado (el más bajo entre la regla del trader y el plan prop) y su fuente, parte consumida, trades del día frente al máximo, desvíos tras una pérdida (revancha, tamaño aumentado) y desvíos de las reglas del día, próximo catalizador mayor y su ventana. Solo lectura: constata, no impide nada.',
       );
     default:
       return fallback;

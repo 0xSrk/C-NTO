@@ -3,6 +3,7 @@ import type { DeskCalendarEntry, DeskNote, DeskPorts } from '@/engine/agent/port
 import { bundleCoverage, materializeBundle } from '@/engine/calendar-bundle';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
 import { generateDemoJournal } from '@/engine/demo';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import { linkId, PREDICATES, type Predicate } from '@/engine/ontology/schema';
 import type { Session, Trade } from '@/engine/types';
 
@@ -95,6 +96,7 @@ export function demoDesk(opts: DemoDeskOptions = {}): DemoDesk {
     startingBalance: () => startingBalance,
     planId: () => planId,
     planAccount: () => planAccount,
+    traderRules: () => DEFAULT_TRADER_RULES,
     async updateSession(id, patch) {
       writes.push({ port: 'updateSession', id, patch });
       const row = sessions.find((s) => s.id === id);

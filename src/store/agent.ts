@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 import { probeProvider, streamChat } from '@/engine/agent/llm';
 import { contextBudget, fitHistory } from '@/engine/agent/context';
+import { memoryBudget, memoryDigest, traderMemory, type TraderMemory } from '@/engine/agent/memory';
 import { MAX_TOOL_ROUNDS, runAgentTurn, toChatHistory } from '@/engine/agent/loop';
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { type DeskPorts } from '@/engine/agent/ports';
+import { tradingDayNow } from '@/engine/discipline';
+import { findPlan } from '@/engine/propfirm';
 import { tr } from '@/i18n';
+import { dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
 import { desk, type AgentOrderOrigin, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
 import { APP_VERSION } from '@/lib/version';
@@ -21,7 +25,7 @@ import { useLinks } from './links';
 import { useMacro } from './macro';
 import { useNotes } from './notes';
 import { usePortfolio } from './portfolio';
-import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings } from './settings';
+import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type Settings } from './settings';
 import { useUi } from './ui';
 
 /** Identifiant de client des requêtes relayées par la passerelle MCP (`electron/desk-relay.ts`). */
@@ -76,6 +80,7 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
     startingBalance: () => useSettings.getState().settings.startingBalance,
     planId: () => useSettings.getState().settings.planId,
     planAccount: () => useSettings.getState().settings.planAccount,
+    traderRules: () => useSettings.getState().settings.traderRules,
     updateSession: (id, patch) => useJournal.getState().updateSession(id, patch),
     notes: () => useNotes.getState().notes,
     createNote: (title, body, tags) => useNotes.getState().create(title, body, tags, { by: 'agent' }),
@@ -113,6 +118,34 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
       return { ok: outcome.status === 'sent', ...outcome };
     },
   };
+}
+
+/** Mémoire du trader telle que la consigne la résume : réglages et notes du trader, jamais celles d'un agent. */
+export function currentTraderMemory(settings: Settings): TraderMemory {
+  return traderMemory({ rules: settings.traderRules, plan: findPlan(settings.planId), planAccount: settings.planAccount, notes: useNotes.getState().notes });
+}
+
+/**
+ * Horodatage de la consigne : date et heure de New York, journée CME en cours, instant UTC. Un modèle qui
+ * ne lit qu'un ISO UTC se trompe de jour le soir à New York (après 20 h, « demain » viserait J+2).
+ */
+export function deskClock(now: number, callsign: string): string {
+  const ny = dateTimeFormatter({ timeZone: ET_ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(now));
+  const date = etDateKey(now);
+  const cme = tradingDayNow(now);
+  const utc = new Date(now).toISOString();
+  return tr(
+    `Maintenant à New York : ${ny} (${date}). Journée de trading CME en cours : ${cme} (de 18 h la veille à 17 h, heure de New York). « Aujourd’hui » et « demain » s’entendent à New York. Instant UTC, pour lire les horodatages des outils : ${utc}. Opérateur : ${callsign}.`,
+    `Now in New York: ${ny} (${date}). Current CME trading day: ${cme} (6 pm the day before to 5 pm, New York time). “Today” and “tomorrow” are New York days. UTC instant, to read tool timestamps: ${utc}. Operator: ${callsign}.`,
+    `Ahora en Nueva York: ${ny} (${date}). Jornada de trading CME en curso: ${cme} (de las 18 h del día anterior a las 17 h, hora de Nueva York). «Hoy» y «mañana» se entienden en Nueva York. Instante UTC, para leer las marcas de tiempo de las herramientas: ${utc}. Operador: ${callsign}.`,
+  );
+}
+
+/** Consigne système d'un tour : consigne du trader (ou par défaut), résumé de sa mémoire au budget du modèle, horodatage. */
+export function agentSystemPrompt(settings: Settings, memory: TraderMemory, now: number): string {
+  const prompt = isDefaultAgentPrompt(settings.agent.systemPrompt) ? defaultAgentPrompt() : settings.agent.systemPrompt;
+  const digest = memoryDigest(memory, memoryBudget(settings.agent.baseUrl));
+  return [prompt, digest, deskClock(now, settings.callsign)].filter(Boolean).join('\n\n');
 }
 
 function pushLog(set: (p: Partial<AgentState>) => void, get: () => AgentState, entry: Omit<LinkLogEntry, 'id' | 'at'>): void {
@@ -198,21 +231,13 @@ export const useAgent = create<AgentState>((set, get) => ({
     abortController = new AbortController();
     const signal = abortController.signal;
     const tools = settings.agent.toolsEnabled ? toolSchemas() : [];
-    const prompt = isDefaultAgentPrompt(settings.agent.systemPrompt) ? defaultAgentPrompt() : settings.agent.systemPrompt;
     const budget = contextBudget(settings.agent.baseUrl);
 
     try {
       const outcome = await runAgentTurn({
         maxRounds: MAX_TOOL_ROUNDS,
         tools,
-        system: () => {
-          const stamp = tr(
-            `Date locale : ${new Date().toISOString()}. Opérateur : ${settings.callsign}.`,
-            `Local date: ${new Date().toISOString()}. Operator: ${settings.callsign}.`,
-            `Fecha local: ${new Date().toISOString()}. Operador: ${settings.callsign}.`,
-          );
-          return `${prompt}\n\n${stamp}`;
-        },
+        system: () => agentSystemPrompt(settings, currentTraderMemory(settings), Date.now()),
         history: () => fitHistory(toChatHistory(get().messages), budget),
         stream: (req) => streamChat({ config: settings.agent, messages: req.messages, tools: req.tools, toolChoice: req.toolChoice, signal, onDelta: req.onDelta }),
         kindOf: toolKind,

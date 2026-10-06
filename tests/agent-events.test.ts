@@ -41,7 +41,7 @@ describe('journal des événements du desk', () => {
   });
 
   it('types d’événements connus, partagés avec le process principal', () => {
-    expect(DESK_EVENT_KINDS).toEqual(['fill', 'order', 'prop_buffer', 'catalyst', 'bridge_link', 'agent_order']);
+    expect(DESK_EVENT_KINDS).toEqual(['fill', 'order', 'prop_buffer', 'catalyst', 'bridge_link', 'agent_order', 'daily_loss', 'discipline']);
     expect(isDeskEventKind('fill')).toBe(true);
     expect(isDeskEventKind('order.submit')).toBe(false);
     expect(isDeskEventKind(3)).toBe(false);

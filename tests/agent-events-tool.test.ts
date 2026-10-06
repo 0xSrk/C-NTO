@@ -34,7 +34,7 @@ describe('outil desk_events', () => {
   it('lecture seule, curseur borné, schéma limité aux types connus', async () => {
     const tool = DESK_TOOLS.find((t) => t.name === 'desk_events');
     expect(tool?.kind).toBe('read');
-    expect(JSON.stringify(tool?.parameters)).toContain('"enum":["fill","order","prop_buffer","catalyst","bridge_link","agent_order"]');
+    expect(JSON.stringify(tool?.parameters)).toContain('"enum":["fill","order","prop_buffer","catalyst","bridge_link","agent_order","daily_loss","discipline"]');
     expect(await executeDeskTool(fakePorts(), 'desk_events', { cursor: 'x'.repeat(65) }, { source: 'orch' })).toEqual({ ok: false, reason: 'args_too_large' });
   });
 });

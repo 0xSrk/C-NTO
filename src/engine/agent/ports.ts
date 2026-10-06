@@ -3,6 +3,7 @@ import type { DeskEventPage } from './events';
 import type { BarSeries } from '../bars';
 import type { OrderBookView } from '../execution/orderBook';
 import type { LastQuote } from '../marketdata/quotes';
+import type { TraderRules } from '../discipline';
 import type { CashBalance, FxRate, Pocket, Position } from '../portfolio/types';
 import type { Session, Trade } from '../types';
 
@@ -50,6 +51,8 @@ export interface DeskPorts {
   planId(): string;
   /** Compte suivi par le rejeu prop de l'écran Métrique ('' = tous les comptes). */
   planAccount(): string;
+  /** Règles chiffrées du trader (Réglages › Discipline). L'agent les lit ; il ne les change pas. */
+  traderRules(): TraderRules;
   updateSession(id: string, patch: { note?: string; tags?: string[] }): Promise<void>;
   notes(): DeskNote[];
   createNote(title: string, body: string, tags: string[]): Promise<{ id: string; title: string }>;
