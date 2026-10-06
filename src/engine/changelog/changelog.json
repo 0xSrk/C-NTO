@@ -423,6 +423,34 @@
           "Seguridad: el AddOn NinjaTrader 2.2.0 verifica el desk, el Copiador sigue las posiciones, las actualizaciones van firmadas por el Lab."
         ]
       }
+    },
+    {
+      "version": "3.5.0",
+      "date": "2026-10-06",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Métriques revues : courbe d’équité interactive, chiffres corrigés (journée CME, ratios sur les jours de cotation, profit factor avant et après frais), repères gardés seulement s’ils passent un test statistique.",
+          "Risque et R de chaque trade, contexte du jour (régime et bande de volatilité) et lecture des résultats par contexte.",
+          "En séance : perte du jour face à sa limite et ordres en cours en tête de Métrique, vos règles chiffrées dans Réglages › Discipline, Visual qui suit le pont NinjaTrader à votre demande.",
+          "L’agent lit vos règles, votre perte du jour, vos ordres et le contexte du jour, et prépare le brief du matin et le débrief du soir, envoyés à votre clic seulement. La passerelle MCP sert aussi Codex et Claude Desktop.",
+          "Un ordre proposé par l’agent est refusé s’il enfreint vos règles (perte du jour, catalyseur, instrument) ou si la marge datée du plan prop est trop basse."
+        ],
+        "en": [
+          "Metrics reworked: interactive equity curve, corrected figures (CME day, ratios over trading days, profit factor before and after fees), and markers kept only when they pass a statistical test.",
+          "Risk and R of each trade, daily context (volatility regime and band), and results read by context.",
+          "During the session: day loss against its limit and working orders at the top of Metrics, your numeric rules in Settings › Discipline, and Visual following the NinjaTrader bridge when you ask.",
+          "The agent reads your rules, your day loss, your orders and the daily context, and prepares the morning brief and the evening debrief, sent only when you click. The MCP gateway also serves Codex and Claude Desktop.",
+          "An order proposed by the agent is refused if it breaks your rules (day loss, catalyst, instrument) or if the prop plan’s dated buffer is too low."
+        ],
+        "es": [
+          "Métricas revisadas: curva de capital interactiva, cifras corregidas (día CME, ratios sobre los días de cotización, profit factor antes y después de comisiones) y referencias conservadas solo si superan una prueba estadística.",
+          "Riesgo y R de cada trade, contexto del día (régimen y banda de volatilidad) y lectura de los resultados por contexto.",
+          "En sesión: pérdida del día frente a su límite y órdenes en curso al frente de Métricas, sus reglas numéricas en Ajustes › Disciplina, y Visual siguiendo el puente NinjaTrader cuando lo pide.",
+          "El agente lee sus reglas, su pérdida del día, sus órdenes y el contexto del día, y prepara el brief de la mañana y el debrief de la tarde, enviados solo con su clic. La pasarela MCP también sirve a Codex y Claude Desktop.",
+          "Una orden propuesta por el agente se rechaza si incumple sus reglas (pérdida del día, catalizador, instrumento) o si el margen fechado del plan prop es demasiado bajo."
+        ]
+      }
     }
   ]
 }
