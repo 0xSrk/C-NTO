@@ -110,6 +110,8 @@ export function axisReading(input: AxisReadingInput): AxisReading {
   const capital = plan?.maxDrawdown && plan.maxDrawdown > 0 ? plan.maxDrawdown : settings.startingBalance;
   const span = [...dates.values()].sort();
   const bounds = tradingDaysBetween(span[0] ?? '', span.at(-1) ?? '');
+  // Dénominateur des « jours tradés » : les journées de la période, pas toute la série de barres.
+  const inPeriod = (date: string) => span.length > 0 && date >= (span[0] ?? '') && date <= (span.at(-1) ?? '');
   const samples: AxisSample[] = [];
   for (const trade of trades) {
     const date = dates.get(trade.sessionId) ?? '';
@@ -142,9 +144,9 @@ export function axisReading(input: AxisReadingInput): AxisReading {
       : axis === 'hour'
         ? bounds.flatMap((date) => hourKeys.map((key) => ({ date, key })))
         : axis === 'regime'
-          ? days.map((day) => ({ date: day.date, key: day.volCycle ?? null }))
+          ? days.filter((day) => inPeriod(day.date)).map((day) => ({ date: day.date, key: day.volCycle ?? null }))
           : axis === 'band'
-            ? days.map((day) => ({ date: day.date, key: day.volBand ?? null }))
+            ? days.filter((day) => inPeriod(day.date)).map((day) => ({ date: day.date, key: day.volBand ?? null }))
             : [];
   const rows = readAxis(samples, calendar, { minTrades: settings.markerMinTrades, fdr: settings.falseDiscoveryRate, draws: 800, seed: 1 });
   const last = [...days].reverse().find((day) => day.volCycle && day.volBand);

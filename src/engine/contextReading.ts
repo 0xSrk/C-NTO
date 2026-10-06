@@ -334,7 +334,13 @@ export interface TailLoss {
   expectedShortfall: number;
 }
 
-/** VaR et ES empiriques. À partir de 500 journées, la queue au-delà du seuil 5 % est une Pareto généralisée. */
+/** Niveau du seuil de la Pareto généralisée : la queue modélisée porte environ 10 % des journées. */
+export const GPD_THRESHOLD_LEVEL = 0.1;
+
+/**
+ * VaR et ES empiriques. À partir de 500 journées, la VaR 5 % vient d'une Pareto généralisée ajustée
+ * aux excès sous le quantile 10 %, puis extrapolée au niveau 5 %. L'ES reste empirique.
+ */
 export function tailLoss(pnls: readonly number[], level = 0.05): TailLoss | null {
   const sorted = pnls.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
   if (sorted.length < 250) return null;
@@ -342,7 +348,8 @@ export function tailLoss(pnls: readonly number[], level = 0.05): TailLoss | null
   const tail = sorted.filter((value) => value <= empirical.quantile);
   const expectedShortfall = tail.length ? mean(tail) : empirical.quantile;
   if (sorted.length < 500 || level !== 0.05) return { method: 'empirique', quantile: empirical.quantile, expectedShortfall };
-  const gpd = gpdQuantile(sorted, empirical.quantile, level);
+  // Seuil au quantile 10 % : au seuil 5 %, il n'y aurait rien à extrapoler et la branche rendrait le quantile empirique.
+  const gpd = gpdQuantile(sorted, quantileAt(sorted, GPD_THRESHOLD_LEVEL).quantile, level);
   return { method: 'gpd', quantile: gpd ?? empirical.quantile, expectedShortfall };
 }
 
@@ -351,7 +358,7 @@ function quantileAt(sorted: readonly number[], level: number): { quantile: numbe
   return { quantile: sorted[index] ?? 0 };
 }
 
-/** Quantile de la loi originale au niveau `level`, seuil = quantile empirique, excès modélisés par les moments. */
+/** Quantile de la loi originale au niveau `level` : excès sous `threshold` ajustés par les moments, puis extrapolés. */
 function gpdQuantile(sortedAsc: readonly number[], threshold: number, level: number): number | null {
   const excesses = sortedAsc.filter((value) => value < threshold).map((value) => threshold - value);
   if (excesses.length < 10) return null;

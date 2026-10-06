@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { tableClass } from '@/design/primitives';
+import { Segmented, tableClass } from '@/design/primitives';
 import type { AxisRow, ReadingVerdict } from '@/engine/contextReading';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
@@ -34,7 +34,29 @@ function verdictLabel(verdict: ReadingVerdict): string {
   return tr('non concluant', 'inconclusive', 'no concluyente');
 }
 
+const KEY_NAMES: Partial<Record<Axis, Record<string, [string, string, string]>>> = {
+  regime: {
+    expansion: ['expansion', 'expansion', 'expansión'],
+    compression: ['compression', 'compression', 'compresión'],
+    choc: ['choc', 'shock', 'choque'],
+    decrue: ['décrue', 'receding', 'retroceso'],
+  },
+  band: {
+    basse: ['basse', 'low', 'baja'],
+    moyenne: ['moyenne', 'medium', 'media'],
+    haute: ['haute', 'high', 'alta'],
+  },
+  sigma: {
+    '<0.25': ['[0 ; 0,25) σ', '[0, 0.25) σ', '[0 ; 0,25) σ'],
+    '0.25-0.5': ['[0,25 ; 0,5) σ', '[0.25, 0.5) σ', '[0,25 ; 0,5) σ'],
+    '0.5-1': ['[0,5 ; 1) σ', '[0.5, 1) σ', '[0,5 ; 1) σ'],
+    '>1': ['[1 ; ∞) σ', '[1, ∞) σ', '[1 ; ∞) σ'],
+  },
+};
+
 function rowName(axis: Axis, key: string): string {
+  const named = KEY_NAMES[axis]?.[key];
+  if (named) return tr(named[0], named[1], named[2]);
   if (axis === 'hour') return `${key}h`;
   if (axis === 'afterLoss') return key === 'perte' ? tr('après une perte', 'after a loss', 'tras una pérdida') : tr('après un gain', 'after a win', 'tras una ganancia');
   if (axis === 'release') return key === 'pres' ? tr('proche', 'near', 'cerca') : tr('loin', 'far', 'lejos');
@@ -92,12 +114,8 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
           {reading.root ? <p>{tr(`Racine lue : ${reading.root}, seuls ses trades entrent dans la lecture.`, `Root read: ${reading.root}, only its trades enter the reading.`, `Raíz leída: ${reading.root}, solo sus trades entran en la lectura.`)}</p> : null}
         </div>
       </header>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-        {AXES.map((value) => (
-          <button key={value} type="button" onClick={() => setAxis(value)} className={axis === value ? s.insightK : s.note}>
-            {axisLabel(value)}
-          </button>
-        ))}
+      <div style={{ marginBottom: 10 }}>
+        <Segmented value={axis} onChange={setAxis} options={AXES.map((value) => ({ value, label: axisLabel(value) }))} />
       </div>
       {reading.thin ? <p className={s.note}>{tr('Pas assez de journées comparables', 'Not enough comparable days', 'No hay suficientes jornadas comparables')}</p> : null}
       {refused ? (
@@ -111,7 +129,7 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
               <th>{axisLabel(axis)}</th>
               <th className="num">{tr('Jours tradés', 'Days traded', 'Días operados')}</th>
               <th className="num">{tr('Points', 'Points', 'Puntos')}</th>
-              <th className="num">IC 90 %</th>
+              <th className="num">{tr('IC 90 %', '90% CI', 'IC 90 %')}</th>
               <th className="num">{tr('Trades', 'Trades', 'Trades')}</th>
               <th className="num">{tr('Écart', 'Gap', 'Brecha')}</th>
               <th>{tr('Verdict', 'Verdict', 'Veredicto')}</th>

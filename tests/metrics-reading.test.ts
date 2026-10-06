@@ -180,16 +180,19 @@ describe('lecture par contexte', () => {
     expect(semiOpenClasses([0, 5, 10, 15], [0, 10, 20])).toEqual(classes);
   });
 
-  it('le contrôle décalé d’une semaine n’est pas significatif', () => {
-    const trades = [
-      ...Array.from({ length: 8 }, () => ({ date: '2026-01-05', minute: 600, points: 12 })),
-      ...Array.from({ length: 8 }, () => ({ date: '2026-01-06', minute: 600, points: 0 })),
-    ];
+  it('le contrôle décalé d’une semaine tombe sur une journée tradée et n’est pas significatif', () => {
+    // Publication le lundi 5 janvier : +12 points ; les autres journées, dont le lundi suivant, oscillent autour de zéro.
+    const days = tradingDaysBetween('2026-01-05', '2026-01-16');
+    const trades = days.flatMap((date) => Array.from({ length: 8 }, (_, k) => ({ date, minute: 600 + k, points: date === '2026-01-05' ? 12 : k % 2 ? 3 : -3 })));
     const events = [{ date: '2026-01-05', minute: 600 }];
     const direct = releaseContrast(labelRelease(trades, events, 5, 30), { draws: 300, seed: 1 });
     expect(direct.significant).toBe(true);
     const shifted = events.map((event) => ({ ...event, date: addCalendarDays(event.date, 7) }));
-    expect(releaseContrast(labelRelease(trades, shifted, 5, 30), { draws: 200, seed: 1 }).significant).toBe(false);
+    expect(trades.filter((trade) => trade.date === shifted[0]!.date)).toHaveLength(8);
+    const placebo = releaseContrast(labelRelease(trades, shifted, 5, 30), { draws: 300, seed: 1 });
+    expect(placebo.diff).not.toBeNull();
+    expect(placebo.p).not.toBeNull();
+    expect(placebo.significant).toBe(false);
   });
 
   it('n’utilise la queue de Pareto qu’à partir de 500 journées', () => {
@@ -198,6 +201,29 @@ describe('lecture par contexte', () => {
     expect(tailLoss(mild.slice(0, 100))).toBeNull();
     const heavy = Array.from({ length: 520 }, (_, i) => (i < 40 ? -100 - i : i - 200));
     expect(tailLoss(heavy)?.method).toBe('gpd');
+  });
+
+  it('extrapole la queue de Pareto du seuil 10 % au niveau 5 %', () => {
+    // 900 journées au-dessus de −100 ; 100 en dessous, dont les excès suivent une Pareto généralisée (ξ = 0,2, σ = 40).
+    const body = Array.from({ length: 900 }, (_, i) => -100 + (500 * i) / 899);
+    const tail = Array.from({ length: 100 }, (_, i) => -100 - 200 * ((1 - (i + 0.5) / 100) ** -0.2 - 1));
+    const pnls = [...body, ...tail];
+    const result = tailLoss(pnls);
+    expect(result?.method).toBe('gpd');
+    // Moments des excès sous le quantile empirique 10 %, puis quantile au niveau 5 %.
+    const sorted = [...pnls].sort((a, b) => a - b);
+    const threshold = sorted[Math.ceil(0.1 * sorted.length) - 1]!;
+    const excesses = sorted.filter((value) => value < threshold).map((value) => threshold - value);
+    const mu = excesses.reduce((sum, value) => sum + value, 0) / excesses.length;
+    const variance = excesses.reduce((sum, value) => sum + (value - mu) ** 2, 0) / (excesses.length - 1);
+    const shape = 0.5 * (1 - (mu * mu) / variance);
+    const scale = 0.5 * mu * (1 + (mu * mu) / variance);
+    const rate = excesses.length / sorted.length;
+    expect(rate).toBeCloseTo(0.1, 2);
+    expect(result?.quantile).toBeCloseTo(threshold - (scale / shape) * ((0.05 / rate) ** -shape - 1), 9);
+    // Quantile 5 % de la loi construite : −100 − 200 × (2^0,2 − 1) ≈ −129,7.
+    expect(Math.abs((result?.quantile ?? 0) - (-100 - 200 * (2 ** 0.2 - 1)))).toBeLessThan(1.5);
+    expect(result?.expectedShortfall ?? 0).toBeLessThan(result?.quantile ?? 0);
   });
 
   it('la démo ne confirme ni le jour ni l’heure', () => {

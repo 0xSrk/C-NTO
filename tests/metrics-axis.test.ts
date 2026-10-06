@@ -136,4 +136,17 @@ describe('lecture par contexte, onglet C', () => {
     expect(noBars.regime).toBe('absent');
     expect(noBars.rows).toEqual([]);
   });
+
+  it('borne à la période le dénominateur des jours tradés du régime et de la bande', () => {
+    const dates = weekdays('2024-01-02', 130);
+    const traded = dates.slice(100);
+    const input = { sessions: traded.map((date) => session(date)), trades: traded.map((date, day) => trade(`t${day}`, date, '10:00', 5)), series: [seriesOf('nq', 'NQ', dailyBars(dates))], activeId: 'nq' };
+    for (const axis of ['regime', 'band'] as const) {
+      const reading = read(axis, input);
+      expect(reading.rows.length).toBeGreaterThan(0);
+      // Une journée de la période par trade : chaque journée comptée a été tradée.
+      expect(reading.rows.reduce((sum, row) => sum + row.days, 0)).toBe(traded.length);
+      for (const row of reading.rows) expect(row.tradedShare).toBe(1);
+    }
+  });
 });
