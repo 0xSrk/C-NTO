@@ -26,6 +26,7 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
     workingOrders: async () => null,
+    marketQuotes: () => [],
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Bar } from '@/engine/bars';
 import { killSwitchSummary } from '@/engine/execution/killSwitch';
 import { FORMAT_LABEL } from '@/engine/import';
+import { QuoteBook } from '@/engine/marketdata/quotes';
 import { tr } from '@/i18n';
 import { desk, type BridgeFilePayload, type BridgeStatus, type NtBridgeStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
@@ -65,6 +66,9 @@ async function importExecutionCsv(csv: string, fileName: string): Promise<void> 
 }
 
 const IDLE: BridgeStatus = { enabled: false, folder: null, watching: false, files: 0, pending: 0, processed: 0 };
+
+/** Dernière cotation reçue du pont, par instrument (lue par l'outil `market_quote`). Le desk ne s'abonne pas. */
+export const bridgeQuotes = new QuoteBook();
 
 /** Pont réellement actif : activé, dossier choisi, sans erreur. */
 export function isBridgeLive(status: BridgeStatus | null | undefined): boolean {
@@ -155,10 +159,11 @@ export const useBridge = create<BridgeState>((set, get) => ({
         });
       });
       desk?.marketdata?.onEvent((event) => {
-        const row = event as { kind: string; instrument?: string; timeframe?: number; bar?: Bar; final?: boolean; state?: string };
+        const row = event as { kind: string; instrument?: string; timeframe?: number; bar?: Bar; final?: boolean; state?: string; quote?: unknown };
         if (row.kind === 'bar' && row.instrument && row.bar && typeof row.timeframe === 'number') {
           useBars.getState().applyNtBar(row.instrument, row.timeframe, row.bar, row.final === true);
         }
+        if (row.kind === 'quote') bridgeQuotes.apply(row.quote, Date.now());
         if (row.kind === 'status') {
           useBars.getState().setNtFeed(row.state === 'live' ? 'live' : row.state === 'stale' ? 'stale' : 'closed');
         }

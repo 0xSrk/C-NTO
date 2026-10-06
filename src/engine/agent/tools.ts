@@ -10,6 +10,7 @@ import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
 import type { Bar, BarSeries } from '@/engine/bars';
 import type { BookOrder } from '@/engine/execution/orderBook';
+import { findQuote, QUOTE_STALE_MS } from '@/engine/marketdata/quotes';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
 import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
@@ -574,6 +575,46 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'market_quote',
+      kind: 'read',
+      description:
+        'Dernière cotation reçue du pont NinjaTrader pour un instrument : bid, ask, dernier prix, heure de la cotation, âge depuis sa réception (ageMs) ; stale au-delà de 10 s. Nom NinjaTrader exact (MNQ 12-26) ou racine du registre (MNQ : le contrat coté le plus récemment). L’outil ne s’abonne pas aux cotations : le desk n’en reçoit que si un abonnement est déjà ouvert ; sinon available: false avec la raison. Lecture seule.',
+      parameters: {
+        type: 'object',
+        properties: { instrument: { type: 'string', description: 'Nom NinjaTrader (MNQ 12-26) ou racine (MNQ, ES…)' } },
+        required: ['instrument'],
+        additionalProperties: false,
+      },
+      async run(args) {
+        const raw = str(args.instrument).trim();
+        if (!raw) return { available: false, reason: tr('Instrument requis.', 'Instrument required.', 'Instrumento requerido.') };
+        const quote = findQuote(ports.marketQuotes(), raw);
+        if (!quote) {
+          return {
+            available: false,
+            instrument: raw,
+            reason: tr(
+              `Aucune cotation reçue du pont NinjaTrader pour ${raw}. Le desk ne s’abonne pas aux cotations : elles n’arrivent que si un abonnement est ouvert.`,
+              `No quote received from the NinjaTrader bridge for ${raw}. The desk does not subscribe to quotes: they only arrive while a subscription is open.`,
+              `Ninguna cotización recibida del puente NinjaTrader para ${raw}. El desk no se suscribe a las cotizaciones: solo llegan si hay una suscripción abierta.`,
+            ),
+          };
+        }
+        const ageMs = Math.max(0, Date.now() - quote.receivedAt);
+        return {
+          available: true,
+          instrument: quote.instrument,
+          bid: quote.bid,
+          ask: quote.ask,
+          last: quote.last,
+          time: new Date(quote.time).toISOString(),
+          ageMs,
+          stale: ageMs > QUOTE_STALE_MS,
+          staleAfterMs: QUOTE_STALE_MS,
+        };
+      },
+    },
+    {
       name: 'propose_order',
       kind: 'write',
       description:
@@ -664,6 +705,7 @@ const EMPTY_PORTS: DeskPorts = {
   officialEvents: () => [],
   bridge: async () => ({ nt: null, copier: null }),
   workingOrders: async () => null,
+  marketQuotes: () => [],
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   barSeries: async () => [],
   events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
@@ -735,6 +777,12 @@ export function toolBlurb(name: string, fallback: string): string {
         fallback,
         'NinjaTrader orders kept by the main process from the AddOn’s updates: active orders (submitted, accepted, working, partly filled…) and the latest finished orders (filled, cancelled, rejected), NinjaTrader state as is, total order quantity (not the filled quantity). byAgent marks an order tagged canto-agent (proposed by an agent, confirmed by the trader); only that one carries its orderId. complete stays false while the desk does not know the full state: an order placed before the bridge connected, or changed during a disconnection, may be missing or still look active (unconfirmed: seen before the last disconnection). asOf: instant up to which the book follows the bridge. Read only.',
         'Órdenes de NinjaTrader que el proceso principal mantiene a partir de las actualizaciones del AddOn: órdenes activas (enviadas, aceptadas, en espera, parcialmente ejecutadas…) y últimas órdenes terminadas (ejecutadas, canceladas, rechazadas), estado de NinjaTrader tal cual, cantidad total de la orden (no la cantidad ejecutada). byAgent marca una orden con la etiqueta canto-agent (propuesta por un agente, confirmada por el trader); solo esa lleva su orderId. complete sigue en falso mientras el desk no conoce el estado completo: una orden colocada antes de la conexión del puente, o modificada durante un corte, puede faltar o parecer todavía activa (unconfirmed: vista antes del último corte). asOf: instante hasta el que el libro sigue al puente. Solo lectura.',
+      );
+    case 'market_quote':
+      return tr(
+        fallback,
+        'Last quote received from the NinjaTrader bridge for an instrument: bid, ask, last price, quote time, age since it was received (ageMs); stale beyond 10 s. Exact NinjaTrader name (MNQ 12-26) or registry root (MNQ: the most recently quoted contract). The tool does not subscribe to quotes: the desk only receives them while a subscription is already open; otherwise available: false with the reason. Read only.',
+        'Última cotización recibida del puente NinjaTrader para un instrumento: bid, ask, último precio, hora de la cotización, antigüedad desde su recepción (ageMs); stale pasados 10 s. Nombre NinjaTrader exacto (MNQ 12-26) o raíz del registro (MNQ: el contrato cotizado más recientemente). La herramienta no se suscribe a las cotizaciones: el desk solo las recibe si ya hay una suscripción abierta; si no, available: false con el motivo. Solo lectura.',
       );
     case 'propose_order':
       return tr(

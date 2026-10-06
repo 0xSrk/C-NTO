@@ -11,7 +11,7 @@ import { uid } from '@/lib/id';
 import { APP_VERSION } from '@/lib/version';
 import { useAgentOrders } from './agentOrders';
 import { useBars } from './bars';
-import { useBridge } from './bridge';
+import { bridgeQuotes, useBridge } from './bridge';
 import { useCalendar } from './calendar';
 import { deskEventLog } from './deskEvents';
 import { db, type AgentMessage } from './db';
@@ -96,6 +96,7 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
       copier: desk?.copier ? await desk.copier.status().catch(() => null) : null,
     }),
     workingOrders: async () => (desk?.ntbridge?.orders ? await desk.ntbridge.orders().catch(() => null) : null),
+    marketQuotes: () => bridgeQuotes.all(),
     portfolio: async () => {
       if (!usePortfolio.getState().ready) await usePortfolio.getState().load();
       const { pockets, positions, cash, fx } = usePortfolio.getState();
