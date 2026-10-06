@@ -66,6 +66,32 @@ describe('passerelle MCP · garde-fous HTTP', () => {
   });
 });
 
+describe('passerelle MCP · messages JSON-RPC', () => {
+  it('message mal formé : -32600, pas un accusé 202', async () => {
+    const invalid = async (msg: unknown) => {
+      const reply = await handleMcpHttp(post(msg), ctx());
+      expect(reply.status).toBe(400);
+      return (await result(reply)) as { id?: unknown; error?: { code: number } };
+    };
+    expect((await invalid({ id: 1, method: 'ping' })).error?.code).toBe(-32600);
+    expect((await invalid({ jsonrpc: '1.0', id: 2, method: 'ping' })).error?.code).toBe(-32600);
+    const noMethod = await invalid({ jsonrpc: '2.0', id: 3 });
+    expect(noMethod.error?.code).toBe(-32600);
+    expect(noMethod.id).toBe(3);
+    expect((await invalid({ jsonrpc: '2.0', id: 4, method: 42 })).error?.code).toBe(-32600);
+    expect((await invalid({ jsonrpc: '2.0', id: null, method: 'ping' })).error?.code).toBe(-32600);
+    expect((await invalid({ jsonrpc: '2.0', id: { n: 1 }, method: 'ping' })).error?.code).toBe(-32600);
+    expect((await invalid({ jsonrpc: '2.0', method: 'notifications/initialized', id: true })).error?.code).toBe(-32600);
+    expect((await invalid({ method: 'notifications/initialized' })).error?.code).toBe(-32600);
+  });
+
+  it('notification et réponse du client : accusé 202 sans corps', async () => {
+    expect(await handleMcpHttp(post({ jsonrpc: '2.0', method: 'notifications/initialized' }), ctx())).toEqual({ status: 202, headers: {} });
+    expect(await handleMcpHttp(post({ jsonrpc: '2.0', id: 7, result: {} }), ctx())).toEqual({ status: 202, headers: {} });
+    expect(await handleMcpHttp(post({ jsonrpc: '2.0', id: 8, error: { code: -1, message: 'non' } }), ctx())).toEqual({ status: 202, headers: {} });
+  });
+});
+
 describe('passerelle MCP · protocole', () => {
   it('initialize : version du client si connue, sinon la plus récente ; capacité tools seulement', async () => {
     const known = await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })), ctx()));

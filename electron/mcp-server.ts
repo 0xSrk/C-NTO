@@ -259,6 +259,26 @@ function tooMany(locale: AppLocale, cause: 'rate' | 'inflight'): McpHttpReply {
   return httpError(429, message, { 'Retry-After': '1' });
 }
 
+/**
+ * Motif d'un message JSON-RPC mal formé, ou `null`. Sont acceptés : une requête (`id` chaîne ou
+ * nombre, `method`), une notification (`method` sans `id`), une réponse du client (`id` avec
+ * `result` ou `error`). MCP interdit l'`id` nul.
+ */
+function invalidRpc(rpc: Record<string, unknown>, id: RpcId | null, locale: AppLocale): string | null {
+  if (rpc.jsonrpc !== '2.0') return uiText(locale, 'Requête invalide : « jsonrpc » doit valoir "2.0".', 'Invalid request: “jsonrpc” must be "2.0".', 'Solicitud no válida: « jsonrpc » debe valer "2.0".');
+  if (Object.hasOwn(rpc, 'id') && id === null) {
+    return uiText(locale, 'Requête invalide : « id » doit être une chaîne ou un nombre.', 'Invalid request: “id” must be a string or a number.', 'Solicitud no válida: « id » debe ser una cadena o un número.');
+  }
+  if (rpc.method === undefined) {
+    if (id !== null && (Object.hasOwn(rpc, 'result') || Object.hasOwn(rpc, 'error'))) return null;
+    return uiText(locale, 'Requête invalide : « method » manquant.', 'Invalid request: “method” is missing.', 'Solicitud no válida: falta « method ».');
+  }
+  if (typeof rpc.method !== 'string' || !rpc.method) {
+    return uiText(locale, 'Requête invalide : « method » doit être une chaîne.', 'Invalid request: “method” must be a string.', 'Solicitud no válida: « method » debe ser una cadena.');
+  }
+  return null;
+}
+
 /** Une requête HTTP complète → une réponse. Sans socket : testable tel quel. */
 export async function handleMcpHttp(req: McpHttpRequest, ctx: McpContext): Promise<McpHttpReply> {
   const refused = precheckMcpHttp(req, ctx);
@@ -274,6 +294,8 @@ export async function handleMcpHttp(req: McpHttpRequest, ctx: McpContext): Promi
   if (!msg || typeof msg !== 'object') return { status: 400, headers: JSON_HEADERS, body: rpcError(null, -32600, 'Objet JSON-RPC attendu') };
   const rpc = msg as { jsonrpc?: unknown; id?: unknown; method?: unknown; params?: unknown };
   const id: RpcId | null = typeof rpc.id === 'string' || typeof rpc.id === 'number' ? rpc.id : null;
+  const malformed = invalidRpc(rpc, id, ctx.locale ?? 'fr');
+  if (malformed) return { status: 400, headers: JSON_HEADERS, body: rpcError(id, -32600, malformed) };
   // Notification (sans id) ou réponse du client : accusé sans corps.
   if (typeof rpc.method !== 'string' || id === null) return { status: 202, headers: {} };
   const params = rpc.params && typeof rpc.params === 'object' && !Array.isArray(rpc.params) ? (rpc.params as Record<string, unknown>) : {};
