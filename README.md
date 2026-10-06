@@ -6,137 +6,169 @@
 
 # CΛNTO
 
-### A local trading desk for CME Group futures (Nasdaq, S&P, Russell, Dow, crude, gold, euro FX)
+### The local desk for prop-firm futures traders
 
-An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: quantitative journal, NinjaTrader 8 bridge, official calendar, notes, portfolio, and a Copier that replicates in simulation. **v3.5.0** installs natively on **macOS, Windows, and Linux**. Data stays on the machine. On arrival the desk stays closed until it opens.
+**Journal · risk · prop-plan replay · NinjaTrader 8 · an AI agent that proposes and never submits.**<br/>
+One window on your machine. Your data stays there.
 
-> Personal noncommercial use is free under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use goes through **SIΞRRΛSKΛ Lab**. Versions 3.1.0 through 3.3.1 published under MIT remain under MIT.
+<br/>
 
-[![Node](https://img.shields.io/badge/Node-22.12%2B-000000?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
-[![Electron](https://img.shields.io/badge/Shell-Electron-000000?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
-[![React](https://img.shields.io/badge/UI-React%2019-000000?style=flat-square&logo=react&logoColor=white)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/Engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](https://ninjatrader.com)
-[![Tests](https://img.shields.io/badge/tests-973%20passed-000000?style=flat-square)](tests)
-[![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-e5263d?style=flat-square)](docs/DESIGN.md)
+<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for macOS" src="https://img.shields.io/badge/macOS-Universal%20DMG-E5263D?style=for-the-badge&labelColor=0A0B0D"/></a>
+<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Windows-x64%20%C2%B7%20ARM64-E5263D?style=for-the-badge&labelColor=0A0B0D"/></a>
+<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for Linux" src="https://img.shields.io/badge/Linux-AppImage%20%C2%B7%20deb-E5263D?style=for-the-badge&labelColor=0A0B0D"/></a>
+
+<br/><br/>
+
 [![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=e5263d&label=version)](package.json)
-[![macOS](https://img.shields.io/badge/macOS-DMG-000000?style=flat-square&logo=apple&logoColor=white)](#installer)
-[![Windows](https://img.shields.io/badge/Windows-NSIS-000000?style=flat-square&logo=windows&logoColor=white)](#installer)
-[![Linux](https://img.shields.io/badge/Linux-AppImage%20%C2%B7%20deb-000000?style=flat-square&logo=linux&logoColor=white)](#installer)
+[![Tests](https://img.shields.io/badge/tests-976%20passed-000000?style=flat-square)](tests)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
+[![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
+[![MCP](https://img.shields.io/badge/MCP-local%20gateway-000000?style=flat-square)](docs/PROTOCOLE-AGENT.md)
+[![Electron](https://img.shields.io/badge/shell-Electron-000000?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
+[![TypeScript](https://img.shields.io/badge/engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-e5263d?style=flat-square)](docs/DESIGN.md)
 
 <br/>
 
-<img src="docs/media/metrique.png" alt="CΛNTO — Metrics: dashboard, equity curve, yearly heatmap, 140 sessions" width="920"/>
+<img src="docs/media/metrique.png" alt="CΛNTO — Metrics dashboard: net P&L, expectancy, win rate, profit factor, K.04 margin, interactive equity curve over 140 sessions" width="920"/>
 
-<br/>
+<sub><code>01 · MET</code> Metrics — 140 demo sessions: net P&L after fees, the K.04 gauge, the interactive equity curve with its drawdown.</sub>
+
+<br/><br/>
 
 **`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 PTF` · `06 AGT` · `07 BOT` · `08 CPY`**
 
-<br/><br/>
+<br/>
+
+**[Overview](#overview) · [What's new](#whats-new-in-350) · [Install](#install) · [First run](#first-run) · [The desk](#the-desk) · [The agent](#the-agent) · [Safety](#safety-by-design) · [NinjaTrader](#ninjatrader-8-bridge) · [Architecture](#architecture) · [Develop](#develop) · [Versions](#versions) · [License](#license)**
+
+<br/>
 
 </div>
 
 ---
 
-## Contents
+<a id="overview"></a>
+<a id="in-short"></a>
 
-0. [In short](#in-short) · [Get started](#get-started) · [Updating](#updating)
-1. [`01 · MET` Metrics](#metrics)
-2. [`02 · VIS` Visual](#visual)
-3. [`03 · CAL` Calendar](#calendar)
-4. [`04 · NTE` Notes](#notes)
-5. [`05 · PTF` Portfolio](#portfolio)
-6. [`06 · AGT` AI agent](#ai-agent) — prototype
-7. [`07 · BOT` Bot](#bot) — design
-8. [`08 · CPY` Copier](#copier) — simulation, disarmed on launch
-9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
-10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
-11. [Versions](#versions) · [Roadmap](#roadmap) · [Services](#services) · [Disclaimer](#disclaimer)
+## Overview
 
----
+CΛNTO is the desk of **SIΞRRΛSKΛ Lab** for traders who run prop-firm accounts on **CME Group futures** — Nasdaq, S&P, Russell, Dow, crude, gold, euro FX, and their micros — next to NinjaTrader 8. Eight modules share one window and one vault on your disk. The desk measures what you did, watches what you are doing against your plan and your own rules, and gives an AI agent the same view, while the main process, not the model, keeps the keys.
 
-## In short
+<table>
+<tr>
+<td width="50%" valign="top">
 
-CΛNTO is the Lab’s **local desk** for **prop-firm traders** and **CME Group futures**, next to NinjaTrader 8. One Electron window, eight modules on the rail, one IndexedDB vault — nothing leaves the machine. The Copier replicates in simulation and starts disarmed. On arrival the desk stays closed; it opens onto the modules only after that. Personal noncommercial use is free. Commercial use goes through the Lab.
+**Local by design**<br/>
+One window, one vault on your disk. The journal needs no server. The interface cannot reach an outside host on its own, and every gateway listens on `127.0.0.1` only.
 
-| Module | In 3.5.0 |
-|---|---|
-| `01 · MET` Metrics | Journal, interactive equity curve, risk and R per trade, daily context, reading by context, session in progress, prop replay, Monte Carlo |
-| `02 · VIS` Visual | Registry candles, indicators, and the NT8 bridge followed when you ask: five days of history, then live bars |
-| `03 · CAL` Calendar | Official sources: BLS, BEA, Federal Reserve, ECB, EIA, TreasuryDirect, plus an embedded snapshot. FRED only with a key you type. CME expirations are computed locally |
-| `04 · NTE` Notes | Markdown vault, typed links, and a branch from a selection |
-| `05 · PTF` Portfolio | Local net value, exposure, distance to prop thresholds, Monte Carlo on the consolidated series |
-| `06 · AGT` Agent | Prototype. Reads the whole desk, its events and your rules, prepares the morning brief and the evening debrief, local MCP gateway, proposes orders on Sim accounts that you confirm and that your rules can refuse. LLM through the main process |
-| `07 · BOT` Bot | Design. No order is sent |
-| `08 · CPY` Copier | Simulation only. Disarmed on every launch. Real follower accounts are not in this version |
+</td>
+<td width="50%" valign="top">
 
-| | |
-|---|---|
-| **Measure** | Journal of up to 1,000 sessions · profit factor before and after fees, expectancy, Sharpe / Sortino / Calmar with confidence intervals, SQN, Kelly, z-score, MAE / MFE, drawdown, rolling consistency · risk and R of each trade · daily context and reading by context |
-| **Discipline** | Your numeric rules in Settings › Discipline (day loss, trades per day, catalyst window, allowed instruments, revenge window) · day loss against its limit at the top of Metrics · the agent is warned at 50, 75 and 100 % of the limit and at every breach from the entry fill |
-| **Import** | NT bridge: watched CSV folder **and** a local WebSocket (same execution ID, no duplicate) · Trades / Executions / CΛNTO CSV · en-US / fr-FR cultures · FIFO matching |
-| **Replay** | Versioned prop-firm plans (EOD / intraday / static trailing, daily loss, consistency) · bounded bootstrap Monte Carlo |
-| **See** | Candles for the instrument registry (NQ, ES, RTY, YM, CL, GC, 6E, and their micros) · indicator catalog · one session projected · live bars when the NT8 bridge is connected |
-| **Context** | Official calendars (BLS, BEA, Fed, ECB, EIA, Treasury) plus an embedded 2026 snapshot · CME expirations computed locally · day’s notes |
-| **Note** | Markdown vault with `[[wiki]]` links, tags, force-directed graph, and a branch from a selection |
-| **Orchestrate** | AI agent (desk tools + write confirmation, LLM through the main process) · local MCP gateway for Claude, Codex, Cursor and any MCP client · its own JSON-RPC WebSocket, separate from the NT bridge |
-| **Orders** | The NT bridge can submit on accounts whose name starts with `Sim` (a live account only after an explicit confirmation in the panel, default 20 contracts per order, adjustable from 1 to 1000, kill switch). The agent only **proposes** an order on a Sim account; you confirm each one in a desk window, and the desk refuses it first when it breaks your rules (day loss reached, catalyst window, instrument not allowed) or when the prop plan's dated buffer is under 25 %. Bot stays **design**. The Copier brings Sim followers to the master position (not fill by fill) only while armed; exits always go out, an opening needs the follower’s dated buffer above your floor |
-| **Portfolio** | Consolidated net value in a base currency. A missing exchange rate leaves that pocket out of the total |
+**Numbers that hold**<br/>
+P&L recomputed from prices and the CME contract registry. Profit factor before and after fees, confidence intervals, and a statistical rail before a time slot or a setup is called an edge.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Built around your prop plan**<br/>
+EOD, intraday or static trailing replayed day by day, the margin to the floor dated at the last session's low, the daily loss, consistency, and the odds of ruin before the target.
+
+</td>
+<td width="50%" valign="top">
+
+**An agent that proposes. You decide.**<br/>
+It reads the whole desk and your rules, prepares the brief and the debrief, and may propose an order on a Sim account. The main process guards it; you confirm each one.
+
+</td>
+</tr>
+</table>
 
 ---
 
-## Get started
+<a id="whats-new-in-350"></a>
 
-**v3.5.0** is the current release. Metrics are reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, and results read by context. The session in progress sits at the top of Metrics, and Visual follows the NinjaTrader bridge when you ask. The agent reads your rules and your day loss, prepares the morning brief and the evening debrief, and the desk refuses its proposed orders when they break your rules. NinjaTrader AddOn 2.2.0 is unchanged, and installers are verified against `SHA256SUMS.txt` signed by the Lab. It stays under the PolyForm Noncommercial License 1.0.0. The application installs without cloning the repository. The C# AddOn is **not compiled inside NinjaTrader 8 by this repository**. On Windows, copy `CantoBridge.cs` into the NinjaTrader AddOns folder and compile it (F5).
+## What's new in 3.5.0
 
-| OS | Installer | What you get |
-|---|---|---|
-| **macOS** 12+ (Apple silicon and Intel) | `CANTO-3.5.0-mac-universal.dmg` | Application in `/Applications`. The file bridge lives in the desk. |
-| **Windows** 10 / 11 (x64 and ARM) | `CANTO-3.5.0-win-x64-setup.exe` (or `arm64`) | NSIS wizard (choose the folder, shortcut). Portable: `CANTO-3.5.0-win-x64-portable.exe`. |
-| **Linux** x64 and ARM64 | `CANTO-3.5.0-linux-x86_64.AppImage` or `CANTO-3.5.0-linux-amd64.deb` | ARM64: `linux-arm64.AppImage` and `linux-arm64.deb`. |
+> [!NOTE]
+> **v3.5.0 · 2026-10-06.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
 
+- **Metrics, reworked.** An interactive equity curve, corrected figures (CME trading day, ratios over trading days, profit factor before and after fees), and markers kept only when they pass a statistical test.
+- **Risk, R and context.** The risk and R of every trade, the daily context of each session (volatility regime and band), and your results read by context.
+- **The session, live.** Day loss against its limit and working orders at the top of Metrics, your numeric rules in *Settings › Discipline*, and Visual following the NinjaTrader bridge when you ask.
+- **The agent at work.** It reads your rules, your day loss, your orders and the daily context, and prepares the morning brief and the evening debrief, sent only when you click. The MCP gateway also serves Codex and Claude Desktop.
+- **Guards that read everything.** An order proposed by the agent is refused when it breaks your rules (day loss, catalyst window, instrument) or when the prop plan's dated buffer is too low. The Copier reads the same buffer for each follower, unrealized loss included, Copier tab open or not.
+
+NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.5.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.5.0).
+
+---
+
+<a id="install"></a>
 <a id="installer"></a>
+<a id="get-started"></a>
 
-### macOS
+## Install
 
-1. Download the DMG from the [GitHub Release v3.5.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.5.0), or run `npm run dist:mac` on a Mac.
-2. Open the DMG and drag **CΛNTO** into **Applications**.
-3. First launch: right-click the app › **Open** (the DMG is not Apple-signed; Gatekeeper asks for this confirmation once).
-4. The launcher, then the desk, open. Metrics › NinjaTrader bridge creates `~/Documents/NinjaTrader 8/export/CANTO` and watches it.
+| Platform | Download | Runs on |
+|---|---|---|
+| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
+| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-win-x64-portable.exe) | Windows 10 and 11 |
+| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-arm64.deb) | x64 and ARM64 |
 
-NinjaTrader 8 itself installs on **Windows**. The `CantoBridge.cs` AddOn is compiled there (F5) and writes the CSVs. The macOS desk reads that folder when it is local, shared, or synced (Syncthing, network share, copy). The rest of CΛNTO — metrics, calendar, notes, agent, vault — is native on the Mac, with no Windows required.
+Files are named `CANTO-3.5.0-<system>-<architecture>`, for example `CANTO-3.5.0-win-x64-setup.exe`.
 
-From source (development): double-click `CANTO.command`, or `chmod +x CANTO.sh && ./CANTO.sh`.
+The installers need neither Node.js nor a clone of the repository. Each Release lists every file in `SHA256SUMS.txt`, signed with the Lab's Ed25519 key: the desk's built-in update refuses an installer whose signature is missing, foreign, or bound to another version ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
 
-### Windows
+> [!IMPORTANT]
+> The NinjaTrader 8 AddOn (`CantoBridge.cs`) is compiled by you, inside NinjaTrader 8 on Windows (F5). This repository does not compile it. The installers ship its source next to the executable, in `resources/ninjatrader/`.
 
-1. Run `CANTO-3.5.0-win-x64-setup.exe` (or `arm64` on Windows ARM).
-2. Choose the folder, finish the wizard, and open **CΛNTO** from the Start menu.
-3. No-install variant: `CANTO-3.5.0-win-x64-portable.exe`.
-4. Metrics › NinjaTrader bridge › default folder `Documents\NinjaTrader 8\export\CANTO`.
-5. Real time: `CantoBridge.cs` ships in `resources/ninjatrader/` next to the executable (sources: `ninjatrader/CantoBridge.cs`). Copy it to `Documents\NinjaTrader 8\bin\Custom\AddOns\`, then NinjaScript Editor › Compile (F5). In the desk, **Write the NinjaTrader configuration** so the AddOn reads `bridge.json` (port and token) and opens the WebSocket. The CSV file is still written in parallel.
+<details>
+<summary><b>macOS</b> — Gatekeeper, NinjaTrader on another machine</summary>
 
-**Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log` (startup, GPU mode, first paint, errors), and a startup error is shown in a dialog instead of closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it — check the Windows notifications and *Windows Security › App & browser control*, or use the source install (`CANTO.cmd`) below.
+<br/>
 
-From source: double-click `CANTO.cmd`. The Electron binary is downloaded and extracted **without** the `extract-zip` native module (often blocked by Smart App Control). Allow 1–2 minutes. If the launcher shows `Cannot find native binding`, update the repo (`git pull`) and run `CANTO.cmd` again. Shortcut: right-click `CANTO.cmd` › *Send to › Desktop (create shortcut)*.
+1. Open the DMG and drag **CΛNTO** into **Applications**.
+2. First launch: right-click the app › **Open**. The app is not signed or notarized by Apple, so Gatekeeper asks once.
+3. Metrics › NinjaTrader bridge creates `~/Documents/NinjaTrader 8/export/CANTO` and watches it.
 
-### Linux
+NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS desk reads that folder when it is local, shared, or synced (Syncthing, network share, copy). Everything else — metrics, calendar, notes, agent, vault — is native on the Mac.
 
-1. **AppImage** (no system install): `chmod +x CANTO-3.5.0-linux-x86_64.AppImage && ./CANTO-3.5.0-linux-x86_64.AppImage`. ARM64: `CANTO-3.5.0-linux-arm64.AppImage`.
-2. **Debian / Ubuntu**: `sudo apt install ./CANTO-3.5.0-linux-amd64.deb` (ARM64: `CANTO-3.5.0-linux-arm64.deb`), then launch `canto` or **CΛNTO** from the menu.
-3. The bridge creates `~/Documents/NinjaTrader 8/export/CANTO`. Same rule as macOS: the AddOn runs inside NinjaTrader 8 on Windows; the Linux desk imports the CSVs from that folder.
+</details>
 
-From source: `chmod +x CANTO.sh && ./CANTO.sh`.
+<details>
+<summary><b>Windows</b> — wizard, portable build, start-up log</summary>
 
-Without a GPU (remote session, no `/dev/dri`) Chromium can leave the window black and then quit (`SharedImageManager`, `GPU process isn't usable`). The desk then switches to software rendering on its own, including on the next launch. macOS and Windows keep hardware acceleration as long as a frame is presented. Force software rendering with `CANTO_DISABLE_GPU=1`. The Visual chart still waits for a real size before creating its canvas.
+<br/>
 
-### From source (all three operating systems)
+1. Run `CANTO-3.5.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.5.0-win-x64-portable.exe`.
+2. Metrics › NinjaTrader bridge › default folder `Documents\NinjaTrader 8\export\CANTO`.
+3. Real time: copy `CantoBridge.cs` into `Documents\NinjaTrader 8\bin\Custom\AddOns\`, compile it in the NinjaScript Editor (F5), then **Write the NinjaTrader configuration** in the desk.
 
-The installers above do not require Node.js. Building from source does.
+**Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log`, and a start-up error is shown in a dialog rather than closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it. Check *Windows Security › App & browser control*, or use the source install below.
 
-**Requirement**: [Node.js](https://nodejs.org) **22.12 or newer** (LTS) and npm. Electron 43 refuses Node 20: `npm install` stops with `engine` / `required: { node: '>=22.12.0' }`.
+</details>
 
-**Node too old**: install Node 22.12+, or download a prebuilt installer from the [GitHub Releases](https://github.com/0xSrk/C-NTO/releases) (DMG, Windows setup, AppImage, deb, and `SHA256SUMS.txt`). A Release is published for every `v*` tag, or from *Actions › release › Run workflow*, which tags `v<package.json version>` on the built commit and refuses to overwrite an existing release.
+<details>
+<summary><b>Linux</b> — AppImage, deb, sessions without a GPU</summary>
+
+<br/>
+
+- **AppImage** (no system install): `chmod +x CANTO-3.5.0-linux-x86_64.AppImage && ./CANTO-3.5.0-linux-x86_64.AppImage`
+- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.5.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
+- The bridge creates `~/Documents/NinjaTrader 8/export/CANTO`; as on macOS, the Linux desk imports the CSV files the AddOn writes on Windows.
+
+Without a GPU (remote session, no `/dev/dri`), Chromium can leave the window black and quit. The desk then switches to software rendering on its own, including at the next launch. Force it with `CANTO_DISABLE_GPU=1`.
+
+</details>
+
+<details>
+<summary><b>From source</b> — Node 22.12+, the launcher, every platform</summary>
+
+<br/>
+
+Requires [Node.js](https://nodejs.org) **22.12 or newer** and npm (Electron refuses Node 20).
 
 ```bash
 git clone https://github.com/0xSrk/C-NTO.git
@@ -145,45 +177,69 @@ npm install
 npm run launch
 ```
 
-The **launcher** opens: the CΛNTO wordmark, a **Launch the desk** button, and a version check. One click opens the full desk.
-
 | Command | Effect |
 |---|---|
-| `npm run launch` · `CANTO.cmd` · `./CANTO.sh` · `CANTO.command` | **Launcher** → desk |
-| `npm run desk:dev` | Electron desk + Vite (no launcher screen) |
-| `npm run dev` | Browser only (no orchestrator gateway, no `safeStorage` encryption) |
-| `npm run dist:mac` | Universal DMG + zip → `release/` (on macOS) |
-| `npm run dist:win` | NSIS + portable, x64 and ARM → `release/` (on Windows) |
-| `npm run dist:linux` | AppImage + deb, x64 and ARM64 → `release/` (on Linux) |
-| `npm run check` | `typecheck` + `test` + `build` |
+| `npm run launch` · `CANTO.cmd` · `./CANTO.sh` · `CANTO.command` | Launcher, then the desk |
+| `npm run desk:dev` | Electron desk and Vite, no launcher |
+| `npm run dev` | Browser only: no gateways, no `safeStorage` encryption |
+| `npm run dist:mac` · `dist:win` · `dist:linux` | Native installers into `release/`, on the matching OS |
 
-On first launch: launcher, lithographic boot, then the closed desk. Opening draws **Desk Unlocked** in the center, then splits onto the modules. A **demo set** (140 sessions) loads from Metrics › **Load a demo dataset**.
+On Windows, `CANTO.cmd` downloads Electron without the `extract-zip` native module, which Smart App Control often blocks. Allow one to two minutes on the first run.
 
-<div align="center">
+</details>
 
-<img src="docs/media/arrival.png" alt="CΛNTO — the desk stays closed on arrival" width="920"/>
+<details>
+<summary><b>Updating</b> — installer or git clone</summary>
 
-<sub>Arrival — SIΞRRΛSKΛ Lab above the plate. The desk opens onto the modules only after this screen.</sub>
+<br/>
 
-</div>
+Every install opens on the **launcher** — desk language, version check, then the circuit transition into the desk (`--desk` skips it). The desk checks GitHub at start-up; **Update and relaunch** turns amber when a version is ready.
+
+| Install | What the button does |
+|---|---|
+| **Installer** | Compares with the latest published Release (drafts and pre-releases ignored), downloads the installer for this machine with live progress, verifies it against the signed `SHA256SUMS.txt`, then installs natively: the Windows setup runs silently in place and relaunches, a Linux AppImage is replaced and relaunched, a macOS DMG or a Linux deb is opened for you. The system proxy is honored. |
+| **Git clone** | `git pull --ff-only origin main`, `npm install`, then relaunches the launcher. A dirty working tree asks before stashing. |
+
+</details>
 
 ---
 
-## Updating
+<a id="first-run"></a>
 
-Every install opens on the **launcher** — desk language, version check, and the circuit transition into the desk — whether it runs from a git clone or from an installer (`--desk` skips it). CΛNTO **checks GitHub at startup** (launcher and the desk title bar).
+## First run
 
-| Install | Click **Update and relaunch** |
-|---|---|
-| **Git clone** (recommended path, `git clone` … `CANTO.cmd`) | `git fetch` + `git pull --ff-only origin main`, then `npm install --legacy-peer-deps`, then **relaunch** the launcher. A dirty working tree asks for confirmation (stash). |
-| **Installer** (no `.git` folder) | Compares the local version with the **latest published GitHub Release** (`releases/latest`, drafts and pre-releases ignored), downloads the installer for this machine with live progress, **verifies it against the release’s `SHA256SUMS.txt`, itself signed with the Lab’s Ed25519 key** (refused if the signature is missing or wrong, or on mismatch; see [docs/PUBLICATION.md](docs/PUBLICATION.md)), then installs natively: **Windows** runs the NSIS setup silently in place and relaunches CΛNTO, a **Linux AppImage** is replaced and relaunched, a **macOS DMG** or **Linux deb** is opened for you. Network goes through Chromium, so the system proxy is honored. The version on `main` is not used, so an installer is never told to update before a binary exists. |
+<table>
+<tr>
+<td width="50%"><img src="docs/media/arrival.png" alt="CΛNTO — the desk stays closed on arrival"/></td>
+<td width="50%"><img src="docs/media/unlock.png" alt="CΛNTO — Desk Unlocked draws in the center as the desk opens"/></td>
+</tr>
+<tr>
+<td><sub><b>Arrival</b> — the desk stays closed. SIΞRRΛSKΛ Lab · Artefact 002 above the plate.</sub></td>
+<td><sub><b>Desk Unlocked</b> — drawn in the center, then the desk splits onto the modules.</sub></td>
+</tr>
+</table>
 
-| State | Behavior |
-|---|---|
-| Up to date | The button shows `v3.5.0` (quiet) |
-| Update available | The button turns **amber / yellow** — one click installs and relaunches |
+1. **Bring your journal.** Metrics › **Import a CSV**: a NinjaTrader *Trades* or *Executions* export, or a CΛNTO CSV. To explore first, **Load a demo dataset** (140 sessions).
+2. **Set your plan and your rules.** Metrics › ⚙ **Desk settings**: the tracked prop-firm plan and account, then *Discipline* — max daily loss, trades per day, catalyst window, revenge window, allowed instruments.
+3. **Connect NinjaTrader 8.** Compile the AddOn once, then **Write the NinjaTrader configuration** in Metrics › NinjaTrader bridge. See [the bridge](#ninjatrader-8-bridge).
+4. **Meet the agent.** `06 · AGT`: pick a provider preset — a local model (Ollama, LM Studio) or a cloud API with your own key — then **Brief** before the open and **Debrief** after the close.
 
 ---
+
+<a id="the-desk"></a>
+
+## The desk
+
+| | Module | What it does | Status |
+|---|---|---|---|
+| <code>01&nbsp;·&nbsp;MET</code> | [Metrics](#metrics) | Journal of up to 1,000 sessions, quantitative engine, risk and context, prop-plan replay, Monte Carlo | Live |
+| <code>02&nbsp;·&nbsp;VIS</code> | [Visual](#visual) | Registry candles, an indicator catalog, a session projected, NinjaTrader live bars on request | Live |
+| <code>03&nbsp;·&nbsp;CAL</code> | [Calendar](#calendar) | Official macro calendars, CME expirations, the note of the day | Live |
+| <code>04&nbsp;·&nbsp;NTE</code> | [Notes](#notes) | Markdown vault, `[[wiki]]` links, a graph, a branch from a selection | Live |
+| <code>05&nbsp;·&nbsp;PTF</code> | [Portfolio](#portfolio) | Consolidated net value, exposure, distance to prop thresholds, projection | Live |
+| <code>06&nbsp;·&nbsp;AGT</code> | [AI agent](#ai-agent) | Reads the desk, briefs and debriefs, proposes Sim orders you confirm; local MCP gateway | Prototype |
+| <code>07&nbsp;·&nbsp;BOT</code> | [Bot](#bot) | Automaton workshop under imposed guardrails | Design · no orders |
+| <code>08&nbsp;·&nbsp;CPY</code> | [Copier](#copier) | Position-based replication from a master to Sim followers | Sim only · disarmed on launch |
 
 <a id="metrics"></a>
 <a id="métrique"></a>
@@ -193,91 +249,57 @@ Every install opens on the **launcher** — desk language, version check, and th
 
 **`01 · MET · METRICS · ULTIMATE JOURNAL · QUANTITATIVE ENGINE`**
 
-## Metrics
-
-### 1,000 sessions · pure TypeScript engine · prop-firm replay · Monte Carlo
-
-<img src="docs/media/metrique.png" alt="CΛNTO — Metrics: dashboard, equity curve, yearly heatmap" width="920"/>
-
-<sub>Dashboard — net PnL, ratios, equity curve, drawdown, latest sessions. 140 demo sessions.</sub>
-
 </div>
 
-Five views in the same module: **Dashboard** · **Sessions** · **Analysis** · **Prop firm** · **Monte-Carlo**. Capacity is **1,000 sessions** (a warning and an export offer past that, never a silent drop). Each session has an account, a trading date (Globex key **18:00 America/New_York**), tags, and a list of trades.
+### Metrics
 
-The engine (`src/engine`) is pure TypeScript, independent of the UI.
+Five views — **Dashboard · Sessions · Analysis · Prop firm · Monte Carlo** — on a pure TypeScript engine (`src/engine`) that never touches the interface.
+
+- **A journal you can trust.** Up to 1,000 sessions, each with its account, its CME trading date (Globex, 18:00 New York) and its trades; past that, a warning and an export, never a silent drop. P&L is recomputed from price × point value (the registry cites CME Group), commissions deducted.
+- **Ratios with their uncertainty.** Profit factor before and after fees, expectancy in $ and in R, Sharpe / Sortino / Calmar with intervals, SQN, Kelly, MAE / MFE, drawdown and recovery.
+- **Risk and R.** Each trade carries its initial stop and target; risk comes from the stop, else from the risk you entered, else from a fixed risk per contract.
+- **Reading by context.** A sheet per session — Garman-Klass volatility, regime and band, ATR, the day's releases — and your results read along one axis at a time. A verdict needs 30 distinct days and must pass the rail; otherwise the tab says no marker is solid.
+- **Your prop plan, replayed.** Versioned plans (EOD, intraday or static trailing, lock, daily loss, consistency, minimum days) replayed day by day, with the K.04 margin to the floor dated at the last session's low.
+- **Monte Carlo.** A bounded i.i.d. bootstrap with a reproducible seed: percentiles, ruin and target probabilities.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/analyse.png" alt="CΛNTO — Analysis: reading by context, week ring, duration spectrum, excursion field, R multiples"/></td>
+<td width="50%"><img src="docs/media/propfirm.png" alt="CΛNTO — Prop firm: Apex Full 50K replay, balance, floor, target"/></td>
+</tr>
+<tr>
+<td><sub><b>Analysis</b> — reading by context, week ring, duration spectrum, excursion field, R multiples.</sub></td>
+<td><sub><b>Prop firm</b> — an Apex Full 50K replay: balance, floor, target, consistency.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/media/montecarlo.png" alt="CΛNTO — Monte Carlo: path fan, ruin and target probabilities, percentiles"/></td>
+<td width="50%"><img src="docs/media/discipline.png" alt="CΛNTO — Desk settings, Discipline: max daily loss, trades per day, catalyst window, allowed instruments"/></td>
+</tr>
+<tr>
+<td><sub><b>Monte Carlo</b> — 2,000 paths, ruin before target, the percentile table.</sub></td>
+<td><sub><b>Discipline</b> — your numeric rules, read by the desk, the agent and the guards.</sub></td>
+</tr>
+</table>
+
+<details>
+<summary><b>Reference</b> — what is computed, import formats, vault</summary>
+
+<br/>
 
 | Family | What is computed |
 |---|---|
-| Trade | profit factor after and before fees, payoff, expectancy ($ and R), win rate, SQN (Van Tharp: on R when every trade has a risk, otherwise on $ PnL), Kelly, streak z-score, MAE / MFE (unit inferred from the Profit column), edge ratio, capture ratio |
-| Day | Sharpe **rf = 0** over the period's trading days (a day without a session counts 0), annualization **√252**, Sortino, Calmar (**linear** annualized return / drawdown %, not a CAGR), max / current drawdown / duration until recovery, % winning sessions, consistency = share of the **best day in net profit** |
-| Direction | long / short split, entry hour **ET**, weekday of the CME session, instrument |
-| Prop firm | EOD / intraday / static trailing, lock, daily loss, consistency, minimum days — pass on the day the conditions are met (`passedOn`), aggregation **by date** (two accounts on the same day = one day), filter by account |
-| Monte Carlo | **i.i.d.** bootstrap (ignores autocorrelation), `runs × horizon ≤ 5 M` draws, P5 / P50 / P95 envelope, worker + Cancel |
+| Trade | Profit factor after and before fees, payoff, expectancy ($ and R), win rate, SQN (Van Tharp: on R when every trade has a risk, otherwise on $ P&L), Kelly, streak z-score, MAE / MFE, edge ratio, capture ratio |
+| Day | Sharpe with **rf = 0** over the period's trading days (a day without a session counts 0), annualized by **√252**, Sortino, Calmar (**linear** annualized return over drawdown, not a CAGR), max and current drawdown, time to recovery, share of winning sessions, consistency as the best day's share of net profit |
+| Reliability | Expectancy with a confidence interval by blocks of days, ratio intervals, a stability watch (CUSUM, autocorrelations). A slot, a duration or a strategy is a marker only with enough trades, a permutation test corrected for false discoveries (Benjamini-Hochberg), and the same sign with at least half the size on the second half of the journal |
+| Direction | Long / short, entry hour in New York, weekday of the CME session, instrument |
+| Prop firm | EOD / intraday / static trailing, lock, daily loss, consistency, minimum days; passed on the day every condition is met (`passedOn`); aggregation by date (two accounts on one day are one day); filter by account |
+| Monte Carlo | **i.i.d.** bootstrap (autocorrelation ignored), `runs × horizon ≤ 5 M` draws, P5 / P50 / P95 envelope, worker and Cancel |
 
-### Risk, context and reading
+**Import.** Three formats are recognized automatically — NinjaTrader *Trades*, NinjaTrader *Executions*, CΛNTO CSV — in en-US and fr-FR cultures. Trades are deduplicated by fingerprint; executions are matched **FIFO** by account and contract, with persisted execution IDs, so a second import of the same file recreates nothing. Files over 5,000 lines are parsed in a worker, with a progress bar and **Cancel**. An unknown root is skipped and counted, never invented.
 
-- **Risk and R.** Each trade takes its initial stop and target. Risk comes from the stop (|entry − stop| × point value × quantity), else from the risk you entered, else from a fixed risk per contract; realized R = PnL ÷ risk. The R-R matrix uses the realized reward-to-risk (average win ÷ |average loss|). ±1σ widths per instrument, at its tick size, when you enter an implied volatility.
-- **Reliable figures.** Expectancy with a confidence interval by blocks of days, ratios with their intervals, a stability watch (CUSUM, autocorrelations). A time slot, a duration or a strategy is kept as a marker only if it passes a statistical rail: enough trades, a permutation test corrected for false discoveries (Benjamini-Hochberg), and the same sign with at least half the size on the second half of the journal. Otherwise the tab says no marker is solid.
-- **Daily context.** One sheet per CME session and per root: Garman-Klass volatilities stopped at the previous close, volatility regime (shock, expansion, receding, compression) and band, ATR, the day's releases. Daily bars are dated by their civil date; a demo series never feeds it.
-- **Reading by context.** Pick an axis (regime, band, release, rank in the day, after a loss, risk, stop in σ, weekday, hour): one root at a time, small groups shrunk to the mean, and a verdict only on 30 distinct days that passes the rail.
-- **Session in progress.** When the bridge is live: realized and unrealized PnL of the tracked account, day loss against its limit, trades against the maximum, working orders.
+**Vault.** JSON export `canto-vault-v2` (v1 still read): sessions, trades, notes, calendar, settings, copier accounts, automations. The API key is never exported. A heavy option adds bars and agent messages; a daily copy goes to a folder you choose.
 
-### Import
-
-Three formats are recognized automatically: **NinjaTrader · Trades**, **NinjaTrader · Executions**, **CΛNTO CSV**. en-US and fr-FR cultures; the decimal separator is inferred from the price columns. PnL is **recomputed** from price × the contract’s point value (the spec in `src/engine/instruments.ts`, cited from CME Group — NQ $20, MNQ $2, and the other listed roots), commissions deducted; the Profit column is a check. An unknown root is skipped and counted, not invented.
-
-- Trades: deduped by the fingerprint `instrument \| direction \| qty \| times \| prices`.
-- Executions: **FIFO** matching by account and contract, persisted execution IDs, commissions pro-rated. A second import of the same file recreates neither trades nor sessions (`date \| account` merges).
-- Files **over 5,000 lines**: parsed in a Worker, progress bar, **Cancel** via `AbortSignal` — no synchronous fallback if you cancel.
-
-### Vault
-
-JSON export `canto-vault-v2` (v1 read still supported). Always included: sessions, trades, notes, calendar, settings (API key **and** encrypted blob excluded), copier accounts, automations, `calendarEvents`. **Heavy vault** option (`backupIncludeHeavy`, off by default): bars + agent messages. Daily save into a chosen folder when `backupDaily` is checked. Under Electron, a key restored from a browser vault is re-encrypted immediately.
-
-<div align="center">
-
-**`01.3 · ANALYSIS · FIELDS · MAPS · EXCURSIONS`**
-
-### Analysis
-
-<img src="docs/media/analyse.png" alt="CΛNTO — Analysis: strategies, tags, hour map, MAE/MFE" width="920"/>
-
-<sub>Analysis — ranking by strategy and by tag, time in position, MAE × MFE cloud, R-multiples. Screenshot from 3.4.0: the day × hour map is now the reading by context.</sub>
-
-</div>
-
-<br/>
-
-<div align="center">
-
-**`01.4 · PROP FIRM · INDICATIVE REGISTRY · REPLAY`**
-
-### Prop firm
-
-<img src="docs/media/propfirm.png" alt="CΛNTO — Prop firm: plan registry, Apex Full 50K replay" width="920"/>
-
-<sub>Prop firm — registry for Topstep, Apex, MyFundedFutures, Take Profit Trader, Tradeify, Earn2Trade. Shown: Apex Full 50K, intraday trailing, target reached.</sub>
-
-</div>
-
-Plan figures are **indicative** (`version: 1`, optional `effectiveFrom`). Always confirm them with the firm. The rail shows **Indicative**.
-
-<br/>
-
-<div align="center">
-
-**`01.5 · MONTE CARLO · BOOTSTRAP I.I.D.`**
-
-### Monte Carlo
-
-<img src="docs/media/montecarlo.png" alt="CΛNTO — Monte Carlo: path fan, percentiles, ruin" width="920"/>
-
-<sub>Monte Carlo — 2,000 simulations × 140 periods, median / ruin / target, path fan, percentile table. Reproducible seed.</sub>
-
-</div>
-
----
+</details>
 
 <a id="visual"></a>
 <a id="02-vis"></a>
@@ -286,32 +308,16 @@ Plan figures are **indicative** (`version: 1`, optional `effectiveFrom`). Always
 
 **`02 · VIS · VISUAL · ADVANCED CHART · INDICATORS`**
 
-## Visual
-
-### Registry candles · extensible catalog · session projection · NT8 live bars
-
-<img src="docs/media/visual.png" alt="CΛNTO — Visual: NQ 5-minute candles, VWAP, EMA 21, Opening Range" width="920"/>
-
-<sub>NQ · 5 min · synthetic demo — VWAP ±σ, EMA 21, 15-minute RTH Opening Range, volume, indicator rail, and projected session.</sub>
-
 </div>
 
-**lightweight-charts** chart: OHLCV, volume, crosshair, trade markers (winning exits in Lab LED). NinjaTrader Historical Data CSV import (Time/Open/High/Low/Close/Volume header, or `yyyyMMdd HHmmss;O;H;L;C;V`). Same Worker / Cancel rule past 5,000 lines. Synthetic demo when nothing is imported. When the NT8 WebSocket is live, **Follow the bridge** asks NinjaTrader for five days of history on the full contract (`NQ 12-26`), then subscribes to its live bars, only on your gesture. The series is labeled NinjaTrader, a silent feed is marked stale, a refusal is shown, and **Stop following** unsubscribes. Nothing else subscribes, the agent included.
+### Visual
 
-**Catalog** (`src/engine/indicators.ts`) — a registry, not a frozen menu: a new indicator is added by definition.
+<img src="docs/media/visual.png" alt="CΛNTO — Visual: NQ 5-minute candles, session VWAP with bands, EMA 21, opening range, volume" width="920"/>
 
-| Indicator | Role | Typical parameters |
-|---|---|---|
-| EMA / SMA | short / medium-term trend | period (21 / 50) |
-| Session VWAP | volume-weighted average price, reset 18:00 ET | ±1σ / ±2σ bands |
-| Opening Range (RTH) | high / low of the first cash minutes | 5 / 15 / 30 min |
-| Previous session levels | PDH / PDL / PDC | — |
-| ATR | volatility, separate pane | period 14 |
-| Relative volume (RVOL) | volume vs average | period 20 |
-
-From Metrics › Sessions › **See in Visual**, one day’s trades are projected onto the chart.
-
----
+- Candles for the instrument registry — NQ, ES, RTY, YM, CL, GC, 6E and their micros — with volume, crosshair and trade markers.
+- **Follow the bridge.** With the NinjaTrader WebSocket live, Visual asks for five days of history on the full contract (`NQ 12-26`), then subscribes to its live bars — only on your gesture. A silent feed is marked stale; **Stop following** unsubscribes. Nothing else subscribes, the agent included.
+- An indicator **catalog**, not a frozen menu: EMA / SMA, session VWAP with ±σ bands, RTH opening range, previous-session levels, ATR, relative volume.
+- From Metrics › Sessions › **See in Visual**, one day's trades are projected onto the chart. NinjaTrader *Historical Data* CSV files import directly.
 
 <a id="calendar"></a>
 <a id="03-cal"></a>
@@ -320,31 +326,15 @@ From Metrics › Sessions › **See in Visual**, one day’s trades are projecte
 
 **`03 · CAL · CALENDAR · OFFICIAL SOURCES · MARKERS`**
 
-## Calendar
-
-### Grid + stream · FOMC / NFP / CPI · day’s notes · overlaid PnL
-
-<img src="docs/media/calendrier.png" alt="CΛNTO — Calendar: October 2026 grid, CPI, day panel" width="920"/>
-
-<sub>October 2026 grid — colored families, journal PnL in the cells, day panel, beginner markers.</sub>
-
 </div>
 
-Two views: **monthly grid** and **chronological stream**. Filters for notable / major / estimated dates. **Local and ET** times, Globex session markers.
+### Calendar
 
-| Family | Examples |
-|---|---|
-| Fed | FOMC (official dates 2024–2026), press conferences |
-| Employment | NFP, employment report |
-| Inflation | CPI, PPI, PCE |
-| Growth | GDP, retail sales, ISM / PMI |
-| Earnings | Nasdaq-100 megacaps |
-| CME | Expirations, NQ / MNQ rollovers |
-| Hours | US holidays, shortened sessions, US / EU DST changes |
+<img src="docs/media/calendrier.png" alt="CΛNTO — Calendar: October 2026 grid, catalyst families, journal P&L in the cells, desk schedule" width="920"/>
 
-Each major event carries a **beginner marker** (window to avoid, release time). The right panel holds the **note of the day** and reminders. Catalysts come from the official pages — BLS, BEA, the Federal Reserve, the ECB, EIA, and TreasuryDirect. A 2026 snapshot ships inside the binary, so a fresh install still shows NFP and CPI when a host answers 403. CME expirations stay local (third Friday, marked estimated). Refresh the snapshot with `npm run calendar:snapshot`.
-
----
+- Catalysts from the official pages — **BLS, BEA, the Federal Reserve, the ECB, EIA and TreasuryDirect** — with a 2026 snapshot inside the binary, so a fresh install still shows NFP and CPI when a host refuses. FRED only with a key you type.
+- CME expirations and rollovers computed locally (marked estimated), US and EU clock changes, shortened sessions.
+- Monthly grid or chronological feed, local and New York times, your journal P&L in each cell, and the note of the day beside it.
 
 <a id="notes"></a>
 <a id="04-nte"></a>
@@ -353,284 +343,372 @@ Each major event carries a **beginner marker** (window to avoid, release time). 
 
 **`04 · NTE · NOTE · NOTE VAULT · LINKS`**
 
-## Notes
-
-### Local Markdown · `[[wiki]]` · tags · force-directed graph
-
-<img src="docs/media/note.png" alt="CΛNTO — Notes: Markdown editor, preview, backlinks, tags" width="920"/>
-
-<sub>Split view — source on the left, sanitized preview on the right, incoming / outgoing links, tags, properties. Note of the day in one click.</sub>
-
 </div>
 
-Obsidian-style, 100% inside the Dexie vault:
+### Notes
 
-- Editor + preview (DOMPurify: no `style` / forms / SVG, URLs limited to `https?` / `mailto` / `#`)
-- `[[wiki]]` links, backlinks, `#tags`, full-text search
-- Prefilled **note of the day**
-- Force-directed graph (nodes = notes, edges = links) — asleep when idle
-- Modes: pinned, raw `.md`, split, preview
-- A selection branches a child note: a question and an anchor, linked to the parent, without copying its body
+<img src="docs/media/note.png" alt="CΛNTO — Notes: Markdown source and preview, backlinks, tags, properties" width="920"/>
 
----
-
-<a id="ai-agent"></a>
-<a id="05-agt"></a>
-
-<div align="center">
-
-**`06 · AGT · AI AGENT · NATIVE GATEWAY · ORCHESTRATOR`**
-
-## AI agent
-
-### Local or cloud LLM through the main process · desk tools · JSON-RPC
-
-<img src="docs/media/agent.png" alt="CΛNTO — AI agent: suggestions, provider, orchestrator" width="920"/>
-
-<sub>Gateway — Ollama / LM Studio / OpenAI / OpenRouter / Anthropic presets, system prompt, desk tools, orchestrator at `127.0.0.1:47117`.</sub>
-
-</div>
-
-The renderer **does not fetch** the provider: `streamChat` / `probe` go through the Electron shell (`desk.llm`). The API key is encrypted by the OS keychain (`safeStorage`); once saved under Electron it is no longer held in the clear. Allowed hosts are pinned in the main process: `127.0.0.1`, `localhost`, `api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.moonshot.ai` — the renderer cannot widen the list. The renderer itself never leaves the machine: CSP `connect-src 'self'` (plus the Vite HMR socket in dev).
-
-**Tools** — reads are free; writes only after **confirmation** (LLM) or an orch flag (default **off**):
-
-| Tool | Kind | Role |
-|---|---|---|
-| `desk_overview` | read | metrics snapshot + plan |
-| `list_sessions` / `get_session` | read | journal; each trade with its stop, target, risk and R |
-| `search_notes` / `read_note` | read | vault |
-| `calendar_events` | read | official catalysts merged with local markers |
-| `propfirm_status` | read | replay of the current plan, on the tracked account |
-| `journal_breakdown` | read | by entry hour (New York), weekday of the CME session, instrument, long / short |
-| `monte_carlo` | read | i.i.d. bootstrap of daily PnL: percentiles, ruin, target (fixed seed) |
-| `bridge_status` | read | live NinjaTrader bridge and Copier: link, accounts, PnL, positions |
-| `portfolio_snapshot` | read | consolidated portfolio: net value, pockets, exposure |
-| `market_levels` | read | last price, PDH / PDL / PDC, Opening Range, VWAP, ATR (source named, demo marked synthetic) |
-| `day_context` | read | the daily context sheet of the Analysis tab: volatility regime and band, Garman-Klass volatilities, ATR, the day's releases |
-| `working_orders` | read | NinjaTrader working and recent orders, held by the main process |
-| `market_quote` | read | last quote received from the bridge; it never subscribes |
-| `trader_memory` | read | your numeric rules, tracked plan, trading-plan note, lessons and playbook |
-| `discipline_status` | read | today's CME day loss against its limit, trades against the maximum, drifts and breaches, next major catalyst |
-| `desk_events` | read | desk events since a cursor: fills, orders, prop buffer and day loss thresholds, rule breaches, major catalyst within 15 min, bridge link, proposed orders |
-| `create_note` | write | new note (confirmed) |
-| `branch_note` | write | child note from a selection (confirmed) |
-| `link_notes` | write | typed link between two notes (confirmed) |
-| `annotate_session` | write | session annotation (confirmed) |
-| `propose_order` | write | proposes an order on a Sim account; the trader confirms it in a system window |
-
-Limits: 6 turns, 8 calls / turn, 2 writes / turn, `body` / `note` ≤ 20,000 characters. An “untrusted data” preamble is attached to tool results. `copy.order` is not an agent tool, and the agent never submits an order: with `propose_order` it proposes one on a Sim account, the main process checks the agent's own limits (contracts per order, resulting position, proposals per minute, kill switch), the prop plan's dated buffer (the K.04 gauge, unrealized loss included) and your rules (day loss reached, catalyst window, instrument not allowed); an order that reduces the position always passes. The trader confirms each order in a system window (45 s, Decline by default). Off each time the desk opens; allowed in a main-process dialog; orders tagged `canto-agent`. Notes and links written by an agent are signed `agent`, never as the trader. The agent's memory is yours (rules, plan, lessons, playbook): a lesson written by an agent enters it only once you adopt it in Notes.
-
-**Brief and debrief**: in the Agent tab, a dot proposes the **morning brief** (8:30–9:30 New York, on a CME trading day) and the **evening debrief** (after 16:15 if you traded, or once the day loss reaches its limit). Nothing goes to the provider until you click.
-
-**Events**: once the desk is open, it logs NinjaTrader fills and order changes, the tracked prop plan's dated buffer crossing 50 / 25 / 10 % of max drawdown (or breached, account unrealized included), the day loss crossing 50 / 75 / 100 % of its limit, every breach of your rules from the entry fill, major catalysts 15 minutes ahead, bridge link changes and every order proposed by an agent. The orchestrator pushes them as `desk.event`; MCP agents read them with `desk_events` and a cursor.
-
-**MCP gateway** (shell only): external agents — Claude Code, Claude Desktop, Codex, Cursor, any MCP client — read the desk with the same tools over the Model Context Protocol at `http://127.0.0.1:47118/mcp`. Bearer token kept in the data folder and renewable, browser origins and non-loopback hosts refused, 1 MB per request, 40 req/s. Write tools stay hidden and refused until the trader allows writing. Tools are titled and typed by the desk, with output schemas; resources (`canto://…`) and three prompts (pre-session brief, session debrief, prop plan review); messages and refusals in the desk language. The panel copies a ready configuration for Claude Code, Claude Desktop, Codex (`CANTO_MCP_TOKEN`) or as JSON. The gateway stays on the machine: no tunnel, no cloud connector. ChatGPT on the web or in its app calls MCP servers from OpenAI's cloud and cannot reach `127.0.0.1`. Guide: [docs/PROTOCOLE-AGENT.md](docs/PROTOCOLE-AGENT.md).
-
-**Orchestrator** (shell only): JSON-RPC 2.0 on `ws://127.0.0.1:<port>`, session token (constant-time compare, **never** in the periodic status — **Copy the token**), browser origins refused, 8 clients, 1 MB / frame, 40 req/s.
-
----
-
-<a id="bot"></a>
-<a id="06-bot"></a>
-
-<div align="center">
-
-**`07 · BOT · AUTOMATON WORKSHOP · DESIGN`**
-
-## Bot
-
-### Templates · grammar · prop-firm guardrails — no orders
-
-<img src="docs/media/bot.png" alt="CΛNTO — Bot: automation workshop, ORB and VWAP templates" width="920"/>
-
-<sub>Workshop — DESIGN badge, 15-minute ORB and VWAP reclaim templates, guardrails derived from the Apex Full 50K plan and the calendar (FOMC, expiration).</sub>
-
-</div>
-
-**DESIGN** phase only. Workshop lifecycle: `draft → backtest → paper`. The *paper* status is a label — **no order is sent**.
-
-| Template | Idea |
-|---|---|
-| **ORB 15 min** | break of the RTH opening range in the VWAP direction, 1 MNQ, max 2 attempts |
-| **VWAP reclaim** | reclaim after −1σ in an EMA trend, partial exit at +1σ |
-
-Guardrails are **imposed** on every automation: circuit breaker at 30% of max DD, daily loss (80% of the firm limit or 40% of DD), consistency cap, flat at 16:59 ET, blackout ±15 min around major catalysts in the next 10 days.
-
----
-
-<a id="copier"></a>
-<a id="07-cpy"></a>
-
-<div align="center">
-
-**`08 · CPY · COPIER · SIM REPLICATION · DISARMED`**
-
-## Copier
-
-### Master fill → sized Sim followers · disarmed on launch
-
-<img src="docs/media/copieur.png" alt="CΛNTO — Copier: topology, filters, DISARMED kill switch" width="920"/>
-
-<sub>Copier — disarmed on every launch. Arming asks for confirmation. **Cut** disarms and cancels working follower orders.</sub>
-
-</div>
-
-Persisted topology (accounts, rules, filters). Replication runs in the main process on the execution port ([`docs/PONT-NINJATRADER.md`](docs/PONT-NINJATRADER.md), Replication): a master fill becomes sized follower orders, after the time window, the catalyst blackout, and the follower’s prop-firm floor: its dated buffer (the K.04 gauge, read as the agent reads it), minus the follower’s unrealized loss. The desk sends the followers’ sessions to the main process as soon as it opens, Copier tab open or not. Followers are `Sim*` accounts only. The router starts disarmed. Arming uses the same warning dialog as a live account (Cancel is the default). **Cut** disarms and cancels working follower orders. Flattening followers is an explicit option, off by default. The bridge kill switch still flattens authorized accounts and also disarms the router. A fill is remembered only after the broker accepts it, so a refusal can be sent again and a success is not sent twice.
-
-| | |
-|---|---|
-| Sizing | fixed · ratio · risk, contract cap, NQ ↔ MNQ map |
-| Filters | local window, latency budget, floor margin (fraction of DD, on the dated buffer, unrealized loss included), stops / targets, catalyst blackout |
-| Arming | disarmed on every launch; **Arm** confirms in the main process; **Cut** cancels working orders |
-
----
+- A Markdown vault inside the desk: `[[wiki]]` links, backlinks, `#tags`, full-text search, a force-directed graph.
+- The prefilled **note of the day**, and a **branch** from any selection: a child note with a question and an anchor, linked to its parent.
+- A sanitized preview (no styles, forms or SVG; links limited to `http(s)`, `mailto` and anchors). Notes written by an agent are signed `agent`; a lesson enters your trading memory only once you adopt it.
 
 <a id="portfolio"></a>
 <a id="portefeuille"></a>
-<a id="08-ptf"></a>
+<a id="05-ptf"></a>
 
 <div align="center">
 
 **`05 · PTF · PORTFOLIO · SYNTHESIS · HEART · PROJECTION`**
 
-## Portfolio
+</div>
 
-### Local net value · exposure · projection
+### Portfolio
 
-<img src="docs/media/portefeuille.png" alt="CΛNTO — Portfolio: consolidated net value, pockets, exposure, projection" width="920"/>
+<img src="docs/media/portefeuille.png" alt="CΛNTO — Portfolio: consolidated net value, pockets, exposure, prop thresholds, projection" width="920"/>
 
-<sub>Portfolio — consolidated net value in the base currency, pockets, exposure, and a projection once enough daily PnL exists.</sub>
+- **Net value** consolidated in a base currency, by pocket: prop-firm accounts from the journal, futures from a fresh bridge snapshot, securities and cash you enter.
+- **Risk:** drawdown, gross leverage, concentration, and the distance of each prop pocket to its threshold.
+- **Projection:** Monte Carlo on the consolidated daily P&L; ruin defaults to the sum of the remaining prop drawdowns.
+- No quote feed, no broker. A missing exchange rate leaves its pocket out of the total — never converted at 1.
+
+<a id="ai-agent"></a>
+<a id="06-agt"></a>
+
+<div align="center">
+
+**`06 · AGT · AI AGENT · NATIVE GATEWAY · ORCHESTRATOR`**
 
 </div>
 
-Fifth module on the rail (`Ctrl+5`). It reads the journal, the prop plans, a live NinjaTrader snapshot when the link is up, and positions or cash you enter. It does not open a quote feed and it does not talk to a broker.
+### AI agent
 
-| Question | Answer |
+<img src="docs/media/agent.png" alt="CΛNTO — AI agent: gateway, suggested questions, brief and debrief, provider panel" width="920"/>
+
+The embedded agent and any external MCP client read the desk through the same typed tools. Providers go through the main process: a local model (Ollama, LM Studio) or a cloud API with your own key. **How it reads, watches and proposes — and what stops it — is in [The agent](#the-agent).**
+
+<a id="bot"></a>
+<a id="07-bot"></a>
+
+<div align="center">
+
+**`07 · BOT · AUTOMATON WORKSHOP · DESIGN`**
+
+</div>
+
+### Bot
+
+<img src="docs/media/bot.png" alt="CΛNTO — Bot: automaton workshop, ORB 15 and VWAP reclaim templates, imposed guardrails, roadmap" width="920"/>
+
+**Design phase: no order is sent.** The workshop formalizes an automaton (`draft → backtest → paper`) from templates — **ORB 15 min** and **VWAP reclaim** — under guardrails derived from the tracked prop plan and the calendar, which no automaton can turn off: a circuit breaker at 30 % of max drawdown, an internal daily loss, a consistency cap, flat before 16:59 New York, a blackout ±15 minutes around major catalysts.
+
+<a id="copier"></a>
+<a id="08-cpy"></a>
+
+<div align="center">
+
+**`08 · CPY · COPIER · SIM REPLICATION · DISARMED`**
+
+</div>
+
+### Copier
+
+<img src="docs/media/copieur.png" alt="CΛNTO — Copier: master and two Sim followers, sizing, replication filters, DISARMED" width="920"/>
+
+Replication runs in the main process on the execution port: each fill of the master brings every Sim follower to its own target position — not fill by fill — so an entry in three fills never triples a fixed size.
+
+| Control | Behavior |
 |---|---|
-| Worth | Consolidated net value in a base currency (default USD), by pocket |
-| Risk | Drawdown, exposure, concentration, distance to the prop plan (`evaluatePlan`) |
-| Projection | Monte Carlo on the consolidated daily PnL. Ruin defaults to the sum of remaining prop drawdowns |
+| **Sizing** | Master ratio, fixed size or contracts by risk; a contract cap per follower; NQ ↔ MNQ map |
+| **Filters** | Local time window, latency budget, catalyst blackout, and the follower's prop floor: its dated buffer (the K.04 gauge, as the agent reads it) minus its unrealized loss |
+| **Exits** | A reduction always goes out — outside the window, during a blackout, under the floor — and never beyond the follower's real position |
+| **Arming** | Disarmed on every launch; **Arm** confirms in a main-process dialog (Cancel by default); **Cut** disarms and cancels working follower orders; flattening is an option, off by default |
 
-Traditional marks use the last price you entered, otherwise cost. A missing exchange rate leaves that pocket out of the total and never converts at 1. Futures and prop exposure during the session come from a fresh bridge snapshot; when the bridge is offline, that exposure is not counted.
+Followers are `Sim*` accounts only, never the master and never twice. No real follower account in this version. Protocol and replication details: [docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md).
+
+---
+
+<a id="the-agent"></a>
+
+## The agent
+
+> The agent sees what you see, follows your rules, and never touches the market on its own.
+
+| Reads | Watches | Prepares | Proposes |
+|---|---|---|---|
+| The whole desk through typed tools: journal, metrics, prop replay, calendar, notes, portfolio, bridge, market levels, your rules and your memory. | Desk events from the moment the desk opens: fills, order changes, prop-buffer and day-loss thresholds, rule breaches, a major catalyst 15 minutes ahead. | The **morning brief** (8:30–9:30 New York) and the **evening debrief**, from the same texts as the MCP prompts — sent to the provider only when you click. | An order on a **Sim** account with `propose_order`. The main process guards it; you confirm it in a system window. |
+
+### An order, from proposal to market
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Agent · embedded or MCP
+    participant M as CΛNTO main process
+    participant T as You
+    participant N as NinjaTrader AddOn
+    A->>M: propose_order(account, instrument, side, qty)
+    M->>M: Guards — Sim account, agent limits and cadence, dated prop buffer, your rules, kill switch
+    alt Refused
+        M-->>A: Refusal and its reason · nothing is asked, nothing is sent
+    else Passes
+        M->>T: System dialog · Decline by default · 45 s
+        T-->>M: Confirm
+        M->>N: order.submit · tag canto-agent
+        N->>N: AddOn guard — allowed accounts, contract ceiling, tag
+        N-->>M: Acknowledgement and fills
+    end
+```
+
+- **Guards before any dialog.** Sim accounts only; the agent's own limits (contracts per order, resulting position, proposals per minute); the tracked prop plan's dated buffer (the K.04 gauge, unrealized loss included) above 25 % of max drawdown; your rules — day loss reached, catalyst window, instrument not allowed. An order that reduces the position always passes.
+- **You decide.** Each order waits for you in a main-process window: 45 seconds, **Decline** by default. Order submission by the agent is off each time the desk opens and is allowed again only through a main-process dialog.
+- **The agent never submits.** `copy.order` is not an agent tool; other writes — notes, links, annotations — are confirmed by you, or allowed for an orchestrator by a flag that is off by default.
+
+<a id="mcp-gateway"></a>
+
+### MCP gateway
+
+External agents — **Claude Code, Claude Desktop, Codex, Cursor**, any MCP client — read the desk with the same tools at `http://127.0.0.1:47118/mcp` (desk shell only).
+
+- A bearer token kept in the desk's data folder, renewable; browser origins and non-loopback hosts refused; 1 MB per request, 40 requests per second.
+- Write tools stay hidden and refused until you allow writing.
+- Tools titled and typed by the desk, with output schemas; `canto://` resources; three prompts — pre-session brief, session debrief, prop plan review; messages and refusals in the desk language.
+- The gateway stays on the machine: no tunnel, no cloud connector. ChatGPT on the web calls MCP servers from OpenAI's cloud and cannot reach `127.0.0.1`.
+
+<details>
+<summary><b>Connect a client</b> — the panel copies these with your token</summary>
+
+<br/>
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http canto http://127.0.0.1:47118/mcp --header "Authorization: Bearer <token>"
+```
+
+**`.mcp.json`** — Claude Code, Cursor and clients that read this format
+
+```json
+{
+  "mcpServers": {
+    "canto": {
+      "type": "http",
+      "url": "http://127.0.0.1:47118/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+**Claude Desktop** — through `mcp-remote`, the token in `env`
+
+```json
+{
+  "mcpServers": {
+    "canto": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "http://127.0.0.1:47118/mcp",
+        "--header", "Authorization:${CANTO_AUTH}"
+      ],
+      "env": { "CANTO_AUTH": "Bearer <token>" }
+    }
+  }
+}
+```
+
+**Codex** — `~/.codex/config.toml`, the token exported as `CANTO_MCP_TOKEN`
+
+```toml
+[mcp_servers.canto]
+url = "http://127.0.0.1:47118/mcp"
+bearer_token_env_var = "CANTO_MCP_TOKEN"
+```
+
+</details>
+
+<details>
+<summary><b>Tools</b> — 23 desk tools, 18 to read and 5 to write</summary>
+
+<br/>
+
+| Tool | Kind | Role |
+|---|---|---|
+| `desk_overview` | read | Metrics snapshot and the tracked plan, with its dated margin |
+| `list_sessions` · `get_session` | read | Journal; each trade with its stop, target, risk and R |
+| `search_notes` · `read_note` | read | Note vault |
+| `calendar_events` | read | Official catalysts merged with local markers |
+| `propfirm_status` | read | Replay of the tracked plan on the tracked account |
+| `journal_breakdown` | read | By entry hour (New York), weekday of the CME session, instrument, long / short |
+| `monte_carlo` | read | Bootstrap of daily P&L: percentiles, ruin, target (fixed seed) |
+| `bridge_status` | read | Live NinjaTrader bridge and Copier: link, accounts, P&L, positions |
+| `portfolio_snapshot` | read | Consolidated portfolio: net value, pockets, exposure |
+| `market_levels` | read | Last price, PDH / PDL / PDC, opening range, VWAP, ATR — source named, demo marked synthetic |
+| `day_context` | read | The day's context sheet: volatility regime and band, Garman-Klass volatilities, ATR, releases |
+| `working_orders` | read | NinjaTrader working and recent orders, held by the main process |
+| `market_quote` | read | The last quote received from the bridge; it never subscribes |
+| `trader_memory` | read | Your rules, tracked plan, trading-plan note, adopted lessons and playbook |
+| `discipline_status` | read | Today's CME day loss against its limit, trades against the maximum, drifts and breaches, next major catalyst |
+| `desk_events` | read | Desk events since a cursor |
+| `create_note` · `branch_note` · `link_notes` | write | Notes and typed links, confirmed |
+| `annotate_session` | write | A session annotation, confirmed |
+| `propose_order` | write | An order proposed on a Sim account, confirmed in a system window |
+
+Limits: 6 turns, 8 calls per turn, 2 writes per turn, `body` / `note` ≤ 20,000 characters. Tool results carry an *untrusted data* preamble. Protocol: [docs/PROTOCOLE-AGENT.md](docs/PROTOCOLE-AGENT.md) · design rationale: [docs/THESE-AGENTIQUE.md](docs/THESE-AGENTIQUE.md).
+
+</details>
+
+<details>
+<summary><b>Providers and the orchestrator</b></summary>
+
+<br/>
+
+The interface never calls a provider: chat and probes go through the main process, and the API key is encrypted by the operating system's keychain (`safeStorage`). Hosts are pinned in the main process — `127.0.0.1`, `localhost`, `api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.moonshot.ai` — and the interface cannot widen the list. A key entered for one host is never sent to another.
+
+The **orchestrator** is a JSON-RPC 2.0 WebSocket on `ws://127.0.0.1:47117` for an external agent that drives the desk: session token compared in constant time and never shown in the periodic status, browser origins refused, 8 clients, 1 MB per frame, 40 requests per second. It pushes desk events as `desk.event`.
+
+</details>
+
+---
+
+<a id="safety-by-design"></a>
+
+## Safety by design
+
+A trading desk that can send orders earns trust by what it refuses to do. These invariants hold in the code, and none is relaxed without a written decision of the Lab.
+
+| Area | What the desk guarantees |
+|---|---|
+| **Orders** | Accounts whose name starts with `Sim` by default; a live account only after an explicit main-process dialog. Contract ceiling from 1 to 1,000 (default 20); raising it takes a dialog. Mandatory tag. Kill switch <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd> on macOS); after it, submission stays closed until the desk restarts. |
+| **NinjaTrader AddOn** | Its own guard, read from `bridge.json`: allowed accounts, ceiling, tag. The token never travels — desk and AddOn prove they hold it by HMAC challenge–response — and the AddOn sends nothing and executes nothing before the desk has proven itself. |
+| **Agent** | Never submits. `propose_order` passes the main-process guards, then waits for your confirmation (Decline by default, 45 s). Off at every launch. It subscribes to no market data: it reads what you opened. |
+| **Copier** | Disarmed at every launch; Sim followers only, never the master or a duplicate; arming through a main-process dialog. A risk reduction is never blocked and never exceeds the follower's real position; an opening passes the follower's dated floor. |
+| **Keys and providers** | The API key stays in the main process, encrypted at rest; provider hosts are pinned and cannot be widened from the interface. |
+| **Network** | The interface runs under a strict Content Security Policy — connections to the app itself and to the loopback only — and calls no outside host; providers go through the main process. The MCP gateway and the orchestrator listen on `127.0.0.1` only: no tunnel, no cloud connector. |
+| **Updates** | An installer is installed only if `SHA256SUMS.txt` carries a signature from a Lab key embedded in the desk, bound to that version. The private key never touches the repository or GitHub. |
+| **Data** | The journal lives in a local vault. No token, secret or key in a log, a vault export, or a commit. |
 
 ---
 
 <a id="ninjatrader-8-bridge"></a>
 <a id="pont"></a>
 
-<div align="center">
-
-**`BRIDGE · NINJATRADER 8 · CSV · WEBSOCKET · GUARDRAILS`**
-
 ## NinjaTrader 8 bridge
 
-### Local CSV fallback · dedicated WebSocket · Sim orders by default — no telemetry
-
-</div>
-
-Two transports, both local. The **WebSocket** (`127.0.0.1`, default port **48231**) is a server of its own in `electron/nt-bridge/` — not the AI orchestrator. The AddOn reads the token written to `bridge.json` (**Write the NinjaTrader configuration** in the panel; the token is not shown again) but never sends it: AddOn 2.2.0 and the desk each prove they hold it by HMAC challenge-response, and the AddOn sends nothing and executes nothing until the desk has proven itself. The AddOn also enforces its own order guard from `bridge.json` (Sim accounts or explicitly allowed ones, contract ceiling, tag). It sends executions, accounts, bars, ticks, and quotes, and accepts `order.submit` / `order.cancel` / `order.flatten`. Defaults: accounts whose name starts with `Sim`, 20 contracts per order, mandatory tag, circuit breaker after 6 s of silence, kill switch `Ctrl+Shift+K` / `Cmd+Shift+K`. A live account is added only after an explicit CΛNTO dialog. The contract ceiling defaults to 20 and can be set from 1 to 1000 in the panel; the main process rejects anything else, and raising it takes a confirmation dialog in the main process (lowering does not). The C# AddOn is not compiled in NinjaTrader 8 by this repository: that compile is done on Windows.
-
-The **CSV file** stays the fallback. While the socket is live, a watched executions file imports only IDs the WebSocket has not already seen. If the socket is lost, the folder becomes the main path again, with no action from you. The journal dedupes on account + execution ID either way.
+Two transports, both local. The **WebSocket** (`127.0.0.1`, default port **48231**) is a server of its own in `electron/nt-bridge/`, separate from the agent's gateways: the AddOn sends executions, accounts, bars, ticks and quotes, and accepts `order.submit`, `order.cancel` and `order.flatten`. The **CSV folder** stays the fallback: while the socket is live, a watched executions file imports only IDs the socket has not already seen; if the socket drops, the folder becomes the main path again with no action from you. The journal deduplicates on account and execution ID either way.
 
 | Mode | How |
 |---|---|
-| **Automatic** | Metrics › NinjaTrader bridge › folder. Default, on **macOS, Windows, and Linux**: `Documents/NinjaTrader 8/export/CANTO` (under the system Documents folder). Any `.csv` / `.txt` dropped or modified is imported once the write has finished (SHA-256 hash after the file is stable: same content → skip). `.tmp` and `.seen.txt` are ignored. |
-| **Real time** | On the **Windows** machine where NinjaTrader 8 is installed: copy `CantoBridge.cs` (`ninjatrader/CantoBridge.cs` in the sources, or `resources/ninjatrader/CantoBridge.cs` in the installer) into `Documents/NinjaTrader 8/bin/Custom/AddOns/` → NinjaScript Editor › Compile (F5). Each execution is still appended to `executions-YYYY-MM-DD.csv` (atomic write: `.tmp` then replace) and sent on the WebSocket. The desk that reads those files can be the same Windows machine, or a native macOS / Linux CΛNTO pointed at that folder (share or sync). IDs already written live in `executions-YYYY-MM-DD.seen.txt` (they survive an NT restart). Buy / Sell only — anything else is logged, not written. |
-| **Manual** | Trade Performance › Trades or Executions › Export CSV › Import. |
+| **Real time** | On the Windows machine running NinjaTrader 8, copy `CantoBridge.cs` (`ninjatrader/` in the sources, `resources/ninjatrader/` in the installers) into `Documents/NinjaTrader 8/bin/Custom/AddOns/`, compile it in the NinjaScript Editor (F5), then **Write the NinjaTrader configuration** in the desk. Each execution is also appended to `executions-YYYY-MM-DD.csv`, atomically. |
+| **Automatic** | Metrics › NinjaTrader bridge › folder — by default `Documents/NinjaTrader 8/export/CANTO` on macOS, Windows and Linux. Any finished `.csv` or `.txt` is imported once (SHA-256 of the stable file). |
+| **Manual** | *Trade Performance* › Trades or Executions › Export CSV, then **Import a CSV**. |
 
-The **Executions** export has no MAE/MFE (called out in the import UI). Positions still open are flagged and not imported until they are closed.
-
-Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**. Compiling the AddOn requires Windows and NinjaTrader 8. `scripts/fake-addon.mjs` speaks the same protocol without NT8. Copier replication uses that protocol (`order.submit` / `order.cancel` / `order.flatten`). Bot paper execution is not on this channel.
+Defaults: `Sim*` accounts, 20 contracts per order, mandatory tag, circuit breaker after 6 s of silence, kill switch <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd>. `scripts/fake-addon.mjs` speaks the same protocol without NinjaTrader. Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**.
 
 ---
 
-<div align="center">
-
-**`ARCH · SHELL · ENGINE · VAULT`**
+<a id="architecture"></a>
 
 ## Architecture
 
-</div>
-
-```
-electron/         shell (frameless window, launcher, updates,
-                  dialogs, folder bridge, secrets, LLM proxy)
-electron/nt-bridge/  dedicated JSON-RPC server, 127.0.0.1:48231 (protocol, guards)
-ninjatrader/      CΛNTO Bridge AddOn (atomic CSV + .seen, WebSocket client)
-scripts/          launch.mjs · fake-addon.mjs · calendar-snapshot.mjs · hash-release.mjs
-CANTO.cmd         Windows double-click → launcher
-CANTO.sh          macOS / Linux terminal → launcher
-CANTO.command     Finder double-click (macOS) → launcher
-build/            Lab icon (LED)
-src/app/          boot, gate, shell (title bar 44 · rail 220 · status 28), tabs
-src/design/       tokens, primitives, CΛNTO wordmark, SVG charts
-src/engine/       metrics, Monte Carlo, NT import, prop firm, portfolio,
-                  instrument registry, market-data ports, official calendar,
-                  execution port, copier router, indicators, agent tools
-src/store/        Dexie (IndexedDB) + Zustand — schema version 9
-src/modules/      one folder per tab (01…08, Copier is 08 CPY)
-tests/            Vitest — see `npm test` (engine, import, vault, calendar, bridge, agent, portfolio, shell)
-vectors/          shared JSON vectors (metrics / prop firm / portfolio)
-docs/             DESIGN.md · PONT-NINJATRADER.md · PROTOCOLE-AGENT.md · THESE-AGENTIQUE.md · AUDIT.md · media/
+```mermaid
+flowchart LR
+    X["MCP clients<br/>Claude · Codex · Cursor"] -->|"HTTP 127.0.0.1:47118 · bearer"| M
+    subgraph DESK["CΛNTO desk · Electron · on your machine"]
+        R["Interface<br/>React 19 · 8 modules · strict CSP"] <-->|"IPC · named methods"| M["Main process<br/>guards · dialogs · LLM proxy · signed updates"]
+        R --- V[("Vault<br/>IndexedDB")]
+    end
+    M <-->|"WebSocket 127.0.0.1:48231 · HMAC"| NT["NinjaTrader 8<br/>CantoBridge AddOn"]
+    M -->|"HTTPS · pinned hosts · key held in main"| P["LLM provider"]
 ```
 
-The engine (`src/engine`) does not touch the UI: indicators, agent tools, and prop-firm plans are registries. Desk tools receive injected **ports** — they no longer write straight into the stores.
+The engine (`src/engine`) is pure TypeScript and never imports the interface: metrics, prop firm, Monte Carlo, imports, portfolio, the instrument registry, the execution port, the copier router, indicators and agent tools. Indicators, agent tools and prop plans are registries; agent tools receive injected **ports** rather than writing into the stores. The modules the main process runs are compiled from the same sources and guarded by the same tests.
+
+<details>
+<summary><b>Source tree</b></summary>
+
+<br/>
+
+```
+electron/            shell: window, launcher, updates, dialogs, folder bridge, secrets,
+                     LLM proxy, MCP gateway, orchestrator
+electron/nt-bridge/  dedicated JSON-RPC server on 127.0.0.1:48231 (protocol, guards, copier host)
+ninjatrader/         CantoBridge AddOn (atomic CSV and .seen file, WebSocket client)
+src/app/             boot, gate, shell (title bar 44 · rail 220 · status 28), tabs
+src/design/          tokens, primitives, CΛNTO wordmark, SVG charts
+src/engine/          metrics, Monte Carlo, imports, prop firm, portfolio, instruments,
+                     official calendar, execution port, copier, indicators, agent tools
+src/store/           Dexie (IndexedDB) and Zustand stores
+src/modules/         one folder per tab, 01 to 08
+tests/               Vitest — engine, import, vault, calendar, bridge, agent, copier, portfolio, shell
+vectors/             shared JSON vectors (metrics, prop firm, portfolio)
+docs/                DESIGN · PONT-NINJATRADER · PROTOCOLE-AGENT · THESE-AGENTIQUE · PUBLICATION · AUDIT
+```
+
+</details>
 
 ---
 
-<div align="center">
+<a id="develop"></a>
+<a id="development"></a>
 
-**`DEV · NODE 22 · VITEST · ELECTRON`**
-
-## Development
-
-</div>
+## Develop
 
 ```bash
-npm install
-npm run launch         # user path (launcher + desk)
-npm run desk:dev       # Electron + Vite, no launcher
-npm run typecheck      # tsc app + electron
+npm install            # Node 22.12+
+npm run desk:dev       # Electron and Vite, no launcher
+npm run typecheck      # tsc, app and main process
 npm test               # Vitest
-npm run build          # production bundle
-npm run check          # typecheck + test + build
-npm run dist:mac       # universal DMG + zip (macOS)
-npm run dist:win       # NSIS + portable, x64 and ARM (Windows)
-npm run dist:linux     # AppImage + deb, x64 and ARM64 (Linux)
+npm run check          # typecheck, tests, production build
+npm run dist:mac       # universal DMG and zip (macOS)
+npm run dist:win       # NSIS and portable, x64 and ARM64 (Windows)
+npm run dist:linux     # AppImage and deb, x64 and ARM64 (Linux)
 ```
 
-CI: GitHub Actions on **ubuntu, Windows, and macOS** — `npm ci`, `npm audit --omit=dev --audit-level=high`, `typecheck`, `test`, `build`, then that OS’s native installer (`dist:linux`, `dist:win`, `dist:mac`). Binaries are published as workflow artifacts. A `v*` tag runs the `release` workflow and creates the GitHub Release (installers, `changelog.json`, `SHA256SUMS.txt`, release notes taken from the version journal). The tag fails if `changelog.json` has no entry for the `package.json` version, or if that entry is missing one of the three languages.
+**CI.** GitHub Actions on Ubuntu, Windows and macOS: `npm ci`, `npm audit --omit=dev --audit-level=high`, typecheck, tests, build, then each system's native installer.
 
-Data folder (vault, bridge state, language): `%APPDATA%\CΛNTO` (Windows), `~/Library/Application Support/CΛNTO` (macOS), `~/.config/CANTO` (Linux — earlier builds wrote to the root of `~/.config`; the first launch moves the vault into `CANTO/`).
+**Releases.** A `v*` tag, or *Actions › release › Run workflow*, builds the three installers and drafts the Release with `changelog.json`, `SHA256SUMS.txt` and notes taken from the version journal; the workflow refuses a version without its journal entry in all three languages. The Lab then signs the sums with its Ed25519 key, offline, and only then publishes ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
+
+**Data folder** (vault, bridge state, language): `%APPDATA%\CΛNTO` on Windows, `~/Library/Application Support/CΛNTO` on macOS, `~/.config/CANTO` on Linux.
+
+<a id="visual-system"></a>
+
+### Visual system
+
+System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)**. Carbon `#0A0B0D`, floor `#0F1013`, plate `#16171B`, graphite labels at 4.5:1 or more. Archivo for display and interface, Doto for one readout per screen, JetBrains Mono capitals for labels. The Lab LED `#E5263D` is a 5 px dot and its halo, never decoration. Chrome: title bar 44 · rail 220 · status 28.
+
+---
+
+<a id="roadmap"></a>
+
+## Roadmap
+
+**Shipped in 3.5.0** — the Metrics rework, the session in progress, discipline rules, Visual following the bridge, the agent's brief, debrief, memory and rule guards, and the Copier's follower floor on the dated buffer.
+
+**Still ahead of the desk**
+
+- The agent remains a prototype: it proposes, it never submits. Bot remains design: it sends no order.
+- The Copier does not follow a real account in this version.
+- NinjaTrader AddOn 2.3.0 (order fills and average price, a full bridge snapshot) ships only once it has been compiled and tried on Sim.
+- The Lab's model joins the agent presets when its host opens.
 
 ---
 
-<div align="center">
-
-**`SYS · SIΞRRΛSKΛ · LITHOGRAPHY · LED #E5263D`**
-
-## Visual system
-
-</div>
-
-System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is archived in `docs/design/archive/DESIGN-v1.md`):
-
-- Carbon `#0A0B0D`, floor `#0F1013`, plate `#16171B`. Graphite labels stay at or above 4.5:1
-- Archivo (display and UI) · Doto (one readout per screen) · JetBrains Mono capitals (labels, 10 px minimum; also the fallback that draws Λ and Ξ)
-- Lab LED `#E5263D` — a 5 px dot and its halo, never decorative. Lab orange `#ED5D0B` is the signature dot and the readout tab only
-- Chrome: title bar 44 · rail 220 · status 28 · work area `24 / 40 / 22`
-- The launcher still ships Inter. The desk does not load it
-
----
+<a id="versions"></a>
 
 ## Versions
 
-The journal inside the desk lists the same releases, in French, English, and Spanish.
+The journal inside the desk lists every release in French, English and Spanish.
 
-- 3.5.0 — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. Session in progress and working orders at the top of Metrics, discipline rules, Visual follows the NinjaTrader bridge. The agent reads your rules and day loss and prepares the brief and the debrief; the desk refuses its proposed orders when they break your rules. The Copier's follower floor reads the same dated buffer. (2026-10-06)
-- 3.4.0 — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
-- 3.3.4 — Update over 3.3.3. Desk Unlocked in the desk type. The loading bar writes the Lab name in characters. (2026-10-05)
+- **3.5.0** — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. The session in progress, discipline rules, Visual following the bridge. The agent reads your rules and day loss, prepares the brief and the debrief, and the desk refuses its proposed orders when they break your rules; the Copier's follower floor reads the same dated buffer. (2026-10-06)
+- **3.4.0** — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
+- **3.3.4** — Update over 3.3.3. Desk Unlocked in the desk type; the loading bar writes the Lab name in characters. (2026-10-05)
+
+<details>
+<summary><b>Earlier versions</b></summary>
+
+<br/>
+
 - 3.3.3 — Desk Unlocked in the desk type. Red tip on the Λ. Compact module plate. (2026-10-05)
 - 3.3.2 — PolyForm Noncommercial 1.0.0. Personal noncommercial use is free. Commercial use goes through the Lab. (2026-10-04)
 - 3.3.1 — Lighter title bar, session clocks, account plate, and the Desk Unlocked opening. (2026-10-04)
@@ -641,59 +719,53 @@ The journal inside the desk lists the same releases, in French, English, and Spa
 - 3.1.0 — AUBE III launcher, version journal, MIT license. (2026-09-28)
 - 3.0.0 — Portfolio module: consolidated net value, risk, projection. Security audit. (2026-09-27)
 - 2.2.1 — AUBE II launcher. The desk still starts if the launcher moves to the background. (2026-09-26)
-- 2.2.0 — Notes linked to sessions, trades, instruments, and the day’s events. (2026-09-26)
+- 2.2.0 — Notes linked to sessions, trades, instruments, and the day's events. (2026-09-26)
 - 2.1.0 — CME contract registry, official calendar, NinjaTrader bridge with the file as fallback. (2026-09-26)
 - 2.0.2 — The desk opens on the launcher. Built-in update. (2026-09-25)
 - 2.0.1 — Language choice on the launcher: French, English, Spanish. (2026-09-25)
 - 2.0.0 — Native desk for macOS, Windows, and Linux, with installers. (2026-09-23)
 - 1.1.2 — Lab visual grammar, copier filters, NinjaTrader bridge specification. (2026-09-17)
 
----
-
-## Roadmap
-
-Shipped in 3.5.0: the Metrics rework (interactive equity curve, corrected and reliable figures, risk and R, daily context, reading by context), the session in progress, discipline rules, Visual following the NinjaTrader bridge, the agent's brief, debrief, memory and rule guards, and the Copier's follower floor on the dated buffer. Shipped in 3.4.0: the agent reads the whole desk and its events, the local MCP gateway, orders proposed by the agent and confirmed by the trader, and the security prerequisites (AddOn guard and mutual authentication, contract ceiling behind a dialog, position-based Copier, signed updates). Shipped in 3.3.4: the update the desk can see. Desk Unlocked stays in the desk type, and the loading bar writes the Lab name in characters. Shipped in 3.3.3: the Λ tip and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
-
-Still ahead of the desk: the agent remains a prototype — it proposes, it never submits — and Bot remains design: it sends no order. The Copier does not follow a real account in this version. NinjaTrader AddOn 2.3.0 (order fills and average price, full bridge snapshot) ships only once it has been compiled and tried on Sim. The Lab's model joins the agent presets when its host opens. What the Lab brings next is listed under [Services](#services).
+</details>
 
 ---
+
+<a id="services"></a>
 
 ## Services
 
-Personal noncommercial use of the desk is free. A model reached through an API and run as a service, a desk fitted to one trader, and deployment of what follows are commercial: they go through SIΞRRΛSKΛ Lab under a separate agreement. Write to the Lab on the repository: [github.com/0xSrk/C-NTO/issues](https://github.com/0xSrk/C-NTO/issues).
+Personal noncommercial use of the desk is free. A model reached through an API and run as a service, a desk fitted to one trader, and the deployment of what follows are commercial: they go through SIΞRRΛSKΛ Lab under a separate agreement. The desk can already point at a provider you configure yourself; the Lab's service is the integration, the fit and the deployment. Write to the Lab on the repository: [github.com/0xSrk/C-NTO/issues](https://github.com/0xSrk/C-NTO/issues).
 
-- A model in the desk, reached through an API
-- A desk fitted to one trader
-- Deployment of the services that follow
-
-The desk can already point at a provider you configure yourself. The Lab’s service is the integration, the fit, and the deployment.
-
----
+<a id="disclaimer"></a>
 
 ## Disclaimer
 
-The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. CΛNTO gives no investment advice. Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The agent can only propose an order on a Sim account, and each one waits for your confirmation in a desk window. Whether an order proposed by an AI and confirmed by you is allowed depends on each prop firm's rules: CΛNTO makes no claim of compliance with any firm. Check with yours. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (the panel can raise it from 1 to 1000) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository. The desk stays closed on arrival.
+> [!WARNING]
+> CΛNTO gives no investment advice. The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. Whether an order proposed by an AI and confirmed by you is allowed depends on each prop firm's rules: CΛNTO makes no claim of compliance with any firm. Check with yours.
+
+Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The agent can only propose an order on a Sim account, and each one waits for your confirmation in a desk window. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (adjustable from 1 to 1,000 through a dialog) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository.
+
+<a id="license"></a>
 
 ## License
 
-Personal noncommercial use of this desk is free under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Personal noncommercial use of this desk is free under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use, resale, hosted services and the services above go through SIΞRRΛSKΛ Lab under a separate agreement. Versions 3.1.0 through 3.3.1, published under the MIT license, remain under MIT. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, are outside this license.
 
-Commercial use, resale, hosted services, and the services above go through SIΞRRΛSKΛ Lab under a separate agreement.
+<details>
+<summary><b>Fonts</b> — shipped with the desk under the SIL Open Font License 1.1</summary>
 
-Write to the Lab on the repository: [github.com/0xSrk/C-NTO/issues](https://github.com/0xSrk/C-NTO/issues).
+<br/>
 
-Versions 3.1.0 through 3.3.1 published under the MIT license remain under MIT. The names **CΛNTO** and **SIΞRRΛSKΛ**, and the visual identity, are outside this license. The fonts shipped with the desk stay under the SIL Open Font License.
+Copied next to the launcher at build time, with the license file beside each family. Bundling and redistribution with the desk are allowed.
 
-## Fonts
-
-Fonts shipped with the desk (copied next to the launcher at build time, license file beside each family):
-
-| Resource | License | File |
+| Family | Copyright | License file |
 |---|---|---|
-| Inter (variable, latin + greek) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2016 The Inter Project Authors. The launcher keeps Inter; the desk no longer loads it. | `electron/fonts/OFL-Inter.txt` |
-| Archivo (variable, width axis) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2020 The Archivo Project Authors. | `electron/fonts/OFL-Archivo.txt` |
-| Doto (variable) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2024 The Doto Project Authors. | `electron/fonts/OFL-Doto.txt` |
-| JetBrains Mono (variable, latin + greek) | SIL Open Font License 1.1. Bundling and redistribution with the desk are allowed. Copyright 2020 The JetBrains Mono Project Authors. | `electron/fonts/OFL-JetBrainsMono.txt` |
+| Inter (variable, latin and greek) — launcher only | 2016 The Inter Project Authors | `electron/fonts/OFL-Inter.txt` |
+| Archivo (variable, width axis) | 2020 The Archivo Project Authors | `electron/fonts/OFL-Archivo.txt` |
+| Doto (variable) | 2024 The Doto Project Authors | `electron/fonts/OFL-Doto.txt` |
+| JetBrains Mono (variable, latin and greek) | 2020 The JetBrains Mono Project Authors | `electron/fonts/OFL-JetBrainsMono.txt` |
+
+</details>
 
 <div align="center">
 <br/>

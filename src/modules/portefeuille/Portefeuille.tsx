@@ -27,6 +27,7 @@ import { useBridge } from '@/store/bridge';
 import { useJournal } from '@/store/journal';
 import { usePortfolio } from '@/store/portfolio';
 import { useSettings } from '@/store/settings';
+import { engineNote } from './labels';
 import s from './portefeuille.module.css';
 
 const DISCRETE_KEY = 'canto.ptf.discrete';
@@ -520,7 +521,7 @@ export default function Portefeuille() {
                             </td>
                             <td>{kindLabel(pocket.kind)}</td>
                             <td>{v ? money(v.nativeEquity, pocket.currency) : '—'}</td>
-                            <td>{v?.equityBase == null ? (v?.reason ?? '—') : money(v.equityBase, base)}</td>
+                            <td>{v?.equityBase == null ? (v?.reason ? engineNote(v.reason) : '—') : money(v.equityBase, base)}</td>
                             <td>
                               {v ? markLabel(v.mark) : '—'}
                               {v?.unrealized == null && v && isTraditionalKind(pocket.kind) ? ` · ${tr('au prix de revient', 'at cost', 'a precio de coste')}` : ''}

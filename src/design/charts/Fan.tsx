@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { MonteCarloResult } from '@/engine/montecarlo';
+import { tr } from '@/i18n';
 import s from './charts.module.css';
 import { niceTicks, useMeasure } from './useMeasure';
 
@@ -13,10 +14,16 @@ interface Props {
 
 const PADDING = { top: 12, right: 14, bottom: 22, left: 56 };
 
+/** Libellés des seuils de ruine et d'objectif, dans la langue du desk. */
+export function fanMarks(): { ruin: string; target: string } {
+  return { ruin: tr('ruine', 'ruin', 'ruina'), target: tr('objectif', 'target', 'objetivo') };
+}
+
 /** Éventail Monte Carlo : trajectoires échantillon + enveloppe p5 / p50 / p95. */
 export function Fan({ result, height = 240, formatY = (v) => v.toFixed(0), ruin, target }: Props) {
   const [ref, { width }] = useMeasure<HTMLDivElement>();
   const padding = PADDING;
+  const marks = fanMarks();
 
   const model = useMemo(() => {
     if (width === 0) return null;
@@ -74,7 +81,7 @@ export function Fan({ result, height = 240, formatY = (v) => v.toFixed(0), ruin,
             <>
               <line x1={padding.left} x2={width - padding.right} y1={model.sy(-ruin)} y2={model.sy(-ruin)} stroke="var(--ember)" strokeWidth={1} />
               <text x={width - padding.right} y={model.sy(-ruin) - 4} textAnchor="end" className={s.axis} fill="var(--ember)">
-                ruine
+                {marks.ruin}
               </text>
             </>
           )}
@@ -82,7 +89,7 @@ export function Fan({ result, height = 240, formatY = (v) => v.toFixed(0), ruin,
             <>
               <line x1={padding.left} x2={width - padding.right} y1={model.sy(target)} y2={model.sy(target)} stroke="var(--gold)" strokeWidth={1} />
               <text x={width - padding.right} y={model.sy(target) - 4} textAnchor="end" className={s.axis} fill="var(--gold)">
-                objectif
+                {marks.target}
               </text>
             </>
           )}
