@@ -127,6 +127,35 @@ describe('proposition depuis le desk', () => {
     expect(useAgentOrders.getState().status.pending).toBe(false);
   });
 
+  it('marge du plan suivi : le compte est reconnu sans tenir compte de la casse ni des espaces', async () => {
+    const calls: (number | null)[] = [];
+    vi.stubGlobal('window', {
+      location: { search: '' },
+      canto: {
+        agentOrders: {
+          status: async () => ({ enabled: true, maxQty: 1, maxPosition: 2, perMinute: 3, pending: false }),
+          propose: async (_raw: unknown, _origin: string, share: number | null) => {
+            calls.push(share);
+            return { status: 'declined', detail: 'refusé par le trader' };
+          },
+        },
+      },
+    });
+    vi.resetModules();
+    const { livePorts } = await import('@/store/agent');
+    const { useBridge } = await import('@/store/bridge');
+    const { useJournal } = await import('@/store/journal');
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: 'apex-50', planAccount: 'SimApex1' } });
+    useJournal.setState({ sessions: [], trades: [] });
+    useBridge.setState({ nt: { link: 'live', accounts: [{ name: 'SimApex1', cashValue: 50_000, realizedPnl: 0, unrealizedPnl: -2_000, positions: [] }] } as never });
+    await livePorts('mcp').proposeOrder({ ...ORDER, account: 'SimAPEX1' });
+    await livePorts('mcp').proposeOrder({ ...ORDER, account: ' simapex1 ' });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBeCloseTo(0.2);
+    expect(calls[1]).toBeCloseTo(0.2);
+  });
+
   it('hors desk : refusée, tracée quand même', async () => {
     vi.stubGlobal('window', { location: { search: '' } });
     vi.resetModules();

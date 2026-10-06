@@ -43,10 +43,32 @@ export const AGENT_ORDER_BOUNDS = { maxQty: [1, 50], maxPosition: [1, 100], perM
 type Limit = keyof typeof AGENT_ORDER_BOUNDS;
 export const AGENT_ORDER_LIMITS: readonly Limit[] = ['maxQty', 'maxPosition', 'perMinute'];
 
+/** Contrôles (C0, C1), formats (bidi, marques de direction, largeur nulle), séparateurs de ligne et de paragraphe. */
+const CONTROL_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+/** Ce qui coupe une ligne dans un dialogue. */
+const LINE_BREAK_RE = /[\t\n\v\f\r\u0085\u2028\u2029]+/g;
+/** Contrôles bidi : ils retournent l'affichage du texte qui les suit. */
+const BIDI_RE = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+/** Autres contrôles C0 / C1. */
+const OTHER_CONTROL_RE = /\p{Cc}/gu;
+
 function str(v: unknown, max: number): string | null {
   if (typeof v !== 'string') return null;
   const t = v.trim();
   return t && t.length <= max ? t : null;
+}
+
+/** Compte, instrument : montrés au trader et transmis au pont. Un caractère de contrôle ou bidi les rend invalides. */
+function name(v: unknown, max: number): string | null | 'control' {
+  if (typeof v !== 'string') return null;
+  if (CONTROL_RE.test(v)) return 'control';
+  return str(v.replace(/\s+/g, ' '), max);
+}
+
+/** Raison de l'agent : une seule ligne dans le dialogue, sans contrôle bidi. */
+function reasonText(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  return v.replace(LINE_BREAK_RE, ' ').replace(BIDI_RE, '').replace(OTHER_CONTROL_RE, '').trim().slice(0, AGENT_REASON_MAX);
 }
 
 function price(v: unknown): number | null {
@@ -57,13 +79,15 @@ function price(v: unknown): number | null {
 export function parseProposal(raw: unknown): { ok: true; proposal: AgentOrderProposal } | { ok: false; detail: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, detail: 'proposition illisible' };
   const r = raw as Record<string, unknown>;
-  const account = str(r.account, 128);
-  const instrument = str(r.instrument, 64);
+  const account = name(r.account, 128);
+  const instrument = name(r.instrument, 64);
   const side = r.side === 'buy' || r.side === 'sell' ? r.side : null;
   const type = (AGENT_ORDER_TYPES as readonly unknown[]).includes(r.type ?? 'market') ? ((r.type ?? 'market') as AgentOrderType) : null;
   const qty = typeof r.qty === 'number' && Number.isInteger(r.qty) && r.qty >= 1 ? r.qty : null;
-  const reason = typeof r.reason === 'string' ? r.reason.trim().slice(0, AGENT_REASON_MAX) : '';
+  const reason = reasonText(r.reason);
+  if (account === 'control') return { ok: false, detail: 'account : caractères de contrôle ou de direction refusés' };
   if (!account) return { ok: false, detail: 'account requis' };
+  if (instrument === 'control') return { ok: false, detail: 'instrument : caractères de contrôle ou de direction refusés' };
   if (!instrument) return { ok: false, detail: 'instrument requis (nom NinjaTrader, ex. MNQ 12-26)' };
   if (!side) return { ok: false, detail: 'side : buy ou sell' };
   if (!type) return { ok: false, detail: 'type : market, limit ou stop' };

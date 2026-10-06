@@ -114,6 +114,21 @@ export function proposalDialog(p: AgentOrderProposal, position: number, resultin
   };
 }
 
+const fold = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Compte et instrument tels que le pont les nomme, avec la position signée : la lecture ne tient compte
+ * ni de la casse ni des espaces (`mnq 12-26` voit `MNQ 12-26`), sinon les gardes de position et de marge
+ * liraient 0. Inconnus du pont : les noms de la proposition, position 0.
+ */
+export function heldPosition(view: BridgeView | null, account: string, instrument: string): { account: string; instrument: string; quantity: number } {
+  const accounts = view?.accounts ?? [];
+  const acc = accounts.find((a) => a.name === account) ?? accounts.find((a) => fold(a.name) === fold(account));
+  if (!acc) return { account, instrument, quantity: 0 };
+  const pos = acc.positions.find((x) => x.instrument === instrument) ?? acc.positions.find((x) => fold(x.instrument) === fold(instrument));
+  return pos ? { account: acc.name, instrument: pos.instrument, quantity: pos.quantity } : { account: acc.name, instrument, quantity: 0 };
+}
+
 export class AgentOrderHost {
   private policy: AgentOrderPolicy;
   private pending = false;
@@ -224,11 +239,13 @@ export class AgentOrderHost {
   async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null): Promise<AgentOrderOutcome> {
     const parsed = parseProposal(raw);
     if (!parsed.ok) return { status: 'refused', reason: 'invalid', detail: parsed.detail };
-    const p = parsed.proposal;
     const now = this.now();
     this.recent = this.recent.filter((t) => now - t < AGENT_RATE_WINDOW_MS);
     const view = this.deps.bridge();
-    const position = view?.accounts.find((a) => a.name === p.account)?.positions.find((x) => x.instrument === p.instrument)?.quantity ?? 0;
+    // Le dialogue, les gardes et l'ordre portent les noms du pont : ceux dont la position vient d'être lue.
+    const held = heldPosition(view, parsed.proposal.account, parsed.proposal.instrument);
+    const p: AgentOrderProposal = { ...parsed.proposal, account: held.account, instrument: held.instrument };
+    const position = held.quantity;
     const verdict = guardProposal(p, this.policy, {
       now,
       link: view?.link ?? 'absent',

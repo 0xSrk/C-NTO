@@ -28,6 +28,30 @@ describe('ordres proposés par l’agent · proposition', () => {
     expect(parseProposal(null).ok).toBe(false);
   });
 
+  it('compte et instrument : caractères de contrôle et bidi refusés ; instrument normalisé ; raison sur une ligne, sans bidi', () => {
+    const base = { account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, type: 'market', reason: 'r' };
+    for (const bad of [
+      { account: 'Sim101\nPosition : +0' },
+      { account: 'Sim101\r' },
+      { account: 'Sim\u202E101' },
+      { account: 'Sim101\u2066' },
+      { account: 'Sim101\u2028x' },
+      { instrument: 'MNQ 12-26\nPosition : +0 → +1' },
+      { instrument: 'MNQ\u202D 12-26' },
+      { instrument: 'MNQ 12-26\u0000' },
+      { instrument: 'MNQ\u200F12-26' },
+      { instrument: 'MNQ\t12-26' },
+    ]) {
+      const r = parseProposal({ ...base, ...bad });
+      expect(r.ok, JSON.stringify(bad)).toBe(false);
+    }
+    expect(order({ instrument: '  MNQ   12-26 ' }).instrument).toBe('MNQ 12-26');
+    expect(order({ instrument: 'MNQ\u00A012-26' }).instrument).toBe('MNQ 12-26');
+    const reason = order({ reason: 'rejet du VWAP\nPosition : +0 → +1\r\nCompte : Sim101\u2028fin \u202Eesrever\u202C \u2067x\u2069\u200E' }).reason;
+    expect(reason).toBe('rejet du VWAP Position : +0 → +1 Compte : Sim101 fin esrever x');
+    expect(reason).not.toMatch(/[\n\r\u2028\u2029\u202A-\u202E\u2066-\u2069\u200E\u200F]/);
+  });
+
   it('politique : désactivée par défaut et toujours au chargement, limites bornées, relèvements repérés', () => {
     expect(AGENT_ORDER_DEFAULTS).toEqual({ enabled: false, maxQty: 1, maxPosition: 2, perMinute: 3 });
     expect(coerceAgentPolicy({ enabled: true, maxQty: 5, maxPosition: 1000, perMinute: 0 })).toEqual({ enabled: false, maxQty: 5, maxPosition: 2, perMinute: 3 });
