@@ -1,8 +1,8 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LLM_HOSTS, llmHostAllowed, probeProvider, streamChat } from '@/engine/agent/llm';
-import { llmFetch, llmHostOk } from '../electron/llm-host';
+import { DEFAULT_LLM_HOSTS, llmHostAllowed, llmKeyBound, probeProvider, streamChat } from '@/engine/agent/llm';
+import { keyFor, llmFetch, llmHostOk, llmKeyHost } from '../electron/llm-host';
 
 async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -93,5 +93,40 @@ describe('redirections des fournisseurs LLM', () => {
       first.close();
       second.close();
     }
+  });
+});
+
+describe('clé API liée à son hôte', () => {
+  const cases: [string, unknown, boolean][] = [
+    ['https://api.openai.com/v1', 'api.openai.com', true],
+    ['https://API.OpenAI.com/v1/', 'api.openai.com', true],
+    ['https://openrouter.ai/api/v1', 'api.openai.com', false],
+    ['https://api.anthropic.com', 'api.openai.com', false],
+    // Clé OpenAI vers un serveur local en HTTP clair : non.
+    ['http://localhost:11434/v1', 'api.openai.com', false],
+    // Le port compte : une clé saisie pour LM Studio ne part pas vers Ollama.
+    ['http://localhost:11434/v1', 'localhost:1234', false],
+    ['http://localhost:1234/v1', 'localhost:1234', true],
+    // Coffre ancien, sans le champ : la clé suit l'hôte de l'URL de base courante.
+    ['https://api.openai.com/v1', undefined, true],
+    ['https://api.openai.com/v1', null, true],
+    ['https://api.openai.com/v1', '', false],
+    ['https://api.openai.com/v1', 42, false],
+    ['pas une url', 'api.openai.com', false],
+  ];
+
+  it('keyFor : la clé ne part que vers l’hôte pour lequel elle a été saisie', () => {
+    for (const [baseUrl, keyHost, expected] of cases) {
+      expect(keyFor(baseUrl, keyHost), `${baseUrl} ← ${String(keyHost)}`).toBe(expected);
+      // Le renderer annonce la même chose que le process principal décide.
+      expect(llmKeyBound(baseUrl, keyHost), `renderer ${baseUrl} ← ${String(keyHost)}`).toBe(expected);
+    }
+  });
+
+  it('llmKeyHost : hôte et port, en minuscules', () => {
+    expect(llmKeyHost('https://API.OpenAI.com/v1')).toBe('api.openai.com');
+    expect(llmKeyHost('http://localhost:11434/v1')).toBe('localhost:11434');
+    expect(llmKeyHost('http://[::1]:8080/v1')).toBe('[::1]:8080');
+    expect(llmKeyHost('pas une url')).toBe('');
   });
 });

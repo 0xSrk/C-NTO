@@ -1,6 +1,6 @@
 import { desk } from '@/lib/desk';
 import { uid } from '@/lib/id';
-import { type AgentConfig } from '@/store/settings';
+import type { AgentConfig } from '@/store/settings';
 
 export interface ToolSchema {
   name: string;
@@ -56,6 +56,26 @@ export function llmHostAllowed(baseUrl: string, extra: string[] = []): boolean {
   }
 }
 
+/** Hôte (et port) auquel une clé API est liée. Miroir de `llmKeyHost` du process principal. */
+export function llmKeyHost(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Pré-contrôle renderer, miroir de `keyFor` (`electron/llm-host.ts`) : la clé n'est envoyée qu'à l'hôte
+ * pour lequel elle a été saisie. Sans hôte enregistré (coffre ancien), elle suit l'URL de base courante.
+ */
+export function llmKeyBound(baseUrl: string, keyHost: unknown): boolean {
+  const host = llmKeyHost(baseUrl);
+  if (!host) return false;
+  if (keyHost === undefined || keyHost === null) return true;
+  return typeof keyHost === 'string' && keyHost.toLowerCase() === host;
+}
+
 export function streamChat(args: StreamArgs): Promise<StreamResult> {
   if (desk?.llm) return streamViaMain(args);
   return Promise.reject(new Error('Passerelle LLM indisponible : le shell Electron est requis.'));
@@ -104,6 +124,7 @@ async function streamViaMain({ config, messages, tools, toolChoice, onDelta, sig
           model: config.model,
           temperature: config.temperature,
           apiKeyEncrypted: config.apiKeyEncrypted,
+          apiKeyHost: config.apiKeyHost,
         },
         messages,
         tools,
@@ -125,5 +146,6 @@ export async function probeProvider(config: AgentConfig): Promise<{ ok: boolean;
     model: config.model,
     temperature: config.temperature,
     apiKeyEncrypted: config.apiKeyEncrypted,
+    apiKeyHost: config.apiKeyHost,
   });
 }

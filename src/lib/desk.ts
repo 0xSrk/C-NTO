@@ -216,7 +216,7 @@ export interface DeskApi {
   llm?: {
     start: (payload: {
       requestId: string;
-      config: { provider: string; baseUrl: string; model: string; temperature: number; apiKeyEncrypted?: string };
+      config: { provider: string; baseUrl: string; model: string; temperature: number; apiKeyEncrypted?: string; apiKeyHost?: string };
       messages: unknown[];
       tools: unknown[];
       toolChoice?: 'auto' | 'none';
@@ -229,6 +229,7 @@ export interface DeskApi {
       model: string;
       temperature?: number;
       apiKeyEncrypted?: string;
+      apiKeyHost?: string;
       allowedHosts?: string[];
     }) => Promise<{ ok: boolean; detail: string; models?: string[] }>;
     onDelta: (cb: (p: { requestId: string; text: string }) => void) => () => void;

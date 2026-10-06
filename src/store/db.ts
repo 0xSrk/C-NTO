@@ -821,6 +821,8 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
           const prevAgent = isRec(current.agent) ? current.agent : {};
           const agentRest = { ...prevAgent };
           delete agentRest.apiKeyEncrypted;
+          // Hôte de l'ancienne clé : la clé du coffre se lie à l'URL de base restaurée, à la lecture.
+          delete agentRest.apiKeyHost;
           let agent: Record<string, unknown> = { ...agentRest, apiKey: v.pendingApiKey };
           if (desk?.secrets) {
             const payload = await desk.secrets.encrypt(v.pendingApiKey);

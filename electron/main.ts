@@ -6,7 +6,7 @@ import { NinjaBridge } from './bridge';
 import { confirmCopierArm } from './nt-bridge/copier-host';
 import { AgentOrderHost } from './agent-orders';
 import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
-import { llmFetch, llmHostOk } from './llm-host';
+import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from './llm-host';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
@@ -838,6 +838,25 @@ function joinLlmUrl(base: string, p: string): string {
   return `${base.replace(/\/+$/, '')}/${p.replace(/^\/+/, '')}`;
 }
 
+/**
+ * Clé à joindre à l'appel : seulement vers l'hôte pour lequel elle a été saisie. Ailleurs, rien n'est
+ * joint ; vers un fournisseur distant, l'appel n'a pas lieu (`refused`) : il faut ressaisir la clé.
+ */
+function llmKeyForCall(baseUrl: string, blob: unknown, keyHost: unknown): { key: string; refused?: string } {
+  if (keyFor(baseUrl, keyHost)) return { key: decryptLlmKey(blob) };
+  if (typeof blob !== 'string' || !blob || llmLoopback(baseUrl)) return { key: '' };
+  const from = isString(keyHost, 300) && keyHost ? keyHost : '?';
+  const to = llmKeyHost(baseUrl);
+  return {
+    key: '',
+    refused: ui(
+      `La clé API a été saisie pour ${from} : elle n’est pas envoyée à ${to}. Ressaisissez la clé pour ce fournisseur.`,
+      `The API key was entered for ${from}: it is not sent to ${to}. Enter the key again for this provider.`,
+      `La clave API se introdujo para ${from}: no se envía a ${to}. Vuelva a introducir la clave para este proveedor.`,
+    ),
+  };
+}
+
 /** Une redirection du fournisseur n'est pas suivie : la clé et la conversation ne quittent pas l'hôte épinglé. */
 function llmRedirectRefusal(status: number, target: string): string {
   const to = target ? ` → ${target}` : '';
@@ -882,9 +901,10 @@ async function sseData(res: Response, signal: AbortSignal, onData: (data: string
 
 ipcMain.handle('llm:probe', async (e, config: unknown) => {
   if (!trusted(e) || !config || typeof config !== 'object') return { ok: false, detail: ui('Requête invalide', 'Invalid request', 'Solicitud inválida') };
-  const c = config as { provider?: unknown; baseUrl?: unknown; apiKeyEncrypted?: unknown; allowedHosts?: unknown };
+  const c = config as { provider?: unknown; baseUrl?: unknown; apiKeyEncrypted?: unknown; apiKeyHost?: unknown; allowedHosts?: unknown };
   if (!isString(c.baseUrl, 2048) || !llmHostOk(c.baseUrl, c.allowedHosts)) return { ok: false, detail: ui('Hôte LLM non autorisé.', 'LLM host not allowed.', 'Host LLM no autorizado.') };
-  const key = decryptLlmKey(c.apiKeyEncrypted);
+  const { key, refused } = llmKeyForCall(c.baseUrl, c.apiKeyEncrypted, c.apiKeyHost);
+  if (refused) return { ok: false, detail: refused };
   // Un fournisseur muet ne doit pas laisser le bouton « Tester » tourner indéfiniment.
   const signal = AbortSignal.timeout(LLM_PROBE_TIMEOUT_MS);
   try {
@@ -918,7 +938,7 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
   if (!trusted(e) || !payload || typeof payload !== 'object') return;
   const p = payload as {
     requestId?: unknown;
-    config?: { provider?: unknown; baseUrl?: unknown; model?: unknown; temperature?: unknown; apiKeyEncrypted?: unknown };
+    config?: { provider?: unknown; baseUrl?: unknown; model?: unknown; temperature?: unknown; apiKeyEncrypted?: unknown; apiKeyHost?: unknown };
     messages?: unknown;
     tools?: unknown;
     toolChoice?: unknown;
@@ -931,9 +951,13 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
     sender.send('llm:error', { requestId, error: ui('Hôte LLM non autorisé.', 'LLM host not allowed.', 'Host LLM no autorizado.') });
     return;
   }
+  const { key, refused } = llmKeyForCall(p.config.baseUrl, p.config.apiKeyEncrypted, p.config.apiKeyHost);
+  if (refused) {
+    sender.send('llm:error', { requestId, error: refused });
+    return;
+  }
   const ac = new AbortController();
   llmAbort.set(requestId, ac);
-  const key = decryptLlmKey(p.config.apiKeyEncrypted);
   const provider = p.config.provider === 'anthropic' ? 'anthropic' : 'openai-compatible';
   const model = p.config.model;
   const temperature = typeof p.config.temperature === 'number' ? p.config.temperature : 0.3;
