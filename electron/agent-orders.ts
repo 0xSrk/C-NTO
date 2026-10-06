@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
+  AGENT_ORDER_BOUNDS,
   AGENT_ORDER_TAG,
   AGENT_RATE_WINDOW_MS,
   coerceAgentPolicy,
@@ -114,6 +115,21 @@ export function proposalDialog(p: AgentOrderProposal, position: number, resultin
   };
 }
 
+const fold = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Compte et instrument tels que le pont les nomme, avec la position signée : la lecture ne tient compte
+ * ni de la casse ni des espaces (`mnq 12-26` voit `MNQ 12-26`), sinon les gardes de position et de marge
+ * liraient 0. Inconnus du pont : les noms de la proposition, position 0.
+ */
+export function heldPosition(view: BridgeView | null, account: string, instrument: string): { account: string; instrument: string; quantity: number } {
+  const accounts = view?.accounts ?? [];
+  const acc = accounts.find((a) => a.name === account) ?? accounts.find((a) => fold(a.name) === fold(account));
+  if (!acc) return { account, instrument, quantity: 0 };
+  const pos = acc.positions.find((x) => x.instrument === instrument) ?? acc.positions.find((x) => fold(x.instrument) === fold(instrument));
+  return pos ? { account: acc.name, instrument: pos.instrument, quantity: pos.quantity } : { account: acc.name, instrument, quantity: 0 };
+}
+
 export class AgentOrderHost {
   private policy: AgentOrderPolicy;
   private pending = false;
@@ -222,24 +238,27 @@ export class AgentOrderHost {
    * avec le tag `canto-agent`. `propShare` : marge du plan suivi si le compte est le sien, calculée par le renderer.
    */
   async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null): Promise<AgentOrderOutcome> {
+    // La cadence compte chaque proposition, refusées comprises (mal formée, agent désactivé, en attente) :
+    // la garde lit les précédentes. Au plus le plafond de la cadence est retenu (10).
+    const now = this.now();
+    const recent = this.recent.filter((t) => now - t < AGENT_RATE_WINDOW_MS);
+    this.recent = [...recent, now].slice(-AGENT_ORDER_BOUNDS.perMinute[1]);
     const parsed = parseProposal(raw);
     if (!parsed.ok) return { status: 'refused', reason: 'invalid', detail: parsed.detail };
-    const p = parsed.proposal;
-    const now = this.now();
-    this.recent = this.recent.filter((t) => now - t < AGENT_RATE_WINDOW_MS);
     const view = this.deps.bridge();
-    const position = view?.accounts.find((a) => a.name === p.account)?.positions.find((x) => x.instrument === p.instrument)?.quantity ?? 0;
+    // Le dialogue, les gardes et l'ordre portent les noms du pont : ceux dont la position vient d'être lue.
+    const held = heldPosition(view, parsed.proposal.account, parsed.proposal.instrument);
+    const p: AgentOrderProposal = { ...parsed.proposal, account: held.account, instrument: held.instrument };
+    const position = held.quantity;
     const verdict = guardProposal(p, this.policy, {
       now,
       link: view?.link ?? 'absent',
       ordersOpen: view?.ordersOpen ?? false,
       position,
-      recent: this.recent,
+      recent,
       busy: this.pending,
       propShare: typeof propShare === 'number' && Number.isFinite(propShare) ? propShare : null,
     });
-    // La cadence compte les propositions examinées, refusées comprises ; pas celles d'un agent désactivé ou en attente.
-    if (verdict.ok || (verdict.reason !== 'busy' && verdict.reason !== 'disabled')) this.recent.push(now);
     const summary = `${p.side} ${p.qty} ${p.instrument} ${p.type} compte=${p.account} origine=${origin}`;
     if (!verdict.ok) {
       this.deps.log(`agent proposition refusée ${summary} motif=${verdict.reason}`);

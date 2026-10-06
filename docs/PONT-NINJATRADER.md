@@ -115,6 +115,12 @@ Les barres sont en epoch **secondes** UTC. Les ticks, quotes et exécutions sont
 | `marketdata.tick` | `{ instrument, time, price, size, side? }` |
 | `marketdata.quote` | `{ instrument, time, bid, ask, last? }` |
 
+**Livre des ordres.** Le process principal tient les `bridge.order` reçus (`src/engine/execution/orderBook.ts`, hôte `electron/nt-bridge/order-book-host.ts`) : ordres actifs et 20 derniers terminés (`Filled`, `Cancelled`, `Rejected`). Le renderer le lit par `ntbridge:orders` et reçoit chaque changement d'état par `ntbridge:order-state` ; l'agent le lit avec `working_orders`. L'AddOn 2.2.0 n'envoie ni instantané d'ordres ni quantité remplie : le livre se dit incomplet (`complete: false`) après chaque connexion ou coupure, et un ordre vu avant la dernière coupure porte `unconfirmed`. Lecture seule : le livre n'émet, n'annule ni ne modifie rien.
+
+**Comptes datés.** Le statut du pont porte `accountsAt`, heure de réception du dernier `bridge.accounts`. Des comptes reçus il y a plus de 60 s ne sont plus tenus pour frais (Portefeuille, `portfolio_snapshot`).
+
+**Cotations.** Le renderer garde la dernière `marketdata.quote` reçue par instrument (`market_quote`) ; un bid ou un ask à 0 (côté pas encore reçu) devient `null`. Le desk ne s'abonne à rien de lui-même ; les ticks restent ignorés.
+
 ## 4. Desk → NinjaTrader (requêtes)
 
 | Méthode | Paramètres | Réponse |

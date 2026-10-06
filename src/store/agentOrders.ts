@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { AGENT_ORDER_DEFAULTS, AGENT_REASON_MAX } from '@/engine/agent/orders';
+import { AGENT_ORDER_DEFAULTS, AGENT_RATE_WINDOW_MS, AGENT_REASON_MAX } from '@/engine/agent/orders';
 import { desk, type AgentOrderOrigin, type AgentOrderOutcome, type AgentOrderStatus } from '@/lib/desk';
 import { recordDeskEvent, trackedPropShare } from './deskEvents';
+import { useSettings } from './settings';
 
 /** Statut hors desk (navigateur) ou avant la première lecture : désactivé. */
 export const AGENT_ORDERS_OFF: AgentOrderStatus = { ...AGENT_ORDER_DEFAULTS, enabled: false, pending: false };
@@ -35,6 +36,18 @@ function text(v: unknown, max: number): string {
   return typeof v === 'string' ? v.trim().slice(0, max) : '';
 }
 
+const fold = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Marge du plan suivi pour le compte proposé. Le process principal lit le pont sans tenir compte de la casse
+ * ni des espaces (`SimAPEX1` y désigne `SimApex1`) : le compte du plan est reconnu de même, sinon la garde
+ * de marge sauterait.
+ */
+function propShareFor(account: string): number | null {
+  const { planAccount } = useSettings.getState().settings;
+  return trackedPropShare(planAccount && fold(planAccount) === fold(account) ? planAccount : account);
+}
+
 /** Données de l'événement `agent_order` : bornées, sans rien que l'agent n'ait déjà vu. */
 export function agentOrderEventData(args: Record<string, unknown>, origin: AgentOrderOrigin, outcome: AgentOrderOutcome): Record<string, unknown> {
   const data: Record<string, unknown> = {
@@ -53,6 +66,31 @@ export function agentOrderEventData(args: Record<string, unknown>, origin: Agent
   if (outcome.status === 'failed' && outcome.code !== undefined) data.code = outcome.code;
   if (outcome.status !== 'sent') data.detail = text(outcome.detail, AGENT_REASON_MAX);
   return data;
+}
+
+/**
+ * Événements `agent_order` rangés dans le journal du desk (500 au plus). Un ordre envoyé l'est toujours ;
+ * les autres issues, au plus 10 par minute et 60 par heure : une rafale de propositions ne vide pas le
+ * journal. Le premier événement rangé ensuite dit combien n'ont pas été rangées (`suppressed`).
+ */
+export const AGENT_ORDER_EVENT_LIMITS = { perMinute: 10, perHour: 60 } as const;
+const HOUR_MS = 3_600_000;
+let journaled: number[] = [];
+let suppressed = 0;
+
+function journalProposal(data: Record<string, unknown>, status: AgentOrderOutcome['status'], now = Date.now()): void {
+  journaled = journaled.filter((t) => now - t < HOUR_MS);
+  const lastMinute = journaled.filter((t) => now - t < AGENT_RATE_WINDOW_MS).length;
+  if (status !== 'sent' && (lastMinute >= AGENT_ORDER_EVENT_LIMITS.perMinute || journaled.length >= AGENT_ORDER_EVENT_LIMITS.perHour)) {
+    suppressed += 1;
+    return;
+  }
+  journaled.push(now);
+  if (suppressed) {
+    data.suppressed = suppressed;
+    suppressed = 0;
+  }
+  recordDeskEvent('agent_order', data);
 }
 
 export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
@@ -88,7 +126,7 @@ export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
     } else {
       set({ status: { ...get().status, pending: true } });
       try {
-        outcome = await api.propose(args, origin, trackedPropShare(text(args.account, 128)));
+        outcome = await api.propose(args, origin, propShareFor(text(args.account, 128)));
       } catch (e) {
         outcome = { status: 'failed', detail: e instanceof Error ? e.message : String(e) };
       }
@@ -105,7 +143,7 @@ export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
       outcome,
     };
     set({ last: trace });
-    recordDeskEvent('agent_order', agentOrderEventData(args, origin, outcome));
+    journalProposal(agentOrderEventData(args, origin, outcome), outcome.status);
     return outcome;
   },
 }));

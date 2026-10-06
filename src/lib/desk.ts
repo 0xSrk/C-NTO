@@ -3,6 +3,7 @@ import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEv
 import type { ChangelogFile } from '@/engine/changelog';
 import type { AgentOrderRefusal } from '@/engine/agent/orders';
 import type { KillSwitchReport } from '@/engine/execution/killSwitch';
+import type { OrderBookView, OrderChange } from '@/engine/execution/orderBook';
 /** Passerelle MCP des agents externes (process principal). Le jeton n'y figure jamais. */
 export interface McpStatus {
   running: boolean;
@@ -60,6 +61,8 @@ export interface NtBridgeStatus {
   addonVersion: string | null;
   ntVersion: string | null;
   accounts: { name: string; cashValue: number; realizedPnl: number; unrealizedPnl: number; positions: { instrument: string; quantity: number; avgPrice: number }[] }[];
+  /** Réception des derniers comptes par le process principal (epoch ms) ; `null` avant le premier envoi. */
+  accountsAt?: number | null;
   accountNames: string[];
   heartbeatLatencyMs: number | null;
   ordersOpen: boolean;
@@ -138,6 +141,10 @@ export interface NtBridgeApi {
   killSwitch: () => Promise<KillSwitchReport>;
   onStatus: (cb: (status: NtBridgeStatus) => void) => () => void;
   onExecution: (cb: (payload: NtExecutionPayload) => void) => () => void;
+  /** Livre des ordres en cours tenu par le process principal (lecture seule). */
+  orders?: () => Promise<OrderBookView | null>;
+  /** Changement d'état d'un ordre du pont, une fois par changement. */
+  onOrder?: (cb: (change: OrderChange) => void) => () => void;
 }
 
 export interface BridgeApi {
@@ -216,7 +223,7 @@ export interface DeskApi {
   llm?: {
     start: (payload: {
       requestId: string;
-      config: { provider: string; baseUrl: string; model: string; temperature: number; apiKeyEncrypted?: string };
+      config: { provider: string; baseUrl: string; model: string; temperature: number; apiKeyEncrypted?: string; apiKeyHost?: string };
       messages: unknown[];
       tools: unknown[];
       toolChoice?: 'auto' | 'none';
@@ -229,6 +236,7 @@ export interface DeskApi {
       model: string;
       temperature?: number;
       apiKeyEncrypted?: string;
+      apiKeyHost?: string;
       allowedHosts?: string[];
     }) => Promise<{ ok: boolean; detail: string; models?: string[] }>;
     onDelta: (cb: (p: { requestId: string; text: string }) => void) => () => void;

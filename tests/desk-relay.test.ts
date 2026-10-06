@@ -8,6 +8,7 @@ import type { DeskPorts } from '@/engine/agent/ports';
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import { coerceSettings, DEFAULT_SETTINGS, pickRestorableSettings } from '@/store/settings';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 type Req = { id: string; clientId: string; method: string; params: unknown };
 
@@ -80,6 +81,7 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     startingBalance: () => 50_000,
     planId: () => 'topstep-50',
     planAccount: () => '',
+    traderRules: () => DEFAULT_TRADER_RULES,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => {
@@ -91,6 +93,9 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
+    workingOrders: async () => null,
+    marketQuotes: () => [],
+    marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),

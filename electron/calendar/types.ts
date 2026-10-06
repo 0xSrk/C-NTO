@@ -70,3 +70,46 @@ export function calendarRow(
     syncedAt: 0,
   };
 }
+
+/** Titre d'un événement venu d'une source externe : au plus 160 caractères. */
+export const CALENDAR_TITLE_MAX = 160;
+/** Autres champs texte : bornes de la relecture d'un coffre (`CHECKS.calendarEvents`, src/store/db.ts). */
+const CALENDAR_FIELD_MAX = { timeET: 8, at: 64, currency: 16, previous: 64, actual: 64, forecast: 64, period: 80 } as const;
+const CALENDAR_ID_MAX = 200;
+/** Instruments d'une ligne : 32 au plus, 32 caractères chacun. */
+const CALENDAR_INSTRUMENTS_MAX = 32;
+const CALENDAR_INSTRUMENT_LEN = 32;
+
+/**
+ * Texte d'une source : contrôles et séparateurs de ligne → espace, formats (bidi, largeur nulle) retirés,
+ * espaces resserrés, borné sans couper une paire de substitution.
+ */
+export function calendarText(v: string, max: number): string {
+  const t = v.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').replace(/\p{Cf}/gu, '').replace(/\s+/g, ' ').trim();
+  return t.length <= max ? t : t.slice(0, max).replace(/[\uD800-\uDBFF]$/, '').trimEnd();
+}
+
+/**
+ * Normalisation commune de toutes les lignes (adaptateurs, valeurs BLS et FRED, socle embarqué), appliquée
+ * une fois par `runCalendarSync` : ces chaînes arrivent jusqu'au modèle (`calendar_events`, événement `catalyst`).
+ */
+export function boundCalendarRow(row: CalendarEventRow): CalendarEventRow {
+  const out: CalendarEventRow = {
+    ...row,
+    id: calendarText(row.id, CALENDAR_ID_MAX),
+    title: calendarText(typeof row.title === 'string' ? row.title : '', CALENDAR_TITLE_MAX),
+    instruments: (Array.isArray(row.instruments) ? row.instruments : [])
+      .filter((s): s is string => typeof s === 'string')
+      .map((s) => calendarText(s, CALENDAR_INSTRUMENT_LEN))
+      .filter(Boolean)
+      .slice(0, CALENDAR_INSTRUMENTS_MAX),
+  };
+  for (const key of Object.keys(CALENDAR_FIELD_MAX) as (keyof typeof CALENDAR_FIELD_MAX)[]) {
+    const v: unknown = row[key];
+    if (v === undefined) continue;
+    const t = typeof v === 'string' ? calendarText(v, CALENDAR_FIELD_MAX[key]) : '';
+    if (t) out[key] = t;
+    else delete out[key];
+  }
+  return out;
+}

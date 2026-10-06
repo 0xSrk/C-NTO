@@ -3,6 +3,7 @@ import type { DeskPorts } from '@/engine/agent/ports';
 import { executeDeskTool } from '@/engine/agent/runner';
 import type { Session, Trade } from '@/engine/types';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 const now = 1_760_000_000_000;
 const session = (id: string, date: string, account: string, pnl: number): Session =>
@@ -17,6 +18,7 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     startingBalance: () => 50_000,
     planId: () => 'topstep-50',
     planAccount: () => '',
+    traderRules: () => DEFAULT_TRADER_RULES,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),
@@ -25,10 +27,15 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
+    workingOrders: async () => null,
+    marketQuotes: () => [],
+    marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
     proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
+    // Horloge fixe : `asOf` daté, résultats comparables d'un appel à l'autre.
+    now: () => now,
   };
 }
 

@@ -127,6 +127,79 @@ describe('proposition depuis le desk', () => {
     expect(useAgentOrders.getState().status.pending).toBe(false);
   });
 
+  it('marge du plan suivi : le compte est reconnu sans tenir compte de la casse ni des espaces', async () => {
+    const calls: (number | null)[] = [];
+    vi.stubGlobal('window', {
+      location: { search: '' },
+      canto: {
+        agentOrders: {
+          status: async () => ({ enabled: true, maxQty: 1, maxPosition: 2, perMinute: 3, pending: false }),
+          propose: async (_raw: unknown, _origin: string, share: number | null) => {
+            calls.push(share);
+            return { status: 'declined', detail: 'refusé par le trader' };
+          },
+        },
+      },
+    });
+    vi.resetModules();
+    const { livePorts } = await import('@/store/agent');
+    const { useBridge } = await import('@/store/bridge');
+    const { useJournal } = await import('@/store/journal');
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: 'apex-50', planAccount: 'SimApex1' } });
+    useJournal.setState({ sessions: [], trades: [] });
+    useBridge.setState({ nt: { link: 'live', accounts: [{ name: 'SimApex1', cashValue: 50_000, realizedPnl: 0, unrealizedPnl: -2_000, positions: [] }] } as never });
+    await livePorts('mcp').proposeOrder({ ...ORDER, account: 'SimAPEX1' });
+    await livePorts('mcp').proposeOrder({ ...ORDER, account: ' simapex1 ' });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBeCloseTo(0.2);
+    expect(calls[1]).toBeCloseTo(0.2);
+  });
+
+  it('rafale de 600 propositions : quelques événements agent_order, l’alerte de marge reste lisible', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-06T14:00:00Z'));
+    let n = 0;
+    vi.stubGlobal('window', {
+      location: { search: '' },
+      canto: {
+        agentOrders: {
+          status: async () => ({ enabled: true, maxQty: 1, maxPosition: 2, perMinute: 3, pending: false }),
+          propose: async () => (++n <= 3 ? { status: 'declined', detail: 'refusé par le trader' } : { status: 'refused', reason: 'rate', detail: 'au plus 3 proposition(s) par minute' }),
+        },
+      },
+    });
+    vi.resetModules();
+    try {
+      const { livePorts } = await import('@/store/agent');
+      const { AGENT_ORDER_EVENT_LIMITS } = await import('@/store/agentOrders');
+      const { deskEventLog, recordDeskEvent } = await import('@/store/deskEvents');
+      recordDeskEvent('prop_buffer', { threshold: 0.25, breached: false, planId: 'apex-50', account: 'Sim101' });
+      const ports = livePorts('mcp');
+      for (let i = 0; i < 600; i++) {
+        vi.setSystemTime(new Date(Date.parse('2026-10-06T14:00:00Z') + i * 50));
+        await ports.proposeOrder(ORDER);
+      }
+      expect(deskEventLog.read({ kinds: ['prop_buffer'] }).events.map((e) => e.data.threshold)).toEqual([0.25]);
+      const all = deskEventLog.read({ cursor: `${deskEventLog.epoch}.0`, limit: 200 });
+      expect(all.dropped).toBe(0);
+      const orders = all.events.filter((e) => e.kind === 'agent_order');
+      // Borne explicite : 10 par minute (60 par heure), les ordres envoyés toujours compris.
+      expect(orders.length).toBeLessThanOrEqual(10);
+      expect(AGENT_ORDER_EVENT_LIMITS).toEqual({ perMinute: 10, perHour: 60 });
+      expect(orders.slice(0, 3).map((e) => e.data.status)).toEqual(['declined', 'declined', 'declined']);
+
+      // La minute suivante, le premier événement dit combien de propositions n'ont pas été rangées.
+      vi.setSystemTime(new Date('2026-10-06T14:01:31Z'));
+      await ports.proposeOrder(ORDER);
+      const next = deskEventLog.last();
+      expect(next?.kind).toBe('agent_order');
+      expect(next?.data.suppressed).toBe(600 - orders.length);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('hors desk : refusée, tracée quand même', async () => {
     vi.stubGlobal('window', { location: { search: '' } });
     vi.resetModules();

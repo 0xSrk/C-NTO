@@ -3,6 +3,7 @@ import type { CalendarEventRow } from '@/engine/calendarEvents';
 import type { DeskPorts } from '@/engine/agent/ports';
 import { executeDeskTool } from '@/engine/agent/runner';
 import type { Session } from '@/engine/types';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 const now = 1_760_000_000_000;
 
@@ -13,6 +14,7 @@ function ports(over: Partial<DeskPorts> = {}): DeskPorts {
     startingBalance: () => 50_000,
     planId: () => 'topstep-50',
     planAccount: () => '',
+    traderRules: () => DEFAULT_TRADER_RULES,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),
@@ -21,6 +23,9 @@ function ports(over: Partial<DeskPorts> = {}): DeskPorts {
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
+    workingOrders: async () => null,
+    marketQuotes: () => [],
+    marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),

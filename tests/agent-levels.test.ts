@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Bar, BarSeries } from '@/engine/bars';
 import { executeDeskTool } from '@/engine/agent/runner';
+import { LEVELS_STALE_SEC } from '@/engine/agent/tools';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { fakePorts } from './helpers/deskPorts';
 
@@ -38,6 +39,41 @@ describe('market_levels', () => {
   it('démo seule : marquée synthetic', async () => {
     const out = (await executeDeskTool(fakePorts({ barSeries: async () => [demo] }), 'market_levels', {}, { source: 'llm' })) as Record<string, any>;
     expect(out.series).toMatchObject({ source: 'demo', synthetic: true });
+  });
+
+  describe('âge et état du flux', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('feed et ageSec ; série du pont périmée signalée sans changer la série choisie', async () => {
+      vi.useFakeTimers();
+      // Dernière barre du pont : 10:30 ET (5 min), terminée à 10:35 ET.
+      const ended = zonedToUtc('2026-09-15', '10:35', ET_ZONE);
+      const csv: BarSeries = { id: 'csv', instrument: 'NQ', timeframe: 5, label: 'NQ CSV', source: 'csv', bars: day('2026-09-15', '09:30', '12:00', 21_300), createdAt: 0 };
+      const ports = fakePorts({ barSeries: async () => [csv, nt8], marketFeed: () => 'stale' });
+
+      vi.setSystemTime(ended + 60_000);
+      const fresh = (await executeDeskTool(ports, 'market_levels', { instrument: 'NQ' }, { source: 'orch' })) as Record<string, any>;
+      expect(fresh.series.source).toBe('nt8-bridge');
+      expect(fresh).toMatchObject({ feed: 'stale', ageSec: 60, stale: false, staleAfterSec: LEVELS_STALE_SEC });
+
+      vi.setSystemTime(ended + (LEVELS_STALE_SEC + 1) * 1000);
+      const old = (await executeDeskTool(ports, 'market_levels', { instrument: 'NQ' }, { source: 'orch' })) as Record<string, any>;
+      expect(old.series.source).toBe('nt8-bridge');
+      expect(old).toMatchObject({ feed: 'stale', ageSec: LEVELS_STALE_SEC + 1, stale: true });
+      expect(old.last.close).toBe(day2.at(-1)!.close);
+
+      // Barre en formation : âge nul.
+      vi.setSystemTime(ended - 120_000);
+      const forming = (await executeDeskTool(ports, 'market_levels', { instrument: 'NQ' }, { source: 'orch' })) as Record<string, any>;
+      expect(forming).toMatchObject({ ageSec: 0, stale: false });
+    });
+
+    it('série CSV ou démo : âge rendu, pas de marque stale ; flux fermé dit', async () => {
+      const out = (await executeDeskTool(fakePorts({ barSeries: async () => [demo] }), 'market_levels', {}, { source: 'llm' })) as Record<string, any>;
+      expect(out.feed).toBe('closed');
+      expect(out.ageSec).toBeGreaterThan(0);
+      expect(out.stale).toBeUndefined();
+    });
   });
 
   it('instrument hors registre ou sans barres : le dire', async () => {

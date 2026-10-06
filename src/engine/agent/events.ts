@@ -1,5 +1,5 @@
 /**
- * Journal des événements du desk pour les agents : fills NinjaTrader, marge du plan prop,
+ * Journal des événements du desk pour les agents : fills et états d'ordre NinjaTrader, marge du plan prop, perte du jour,
  * catalyseurs proches, lien du pont. Pur : le renderer y range ce qu'il observe, l'orchestrateur
  * les pousse (`desk.event`), l'outil `desk_events` les relit avec un curseur.
  */
@@ -92,15 +92,55 @@ export const PROP_BUFFER_THRESHOLDS = [0.5, 0.25, 0.1, 0] as const;
 /** Pour remonter d'un niveau, la marge doit repasser le seuil de 5 points : pas d'alerte en rafale. */
 export const PROP_BUFFER_HYSTERESIS = 0.05;
 
-/** Nombre de seuils franchis vers le bas (0 = au-dessus de 50 %), avec hystérésis à la remontée. */
-export function propBufferLevel(share: number, prev = 0): number {
+/**
+ * Nombre de seuils franchis vers le bas par une part restante (`thresholds` décroissants), avec
+ * hystérésis à la remontée : pour remonter d'un niveau, la part doit repasser le seuil de `hysteresis`.
+ */
+export function thresholdLevel(share: number, prev: number, thresholds: readonly number[], hysteresis: number): number {
   let level = 0;
-  PROP_BUFFER_THRESHOLDS.forEach((t, i) => {
+  thresholds.forEach((t, i) => {
     if (share <= t) level = i + 1;
   });
   let kept = Math.max(level, prev);
-  while (kept > level && share > (PROP_BUFFER_THRESHOLDS[kept - 1] ?? 0) + PROP_BUFFER_HYSTERESIS) kept--;
+  while (kept > level && share > (thresholds[kept - 1] ?? 0) + hysteresis) kept--;
   return kept;
+}
+
+/** Nombre de seuils franchis vers le bas (0 = au-dessus de 50 %), avec hystérésis à la remontée. */
+export function propBufferLevel(share: number, prev = 0): number {
+  return thresholdLevel(share, prev, PROP_BUFFER_THRESHOLDS, PROP_BUFFER_HYSTERESIS);
+}
+
+export interface ThresholdAlert {
+  level: number;
+  data: Record<string, unknown> | null;
+}
+
+/**
+ * Niveau d'alerte suivi pour une clé (plan, compte, journée…). Le premier passage, à l'ouverture du desk
+ * ou quand la clé change, pose le niveau sans alerter ; ensuite, chaque seuil franchi vers le bas alerte une fois.
+ */
+export class ThresholdWatch<I> {
+  private key: string | null = null;
+  private level = 0;
+
+  constructor(private readonly alert: (prevLevel: number, input: I) => ThresholdAlert) {}
+
+  /** Données de l'alerte quand un seuil est franchi, `null` sinon. */
+  step(key: string, input: I): Record<string, unknown> | null {
+    if (key !== this.key) {
+      this.key = key;
+      this.level = this.alert(0, input).level;
+      return null;
+    }
+    const r = this.alert(this.level, input);
+    this.level = r.level;
+    return r.data;
+  }
+
+  get current(): number {
+    return this.level;
+  }
 }
 
 export interface PropBufferInput {
@@ -151,6 +191,57 @@ export function propBufferAlert(prevLevel: number, input: PropBufferInput): { le
   };
 }
 
+/* ─── Perte du jour ─── */
+
+/** Part consommée de la limite de perte du jour : 50 %, 75 %, puis atteinte (100 %). */
+export const DAILY_LOSS_THRESHOLDS = [0.5, 0.75, 1] as const;
+/** Mêmes seuils exprimés en part restante, pour `thresholdLevel`. */
+const DAILY_LOSS_REMAINING = DAILY_LOSS_THRESHOLDS.map((t) => 1 - t);
+
+export interface DailyLossInput {
+  /** Journée CME suivie. */
+  day: string;
+  /** '' = tous les comptes. */
+  account: string;
+  /** Perte du jour, ≥ 0 : réalisé du jour et latent négatif. */
+  loss: number;
+  /** Limite retenue (> 0) et sa source. */
+  limit: number;
+  source: 'trader' | 'plan';
+  realized: number;
+  unrealized: number;
+  planId?: string;
+}
+
+/** Niveau atteint par la part consommée (0 = sous 50 %), avec la même hystérésis que la marge du plan. */
+export function dailyLossLevel(consumed: number, prev = 0): number {
+  return thresholdLevel(1 - consumed, prev, DAILY_LOSS_REMAINING, PROP_BUFFER_HYSTERESIS);
+}
+
+/** Rend un événement `daily_loss` quand la perte du jour franchit 50, 75 ou 100 % de la limite. */
+export function dailyLossAlert(prevLevel: number, input: DailyLossInput): ThresholdAlert {
+  if (!(input.limit > 0) || !Number.isFinite(input.loss)) return { level: prevLevel, data: null };
+  const consumed = Math.max(0, input.loss) / input.limit;
+  const level = dailyLossLevel(consumed, prevLevel);
+  if (level <= prevLevel) return { level, data: null };
+  return {
+    level,
+    data: {
+      day: input.day,
+      account: input.account || null,
+      threshold: DAILY_LOSS_THRESHOLDS[level - 1],
+      breached: input.loss >= input.limit,
+      consumed: Math.round(consumed * 1000) / 1000,
+      loss: Math.round(input.loss * 100) / 100,
+      limit: input.limit,
+      source: input.source,
+      realized: Math.round(input.realized * 100) / 100,
+      unrealized: Math.round(input.unrealized * 100) / 100,
+      ...(input.planId ? { planId: input.planId } : {}),
+    },
+  };
+}
+
 /* ─── Catalyseurs ─── */
 
 export const CATALYST_LEAD_MIN = 15;
@@ -190,7 +281,7 @@ export function dueCatalysts(events: readonly CalEvent[], now: number, seen: Rea
   return out;
 }
 
-/* ─── Fills et lien du pont ─── */
+/* ─── Fills, ordres et lien du pont ─── */
 
 const SHORT = 64;
 
@@ -211,6 +302,29 @@ export function fillData(fill: unknown): Record<string, unknown> | null {
   if (!account || !instrument || !action || quantity === null || price === null || time === null) return null;
   const entryExit = short(f.entryExit);
   return { account, instrument, action, quantity, price, time: new Date(time).toISOString(), ...(entryExit ? { entryExit } : {}) };
+}
+
+const ORDER_TYPES = ['market', 'limit', 'stop', 'stopLimit'];
+
+/**
+ * Changement d'état d'un ordre du pont (`OrderChange` du livre des ordres), champs bornés. L'identifiant
+ * n'est rendu que pour un ordre de l'agent, qui l'a déjà reçu de `propose_order`. `null` si incomplet.
+ */
+export function orderData(change: unknown): Record<string, unknown> | null {
+  const raw = change && typeof change === 'object' ? (change as { order?: unknown }).order : null;
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const account = short(o.account);
+  const instrument = short(o.instrument);
+  const side = o.side === 'buy' || o.side === 'sell' ? o.side : null;
+  const qty = typeof o.qty === 'number' && Number.isFinite(o.qty) ? o.qty : null;
+  const type = typeof o.type === 'string' && ORDER_TYPES.includes(o.type) ? o.type : null;
+  const state = short(o.state);
+  if (!account || !instrument || !side || qty === null || !type || !state) return null;
+  const tag = short(o.tag);
+  const byAgent = o.byAgent === true;
+  const orderId = byAgent ? short(o.orderId) : null;
+  return { account, instrument, side, qty, type, state, ...(tag ? { tag } : {}), byAgent, ...(orderId ? { orderId } : {}) };
 }
 
 /** Changement d'état du lien du pont. Le premier état connu n'est pas un événement. */

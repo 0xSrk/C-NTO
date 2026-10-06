@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DeskBridgeView, DeskPorts } from '@/engine/agent/ports';
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind } from '@/engine/agent/tools';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 function ports(view: DeskBridgeView): DeskPorts {
   return {
@@ -10,6 +11,7 @@ function ports(view: DeskBridgeView): DeskPorts {
     startingBalance: () => 50_000,
     planId: () => '',
     planAccount: () => '',
+    traderRules: () => DEFAULT_TRADER_RULES,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),
@@ -18,6 +20,9 @@ function ports(view: DeskBridgeView): DeskPorts {
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => view,
+    workingOrders: async () => null,
+    marketQuotes: () => [],
+    marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),

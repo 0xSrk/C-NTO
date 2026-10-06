@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { tr } from '@/i18n';
 import { desk, saveTextFile } from '@/lib/desk';
+import { llmKeyHost } from '@/engine/agent/llm';
+import { coerceTraderRules, DEFAULT_TRADER_RULES, type TraderRules } from '@/engine/discipline';
 import { setUserPlans, type PropPlan } from '@/engine/propfirm';
 import { db, exportVault, setSetting } from './db';
 import { useUi } from './ui';
@@ -38,6 +40,11 @@ export interface AgentConfig {
   apiKey: string;
   /** Blob chiffré — le renderer ne détient plus la clé en clair sous le shell. */
   apiKeyEncrypted?: string;
+  /**
+   * Hôte (et port) pour lequel la clé a été saisie : le process principal ne l'envoie qu'à lui. Absent d'un
+   * coffre ancien : déduit de l'URL de base courante à la lecture.
+   */
+  apiKeyHost?: string;
   systemPrompt: string;
   temperature: number;
   toolsEnabled: boolean;
@@ -59,6 +66,8 @@ export interface Settings {
   falseDiscoveryRate: number;
   /** Fenêtre du suivi de stabilité, en séances. */
   stabilityWindow: number;
+  /** Règles chiffrées du trader (0 / liste vide = inactive). L'agent les lit, il ne trade jamais. */
+  traderRules: TraderRules;
   calendarView: 'grille' | 'flux';
   /** Zoom UI : multiplicateur (auto) ou facteur absolu (manuel), 0.75–1.5 */
   uiZoom: number;
@@ -96,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   markerMinTrades: 30,
   falseDiscoveryRate: 0.05,
   stabilityWindow: 20,
+  traderRules: DEFAULT_TRADER_RULES,
   calendarView: 'grille',
   uiZoom: 1,
   uiZoomAuto: true,
@@ -157,6 +167,9 @@ function keepUserPlans(raw: unknown): PropPlan[] {
 }
 
 const AGENT_PROVIDERS: readonly AgentProvider[] = ['openai-compatible', 'anthropic'];
+/** Hôte d'une clé : `URL.host` en minuscules (nom, IPv6 entre crochets, port). */
+const KEY_HOST_RE = /^[a-z0-9.\-[\]:]{1,300}$/;
+const keyHostOk = (v: unknown): v is string => typeof v === 'string' && KEY_HOST_RE.test(v);
 
 function pickStr(v: unknown, max: number, fallback: string): string {
   return typeof v === 'string' && v.length <= max ? v : fallback;
@@ -190,6 +203,12 @@ export function coerceAgentConfig(raw: unknown, base: AgentConfig): AgentConfig 
   };
   const blob = 'apiKeyEncrypted' in r ? r.apiKeyEncrypted : base.apiKeyEncrypted;
   if (typeof blob === 'string' && blob.length > 0 && blob.length <= 8192) out.apiKeyEncrypted = blob;
+  // La clé reste liée à l'hôte où elle a été saisie ; sans le champ (coffre ancien), à l'URL de base courante.
+  if (out.apiKeyEncrypted || out.apiKey) {
+    const raw = 'apiKeyHost' in r ? r.apiKeyHost : base.apiKeyHost;
+    const host = keyHostOk(raw) ? raw : keyHostOk(base.apiKeyHost) ? base.apiKeyHost : llmKeyHost(out.baseUrl);
+    if (host) out.apiKeyHost = host;
+  }
   return out;
 }
 
@@ -213,6 +232,7 @@ export function coerceSettings(raw: unknown, base: Settings): Settings {
     markerMinTrades: pickNum(r.markerMinTrades, 20, 50, base.markerMinTrades, true),
     falseDiscoveryRate: pickNum(r.falseDiscoveryRate, 0.025, 0.1, base.falseDiscoveryRate),
     stabilityWindow: pickNum(r.stabilityWindow, 10, 40, base.stabilityWindow, true),
+    traderRules: coerceTraderRules(r.traderRules, base.traderRules),
     calendarView: pickEnum(r.calendarView, ['grille', 'flux'] as const, base.calendarView),
     uiZoom: pickNum(r.uiZoom, 0.5, 2, base.uiZoom),
     uiZoomAuto: pickBool(r.uiZoomAuto, base.uiZoomAuto),
@@ -239,7 +259,7 @@ function coercePortfolio(raw: unknown, base: Settings['portfolio']): Settings['p
 }
 
 /** Clés d'un coffre autorisées à écraser les réglages locaux (jamais orchestrateur, sauvegarde, hôtes LLM, secrets). */
-export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
+export const RESTORABLE_SETTING_KEYS = ['callsign', 'startingBalance', 'planId', 'planAccount', 'userPlans', 'boundaryHour', 'riskPerContract', 'markerMinTrades', 'falseDiscoveryRate', 'stabilityWindow', 'traderRules', 'calendarView', 'backupIncludeHeavy', 'uiZoom', 'uiZoomAuto', 'portfolio'] as const;
 export const RESTORABLE_AGENT_KEYS = ['provider', 'baseUrl', 'model', 'systemPrompt', 'temperature', 'toolsEnabled'] as const;
 
 /** Ne garde d'un objet `settings` de coffre que les clés restaurables (typées ensuite par `coerceSettings`). */
@@ -272,21 +292,24 @@ let warnedEncryptUnavailable = false;
  * seule sa forme chiffrée est écrite dans IndexedDB ; en navigateur elle reste en clair, localement.
  * Sous le shell, si le chiffrement échoue, la clé en clair n'est JAMAIS écrite : elle ne vit qu'en mémoire.
  */
-async function persist(settings: Settings): Promise<{ encrypted: boolean; blob?: string; dropped: boolean }> {
-  const { apiKey, apiKeyEncrypted, ...agentRest } = settings.agent;
+async function persist(settings: Settings): Promise<{ encrypted: boolean; blob?: string; keyHost?: string; dropped: boolean }> {
+  const { apiKey, apiKeyEncrypted, apiKeyHost, ...agentRest } = settings.agent;
   let encrypted = false;
   let dropped = false;
   let blob = apiKeyEncrypted;
-  let agent: StoredSettings['agent'] = { ...agentRest, apiKey, apiKeyEncrypted };
+  let keyHost = apiKeyHost;
+  let agent: StoredSettings['agent'] = { ...agentRest, apiKey, apiKeyEncrypted, apiKeyHost };
   if (desk?.secrets && apiKey) {
     const payload = await desk.secrets.encrypt(apiKey);
     if (payload) {
-      agent = { ...agentRest, apiKey: '', apiKeyEncrypted: payload };
+      // L'hôte est enregistré avec le blob : la clé ne partira que vers l'URL de base où elle a été saisie.
+      keyHost = llmKeyHost(settings.agent.baseUrl) || undefined;
+      agent = { ...agentRest, apiKey: '', apiKeyEncrypted: payload, apiKeyHost: keyHost };
       encrypted = true;
       blob = payload;
     } else {
-      // Trousseau indisponible : on conserve l'ancien blob s'il existe, jamais le clair.
-      agent = { ...agentRest, apiKey: '', apiKeyEncrypted };
+      // Trousseau indisponible : on conserve l'ancien blob s'il existe, avec son hôte, jamais le clair.
+      agent = { ...agentRest, apiKey: '', apiKeyEncrypted, apiKeyHost };
       dropped = true;
       if (!warnedEncryptUnavailable) {
         warnedEncryptUnavailable = true;
@@ -297,12 +320,12 @@ async function persist(settings: Settings): Promise<{ encrypted: boolean; blob?:
       }
     }
   } else if (apiKeyEncrypted && !apiKey) {
-    agent = { ...agentRest, apiKey: '', apiKeyEncrypted };
+    agent = { ...agentRest, apiKey: '', apiKeyEncrypted, apiKeyHost };
     encrypted = true;
     blob = apiKeyEncrypted;
   }
   await setSetting('settings', { ...settings, agent });
-  return { encrypted, blob, dropped };
+  return { encrypted, blob, keyHost, dropped };
 }
 
 function todayUtc(ms = Date.now()): string {
@@ -356,7 +379,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       if (r.encrypted) {
         apiKey = '';
         keyEncrypted = true;
-        next = { ...next, agent: { ...next.agent, apiKey: '', apiKeyEncrypted: r.blob } };
+        next = { ...next, agent: { ...next.agent, apiKey: '', apiKeyEncrypted: r.blob, apiKeyHost: r.keyHost } };
       }
     }
     set({ settings: next, keyEncrypted, ready: true });
@@ -372,14 +395,17 @@ export const useSettings = create<SettingsState>((set, get) => ({
     if (patch.agent?.apiKey === undefined) return;
     set({
       keyEncrypted: r.encrypted,
-      settings: r.blob ? { ...get().settings, agent: { ...get().settings.agent, apiKey: r.encrypted ? '' : get().settings.agent.apiKey, apiKeyEncrypted: r.blob } } : get().settings,
+      settings: r.blob ? { ...get().settings, agent: { ...get().settings.agent, apiKey: r.encrypted ? '' : get().settings.agent.apiKey, apiKeyEncrypted: r.blob, apiKeyHost: r.keyHost } } : get().settings,
     });
   },
   async updateAgent(patch) {
     const touchesKey = Object.prototype.hasOwnProperty.call(patch, 'apiKey');
     const agent = { ...get().settings.agent, ...patch };
-    // Effacement explicite : le blob chiffré part avec le clair, sinon la clé ne peut jamais être retirée.
-    if (touchesKey && patch.apiKey === '') delete agent.apiKeyEncrypted;
+    // Effacement explicite : le blob chiffré part avec le clair (et son hôte), sinon la clé ne peut jamais être retirée.
+    if (touchesKey && patch.apiKey === '') {
+      delete agent.apiKeyEncrypted;
+      delete agent.apiKeyHost;
+    }
     const next = { ...get().settings, agent };
     set({ settings: next });
     const r = await persist(next);
@@ -388,7 +414,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       keyEncrypted: r.encrypted,
       settings: {
         ...get().settings,
-        agent: { ...get().settings.agent, apiKey: r.encrypted ? '' : get().settings.agent.apiKey, apiKeyEncrypted: r.blob },
+        agent: { ...get().settings.agent, apiKey: r.encrypted ? '' : get().settings.agent.apiKey, apiKeyEncrypted: r.blob, apiKeyHost: r.keyHost },
       },
     });
   },

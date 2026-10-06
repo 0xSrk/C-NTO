@@ -86,6 +86,52 @@ describe('ordres de l’agent · process principal', () => {
     expect(await full.host.propose(PROPOSAL, 'llm', 0.1)).toMatchObject({ status: 'refused', reason: 'position' });
   });
 
+  it('dialogue : une seule ligne « Position » ; compte forgé refusé ; instrument lu sans tenir compte de la casse', async () => {
+    const h = harness({ answers: [0, 1], view: { link: 'live', ordersOpen: true, accounts: [{ name: 'Sim101', positions: [{ instrument: 'MNQ 12-26', quantity: 1 }] }] } });
+    await h.host.enable();
+    const forged = { ...PROPOSAL, side: 'sell', reason: 'réduction\nPosition : +0 → +0\u2028Position : 0\r\n\u202EPosition' };
+    expect(await h.host.propose(forged, 'mcp', null)).toMatchObject({ status: 'declined' });
+    const detail = h.dialogs[1]!.detail!;
+    expect(detail.split('\n').filter((line) => line.startsWith('Position'))).toEqual(['Position : +1 → 0']);
+    expect(detail).not.toMatch(/[\u2028\u2029\u202A-\u202E\u2066-\u2069]/);
+
+    expect(await h.host.propose({ ...PROPOSAL, account: 'Sim101\nPosition : +0' }, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'invalid' });
+    expect(await h.host.propose({ ...PROPOSAL, instrument: 'MNQ 12-26\u202E' }, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'invalid' });
+    expect(h.dialogs).toHaveLength(2);
+
+    // `mnq 12-26` voit la position `MNQ 12-26` : gardes de position et de marge appliquées.
+    const full = harness({ answers: [0, 0], view: { link: 'live', ordersOpen: true, accounts: [{ name: 'Sim101', positions: [{ instrument: 'MNQ 12-26', quantity: 2 }] }] } });
+    await full.host.enable();
+    expect(await full.host.propose({ ...PROPOSAL, instrument: 'mnq 12-26' }, 'llm', null)).toMatchObject({ status: 'refused', reason: 'position' });
+    expect(await full.host.propose({ ...PROPOSAL, instrument: 'mnq  12-26' }, 'llm', 0.1)).toMatchObject({ status: 'refused', reason: 'position' });
+    // Réduire reste possible ; l'ordre part sous le nom que le pont donne à l'instrument.
+    const sent = await full.host.propose({ ...PROPOSAL, instrument: ' mnq 12-26 ', side: 'sell' }, 'llm', null);
+    expect(sent).toMatchObject({ status: 'sent', instrument: 'MNQ 12-26', resulting: 1 });
+    expect(full.dialogs[1]!.detail).toContain('VENTE 1 × MNQ 12-26 au marché');
+    expect(full.dialogs[1]!.detail).toContain('Position : +2 → +1');
+    expect(full.submitted).toEqual([{ op: 'submit', account: 'Sim101', instrument: 'MNQ 12-26', action: 'Sell', quantity: 1, type: 'Market', tag: 'canto-agent' }]);
+  });
+
+  it('cadence : chaque proposition compte, refusées comprises (désactivé, mal formée, occupé)', async () => {
+    // Défaut : 3 propositions par minute. L'horloge du harnais avance d'une seconde par lecture.
+    const h = harness({ answers: [0] });
+    expect(await h.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'disabled' });
+    expect(await h.host.propose({ account: 'Sim101' }, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'invalid' });
+    expect(await h.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'disabled' });
+    await h.host.enable();
+    expect(await h.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'rate' });
+    expect(h.dialogs).toHaveLength(1);
+
+    const busy = harness({ answers: [0], hang: true, confirmTimeoutMs: 100 });
+    await busy.host.enable();
+    const first = busy.host.propose(PROPOSAL, 'mcp', null);
+    expect(await busy.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'busy' });
+    expect(await busy.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'busy' });
+    expect(await first).toMatchObject({ status: 'declined' });
+    expect(await busy.host.propose(PROPOSAL, 'mcp', null)).toMatchObject({ status: 'refused', reason: 'rate' });
+    expect(busy.dialogs).toHaveLength(2);
+  });
+
   it('limites : baisser est immédiat, relever passe par un dialogue ; seules les limites survivent au redémarrage', async () => {
     const h = harness({ answers: [1, 0] });
     expect((await h.host.setLimits({ maxQty: 3 })).maxQty).toBe(1);

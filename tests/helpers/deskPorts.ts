@@ -1,4 +1,5 @@
 import type { DeskPorts } from '@/engine/agent/ports';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 /** Ports du desk vides, à surcharger champ par champ dans un test d'outil. */
 export function fakePorts(over: Partial<DeskPorts> = {}): DeskPorts {
@@ -8,6 +9,7 @@ export function fakePorts(over: Partial<DeskPorts> = {}): DeskPorts {
     startingBalance: () => 50_000,
     planId: () => '',
     planAccount: () => '',
+    traderRules: () => DEFAULT_TRADER_RULES,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),
@@ -16,6 +18,9 @@ export function fakePorts(over: Partial<DeskPorts> = {}): DeskPorts {
     calendarEntries: () => [],
     officialEvents: () => [],
     bridge: async () => ({ nt: null, copier: null }),
+    workingOrders: async () => null,
+    marketQuotes: () => [],
+    marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),

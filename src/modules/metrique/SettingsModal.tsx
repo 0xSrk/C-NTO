@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Modal } from '@/design/Modal';
-import { Button, Field, Toggle } from '@/design/primitives';
+import { Button, cx, Field, Toggle } from '@/design/primitives';
+import { coerceTraderRules, parseInstrumentList, TRADER_RULE_BOUNDS, type TraderRules } from '@/engine/discipline';
 import { PROP_FIRMS } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { useJournal } from '@/store/journal';
@@ -8,6 +10,66 @@ import { useUi } from '@/store/ui';
 import { desk } from '@/lib/desk';
 import { copyTechJournal } from '@/lib/log';
 import s from './metrique.module.css';
+
+/** Phrase de la section Discipline : 0 = inactive, l'agent lit sans jamais trader. */
+export function disciplineNote(): string {
+  return tr(
+    'Une règle à 0 (ou une liste vide) est inactive. L’agent lit ces règles pour signaler la perte du jour, les dérives et les écarts ; il ne trade jamais et ne les modifie pas.',
+    'A rule set to 0 (or an empty list) is inactive. The agent reads these rules to flag the daily loss, drifts and breaches; it never trades and never changes them.',
+    'Una regla en 0 (o una lista vacía) está inactiva. El agente lee estas reglas para señalar la pérdida del día, los desvíos y las infracciones; nunca opera y nunca las modifica.',
+  );
+}
+
+function DisciplineFields({ rules, onChange }: { rules: TraderRules; onChange: (rules: TraderRules) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [rejected, setRejected] = useState<string[]>([]);
+  const patch = (p: Partial<TraderRules>) => onChange(coerceTraderRules({ ...rules, ...p }, rules));
+  const commitInstruments = (text: string) => {
+    const parsed = parseInstrumentList(text);
+    setRejected(parsed.rejected);
+    setDraft(null);
+    patch({ allowedInstruments: parsed.symbols });
+  };
+  const b = TRADER_RULE_BOUNDS;
+  return (
+    <>
+      <p className={cx(s.note, s.full)}>
+        <b>{tr('Discipline', 'Discipline', 'Disciplina')}</b> · {disciplineNote()}
+      </p>
+      <Field label={tr('Perte maximale du jour ($)', 'Max daily loss ($)', 'Pérdida máxima del día ($)')} hint={tr('journée CME 18 h → 17 h ET · la plus basse avec le plan', 'CME day 6 pm → 5 pm ET · the lower with the plan', 'jornada CME 18 h → 17 h ET · la más baja con el plan')}>
+        <input type="number" min={b.maxDailyLoss.min} max={b.maxDailyLoss.max} step={50} value={rules.maxDailyLoss} onChange={(e) => patch({ maxDailyLoss: Number(e.target.value) || 0 })} />
+      </Field>
+      <Field label={tr('Trades par journée', 'Trades per day', 'Trades por jornada')} hint={tr('entrées par compte · 0 à 200', 'entries per account · 0 to 200', 'entradas por cuenta · 0 a 200')}>
+        <input type="number" min={b.maxTradesPerDay.min} max={b.maxTradesPerDay.max} step={1} value={rules.maxTradesPerDay} onChange={(e) => patch({ maxTradesPerDay: Number(e.target.value) || 0 })} />
+      </Field>
+      <Field label={tr('Fenêtre catalyseur (min)', 'Catalyst window (min)', 'Ventana de catalizador (min)')} hint={tr('± minutes autour d’un catalyseur majeur', '± minutes around a major catalyst', '± minutos alrededor de un catalizador mayor')}>
+        <input type="number" min={b.catalystBlackoutMin.min} max={b.catalystBlackoutMin.max} step={1} value={rules.catalystBlackoutMin} onChange={(e) => patch({ catalystBlackoutMin: Number(e.target.value) || 0 })} />
+      </Field>
+      <Field label={tr('Fenêtre de revanche (min)', 'Revenge window (min)', 'Ventana de revancha (min)')} hint={tr('entrée après une sortie perdante · départ 5', 'entry after a losing exit · default 5', 'entrada tras una salida perdedora · inicio 5')}>
+        <input type="number" min={b.revengeWindowMin.min} max={b.revengeWindowMin.max} step={1} value={rules.revengeWindowMin} onChange={(e) => patch({ revengeWindowMin: Number(e.target.value) || 0 })} />
+      </Field>
+      <Field
+        label={tr('Instruments autorisés', 'Allowed instruments', 'Instrumentos autorizados')}
+        className={s.full}
+        hint={
+          rejected.length
+            ? tr(`hors registre, ignorés : ${rejected.join(', ')}`, `not in the registry, ignored: ${rejected.join(', ')}`, `fuera del registro, ignorados: ${rejected.join(', ')}`)
+            : tr('racines du registre séparées par des virgules (MNQ, MES) · vide = tous', 'registry roots separated by commas (MNQ, MES) · empty = all', 'raíces del registro separadas por comas (MNQ, MES) · vacío = todos')
+        }
+      >
+        <input
+          value={draft ?? rules.allowedInstruments.join(', ')}
+          placeholder={tr('tous', 'all', 'todos')}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e) => commitInstruments(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitInstruments(e.currentTarget.value);
+          }}
+        />
+      </Field>
+    </>
+  );
+}
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   useI18n((s) => s.locale);
@@ -22,7 +84,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}
-      sub={tr('opérateur · capital · plan suivi', 'operator · capital · tracked plan', 'operador · capital · plan seguido')}
+      sub={tr('opérateur · capital · plan suivi · discipline', 'operator · capital · tracked plan · discipline', 'operador · capital · plan seguido · disciplina')}
       onClose={onClose}
       width={560}
       footer={
@@ -93,6 +155,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('Fenêtre de stabilité', 'Stability window', 'Ventana de estabilidad')} hint={tr('10 à 40 séances · départ 20', '10 to 40 sessions · default 20', '10 a 40 sesiones · inicio 20')}>
           <input type="number" min={10} max={40} step={1} value={settings.stabilityWindow} onChange={(e) => update({ stabilityWindow: Number(e.target.value) })} />
         </Field>
+        <DisciplineFields rules={settings.traderRules} onChange={(traderRules) => update({ traderRules })} />
         <Field label={tr('Canal de mise à jour', 'Update channel', 'Canal de actualización')} className={s.full} hint={tr('un clone git tire origin/main et relance ; sans git, page GitHub', 'a git clone pulls origin/main and restarts; without git, GitHub page', 'un clon git tira origin/main y reinicia; sin git, página GitHub')}>
           <select value={settings.updateChannel} onChange={(e) => update({ updateChannel: e.target.value === 'dev' ? 'dev' : 'release' })}>
             <option value="release">{tr('release — installeur (page GitHub)', 'release — installer (GitHub page)', 'release — instalador (página GitHub)')}</option>

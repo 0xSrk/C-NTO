@@ -16,10 +16,12 @@
   "files": [
     "../src/engine/sources.ts",
     "../src/engine/execution/guards.ts",
+    "../src/engine/execution/orderBook.ts",
     "../src/engine/copier/router.ts",
     "../src/engine/copier/position.ts",
     "../src/engine/copier/sync.ts",
     "../src/engine/agent/catalog.ts",
-    "../src/engine/agent/orders.ts"
+    "../src/engine/agent/orders.ts",
+    "../src/engine/agent/routines.ts"
   ]
 }

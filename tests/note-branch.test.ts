@@ -4,6 +4,7 @@ import type { DeskNote, DeskPorts } from '@/engine/agent/ports';
 import { PREDICATES } from '@/engine/ontology/schema';
 import { prepareVaultRestore } from '@/store/db';
 import { branchChild } from '@/store/notes';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 const parentBody = 'Le passage secret du parent ne doit pas être copié dans l’enfant.';
 
@@ -34,6 +35,7 @@ describe('branche de note', () => {
       startingBalance: () => 0,
       planId: () => '',
       planAccount: () => '',
+      traderRules: () => DEFAULT_TRADER_RULES,
       updateSession: async () => undefined,
       notes: () => notes,
       createNote: async (title) => ({ id: 'n', title }),
@@ -42,6 +44,9 @@ describe('branche de note', () => {
       calendarEntries: () => [],
       officialEvents: () => [],
       bridge: async () => ({ nt: null, copier: null }),
+      workingOrders: async () => null,
+      marketQuotes: () => [],
+      marketFeed: () => 'closed',
       portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
       barSeries: async () => [],
       events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
@@ -67,6 +72,7 @@ describe('branche de note', () => {
       startingBalance: () => 0,
       planId: () => '',
       planAccount: () => '',
+      traderRules: () => DEFAULT_TRADER_RULES,
       updateSession: async () => undefined,
       notes: () => notes,
       createNote: async (title) => ({ id: 'n', title }),
@@ -78,6 +84,9 @@ describe('branche de note', () => {
       calendarEntries: () => [],
       officialEvents: () => [],
       bridge: async () => ({ nt: null, copier: null }),
+      workingOrders: async () => null,
+      marketQuotes: () => [],
+      marketFeed: () => 'closed',
       portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
       barSeries: async () => [],
       events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
