@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
-import { DESK_TOOL_KINDS } from './agent/catalog';
+import { DESK_TOOL_KINDS, ORDER_TOOLS } from './agent/catalog';
 import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
@@ -125,9 +125,14 @@ function toMcpTool(t: McpToolInfo) {
   };
 }
 
-function isFailure(result: unknown): boolean {
+/**
+ * Refus du desk ou échec de l'outil. Un ordre que le trader a refusé (ou laissé sans réponse) est une
+ * issue normale, comme pour l'orchestrateur : marqué en erreur, il pousserait le modèle à reproposer.
+ */
+function isFailure(name: string, result: unknown): boolean {
   if (!result || typeof result !== 'object' || Array.isArray(result)) return false;
   const rec = result as Record<string, unknown>;
+  if (ORDER_TOOLS.includes(name) && rec.status === 'declined' && typeof rec.error !== 'string') return false;
   return typeof rec.error === 'string' || rec.ok === false;
 }
 
@@ -197,7 +202,7 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       }
       const { result, error } = await ctx.relay.call(name, args);
       if (error && (result === null || result === undefined)) return { result: toolError(error) };
-      return { result: toolResult(result, !!error || isFailure(result)) };
+      return { result: toolResult(result, !!error || isFailure(name, result)) };
     }
     default:
       return { error: { code: -32601, message: `Méthode non prise en charge : ${method}` } };

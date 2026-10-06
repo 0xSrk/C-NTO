@@ -137,6 +137,19 @@ describe('passerelle MCP · protocole', () => {
     expect(silent.result).toEqual({ content: [{ type: 'text', text: 'Desk indisponible' }], isError: true });
   });
 
+  it('propose_order refusé par le trader : un résultat, pas une erreur ; refus du desk et échec du pont restent isError', async () => {
+    const order: McpToolInfo = { name: 'propose_order', description: 'Propose un ordre', parameters: { type: 'object', properties: {} }, kind: 'write' };
+    const answering = (outcome: Record<string, unknown>): McpRelay => ({ tools: async () => [...TOOLS, order], call: async () => ({ result: outcome }) });
+    const call = async (outcome: Record<string, unknown>) =>
+      (await result(await handleMcpHttp(post(rpc('tools/call', { name: 'propose_order', arguments: {} })), ctx({ relay: answering(outcome), allowWrites: true })))).result;
+    const declined = await call({ ok: false, status: 'declined' });
+    expect(declined?.isError).toBeUndefined();
+    expect(declined?.structuredContent).toEqual({ ok: false, status: 'declined' });
+    expect((await call({ ok: false, status: 'refused', reason: 'not_sim', detail: 'compte réel' }))?.isError).toBe(true);
+    expect((await call({ ok: false, status: 'failed', code: 'guard', detail: 'plafond' }))?.isError).toBe(true);
+    expect((await call({ ok: true, status: 'sent', orderId: 'o1' }))?.isError).toBeUndefined();
+  });
+
   it('desk fermé (catalogue vide) : isError lisible, pas « outil inconnu »', async () => {
     const closed: McpRelay = { tools: async () => [], call: async () => ({ result: null }) };
     const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'desk_overview' })), ctx({ relay: closed })));
