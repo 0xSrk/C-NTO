@@ -9,6 +9,8 @@ import { monteCarlo } from '@/engine/montecarlo';
 import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
 import type { Bar, BarSeries } from '@/engine/bars';
+import type { BookOrder } from '@/engine/execution/orderBook';
+import { findQuote, QUOTE_STALE_MS } from '@/engine/marketdata/quotes';
 import type { Session, Trade } from '@/engine/types';
 import type { ToolSchema } from './llm';
 import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
@@ -30,6 +32,8 @@ const MC_MIN_DAYS = 10;
 const MC_SEED = 1337;
 /** Indicateurs calculés sur les dernières barres seulement (≈ 17 jours en 1 min). */
 const LEVELS_MAX_BARS = 25_000;
+/** Une série du pont dont la dernière barre s'est terminée il y a plus de 120 s est signalée périmée. */
+export const LEVELS_STALE_SEC = 120;
 
 const round = (v: number, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -416,7 +420,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'bridge_status',
       kind: 'read',
       description:
-        'État en direct du pont NinjaTrader 8 et du Copieur : lien, latence, canal d’ordres ouvert ou fermé, plafond, comptes (cash, PnL réalisé et latent, positions), Copieur armé ou non, ordres routés, dernier refus. Lecture seule ; pour proposer un ordre au trader : propose_order.',
+        'État en direct du pont NinjaTrader 8 et du Copieur : lien, latence, canal d’ordres ouvert ou fermé, plafond, comptes (cash, PnL réalisé et latent, positions) et leur heure de réception (accountsAt), Copieur armé ou non, ordres routés, dernier refus. Lecture seule ; pour proposer un ordre au trader : propose_order.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const { nt, copier } = await ports.bridge();
@@ -427,6 +431,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           ...(live ? {} : { note: tr('Pont hors ligne : comptes et positions peuvent être périmés.', 'Bridge offline: accounts and positions may be stale.', 'Puente fuera de línea: cuentas y posiciones pueden estar desactualizadas.') }),
           addonVersion: nt.addonVersion,
           heartbeatLatencyMs: nt.heartbeatLatencyMs,
+          accountsAt: typeof nt.accountsAt === 'number' ? new Date(nt.accountsAt).toISOString() : null,
           ordersOpen: nt.ordersOpen,
           maxContractsPerOrder: nt.maxContractsPerOrder,
           accounts: nt.accounts.map((a) => ({
@@ -490,7 +495,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'market_levels',
       kind: 'read',
       description:
-        'Niveaux de marché d’un instrument du registre à partir des barres du desk (pont NinjaTrader, sinon CSV, sinon démo) : dernier prix, PDH / PDL / PDC, Opening Range RTH, VWAP de séance et ±1σ, ATR 14. La source est nommée ; une série de démo est marquée synthetic : ses prix ne sont pas réels.',
+        'Niveaux de marché d’un instrument du registre à partir des barres du desk (pont NinjaTrader, sinon CSV, sinon démo) : dernier prix, PDH / PDL / PDC, Opening Range RTH, VWAP de séance et ±1σ, ATR 14. La source est nommée ; une série de démo est marquée synthetic : ses prix ne sont pas réels. feed : état du flux NinjaTrader (live, stale, closed) ; ageSec : secondes depuis la fin de la dernière barre ; une série du pont terminée depuis plus de 120 s est marquée stale (elle reste choisie).',
       parameters: {
         type: 'object',
         properties: {
@@ -511,15 +516,111 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const last = bars[bars.length - 1]!;
         const orMinutes = Math.min(60, Math.max(5, Math.round(num(args.openingRangeMinutes, 15) / 5) * 5));
         const level = (v: number | null) => (v === null ? null : round(v, 2));
+        // Âge depuis la fin de la dernière barre (datée à l'ouverture) : 0 tant qu'elle se forme.
+        const ageSec = Math.max(0, Math.round(Date.now() / 1000 - (last.time + series.timeframe * 60)));
+        // La série du pont reste choisie même périmée ; le dire.
+        const stale = series.source === 'nt8-bridge' ? { stale: ageSec > LEVELS_STALE_SEC, staleAfterSec: LEVELS_STALE_SEC } : {};
         return {
           instrument: series.instrument,
           series: { label: series.label, source: series.source, timeframe: series.timeframe, bars: bars.length, synthetic: series.source === 'demo' },
+          feed: ports.marketFeed(),
+          ageSec,
+          ...stale,
           last: { time: new Date(last.time * 1000).toISOString(), close: last.close },
           prevSession: { high: level(lastLine(bars, 'prev-session', 'pdh')), low: level(lastLine(bars, 'prev-session', 'pdl')), close: level(lastLine(bars, 'prev-session', 'pdc')) },
           openingRange: { minutes: orMinutes, high: level(lastLine(bars, 'opening-range', 'orh', { minutes: orMinutes })), low: level(lastLine(bars, 'opening-range', 'orl', { minutes: orMinutes })) },
           vwap: { value: level(lastLine(bars, 'vwap', 'vwap')), up1: level(lastLine(bars, 'vwap', 'up1')), dn1: level(lastLine(bars, 'vwap', 'dn1')) },
           atr14: level(lastLine(bars, 'atr', 'atr', { period: 14 })),
           timezone: 'America/New_York',
+        };
+      },
+    },
+    {
+      name: 'working_orders',
+      kind: 'read',
+      description:
+        'Ordres NinjaTrader tenus par le process principal d’après les mises à jour de l’AddOn : ordres actifs (soumis, acceptés, en attente, partiellement remplis…) et derniers ordres terminés (remplis, annulés, rejetés), état NinjaTrader tel quel, quantité totale de l’ordre (pas la quantité remplie). byAgent marque un ordre tagué canto-agent (proposé par un agent, confirmé par le trader) ; seul celui-là porte son orderId. complete reste faux tant que le desk ne connaît pas l’état complet : un ordre posé avant la connexion du pont, ou changé pendant une coupure, peut manquer ou paraître encore actif (unconfirmed : vu avant la dernière coupure). asOf : instant jusqu’où le livre suit le pont. Lecture seule.',
+      parameters: {
+        type: 'object',
+        properties: { account: { type: 'string', description: 'Compte NinjaTrader (défaut : tous les comptes)' } },
+        additionalProperties: false,
+      },
+      async run(args) {
+        const account = str(args.account);
+        const book = await ports.workingOrders();
+        if (!book) return { available: false, note: tr('Pont NinjaTrader indisponible dans ce desk.', 'NinjaTrader bridge unavailable in this desk.', 'Puente NinjaTrader no disponible en este desk.') };
+        const mine = (o: BookOrder) => !account || o.account === account;
+        const row = (o: BookOrder) => ({
+          ...(o.byAgent ? { orderId: o.orderId } : {}),
+          account: o.account,
+          instrument: o.instrument,
+          side: o.side,
+          type: o.type,
+          qty: o.qty,
+          state: o.state,
+          ...(o.limit !== undefined ? { limit: o.limit } : {}),
+          ...(o.stop !== undefined ? { stop: o.stop } : {}),
+          ...(o.tag ? { tag: o.tag } : {}),
+          byAgent: o.byAgent,
+          since: new Date(o.since).toISOString(),
+          updatedAt: new Date(o.updatedAt).toISOString(),
+        });
+        return {
+          link: book.link,
+          asOf: book.asOf === null ? null : new Date(book.asOf).toISOString(),
+          complete: book.complete,
+          ...(book.complete
+            ? {}
+            : {
+                note: tr(
+                  'Livre peut-être incomplet : un ordre posé avant la connexion du pont, ou changé pendant une coupure, peut y manquer ou y paraître encore actif.',
+                  'Book may be incomplete: an order placed before the bridge connected, or changed during a disconnection, may be missing or still look active.',
+                  'Libro quizá incompleto: una orden colocada antes de la conexión del puente, o modificada durante un corte, puede faltar o parecer todavía activa.',
+                ),
+              }),
+          account: account || null,
+          active: book.active.filter(mine).map((o) => ({ ...row(o), ...(o.unconfirmed ? { unconfirmed: true } : {}) })),
+          recent: book.terminal.filter(mine).map(row),
+        };
+      },
+    },
+    {
+      name: 'market_quote',
+      kind: 'read',
+      description:
+        'Dernière cotation reçue du pont NinjaTrader pour un instrument : bid, ask, dernier prix, heure de la cotation, âge depuis sa réception (ageMs) ; stale au-delà de 10 s. Nom NinjaTrader exact (MNQ 12-26) ou racine du registre (MNQ : le contrat coté le plus récemment). L’outil ne s’abonne pas aux cotations : le desk n’en reçoit que si un abonnement est déjà ouvert ; sinon available: false avec la raison. Lecture seule.',
+      parameters: {
+        type: 'object',
+        properties: { instrument: { type: 'string', description: 'Nom NinjaTrader (MNQ 12-26) ou racine (MNQ, ES…)' } },
+        required: ['instrument'],
+        additionalProperties: false,
+      },
+      async run(args) {
+        const raw = str(args.instrument).trim();
+        if (!raw) return { available: false, reason: tr('Instrument requis.', 'Instrument required.', 'Instrumento requerido.') };
+        const quote = findQuote(ports.marketQuotes(), raw);
+        if (!quote) {
+          return {
+            available: false,
+            instrument: raw,
+            reason: tr(
+              `Aucune cotation reçue du pont NinjaTrader pour ${raw}. Le desk ne s’abonne pas aux cotations : elles n’arrivent que si un abonnement est ouvert.`,
+              `No quote received from the NinjaTrader bridge for ${raw}. The desk does not subscribe to quotes: they only arrive while a subscription is open.`,
+              `Ninguna cotización recibida del puente NinjaTrader para ${raw}. El desk no se suscribe a las cotizaciones: solo llegan si hay una suscripción abierta.`,
+            ),
+          };
+        }
+        const ageMs = Math.max(0, Date.now() - quote.receivedAt);
+        return {
+          available: true,
+          instrument: quote.instrument,
+          bid: quote.bid,
+          ask: quote.ask,
+          last: quote.last,
+          time: new Date(quote.time).toISOString(),
+          ageMs,
+          stale: ageMs > QUOTE_STALE_MS,
+          staleAfterMs: QUOTE_STALE_MS,
         };
       },
     },
@@ -551,7 +652,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'desk_events',
       kind: 'read',
       description:
-        'Événements du desk : fills NinjaTrader, marge du plan prop suivi sous 50 / 25 / 10 % du drawdown maximal ou franchie (latent du compte compris), catalyseur majeur dans les 15 minutes, changement du lien du pont. Repasser `cursor` pour ne lire que les événements suivants ; sans curseur, les plus récents. Le journal garde les 500 derniers événements du lancement en cours ; `reset` signale un curseur d’un autre lancement.',
+        'Événements du desk : fills NinjaTrader, changement d’état d’un ordre NinjaTrader (order, byAgent pour un ordre de l’agent), marge du plan prop suivi sous 50 / 25 / 10 % du drawdown maximal ou franchie (latent du compte compris), catalyseur majeur dans les 15 minutes, changement du lien du pont. Repasser `cursor` pour ne lire que les événements suivants ; sans curseur, les plus récents. Le journal garde les 500 derniers événements du lancement en cours ; `reset` signale un curseur d’un autre lancement.',
       parameters: {
         type: 'object',
         properties: {
@@ -613,6 +714,9 @@ const EMPTY_PORTS: DeskPorts = {
   calendarEntries: () => [],
   officialEvents: () => [],
   bridge: async () => ({ nt: null, copier: null }),
+  workingOrders: async () => null,
+  marketQuotes: () => [],
+  marketFeed: () => 'closed',
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   barSeries: async () => [],
   events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
@@ -664,8 +768,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'bridge_status':
       return tr(
         fallback,
-        'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions), Copier armed or not, routed orders, last refusal. Read only; to propose an order to the trader: propose_order.',
-        'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura; para proponer una orden al trader: propose_order.',
+        'Live state of the NinjaTrader 8 bridge and the Copier: link, latency, order channel open or closed, ceiling, accounts (cash, realized and unrealized PnL, positions) and when they were received (accountsAt), Copier armed or not, routed orders, last refusal. Read only; to propose an order to the trader: propose_order.',
+        'Estado en directo del puente NinjaTrader 8 y del Copiador: enlace, latencia, canal de órdenes abierto o cerrado, techo, cuentas (efectivo, PnL realizado y latente, posiciones) y su hora de recepción (accountsAt), Copiador armado o no, órdenes enrutadas, último rechazo. Solo lectura; para proponer una orden al trader: propose_order.',
       );
     case 'portfolio_snapshot':
       return tr(
@@ -676,8 +780,20 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'market_levels':
       return tr(
         fallback,
-        'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real.',
-        'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales.',
+        'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real. feed: NinjaTrader feed state (live, stale, closed); ageSec: seconds since the last bar ended; a bridge series that ended more than 120 s ago is marked stale (it stays selected).',
+        'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales. feed: estado del flujo NinjaTrader (live, stale, closed); ageSec: segundos desde el final de la última barra; una serie del puente terminada hace más de 120 s se marca stale (sigue elegida).',
+      );
+    case 'working_orders':
+      return tr(
+        fallback,
+        'NinjaTrader orders kept by the main process from the AddOn’s updates: active orders (submitted, accepted, working, partly filled…) and the latest finished orders (filled, cancelled, rejected), NinjaTrader state as is, total order quantity (not the filled quantity). byAgent marks an order tagged canto-agent (proposed by an agent, confirmed by the trader); only that one carries its orderId. complete stays false while the desk does not know the full state: an order placed before the bridge connected, or changed during a disconnection, may be missing or still look active (unconfirmed: seen before the last disconnection). asOf: instant up to which the book follows the bridge. Read only.',
+        'Órdenes de NinjaTrader que el proceso principal mantiene a partir de las actualizaciones del AddOn: órdenes activas (enviadas, aceptadas, en espera, parcialmente ejecutadas…) y últimas órdenes terminadas (ejecutadas, canceladas, rechazadas), estado de NinjaTrader tal cual, cantidad total de la orden (no la cantidad ejecutada). byAgent marca una orden con la etiqueta canto-agent (propuesta por un agente, confirmada por el trader); solo esa lleva su orderId. complete sigue en falso mientras el desk no conoce el estado completo: una orden colocada antes de la conexión del puente, o modificada durante un corte, puede faltar o parecer todavía activa (unconfirmed: vista antes del último corte). asOf: instante hasta el que el libro sigue al puente. Solo lectura.',
+      );
+    case 'market_quote':
+      return tr(
+        fallback,
+        'Last quote received from the NinjaTrader bridge for an instrument: bid, ask, last price, quote time, age since it was received (ageMs); stale beyond 10 s. Exact NinjaTrader name (MNQ 12-26) or registry root (MNQ: the most recently quoted contract). The tool does not subscribe to quotes: the desk only receives them while a subscription is already open; otherwise available: false with the reason. Read only.',
+        'Última cotización recibida del puente NinjaTrader para un instrumento: bid, ask, último precio, hora de la cotización, antigüedad desde su recepción (ageMs); stale pasados 10 s. Nombre NinjaTrader exacto (MNQ 12-26) o raíz del registro (MNQ: el contrato cotizado más recientemente). La herramienta no se suscribe a las cotizaciones: el desk solo las recibe si ya hay una suscripción abierta; si no, available: false con el motivo. Solo lectura.',
       );
     case 'propose_order':
       return tr(
@@ -688,8 +804,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'desk_events':
       return tr(
         fallback,
-        'Desk events: NinjaTrader fills, tracked prop plan buffer below 50 / 25 / 10 % of max drawdown or breached (account unrealized included), major catalyst within 15 minutes, bridge link change. Pass `cursor` back to read only the following events; without a cursor, the most recent. The log keeps the last 500 events of the current launch; `reset` flags a cursor from another launch.',
-        'Eventos del desk: fills de NinjaTrader, margen del plan prop seguido por debajo del 50 / 25 / 10 % del drawdown máximo o superado (latente de la cuenta incluido), catalizador mayor en los próximos 15 minutos, cambio del enlace del puente. Devolver `cursor` para leer solo los eventos siguientes; sin cursor, los más recientes. El registro guarda los últimos 500 eventos del lanzamiento en curso; `reset` señala un cursor de otro lanzamiento.',
+        'Desk events: NinjaTrader fills, NinjaTrader order state change (order, byAgent for an agent order), tracked prop plan buffer below 50 / 25 / 10 % of max drawdown or breached (account unrealized included), major catalyst within 15 minutes, bridge link change. Pass `cursor` back to read only the following events; without a cursor, the most recent. The log keeps the last 500 events of the current launch; `reset` flags a cursor from another launch.',
+        'Eventos del desk: fills de NinjaTrader, cambio de estado de una orden de NinjaTrader (order, byAgent para una orden del agente), margen del plan prop seguido por debajo del 50 / 25 / 10 % del drawdown máximo o superado (latente de la cuenta incluido), catalizador mayor en los próximos 15 minutos, cambio del enlace del puente. Devolver `cursor` para leer solo los eventos siguientes; sin cursor, los más recientes. El registro guarda los últimos 500 eventos del lanzamiento en curso; `reset` señala un cursor de otro lanzamiento.',
       );
     case 'propfirm_status':
       return tr(fallback, 'Replays the journal against the tracked prop-firm plan: balance, floor, buffer, progress to target, consistency rule. Defaults to the plan and account tracked by the Metrics screen.', 'Rejuega el diario contra el plan prop firm seguido: saldo, suelo, margen, progreso hacia el objetivo, regla de consistencia. Por defecto, el plan y la cuenta seguidos por la pantalla Métricas.');

@@ -1,5 +1,5 @@
 /**
- * Journal des événements du desk pour les agents : fills NinjaTrader, marge du plan prop,
+ * Journal des événements du desk pour les agents : fills et états d'ordre NinjaTrader, marge du plan prop,
  * catalyseurs proches, lien du pont. Pur : le renderer y range ce qu'il observe, l'orchestrateur
  * les pousse (`desk.event`), l'outil `desk_events` les relit avec un curseur.
  */
@@ -190,7 +190,7 @@ export function dueCatalysts(events: readonly CalEvent[], now: number, seen: Rea
   return out;
 }
 
-/* ─── Fills et lien du pont ─── */
+/* ─── Fills, ordres et lien du pont ─── */
 
 const SHORT = 64;
 
@@ -211,6 +211,29 @@ export function fillData(fill: unknown): Record<string, unknown> | null {
   if (!account || !instrument || !action || quantity === null || price === null || time === null) return null;
   const entryExit = short(f.entryExit);
   return { account, instrument, action, quantity, price, time: new Date(time).toISOString(), ...(entryExit ? { entryExit } : {}) };
+}
+
+const ORDER_TYPES = ['market', 'limit', 'stop', 'stopLimit'];
+
+/**
+ * Changement d'état d'un ordre du pont (`OrderChange` du livre des ordres), champs bornés. L'identifiant
+ * n'est rendu que pour un ordre de l'agent, qui l'a déjà reçu de `propose_order`. `null` si incomplet.
+ */
+export function orderData(change: unknown): Record<string, unknown> | null {
+  const raw = change && typeof change === 'object' ? (change as { order?: unknown }).order : null;
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const account = short(o.account);
+  const instrument = short(o.instrument);
+  const side = o.side === 'buy' || o.side === 'sell' ? o.side : null;
+  const qty = typeof o.qty === 'number' && Number.isFinite(o.qty) ? o.qty : null;
+  const type = typeof o.type === 'string' && ORDER_TYPES.includes(o.type) ? o.type : null;
+  const state = short(o.state);
+  if (!account || !instrument || !side || qty === null || !type || !state) return null;
+  const tag = short(o.tag);
+  const byAgent = o.byAgent === true;
+  const orderId = byAgent ? short(o.orderId) : null;
+  return { account, instrument, side, qty, type, state, ...(tag ? { tag } : {}), byAgent, ...(orderId ? { orderId } : {}) };
 }
 
 /** Changement d'état du lien du pont. Le premier état connu n'est pas un événement. */

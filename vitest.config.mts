@@ -14,6 +14,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
   const map: Record<string, string> = {
     'execution/guards': 'src/engine/execution/guards.ts',
     'execution/port': 'src/engine/execution/port.ts',
+    'execution/orderBook': 'src/engine/execution/orderBook.ts',
     'copier/router': 'src/engine/copier/router.ts',
     'copier/position': 'src/engine/copier/position.ts',
     'copier/sync': 'src/engine/copier/sync.ts',

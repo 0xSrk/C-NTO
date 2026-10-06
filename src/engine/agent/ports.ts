@@ -1,6 +1,8 @@
 import type { CalendarEventRow } from '../calendarEvents';
 import type { DeskEventPage } from './events';
 import type { BarSeries } from '../bars';
+import type { OrderBookView } from '../execution/orderBook';
+import type { LastQuote } from '../marketdata/quotes';
 import type { CashBalance, FxRate, Pocket, Position } from '../portfolio/types';
 import type { Session, Trade } from '../types';
 
@@ -34,6 +36,8 @@ export interface DeskBridgeView {
     ordersOpen: boolean;
     maxContractsPerOrder: number;
     accounts: { name: string; cashValue: number; realizedPnl: number; unrealizedPnl: number; positions: { instrument: string; quantity: number; avgPrice: number }[] }[];
+    /** Réception des derniers comptes par le process principal (epoch ms) ; `null` ou absent : inconnue. */
+    accountsAt?: number | null;
   } | null;
   copier: { armed: boolean; routed: number; lastRefusal: { reason: string; account: string; instrument: string; qty: number } | null } | null;
 }
@@ -56,6 +60,12 @@ export interface DeskPorts {
   officialEvents(): CalendarEventRow[];
   /** État en direct du pont et du Copieur. */
   bridge(): Promise<DeskBridgeView>;
+  /** Livre des ordres en cours tenu par le process principal (lecture seule) ; `null` sans pont dans ce desk. */
+  workingOrders(): Promise<OrderBookView | null>;
+  /** Dernières cotations reçues du pont, par instrument. Lecture seule : rien ne s'abonne. */
+  marketQuotes(): readonly LastQuote[];
+  /** État du flux de marché NinjaTrader (barres du pont) : `closed` sans flux. */
+  marketFeed(): 'closed' | 'live' | 'stale';
   /** Poches, positions, liquidités, taux et devise de base du Portefeuille (chargés si besoin). */
   portfolio(): Promise<{ pockets: Pocket[]; positions: Position[]; cash: CashBalance[]; fx: FxRate[]; base: string }>;
   /** Séries de barres du desk (pont NinjaTrader, CSV, démo), chargées si besoin. */

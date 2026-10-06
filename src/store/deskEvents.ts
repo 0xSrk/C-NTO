@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { DeskEventKind } from '@/engine/agent/catalog';
-import { DeskEventLog, dueCatalysts, fillData, linkTransition, propBufferAlert, propLiveBuffer, type DeskEvent, type PropBufferInput } from '@/engine/agent/events';
+import { DeskEventLog, dueCatalysts, fillData, linkTransition, orderData, propBufferAlert, propLiveBuffer, type DeskEvent, type PropBufferInput } from '@/engine/agent/events';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
@@ -134,6 +134,13 @@ export const useDeskEvents = create<DeskEventsState>((set) => ({
       if (data) recordDeskEvent('fill', data);
     });
     if (offExecution) disposers.push(offExecution);
+
+    // Le process principal ne pousse un ordre qu'à un changement d'état (livre des ordres en cours).
+    const offOrder = desk?.ntbridge?.onOrder?.((change) => {
+      const data = orderData(change);
+      if (data) recordDeskEvent('order', data);
+    });
+    if (offOrder) disposers.push(offOrder);
 
     let link = useBridge.getState().nt?.link ?? null;
     const prop = propWatcher();

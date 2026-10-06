@@ -12,9 +12,11 @@ import type { NinjaBridge } from '../bridge';
 import { mainLog } from '../main-log';
 import { uiText, type AppLocale } from '../locale';
 import { CopierHost, type CopierCutReport, type CopierHostStatus } from './copier-host';
+import type { OrderBookView } from '../execution/orderBook';
 import { executionFill, executionPayloadToCsv } from './execution-csv';
 import { Nt8ExecutionPort } from './execution-port';
 import { DEFAULT_MAX_CONTRACTS } from './guards';
+import { OrderBookHost } from './order-book-host';
 import { DEFAULT_PORT, type ExecutionPayload } from './protocol';
 import { NtBridgeServer, type KillSwitchOutcome, type KillSwitchSent, type NtBridgeStatus, type NtMarketEvent } from './server';
 
@@ -215,6 +217,7 @@ export class NtBridgeHost {
   private policy: NtPolicy | null = null;
   private server: NtBridgeServer | null = null;
   private execution: Nt8ExecutionPort | null = null;
+  private orderBook: OrderBookHost | null = null;
   private copier: CopierHost | null = null;
   private win: BrowserWindow | null = null;
   private fileBridge: NinjaBridge | null = null;
@@ -249,6 +252,7 @@ export class NtBridgeHost {
     });
     this.server = server;
     this.execution = new Nt8ExecutionPort(server);
+    this.orderBook = new OrderBookHost(this.execution, (change) => this.send('ntbridge:order-state', change));
     this.copier = new CopierHost(this.execution, this.userDataDir, (line) => mainLog('info', line), () => this.pushCopier());
     this.copier.open();
     try {
@@ -270,6 +274,8 @@ export class NtBridgeHost {
   async dispose(): Promise<void> {
     this.copier?.dispose();
     this.copier = null;
+    this.orderBook?.dispose();
+    this.orderBook = null;
     this.execution?.dispose();
     this.execution = null;
     await this.server?.stop();
@@ -286,6 +292,11 @@ export class NtBridgeHost {
       maxContractsPerOrder: policy.maxContractsPerOrder,
       killSwitchShortcut: KILL_SWITCH_SHORTCUT,
     };
+  }
+
+  /** Livre des ordres en cours (lecture seule). `null` avant le démarrage du pont. */
+  orders(): OrderBookView | null {
+    return this.orderBook?.view() ?? null;
   }
 
   async rotateToken(): Promise<{ hasToken: true }> {
