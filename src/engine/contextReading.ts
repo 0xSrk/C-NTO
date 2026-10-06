@@ -30,11 +30,6 @@ export interface ReadingSample {
 
 const WEEKDAY_KEYS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'] as const;
 
-/** La journée D est lue avec la valeur de la veille. La première journée n'a pas de veille. */
-export function laggedValue<T>(values: readonly (T | undefined)[]): (T | undefined)[] {
-  return values.map((_, index) => (index > 0 ? values[index - 1] : undefined));
-}
-
 export function weekdayKey(date: string): string {
   return WEEKDAY_KEYS[weekdayOf(date)] ?? 'dim';
 }
@@ -59,28 +54,35 @@ function sampleVariance(values: readonly number[]): number {
   return sd * sd;
 }
 
-function halfPersists(points: readonly number[], exitTimes: readonly number[]): { same: boolean; flipped: boolean } {
+/** L'écart à `center` garde-t-il son signe et au moins la moitié de son ampleur sur la seconde moitié du groupe ? */
+function halfPersists(points: readonly number[], exitTimes: readonly number[], center: number): { same: boolean; flipped: boolean } {
   const order = points.map((value, index) => ({ value, time: exitTimes[index] ?? 0 })).sort((a, b) => a.time - b.time);
   if (order.length < 2) return { same: false, flipped: false };
   const mid = Math.floor(order.length / 2);
-  const all = order.reduce((sum, row) => sum + row.value, 0) / order.length;
+  const all = order.reduce((sum, row) => sum + row.value, 0) / order.length - center;
   const second = order.slice(mid);
   if (second.length === 0 || all === 0) return { same: false, flipped: false };
-  const half = second.reduce((sum, row) => sum + row.value, 0) / second.length;
+  const half = second.reduce((sum, row) => sum + row.value, 0) / second.length - center;
   if (Math.sign(half) !== Math.sign(all)) return { same: false, flipped: true };
   return { same: Math.abs(half) + 1e-9 >= 0.5 * Math.abs(all), flipped: false };
 }
 
+/** Journées distinctes sous lesquelles un groupe n'a pas de verdict : des trades d'une même journée ne sont pas indépendants. */
+export const MIN_READING_DAYS = 30;
+
 /**
  * Une ligne par valeur d'axe. Les groupes sans trade ne sont pas créés.
- * `calendar` donne, pour chaque journée, la valeur d'axe qui la classe (déjà décalée d'un jour si c'est un régime).
+ * `calendar` donne, pour chaque journée, la valeur d'axe qui la classe. Pour un régime ou une bande,
+ * c'est la fiche de la journée, déjà arrêtée à la clôture de la veille : aucun décalage de plus.
+ * Verdict « insuffisant » sous `minDays` journées distinctes (30) ou sous `minTrades` trades.
  */
 export function readAxis(
   samples: readonly ReadingSample[],
   calendar: readonly { date: string; key: string | null }[],
-  opts: { minTrades?: number; fdr?: number; draws?: number; seed?: number } = {},
+  opts: { minTrades?: number; minDays?: number; fdr?: number; draws?: number; seed?: number } = {},
 ): AxisRow[] {
   const minTrades = opts.minTrades ?? 30;
+  const minDays = opts.minDays ?? MIN_READING_DAYS;
   const fdr = opts.fdr ?? 0.05;
   const draws = opts.draws ?? 2_000;
   const byKey = new Map<string, ReadingSample[]>();
@@ -103,10 +105,12 @@ export function readAxis(
   const finiteOf = (list: readonly ReadingSample[]) => list.filter((sample) => sample.points != null && Number.isFinite(sample.points));
   const finiteSamples = samples.filter((sample) => sample.points != null && Number.isFinite(sample.points));
   const allPoints = finiteSamples.map((sample) => sample.points as number);
+  const grand = allPoints.length ? allPoints.reduce((sum, value) => sum + value, 0) / allPoints.length : 0;
   const sigma = stddev(allPoints);
   const groups: ShrinkGroup[] = keys.map((key) => {
     const points = finiteOf(byKey.get(key) ?? []).map((sample) => sample.points as number);
-    return { n: points.length, mean: points.length ? points.reduce((sum, value) => sum + value, 0) / points.length : 0, variance: sampleVariance(points) };
+    // Un trade seul n'a pas de variance intra : NaN fait prendre la variance poolée, au lieu d'un 0 qui lui donnerait le poids 1.
+    return { n: points.length, mean: points.length ? points.reduce((sum, value) => sum + value, 0) / points.length : 0, variance: points.length < 2 ? Number.NaN : sampleVariance(points) };
   });
   const shrunk = shrinkTowardMean(groups);
   const eligibleIndex: number[] = [];
@@ -117,7 +121,8 @@ export function readAxis(
     eligibleIndex.push(index);
     eligibleGroups.push(points.map((sample) => finiteSamples.indexOf(sample)));
   });
-  const pValues = eligibleGroups.length ? permutationPValues(allPoints, eligibleGroups, { draws, seed: opts.seed ?? 1 }) : [];
+  // Un groupe se juge contre la moyenne générale, pas contre zéro.
+  const pValues = eligibleGroups.length ? permutationPValues(allPoints, eligibleGroups, { draws, seed: opts.seed ?? 1, centered: true }) : [];
   // Benjamini-Hochberg local, pour ne pas importer la fonction si les p sont déjà filtrées.
   const order = pValues.map((p, index) => ({ p, index })).sort((a, b) => a.p - b.p);
   let cutoff = -1;
@@ -139,9 +144,9 @@ export function readAxis(
     const n2 = allPoints.length - points.length;
     const mde = points.length > 1 && n2 > 1 && sigma > 0 ? minimumDetectableEffect(sigma, points.length, n2) : null;
     const day = dayKeys.get(key);
-    const half = halfPersists(points, finite.map((sample) => sample.exitTime));
+    const half = halfPersists(points, finite.map((sample) => sample.exitTime), grand);
     let verdict: ReadingVerdict = 'non concluant';
-    if (finite.length < minTrades) verdict = 'insuffisant';
+    if (finite.length < minTrades || byDate.size < minDays) verdict = 'insuffisant';
     else if (significant.has(index) && half.flipped) verdict = 'renverse';
     else if (significant.has(index) && half.same) verdict = 'confirme';
     return {
@@ -247,7 +252,7 @@ export function releaseContrast(samples: readonly ReleaseSample[], opts: { draws
   const diff = mean(treated.map((sample) => sample.points)) - mean(control.map((sample) => sample.points));
   const values = samples.map((sample) => sample.points);
   const group = samples.flatMap((sample, index) => (sample.treated ? [index] : []));
-  const p = permutationPValues(values, [group], { draws: opts.draws ?? 1_000, seed: opts.seed ?? 1 })[0] ?? 1;
+  const p = permutationPValues(values, [group], { draws: opts.draws ?? 1_000, seed: opts.seed ?? 1, centered: true })[0] ?? 1;
   return { diff, p, significant: p < (opts.fdr ?? 0.05) };
 }
 
@@ -329,7 +334,13 @@ export interface TailLoss {
   expectedShortfall: number;
 }
 
-/** VaR et ES empiriques. À partir de 500 journées, la queue au-delà du seuil 5 % est une Pareto généralisée. */
+/** Niveau du seuil de la Pareto généralisée : la queue modélisée porte environ 10 % des journées. */
+export const GPD_THRESHOLD_LEVEL = 0.1;
+
+/**
+ * VaR et ES empiriques. À partir de 500 journées, la VaR 5 % vient d'une Pareto généralisée ajustée
+ * aux excès sous le quantile 10 %, puis extrapolée au niveau 5 %. L'ES reste empirique.
+ */
 export function tailLoss(pnls: readonly number[], level = 0.05): TailLoss | null {
   const sorted = pnls.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
   if (sorted.length < 250) return null;
@@ -337,7 +348,8 @@ export function tailLoss(pnls: readonly number[], level = 0.05): TailLoss | null
   const tail = sorted.filter((value) => value <= empirical.quantile);
   const expectedShortfall = tail.length ? mean(tail) : empirical.quantile;
   if (sorted.length < 500 || level !== 0.05) return { method: 'empirique', quantile: empirical.quantile, expectedShortfall };
-  const gpd = gpdQuantile(sorted, empirical.quantile, level);
+  // Seuil au quantile 10 % : au seuil 5 %, il n'y aurait rien à extrapoler et la branche rendrait le quantile empirique.
+  const gpd = gpdQuantile(sorted, quantileAt(sorted, GPD_THRESHOLD_LEVEL).quantile, level);
   return { method: 'gpd', quantile: gpd ?? empirical.quantile, expectedShortfall };
 }
 
@@ -346,7 +358,7 @@ function quantileAt(sorted: readonly number[], level: number): { quantile: numbe
   return { quantile: sorted[index] ?? 0 };
 }
 
-/** Quantile de la loi originale au niveau `level`, seuil = quantile empirique, excès modélisés par les moments. */
+/** Quantile de la loi originale au niveau `level` : excès sous `threshold` ajustés par les moments, puis extrapolés. */
 function gpdQuantile(sortedAsc: readonly number[], threshold: number, level: number): number | null {
   const excesses = sortedAsc.filter((value) => value < threshold).map((value) => threshold - value);
   if (excesses.length < 10) return null;

@@ -10,6 +10,7 @@ import {
   horizonSigma,
   longestLossStreak,
   rateAfterStreak,
+  realizedRewardRisk,
   rrMatrix,
   sigmaBand,
   sigmaDistance,
@@ -17,15 +18,16 @@ import {
 } from '@/engine/riskConsole';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
-import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
+import { fmtNum, fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './metrique.module.css';
 
+/** Bornes des classes de stop en σ, au séparateur décimal de la langue du desk. */
 function bandLabel(band: string): string {
-  if (band === '<0.25') return '< 0,25 σ';
-  if (band === '0.25-0.5') return '0,25–0,5 σ';
-  if (band === '0.5-1') return '0,5–1 σ';
+  if (band === '<0.25') return `< ${fmtNum(0.25, 2)} σ`;
+  if (band === '0.25-0.5') return `${fmtNum(0.25, 2)}–${fmtNum(0.5, 1)} σ`;
+  if (band === '0.5-1') return `${fmtNum(0.5, 1)}–1 σ`;
   return '> 1 σ';
 }
 
@@ -43,14 +45,13 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
     const rows = trades.map((trade) => ({ trade, risk: tradeRisk(trade, settings.riskPerContract, capital) }));
     const known = rows.filter((row) => row.risk.source !== 'absent');
     const allFixed = known.length > 0 && known.every((row) => row.risk.source === 'fixe');
-    const withRr = known.filter((row) => row.risk.plannedRr != null && row.risk.realizedR != null);
-    const meanPlanned = withRr.length ? withRr.reduce((sum, row) => sum + (row.risk.plannedRr ?? 0), 0) / withRr.length : null;
     const wins = trades.filter((trade) => trade.pnl > 0).length;
     const losses = trades.filter((trade) => trade.pnl < 0).length;
     const decisive = wins + losses;
     const winRate = decisive ? wins / decisive : 0;
     const posterior = betaPosterior(wins, losses);
-    const matrix = rrMatrix(winRate, meanPlanned ?? 1, [settings.rrShiftUp, -settings.rrShiftDown, -settings.rrShiftFar], posterior.low);
+    // Le point réalisé croise le taux réalisé et le R/R réalisé (gain moyen ÷ |perte moyenne|), jamais le R/R prévu.
+    const matrix = rrMatrix(winRate, realizedRewardRisk(trades), [settings.rrShiftUp, -settings.rrShiftDown, -settings.rrShiftFar], posterior.low);
     const byDay = new Map<string, number[]>();
     for (const row of rows) {
       const day = days.get(row.trade.sessionId) ?? row.trade.sessionId;
@@ -94,7 +95,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
       }
       for (const [band, bandDays] of byBand) sigmaGroups.set(band, [...bandDays.values()]);
     }
-    return { known, allFixed, meanPlanned, winRate, posterior, matrix, expectancyCi, respect, streaks, decisive, sigmaGroups };
+    return { known, allFixed, winRate, posterior, matrix, expectancyCi, respect, streaks, decisive, sigmaGroups };
   }, [trades, sessions, settings.riskPerContract, settings.impliedVol, settings.rrShiftUp, settings.rrShiftDown, settings.rrShiftFar, capital, base.points]);
 
   const lossRun = useMemo(() => (reading.decisive > 0 ? longestLossStreak(reading.decisive, 1 - reading.winRate) : null), [reading.decisive, reading.winRate]);
@@ -117,7 +118,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
         <p className={s.note}>{tr('Tous les trades sont en risque fixe : le R n’apporte rien de plus que les dollars.', 'Every trade uses the fixed risk: R adds nothing beyond the dollars.', 'Todos los trades están en riesgo fijo: la R no aporta más que los dólares.')}</p>
       ) : null}
       <p className={s.note}>
-        {tr('Espérance', 'Expectancy', 'Esperanza')} {fmtUsd(reading.expectancyCi.center, { sign: true, cents: true })} · IC 90 % {fmtUsd(reading.expectancyCi.low, { sign: true, cents: true })} – {fmtUsd(reading.expectancyCi.high, { sign: true, cents: true })}
+        {tr('Espérance', 'Expectancy', 'Esperanza')} {fmtUsd(reading.expectancyCi.center, { sign: true, cents: true })} · {tr('IC 90 %', '90% CI', 'IC 90 %')} {fmtUsd(reading.expectancyCi.low, { sign: true, cents: true })} – {fmtUsd(reading.expectancyCi.high, { sign: true, cents: true })}
       </p>
       <table className={tableClass}>
         <thead>
@@ -126,7 +127,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
             {reading.matrix.rewardRisks.map((rr, index) => (
               <th key={`${rr}-${index}`} className="num">
                 {fmtRatio(rr, 2)}
-                {index === reading.matrix.realized.col ? ' R' : ''}
+                {index === reading.matrix.realized?.col ? ' R' : ''}
               </th>
             ))}
           </tr>
@@ -138,7 +139,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
               {row.map((cell, colIndex) => (
                 <td key={colIndex} className={`num ${signClass(cell)}`}>
                   {fmtRatio(cell, 2)}
-                  {rowIndex === reading.matrix.realized.row && colIndex === reading.matrix.realized.col ? ' ·' : ''}
+                  {rowIndex === reading.matrix.realized?.row && colIndex === reading.matrix.realized.col ? ' ·' : ''}
                 </td>
               ))}
             </tr>
@@ -152,7 +153,7 @@ export function RiskReading({ sessions, trades }: { sessions: Session[]; trades:
       </p>
       <p className={s.note}>
         Bernoulli 5 {tr('gains', 'wins', 'ganancias')} {fmtRatio(bernoulliRun(reading.winRate, 5), 4)} · 5 {tr('pertes', 'losses', 'pérdidas')} {fmtRatio(bernoulliRun(1 - reading.winRate, 5), 4)}
-        {lossRun ? ` · ${tr('série de pertes attendue', 'expected loss streak', 'serie de pérdidas esperada')} ${fmtRatio(lossRun.mean, 1)} · 95e ${lossRun.p95}` : ''}
+        {lossRun ? ` · ${tr('série de pertes attendue', 'expected loss streak', 'serie de pérdidas esperada')} ${fmtRatio(lossRun.mean, 1)} · ${tr('95e', '95th', '95.º')} ${lossRun.p95}` : ''}
         {' · '}
         Bayes {fmtPct(reading.posterior.mean, 1)} [{fmtPct(reading.posterior.low, 1)} ; {fmtPct(reading.posterior.high, 1)}]
       </p>
