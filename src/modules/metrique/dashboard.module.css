@@ -439,6 +439,32 @@
   color: var(--text-2);
 }
 
+.live {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  border-radius: 2px;
+}
+.live b {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-0);
+}
+.liveOrders {
+  margin-bottom: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.liveOrders p {
+  margin: 0 0 4px;
+}
 .tools {
   display: flex;
   flex-wrap: wrap;

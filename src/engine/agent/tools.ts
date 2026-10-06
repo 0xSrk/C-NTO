@@ -8,18 +8,21 @@ import { aggregateByDate, computeDailyStats, computeTradeStats, sessionDates, ty
 import { monteCarlo } from '@/engine/montecarlo';
 import { bridgeSnapshots, portfolioView } from '@/engine/portfolio/view';
 import { evaluatePlan, findPlan, planMargin, type PropEvaluation } from '@/engine/propfirm';
+import { tradeRisk } from '@/engine/riskConsole';
 import { dailyLimit, dayLoss, DEFAULT_TRADER_RULES, detectDrifts, detectRuleBreaches, entryOfTrade, majorCatalysts, tradingDayNow } from '@/engine/discipline';
 import { addDays, etDateKey } from '@/lib/time';
 import type { Bar, BarSeries } from '@/engine/bars';
 import type { BookOrder } from '@/engine/execution/orderBook';
 import { findQuote, QUOTE_STALE_MS } from '@/engine/marketdata/quotes';
 import type { Session, Trade } from '@/engine/types';
+import { buildMetricsContext, contextSeries } from '@/engine/metricsContext';
+import { standardRoot } from '@/engine/tradeUnits';
 import type { ToolSchema } from './llm';
-import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
+import { DESK_EVENT_KINDS, DESK_TOOL_TITLES, isDeskEventKind, ORDER_TOOLS } from './catalog';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
 import { AGENT_ORDER_BOUNDS } from './orders';
 import { traderMemory, type MemoryNote } from './memory';
-import { clampToolArgs, type DeskPorts } from './ports';
+import { clampToolArgs, TAG_LEN_MAX, TAGS_MAX, type DeskPorts } from './ports';
 
 export interface DeskTool extends ToolSchema {
   kind: 'read' | 'write';
@@ -64,6 +67,19 @@ function declaredKeys(tool: DeskTool | undefined): readonly string[] {
  */
 function profitFactorOf(pf: number): { profitFactor: number | null } | { noLoss: true } {
   return pf === Infinity ? { noLoss: true } : { profitFactor: round(pf) };
+}
+
+/** Tags rendus : au plus `TAGS_MAX`, chacun coupé à `TAG_LEN_MAX`. `tagsTruncated` dit la coupe. */
+function boundTags(tags: readonly string[] | undefined): { tags: string[]; tagsTruncated?: true } {
+  const list = tags ?? [];
+  let cut = list.length > TAGS_MAX;
+  const bounded = list.slice(0, TAGS_MAX).map((tag) => {
+    const text = String(tag);
+    if (text.length <= TAG_LEN_MAX) return text;
+    cut = true;
+    return text.slice(0, TAG_LEN_MAX);
+  });
+  return cut ? { tags: bounded, tagsTruncated: true } : { tags: bounded };
 }
 
 /** Extrait d'au plus `EXCERPT_MAX` caractères ; `cut` dit si le texte a été coupé. */
@@ -152,8 +168,18 @@ const FINDINGS_MAX = 50;
 /** Horizon de recherche du prochain catalyseur majeur. */
 const CATALYST_HORIZON_DAYS = 7;
 
+/** Une note d'agent adoptée garde `by: 'agent'` et porte `adoptedAt` (instant de l'adoption par le trader). */
 function memoryNoteOut(n: MemoryNote) {
-  return { id: n.id, title: n.title, tags: n.tags, by: n.by, date: n.date, body: n.body.slice(0, MEMORY_NOTE_MAX), ...(n.body.length > MEMORY_NOTE_MAX ? { truncated: true } : {}) };
+  return {
+    id: n.id,
+    title: n.title,
+    tags: n.tags,
+    by: n.by,
+    ...(n.adoptedAt !== undefined ? { adoptedAt: new Date(n.adoptedAt).toISOString() } : {}),
+    date: n.date,
+    body: n.body.slice(0, MEMORY_NOTE_MAX),
+    ...(n.body.length > MEMORY_NOTE_MAX ? { truncated: true } : {}),
+  };
 }
 
 /** Latent du compte suivi ('' = tous), d'après le pont vivant ; 0 hors pont. */
@@ -173,7 +199,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'desk_overview',
       kind: 'read',
       description:
-        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor après commissions (`noLoss: true` s’il n’y a aucune perte), espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.' + PROVENANCE_FR,
+        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor et payoff après commissions (`noLoss: true` s’il n’y a aucune perte), espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.' + PROVENANCE_FR,
       parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
       async run(args) {
         const from = str(args.from);
@@ -197,7 +223,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           winRate: round(t.winRate, 4),
           ...profitFactorOf(t.profitFactor),
           expectancy: round(t.expectancy),
-          payoffRatio: round(t.payoffRatio),
+          // Même lecture que le profit factor : sans perte le ratio est infini, JSON le rendrait null.
+          ...(t.payoffRatio === Infinity ? { noLoss: true as const } : { payoffRatio: round(t.payoffRatio) }),
           sqn: round(t.sqn),
           maxDrawdownTrades: round(t.maxDrawdown),
           sharpeDaily: round(d.sharpe),
@@ -231,7 +258,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'list_sessions',
       kind: 'read',
       description:
-        'Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source `demo` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (`noteTruncated`) : get_session la rend entière.' + PROVENANCE_FR,
+        `Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source \`demo\` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (\`noteTruncated\`) : get_session la rend entière. Au plus ${TAGS_MAX} tags de ${TAG_LEN_MAX} caractères (\`tagsTruncated\`). \`truncated\` à la racine dès qu’une note ou des tags sont coupés.` + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
@@ -250,11 +277,14 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           .filter((s) => (!from || s.date >= from) && (!to || s.date <= to) && (!account || (s.account ?? '') === account))
           .sort((a, b) => b.date.localeCompare(a.date))
           .slice(0, limit);
+        // `truncated` à la racine : une note ou des tags coupés dans la liste.
         let cut = false;
         const list = rows.map((s) => {
           const note = excerpt(s.note);
           if (note.cut) cut = true;
-          return { id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: s.tags, rating: s.rating, note: note.text, ...(note.cut ? { noteTruncated: true } : {}) };
+          const tags = boundTags(s.tags);
+          if (tags.tagsTruncated) cut = true;
+          return { id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: tags.tags, ...(tags.tagsTruncated ? { tagsTruncated: true } : {}), rating: s.rating, note: note.text, ...(note.cut ? { noteTruncated: true } : {}) };
         });
         return { count: list.length, ...(cut ? { truncated: true } : {}), sessions: list, ...provenance(ports, rows) };
       },
@@ -263,7 +293,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'get_session',
       kind: 'read',
       description:
-        'Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans `account`, rend `ambiguous` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (`truncated`, `tradeCount`) ; les statistiques portent sur tous.',
+        `Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans \`account\`, rend \`ambiguous\` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (\`truncated\`, \`tradeCount\`) ; les statistiques portent sur tous. Les tags de la séance et ceux de chaque trade : au plus ${TAGS_MAX}, ${TAG_LEN_MAX} caractères (\`tagsTruncated\`). Chaque trade porte son stop et son objectif initiaux s’ils sont saisis, et \`risk\` comme l’onglet C : montant, source (\`stop\` : |entrée − stop| × valeur du point × quantité ; \`saisi\` ; \`fixe\` : risque par contrat du réglage ; \`absent\`), R/R prévu, R réalisé (PnL ÷ risque) et part du capital de risque (\`riskCapital\` : perte maximale du plan si la séance est sur le compte suivi, sinon capital de référence).`,
       parameters: {
         type: 'object',
         properties: {
@@ -293,13 +323,42 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const own = trades.filter((t) => t.sessionId === s.id).sort((a, b) => a.exitTime - b.exitTime);
         const stats = computeTradeStats(own);
         // Les identifiants d'exécution ne servent pas à l'analyse : comptés, pas listés.
-        const { executionIds, ...row } = s;
+        const { executionIds, tags, ...row } = s;
+        const boundedTags = boundTags(tags);
         const shown = own.slice(0, SESSION_TRADES_MAX);
+        // Capital de risque choisi comme l'onglet C : perte maximale du plan si la séance est sur le compte suivi.
+        const plan = s.account && s.account === ports.planAccount() ? findPlan(ports.planId()) : undefined;
+        const riskCapital = plan?.maxDrawdown && plan.maxDrawdown > 0 ? { amount: plan.maxDrawdown, basis: 'plan' as const } : { amount: ports.startingBalance(), basis: 'reference' as const };
+        const perContract = ports.riskPerContract();
+        const riskOf = (t: Trade) => {
+          const risk = tradeRisk(t, perContract, riskCapital.amount);
+          const at = (v: number | null, d: number) => (v == null ? null : round(v, d));
+          return { amount: at(risk.risk, 2), source: risk.source, plannedRr: at(risk.plannedRr, 2), realizedR: at(risk.realizedR, 2), capitalShare: at(risk.lossPct, 4) };
+        };
         return {
-          session: { ...row, ...(executionIds ? { executionCount: executionIds.length } : {}) },
+          session: { ...row, tags: boundedTags.tags, ...(boundedTags.tagsTruncated ? { tagsTruncated: true } : {}), ...(executionIds ? { executionCount: executionIds.length } : {}) },
+          riskCapital,
           stats: { winRate: round(stats.winRate, 4), ...profitFactorOf(stats.profitFactor), expectancy: round(stats.expectancy), maxDrawdown: round(stats.maxDrawdown), avgDurationMin: round(stats.avgDurationMs / 60000, 1) },
           ...(own.length > shown.length ? { truncated: true, tradeCount: own.length } : {}),
-          trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, tags: t.tags })),
+          // Tags du trade bornés comme ceux de la séance ; un trade sans tags reste sans champ.
+          trades: shown.map((t) => ({
+            id: t.id,
+            instrument: t.instrument,
+            direction: t.direction,
+            qty: t.qty,
+            entry: new Date(t.entryTime).toISOString(),
+            exit: new Date(t.exitTime).toISOString(),
+            entryPrice: t.entryPrice,
+            exitPrice: t.exitPrice,
+            ...(t.stopPrice != null ? { stopPrice: t.stopPrice } : {}),
+            ...(t.targetPrice != null ? { targetPrice: t.targetPrice } : {}),
+            pnl: round(t.pnl),
+            risk: riskOf(t),
+            mae: t.mae,
+            mfe: t.mfe,
+            strategy: t.strategy,
+            ...(t.tags ? boundTags(t.tags) : {}),
+          })),
         };
       },
     },
@@ -378,6 +437,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       description: 'Crée une note Markdown dans le coffre (les [[liens]] et #tags sont reconnus).',
       parameters: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, required: ['title', 'body'], additionalProperties: false },
       async run(args) {
+        // `adoptedAt` reste un geste du trader : non déclaré, l'argument est retiré par `clampToolArgs`, et le port n'en reçoit pas.
         const n = await ports.createNote(str(args.title, 'Note'), str(args.body), Array.isArray(args.tags) ? args.tags.map(String) : []);
         return { id: n.id, title: n.title };
       },
@@ -696,6 +756,89 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       },
     },
     {
+      name: 'day_context',
+      kind: 'read',
+      description:
+        'Fiche du contexte du jour, la même que l’onglet Analyse. Arrêtés à la clôture de la veille : régime de volatilité (regime : choc, expansion, decrue, compression), bande (band : basse, moyenne, haute, tiers de la volatilité moyen terme), volatilités de Garman-Klass annualisées (volCT, volMT, volLT ; hv30, hv60, hv90). Puis ATR 14, trades et contrats du jour (équivalent standard), publications du jour, demi-séance, et l’amplitude de la journée elle-même (dayRange, openToClose, écarts à la clôture de la veille). date YYYY-MM-DD (défaut : la dernière fiche) ; instrument : racine ou contrat du registre (défaut : la série affichée par Visual, sinon la plus longue). Jamais sur des prix synthétiques : une série de démonstration cède la place à une série réelle de la même racine, sinon available: false (demo_series). Moins de 90 séances de barres avant la fiche : available: false (insufficient_history). Lecture seule.',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', pattern: DATE_PATTERN, description: 'Journée de la fiche (YYYY-MM-DD) ; défaut : la dernière' },
+          instrument: { type: 'string', description: 'Racine ou contrat (NQ, MNQ 12-26, ES…) ; défaut : la série affichée' },
+        },
+        additionalProperties: false,
+      },
+      async run(args) {
+        const raw = str(args.instrument);
+        const symbol = raw ? resolveSymbol(raw)?.symbol ?? null : null;
+        if (raw && !symbol) return { error: tr(`Instrument hors registre : ${raw}`, `Instrument not in the registry: ${raw}`, `Instrumento fuera del registro: ${raw}`) };
+        const date = str(args.date);
+        const asOf = new Date(ports.now?.() ?? Date.now()).toISOString();
+        const all = await ports.barSeries();
+        const activeId = ports.activeSeriesId();
+        // Même choix de série que l'onglet Analyse (`contextSeries`) : jamais de prix synthétiques.
+        const picked = contextSeries(all, symbol ? { instrument: symbol } : { activeId });
+        const unavailable = (reason: string, note: string, extra: Record<string, unknown> = {}) => ({ available: false, reason, instrument: symbol ?? all.find((row) => row.id === activeId)?.instrument ?? null, ...extra, note, asOf });
+        if ('reason' in picked) {
+          return picked.reason === 'demo_series'
+            ? unavailable('demo_series', tr('Série de démonstration : pas de contexte du jour sur des prix synthétiques', 'Demo series: no daily context on synthetic prices', 'Serie de demostración: sin contexto del día sobre precios sintéticos'))
+            : unavailable('no_series', tr('Aucune série de barres pour cet instrument dans le desk', 'No bar series for this instrument in the desk', 'Ninguna serie de barras para este instrumento en el desk'));
+        }
+        const series = picked.series;
+        const rules = ports.regimeRules();
+        const context = buildMetricsContext({
+          root: series.instrument,
+          bars: series.bars,
+          timeframe: series.timeframe,
+          trades: ports.trades(),
+          sessions: ports.sessions(),
+          events: ports.officialEvents().map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),
+          confirm: rules.confirm,
+          minStay: rules.minStay,
+        });
+        const last = context.days.at(-1);
+        const day = date ? context.days.find((row) => row.date === date) : last;
+        const where = { instrument: series.instrument, source: series.source };
+        if (!day) {
+          return unavailable('no_sheet', tr('Aucune fiche pour cette journée : pas de barre ce jour-là', 'No sheet for that day: no bar on that day', 'Ninguna ficha para ese día: no hay barra ese día'), { ...where, date, latestDate: last?.date ?? null });
+        }
+        if (day.volCT == null && day.volMT == null && day.volLT == null) {
+          return unavailable('insufficient_history', tr('Historique de barres insuffisant : moins de 90 séances avant cette fiche', 'Bar history is too short: fewer than 90 sessions before this sheet', 'Historial de barras insuficiente: menos de 90 sesiones antes de esta ficha'), { ...where, date: day.date });
+        }
+        const n = (v: number | undefined, d: number) => (v == null ? null : round(v, d));
+        return {
+          available: true,
+          instrument: series.instrument,
+          root: standardRoot(series.instrument),
+          source: series.source,
+          timeframe: series.timeframe,
+          date: day.date,
+          latest: day.date === last?.date,
+          regime: day.volCycle ?? null,
+          band: day.volBand ?? null,
+          volCT: n(day.volCT, 4),
+          volMT: n(day.volMT, 4),
+          volLT: n(day.volLT, 4),
+          hv30: n(day.hv30, 4),
+          hv60: n(day.hv60, 4),
+          hv90: n(day.hv90, 4),
+          atr14: n(day.atr14, 2),
+          prevClose: n(day.prevClose, 2),
+          traded: day.traded,
+          trades: day.trades,
+          contracts: n(day.contracts, 2),
+          events: day.events,
+          halfDay: day.halfDay,
+          gapAtr: n(day.gapAtr, 2),
+          dayRange: n(day.dayRange, 2),
+          highVsPrevClose: n(day.highVsPrevClose, 2),
+          lowVsPrevClose: n(day.lowVsPrevClose, 2),
+          openToClose: n(day.openToClose, 2),
+          asOf,
+        };
+      },
+    },
+    {
       name: 'working_orders',
       kind: 'read',
       description:
@@ -880,7 +1023,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'trader_memory',
       kind: 'read',
       description:
-        'Mémoire du trader : ses règles chiffrées actives (perte maximale du jour, trades par journée, fenêtre autour des catalyseurs majeurs, instruments autorisés, fenêtre de revanche), le plan prop suivi, sa note « Plan de trading », ses leçons (notes #leçon) et son playbook (notes #strategie), chacune avec son auteur et sa date. Les notes écrites par un agent n’y entrent pas (`excludedAgentNotes` les compte). Lecture seule.',
+        'Mémoire du trader : ses règles chiffrées actives (perte maximale du jour, trades par journée, fenêtre autour des catalyseurs majeurs, instruments autorisés, fenêtre de revanche), le plan prop suivi, sa note « Plan de trading », ses leçons (notes #leçon) et son playbook (notes #strategie), chacune avec son auteur et sa date. Une note écrite par un agent n’y entre que si le trader l’a adoptée : elle garde `by: agent` et porte `adoptedAt`, adoptée par le trader ; les autres en sont écartées (`excludedAgentNotes` les compte). Lecture seule.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const m = traderMemory({ rules: ports.traderRules(), plan: findPlan(ports.planId()), planAccount: ports.planAccount(), notes: ports.notes() });
@@ -976,6 +1119,7 @@ const EMPTY_PORTS: DeskPorts = {
   planId: () => '',
   planAccount: () => '',
   traderRules: () => DEFAULT_TRADER_RULES,
+  riskPerContract: () => 0,
   updateSession: async () => undefined,
   notes: () => [],
   createNote: async () => ({ id: '', title: '' }),
@@ -989,6 +1133,8 @@ const EMPTY_PORTS: DeskPorts = {
   marketFeed: () => 'closed',
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   barSeries: async () => [],
+  activeSeriesId: () => null,
+  regimeRules: () => ({ confirm: 2, minStay: 5 }),
   events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
   proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
 };
@@ -1002,20 +1148,20 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'desk_overview':
       return tr(
         fallback,
-        'Journal overview: session count, net PnL, win rate, profit factor after commissions (`noLoss: true` when there is no loss), expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.' + PROVENANCE_EN,
-        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor después de comisiones (`noLoss: true` si no hay ninguna pérdida), esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.' + PROVENANCE_ES,
+        'Journal overview: session count, net PnL, win rate, profit factor and payoff after commissions (`noLoss: true` when there is no loss), expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.' + PROVENANCE_EN,
+        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor y payoff después de comisiones (`noLoss: true` si no hay ninguna pérdida), esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.' + PROVENANCE_ES,
       );
     case 'list_sessions':
       return tr(
         fallback,
-        'Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The `demo` source is the demo dataset. A note longer than 280 characters is cut (`noteTruncated`): get_session returns it whole.' + PROVENANCE_EN,
-        'Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente `demo` es el juego de demostración. Una nota de más de 280 caracteres se corta (`noteTruncated`): get_session la devuelve entera.' + PROVENANCE_ES,
+        `Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The \`demo\` source is the demo dataset. A note longer than 280 characters is cut (\`noteTruncated\`): get_session returns it whole. At most ${TAGS_MAX} tags of ${TAG_LEN_MAX} characters (\`tagsTruncated\`). \`truncated\` at the root as soon as a note or tags are cut.` + PROVENANCE_EN,
+        `Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente \`demo\` es el juego de demostración. Una nota de más de 280 caracteres se corta (\`noteTruncated\`): get_session la devuelve entera. Como máximo ${TAGS_MAX} etiquetas de ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`). \`truncated\` en la raíz en cuanto se corta una nota o etiquetas.` + PROVENANCE_ES,
       );
     case 'get_session':
       return tr(
         fallback,
-        'Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without `account`, returns `ambiguous` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (`truncated`, `tradeCount`); the statistics cover them all.',
-        'Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin `account`, devuelve `ambiguous` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (`truncated`, `tradeCount`); las estadísticas los cubren todos.',
+        `Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without \`account\`, returns \`ambiguous\` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (\`truncated\`, \`tradeCount\`); the statistics cover them all. Tags of the session and of each trade: at most ${TAGS_MAX}, ${TAG_LEN_MAX} characters (\`tagsTruncated\`). Each trade carries its initial stop and target when entered, and \`risk\` as tab C computes it: amount, source (\`stop\`: |entry − stop| × point value × quantity; \`saisi\`: entered; \`fixe\`: per-contract risk setting; \`absent\`), planned R/R, realized R (PnL ÷ risk) and share of the risk capital (\`riskCapital\`: the plan’s maximum loss if the session is on the tracked account, otherwise the reference capital).`,
+        `Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin \`account\`, devuelve \`ambiguous\` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (\`truncated\`, \`tradeCount\`); las estadísticas los cubren todos. Etiquetas de la sesión y de cada trade: como máximo ${TAGS_MAX}, ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`). Cada trade lleva su stop y su objetivo iniciales si se introdujeron, y \`risk\` como la pestaña C: importe, fuente (\`stop\`: |entrada − stop| × valor del punto × cantidad; \`saisi\`: introducido; \`fixe\`: riesgo por contrato del ajuste; \`absent\`), R/R previsto, R realizado (PnL ÷ riesgo) y parte del capital de riesgo (\`riskCapital\`: pérdida máxima del plan si la sesión está en la cuenta seguida, si no el capital de referencia).`,
       );
     case 'annotate_session':
       return tr(fallback, 'Adds or replaces a session note and/or its tags.', 'Añade o sustituye la nota de una sesión y/o sus etiquetas.');
@@ -1065,6 +1211,12 @@ export function toolBlurb(name: string, fallback: string): string {
         'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real. feed: NinjaTrader feed state (live, stale, closed); ageSec: seconds since the last bar ended; a bridge series that ended more than 120 s ago is marked stale (it stays selected).',
         'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales. feed: estado del flujo NinjaTrader (live, stale, closed); ageSec: segundos desde el final de la última barra; una serie del puente terminada hace más de 120 s se marca stale (sigue elegida).',
       );
+    case 'day_context':
+      return tr(
+        fallback,
+        'Daily context sheet, the same as the Analysis tab. Stopped at the previous close: volatility regime (regime: choc = shock, expansion, decrue = receding, compression), band (band: basse = low, moyenne = medium, haute = high, thirds of medium-term volatility), annualized Garman-Klass volatilities (volCT, volMT, volLT; hv30, hv60, hv90). Then ATR 14, the day’s trades and contracts (standard equivalent), the day’s releases, half session, and the day’s own range (dayRange, openToClose, gaps to the previous close). date YYYY-MM-DD (default: the last sheet); instrument: registry root or contract (default: the series shown in Visual, otherwise the longest). Never on synthetic prices: a demo series gives way to a real series of the same root, otherwise available: false (demo_series). Fewer than 90 bar sessions before the sheet: available: false (insufficient_history). Read only.',
+        'Ficha del contexto del día, la misma que la pestaña Análisis. Detenidos en el cierre de la víspera: régimen de volatilidad (regime: choc = choque, expansion, decrue = descenso, compression), banda (band: basse = baja, moyenne = media, haute = alta, tercios de la volatilidad a medio plazo), volatilidades Garman-Klass anualizadas (volCT, volMT, volLT; hv30, hv60, hv90). Luego ATR 14, trades y contratos del día (equivalente estándar), publicaciones del día, media sesión, y la amplitud del propio día (dayRange, openToClose, distancias al cierre de la víspera). date YYYY-MM-DD (por defecto: la última ficha); instrument: raíz o contrato del registro (por defecto: la serie mostrada en Visual, si no la más larga). Nunca sobre precios sintéticos: una serie de demostración cede el paso a una serie real de la misma raíz, si no available: false (demo_series). Menos de 90 sesiones de barras antes de la ficha: available: false (insufficient_history). Solo lectura.',
+      );
     case 'working_orders':
       return tr(
         fallback,
@@ -1098,8 +1250,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'trader_memory':
       return tr(
         fallback,
-        'Trader memory: their active numeric rules (max daily loss, trades per day, window around major catalysts, allowed instruments, revenge window), the tracked prop plan, their “Trading plan” note, their lessons (#lesson notes) and their playbook (#strategy notes), each with its author and date. Notes written by an agent are left out (`excludedAgentNotes` counts them). Read only.',
-        'Memoria del trader: sus reglas numéricas activas (pérdida máxima del día, trades por jornada, ventana alrededor de los catalizadores mayores, instrumentos autorizados, ventana de revancha), el plan prop seguido, su nota «Plan de trading», sus lecciones (notas #lección) y su playbook (notas #estrategia), cada una con su autor y su fecha. Las notas escritas por un agente no entran (`excludedAgentNotes` las cuenta). Solo lectura.',
+        'Trader memory: their active numeric rules (max daily loss, trades per day, window around major catalysts, allowed instruments, revenge window), the tracked prop plan, their “Trading plan” note, their lessons (#lesson notes) and their playbook (#strategy notes), each with its author and date. A note written by an agent enters only once the trader has adopted it: it keeps `by: agent` and carries `adoptedAt`, adopted by the trader; the others stay out (`excludedAgentNotes` counts them). Read only.',
+        'Memoria del trader: sus reglas numéricas activas (pérdida máxima del día, trades por jornada, ventana alrededor de los catalizadores mayores, instrumentos autorizados, ventana de revancha), el plan prop seguido, su nota «Plan de trading», sus lecciones (notas #lección) y su playbook (notas #estrategia), cada una con su autor y su fecha. Una nota escrita por un agente solo entra si el trader la ha adoptado: conserva `by: agent` y lleva `adoptedAt`, adoptada por el trader; las demás quedan fuera (`excludedAgentNotes` las cuenta). Solo lectura.',
       );
     case 'discipline_status':
       return tr(
@@ -1114,6 +1266,14 @@ export function toolBlurb(name: string, fallback: string): string {
 
 export function toolSchemas(): ToolSchema[] {
   return DESK_TOOLS.map(({ name, description, parameters }) => ({ name, description: toolBlurb(name, description), parameters }));
+}
+
+/** Catalogue annoncé par `desk.describe` : le titre suit la langue du desk. */
+export function describedDeskTools(): (ToolSchema & { kind: 'read' | 'write'; title: string })[] {
+  return toolSchemas().map((tool) => {
+    const titles = DESK_TOOL_TITLES[tool.name as keyof typeof DESK_TOOL_TITLES];
+    return { ...tool, kind: toolKind(tool.name), title: tr(titles[0], titles[1], titles[2]) };
+  });
 }
 
 export function toolKind(name: string): 'read' | 'write' {

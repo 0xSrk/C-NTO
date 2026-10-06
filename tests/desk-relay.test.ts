@@ -6,7 +6,7 @@ import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from '../electron/desk-relay';
 import { McpGateway } from '../electron/mcp-server';
 import type { DeskPorts } from '@/engine/agent/ports';
 import { executeDeskTool } from '@/engine/agent/runner';
-import { toolKind, toolSchemas } from '@/engine/agent/tools';
+import { describedDeskTools } from '@/engine/agent/tools';
 import { coerceSettings, DEFAULT_SETTINGS, pickRestorableSettings } from '@/store/settings';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
@@ -56,7 +56,7 @@ function fakeRenderer(ports: DeskPorts, allowWrite: () => boolean) {
   const relay: DeskRelay = new DeskRelay((req) => {
     queueMicrotask(async () => {
       if (req.method === 'desk.describe') {
-        relay.settle(req.id, { tools: toolSchemas().map((t) => ({ ...t, kind: toolKind(t.name) })) });
+        relay.settle(req.id, { tools: describedDeskTools() });
         return;
       }
       const result = await executeDeskTool(ports, req.method.replace(/^tool\./, ''), (req.params as Record<string, unknown>) ?? {}, { source: 'orch', allowWrite: allowWrite() });
@@ -82,6 +82,7 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     planId: () => 'topstep-50',
     planAccount: () => '',
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => {
@@ -98,6 +99,8 @@ describe('de bout en bout : HTTP MCP → main → renderer → outil du desk', (
     marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
+    activeSeriesId: () => null,
+    regimeRules: () => ({ confirm: 2, minStay: 5 }),
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
     proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
   };

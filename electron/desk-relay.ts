@@ -1,4 +1,5 @@
 import { ORDER_TOOLS } from './agent/catalog';
+import { uiText, type AppLocale } from './locale';
 import type { McpRelay, McpToolInfo } from './mcp-server';
 
 /** Identifiant de client des requêtes MCP sur le canal `orch:request` (les clients WS sont `c1`, `c2`…). */
@@ -23,19 +24,23 @@ export class DeskRelay {
     /** Envoie `orch:request` ; faux si aucune fenêtre du desk n'est ouverte. */
     private readonly send: (req: { id: string; clientId: string; method: string; params: unknown }) => boolean,
     private readonly timeoutMs = 15_000,
+    /** Langue du desk, relue à chaque question : le motif d'un desk fermé ou muet part au client MCP. */
+    private readonly locale: () => AppLocale = () => 'fr',
   ) {}
 
   ask(method: string, params: unknown, timeoutMs = this.timeoutMs): Promise<DeskAnswer> {
     const id = `m${++this.seq}`;
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        if (this.pending.delete(id)) resolve({ result: null, error: 'Le desk ne répond pas (délai dépassé).' });
+        if (this.pending.delete(id)) {
+          resolve({ result: null, error: uiText(this.locale(), 'Le desk ne répond pas (délai dépassé).', 'The desk is not responding (timed out).', 'El desk no responde (tiempo agotado).') });
+        }
       }, timeoutMs);
       this.pending.set(id, { resolve, timer });
       if (!this.send({ id, clientId: MCP_CLIENT_ID, method, params })) {
         clearTimeout(timer);
         this.pending.delete(id);
-        resolve({ result: null, error: 'Desk indisponible : la fenêtre de CΛNTO est fermée.' });
+        resolve({ result: null, error: uiText(this.locale(), 'Desk indisponible : la fenêtre de CΛNTO est fermée.', 'Desk unavailable: the CΛNTO window is closed.', 'Desk no disponible: la ventana de CΛNTO está cerrada.') });
       }
     });
   }

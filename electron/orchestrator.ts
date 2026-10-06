@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { WebSocket, WebSocketServer } from 'ws';
 import { isDeskEventKind, orchMethodAllowed } from './agent/catalog';
+import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
 export { orchMethodAllowed };
@@ -64,6 +65,14 @@ export class Orchestrator {
   /** Réservations entre verifyClient et l'ajout dans `clients` — ferme la course TOCTOU. */
   private pending = 0;
 
+  /** `locale` : langue du desk (`userData/locale.json`), relue à chaque message ; français par défaut. */
+  constructor(private readonly locale: () => AppLocale = () => 'fr') {}
+
+  /** Refus et motifs de fermeture dans la langue du desk. */
+  private say(fr: string, en: string, es: string): string {
+    return uiText(this.locale(), fr, en, es);
+  }
+
   attach(win: BrowserWindow): void {
     this.win = win;
   }
@@ -80,7 +89,7 @@ export class Orchestrator {
   /** Régénère le jeton (déconnecte les clients en cours). */
   rotateToken(): OrchestratorStatus {
     this.token = randomBytes(18).toString('base64url');
-    for (const c of this.clients.values()) c.socket.close(1008, 'Jeton renouvelé');
+    for (const c of this.clients.values()) c.socket.close(1008, this.say('Jeton renouvelé', 'Token renewed', 'Token renovado'));
     this.clients.clear();
     this.emitStatus();
     return this.status();
@@ -142,7 +151,7 @@ export class Orchestrator {
         // Jeton présent mais faux : fermeture immédiate, le slot n'est pas occupé.
         if (q !== null && !tokensMatch(q, this.token)) {
           release();
-          socket.close(1008, 'Jeton invalide');
+          socket.close(1008, this.say('Jeton invalide', 'Invalid token', 'Token inválido'));
           return;
         }
         const id = `c${++this.seq}`;
@@ -151,7 +160,7 @@ export class Orchestrator {
         if (!authenticated) {
           client.authTimer = setTimeout(() => {
             const current = this.clients.get(id);
-            if (current && !current.authenticated) current.socket.close(1008, 'Authentification requise');
+            if (current && !current.authenticated) current.socket.close(1008, this.say('Authentification requise', 'Authentication required', 'Autenticación requerida'));
           }, AUTH_GRACE_MS);
         }
         this.clients.set(id, client);
@@ -172,7 +181,7 @@ export class Orchestrator {
   }
 
   stop(): OrchestratorStatus {
-    for (const c of this.clients.values()) c.socket.close(1001, 'CΛNTO ferme la passerelle');
+    for (const c of this.clients.values()) c.socket.close(1001, this.say('CΛNTO ferme la passerelle', 'CΛNTO is closing the gateway', 'CΛNTO cierra la pasarela'));
     this.clients.clear();
     this.pending = 0;
     this.server?.close();
@@ -221,7 +230,7 @@ export class Orchestrator {
     const now = Date.now();
     if (now - client.window.start > RATE_WINDOW_MS) client.window = { start: now, count: 0 };
     if (++client.window.count > RATE_MAX) {
-      this.reply(client, null, { code: -32005, message: 'Débit trop élevé' });
+      this.reply(client, null, { code: -32005, message: this.say('Débit trop élevé', 'Rate too high', 'Demasiadas solicitudes') });
       return;
     }
 
@@ -229,17 +238,17 @@ export class Orchestrator {
     try {
       parsed = JSON.parse(raw);
     } catch {
-      this.reply(client, null, { code: -32700, message: 'JSON invalide' });
+      this.reply(client, null, { code: -32700, message: this.say('JSON invalide', 'Invalid JSON', 'JSON no válido') });
       return;
     }
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      this.reply(client, null, { code: -32600, message: 'Requête invalide : objet attendu' });
+      this.reply(client, null, { code: -32600, message: this.say('Requête invalide : objet attendu', 'Invalid request: object expected', 'Solicitud no válida: se espera un objeto') });
       return;
     }
     const msg = parsed as { jsonrpc?: string; id?: string | number; method?: string; params?: unknown };
     const rpcId = typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : null;
     if (!msg.method || typeof msg.method !== 'string' || msg.method.length > 64) {
-      this.reply(client, rpcId, { code: -32600, message: 'Requête invalide : method manquant' });
+      this.reply(client, rpcId, { code: -32600, message: this.say('Requête invalide : method manquant', 'Invalid request: method is missing', 'Solicitud no válida: falta method') });
       return;
     }
 
@@ -250,24 +259,25 @@ export class Orchestrator {
         client.authTimer = undefined;
       }
       client.authenticated = typeof token === 'string' && tokensMatch(token, this.token);
-      safeSend(client.socket, client.authenticated ? { jsonrpc: '2.0', id: rpcId, result: { authenticated: true } } : { jsonrpc: '2.0', id: rpcId, error: { code: -32001, message: 'Jeton invalide' } });
-      if (!client.authenticated) client.socket.close(1008, 'Jeton invalide');
+      const refused = this.say('Jeton invalide', 'Invalid token', 'Token inválido');
+      safeSend(client.socket, client.authenticated ? { jsonrpc: '2.0', id: rpcId, result: { authenticated: true } } : { jsonrpc: '2.0', id: rpcId, error: { code: -32001, message: refused } });
+      if (!client.authenticated) client.socket.close(1008, refused);
       return;
     }
     if (!client.authenticated) {
-      this.reply(client, rpcId, { code: -32001, message: 'Authentification requise : desk.auth { token } ou ?token=' });
+      this.reply(client, rpcId, { code: -32001, message: this.say('Authentification requise : desk.auth { token } ou ?token=', 'Authentication required: desk.auth { token } or ?token=', 'Autenticación requerida: desk.auth { token } o ?token=') });
       return;
     }
     if (!orchMethodAllowed(msg.method, this.allowWrites)) {
-      this.reply(client, rpcId, { code: -32601, message: 'Méthode introuvable' });
+      this.reply(client, rpcId, { code: -32601, message: this.say('Méthode introuvable', 'Method not found', 'Método no encontrado') });
       return;
     }
     if (!this.win || this.win.isDestroyed()) {
-      this.reply(client, rpcId, { code: -32002, message: 'Desk indisponible' });
+      this.reply(client, rpcId, { code: -32002, message: this.say('Desk indisponible', 'Desk unavailable', 'Desk no disponible') });
       return;
     }
     if (client.inflight >= MAX_INFLIGHT) {
-      this.reply(client, rpcId, { code: -32005, message: 'Trop de requêtes en attente' });
+      this.reply(client, rpcId, { code: -32005, message: this.say('Trop de requêtes en attente', 'Too many pending requests', 'Demasiadas solicitudes pendientes') });
       return;
     }
     client.inflight++;

@@ -6,19 +6,33 @@ import { Button, Empty, Field, Progress, Tag, Toggle, cx } from '@/design/primit
 import { INDICATORS, indicatorById, type IndicatorInstance, type IndicatorLine, type IndicatorParam } from '@/engine/indicators';
 import type { Bar } from '@/engine/bars';
 import { DEFAULT_FUTURE, listInstruments } from '@/engine/instruments';
-import { createPort } from '@/engine/marketdata';
+import { createPort, type Nt8Transport } from '@/engine/marketdata';
 import type { Instrument } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
-import { openTextFile } from '@/lib/desk';
+import { desk, openTextFile } from '@/lib/desk';
 import { fmtInt, fmtPrice, fmtUsd, plural, signClass } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { useBars } from '@/store/bars';
+import { useBridge } from '@/store/bridge';
+import { deskEventLog } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useUi } from '@/store/ui';
 import { Chart, type HoverInfo } from './Chart';
+import { contractsSeen } from './ntContract';
+import { NtFollowPanel, shownSource, useNtFollow } from './NtFollowPanel';
 import s from './visual.module.css';
 
+/** Ports démo et CSV : toute la série, sans borne. Le pont, lui, demande une fenêtre finie (`historyWindow`). */
 const HISTORY_SPAN = { from: 0, to: Number.MAX_SAFE_INTEGER } as const;
+
+/** Contrats des exécutions reçues du pont pendant ce lancement, la plus récente d'abord. */
+function recentFills(): string[] {
+  return deskEventLog
+    .read({ kinds: ['fill'], limit: 200 })
+    .events.map((event) => event.data.instrument)
+    .filter((name): name is string => typeof name === 'string')
+    .reverse();
+}
 
 async function demoBars(timeframe: number, opts?: { days?: number; endDate?: string }): Promise<Bar[]> {
   const port = createPort('demo', { demo: { days: opts?.days ?? 12, endDate: opts?.endDate } });
@@ -187,6 +201,7 @@ export default function Visual() {
   const [catalog, setCatalog] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [sessionPick, setSessionPick] = useState<string>('');
+  const nt = useBridge((b) => b.nt);
 
   useEffect(() => {
     if (!ready) load();
@@ -223,10 +238,18 @@ export default function Visual() {
       );
   }, [session, active, saveDemoSeries, toast]);
 
-  const lines = useIndicatorLines(active?.bars ?? null, indicators);
+  const feed = desk?.marketdata;
+  const transport = feed?.history ? (feed as Nt8Transport) : undefined;
+  const seen = useMemo(() => contractsSeen(nt?.accounts ?? [], recentFills()), [nt]);
+  const follow = useNtFollow({ instrument: active?.instrument ?? null, timeframe: active?.timeframe ?? null, transport, seen });
+
+  const chartBars = follow.bars ?? active?.bars ?? null;
+  const source = active ? shownSource(active.source, follow.following) : null;
+  const lines = useIndicatorLines(chartBars, indicators);
 
   const onHover = useCallback((info: HoverInfo | null) => setHover(info), []);
-  const lastBar = active?.bars[active.bars.length - 1];
+  const firstBar = chartBars?.[0];
+  const lastBar = chartBars?.[chartBars.length - 1];
   const shownBar = hover?.bar ?? lastBar ?? null;
   const barDateKey = (time: number) => dateKeyLocal(new Date(time * 1000));
 
@@ -251,8 +274,8 @@ export default function Visual() {
         tab="visual"
         actions={
           <>
-            {active?.source === 'nt8-bridge' && ntFeed === 'stale' && <Tag tone="ember">{tr('données périmées', 'stale data', 'datos caducados')}</Tag>}
-            {active?.source === 'nt8-bridge' && ntFeed === 'live' && <Tag tone="mint">{tr('direct', 'live', 'directo')}</Tag>}
+            {source === 'nt8' && ntFeed === 'stale' && <Tag tone="ember">{tr('données périmées', 'stale data', 'datos caducados')}</Tag>}
+            {source === 'nt8' && ntFeed === 'live' && <Tag tone="mint">{tr('direct', 'live', 'directo')}</Tag>}
             <select value={activeId ?? ''} onChange={(e) => setActive(e.target.value)} style={{ minWidth: 260 }}>
               {series.map((sr) => (
                 <option key={sr.id} value={sr.id}>
@@ -294,7 +317,7 @@ export default function Visual() {
               <>
                 <div className={s.legend}>
                   <div className={s.legendMain}>
-                    <b>{active.instrument} · {active.timeframe}m</b>
+                    <b>{follow.following ? follow.contract : active.instrument} · {active.timeframe}m</b>
                     {shownBar && (
                       <>
                         <span>{formatDateFr(barDateKey(shownBar.time), { short: true })} {formatTimeLocal(shownBar.time * 1000)}</span>
@@ -319,8 +342,16 @@ export default function Visual() {
                     </div>
                   )}
                 </div>
-                <div className={s.stamp}>{active.source === 'demo' ? <Tag tone="amber">{tr('Données synthétiques · démo', 'Synthetic data · demo', 'Datos sintéticos · demo')}</Tag> : <Tag tone="ice">{tr('Import CSV', 'CSV import', 'Importación CSV')}</Tag>}</div>
-                <Chart bars={active.bars} timeframe={active.timeframe} lines={lines} trades={sessionTrades} onHover={onHover} />
+                <div className={s.stamp}>
+                  {source === 'nt8' ? (
+                    <Tag tone="mint">{tr('Données NinjaTrader', 'NinjaTrader data', 'Datos NinjaTrader')}</Tag>
+                  ) : source === 'demo' ? (
+                    <Tag tone="amber">{tr('Données synthétiques · démo', 'Synthetic data · demo', 'Datos sintéticos · demo')}</Tag>
+                  ) : (
+                    <Tag tone="ice">{tr('Import CSV', 'CSV import', 'Importación CSV')}</Tag>
+                  )}
+                </div>
+                <Chart bars={chartBars ?? []} timeframe={active.timeframe} lines={lines} trades={sessionTrades} onHover={onHover} />
               </>
             )}
           </div>
@@ -424,7 +455,7 @@ export default function Visual() {
                   <div className={s.desc}>
                     {plural(sessionTrades.length, tr('trade projeté', 'projected trade', 'trade proyectado'), tr('trades projetés', 'projected trades', 'trades proyectados'))}
                     {tr(' en marqueurs : flèche = entrée (L/S), cercle = sortie avec PnL. ', ' as markers: arrow = entry (L/S), circle = exit with PnL. ', ' en marcadores: flecha = entrada (L/S), círculo = salida con PnL. ')}
-                    {active?.source === 'demo' && tr('Les bougies étant synthétiques, seuls les horaires sont significatifs.', 'Since candles are synthetic, only the timestamps are meaningful.', 'Al ser las velas sintéticas, solo los horarios son significativos.')}
+                    {source === 'demo' && tr('Les bougies étant synthétiques, seuls les horaires sont significatifs.', 'Since candles are synthetic, only the timestamps are meaningful.', 'Al ser las velas sintéticas, solo los horarios son significativos.')}
                   </div>
                   {sessionTrades.map((t) => (
                       <div key={t.id} className={s.tradeRow}>
@@ -448,7 +479,7 @@ export default function Visual() {
               <div className={s.desc}>
                 {active ? (
                   <>
-                    {seriesLabel(active.label)} — {fmtInt(active.bars.length)} {tr('barres', 'bars', 'barras')}, {tr('du', 'from', 'del')} {active.bars[0] ? formatDateFr(barDateKey(active.bars[0].time), { short: true }) : '—'} {tr('au', 'to', 'al')} {lastBar ? formatDateFr(barDateKey(lastBar.time), { short: true }) : '—'}.
+                    {follow.following ? `${follow.contract} · ${active.timeframe} min · NinjaTrader` : seriesLabel(active.label)} — {fmtInt(chartBars?.length ?? 0)} {tr('barres', 'bars', 'barras')}, {tr('du', 'from', 'del')} {firstBar ? formatDateFr(barDateKey(firstBar.time), { short: true }) : '—'} {tr('au', 'to', 'al')} {lastBar ? formatDateFr(barDateKey(lastBar.time), { short: true }) : '—'}.
                   </>
                 ) : (
                   tr('Aucune série.', 'No series.', 'Ninguna serie.')
@@ -459,6 +490,8 @@ export default function Visual() {
                 {tr(') ou tout CSV OHLCV.', ') or any OHLCV CSV.', ') o cualquier CSV OHLCV.')}
               </div>
             </div>
+
+            <NtFollowPanel follow={follow} disabled={!active} />
           </aside>
         </div>
       </ModuleContent>

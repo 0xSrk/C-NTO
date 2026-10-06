@@ -123,6 +123,16 @@ function trackedDailyLoss(now = Date.now()): { input: DailyLossInput; key: strin
   };
 }
 
+/**
+ * Perte de la journée CME à 100 % de la limite retenue, sur le compte suivi : le seuil de l'événement
+ * `daily_loss` à 100 %, recalculé du journal, des réglages et du pont (`dayLoss`, `dailyLimit`). Il tient
+ * après un redémarrage du desk, quand l'anneau d'événements repart vide.
+ */
+export function dailyLossReached(now = Date.now()): boolean {
+  const tracked = trackedDailyLoss(now);
+  return !!tracked && tracked.input.loss >= tracked.input.limit;
+}
+
 /** Perte du jour : un niveau par journée, compte et limite ; le premier calcul pose le niveau sans alerter. */
 function dailyLossWatcher(): { check: () => void; dispose: () => void } {
   const watch = new ThresholdWatch(dailyLossAlert);

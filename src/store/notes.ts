@@ -160,9 +160,16 @@ interface NotesState {
   branch: (parentId: string, ancre: string, question?: string, opts?: NoteOrigin) => Promise<Note | null>;
   update: (id: string, patch: Partial<Pick<Note, 'title' | 'body' | 'pinned' | 'statut'>>) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  /** Geste du trader : une note d'agent entre dans la mémoire. Aucun outil ne l'appelle. */
+  adopt: (id: string) => Promise<void>;
   setActive: (id: string | null) => void;
   openByTitle: (title: string) => Promise<Note>;
   dailyNote: (date: string, seed?: string) => Promise<Note>;
+}
+
+/** Bouton « Adopter » : seulement une note d'agent pas encore reprise par le trader. */
+export function canAdopt(note: { by?: string; adoptedAt?: number }): boolean {
+  return note.by === 'agent' && typeof note.adoptedAt !== 'number';
 }
 
 export function byTitle(notes: Note[], title: string): Note | undefined {
@@ -245,6 +252,14 @@ export const useNotes = create<NotesState>((set, get) => ({
     set({ notes: [note, ...get().notes], activeId: note.id });
     scheduleOntologyRecompute();
     return note;
+  },
+
+  async adopt(id) {
+    const note = get().notes.find((n) => n.id === id);
+    if (!note || note.by !== 'agent' || typeof note.adoptedAt === 'number') return;
+    const adoptedAt = Date.now();
+    await db.notes.update(id, { adoptedAt });
+    set({ notes: get().notes.map((n) => (n.id === id ? { ...n, adoptedAt } : n)) });
   },
 
   async update(id, patch) {

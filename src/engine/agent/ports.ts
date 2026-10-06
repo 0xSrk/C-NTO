@@ -18,6 +18,8 @@ export interface DeskNote {
   question?: string;
   /** `agent` : note écrite par un agent IA. Absent : le trader. */
   by?: 'agent';
+  /** Pose du trader qui reprend une note d'agent dans sa mémoire. Absent : non adoptée. */
+  adoptedAt?: number;
 }
 
 export interface DeskCalendarEntry {
@@ -53,6 +55,8 @@ export interface DeskPorts {
   planAccount(): string;
   /** Règles chiffrées du trader (Réglages › Discipline). L'agent les lit ; il ne les change pas. */
   traderRules(): TraderRules;
+  /** Risque fixe par contrat (réglage 7 des Métriques), source `fixe` du risque d'un trade ; 0 : inactif. */
+  riskPerContract(): number;
   updateSession(id: string, patch: { note?: string; tags?: string[] }): Promise<void>;
   notes(): DeskNote[];
   createNote(title: string, body: string, tags: string[]): Promise<{ id: string; title: string }>;
@@ -73,6 +77,10 @@ export interface DeskPorts {
   portfolio(): Promise<{ pockets: Pocket[]; positions: Position[]; cash: CashBalance[]; fx: FxRate[]; base: string }>;
   /** Séries de barres du desk (pont NinjaTrader, CSV, démo), chargées si besoin. */
   barSeries(): Promise<BarSeries[]>;
+  /** Série affichée par Visual (`null` : aucune) ; le contexte du jour la lit par défaut, comme l'onglet Analyse. */
+  activeSeriesId(): string | null;
+  /** Réglages 1 et 2 des Métriques : confirmation d'un régime et durée minimale, en séances. */
+  regimeRules(): { confirm: number; minStay: number };
   /** Journal des événements du lancement en cours (fills, marge prop, catalyseurs, lien du pont). */
   events(opts: { cursor?: string; kinds?: readonly string[]; limit?: number }): DeskEventPage;
   /** Propose un ordre : le process principal garde, le fait confirmer par l'opérateur, puis le soumet. */

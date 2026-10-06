@@ -4,7 +4,7 @@ import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
 import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
-import { buildMetricsContext } from '@/engine/metricsContext';
+import { buildMetricsContext, contextSeries } from '@/engine/metricsContext';
 import { useBars } from '@/store/bars';
 import { useMacro } from '@/store/macro';
 import { RiskReading } from './RiskReading';
@@ -12,6 +12,7 @@ import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { useSettings } from '@/store/settings';
 import { ContextAxis } from './ContextAxis';
+import { volBandLabel, volCycleLabel } from './contextLabels';
 import { fmtPct, fmtPoints, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import s from './metrique.module.css';
 
@@ -108,18 +109,23 @@ function markerName(id: string, kind: 'slot' | 'duration' | 'strategy'): string 
   return displayGroupKey(id.slice('strategy:'.length));
 }
 
-function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
+/** Contexte du jour : instrument des barres, date, régime et bande de la dernière fiche, traduits. */
+export function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
+  useI18n((st) => st.locale);
   const series = useBars((st) => st.series);
   const activeId = useBars((st) => st.activeId);
   const events = useMacro((st) => st.events);
   const confirm = useSettings((st) => st.settings.regimeConfirm);
   const minStay = useSettings((st) => st.settings.regimeMinSessions);
   const note = useMemo(() => {
-    const chosen = series.find((row) => row.id === activeId) ?? series.slice().sort((a, b) => b.bars.length - a.bars.length)[0];
-    if (!chosen || chosen.bars.length === 0) return null;
+    // Même choix que l'outil day_context : jamais de fiche sur des prix synthétiques.
+    const picked = contextSeries(series, { activeId });
+    if ('reason' in picked) return picked.reason === 'demo_series' ? { demo: true as const } : null;
+    const chosen = picked.series;
     const result = buildMetricsContext({
       root: chosen.instrument,
       bars: chosen.bars,
+      timeframe: chosen.timeframe,
       trades,
       sessions,
       events: events.map((event) => ({ date: event.date, timeET: event.timeET, title: event.title, impact: event.impact, estimated: event.estimated })),
@@ -128,14 +134,19 @@ function ContextNote({ sessions, trades }: { sessions: Session[]; trades: Trade[
     });
     if (!result.sufficient) return { enough: false as const };
     const last = result.days.at(-1);
-    return { enough: true as const, date: last?.date, cycle: last?.volCycle };
+    return { enough: true as const, instrument: chosen.instrument, date: last?.date, cycle: last?.volCycle, band: last?.volBand };
   }, [series, activeId, events, trades, sessions, confirm, minStay]);
+  if (note && 'demo' in note) {
+    return <p className={s.note}>{tr('Série de démonstration : pas de contexte du jour sur des prix synthétiques', 'Demo series: no daily context on synthetic prices', 'Serie de demostración: sin contexto del día sobre precios sintéticos')}</p>;
+  }
   if (!note || !note.enough) {
     return <p className={s.note}>{tr('Historique de barres insuffisant', 'Bar history is too short', 'Historial de barras insuficiente')}</p>;
   }
+  const cycle = note.cycle ? volCycleLabel(note.cycle) : '—';
+  const band = note.band ? volBandLabel(note.band) : '—';
   return (
     <p className={s.note}>
-      {tr('Contexte', 'Context', 'Contexto')} {note.date ?? '—'} · {note.cycle ?? '—'}
+      {tr('Contexte', 'Context', 'Contexto')} {note.instrument} · {note.date ?? '—'} · {tr('régime', 'regime', 'régimen')} {cycle} · {tr('bande', 'band', 'banda')} {band}
     </p>
   );
 }

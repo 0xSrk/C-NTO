@@ -19,6 +19,7 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     planId: () => 'topstep-50',
     planAccount: () => '',
     traderRules: () => DEFAULT_TRADER_RULES,
+    riskPerContract: () => 0,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),
@@ -32,6 +33,8 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
+    activeSeriesId: () => null,
+    regimeRules: () => ({ confirm: 2, minStay: 5 }),
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
     proposeOrder: async () => ({ ok: false, status: 'refused', reason: 'disabled', detail: '' }),
     // Horloge fixe : `asOf` daté, résultats comparables d'un appel à l'autre.

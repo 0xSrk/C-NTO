@@ -27,4 +27,13 @@ describe('séries et Bayes', () => {
     expect(after.wins).toBe(1);
     expect(after.winRate).toBeCloseTo(0.5);
   });
+
+  it('exclut les trades nuls du taux après une série, comme le taux de base', () => {
+    // Après une perte : un nul, un gain, un nul. Seul le gain compte : 1 sur 1, pas 1 sur 3.
+    expect(rateAfterStreak([-1, 0, -1, 1, -1, 0], 1, 'loss')).toEqual({ count: 1, wins: 1, winRate: 1 });
+    expect(rateAfterStreak([1, 0, 1, -1], 1, 'win')).toEqual({ count: 1, wins: 0, winRate: 0 });
+    expect(rateAfterStreak([-1, 0], 1, 'loss')).toEqual({ count: 0, wins: 0, winRate: null });
+    // Comportement gardé : un nul interrompt la série qui précède.
+    expect(rateAfterStreak([-1, 0, -1, 1], 2, 'loss')).toEqual({ count: 0, wins: 0, winRate: null });
+  });
 });

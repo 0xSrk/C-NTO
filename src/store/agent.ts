@@ -3,12 +3,13 @@ import { probeProvider, streamChat } from '@/engine/agent/llm';
 import { contextBudget, fitHistory } from '@/engine/agent/context';
 import { memoryBudget, memoryDigest, traderMemory, type TraderMemory } from '@/engine/agent/memory';
 import { MAX_TOOL_ROUNDS, runAgentTurn, toChatHistory } from '@/engine/agent/loop';
+import { renderRoutine } from '@/engine/agent/routines';
 import { executeDeskTool } from '@/engine/agent/runner';
-import { toolKind, toolSchemas } from '@/engine/agent/tools';
+import { describedDeskTools, toolKind, toolSchemas } from '@/engine/agent/tools';
 import { type DeskPorts } from '@/engine/agent/ports';
 import { tradingDayNow } from '@/engine/discipline';
 import { findPlan } from '@/engine/propfirm';
-import { tr } from '@/i18n';
+import { tr, useI18n } from '@/i18n';
 import { dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
 import { desk, type AgentOrderOrigin, type McpStatus, type OrchestratorRequest, type OrchestratorStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
@@ -55,6 +56,11 @@ interface AgentState {
   linkLog: LinkLogEntry[];
   load: () => Promise<void>;
   send: (text: string) => Promise<void>;
+  /**
+   * Lance une routine dans la langue active ; rend vrai si elle part. Faux pendant un flux (rien ne part),
+   * outils coupés ou routine invalide (avis).
+   */
+  runRoutine: (name: string, args?: Record<string, unknown>) => Promise<boolean>;
   stop: () => void;
   newConversation: () => Promise<void>;
   probe: () => Promise<{ ok: boolean; detail: string; models?: string[] }>;
@@ -81,6 +87,7 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
     planId: () => useSettings.getState().settings.planId,
     planAccount: () => useSettings.getState().settings.planAccount,
     traderRules: () => useSettings.getState().settings.traderRules,
+    riskPerContract: () => useSettings.getState().settings.riskPerContract,
     updateSession: (id, patch) => useJournal.getState().updateSession(id, patch),
     notes: () => useNotes.getState().notes,
     createNote: (title, body, tags) => useNotes.getState().create(title, body, tags, { by: 'agent' }),
@@ -113,6 +120,8 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
       if (!useBars.getState().ready) await useBars.getState().load();
       return useBars.getState().series;
     },
+    activeSeriesId: () => useBars.getState().activeId,
+    regimeRules: () => ({ confirm: useSettings.getState().settings.regimeConfirm, minStay: useSettings.getState().settings.regimeMinSessions }),
     proposeOrder: async (args) => {
       const outcome = await useAgentOrders.getState().propose(args, origin);
       return { ok: outcome.status === 'sent', ...outcome };
@@ -120,7 +129,7 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
   };
 }
 
-/** Mémoire du trader telle que la consigne la résume : réglages et notes du trader, jamais celles d'un agent. */
+/** Mémoire du trader telle que la consigne la résume : réglages et notes du trader, et les notes d'agent qu'il a adoptées. */
 export function currentTraderMemory(settings: Settings): TraderMemory {
   return traderMemory({ rules: settings.traderRules, plan: findPlan(settings.planId), planAccount: settings.planAccount, notes: useNotes.getState().notes });
 }
@@ -179,7 +188,7 @@ export const useAgent = create<AgentState>((set, get) => ({
         const via = req.clientId === MCP_CLIENT_ID ? `mcp · ${req.method}` : req.method;
         const log = (ok: boolean, detail?: string) => pushLog(set, get, { direction: 'in', method: via, ok, detail });
         if (req.method === 'desk.describe') {
-          const tools = toolSchemas().map((t) => ({ ...t, kind: toolKind(t.name) }));
+          const tools = describedDeskTools();
           api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: APP_VERSION, tools });
           log(true);
           return;
@@ -222,12 +231,19 @@ export const useAgent = create<AgentState>((set, get) => ({
 
   async send(text) {
     // Non réentrant : un seul flux à la fois (abortController global, état de stream partagé).
+    // Le verrou se prend avant le premier `await` : de deux envois rapprochés, un seul part.
     if (get().streaming) return;
+    set({ streaming: true, streamText: '', error: null, notice: null, pendingTool: null });
     const { settings } = useSettings.getState();
     const { conversationId } = get();
     const userMsg: AgentMessage = { id: uid('m'), conversationId, role: 'user', content: text, createdAt: Date.now() };
-    await db.agentMessages.add(userMsg);
-    set({ messages: [...get().messages, userMsg], streaming: true, streamText: '', error: null, notice: null, pendingTool: null });
+    try {
+      await db.agentMessages.add(userMsg);
+    } catch (e) {
+      set({ streaming: false, error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    set({ messages: [...get().messages, userMsg] });
 
     abortController = new AbortController();
     const signal = abortController.signal;
@@ -276,6 +292,31 @@ export const useAgent = create<AgentState>((set, get) => ({
       set({ streaming: false, pendingTool: null });
       abortController = null;
     }
+  },
+
+  async runRoutine(name, args) {
+    // Un flux est en cours : `send` n'est pas réentrant, la routine ne partirait pas.
+    if (get().streaming) return false;
+    const { settings } = useSettings.getState();
+    const locale = useI18n.getState().locale;
+    if (!settings.agent.toolsEnabled) {
+      set({
+        notice: tr(
+          'Les outils du desk sont coupés : le brief et le débrief ne partent pas.',
+          'Desk tools are off: the brief and the debrief are not sent.',
+          'Las herramientas del desk están cortadas: el brief y el debrief no se envían.',
+        ),
+        error: null,
+      });
+      return false;
+    }
+    const rendered = renderRoutine(name, args ?? {}, { locale, allowWrites: settings.agent.toolsEnabled, now: Date.now() });
+    if (!rendered.ok) {
+      set({ notice: rendered.detail, error: null });
+      return false;
+    }
+    await get().send(rendered.text);
+    return true;
   },
 
   stop() {

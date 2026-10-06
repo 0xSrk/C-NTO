@@ -163,13 +163,17 @@ function fallBackToSoftware(reason: string): void {
 }
 let win: BrowserWindow | null = null;
 let launcherWin: BrowserWindow | null = null;
-const orchestrator = new Orchestrator();
+const orchestrator = new Orchestrator(() => readLocaleFile(app.getPath('userData')));
 /** Requêtes MCP relayées au renderer sur le canal de l'orchestrateur (`clientId` = `mcp`). */
-const deskRelay = new DeskRelay((req) => {
-  if (!win || win.isDestroyed()) return false;
-  win.webContents.send('orch:request', req);
-  return true;
-});
+const deskRelay = new DeskRelay(
+  (req) => {
+    if (!win || win.isDestroyed()) return false;
+    win.webContents.send('orch:request', req);
+    return true;
+  },
+  undefined,
+  () => readLocaleFile(app.getPath('userData')),
+);
 let mcp: McpGateway | null = null;
 function mcpGateway(): McpGateway {
   mcp ??= new McpGateway(

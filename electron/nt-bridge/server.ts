@@ -13,11 +13,13 @@ import {
   HEARTBEAT_LOST_MS,
   HEARTBEAT_STALE_MS,
   HISTORY_BAR_CAP,
+  HISTORY_TIMEOUT_MS,
   MAX_FRAME_BYTES,
   parseFrame,
   rpcError,
   rpcNotify,
   validateAddonCall,
+  validateHistory,
   validateOrderSubmit,
   validateSubscribe,
   type AccountSnapshot,
@@ -347,10 +349,13 @@ export class NtBridgeServer {
     }
   }
 
+  /** Fenêtre validée avant tout envoi : l'AddOn ne reçoit qu'une borne qu'il sait convertir. */
   async history(raw: Record<string, unknown>): Promise<{ ok: true; bars: unknown[] } | { ok: false; detail: string }> {
+    const parsed = validateHistory(raw);
+    if (!parsed.ok) return { ok: false, detail: parsed.message };
     if (this.link !== 'live') return { ok: false, detail: 'aucune source live' };
     try {
-      const result = asRecord(await this.rpc('marketdata.history', raw));
+      const result = asRecord(await this.rpc('marketdata.history', parsed.req, HISTORY_TIMEOUT_MS));
       const bars = result && Array.isArray(result.bars) ? result.bars.slice(0, HISTORY_BAR_CAP) : [];
       return { ok: true, bars };
     } catch (err) {

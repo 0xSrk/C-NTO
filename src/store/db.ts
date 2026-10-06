@@ -5,8 +5,10 @@ import type { IndicatorInstance } from '@/engine/indicators';
 import { NOTE_STATUTS, type NoteStatut } from '@/engine/ontology/header';
 import { ENTITY_TYPES, LINK_AUTHORS, LINK_KINDS, PREDICATES, type Link } from '@/engine/ontology/schema';
 import { buildEquityPoints } from '@/engine/portfolio/equity';
+import { TRADE_LEVEL_KEYS, tradeLevelIssue } from '@/engine/riskConsole';
 import { CREATABLE_POCKET_KINDS, assertNoCryptoPockets, type CashBalance, type EquityPoint, type FxRate, type Pocket, type Position } from '@/engine/portfolio/types';
 import type { Instrument, Session, Trade } from '@/engine/types';
+import { coerceRoutineSeen } from '@/engine/agent/routineDue';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
@@ -31,6 +33,8 @@ export interface Note {
   question?: string;
   /** `agent` : créée par un agent IA. Absent : écrite par le trader. */
   by?: 'agent';
+  /** Instant où le trader a adopté une note d'agent. Absent : non adoptée. Un coffre ancien n'a pas le champ. */
+  adoptedAt?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -463,7 +467,8 @@ const CHECKS: Record<string, Check> = {
     opt(r.parentId, (v) => isStr(v, 200)) &&
     opt(r.ancre, (v) => isStr(v, 500)) &&
     opt(r.question, (v) => isStr(v, 200)) &&
-    opt(r.by, (v) => v === 'agent'),
+    opt(r.by, (v) => v === 'agent') &&
+    opt(r.adoptedAt, isNum),
   calendar: (r) => isDate(r.date) && isStr(r.title, 200) && isEnum(r.kind, ['note', 'event'] as const) && opt(r.time, (v) => isStr(v, 5) && TIME_RE.test(v)) && opt(r.body, (v) => isStr(v, 20_000)),
   settings: (r) => r.key !== 'settings' || isRec(r.value),
   copierAccounts: (r) =>
@@ -593,6 +598,7 @@ const CHECKS: Record<string, Check> = {
  */
 const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
   'agent.conversation': (v) => (isStr(v, 64) && v.length > 0 ? v : undefined),
+  'agent.routineSeen': (v) => coerceRoutineSeen(v),
   'chart.active': (v) => (v === null || isStr(v, 200) ? v : undefined),
   'chart.indicators': (v) => {
     if (!Array.isArray(v) || v.length > 50) return undefined;
@@ -617,6 +623,29 @@ const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
     return out;
   },
 };
+
+/**
+ * Stop et objectif initiaux d'un coffre, avant le contrôle des lignes : un prix aberrant (pas un nombre,
+ * hors de ]0 ; 1e6], du mauvais côté de l'entrée, comme à la saisie) retire le champ et garde le trade et son P&L.
+ * Les autres lignes passent telles quelles : leur contrôle reste celui de `CHECKS`.
+ */
+function dropAberrantTradeLevels(input: unknown): unknown {
+  if (!Array.isArray(input) || input.length > MAX_ROWS) return input;
+  return input.map((item: unknown) => {
+    if (!isRec(item) || Object.prototype.hasOwnProperty.call(item, '__proto__') || Object.prototype.hasOwnProperty.call(item, 'constructor')) return item;
+    const direction = item.direction;
+    if (direction !== 'long' && direction !== 'short') return item;
+    const entryPrice = isNum(item.entryPrice) ? item.entryPrice : Number.NaN;
+    const aberrant = TRADE_LEVEL_KEYS.filter((key) => {
+      const value = item[key];
+      return value !== undefined && (!isNum(value) || tradeLevelIssue(key, value, { direction, entryPrice }) !== null);
+    });
+    if (aberrant.length === 0) return item;
+    const kept: Record<string, unknown> = { ...item };
+    for (const key of aberrant) delete kept[key];
+    return kept;
+  });
+}
 
 function coerceSessions(list: Session[]): Session[] {
   const now = Date.now();
@@ -670,6 +699,19 @@ export interface PreparedVault {
   skipped: SkippedRows;
 }
 
+/**
+ * Notes d'un coffre, avant `rows` : un `adoptedAt` illisible (non numérique, infini) est retiré et la note
+ * gardée, non adoptée. Une ligne copiée garde ses clés propres : la garde `__proto__` de `rows` s'applique.
+ */
+function withoutInvalidAdoption(input: unknown): unknown {
+  if (!Array.isArray(input) || input.length > MAX_ROWS) return input;
+  return input.map((item) => {
+    if (!isRec(item) || !Object.prototype.hasOwnProperty.call(item, 'adoptedAt') || isNum(item.adoptedAt)) return item;
+    const { adoptedAt: _invalid, ...rest } = item;
+    return rest;
+  });
+}
+
 /** Analyse et valide un coffre JSON sans toucher la base : chaque table est filtrée, les réglages passés à l'allowlist. */
 export function prepareVaultRestore(json: string): PreparedVault {
   if (json.length > 400 * 1024 * 1024) throw new Error(tr('Sauvegarde trop volumineuse.', 'Backup too large.', 'Copia demasiado grande.'));
@@ -677,8 +719,8 @@ export function prepareVaultRestore(json: string): PreparedVault {
   assertNoCryptoPockets(parsed.pockets);
   const skipped: SkippedRows = {};
   const sessions = coerceSessions(rows<Session>(parsed.sessions, 'id', 'sessions', CHECKS.sessions!, skipped));
-  const trades = rows<Trade>(parsed.trades, 'id', 'trades', CHECKS.trades!, skipped);
-  const notes = rows<Note>(parsed.notes, 'id', 'notes', CHECKS.notes!, skipped);
+  const trades = rows<Trade>(dropAberrantTradeLevels(parsed.trades), 'id', 'trades', CHECKS.trades!, skipped);
+  const notes = rows<Note>(withoutInvalidAdoption(parsed.notes), 'id', 'notes', CHECKS.notes!, skipped);
   const calendar = rows<CalendarEntry>(parsed.calendar, 'id', 'calendar', CHECKS.calendar!, skipped);
   // Réglages : allowlist stricte (jamais orchestrateur, dossier/chiffrement de sauvegarde, canal de mise à
   // jour, hôtes LLM ni secrets) ; une clé en clair issue d'un coffre navigateur v1 est reprise puis re-chiffrée.

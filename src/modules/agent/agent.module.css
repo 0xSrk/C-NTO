@@ -142,6 +142,19 @@
   color: var(--gold);
   animation: pulse-dot 0.8s ease-in-out infinite;
 }
+.routines {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cue {
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  display: inline-block;
+}
 .composer {
   border-top: 1px solid var(--line-1);
   padding: 12px 20px 16px;

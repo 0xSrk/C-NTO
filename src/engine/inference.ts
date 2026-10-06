@@ -66,16 +66,22 @@ export function blockBootstrapCi(
  * p-valeurs de permutation de la moyenne de chaque groupe.
  * Une permutation des valeurs est partagée par tous les groupes (même hypothèse nulle).
  * p = (1 + dépassements) / (tirages + 1), bilatérale sur la valeur absolue.
+ * Sans `centered`, la statistique est |moyenne du groupe| (rail de l'étape 2, inchangé).
+ * Avec `centered`, c'est |moyenne du groupe − moyenne générale| : la moyenne générale ne change pas
+ * d'une permutation à l'autre, et un groupe à 0 quand le reste gagne peut être extrême.
  * `groups` contient les indices dans `values`.
  */
 export function permutationPValues(
   values: readonly number[],
   groups: readonly (readonly number[])[],
-  opts: { draws?: number; seed?: number } = {},
+  opts: { draws?: number; seed?: number; centered?: boolean } = {},
 ): number[] {
   const draws = Math.max(1, Math.floor(opts.draws ?? INFERENCE_DRAWS));
   const n = values.length;
-  const observed = groups.map((group) => meanAt(values, group));
+  const center = opts.centered && n > 0 ? values.reduce((sum, value) => sum + value, 0) / n : 0;
+  // Centré, une égalité exacte peut différer d'un arrondi selon l'ordre des sommes : on la compte comme un dépassement.
+  const slack = opts.centered ? 1e-12 * values.reduce((max, value) => Math.max(max, Math.abs(value)), 0) : 0;
+  const observed = groups.map((group) => meanAt(values, group) - center);
   const counts = groups.map(() => 0);
   if (n === 0) return groups.map(() => 1);
   const sample = values.slice();
@@ -90,8 +96,8 @@ export function permutationPValues(
     for (let g = 0; g < groups.length; g++) {
       const group = groups[g];
       if (!group || group.length === 0) continue;
-      const stat = meanAt(sample, group);
-      if (Math.abs(stat) >= Math.abs(observed[g] ?? 0)) counts[g] = (counts[g] ?? 0) + 1;
+      const stat = meanAt(sample, group) - center;
+      if (Math.abs(stat) + slack >= Math.abs(observed[g] ?? 0)) counts[g] = (counts[g] ?? 0) + 1;
     }
   }
   return groups.map((group, g) => (group.length === 0 ? 1 : (1 + (counts[g] ?? 0)) / (draws + 1)));

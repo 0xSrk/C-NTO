@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { atrSeries } from '@/engine/atr';
 import type { Bar } from '@/engine/bars';
-import { buildMetricsContext, rawVolCycle, stabilizeVolCycles, toDailyBars, type VolCycle } from '@/engine/metricsContext';
+import { buildMetricsContext, rawVolCycle, stabilizeVolCycles, toDailyBars, type DayContext, type VolCycle } from '@/engine/metricsContext';
 import type { Trade } from '@/engine/types';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 
@@ -105,6 +105,34 @@ describe('fiche de contexte', () => {
     }
   });
 
+  it('applique le seuil de 90 séances fiche par fiche : tronquer avant la séance 90 ne change rien avant', () => {
+    const full = buildMetricsContext({ root: 'NQ', bars, trades: [] });
+    for (const cutoff of [dates[40]!, dates[89]!, dates[90]!]) {
+      const kept = bars.filter((_, index) => dates[index]! <= cutoff);
+      const partial = buildMetricsContext({ root: 'NQ', bars: kept, trades: [] });
+      expect(partial.days.filter((day) => day.date < cutoff)).toEqual(full.days.filter((day) => day.date < cutoff));
+    }
+    expect(full.days.slice(0, 90).every((day) => day.volCT == null && day.volMT == null && day.volLT == null && day.volBand == null)).toBe(true);
+    expect(full.days[90]).toMatchObject({ volCT: expect.any(Number), volMT: expect.any(Number), volLT: expect.any(Number) });
+    expect(buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 90), trades: [] }).sufficient).toBe(false);
+    expect(buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 91), trades: [] }).sufficient).toBe(true);
+  });
+
+  it('une barre invalide ne gèle pas le régime', () => {
+    const regimes = (rows: DayContext[]) => {
+      const out: VolCycle[] = [];
+      for (const day of rows) if (day.volCycle && out.at(-1) !== day.volCycle) out.push(day.volCycle);
+      return out;
+    };
+    const clean = buildMetricsContext({ root: 'NQ', bars, trades: [] }).days;
+    expect(regimes(clean.slice(171))).toEqual(['expansion', 'decrue', 'compression', 'choc']);
+    for (const broken of [{ low: 0 }, { high: 19_000, low: 21_000 }]) {
+      const days = buildMetricsContext({ root: 'NQ', bars: bars.map((bar, index) => (index === 170 ? { ...bar, ...broken } : bar)), trades: [] }).days;
+      expect(days.slice(171).every((day) => day.volCT != null && day.volMT != null && day.volLT != null)).toBe(true);
+      expect(regimes(days.slice(171))).toEqual(regimes(clean.slice(171)));
+    }
+  });
+
   it('garde les jours sans trade et ne triple pas les contrats copiés', () => {
     const slice = bars.slice(0, 100);
     const day = dates[20]!;
@@ -135,6 +163,43 @@ describe('fiche de contexte', () => {
     expect(busy?.trades).toBe(1);
   });
 
+  it('ne fusionne que les copies entre comptes différents, en équivalent standard', () => {
+    const slice = bars.slice(0, 100);
+    const day = dates[30]!;
+    const sheet = (trades: Trade[]) => buildMetricsContext({ root: 'NQ', bars: slice, trades }).days.find((row) => row.date === day);
+    // Deux exécutions d'un même compte dans la même seconde : deux trades.
+    const twice = sheet([trade('a1', day, 'A'), trade('a2', day, 'A')]);
+    expect([twice?.trades, twice?.contracts]).toEqual([2, 2]);
+    // Suiveur en micros (10 MNQ pour 1 NQ) : une décision, un contrat standard.
+    const micro = sheet([trade('a1', day, 'A'), { ...trade('b1', day, 'B', 10), instrument: 'MNQ', pnl: 200 }]);
+    expect([micro?.trades, micro?.contracts]).toEqual([1, 1]);
+    // Suiveur rempli une seconde plus tard, à l'entrée comme à la sortie : fusionné.
+    const late = trade('c1', day, 'C');
+    const delayed = sheet([trade('a1', day, 'A'), { ...late, entryTime: late.entryTime + 1_000, exitTime: late.exitTime + 1_000, entryPrice: 20_000.25 }]);
+    expect([delayed?.trades, delayed?.contracts]).toEqual([1, 1]);
+    // Sens contraire sur un autre compte : deux décisions.
+    const opposite = sheet([trade('a1', day, 'A'), { ...trade('d1', day, 'D'), direction: 'short', pnl: -200 }]);
+    expect(opposite?.trades).toBe(2);
+  });
+
+  it('« après une perte » lit le dernier trade du compte sorti avant l’entrée', () => {
+    const day = dates[40]!;
+    const at = (clock: string) => zonedToUtc(day, clock, ET_ZONE);
+    const span = (id: string, account: string, from: string, to: string, pnl: number): Trade => ({ ...trade(id, day, account), entryTime: at(from), exitTime: at(to), pnl });
+    const trades = [
+      span('x', 'A', '10:00', '10:30', -300), // perte, encore ouverte à 10:05
+      span('y', 'A', '10:05', '10:40', 150),
+      span('z', 'A', '10:35', '10:50', 80), // X est sorti à 10:30, Y sort à 10:40
+      span('w', 'A', '10:45', '11:00', 40), // Y (gain) est le dernier sorti
+      span('r', 'A', '11:00', '11:10', 10), // sortie de W à l'instant de l'entrée : W compte
+      span('b', 'B', '09:00', '09:50', -500), // autre compte
+      span('c', 'A', '09:55', '10:00', 20),
+    ];
+    const { trades: rows } = buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 100), trades });
+    const afterLoss = Object.fromEntries(rows.map((row) => [row.tradeId, row.afterLoss]));
+    expect(afterLoss).toEqual({ x: false, y: false, z: true, w: false, r: false, b: false, c: false });
+  });
+
   it('aligne l’ATR de la fiche sur l’indicateur des barres journalières', () => {
     const daily = toDailyBars(bars);
     const series = atrSeries(daily.map((day, index) => ({ time: index, open: day.open, high: day.high, low: day.low, close: day.close, volume: 0 })));
@@ -150,5 +215,39 @@ describe('fiche de contexte', () => {
     const { sufficient, days } = buildMetricsContext({ root: 'NQ', bars: bars.slice(0, 40), trades: [] });
     expect(sufficient).toBe(false);
     expect(days.every((day) => day.volCT == null && day.volCycle == null)).toBe(true);
+  });
+});
+
+describe('barres journalières lues à minuit local', () => {
+  // Un CSV journalier lu sur un poste à UTC+3 : chaque barre D est horodatée à 21 h UTC la veille.
+  const dates = weekdays('2024-01-02', 140);
+  const atMidnightUtcPlus3 = (date: string) => Date.parse(`${date}T00:00:00Z`) / 1000 - 3 * 3600;
+  const bars: Bar[] = dates.map((date, index) => {
+    const close = 20_000 + 10 * index + (index % 3) * 7;
+    const open = close - 5;
+    return { time: atMidnightUtcPlus3(date), open, high: close + 20 + (index % 7), low: open - 15 - (index % 5), close, volume: 1 };
+  });
+  const causes = (day: DayContext | undefined) => day && { volCT: day.volCT, volMT: day.volMT, volLT: day.volLT, hv30: day.hv30, hv60: day.hv60, hv90: day.hv90, volCycle: day.volCycle, volBand: day.volBand, prevClose: day.prevClose, gapAtr: day.gapAtr };
+
+  it('range chaque barre dans la fiche de sa date civile', () => {
+    const { days } = buildMetricsContext({ root: 'NQ', bars, trades: [], timeframe: 1440 });
+    expect(days.map((day) => day.date)).toEqual(dates);
+    days.forEach((day, index) => {
+      expect(day.dayRange).toBe(bars[index]!.high - bars[index]!.low);
+      if (index > 0) expect(day.prevClose).toBe(bars[index - 1]!.close);
+    });
+  });
+
+  it('ne fait pas fuir la barre de D dans la fiche de D', () => {
+    const index = dates.findIndex((date, i) => i >= 120 && new Date(`${date}T12:00:00Z`).getUTCDay() === 3);
+    const day = dates[index]!;
+    const next = dates[index + 1]!;
+    const base = buildMetricsContext({ root: 'NQ', bars, trades: [], timeframe: 1440 });
+    const moved = bars.map((bar, i) => (i === index ? { ...bar, high: bar.high + 400, low: bar.low - 400, close: bar.close + 300 } : bar));
+    const after = buildMetricsContext({ root: 'NQ', bars: moved, trades: [], timeframe: 1440 });
+    const before = base.days.find((row) => row.date === day);
+    expect(before?.volCT).toBeDefined();
+    expect(causes(after.days.find((row) => row.date === day))).toEqual(causes(before));
+    expect(after.days.find((row) => row.date === next)?.prevClose).toBe(moved[index]!.close);
   });
 });
