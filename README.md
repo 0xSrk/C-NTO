@@ -49,7 +49,7 @@ An artefact from **SIΞRRΛSKΛ Lab** — a local desk for prop-firm traders: qu
 6. [`06 · AGT` AI agent](#ai-agent) — prototype
 7. [`07 · BOT` Bot](#bot) — design
 8. [`08 · CPY` Copier](#copier) — simulation, disarmed on launch
-9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge) · [Named seat](#named-seat)
+9. [NinjaTrader 8 bridge](#ninjatrader-8-bridge)
 10. [Architecture](#architecture) · [Development](#development) · [Visual system](#visual-system)
 11. [Versions](#versions) · [Roadmap](#roadmap) · [Services](#services) · [Disclaimer](#disclaimer)
 
@@ -529,14 +529,6 @@ Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**. Compiling the A
 
 ---
 
-<a id="named-seat"></a>
-
-## Named seat
-
-A code from the Lab writes a tester's name at the bottom right of the desk, just before the bars. Hover or focus the bars: they turn into `<insert code>`. Click, paste the code, press Enter. The main process checks the code's Ed25519 signature against the Lab's seat keys (`electron/seat-keys.ts`, separate from the release keys) and shows the **signed** name, never the typed text. The code stays in the desk's data folder and is checked again at each launch. Without a code, nothing changes: the desk opens as before. Reference: [docs/SIEGE-NOMINATIF.md](docs/SIEGE-NOMINATIF.md).
-
----
-
 <div align="center">
 
 **`ARCH · SHELL · ENGINE · VAULT`**
@@ -620,7 +612,7 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)** (the previous grammar is arc
 
 The journal inside the desk lists the same releases, in French, English, and Spanish.
 
-- 3.4.0 — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. Named seat. (2026-10-06)
+- 3.4.0 — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
 - 3.3.4 — Update over 3.3.3. Desk Unlocked in the desk type. The loading bar writes the Lab name in characters. (2026-10-05)
 - 3.3.3 — Desk Unlocked in the desk type. Red tip on the Λ. Compact module plate. (2026-10-05)
 - 3.3.2 — PolyForm Noncommercial 1.0.0. Personal noncommercial use is free. Commercial use goes through the Lab. (2026-10-04)
@@ -643,7 +635,7 @@ The journal inside the desk lists the same releases, in French, English, and Spa
 
 ## Roadmap
 
-Shipped in 3.4.0: the agent reads the whole desk and its events, the local MCP gateway, orders proposed by the agent and confirmed by the trader, the security prerequisites (AddOn guard and mutual authentication, contract ceiling behind a dialog, position-based Copier, signed updates), and the named seat. Shipped in 3.3.4: the update the desk can see. Desk Unlocked stays in the desk type, and the loading bar writes the Lab name in characters. Shipped in 3.3.3: the Λ tip and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
+Shipped in 3.4.0: the agent reads the whole desk and its events, the local MCP gateway, orders proposed by the agent and confirmed by the trader, and the security prerequisites (AddOn guard and mutual authentication, contract ceiling behind a dialog, position-based Copier, signed updates). Shipped in 3.3.4: the update the desk can see. Desk Unlocked stays in the desk type, and the loading bar writes the Lab name in characters. Shipped in 3.3.3: the Λ tip and the compact module plate. Shipped in 3.3.2: the PolyForm Noncommercial License. Shipped in 3.3.1: the desk chrome and the Desk Unlocked opening. Shipped in 3.3.0: the execution port, simulation replication, and the Copier on the rail.
 
 Still ahead of the desk: the agent remains a prototype — it proposes, it never submits — and Bot remains design: it sends no order. The Copier does not follow a real account in this version. What the Lab brings next is listed under [Services](#services).
 

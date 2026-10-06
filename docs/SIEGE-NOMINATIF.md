@@ -45,6 +45,7 @@ Le bas à droite du desk est le pied de la barre d'état, pas la plaque.
 4. Sans code, le pied est celui d'aujourd'hui. Le desk public ne se ferme pas.
 5. Le texte saisi n'est jamais affiché comme nom, même en cas de refus.
 6. Deux clés distinctes. La clé de siège ne vérifie pas une Release ; la clé de publication ne vérifie pas un siège.
+7. Le siège est caché (décision de l'ADMIN, 2026-10-06). Ni le README ni les nouveautés du desk ne le mentionnent : le Lab donne l'accès lui-même. `tests/seat.test.ts` garde cette règle.
 
 ---
 
