@@ -3,6 +3,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { DeskRelay, mcpRelay } from '../electron/desk-relay';
 import { handleMcpHttp, loadOrCreateToken, McpGateway, MCP_PROTOCOL_VERSIONS, outputSchemaFor, type McpContext, type McpRelay, type McpToolInfo } from '../electron/mcp-server';
 import { DESK_TOOL_KINDS } from '@/engine/agent/catalog';
 import { TOOL_PREAMBLE } from '@/engine/agent/loop';
@@ -568,5 +569,76 @@ describe('A14.3 ressources MCP', () => {
     const both = await result(await handleMcpHttp(post(rpc('resources/read', { uri: 'canto://session/2026-10-06' })), ctx({ relay: ambiguous })));
     expect(both.error).toBeUndefined();
     expect(JSON.parse((both.result?.contents as { text: string }[])[0]!.text)).toMatchObject({ ambiguous: true });
+  });
+});
+
+describe('A14.10 noms stables, messages dans la langue du desk', () => {
+  const call = async (method: string, params: unknown = {}, over: Partial<McpContext> = {}) => result(await handleMcpHttp(post(rpc(method, params)), ctx(over)));
+  const httpMessage = async (req: ReturnType<typeof post>, locale: 'fr' | 'en' | 'es' = 'en') => JSON.parse((await handleMcpHttp(req, ctx({ locale }))).body ?? '{}').error?.message as string;
+
+  it('ressources et prompts : name identique dans les trois langues, seul title traduit', async () => {
+    const listed = async (locale: 'fr' | 'en' | 'es') => ({
+      resources: (await call('resources/list', {}, { locale })).result?.resources as { uri: string; name: string; title?: string }[],
+      templates: (await call('resources/templates/list', {}, { locale })).result?.resourceTemplates as { uriTemplate: string; name: string; title?: string }[],
+      prompts: (await call('prompts/list', {}, { locale })).result?.prompts as { name: string; title: string; arguments: { name: string }[] }[],
+    });
+    const fr = await listed('fr');
+    const en = await listed('en');
+    const es = await listed('es');
+    for (const key of ['resources', 'templates', 'prompts'] as const) {
+      const names = fr[key].map((r) => r.name);
+      expect(en[key].map((r) => r.name), key).toEqual(names);
+      expect(es[key].map((r) => r.name), key).toEqual(names);
+    }
+    expect(en.prompts.map((p) => p.arguments.map((a) => a.name))).toEqual(fr.prompts.map((p) => p.arguments.map((a) => a.name)));
+    expect(fr.resources.map((r) => [r.uri, r.name, r.title])).toEqual([
+      ['canto://desk/overview', 'desk_overview', 'Vue d’ensemble du desk'],
+      ['canto://plan/tracked', 'tracked_plan', 'Plan prop suivi'],
+    ]);
+    expect(en.resources.map((r) => r.title)).toEqual(['Desk overview', 'Tracked prop plan']);
+    expect(fr.templates.map((r) => [r.uriTemplate, r.name, r.title])).toEqual([
+      ['canto://session/{date}', 'session', 'Séance du journal'],
+      ['canto://note/{id}', 'note', 'Note du coffre'],
+    ]);
+    expect(en.templates.map((r) => r.title)).toEqual(['Journal session', 'Vault note']);
+    expect(es.templates.map((r) => r.title)).toEqual(['Sesión del diario', 'Nota de la caja']);
+  });
+
+  it('langue en : outil et méthode inconnus, contrôles HTTP, JSON-RPC mal formé, desk fermé ou muet, erreur interne', async () => {
+    expect((await call('tools/call', { name: 'place_order' }, { locale: 'en' })).error?.message).toBe('Unknown tool: place_order');
+    expect((await call('tools/call', {}, { locale: 'en' })).error?.message).toBe('Unknown tool: (no name)');
+    expect((await call('sampling/createMessage', {}, { locale: 'en' })).error?.message).toBe('Method not supported: sampling/createMessage');
+    expect(await httpMessage({ ...post(rpc('ping')), url: '/autre' })).toBe('Endpoint: /mcp');
+    expect(await httpMessage(post(rpc('ping'), { 'content-type': 'text/plain' }))).toBe('Expected Content-Type: application/json.');
+    expect(await httpMessage(post(rpc('ping'), { accept: 'text/html' }))).toBe('The gateway answers in application/json.');
+    expect(await httpMessage(post(rpc('ping'), { 'mcp-protocol-version': '1999-01-01' }))).toBe('Protocol version not supported: 1999-01-01.');
+    expect(await httpMessage(post('{pas du json'))).toBe('Invalid JSON');
+    expect(await httpMessage(post([rpc('ping')]))).toBe('JSON-RPC batches are not supported');
+    expect(await httpMessage(post('42'))).toBe('JSON-RPC object expected');
+    expect(await httpMessage(post('42'), 'es')).toBe('Se espera un objeto JSON-RPC');
+    expect(await httpMessage(post('{pas du json'), 'fr')).toBe('JSON invalide');
+
+    // Le relais du process principal : fenêtre fermée, puis renderer muet, lus par une ressource.
+    const closed = mcpRelay(new DeskRelay(() => false, 15_000, () => 'en'));
+    expect((await call('resources/read', { uri: 'canto://desk/overview' }, { locale: 'en', relay: closed })).error?.message).toBe('Desk unavailable: the CΛNTO window is closed.');
+    const silent = mcpRelay(new DeskRelay(() => true, 20, () => 'es'));
+    expect((await call('resources/read', { uri: 'canto://desk/overview' }, { locale: 'es', relay: silent })).error?.message).toBe('El desk no responde (tiempo agotado).');
+
+    // Erreur sans message (valeur levée qui n'est pas une Error) : 500 dans la langue du desk.
+    const throwing: McpRelay = { tools: async () => TOOLS, call: async () => Promise.reject('panne') };
+    const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), throwing, '3.3.4', undefined, () => 'en');
+    try {
+      const { port } = await gw.start(0);
+      const conn = (await gw.connection())!;
+      const reply = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${conn.token}`, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(rpc('resources/read', { uri: 'canto://desk/overview' })),
+      });
+      expect(reply.status).toBe(500);
+      expect(((await reply.json()) as { error: { message: string } }).error.message).toBe('Internal error');
+    } finally {
+      await gw.stop();
+    }
   });
 });

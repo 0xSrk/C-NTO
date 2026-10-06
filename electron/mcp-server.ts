@@ -316,7 +316,11 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       // Catalogue vide : le desk est fermé ou muet, pas l'outil inconnu.
       if (!catalog.length) return { result: toolError(deskSilent(locale, 'call')) };
       const tool = catalog.find((t) => t.name === name);
-      if (!tool) return { error: { code: -32602, message: `Outil inconnu : ${name || '(sans nom)'}` } };
+      if (!tool) {
+        return {
+          error: { code: -32602, message: uiText(locale, `Outil inconnu : ${name || '(sans nom)'}`, `Unknown tool: ${name || '(no name)'}`, `Herramienta desconocida: ${name || '(sin nombre)'}`) },
+        };
+      }
       if (tool.kind === 'write' && !ctx.allowWrites) {
         return {
           result: toolError(
@@ -344,12 +348,13 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
           })),
         },
       };
+    // `name` est l'identifiant stable de la ressource ; seul `title` suit la langue du desk.
     case 'resources/list':
       return {
         result: {
           resources: [
-            { uri: 'canto://desk/overview', name: uiText(locale, 'Vue d’ensemble du desk', 'Desk overview', 'Vista general del desk'), mimeType: 'application/json' },
-            { uri: 'canto://plan/tracked', name: uiText(locale, 'Plan prop suivi', 'Tracked prop plan', 'Plan prop seguido'), mimeType: 'application/json' },
+            { uri: 'canto://desk/overview', name: 'desk_overview', title: uiText(locale, 'Vue d’ensemble du desk', 'Desk overview', 'Vista general del desk'), mimeType: 'application/json' },
+            { uri: 'canto://plan/tracked', name: 'tracked_plan', title: uiText(locale, 'Plan prop suivi', 'Tracked prop plan', 'Plan prop seguido'), mimeType: 'application/json' },
           ],
         },
       };
@@ -357,8 +362,8 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       return {
         result: {
           resourceTemplates: [
-            { uriTemplate: 'canto://session/{date}', name: uiText(locale, 'Séance du journal', 'Journal session', 'Sesión del diario'), mimeType: 'application/json' },
-            { uriTemplate: 'canto://note/{id}', name: uiText(locale, 'Note du coffre', 'Vault note', 'Nota de la caja'), mimeType: 'application/json' },
+            { uriTemplate: 'canto://session/{date}', name: 'session', title: uiText(locale, 'Séance du journal', 'Journal session', 'Sesión del diario'), mimeType: 'application/json' },
+            { uriTemplate: 'canto://note/{id}', name: 'note', title: uiText(locale, 'Note du coffre', 'Vault note', 'Nota de la caja'), mimeType: 'application/json' },
           ],
         },
       };
@@ -381,20 +386,21 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       return { result: { description: out.description, messages: [{ role: 'user', content: { type: 'text', text: out.text } }] } };
     }
     default:
-      return { error: { code: -32601, message: `Méthode non prise en charge : ${method}` } };
+      return { error: { code: -32601, message: uiText(locale, `Méthode non prise en charge : ${method}`, `Method not supported: ${method}`, `Método no admitido: ${method}`) } };
   }
 }
 
-/** Origine, hôte, chemin et jeton : ce qui décide si la requête vient d'un client du desk. */
+/** Message au client dans la langue du desk ; français sans langue connue. */
 function say(locale: AppLocale | undefined, fr: string, en: string, es: string): string {
   return uiText(locale ?? 'fr', fr, en, es);
 }
 
+/** Origine, hôte, chemin et jeton : ce qui décide si la requête vient d'un client du desk. */
 function precheckAccess(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port' | 'locale'>): McpHttpReply | null {
   if (req.headers.origin) return httpError(403, say(ctx.locale, 'Origine refusée : la passerelle n’accepte pas les navigateurs.', 'Origin refused: the gateway does not accept browsers.', 'Origen rechazado: la pasarela no acepta navegadores.'));
   if (!loopbackHost(req.headers.host, ctx.port)) return httpError(403, say(ctx.locale, 'Hôte refusé.', 'Host refused.', 'Host rechazado.'));
   const pathname = req.url.split('?')[0];
-  if (pathname !== MCP_PATH) return httpError(404, `Point d’entrée : ${MCP_PATH}`);
+  if (pathname !== MCP_PATH) return httpError(404, say(ctx.locale, `Point d’entrée : ${MCP_PATH}`, `Endpoint: ${MCP_PATH}`, `Punto de entrada: ${MCP_PATH}`));
   const presented = bearer(req.headers.authorization);
   if (!presented || !tokensMatch(presented, ctx.token)) {
     return httpError(401, say(ctx.locale, 'Jeton requis : Authorization: Bearer <jeton du desk>.', 'Bearer token required: Authorization: Bearer <desk token>.', 'Hace falta el token: Authorization: Bearer <token del desk>.'), { 'WWW-Authenticate': 'Bearer realm="canto"' });
@@ -405,11 +411,17 @@ function precheckAccess(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext,
 /** Méthode HTTP, types, version et taille annoncée d'une requête déjà authentifiée. */
 function precheckShape(req: Omit<McpHttpRequest, 'body'>, locale?: AppLocale): McpHttpReply | null {
   if (req.method !== 'POST') return httpError(405, say(locale, 'Méthode HTTP non prise en charge : la passerelle est sans état, POST seulement.', 'HTTP method not supported: the gateway is stateless, POST only.', 'Método HTTP no admitido: la pasarela no tiene estado, solo POST.'), { Allow: 'POST' });
-  if (!(req.headers['content-type'] ?? '').toLowerCase().includes('application/json')) return httpError(415, 'Content-Type attendu : application/json.');
+  if (!(req.headers['content-type'] ?? '').toLowerCase().includes('application/json')) {
+    return httpError(415, say(locale, 'Content-Type attendu : application/json.', 'Expected Content-Type: application/json.', 'Content-Type esperado: application/json.'));
+  }
   const accept = (req.headers.accept ?? '').toLowerCase();
-  if (accept && !accept.includes('application/json') && !accept.includes('*/*')) return httpError(406, 'La passerelle répond en application/json.');
+  if (accept && !accept.includes('application/json') && !accept.includes('*/*')) {
+    return httpError(406, say(locale, 'La passerelle répond en application/json.', 'The gateway answers in application/json.', 'La pasarela responde en application/json.'));
+  }
   const version = req.headers['mcp-protocol-version'];
-  if (version && !(MCP_PROTOCOL_VERSIONS as readonly string[]).includes(version)) return httpError(400, `Version de protocole non prise en charge : ${version}.`);
+  if (version && !(MCP_PROTOCOL_VERSIONS as readonly string[]).includes(version)) {
+    return httpError(400, say(locale, `Version de protocole non prise en charge : ${version}.`, `Protocol version not supported: ${version}.`, `Versión de protocolo no admitida: ${version}.`));
+  }
   const declared = Number(req.headers['content-length']);
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return httpError(413, say(locale, 'Requête trop grande (1 Mo au plus).', 'Request too large (1 MB at most).', 'Solicitud demasiado grande (1 MB como máximo).'));
   return null;
@@ -466,10 +478,14 @@ export async function handleMcpHttp(req: McpHttpRequest, ctx: McpContext): Promi
   try {
     msg = JSON.parse(req.body);
   } catch {
-    return { status: 400, headers: JSON_HEADERS, body: rpcError(null, -32700, 'JSON invalide') };
+    return { status: 400, headers: JSON_HEADERS, body: rpcError(null, -32700, say(ctx.locale, 'JSON invalide', 'Invalid JSON', 'JSON no válido')) };
   }
-  if (Array.isArray(msg)) return { status: 400, headers: JSON_HEADERS, body: rpcError(null, -32600, 'Lots JSON-RPC non pris en charge') };
-  if (!msg || typeof msg !== 'object') return { status: 400, headers: JSON_HEADERS, body: rpcError(null, -32600, 'Objet JSON-RPC attendu') };
+  if (Array.isArray(msg)) {
+    return { status: 400, headers: JSON_HEADERS, body: rpcError(null, -32600, say(ctx.locale, 'Lots JSON-RPC non pris en charge', 'JSON-RPC batches are not supported', 'Lotes JSON-RPC no admitidos')) };
+  }
+  if (!msg || typeof msg !== 'object') {
+    return { status: 400, headers: JSON_HEADERS, body: rpcError(null, -32600, say(ctx.locale, 'Objet JSON-RPC attendu', 'JSON-RPC object expected', 'Se espera un objeto JSON-RPC')) };
+  }
   const rpc = msg as { jsonrpc?: unknown; id?: unknown; method?: unknown; params?: unknown };
   const id: RpcId | null = typeof rpc.id === 'string' || typeof rpc.id === 'number' ? rpc.id : null;
   const malformed = invalidRpc(rpc, id, ctx.locale ?? 'fr');
@@ -623,7 +639,7 @@ export class McpGateway {
       }
       send(res, reply);
     } catch (err) {
-      send(res, httpError(500, err instanceof Error ? err.message : 'Erreur interne'));
+      send(res, httpError(500, err instanceof Error ? err.message : say(locale, 'Erreur interne', 'Internal error', 'Error interno')));
     } finally {
       this.inflight--;
     }
