@@ -134,3 +134,24 @@ export function floorMicroContracts(standardContracts: number, ratio = 10): numb
   if (!(standardContracts > 0) || !(ratio > 0)) return 0;
   return Math.floor(standardContracts * ratio + 1e-9);
 }
+
+/** σ = cours × volatilité annuelle ÷ √(périodes par an). Jour 252, semaine 52, mois 12. */
+export function horizonSigma(price: number, annualVol: number, periodsPerYear: number): number {
+  if (!(price > 0) || !(annualVol > 0) || !(periodsPerYear > 0)) return Number.NaN;
+  return (price * annualVol) / Math.sqrt(periodsPerYear);
+}
+
+/** Distance en σ. Null si σ n'est pas connu (pas de volatilité implicite, volCT à l'étape 4). */
+export function sigmaDistance(points: number | null, sigma: number | null): number | null {
+  if (points == null || sigma == null || !(sigma > 0) || !Number.isFinite(points)) return null;
+  return Math.abs(points) / sigma;
+}
+
+/** Classes semi-ouvertes [0 ; 0,25) [0,25 ; 0,5) [0,5 ; 1) [1 ; ∞). */
+export function sigmaBand(distance: number): '<0.25' | '0.25-0.5' | '0.5-1' | '>1' | null {
+  if (!Number.isFinite(distance) || distance < 0) return null;
+  if (distance < 0.25) return '<0.25';
+  if (distance < 0.5) return '0.25-0.5';
+  if (distance < 1) return '0.5-1';
+  return '>1';
+}
