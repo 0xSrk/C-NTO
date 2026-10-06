@@ -1,29 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { prepareVaultRestore } from '@/store/db';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
-import { pressRoutine, routineDue } from '@/engine/agent/routineDue';
+import { ROUTINE_OF, routineDue } from '@/engine/agent/routineDue';
 
 const at = zonedToUtc('2026-10-06', '08:45', ET_ZONE);
 
+// « Rien ne part sans clic » se prouve sur le composant lui-même : tests/agent-tab.test.ts (A12.6).
 describe('A12.3 pastille du brief et du débrief', () => {
-  it('la pastille tient une fois par journée CME, et rien ne part sans clic', () => {
-    const run = vi.fn();
+  it('chaque bouton lance sa routine ; la pastille tient une fois par journée CME', () => {
+    expect(ROUTINE_OF).toEqual({ brief: 'pre_session_brief', debrief: 'session_debrief' });
     const due = routineDue(at, { tradesToday: 0, dailyLossFull: false });
     expect(due.brief).toBe(true);
-    expect(pressRoutine('brief', due, {}, false, run)).toEqual({});
-    expect(run).not.toHaveBeenCalled();
-    const seen = pressRoutine('brief', due, {}, true, run);
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(run).toHaveBeenCalledWith('pre_session_brief');
+    const seen = { brief: due.day };
     expect(routineDue(at, { tradesToday: 0, dailyLossFull: false, seen }).brief).toBe(false);
     const later = zonedToUtc('2026-10-06', '16:20', ET_ZONE);
     const close = routineDue(later, { tradesToday: 2, dailyLossFull: false, seen });
     expect(close.debrief).toBe(true);
-    expect(pressRoutine('debrief', close, seen, false, run)).toEqual(seen);
-    expect(run).toHaveBeenCalledTimes(1);
-    const both = pressRoutine('debrief', close, seen, true, run);
-    expect(run).toHaveBeenCalledWith('session_debrief');
-    expect(routineDue(later, { tradesToday: 2, dailyLossFull: false, seen: both }).debrief).toBe(false);
+    expect(routineDue(later, { tradesToday: 2, dailyLossFull: false, seen: { ...seen, debrief: close.day } }).debrief).toBe(false);
   });
 
   it('la journée vue se restaure depuis le coffre, et un coffre ancien reste lisible', () => {

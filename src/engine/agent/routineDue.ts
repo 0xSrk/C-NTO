@@ -71,18 +71,11 @@ export function coerceRoutineSeen(value: unknown): RoutineSeen | undefined {
 
 export type RoutineCue = 'brief' | 'debrief';
 
-/** Routine lancée par chaque bouton de l'onglet Agent. */
-export const ROUTINE_OF = { brief: 'pre_session_brief', debrief: 'session_debrief' } as const;
-
 /**
- * Sans clic, la journée vue ne change pas et `run` n'est pas appelé.
- * Le clic lance la routine et retient la journée CME, une fois.
+ * Routine lancée par chaque bouton de l'onglet Agent. Rien ne part sans clic du trader ; la journée CME
+ * n'est retenue que si la routine part (`runRoutine` rend vrai).
  */
-export function pressRoutine(which: RoutineCue, due: RoutineDue, seen: RoutineSeen, pressed: boolean, run: (name: (typeof ROUTINE_OF)[RoutineCue]) => void): RoutineSeen {
-  if (!pressed) return seen;
-  run(ROUTINE_OF[which]);
-  return { ...seen, [which]: due.day };
-}
+export const ROUTINE_OF = { brief: 'pre_session_brief', debrief: 'session_debrief' } as const;
 
 export function routineDue(now: number, ctx: RoutineDueContext): RoutineDue {
   const day = tradingDayKey(now, 18, ET_ZONE);

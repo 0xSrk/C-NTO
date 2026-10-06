@@ -297,4 +297,40 @@ describe('onglet Agent · routines', () => {
     expect(fake.puts).toEqual([{ key: 'agent.routineSeen', value: { brief: '2026-10-06' } }]);
     expect(cue(routineButton(node, 'Brief'))).toBe(false);
   });
+
+  it('A12.6 aucune routine ne part sans clic : pastilles allumées, minuteries avancées, rien au fournisseur', async () => {
+    // Mardi 6 octobre, 8 h 20 à New York : perte du jour déjà atteinte, la pastille du débrief est allumée.
+    const start = zonedToUtc('2026-10-06', '08:20', ET_ZONE);
+    clock(start);
+    dailyLossReached('2026-10-06', start);
+    const node = await mount();
+    expect(cue(routineButton(node, 'Débrief'))).toBe(true);
+    expect(cue(routineButton(node, 'Brief'))).toBe(false);
+    // Par pas de 5 minutes jusqu'à 9 h 40 : la pastille du brief s'allume à 8 h 30 et s'éteint après 9 h 30.
+    const lit: number[] = [];
+    for (let minutes = 5; minutes <= 80; minutes += 5) {
+      await act(async () => {
+        vi.advanceTimersByTime(5 * 60_000);
+      });
+      if (cue(routineButton(node, 'Brief'))) lit.push(minutes);
+    }
+    // Puis jusqu'à 17 h d'un seul tenant : la minuterie de l'onglet bat toutes les 30 s.
+    await act(async () => {
+      vi.advanceTimersByTime((7 * 60 + 20) * 60_000);
+    });
+    await settle();
+    expect(fake.provider).toBe(0);
+    expect(userMessages()).toEqual([]);
+    expect(fake.puts).toEqual([]);
+    expect(lit[0]).toBe(10);
+    expect(lit.at(-1)).toBe(70);
+    expect(cue(routineButton(node, 'Débrief'))).toBe(true);
+
+    // Le clic, et lui seul, envoie.
+    await click(routineButton(node, 'Débrief'));
+    await settle();
+    expect(fake.provider).toBe(1);
+    expect(userMessages()).toHaveLength(1);
+    expect(fake.puts).toEqual([{ key: 'agent.routineSeen', value: { debrief: '2026-10-06' } }]);
+  });
 });
