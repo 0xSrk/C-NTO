@@ -19,7 +19,7 @@ import { DESK_EVENT_KINDS, isDeskEventKind, ORDER_TOOLS } from './catalog';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
 import { AGENT_ORDER_BOUNDS } from './orders';
 import { traderMemory, type MemoryNote } from './memory';
-import { clampToolArgs, type DeskPorts } from './ports';
+import { clampToolArgs, TAG_LEN_MAX, TAGS_MAX, type DeskPorts } from './ports';
 
 export interface DeskTool extends ToolSchema {
   kind: 'read' | 'write';
@@ -64,6 +64,19 @@ function declaredKeys(tool: DeskTool | undefined): readonly string[] {
  */
 function profitFactorOf(pf: number): { profitFactor: number | null } | { noLoss: true } {
   return pf === Infinity ? { noLoss: true } : { profitFactor: round(pf) };
+}
+
+/** Tags rendus : au plus `TAGS_MAX`, chacun coupé à `TAG_LEN_MAX`. `tagsTruncated` dit la coupe. */
+function boundTags(tags: readonly string[] | undefined): { tags: string[]; tagsTruncated?: true } {
+  const list = tags ?? [];
+  let cut = list.length > TAGS_MAX;
+  const bounded = list.slice(0, TAGS_MAX).map((tag) => {
+    const text = String(tag);
+    if (text.length <= TAG_LEN_MAX) return text;
+    cut = true;
+    return text.slice(0, TAG_LEN_MAX);
+  });
+  return cut ? { tags: bounded, tagsTruncated: true } : { tags: bounded };
 }
 
 /** Extrait d'au plus `EXCERPT_MAX` caractères ; `cut` dit si le texte a été coupé. */
@@ -173,7 +186,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'desk_overview',
       kind: 'read',
       description:
-        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor après commissions (`noLoss: true` s’il n’y a aucune perte), espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.' + PROVENANCE_FR,
+        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor et payoff après commissions (`noLoss: true` s’il n’y a aucune perte), espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.' + PROVENANCE_FR,
       parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
       async run(args) {
         const from = str(args.from);
@@ -197,7 +210,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           winRate: round(t.winRate, 4),
           ...profitFactorOf(t.profitFactor),
           expectancy: round(t.expectancy),
-          payoffRatio: round(t.payoffRatio),
+          // Même lecture que le profit factor : sans perte le ratio est infini, JSON le rendrait null.
+          ...(t.payoffRatio === Infinity ? { noLoss: true as const } : { payoffRatio: round(t.payoffRatio) }),
           sqn: round(t.sqn),
           maxDrawdownTrades: round(t.maxDrawdown),
           sharpeDaily: round(d.sharpe),
@@ -231,7 +245,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'list_sessions',
       kind: 'read',
       description:
-        'Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source `demo` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (`noteTruncated`) : get_session la rend entière.' + PROVENANCE_FR,
+        `Liste les séances de trading (date, compte, source, PnL, nombre de trades, tags, note), les plus récentes d’abord. Filtres optionnels : bornes de dates YYYY-MM-DD et compte. La source \`demo\` désigne le jeu de démonstration. Une note de plus de 280 caractères est coupée (\`noteTruncated\`) : get_session la rend entière. Au plus ${TAGS_MAX} tags de ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).` + PROVENANCE_FR,
       parameters: {
         type: 'object',
         properties: {
@@ -254,7 +268,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const list = rows.map((s) => {
           const note = excerpt(s.note);
           if (note.cut) cut = true;
-          return { id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: s.tags, rating: s.rating, note: note.text, ...(note.cut ? { noteTruncated: true } : {}) };
+          const tags = boundTags(s.tags);
+          return { id: s.id, date: s.date, account: s.account ?? null, source: s.source, pnl: round(s.pnl), trades: s.tradeCount, tags: tags.tags, ...(tags.tagsTruncated ? { tagsTruncated: true } : {}), rating: s.rating, note: note.text, ...(note.cut ? { noteTruncated: true } : {}) };
         });
         return { count: list.length, ...(cut ? { truncated: true } : {}), sessions: list, ...provenance(ports, rows) };
       },
@@ -263,7 +278,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'get_session',
       kind: 'read',
       description:
-        'Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans `account`, rend `ambiguous` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (`truncated`, `tradeCount`) ; les statistiques portent sur tous.',
+        `Détail d’une séance et de ses trades (par id, ou par date YYYY-MM-DD et compte). Une date portée par plusieurs comptes, sans \`account\`, rend \`ambiguous\` et les séances candidates : relancer avec leur id ou le compte. Au plus 200 trades, par heure de sortie (\`truncated\`, \`tradeCount\`) ; les statistiques portent sur tous. Les tags de la séance : au plus ${TAGS_MAX}, ${TAG_LEN_MAX} caractères (\`tagsTruncated\`).`,
       parameters: {
         type: 'object',
         properties: {
@@ -293,10 +308,11 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const own = trades.filter((t) => t.sessionId === s.id).sort((a, b) => a.exitTime - b.exitTime);
         const stats = computeTradeStats(own);
         // Les identifiants d'exécution ne servent pas à l'analyse : comptés, pas listés.
-        const { executionIds, ...row } = s;
+        const { executionIds, tags, ...row } = s;
+        const boundedTags = boundTags(tags);
         const shown = own.slice(0, SESSION_TRADES_MAX);
         return {
-          session: { ...row, ...(executionIds ? { executionCount: executionIds.length } : {}) },
+          session: { ...row, tags: boundedTags.tags, ...(boundedTags.tagsTruncated ? { tagsTruncated: true } : {}), ...(executionIds ? { executionCount: executionIds.length } : {}) },
           stats: { winRate: round(stats.winRate, 4), ...profitFactorOf(stats.profitFactor), expectancy: round(stats.expectancy), maxDrawdown: round(stats.maxDrawdown), avgDurationMin: round(stats.avgDurationMs / 60000, 1) },
           ...(own.length > shown.length ? { truncated: true, tradeCount: own.length } : {}),
           trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, tags: t.tags })),
@@ -1002,20 +1018,20 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'desk_overview':
       return tr(
         fallback,
-        'Journal overview: session count, net PnL, win rate, profit factor after commissions (`noLoss: true` when there is no loss), expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.' + PROVENANCE_EN,
-        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor después de comisiones (`noLoss: true` si no hay ninguna pérdida), esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.' + PROVENANCE_ES,
+        'Journal overview: session count, net PnL, win rate, profit factor and payoff after commissions (`noLoss: true` when there is no loss), expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.' + PROVENANCE_EN,
+        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor y payoff después de comisiones (`noLoss: true` si no hay ninguna pérdida), esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.' + PROVENANCE_ES,
       );
     case 'list_sessions':
       return tr(
         fallback,
-        'Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The `demo` source is the demo dataset. A note longer than 280 characters is cut (`noteTruncated`): get_session returns it whole.' + PROVENANCE_EN,
-        'Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente `demo` es el juego de demostración. Una nota de más de 280 caracteres se corta (`noteTruncated`): get_session la devuelve entera.' + PROVENANCE_ES,
+        `Lists trading sessions (date, account, source, PnL, trade count, tags, note), newest first. Optional filters: YYYY-MM-DD date bounds and account. The \`demo\` source is the demo dataset. A note longer than 280 characters is cut (\`noteTruncated\`): get_session returns it whole. At most ${TAGS_MAX} tags of ${TAG_LEN_MAX} characters (\`tagsTruncated\`).` + PROVENANCE_EN,
+        `Lista las sesiones (fecha, cuenta, fuente, PnL, número de trades, etiquetas, nota), las más recientes primero. Filtros opcionales: fechas YYYY-MM-DD y cuenta. La fuente \`demo\` es el juego de demostración. Una nota de más de 280 caracteres se corta (\`noteTruncated\`): get_session la devuelve entera. Como máximo ${TAGS_MAX} etiquetas de ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).` + PROVENANCE_ES,
       );
     case 'get_session':
       return tr(
         fallback,
-        'Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without `account`, returns `ambiguous` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (`truncated`, `tradeCount`); the statistics cover them all.',
-        'Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin `account`, devuelve `ambiguous` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (`truncated`, `tradeCount`); las estadísticas los cubren todos.',
+        `Detail of a session and its trades (by id, or by YYYY-MM-DD date and account). A date held by several accounts, without \`account\`, returns \`ambiguous\` and the candidate sessions: call again with their id or the account. At most 200 trades, by exit time (\`truncated\`, \`tradeCount\`); the statistics cover them all. Session tags: at most ${TAGS_MAX}, ${TAG_LEN_MAX} characters (\`tagsTruncated\`).`,
+        `Detalle de una sesión y sus trades (por id, o por fecha YYYY-MM-DD y cuenta). Una fecha con sesiones en varias cuentas, sin \`account\`, devuelve \`ambiguous\` y las sesiones candidatas: volver a llamar con su id o la cuenta. Como máximo 200 trades, por hora de salida (\`truncated\`, \`tradeCount\`); las estadísticas los cubren todos. Etiquetas de la sesión: como máximo ${TAGS_MAX}, ${TAG_LEN_MAX} caracteres (\`tagsTruncated\`).`,
       );
     case 'annotate_session':
       return tr(fallback, 'Adds or replaces a session note and/or its tags.', 'Añade o sustituye la nota de una sesión y/o sus etiquetas.');
