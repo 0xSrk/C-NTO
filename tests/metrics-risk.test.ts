@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expectancy, thresholdWinRate, tradeRisk } from '@/engine/riskConsole';
+import { expectancy, expectancyR, rrMatrix, thresholdWinRate, tradeRisk } from '@/engine/riskConsole';
 
 describe('risque du trade', () => {
   it('achat de 2 MNQ, stop à 10 points, sortie à +60 $ : 40 $, +1,5 R, source stop', () => {
@@ -35,5 +35,17 @@ describe('risque du trade', () => {
     expect(1_250 / 625).toBe(2);
     expect(expectancy(0.8, 1_250, 625)).toBe(875);
     expect(thresholdWinRate(2)).toBeCloseTo(1 / 3);
+  });
+
+  it('matrice : 0,00 R à 40 % et 1,5 ; +0,50 R à 50 % et 2', () => {
+    expect(expectancyR(0.4, 1.5)).toBeCloseTo(0);
+    expect(expectancyR(0.5, 2)).toBeCloseTo(0.5);
+    const matrix = rrMatrix(0.4, 1.5);
+    const col = matrix.rewardRisks.indexOf(1.5);
+    expect(matrix.cells[0]?.[col]).toBeCloseTo(0);
+    expect(matrix.cells[0]?.[matrix.realized.col]).toBeCloseTo(0);
+    expect(matrix.winRates[1]).toBeCloseTo(0.5);
+    expect(matrix.winRates[2]).toBeCloseTo(0.3);
+    expect(matrix.winRates[3]).toBeCloseTo(0.25);
   });
 });
