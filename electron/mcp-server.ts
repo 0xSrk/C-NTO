@@ -263,7 +263,16 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       const tool = catalog.find((t) => t.name === name);
       if (!tool) return { error: { code: -32602, message: `Outil inconnu : ${name || '(sans nom)'}` } };
       if (tool.kind === 'write' && !ctx.allowWrites) {
-        return { result: toolError('Écriture désactivée dans CΛNTO : le trader doit l’autoriser (Agent IA › Agents externes).') };
+        return {
+          result: toolError(
+            uiText(
+              locale,
+              'Écriture désactivée dans CΛNTO : le trader doit l’autoriser (Agent IA › Agents externes).',
+              'Writing is disabled in CΛNTO: the trader must allow it (AI Agent › External agents).',
+              'Escritura desactivada en CΛNTO: el trader debe autorizarla (Agente IA › Agentes externos).',
+            ),
+          ),
+        };
       }
       const { result, error } = await ctx.relay.call(name, args);
       if (error && (result === null || result === undefined)) return { result: toolError(error) };
@@ -292,28 +301,32 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
 }
 
 /** Origine, hôte, chemin et jeton : ce qui décide si la requête vient d'un client du desk. */
-function precheckAccess(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port'>): McpHttpReply | null {
-  if (req.headers.origin) return httpError(403, 'Origine refusée : la passerelle n’accepte pas les navigateurs.');
-  if (!loopbackHost(req.headers.host, ctx.port)) return httpError(403, 'Hôte refusé.');
+function say(locale: AppLocale | undefined, fr: string, en: string, es: string): string {
+  return uiText(locale ?? 'fr', fr, en, es);
+}
+
+function precheckAccess(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port' | 'locale'>): McpHttpReply | null {
+  if (req.headers.origin) return httpError(403, say(ctx.locale, 'Origine refusée : la passerelle n’accepte pas les navigateurs.', 'Origin refused: the gateway does not accept browsers.', 'Origen rechazado: la pasarela no acepta navegadores.'));
+  if (!loopbackHost(req.headers.host, ctx.port)) return httpError(403, say(ctx.locale, 'Hôte refusé.', 'Host refused.', 'Host rechazado.'));
   const pathname = req.url.split('?')[0];
   if (pathname !== MCP_PATH) return httpError(404, `Point d’entrée : ${MCP_PATH}`);
   const presented = bearer(req.headers.authorization);
   if (!presented || !tokensMatch(presented, ctx.token)) {
-    return httpError(401, 'Jeton requis : Authorization: Bearer <jeton du desk>.', { 'WWW-Authenticate': 'Bearer realm="canto"' });
+    return httpError(401, say(ctx.locale, 'Jeton requis : Authorization: Bearer <jeton du desk>.', 'Bearer token required: Authorization: Bearer <desk token>.', 'Hace falta el token: Authorization: Bearer <token del desk>.'), { 'WWW-Authenticate': 'Bearer realm="canto"' });
   }
   return null;
 }
 
 /** Méthode HTTP, types, version et taille annoncée d'une requête déjà authentifiée. */
-function precheckShape(req: Omit<McpHttpRequest, 'body'>): McpHttpReply | null {
-  if (req.method !== 'POST') return httpError(405, 'Méthode HTTP non prise en charge : la passerelle est sans état, POST seulement.', { Allow: 'POST' });
+function precheckShape(req: Omit<McpHttpRequest, 'body'>, locale?: AppLocale): McpHttpReply | null {
+  if (req.method !== 'POST') return httpError(405, say(locale, 'Méthode HTTP non prise en charge : la passerelle est sans état, POST seulement.', 'HTTP method not supported: the gateway is stateless, POST only.', 'Método HTTP no admitido: la pasarela no tiene estado, solo POST.'), { Allow: 'POST' });
   if (!(req.headers['content-type'] ?? '').toLowerCase().includes('application/json')) return httpError(415, 'Content-Type attendu : application/json.');
   const accept = (req.headers.accept ?? '').toLowerCase();
   if (accept && !accept.includes('application/json') && !accept.includes('*/*')) return httpError(406, 'La passerelle répond en application/json.');
   const version = req.headers['mcp-protocol-version'];
   if (version && !(MCP_PROTOCOL_VERSIONS as readonly string[]).includes(version)) return httpError(400, `Version de protocole non prise en charge : ${version}.`);
   const declared = Number(req.headers['content-length']);
-  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return httpError(413, 'Requête trop grande (1 Mo au plus).');
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return httpError(413, say(locale, 'Requête trop grande (1 Mo au plus).', 'Request too large (1 MB at most).', 'Solicitud demasiado grande (1 MB como máximo).'));
   return null;
 }
 
@@ -321,8 +334,8 @@ function precheckShape(req: Omit<McpHttpRequest, 'body'>): McpHttpReply | null {
  * Contrôles qui ne lisent que la ligne de requête et les en-têtes. Le serveur les passe avant de lire
  * le corps : un client sans jeton ne fait jamais lire un octet de plus.
  */
-export function precheckMcpHttp(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port'>): McpHttpReply | null {
-  return precheckAccess(req, ctx) ?? precheckShape(req);
+export function precheckMcpHttp(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port' | 'locale'>): McpHttpReply | null {
+  return precheckAccess(req, ctx) ?? precheckShape(req, ctx.locale);
 }
 
 /** Débit ou appels en vol dépassés : le client réessaie après une seconde. */
@@ -500,19 +513,20 @@ export class McpGateway {
     const headers: Record<string, string | undefined> = {};
     for (const [k, v] of Object.entries(req.headers)) headers[k.toLowerCase()] = Array.isArray(v) ? v.join(', ') : v;
     const head = { method: req.method ?? 'GET', url: req.url ?? '/', headers };
-    const denied = precheckAccess(head, { token: this.token, port: this.port });
+    const localeForGate = this.locale();
+    const denied = precheckAccess(head, { token: this.token, port: this.port, locale: localeForGate });
     if (denied) return refuse(req, res, denied);
     // Compté après le jeton : un process local sans jeton n'épuise pas le débit de l'agent légitime.
-    const locale = this.locale();
+    const locale = localeForGate;
     if (now - this.window.start > RATE_WINDOW_MS) this.window = { start: now, count: 0 };
     if (++this.window.count > RATE_MAX) return refuse(req, res, tooMany(locale, 'rate'));
     if (this.inflight >= MAX_INFLIGHT) return refuse(req, res, tooMany(locale, 'inflight'));
-    const malformed = precheckShape(head);
+    const malformed = precheckShape(head, locale);
     if (malformed) return refuse(req, res, malformed);
     this.inflight++;
     try {
       const body = await readBody(req);
-      if (body === null) return refuse(req, res, httpError(413, 'Requête trop grande (1 Mo au plus).'));
+      if (body === null) return refuse(req, res, httpError(413, say(locale, 'Requête trop grande (1 Mo au plus).', 'Request too large (1 MB at most).', 'Solicitud demasiado grande (1 MB como máximo).')));
       const reply = await handleMcpHttp(
         { ...head, body },
         { token: this.token, port: this.port, allowWrites: this.allowWrites, serverVersion: this.serverVersion, relay: this.relay, locale },

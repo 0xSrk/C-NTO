@@ -40,6 +40,22 @@ async function result(reply: { body?: string }) {
 }
 
 describe('passerelle MCP · garde-fous HTTP', () => {
+  it('langue en : 401, 403, 405, 413 et le refus d’écriture', async () => {
+    const unauthorized = await handleMcpHttp(post(rpc('ping'), { authorization: undefined }), ctx({ locale: 'en' }));
+    expect(unauthorized.status).toBe(401);
+    expect(JSON.parse(unauthorized.body ?? '{}').error.message).toMatch(/Bearer token required/);
+    const origin = await handleMcpHttp(post(rpc('ping'), { origin: 'https://evil.example' }), ctx({ locale: 'en' }));
+    expect(JSON.parse(origin.body ?? '{}').error.message).toMatch(/Origin refused/);
+    const method = await handleMcpHttp({ ...post(''), method: 'GET' }, ctx({ locale: 'en' }));
+    expect(method.status).toBe(405);
+    expect(JSON.parse(method.body ?? '{}').error.message).toMatch(/POST only/);
+    const big = await handleMcpHttp(post(rpc('ping'), { 'content-length': '99999999' }), ctx({ locale: 'en' }));
+    expect(big.status).toBe(413);
+    expect(JSON.parse(big.body ?? '{}').error.message).toMatch(/too large/);
+    const denied = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'create_note', arguments: { title: 'x' } })), ctx({ locale: 'en' })));
+    expect((denied.result?.content as { text: string }[])[0]?.text).toMatch(/Writing is disabled/);
+  });
+
   it('refuse sans jeton, avec un mauvais jeton, depuis un navigateur ou un autre hôte', async () => {
     expect((await handleMcpHttp(post(rpc('ping'), { authorization: undefined }), ctx())).status).toBe(401);
     const wrong = await handleMcpHttp(post(rpc('ping'), { authorization: 'Bearer faux' }), ctx());
