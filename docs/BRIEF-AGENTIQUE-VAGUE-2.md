@@ -6,7 +6,7 @@ Date : 2026-10-06
 Dépôt : `0xSrk/C-NTO`
 Base : `main` à `d9b39aa` (vague 1, étapes 3 à 5 des Métriques, A11.6)
 Mis à jour : 2026-10-06, après la revue des PR #97 à #109 (§ 5)
-État : § 5.1 et § 5.2 faits, sur la branche `agentique/vague-2` (`docs/AUDIT.md` › « vague 2 › Corrections ») ; reste le § 5.3
+État : § 5.1, § 5.2 et § 5.3 faits, sur la branche `agentique/vague-2` (`docs/AUDIT.md` › « vague 2 › Corrections ») ; la suite est la vague 3, aux décisions de l'ADMIN (`docs/THESE-AGENTIQUE.md` § 7)
 Version `package.json` : `3.4.0`, à ne pas toucher
 
 Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vague 1 l'a laissée. Tu modifies **ce dépôt uniquement**. Tu ne réinventes pas l'architecture : elle est décrite au § 2 et elle tient.
@@ -56,7 +56,7 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 
 | Zone | Chemin | Faits à ne pas contredire |
 |---|---|---|
-| Catalogue | `src/engine/agent/catalog.ts` | **Aucun import** (le process principal le compile). Il contient :<br>• `DESK_TOOL_KINDS` : 22 outils, 17 lectures et 5 écritures ;<br>• `ORDER_TOOLS` ;<br>• `DESK_TOOL_HINTS` et `DESK_TOOL_TITLES`, typés `Record<DeskToolName, …>` : un outil nouveau sans entrée = typecheck rouge ;<br>• `TOOL_PREAMBLE` ;<br>• `DESK_EVENT_KINDS` : `fill`, `order`, `prop_buffer`, `catalyst`, `bridge_link`, `agent_order`, `daily_loss`, `discipline`. |
+| Catalogue | `src/engine/agent/catalog.ts` | **Aucun import** (le process principal le compile). Il contient :<br>• `DESK_TOOL_KINDS` : 23 outils, 18 lectures et 5 écritures ;<br>• `ORDER_TOOLS` ;<br>• `DESK_TOOL_HINTS` et `DESK_TOOL_TITLES`, typés `Record<DeskToolName, …>` : un outil nouveau sans entrée = typecheck rouge ;<br>• `TOOL_PREAMBLE` ;<br>• `DESK_EVENT_KINDS` : `fill`, `order`, `prop_buffer`, `catalyst`, `bridge_link`, `agent_order`, `daily_loss`, `discipline`. |
 | Outils | `src/engine/agent/tools.ts` | • `createDeskTools(ports)` : description française dans l'outil, anglais et espagnol dans `toolBlurb` ;<br>• `EMPTY_PORTS` ;<br>• les lectures du journal rendent `asOf`, `sources`, `demo`. |
 | Ports | `src/engine/agent/ports.ts` | Un port nouveau s'ajoute partout :<br>• `livePorts` (`src/store/agent.ts`) ;<br>• `EMPTY_PORTS` ;<br>• `tests/helpers/deskPorts.ts` ;<br>• `tests/helpers/demoDesk.ts` ;<br>• les faux ports de plusieurs tests (`grep -rn "bridge: async" tests`). |
 | Boucle | `src/engine/agent/loop.ts`, `context.ts`, `runner.ts` | • `runAgentTurn` : `MAX_TOOL_ROUNDS` = 6, chaque appel reçoit un résultat ;<br>• `fitHistory` ;<br>• `executeDeskTool` : source `llm` ou `orch`, `confirmFn`, `allowWrite`. |
@@ -72,7 +72,7 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 | LLM | `electron/llm-host.ts`, `src/store/settings.ts` | • `llmFetch` refuse toute redirection ;<br>• `keyFor` et `llmKeyHost` ;<br>• champ `apiKeyHost`. |
 | Harnais | `tests/helpers/scriptedLlm.ts`, `demoDesk.ts`, `agentEval.ts` | • `runScenario` pilote la **vraie** boucle et le vrai `executeDeskTool` ;<br>• attendus recalculés par les moteurs de l'écran, jamais en dur. |
 | Métriques, étape 3 (R et risque) | `src/engine/riskConsole.ts`, `src/modules/metrique/RiskReading.tsx`, `Sessions.tsx` | • `tradeRisk`, `rrMatrix` (au R/R réalisé de `realizedRewardRisk`), `expectancyR`, `adjustedRiskPoints`, `horizonSigma`, `sigmaBand`, `bernoulliRun`, `longestLossStreak`, `betaPosterior`, `rateAfterStreak`, `dayBlockedMeanCi` ;<br>• `Trade.stopPrice` et `targetPrice` facultatifs (`TRADE_SCHEMA_VERSION` = 3) ;<br>• tables F20 à F22 absentes : Vol-LT et Cross-Vol stockés, non appliqués. |
-| Métriques, étape 4 (contexte du jour) | `src/engine/atr.ts`, `src/engine/metricsContext.ts` | • `atrSeries` (l'indicateur `atr` l'appelle) ;<br>• `toDailyBars`, `garmanKlassAnnualized` (arrêté à la veille), `stabilizeVolCycles`, `buildMetricsContext` ;<br>• `DayContext` : régime, bande, volatilités. |
+| Métriques, étape 4 (contexte du jour) | `src/engine/atr.ts`, `src/engine/metricsContext.ts` | • `atrSeries` (l'indicateur `atr` l'appelle) ;<br>• `toDailyBars`, `garmanKlassAnnualized` (arrêté à la veille), `stabilizeVolCycles`, `buildMetricsContext` ;<br>• `contextSeries` : la série du contexte du jour, la même pour l'onglet Analyse et l'outil `day_context` ;<br>• `DayContext` : régime, bande, volatilités. |
 | Métriques, étape 5 (lecture par contexte) | `src/engine/contextReading.ts`, `src/modules/metrique/ContextAxis.tsx` | • `readAxis`, `decomposeExact`, `inReleaseWindow`, `labelRelease`, `releaseContrast`, `comparableSet` ;<br>• `src/modules/metrique/axisReading.ts` porte la lecture de l'onglet : une racine, la fiche du jour arrêtée à la veille (décision T27) ;<br>• `contextLabels.ts` nomme régimes et bandes ;<br>• la trame jour × heure de l'onglet C est remplacée. |
 
 ---
@@ -118,7 +118,7 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 
 Revue du 2026-10-06 : chaque PR a été rejouée (typecheck, tests, correctif retiré pour voir le test tomber) et chaque bloquant a été relu dans le code.
 
-**État.** 5.1 et 5.2 sont faits : tickets, commits et tests dans `docs/AUDIT.md`, « vague 2 › Corrections ». La suite est 5.3.
+**État.** 5.1, 5.2 et 5.3 sont faits : tickets, commits et tests dans `docs/AUDIT.md`, « vague 2 › Corrections ».
 
 **Ordre suivi.** D'abord 5.1, pour libérer la file. Ensuite les deux bloquants de 5.2 (M4.7, M6.4) : ils faussent des chiffres affichés aujourd'hui. Puis le reste de 5.2, et enfin 5.3. Les constats de `main` sont aussi consignés dans `docs/AUDIT.md` (T17 à T28).
 
@@ -239,7 +239,9 @@ Fait autrement : les six PR sont intégrées par fusion sur `agentique/vague-2`,
   - clés traduites, primitive `Segmented` et `aria-pressed` (`ContextAxis.tsx:61`, `:146`, `:161`).
 - **Régime « de la veille » (T27) : décidé.** La fiche du jour D est déjà arrêtée à la clôture de D−1 ; l'onglet relisait `days[index-1]`, donc D−2. Décision déléguée par l'ADMIN : la journée se classe par sa propre fiche, comme `comparableSet` (M6.10).
 
-### 5.3 L'agent lit les nouvelles Métriques (après 5.2)
+### 5.3 L'agent lit les nouvelles Métriques (après 5.2) (fait)
+
+Fait : `48e7dcf` (A6.12) et `1a65445` (A6.13), test `tests/agent-metriques.test.ts`. Ports ajoutés : `riskPerContract`, `activeSeriesId`, `regimeRules`.
 
 **A6.12 rendre le risque et le R de chaque trade dans `get_session`.**
 - **Faire :**
