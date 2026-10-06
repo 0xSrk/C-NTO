@@ -60,7 +60,8 @@ Une entrée de `src/engine/changelog/changelog.json` peut être préparée (troi
 ## 6. Où consigner
 
 - Constats d'audit et preuves : `docs/AUDIT.md`, une section par vague, chaque constat cité `fichier:ligne`.
-- Plan en cours : `docs/AUDIT.md` › « 3.3.4 — audit agentique » (A1 fiabilité de la boucle, A2 données justes, A3 tout le desk en lecture, A4 la porte MCP et les événements, A5 exécution gardée après les prérequis S1–S5).
+- Thèse de la couche agentique : `docs/THESE-AGENTIQUE.md` (cap, propositions vérifiables, refus, décisions ouvertes de l'ADMIN).
+- Plan en cours : `docs/AUDIT.md` › « Couche agentique du trader — thèse et vague 1 » (A6 vérité, A7 preuve, A8 porte, A9 séance, A10 discipline et mémoire, A11 garde). Plan précédent, soldé : « 3.3.4 — audit agentique » (A1 à A5).
 - Pont NinjaTrader : `docs/PONT-NINJATRADER.md`.
 - Siège nominatif : `docs/SIEGE-NOMINATIF.md`.
 
