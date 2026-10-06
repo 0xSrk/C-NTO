@@ -155,8 +155,9 @@ export default function Agent() {
   const dailyLossFull = deskEventLog.read({ kinds: ['daily_loss'], limit: 200 }).events.some((event) => event.data.day === day && event.data.threshold === 1);
   const due = routineDue(now, { tradesToday, dailyLossFull, seen });
   const launch = (which: RoutineCue) => {
+    // Datée de la journée CME, celle que la pastille et la journée vue retiennent (après 18 h, celle du lendemain).
     const next = pressRoutine(which, due, seen, true, (name) => {
-      void runRoutine(name);
+      void runRoutine(name, { date: due.day });
     });
     setSeen(next);
     void db.settings.put({ key: 'agent.routineSeen', value: next });
