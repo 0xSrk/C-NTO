@@ -1,5 +1,7 @@
 import { mulberry32 } from '@/lib/rng';
-import { mean, percentile } from './metrics';
+import { ET_ZONE, zonedWallClock } from '@/lib/time';
+import { mean, percentile, tradeDay, weekdayOf } from './metrics';
+import type { Trade } from './types';
 
 /** Tirages des tests de permutation et des intervalles par blocs. */
 export const INFERENCE_DRAWS = 5_000;
@@ -229,5 +231,99 @@ export function shrinkTowardMean(groups: readonly ShrinkGroup[]): ShrunkMean[] {
   return groups.map((group) => {
     const weight = shrinkageWeight(group.n, Number.isFinite(group.variance) ? group.variance : within, between);
     return { mean: group.mean, weight, shrunk: weight * group.mean + (1 - weight) * grand };
+  });
+}
+
+export const DURATION_LABELS = ['< 2m', '2–5m', '5–10m', '10–20m', '20–40m', '40–90m', '> 90m'] as const;
+const DURATION_EDGES_MIN = [2, 5, 10, 20, 40, 90, Infinity];
+
+/** Tranche de durée en position, mêmes bornes que le spectre de l'onglet C. */
+export function durationLabel(entryTime: number, exitTime: number): (typeof DURATION_LABELS)[number] {
+  const minutes = Math.max(0, exitTime - entryTime) / 60_000;
+  const index = DURATION_EDGES_MIN.findIndex((edge) => minutes < edge);
+  return DURATION_LABELS[index === -1 ? DURATION_LABELS.length - 1 : index] ?? '< 2m';
+}
+
+export type MarkerKind = 'slot' | 'duration' | 'strategy';
+
+export interface MarkerCandidate {
+  id: string;
+  kind: MarkerKind;
+  /** Indices dans la série triée par heure de sortie. */
+  indices: number[];
+}
+
+export interface MarkerVerdict {
+  id: string;
+  kind: MarkerKind;
+  count: number;
+  mean: number;
+  /** Moyenne sur la seconde moitié du journal. Null si le groupe n'y a aucun trade. */
+  halfMean: number | null;
+  /** Null sous le minimum de trades : le groupe n'entre pas dans la famille testée. */
+  p: number | null;
+  kept: boolean;
+}
+
+/** Trades finis, triés par sortie, et les trois familles de repères (créneau, durée, stratégie). */
+export function analysisCandidates(trades: readonly Trade[], days?: ReadonlyMap<string, string>): { ordered: Trade[]; candidates: MarkerCandidate[] } {
+  const ordered = trades.filter((t) => Number.isFinite(t.pnl)).sort((a, b) => a.exitTime - b.exitTime || a.id.localeCompare(b.id));
+  const groups = new Map<string, { kind: MarkerKind; indices: number[] }>();
+  const add = (id: string, kind: MarkerKind, index: number) => {
+    const group = groups.get(id);
+    if (group) group.indices.push(index);
+    else groups.set(id, { kind, indices: [index] });
+  };
+  ordered.forEach((trade, index) => {
+    const dow = weekdayOf(tradeDay(trade, days?.get(trade.sessionId)));
+    const hour = zonedWallClock(trade.entryTime, ET_ZONE).hour;
+    add(`slot:${dow}:${hour}`, 'slot', index);
+    add(`duration:${durationLabel(trade.entryTime, trade.exitTime)}`, 'duration', index);
+    add(`strategy:${trade.strategy ?? 'Sans stratégie'}`, 'strategy', index);
+  });
+  return {
+    ordered,
+    candidates: [...groups.entries()]
+      .map(([id, group]) => ({ id, kind: group.kind, indices: group.indices }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  };
+}
+
+/**
+ * Un repère est retenu s'il a assez de trades, si sa p-valeur de permutation corrigée
+ * (Benjamini-Hochberg) passe sous `fdr`, et s'il garde son signe et au moins la moitié
+ * de son ampleur sur la seconde moitié du journal (tri par heure de sortie).
+ */
+export function markerVerdicts(
+  pnls: readonly number[],
+  candidates: readonly MarkerCandidate[],
+  opts: { minTrades?: number; fdr?: number; draws?: number; seed?: number } = {},
+): MarkerVerdict[] {
+  const minTrades = opts.minTrades ?? 30;
+  const fdr = opts.fdr ?? 0.05;
+  const split = Math.floor(pnls.length / 2);
+  const eligible = candidates.filter((c) => c.indices.length >= minTrades);
+  const pValues = eligible.length ? permutationPValues(pnls, eligible.map((c) => c.indices), opts) : [];
+  const reject = benjaminiHochberg(pValues, fdr);
+  const decision = new Map(eligible.map((c, i) => [c.id, { p: pValues[i] ?? 1, reject: reject[i] ?? false }]));
+  return candidates.map((candidate) => {
+    const meanPnl = meanAt(pnls, candidate.indices);
+    const second = candidate.indices.filter((i) => i >= split);
+    const halfMean = second.length ? meanAt(pnls, second) : null;
+    const stat = decision.get(candidate.id);
+    const persists =
+      halfMean != null &&
+      meanPnl !== 0 &&
+      Math.sign(halfMean) === Math.sign(meanPnl) &&
+      Math.abs(halfMean) + 1e-9 >= 0.5 * Math.abs(meanPnl);
+    return {
+      id: candidate.id,
+      kind: candidate.kind,
+      count: candidate.indices.length,
+      mean: meanPnl,
+      halfMean,
+      p: stat?.p ?? null,
+      kept: Boolean(stat?.reject) && persists,
+    };
   });
 }
