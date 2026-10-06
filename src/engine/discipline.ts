@@ -4,7 +4,9 @@
  * Une règle à 0 (ou une liste vide) est inactive : elle ne signale rien.
  */
 import { ET_ZONE, tradingDayKey } from '@/lib/time';
-import { getInstrument, resolveSymbol } from './instruments';
+import { CATALYST_MIN_IMPACT, catalystInstant } from './agent/events';
+import type { CalEvent } from './calendar';
+import { getInstrument, resolveSymbol, standardCounterpart } from './instruments';
 import { evaluatePlan, type PropPlan } from './propfirm';
 import type { Session, Trade } from './types';
 
@@ -258,6 +260,105 @@ export function detectDrifts(entries: readonly DisciplineEntry[], closed: readon
     const now = entryExposure(entry.instrument, entry.qty);
     if (before !== null && now !== null && now > before && tradingDayNow(entry.time) === tradingDayNow(loss.exitTime)) {
       out.push(finding('size_up_after_loss', 'drift', entry, { lossTradeId: loss.id, lossPnl: round2(loss.pnl), lossExposure: before, entryExposure: now, ratio: Math.round((now / before) * 100) / 100 }));
+    }
+  }
+  return out;
+}
+
+/* ─── Écarts aux règles ─── */
+
+/** Catalyseur majeur daté (impact 3, heure de New York connue). */
+export interface MajorCatalyst {
+  /** Epoch ms de la publication. */
+  at: number;
+  title: string;
+  date: string;
+  timeET: string;
+  /** Vide = tous les instruments. */
+  instruments: string[];
+}
+
+/** Catalyseurs majeurs avec heure, triés ; un événement sans heure (fenêtre de résultats) n'a pas de fenêtre. */
+export function majorCatalysts(events: readonly CalEvent[], minImpact = CATALYST_MIN_IMPACT): MajorCatalyst[] {
+  const out: MajorCatalyst[] = [];
+  for (const e of events) {
+    if (e.impact < minImpact) continue;
+    const at = catalystInstant(e);
+    if (at === null || !e.timeET) continue;
+    out.push({ at, title: e.title, date: e.date, timeET: e.timeET, instruments: e.instruments ?? [] });
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
+/** Un catalyseur sans instrument vaut pour tous ; sinon la racine, ou son contrat standard pour un micro. */
+function concerns(catalyst: MajorCatalyst, symbol: string | null): boolean {
+  if (!catalyst.instruments.length) return true;
+  if (!symbol) return false;
+  return catalyst.instruments.includes(symbol) || catalyst.instruments.includes(standardCounterpart(symbol)?.symbol ?? '');
+}
+
+export interface RuleCheckContext {
+  rules: TraderRules;
+  /** Trades clos du journal : entrées déjà prises dans la journée, réalisé avant l'entrée. */
+  closed: readonly Trade[];
+  catalysts: readonly MajorCatalyst[];
+  /** Limite du jour retenue (`dailyLimit`) et le compte qu'elle suit ('' = tous les comptes). */
+  limit: DailyLimit | null;
+  limitAccount: string;
+  /** Latent du compte suivi à l'instant de l'entrée (fill en direct) ; seul un latent négatif compte. */
+  unrealized?: number;
+}
+
+/**
+ * Écarts aux règles du trader, à l'entrée :
+ * - `catalyst_window` : entrée dans ± `catalystBlackoutMin` minutes d'un catalyseur majeur ;
+ * - `over_max_trades` : entrée au-delà de `maxTradesPerDay` dans la journée CME, sur le compte ;
+ * - `after_daily_limit` : entrée alors que la perte du jour avait atteint la limite (règle ou plan) ;
+ * - `instrument_not_allowed` : racine hors de `allowedInstruments` (ou hors registre).
+ * Une règle à 0 (liste vide, limite absente) ne signale rien.
+ */
+export function detectRuleBreaches(entries: readonly DisciplineEntry[], ctx: RuleCheckContext): DisciplineFinding[] {
+  const { rules } = ctx;
+  const out: DisciplineFinding[] = [];
+  for (const entry of entries) {
+    const symbol = resolveSymbol(entry.instrument)?.symbol ?? null;
+    const day = tradingDayNow(entry.time);
+
+    if (rules.catalystBlackoutMin > 0) {
+      const window = rules.catalystBlackoutMin * 60_000;
+      let near: MajorCatalyst | undefined;
+      for (const c of ctx.catalysts) {
+        if (Math.abs(entry.time - c.at) > window || !concerns(c, symbol)) continue;
+        if (!near || Math.abs(entry.time - c.at) < Math.abs(entry.time - near.at)) near = c;
+      }
+      if (near) {
+        out.push(finding('catalyst_window', 'rule', entry, { title: near.title, catalystAt: new Date(near.at).toISOString(), timeET: near.timeET, minutesFromCatalyst: Math.round((entry.time - near.at) / 6_000) / 10, windowMin: rules.catalystBlackoutMin }));
+      }
+    }
+
+    if (rules.maxTradesPerDay > 0) {
+      let ordinal = 1;
+      for (const t of ctx.closed) {
+        if (t.id === entry.id || (t.account ?? '') !== entry.account || tradingDayNow(t.entryTime) !== day) continue;
+        if (t.entryTime < entry.time || (t.entryTime === entry.time && t.id < entry.id)) ordinal++;
+      }
+      if (ordinal > rules.maxTradesPerDay) out.push(finding('over_max_trades', 'rule', entry, { ordinal, max: rules.maxTradesPerDay }));
+    }
+
+    if (ctx.limit && (!ctx.limitAccount || ctx.limitAccount === entry.account)) {
+      let realized = 0;
+      for (const t of ctx.closed) {
+        if (t.id === entry.id || t.exitTime > entry.time || !Number.isFinite(t.pnl) || tradingDayNow(t.exitTime) !== day) continue;
+        if (ctx.limitAccount && (t.account ?? '') !== ctx.limitAccount) continue;
+        realized += t.pnl;
+      }
+      const unrealized = Math.min(0, typeof ctx.unrealized === 'number' && Number.isFinite(ctx.unrealized) ? ctx.unrealized : 0);
+      const loss = Math.max(0, -(realized + unrealized));
+      if (loss >= ctx.limit.amount) out.push(finding('after_daily_limit', 'rule', entry, { loss: round2(loss), limit: ctx.limit.amount, source: ctx.limit.source }));
+    }
+
+    if (rules.allowedInstruments.length > 0 && (!symbol || !rules.allowedInstruments.includes(symbol))) {
+      out.push(finding('instrument_not_allowed', 'rule', entry, { symbol, allowed: [...rules.allowedInstruments] }));
     }
   }
   return out;
