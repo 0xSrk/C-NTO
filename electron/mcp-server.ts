@@ -89,18 +89,24 @@ export interface McpToolInfo {
   kind: 'read' | 'write';
 }
 
-/** Type d'un outil selon le catalogue du process principal ; `undefined` hors catalogue. */
+/**
+ * Identifiant de note d'une URI de ressource, lu tel quel, sans décodage : celui du desk
+ * (`uid('n')` : `n_` et 16 caractères). Tout autre `{id}` est une ressource inconnue, pas une erreur.
+ */
+const NOTE_URI = /^canto:\/\/note\/([A-Za-z0-9_-]{1,64})$/;
+
 /** URI fixe ou modèle → outil de lecture. Une écriture n'est jamais exposée. */
 function resourceTarget(uri: string): { tool: string; args: Record<string, unknown> } | null {
   if (uri === 'canto://desk/overview') return { tool: 'desk_overview', args: {} };
   if (uri === 'canto://plan/tracked') return { tool: 'propfirm_status', args: {} };
   const session = /^canto:\/\/session\/(\d{4}-\d{2}-\d{2})$/.exec(uri);
   if (session?.[1]) return { tool: 'get_session', args: { date: session[1] } };
-  const note = /^canto:\/\/note\/([^/?#]+)$/.exec(uri);
-  if (note?.[1]) return { tool: 'read_note', args: { id: decodeURIComponent(note[1]) } };
+  const note = NOTE_URI.exec(uri);
+  if (note?.[1]) return { tool: 'read_note', args: { id: note[1] } };
   return null;
 }
 
+/** Type d'un outil selon le catalogue du process principal ; `undefined` hors catalogue. */
 function catalogKind(name: string): 'read' | 'write' | undefined {
   return Object.hasOwn(DESK_TOOL_KINDS, name) ? DESK_TOOL_KINDS[name] : undefined;
 }

@@ -451,6 +451,32 @@ describe('passerelle MCP · serveur', () => {
     expect((await send(rpc('ping'))).status).toBe(200);
   });
 
+  it('A14.6 ressource note : un identifiant hors format rend -32002 sans atteindre le desk, jamais une erreur 500', async () => {
+    const calls: { name: string; args: unknown }[] = [];
+    const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), relay(calls, () => ({ result: { id: 'n_01K6Z9QWERTY2345', title: 'Plan', body: '' } })), '3.3.4');
+    gateways.push(gw);
+    const { port } = await gw.start(0);
+    const conn = (await gw.connection())!;
+    const read = async (uri: string) => {
+      const reply = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${conn.token}`, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(rpc('resources/read', { uri })),
+      });
+      return { status: reply.status, body: (await reply.json()) as { result?: { contents: { text: string }[] }; error?: { code: number } } };
+    };
+    for (const uri of ['canto://note/%E0%A4%A', 'canto://note/n%2F..%2Fx', `canto://note/${'n'.repeat(65)}`, 'canto://note/n 1', 'canto://note/n1?x=1', 'canto://note/']) {
+      const out = await read(uri);
+      expect(out.status, uri).toBe(200);
+      expect(out.body.error?.code, uri).toBe(-32002);
+    }
+    expect(calls).toEqual([]);
+    const ok = await read('canto://note/n_01K6Z9QWERTY2345');
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(ok.body.result!.contents[0]!.text).id).toBe('n_01K6Z9QWERTY2345');
+    expect(calls).toEqual([{ name: 'read_note', args: { id: 'n_01K6Z9QWERTY2345' } }]);
+  });
+
   it('au-delà de 40 requêtes par seconde : 429 avec Retry-After', async () => {
     const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), relay(), '3.3.4');
     gateways.push(gw);
