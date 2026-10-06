@@ -32,6 +32,8 @@ const MC_MIN_DAYS = 10;
 const MC_SEED = 1337;
 /** Indicateurs calculés sur les dernières barres seulement (≈ 17 jours en 1 min). */
 const LEVELS_MAX_BARS = 25_000;
+/** Une série du pont dont la dernière barre s'est terminée il y a plus de 120 s est signalée périmée. */
+export const LEVELS_STALE_SEC = 120;
 
 const round = (v: number, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -492,7 +494,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'market_levels',
       kind: 'read',
       description:
-        'Niveaux de marché d’un instrument du registre à partir des barres du desk (pont NinjaTrader, sinon CSV, sinon démo) : dernier prix, PDH / PDL / PDC, Opening Range RTH, VWAP de séance et ±1σ, ATR 14. La source est nommée ; une série de démo est marquée synthetic : ses prix ne sont pas réels.',
+        'Niveaux de marché d’un instrument du registre à partir des barres du desk (pont NinjaTrader, sinon CSV, sinon démo) : dernier prix, PDH / PDL / PDC, Opening Range RTH, VWAP de séance et ±1σ, ATR 14. La source est nommée ; une série de démo est marquée synthetic : ses prix ne sont pas réels. feed : état du flux NinjaTrader (live, stale, closed) ; ageSec : secondes depuis la fin de la dernière barre ; une série du pont terminée depuis plus de 120 s est marquée stale (elle reste choisie).',
       parameters: {
         type: 'object',
         properties: {
@@ -513,9 +515,16 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const last = bars[bars.length - 1]!;
         const orMinutes = Math.min(60, Math.max(5, Math.round(num(args.openingRangeMinutes, 15) / 5) * 5));
         const level = (v: number | null) => (v === null ? null : round(v, 2));
+        // Âge depuis la fin de la dernière barre (datée à l'ouverture) : 0 tant qu'elle se forme.
+        const ageSec = Math.max(0, Math.round(Date.now() / 1000 - (last.time + series.timeframe * 60)));
+        // La série du pont reste choisie même périmée ; le dire.
+        const stale = series.source === 'nt8-bridge' ? { stale: ageSec > LEVELS_STALE_SEC, staleAfterSec: LEVELS_STALE_SEC } : {};
         return {
           instrument: series.instrument,
           series: { label: series.label, source: series.source, timeframe: series.timeframe, bars: bars.length, synthetic: series.source === 'demo' },
+          feed: ports.marketFeed(),
+          ageSec,
+          ...stale,
           last: { time: new Date(last.time * 1000).toISOString(), close: last.close },
           prevSession: { high: level(lastLine(bars, 'prev-session', 'pdh')), low: level(lastLine(bars, 'prev-session', 'pdl')), close: level(lastLine(bars, 'prev-session', 'pdc')) },
           openingRange: { minutes: orMinutes, high: level(lastLine(bars, 'opening-range', 'orh', { minutes: orMinutes })), low: level(lastLine(bars, 'opening-range', 'orl', { minutes: orMinutes })) },
@@ -706,6 +715,7 @@ const EMPTY_PORTS: DeskPorts = {
   bridge: async () => ({ nt: null, copier: null }),
   workingOrders: async () => null,
   marketQuotes: () => [],
+  marketFeed: () => 'closed',
   portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
   barSeries: async () => [],
   events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
@@ -769,8 +779,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'market_levels':
       return tr(
         fallback,
-        'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real.',
-        'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales.',
+        'Market levels for a registry instrument from the desk’s bars (NinjaTrader bridge, else CSV, else demo): last price, PDH / PDL / PDC, RTH Opening Range, session VWAP and ±1σ, ATR 14. The source is named; a demo series is marked synthetic: its prices are not real. feed: NinjaTrader feed state (live, stale, closed); ageSec: seconds since the last bar ended; a bridge series that ended more than 120 s ago is marked stale (it stays selected).',
+        'Niveles de mercado de un instrumento del registro a partir de las barras del desk (puente NinjaTrader, si no CSV, si no demo): último precio, PDH / PDL / PDC, Opening Range RTH, VWAP de sesión y ±1σ, ATR 14. Se nombra la fuente; una serie demo se marca synthetic: sus precios no son reales. feed: estado del flujo NinjaTrader (live, stale, closed); ageSec: segundos desde el final de la última barra; una serie del puente terminada hace más de 120 s se marca stale (sigue elegida).',
       );
     case 'working_orders':
       return tr(

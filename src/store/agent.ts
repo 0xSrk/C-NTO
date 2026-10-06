@@ -97,6 +97,7 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
     }),
     workingOrders: async () => (desk?.ntbridge?.orders ? await desk.ntbridge.orders().catch(() => null) : null),
     marketQuotes: () => bridgeQuotes.all(),
+    marketFeed: () => useBars.getState().ntFeed,
     portfolio: async () => {
       if (!usePortfolio.getState().ready) await usePortfolio.getState().load();
       const { pockets, positions, cash, fx } = usePortfolio.getState();

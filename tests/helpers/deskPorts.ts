@@ -18,6 +18,7 @@ export function fakePorts(over: Partial<DeskPorts> = {}): DeskPorts {
     bridge: async () => ({ nt: null, copier: null }),
     workingOrders: async () => null,
     marketQuotes: () => [],
+    marketFeed: () => 'closed',
     portfolio: async () => ({ pockets: [], positions: [], cash: [], fx: [], base: 'USD' }),
     barSeries: async () => [],
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),

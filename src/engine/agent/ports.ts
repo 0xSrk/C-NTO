@@ -62,6 +62,8 @@ export interface DeskPorts {
   workingOrders(): Promise<OrderBookView | null>;
   /** Dernières cotations reçues du pont, par instrument. Lecture seule : rien ne s'abonne. */
   marketQuotes(): readonly LastQuote[];
+  /** État du flux de marché NinjaTrader (barres du pont) : `closed` sans flux. */
+  marketFeed(): 'closed' | 'live' | 'stale';
   /** Poches, positions, liquidités, taux et devise de base du Portefeuille (chargés si besoin). */
   portfolio(): Promise<{ pockets: Pocket[]; positions: Position[]; cash: CashBalance[]; fx: FxRate[]; base: string }>;
   /** Séries de barres du desk (pont NinjaTrader, CSV, démo), chargées si besoin. */
