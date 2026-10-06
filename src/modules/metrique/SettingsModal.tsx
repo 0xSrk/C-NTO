@@ -96,6 +96,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('Durée minimale d’un régime', 'Minimum regime length', 'Duración mínima de un régimen')} hint={tr('3 à 10 séances · départ 5', '3 to 10 sessions · default 5', '3 a 10 sesiones · inicio 5')}>
           <input type="number" min={3} max={10} step={1} value={settings.regimeMinSessions} onChange={(e) => update({ regimeMinSessions: Number(e.target.value) })} />
         </Field>
+        <Field label={tr('Avant une publication (min)', 'Before a release (min)', 'Antes de una publicación (min)')} hint={tr('5 à 10 · départ 5', '5 to 10 · default 5', '5 a 10 · inicio 5')}>
+          <input type="number" min={5} max={10} step={1} value={settings.releaseBefore} onChange={(e) => update({ releaseBefore: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Après une publication (min)', 'After a release (min)', 'Después de una publicación (min)')} hint={tr('15 à 60 · départ 30', '15 to 60 · default 30', '15 a 60 · inicio 30')}>
+          <input type="number" min={15} max={60} step={1} value={settings.releaseAfter} onChange={(e) => update({ releaseAfter: Number(e.target.value) })} />
+        </Field>
         <Field label={tr('Fenêtre de stabilité', 'Stability window', 'Ventana de estabilidad')} hint={tr('10 à 40 séances · départ 20', '10 to 40 sessions · default 20', '10 a 40 sesiones · inicio 20')}>
           <input type="number" min={10} max={40} step={1} value={settings.stabilityWindow} onChange={(e) => update({ stabilityWindow: Number(e.target.value) })} />
         </Field>

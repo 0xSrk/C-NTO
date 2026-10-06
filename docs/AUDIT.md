@@ -609,3 +609,18 @@ Moteur `src/engine/riskConsole.ts`. Les tables F20, F21 et F22 ne sont pas inven
 
 **Règle 6.** Inchangée. `indicators.ts` ne change que l'appel à `atrSeries`.
 
+## 3.5.0 — Ajustement du module Métriques, étape 5 : lecture par contexte (2026-10-06)
+
+La trame jour × heure de l'onglet C est remplacée par une lecture à axe choisi (régime, bande, publication, rang, après une perte, risque, stop en σ, jour, heure). Le régime et la bande qui classent une journée sont ceux de la veille. Les petits groupes sont rapprochés de la moyenne. Un verdict est confirmé seulement s'il passe le rail de l'étape 2.
+
+| # | Ajustement | Test | Attendu | Obtenu |
+|---|---|---|---|---|
+| 5.1 | Jour et heure sur la démo | `metrics-reading` | aucun verdict confirmé | conforme |
+| 5.2 | Décomposition | `metrics-reading` | le produit retrouve le gain moyen par journée | égal à 10⁻⁸ près |
+| 5.2 | Contrôle décalé d'une semaine | `metrics-reading` | l'effet planté disparaît | significatif en place, non significatif décalé |
+| 8 | Classes d'amplitude | `metrics-reading` | total = nombre de journées, cumul 100 %, vides sans effet | conforme |
+| 8 | Changement de régime | `metrics-reading` | le jour du changement garde la valeur de la veille | conforme |
+| 5.4 | Queue | `metrics-reading` | empirique dès 250, Pareto dès 500 | conforme |
+
+Réglage 5 : 5 min avant une publication (5 à 10), 30 min après (15 à 60). Moins de 30 journées comparables : le texte « pas assez de journées comparables » est le verdict « pas assez de données » de l'axe. Les trois questions (décomposition, publications, comportement) sont dans le moteur ; l'écran montre l'axe et son verdict.
+

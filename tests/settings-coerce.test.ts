@@ -60,6 +60,9 @@ describe('coerceSettings', () => {
     expect(coerceSettings({ regimeConfirm: 2.5 }, base).regimeConfirm).toBe(base.regimeConfirm);
     expect(coerceSettings({ regimeMinSessions: 5 }, base).regimeMinSessions).toBe(5);
     expect(coerceSettings({ regimeMinSessions: 2 }, base).regimeMinSessions).toBe(base.regimeMinSessions);
+    expect(coerceSettings({ releaseBefore: 5, releaseAfter: 30 }, base).releaseAfter).toBe(30);
+    expect(coerceSettings({ releaseBefore: 3 }, base).releaseBefore).toBe(base.releaseBefore);
+    expect(coerceSettings({ releaseAfter: 90 }, base).releaseAfter).toBe(base.releaseAfter);
     expect(coerceSettings({ riskBasePoints: 1.5 }, base).riskBasePoints).toBe(1.5);
     expect(coerceSettings({ riskBasePoints: 25 }, base).riskBasePoints).toBe(base.riskBasePoints);
     expect(coerceSettings({ volLtPoints: -0.4 }, base).volLtPoints).toBe(-0.4);
