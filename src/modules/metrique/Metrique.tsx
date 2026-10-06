@@ -70,7 +70,7 @@ export default function Metrique() {
     return () => window.clearInterval(id);
   }, []);
   useEffect(() => watchOrders(desk?.ntbridge, setBook), []);
-  const orders = ordersPanel(book);
+  const orders = ordersPanel(book, nt?.link ?? 'absent');
   // Compte suivi, comme `discipline_status` et l'alerte `daily_loss` : pas le filtre du journal.
   const head = liveSession({
     link: nt?.link ?? 'absent',
@@ -283,6 +283,7 @@ export default function Metrique() {
                 <p key={index}>
                   {row.side === 'buy' ? tr('achat', 'buy', 'compra') : tr('vente', 'sell', 'venta')} {fmtInt(row.qty)} {row.instrument} · {row.account} · {row.state}
                   {row.byAgent ? ` · ${tr('agent', 'agent', 'agente')}` : ''}
+                  {row.unconfirmed ? ` · ${tr('non confirmé', 'unconfirmed', 'no confirmada')}` : ''}
                 </p>
               ))
             )}
