@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expectancy, expectancyR, rrMatrix, thresholdWinRate, tradeRisk } from '@/engine/riskConsole';
+import { adjustedRiskPoints, expectancy, expectancyR, floorMicroContracts, rrMatrix, theoreticalContracts, theoreticalNotional, thresholdWinRate, tradeRisk } from '@/engine/riskConsole';
 
 describe('risque du trade', () => {
   it('achat de 2 MNQ, stop à 10 points, sortie à +60 $ : 40 $, +1,5 R, source stop', () => {
@@ -47,5 +47,16 @@ describe('risque du trade', () => {
     expect(matrix.winRates[1]).toBeCloseTo(0.5);
     expect(matrix.winRates[2]).toBeCloseTo(0.3);
     expect(matrix.winRates[3]).toBeCloseTo(0.25);
+  });
+
+  it('risque ajusté provisoire 0,95 %, notionnel 1 520, 4 MNQ', () => {
+    const adjusted = adjustedRiskPoints(1.5, [-0.4, -0.15], 6.25);
+    expect(adjusted.points).toBeCloseTo(0.95);
+    expect(adjusted.provisional).toBe(true);
+    expect(theoreticalNotional(10_000, 0.95, 6.25)).toBeCloseTo(1_520);
+    expect(theoreticalContracts(10_000, 0.95, 10, 20)).toBeCloseTo(0.475);
+    expect(floorMicroContracts(0.475, 10)).toBe(4);
+    expect(adjustedRiskPoints(1.5).points).toBeCloseTo(1.5);
+    expect(adjustedRiskPoints(1.5, [-0.4, -0.15], 0.5).points).toBeCloseTo(0.5);
   });
 });
