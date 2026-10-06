@@ -19,7 +19,7 @@ import { useJournal } from '@/store/journal';
 import { useUi } from '@/store/ui';
 import { Chart, type HoverInfo } from './Chart';
 import { contractsSeen } from './ntContract';
-import { NtFollowPanel, useNtFollow } from './NtFollowPanel';
+import { NtFollowPanel, shownSource, useNtFollow } from './NtFollowPanel';
 import s from './visual.module.css';
 
 /** Ports démo et CSV : toute la série, sans borne. Le pont, lui, demande une fenêtre finie (`historyWindow`). */
@@ -244,9 +244,11 @@ export default function Visual() {
   const follow = useNtFollow({ instrument: active?.instrument ?? null, timeframe: active?.timeframe ?? null, transport, seen });
 
   const chartBars = follow.bars ?? active?.bars ?? null;
+  const source = active ? shownSource(active.source, follow.following) : null;
   const lines = useIndicatorLines(chartBars, indicators);
 
   const onHover = useCallback((info: HoverInfo | null) => setHover(info), []);
+  const firstBar = chartBars?.[0];
   const lastBar = chartBars?.[chartBars.length - 1];
   const shownBar = hover?.bar ?? lastBar ?? null;
   const barDateKey = (time: number) => dateKeyLocal(new Date(time * 1000));
@@ -272,8 +274,8 @@ export default function Visual() {
         tab="visual"
         actions={
           <>
-            {active?.source === 'nt8-bridge' && ntFeed === 'stale' && <Tag tone="ember">{tr('données périmées', 'stale data', 'datos caducados')}</Tag>}
-            {active?.source === 'nt8-bridge' && ntFeed === 'live' && <Tag tone="mint">{tr('direct', 'live', 'directo')}</Tag>}
+            {source === 'nt8' && ntFeed === 'stale' && <Tag tone="ember">{tr('données périmées', 'stale data', 'datos caducados')}</Tag>}
+            {source === 'nt8' && ntFeed === 'live' && <Tag tone="mint">{tr('direct', 'live', 'directo')}</Tag>}
             <select value={activeId ?? ''} onChange={(e) => setActive(e.target.value)} style={{ minWidth: 260 }}>
               {series.map((sr) => (
                 <option key={sr.id} value={sr.id}>
@@ -315,7 +317,7 @@ export default function Visual() {
               <>
                 <div className={s.legend}>
                   <div className={s.legendMain}>
-                    <b>{active.instrument} · {active.timeframe}m</b>
+                    <b>{follow.following ? follow.contract : active.instrument} · {active.timeframe}m</b>
                     {shownBar && (
                       <>
                         <span>{formatDateFr(barDateKey(shownBar.time), { short: true })} {formatTimeLocal(shownBar.time * 1000)}</span>
@@ -340,7 +342,15 @@ export default function Visual() {
                     </div>
                   )}
                 </div>
-                <div className={s.stamp}>{active.source === 'demo' ? <Tag tone="amber">{tr('Données synthétiques · démo', 'Synthetic data · demo', 'Datos sintéticos · demo')}</Tag> : <Tag tone="ice">{tr('Import CSV', 'CSV import', 'Importación CSV')}</Tag>}</div>
+                <div className={s.stamp}>
+                  {source === 'nt8' ? (
+                    <Tag tone="mint">{tr('Données NinjaTrader', 'NinjaTrader data', 'Datos NinjaTrader')}</Tag>
+                  ) : source === 'demo' ? (
+                    <Tag tone="amber">{tr('Données synthétiques · démo', 'Synthetic data · demo', 'Datos sintéticos · demo')}</Tag>
+                  ) : (
+                    <Tag tone="ice">{tr('Import CSV', 'CSV import', 'Importación CSV')}</Tag>
+                  )}
+                </div>
                 <Chart bars={chartBars ?? []} timeframe={active.timeframe} lines={lines} trades={sessionTrades} onHover={onHover} />
               </>
             )}
@@ -445,7 +455,7 @@ export default function Visual() {
                   <div className={s.desc}>
                     {plural(sessionTrades.length, tr('trade projeté', 'projected trade', 'trade proyectado'), tr('trades projetés', 'projected trades', 'trades proyectados'))}
                     {tr(' en marqueurs : flèche = entrée (L/S), cercle = sortie avec PnL. ', ' as markers: arrow = entry (L/S), circle = exit with PnL. ', ' en marcadores: flecha = entrada (L/S), círculo = salida con PnL. ')}
-                    {active?.source === 'demo' && tr('Les bougies étant synthétiques, seuls les horaires sont significatifs.', 'Since candles are synthetic, only the timestamps are meaningful.', 'Al ser las velas sintéticas, solo los horarios son significativos.')}
+                    {source === 'demo' && tr('Les bougies étant synthétiques, seuls les horaires sont significatifs.', 'Since candles are synthetic, only the timestamps are meaningful.', 'Al ser las velas sintéticas, solo los horarios son significativos.')}
                   </div>
                   {sessionTrades.map((t) => (
                       <div key={t.id} className={s.tradeRow}>
@@ -469,7 +479,7 @@ export default function Visual() {
               <div className={s.desc}>
                 {active ? (
                   <>
-                    {seriesLabel(active.label)} — {fmtInt(active.bars.length)} {tr('barres', 'bars', 'barras')}, {tr('du', 'from', 'del')} {active.bars[0] ? formatDateFr(barDateKey(active.bars[0].time), { short: true }) : '—'} {tr('au', 'to', 'al')} {lastBar ? formatDateFr(barDateKey(lastBar.time), { short: true }) : '—'}.
+                    {follow.following ? `${follow.contract} · ${active.timeframe} min · NinjaTrader` : seriesLabel(active.label)} — {fmtInt(chartBars?.length ?? 0)} {tr('barres', 'bars', 'barras')}, {tr('du', 'from', 'del')} {firstBar ? formatDateFr(barDateKey(firstBar.time), { short: true }) : '—'} {tr('au', 'to', 'al')} {lastBar ? formatDateFr(barDateKey(lastBar.time), { short: true }) : '—'}.
                   </>
                 ) : (
                   tr('Aucune série.', 'No series.', 'Ninguna serie.')

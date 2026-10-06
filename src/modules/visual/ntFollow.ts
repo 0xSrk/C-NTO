@@ -2,7 +2,8 @@
  * Visual suit un contrat sur le pont : historique borné, puis direct.
  * L'AddOn 2.2.0 lit `from` et `to` en secondes epoch (`FromUnixSeconds`, soit `DateTime.AddSeconds`) :
  * une borne hors de `DateTime` fait échouer la requête. La fenêtre est donc finie : cinq jours jusqu'à maintenant.
- * Le changement d'instrument ou d'unité lâche l'abonnement précédent. L'arrêt aussi.
+ * Le changement d'instrument ou d'unité lâche l'abonnement précédent et le dit (`retarget` rend vrai) :
+ * l'appelant retire alors les barres de l'ancienne cible. L'arrêt lâche aussi l'abonnement.
  * Un échec (historique ou abonnement) est rendu à l'appelant, jamais avalé. L'agent n'appelle pas ce module.
  */
 
@@ -35,7 +36,8 @@ export interface FollowPort {
 }
 
 export interface NtFollow {
-  retarget(instrument: string, timeframe: number): void;
+  /** Vrai si la cible a changé : l'abonnement précédent est lâché, ses barres ne valent plus. */
+  retarget(instrument: string, timeframe: number): boolean;
   stop(): void;
 }
 
@@ -55,9 +57,9 @@ export function followNt(
   let unsub: (() => void) | null = null;
   let key = '';
 
-  const arm = (nextInstrument: string, nextTimeframe: number) => {
+  const arm = (nextInstrument: string, nextTimeframe: number): boolean => {
     const next = `${nextInstrument}|${nextTimeframe}`;
-    if (next === key) return;
+    if (next === key) return false;
     key = next;
     const gen = ++generation;
     unsub?.();
@@ -82,6 +84,7 @@ export function followNt(
         onEvent?.(event);
       });
     })();
+    return true;
   };
 
   arm(instrument, timeframe);

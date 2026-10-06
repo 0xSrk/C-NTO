@@ -57,6 +57,12 @@ export function followFailureText(failure: FollowFailure): string {
   return tr(`Le pont NinjaTrader a refusé « ${contract} » : ${why}`, `The NinjaTrader bridge refused “${contract}”: ${why}`, `El puente NinjaTrader rechazó « ${contract} »: ${why}`);
 }
 
+/** Source des barres à l'écran : le pont dès que Visual le suit, sinon celle de la série choisie. */
+export function shownSource(source: string, following: boolean): 'nt8' | 'demo' | 'csv' {
+  if (following || source === 'nt8-bridge') return 'nt8';
+  return source === 'demo' ? 'demo' : 'csv';
+}
+
 export interface NtFollowInput {
   /** Instrument de la série affichée (racine du registre, ou contrat). */
   instrument: string | null;
@@ -167,7 +173,11 @@ export function useNtFollow({ instrument, timeframe, transport, seen }: NtFollow
     }
     contractRef.current = contract;
     setFollowed(contract);
-    follow.retarget(contract, timeframe);
+    // Nouvelle cible : les barres de l'ancienne quittent l'écran sans attendre la réponse de NinjaTrader.
+    if (follow.retarget(contract, timeframe)) {
+      setBars(null);
+      setPhase('loading');
+    }
   }, [instrument, timeframe, fail]);
 
   useEffect(() => teardown, [teardown]);
@@ -206,7 +216,7 @@ export function NtFollowPanel({ follow, disabled }: { follow: NtFollowState; dis
           aria-label={tr('Contrat NinjaTrader', 'NinjaTrader contract', 'Contrato NinjaTrader')}
         />
         <Button size="sm" variant="ghost" disabled={disabled} onClick={follow.following ? follow.stop : follow.start}>
-          {follow.following ? tr('Arrêter le pont', 'Stop the bridge', 'Detener el puente') : tr('Suivre le pont', 'Follow the bridge', 'Seguir el puente')}
+          {follow.following ? tr('Ne plus suivre', 'Stop following', 'Dejar de seguir') : tr('Suivre le pont', 'Follow the bridge', 'Seguir el puente')}
         </Button>
       </div>
       {follow.failure ? (
