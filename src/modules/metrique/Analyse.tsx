@@ -2,12 +2,11 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { Bars, Histogram } from '@/design/charts/Bars';
 import { Heatmap, type HeatCell } from '@/design/charts/Heatmap';
 import { Empty, Segmented, cx } from '@/design/primitives';
-import { dayHourGrid, histogram, sessionDates, WEEKDAY_KEYS } from '@/engine/metrics';
-import type { Trade } from '@/engine/types';
+import { computeTradeStats, dayHourGrid, histogram, sessionDates, WEEKDAY_KEYS } from '@/engine/metrics';
+import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { fmtPct, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
 import s from './metrique.module.css';
-import { useStats } from './useStats';
 
 interface GroupRow {
   key: string;
@@ -212,9 +211,10 @@ function ExcursionField({ pts, max }: { pts: { mae: number; mfe: number; pnl: nu
   );
 }
 
-export function Analyse() {
+/** Onglet C : le journal filtré par la période et le compte de l'en-tête (`scopeFor('analyse')`). */
+export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Trade[] }) {
   const locale = useI18n((s) => s.locale);
-  const { sessions, trades, tradeStats: t } = useStats();
+  const t = useMemo(() => computeTradeStats(trades, sessionDates(sessions)), [trades, sessions]);
   const [rankMode, setRankMode] = useState<'strategie' | 'tag' | 'taille'>('strategie');
 
   const byStrategy = useMemo(() => groupBy(trades, (x) => [x.strategy ?? 'Sans stratégie']), [trades]);

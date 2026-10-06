@@ -6,6 +6,7 @@ import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
 import { listenWorker } from '@/lib/worker';
 import s from './metrique.module.css';
+import type { TabScope } from './range';
 import { useStats } from './useStats';
 
 async function monteCarloOffthread(input: number[], opts: MonteCarloOptions = {}): Promise<MonteCarloResult | null> {
@@ -23,9 +24,11 @@ async function monteCarloOffthread(input: number[], opts: MonteCarloOptions = {}
   }
 }
 
-export function MonteCarloView() {
+/** Onglet E : l'échantillon d'un seul compte (`scopeFor('mc')`), sur la période choisie. */
+export function MonteCarloView({ scope }: { scope: TabScope }) {
   useI18n((s) => s.locale);
-  const { sessions, trades, plan } = useStats();
+  const { plan } = useStats();
+  const { sessions, trades } = scope;
   const [level, setLevel] = useState<'seances' | 'trades'>('seances');
   const [runs, setRuns] = useState(2000);
   const [horizon, setHorizon] = useState<number | ''>('');
@@ -69,6 +72,18 @@ export function MonteCarloView() {
     });
     return () => ac.abort();
   }, [sample, params]);
+
+  if (scope.needsAccount)
+    return (
+      <Empty
+        title={tr('Choisissez un compte', 'Pick an account', 'Elija una cuenta')}
+        text={tr(
+          'Le Monte-Carlo tire les journées d’un seul compte : des comptes copiés mêlés gonfleraient l’échantillon. Choisissez un compte dans le filtre en haut.',
+          'Monte-Carlo draws the days of a single account: mixing copied accounts would inflate the sample. Pick an account in the filter above.',
+          'El Monte-Carlo extrae las jornadas de una sola cuenta: mezclar cuentas copiadas inflaría la muestra. Elija una cuenta en el filtro de arriba.',
+        )}
+      />
+    );
 
   if (sample.length < 5)
     return (

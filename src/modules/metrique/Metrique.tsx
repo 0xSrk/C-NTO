@@ -30,7 +30,7 @@ import { PropFirmView } from './PropFirmView';
 import { Sessions } from './Sessions';
 import { SettingsModal } from './SettingsModal';
 import d from './dashboard.module.css';
-import { filterJournal, rangeFrom, type MetricRange } from './range';
+import { filterJournal, rangeFrom, scopeFor, type MetricRange } from './range';
 
 type View = 'bord' | 'seances' | 'analyse' | 'prop' | 'mc';
 
@@ -134,6 +134,16 @@ export default function Metrique() {
   const asOf = etDateKey(Date.now());
   const filtered = useMemo(() => filterJournal(sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
   const ordered = useMemo(() => [...filtered.sessions].sort((a, b) => a.date.localeCompare(b.date)), [filtered.sessions]);
+  const scope = useMemo(() => (view === 'analyse' || view === 'prop' || view === 'mc' ? scopeFor(view, sessions, trades, range, asOf, metricAccount) : null), [view, sessions, trades, range, asOf, metricAccount]);
+  // Ce que l'onglet fait des filtres de l'en-tête.
+  const scopeNote =
+    view === 'seances'
+      ? tr('Filtres propres à l’onglet', 'Tab’s own filters', 'Filtros propios de la pestaña')
+      : view === 'prop'
+        ? tr('Période ignorée : le plancher dépend de tout l’historique du compte', 'Range ignored: the floor depends on the account’s whole history', 'Período ignorado: el suelo depende de todo el historial de la cuenta')
+        : view === 'mc' && !metricAccount
+          ? tr('Compte obligatoire : choisissez-en un en haut', 'Account required: pick one above', 'Cuenta obligatoria: elija una arriba')
+          : tr('Période et compte appliqués', 'Range and account applied', 'Período y cuenta aplicados');
   const span = ordered.length > 0 ? `${shortDay(ordered[0]?.date ?? '')} → ${shortDay(ordered[ordered.length - 1]?.date ?? '')}` : '—';
   const crumbs: Record<View, string> = {
     bord: tr('TABLEAU DE BORD', 'DASHBOARD', 'TABLERO'),
@@ -189,6 +199,7 @@ export default function Metrique() {
             {item.label}
           </button>
         ))}
+        <span className={d.scopeNote}>{scopeNote}</span>
       </div>
       <ModuleContent>
         <div className={d.tools}>
@@ -232,9 +243,9 @@ export default function Metrique() {
           />
         )}
         {view === 'seances' && <Sessions />}
-        {view === 'analyse' && <Analyse />}
-        {view === 'prop' && <PropFirmView />}
-        {view === 'mc' && <MonteCarloView />}
+        {view === 'analyse' && scope && <Analyse sessions={scope.sessions} trades={scope.trades} />}
+        {view === 'prop' && scope && <PropFirmView scope={scope} />}
+        {view === 'mc' && scope && <MonteCarloView scope={scope} />}
       </ModuleContent>
       {modal === 'import' && <ImportModal onClose={() => setModal(null)} />}
       {modal === 'pont' && <BridgeModal onClose={() => setModal(null)} onManualImport={() => setModal('import')} />}

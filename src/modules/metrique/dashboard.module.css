@@ -428,6 +428,16 @@
   color: var(--text-0);
   border-bottom-color: var(--text-0);
 }
+.scopeNote {
+  margin-left: auto;
+  align-self: center;
+  padding-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
 
 .tools {
   display: flex;
