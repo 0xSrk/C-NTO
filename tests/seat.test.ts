@@ -57,7 +57,14 @@ describe('siège nominatif : vérification', () => {
 
   it('liste de clés vide : aucun siège', () => {
     expect(verifySeatLine(lineFrom(seatJson('0xSrk'), lab.priv), [])).toEqual({ ok: false, reason: 'clé absente' });
-    expect(SEAT_PUBLIC_KEYS).toEqual([]);
+  });
+
+  it('clés inscrites : x de JWK Ed25519 bien formés, sans doublon (la liste peut être vide)', () => {
+    for (const x of SEAT_PUBLIC_KEYS) {
+      expect(x).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(Buffer.from(x, 'base64url')).toHaveLength(32);
+    }
+    expect(new Set(SEAT_PUBLIC_KEYS).size).toBe(SEAT_PUBLIC_KEYS.length);
   });
 
   it('signature : autre clé, contenu altéré', () => {
