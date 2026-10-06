@@ -3,6 +3,7 @@ import type { DeskPorts } from '@/engine/agent/ports';
 import { executeDeskTool } from '@/engine/agent/runner';
 import type { Session, Trade } from '@/engine/types';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 const now = 1_760_000_000_000;
 const session = (id: string, date: string, account: string, pnl: number): Session =>
@@ -17,6 +18,7 @@ function ports(sessions: Session[], trades: Trade[]): DeskPorts {
     startingBalance: () => 50_000,
     planId: () => 'topstep-50',
     planAccount: () => '',
+    traderRules: () => DEFAULT_TRADER_RULES,
     updateSession: async () => undefined,
     notes: () => [],
     createNote: async (title) => ({ id: 'n', title }),

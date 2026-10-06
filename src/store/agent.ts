@@ -76,6 +76,7 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
     startingBalance: () => useSettings.getState().settings.startingBalance,
     planId: () => useSettings.getState().settings.planId,
     planAccount: () => useSettings.getState().settings.planAccount,
+    traderRules: () => useSettings.getState().settings.traderRules,
     updateSession: (id, patch) => useJournal.getState().updateSession(id, patch),
     notes: () => useNotes.getState().notes,
     createNote: (title, body, tags) => useNotes.getState().create(title, body, tags, { by: 'agent' }),

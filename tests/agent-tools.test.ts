@@ -3,6 +3,7 @@ import { orchMethodAllowed, takeToolCalls, clampToolArgs } from '@/engine/agent/
 import { executeDeskTool } from '@/engine/agent/runner';
 import { toolKind } from '@/engine/agent/tools';
 import type { DeskPorts } from '@/engine/agent/ports';
+import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 
 function mockPorts(log: { writes: number }): DeskPorts {
   return {
@@ -11,6 +12,7 @@ function mockPorts(log: { writes: number }): DeskPorts {
     startingBalance: () => 50_000,
     planId: () => 'apex-50',
     planAccount: () => '',
+    traderRules: () => DEFAULT_TRADER_RULES,
     updateSession: async () => {
       log.writes++;
     },
