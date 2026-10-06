@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { DESK_TOOL_KINDS } from './agent/catalog';
+import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
 /**
@@ -13,7 +14,8 @@ import { tokensMatch } from './secure-token';
  *
  * Garde-fous : jeton porteur obligatoire (comparaison à temps constant), en-tête `Origin` refusé
  * (un navigateur l'envoie toujours), `Host` limité au loopback (rebinding DNS), corps ≤ 1 Mo,
- * débit borné, écritures masquées et refusées tant qu'elles ne sont pas autorisées dans le desk.
+ * débit compté après le jeton et appels en vol bornés, écritures masquées et refusées tant
+ * qu'elles ne sont pas autorisées dans le desk.
  */
 
 /** Révisions du protocole comprises, la plus récente d'abord. */
@@ -25,6 +27,8 @@ const MAX_BODY_BYTES = 1024 * 1024;
 const DRAIN_MAX_BYTES = 16 * 1024 * 1024;
 const RATE_WINDOW_MS = 1000;
 const RATE_MAX = 40;
+/** Requêtes authentifiées traitées en même temps (l'orchestrateur en admet autant par client). */
+const MAX_INFLIGHT = 8;
 const TOKEN_FILE = 'mcp-token.json';
 
 const INSTRUCTIONS =
@@ -65,6 +69,8 @@ export interface McpContext {
   allowWrites: boolean;
   serverVersion: string;
   relay: McpRelay;
+  /** Langue du desk (`userData/locale.json`) ; français par défaut. */
+  locale?: AppLocale;
 }
 
 export interface McpHttpRequest {
@@ -172,11 +178,8 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
   }
 }
 
-/**
- * Contrôles qui ne lisent que la ligne de requête et les en-têtes. Le serveur les passe avant de lire
- * le corps : un client sans jeton ne fait jamais lire un octet de plus.
- */
-export function precheckMcpHttp(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port'>): McpHttpReply | null {
+/** Origine, hôte, chemin et jeton : ce qui décide si la requête vient d'un client du desk. */
+function precheckAccess(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port'>): McpHttpReply | null {
   if (req.headers.origin) return httpError(403, 'Origine refusée : la passerelle n’accepte pas les navigateurs.');
   if (!loopbackHost(req.headers.host, ctx.port)) return httpError(403, 'Hôte refusé.');
   const pathname = req.url.split('?')[0];
@@ -185,6 +188,11 @@ export function precheckMcpHttp(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<Mcp
   if (!presented || !tokensMatch(presented, ctx.token)) {
     return httpError(401, 'Jeton requis : Authorization: Bearer <jeton du desk>.', { 'WWW-Authenticate': 'Bearer realm="canto"' });
   }
+  return null;
+}
+
+/** Méthode HTTP, types, version et taille annoncée d'une requête déjà authentifiée. */
+function precheckShape(req: Omit<McpHttpRequest, 'body'>): McpHttpReply | null {
   if (req.method !== 'POST') return httpError(405, 'Méthode HTTP non prise en charge : la passerelle est sans état, POST seulement.', { Allow: 'POST' });
   if (!(req.headers['content-type'] ?? '').toLowerCase().includes('application/json')) return httpError(415, 'Content-Type attendu : application/json.');
   const accept = (req.headers.accept ?? '').toLowerCase();
@@ -194,6 +202,28 @@ export function precheckMcpHttp(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<Mcp
   const declared = Number(req.headers['content-length']);
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return httpError(413, 'Requête trop grande (1 Mo au plus).');
   return null;
+}
+
+/**
+ * Contrôles qui ne lisent que la ligne de requête et les en-têtes. Le serveur les passe avant de lire
+ * le corps : un client sans jeton ne fait jamais lire un octet de plus.
+ */
+export function precheckMcpHttp(req: Omit<McpHttpRequest, 'body'>, ctx: Pick<McpContext, 'token' | 'port'>): McpHttpReply | null {
+  return precheckAccess(req, ctx) ?? precheckShape(req);
+}
+
+/** Débit ou appels en vol dépassés : le client réessaie après une seconde. */
+function tooMany(locale: AppLocale, cause: 'rate' | 'inflight'): McpHttpReply {
+  const message =
+    cause === 'rate'
+      ? uiText(locale, `Débit trop élevé : ${RATE_MAX} requêtes par seconde au plus.`, `Rate too high: at most ${RATE_MAX} requests per second.`, `Demasiadas solicitudes: ${RATE_MAX} por segundo como máximo.`)
+      : uiText(
+          locale,
+          `Trop d’appels en cours (${MAX_INFLIGHT} au plus) : réessayez après une réponse.`,
+          `Too many calls in progress (${MAX_INFLIGHT} at most): retry after a reply.`,
+          `Demasiadas llamadas en curso (${MAX_INFLIGHT} como máximo): reintente tras una respuesta.`,
+        );
+  return httpError(429, message, { 'Retry-After': '1' });
 }
 
 /** Une requête HTTP complète → une réponse. Sans socket : testable tel quel. */
@@ -258,12 +288,15 @@ export class McpGateway {
   private lastCallAt: number | undefined;
   private error: string | undefined;
   private window = { start: 0, count: 0 };
+  private inflight = 0;
 
   constructor(
     private readonly dir: string,
     private readonly relay: McpRelay,
     private readonly serverVersion: string,
     private readonly onStatus: (status: McpStatus) => void = () => undefined,
+    /** Langue du desk, relue à chaque requête. */
+    private readonly locale: () => AppLocale = () => 'fr',
   ) {}
 
   status(): McpStatus {
@@ -329,18 +362,25 @@ export class McpGateway {
 
   private async onRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const now = Date.now();
-    if (now - this.window.start > RATE_WINDOW_MS) this.window = { start: now, count: 0 };
     const headers: Record<string, string | undefined> = {};
     for (const [k, v] of Object.entries(req.headers)) headers[k.toLowerCase()] = Array.isArray(v) ? v.join(', ') : v;
     const head = { method: req.method ?? 'GET', url: req.url ?? '/', headers };
-    const early = ++this.window.count > RATE_MAX ? httpError(429, 'Débit trop élevé.') : precheckMcpHttp(head, { token: this.token, port: this.port });
-    if (early) return refuse(req, res, early);
-    const body = await readBody(req);
-    if (body === null) return refuse(req, res, httpError(413, 'Requête trop grande (1 Mo au plus).'));
+    const denied = precheckAccess(head, { token: this.token, port: this.port });
+    if (denied) return refuse(req, res, denied);
+    // Compté après le jeton : un process local sans jeton n'épuise pas le débit de l'agent légitime.
+    const locale = this.locale();
+    if (now - this.window.start > RATE_WINDOW_MS) this.window = { start: now, count: 0 };
+    if (++this.window.count > RATE_MAX) return refuse(req, res, tooMany(locale, 'rate'));
+    if (this.inflight >= MAX_INFLIGHT) return refuse(req, res, tooMany(locale, 'inflight'));
+    const malformed = precheckShape(head);
+    if (malformed) return refuse(req, res, malformed);
+    this.inflight++;
     try {
+      const body = await readBody(req);
+      if (body === null) return refuse(req, res, httpError(413, 'Requête trop grande (1 Mo au plus).'));
       const reply = await handleMcpHttp(
         { ...head, body },
-        { token: this.token, port: this.port, allowWrites: this.allowWrites, serverVersion: this.serverVersion, relay: this.relay },
+        { token: this.token, port: this.port, allowWrites: this.allowWrites, serverVersion: this.serverVersion, relay: this.relay, locale },
       );
       if (reply.status === 200) {
         this.calls++;
@@ -350,6 +390,8 @@ export class McpGateway {
       send(res, reply);
     } catch (err) {
       send(res, httpError(500, err instanceof Error ? err.message : 'Erreur interne'));
+    } finally {
+      this.inflight--;
     }
   }
 }

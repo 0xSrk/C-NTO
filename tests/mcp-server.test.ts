@@ -212,4 +212,59 @@ describe('passerelle MCP · serveur', () => {
     await gw.stop();
     expect(gw.status().running).toBe(false);
   });
+
+  it('débit compté après le jeton, appels en vol bornés, 429 avec Retry-After', async () => {
+    let release = () => undefined as void;
+    const gate = new Promise<void>((r) => (release = r));
+    let started = 0;
+    const suspended: McpRelay = {
+      tools: async () => TOOLS,
+      call: async () => {
+        started++;
+        await gate;
+        return { result: { ok: true } };
+      },
+    };
+    const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), suspended, '3.3.4');
+    gateways.push(gw);
+    const { port } = await gw.start(0);
+    const conn = (await gw.connection())!;
+    const send = (body: unknown, token: string | null = conn.token) =>
+      fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    // Un process local sans jeton ne consomme pas le débit de l'agent légitime.
+    const anonymous = await Promise.all(Array.from({ length: 60 }, () => send(rpc('ping'), null)));
+    expect(anonymous.map((r) => r.status)).toEqual(Array(60).fill(401));
+    expect((await send(rpc('ping'))).status).toBe(200);
+
+    // Huit appels suspendus : le suivant attend son tour, avec Retry-After.
+    const pending = Array.from({ length: 8 }, (_, i) => send(rpc('tools/call', { name: 'desk_overview' }, 10 + i)));
+    for (let i = 0; started < 8 && i < 200; i++) await new Promise((r) => setTimeout(r, 5));
+    expect(started).toBe(8);
+    const ninth = await send(rpc('tools/call', { name: 'desk_overview' }, 99));
+    expect(ninth.status).toBe(429);
+    expect(ninth.headers.get('retry-after')).toBe('1');
+    expect(started).toBe(8);
+    release();
+    expect((await Promise.all(pending)).map((r) => r.status)).toEqual(Array(8).fill(200));
+    expect((await send(rpc('ping'))).status).toBe(200);
+  });
+
+  it('au-delà de 40 requêtes par seconde : 429 avec Retry-After', async () => {
+    const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), relay(), '3.3.4');
+    gateways.push(gw);
+    const { port } = await gw.start(0);
+    const conn = (await gw.connection())!;
+    const replies: Response[] = [];
+    for (let i = 0; i < 45; i++) {
+      replies.push(await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST', headers: { authorization: `Bearer ${conn.token}`, 'content-type': 'application/json' }, body: JSON.stringify(rpc('ping', {}, i)) }));
+    }
+    const limited = replies.filter((r) => r.status === 429);
+    expect(limited.length).toBeGreaterThan(0);
+    expect(limited.every((r) => r.headers.get('retry-after') === '1')).toBe(true);
+  });
 });
