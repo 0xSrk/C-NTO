@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { AGENT_ORDER_DEFAULTS, AGENT_RATE_WINDOW_MS, AGENT_REASON_MAX } from '@/engine/agent/orders';
 import { desk, type AgentOrderOrigin, type AgentOrderOutcome, type AgentOrderStatus } from '@/lib/desk';
-import { recordDeskEvent, trackedPropShare } from './deskEvents';
+import { recordDeskEvent, trackedPropShare, traderRuleFor } from './deskEvents';
 import { useSettings } from './settings';
 
 /** Statut hors desk (navigateur) ou avant la première lecture : désactivé. */
@@ -46,6 +46,14 @@ const fold = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
 function propShareFor(account: string): number | null {
   const { planAccount } = useSettings.getState().settings;
   return trackedPropShare(planAccount && fold(planAccount) === fold(account) ? planAccount : account);
+}
+
+/** Règle du trader que l'ouverture enfreindrait ; le compte du plan est reconnu comme pour la marge. */
+function traderRuleOf(args: Record<string, unknown>) {
+  const { planAccount } = useSettings.getState().settings;
+  const account = text(args.account, 128);
+  const qty = typeof args.qty === 'number' && Number.isFinite(args.qty) ? args.qty : 0;
+  return traderRuleFor({ account: planAccount && fold(planAccount) === fold(account) ? planAccount : account, instrument: text(args.instrument, 64), qty });
 }
 
 /** Données de l'événement `agent_order` : bornées, sans rien que l'agent n'ait déjà vu. */
@@ -126,7 +134,7 @@ export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
     } else {
       set({ status: { ...get().status, pending: true } });
       try {
-        outcome = await api.propose(args, origin, propShareFor(text(args.account, 128)));
+        outcome = await api.propose(args, origin, propShareFor(text(args.account, 128)), traderRuleOf(args));
       } catch (e) {
         outcome = { status: 'failed', detail: e instanceof Error ? e.message : String(e) };
       }

@@ -806,10 +806,11 @@ ipcMain.handle('agent-orders:status', (e) => (trusted(e) && agentOrders ? agentO
 ipcMain.handle('agent-orders:enable', (e) => (trusted(e) && agentOrders ? agentOrders.enable() : AGENT_ORDERS_OFF));
 ipcMain.handle('agent-orders:disable', (e) => (trusted(e) && agentOrders ? agentOrders.disable() : AGENT_ORDERS_OFF));
 ipcMain.handle('agent-orders:limits', (e, raw: unknown) => (trusted(e) && agentOrders ? agentOrders.setLimits(raw) : AGENT_ORDERS_OFF));
-ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propShare: unknown) => {
+ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propShare: unknown, traderRule: unknown) => {
   if (!trusted(e) || !agentOrders) return { status: 'refused', reason: 'disabled', detail: 'desk indisponible' };
   const from = typeof origin === 'string' && AGENT_ORIGINS.has(origin) ? (origin as 'llm' | 'mcp' | 'orch') : 'orch';
-  return agentOrders.propose(raw, from, typeof propShare === 'number' ? propShare : null);
+  // La règle enfreinte est relue par le process principal (`parseTraderRule`) : une des trois règles décidées, sinon rien.
+  return agentOrders.propose(raw, from, typeof propShare === 'number' ? propShare : null, traderRule);
 });
 
 /* ─── Siège nominatif : le nom vient du code signé, vérifié ici (docs/SIEGE-NOMINATIF.md) ─── */

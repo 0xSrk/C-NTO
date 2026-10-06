@@ -29,6 +29,8 @@ export function refusalLabel(reason: AgentOrderRefusal | 'invalid'): string {
       return tr('position atteinte trop grande', 'resulting position too large', 'posición resultante demasiado grande');
     case 'prop_buffer':
       return tr('marge du plan prop trop basse', 'prop plan buffer too low', 'margen del plan prop demasiado bajo');
+    case 'trader_rule':
+      return tr('règle du trader enfreinte', 'trader rule broken', 'regla del trader incumplida');
     default:
       return tr('proposition invalide', 'invalid proposal', 'propuesta inválida');
   }
