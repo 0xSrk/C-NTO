@@ -353,3 +353,33 @@ describe('A6.6 sorties bornées', () => {
     expect(JSON.stringify(out).length).toBeLessThan(60_000);
   });
 });
+
+describe('A6.8 profit factor d’une tranche, et « sans perte » dit comme tel', () => {
+  it('journal_breakdown sur un mois de la démo : le profit factor de l’onglet Analyse', async () => {
+    const desk = demoDesk();
+    const out = await callTool<{ profitFactor?: number; noLoss?: boolean; trades: number }>(desk.ports, 'journal_breakdown', { from: '2026-09-01', to: '2026-09-30' });
+    const month = desk.sessions.filter((x) => x.date >= '2026-09-01' && x.date <= '2026-09-30');
+    const ids = new Set(month.map((x) => x.id));
+    const screen = computeTradeStats(desk.trades.filter((x) => ids.has(x.sessionId)), sessionDates(month));
+    expect(out.trades).toBe(screen.count);
+    expect(out.profitFactor).toBe(r2(screen.profitFactor));
+    expect(out.noLoss).toBeUndefined();
+  });
+
+  it('une tranche sans perte rend noLoss: true, pas un profit factor nul', async () => {
+    const desk = demoDesk();
+    const byId = new Map<string, Trade[]>();
+    for (const x of desk.trades) byId.set(x.sessionId, [...(byId.get(x.sessionId) ?? []), x]);
+    const day = desk.sessions.find((x) => (byId.get(x.id) ?? []).every((t) => t.pnl > 0) && (byId.get(x.id)?.length ?? 0) > 1)!;
+    expect(day).toBeDefined();
+    expect(computeTradeStats(byId.get(day.id)!).profitFactor).toBe(Infinity);
+    const slice = { from: day.date, to: day.date, account: DEMO_ACCOUNT };
+    const breakdown = await callTool<Record<string, unknown>>(desk.ports, 'journal_breakdown', slice);
+    const overview = await callTool<Record<string, unknown>>(desk.ports, 'desk_overview', slice);
+    const detail = await callTool<{ stats: Record<string, unknown> }>(desk.ports, 'get_session', { id: day.id });
+    for (const out of [breakdown, overview, detail.stats]) {
+      expect(out.noLoss).toBe(true);
+      expect('profitFactor' in out).toBe(false);
+    }
+  });
+});

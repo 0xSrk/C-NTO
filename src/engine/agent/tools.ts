@@ -51,6 +51,14 @@ function declaredKeys(tool: DeskTool | undefined): readonly string[] {
   return props ? Object.keys(props) : [];
 }
 
+/**
+ * Profit factor après commissions, celui de l'écran (K.03, onglet Analyse). Sans perte il est infini :
+ * JSON ne le porte pas, et un `null` se lirait « inconnu » ; `noLoss: true` le dit.
+ */
+function profitFactorOf(pf: number): { profitFactor: number | null } | { noLoss: true } {
+  return pf === Infinity ? { noLoss: true } : { profitFactor: round(pf) };
+}
+
 /** Extrait d'au plus `EXCERPT_MAX` caractères ; `cut` dit si le texte a été coupé. */
 function excerpt(text: string | undefined): { text: string | undefined; cut: boolean } {
   if (text === undefined || text.length <= EXCERPT_MAX) return { text, cut: false };
@@ -140,7 +148,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'desk_overview',
       kind: 'read',
       description:
-        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor, espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.' + PROVENANCE_FR,
+        'Vue d’ensemble du journal : nombre de séances, PnL net, taux de réussite, profit factor après commissions (`noLoss: true` s’il n’y a aucune perte), espérance, Sharpe, drawdown max, statut du plan prop firm suivi (sur le compte suivi par l’écran Métrique). Filtres optionnels de période et de compte, comme le Tableau de bord : Sharpe et Sortino s’annualisent sur les journées de cotation de la période (`tradingDays`, jours sans séance à 0) ; sans `to`, la période s’arrête à la dernière séance. Le plan suivi est toujours rejoué sur tout l’historique de son compte. Pour le plan : `buffer` = solde de clôture − plancher ; `margin` = plus-bas de la dernière séance rejouée (excursions comprises) − plancher, daté (`margin.date`), la marge de la jauge K.04, plus prudente ; le rejeu s’arrête à l’objectif atteint (`passedOn`) ou à l’échec.' + PROVENANCE_FR,
       parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
       async run(args) {
         const from = str(args.from);
@@ -162,7 +170,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           trades: t.count,
           netPnl: round(t.netPnl),
           winRate: round(t.winRate, 4),
-          profitFactor: round(t.profitFactor),
+          ...profitFactorOf(t.profitFactor),
           expectancy: round(t.expectancy),
           payoffRatio: round(t.payoffRatio),
           sqn: round(t.sqn),
@@ -264,7 +272,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const shown = own.slice(0, SESSION_TRADES_MAX);
         return {
           session: { ...row, ...(executionIds ? { executionCount: executionIds.length } : {}) },
-          stats: { winRate: round(stats.winRate, 4), profitFactor: round(stats.profitFactor), expectancy: round(stats.expectancy), maxDrawdown: round(stats.maxDrawdown), avgDurationMin: round(stats.avgDurationMs / 60000, 1) },
+          stats: { winRate: round(stats.winRate, 4), ...profitFactorOf(stats.profitFactor), expectancy: round(stats.expectancy), maxDrawdown: round(stats.maxDrawdown), avgDurationMin: round(stats.avgDurationMs / 60000, 1) },
           ...(own.length > shown.length ? { truncated: true, tradeCount: own.length } : {}),
           trades: shown.map((t) => ({ id: t.id, instrument: t.instrument, direction: t.direction, qty: t.qty, entry: new Date(t.entryTime).toISOString(), exit: new Date(t.exitTime).toISOString(), entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: round(t.pnl), mae: t.mae, mfe: t.mfe, strategy: t.strategy, tags: t.tags })),
         };
@@ -454,7 +462,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'journal_breakdown',
       kind: 'read',
       description:
-        'Ventilations du journal, comme l’onglet Analyse : par heure d’entrée (heure de New York), par jour de semaine de la séance (journée de cotation CME, 18 h → 17 h ET : un trade du dimanche soir compte le lundi), par instrument, long / short. Filtres optionnels de dates et de compte. Seuls les créneaux qui portent des trades sont rendus.' + PROVENANCE_FR,
+        'Ventilations du journal, comme l’onglet Analyse : profit factor après commissions de la tranche (`noLoss: true` s’il n’y a aucune perte), puis par heure d’entrée (heure de New York), par jour de semaine de la séance (journée de cotation CME, 18 h → 17 h ET : un trade du dimanche soir compte le lundi), par instrument, long / short. Filtres optionnels de dates et de compte. Seuls les créneaux qui portent des trades sont rendus.' + PROVENANCE_FR,
       parameters: { type: 'object', properties: { ...SLICE_PARAMS }, additionalProperties: false },
       async run(args) {
         const { sessions, trades, account } = journalSlice(ports, args);
@@ -468,6 +476,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
           trades: t.count,
           netPnl: round(t.netPnl),
           winRate: round(t.winRate, 4),
+          ...profitFactorOf(t.profitFactor),
           byHour: buckets(t.byHour),
           byWeekday: buckets(t.byWeekday),
           byInstrument: buckets(t.byInstrument),
@@ -777,8 +786,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'desk_overview':
       return tr(
         fallback,
-        'Journal overview: session count, net PnL, win rate, profit factor, expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.' + PROVENANCE_EN,
-        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor, esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.' + PROVENANCE_ES,
+        'Journal overview: session count, net PnL, win rate, profit factor after commissions (`noLoss: true` when there is no loss), expectancy, Sharpe, max drawdown, tracked prop-firm plan status (on the account tracked by the Metrics screen). Optional range and account filters, as on the Dashboard: Sharpe and Sortino are annualized over the range’s trading days (`tradingDays`, days without a session at 0); without `to`, the range stops at the last session. The tracked plan is always replayed over its account’s whole history. For the plan: `buffer` = closing balance − floor; `margin` = low of the last replayed session (adverse excursions included) − floor, dated (`margin.date`), the K.04 gauge margin, more conservative; the replay stops at the target reached (`passedOn`) or at failure.' + PROVENANCE_EN,
+        'Vista del diario: número de sesiones, PnL neto, tasa de acierto, profit factor después de comisiones (`noLoss: true` si no hay ninguna pérdida), esperanza, Sharpe, drawdown máx., estado del plan prop firm seguido (en la cuenta seguida por la pantalla Métricas). Filtros opcionales de período y cuenta, como en el Panel: Sharpe y Sortino se anualizan sobre los días de negociación del período (`tradingDays`, días sin sesión a 0); sin `to`, el período termina en la última sesión. El plan seguido se rejuega siempre sobre todo el historial de su cuenta. Para el plan: `buffer` = saldo de cierre − suelo; `margin` = mínimo de la última sesión rejugada (excursiones adversas incluidas) − suelo, fechado (`margin.date`), el margen del indicador K.04, más prudente; el rejuego se detiene en el objetivo alcanzado (`passedOn`) o en el fracaso.' + PROVENANCE_ES,
       );
     case 'list_sessions':
       return tr(
@@ -813,8 +822,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'journal_breakdown':
       return tr(
         fallback,
-        'Journal breakdowns, as on the Analysis tab: by entry hour (New York time), by weekday of the session (CME trading day, 6 pm → 5 pm ET: a Sunday-evening trade counts on Monday), by instrument, long / short. Optional date and account filters. Only slots with trades are returned.' + PROVENANCE_EN,
-        'Desgloses del diario, como en la pestaña Análisis: por hora de entrada (hora de Nueva York), por día de la semana de la sesión (jornada de negociación CME, 18 h → 17 h ET: un trade del domingo por la noche cuenta el lunes), por instrumento, largo / corto. Filtros opcionales de fechas y cuenta. Solo se devuelven las franjas con trades.' + PROVENANCE_ES,
+        'Journal breakdowns, as on the Analysis tab: the range’s profit factor after commissions (`noLoss: true` when there is no loss), then by entry hour (New York time), by weekday of the session (CME trading day, 6 pm → 5 pm ET: a Sunday-evening trade counts on Monday), by instrument, long / short. Optional date and account filters. Only slots with trades are returned.' + PROVENANCE_EN,
+        'Desgloses del diario, como en la pestaña Análisis: profit factor después de comisiones del período (`noLoss: true` si no hay ninguna pérdida), luego por hora de entrada (hora de Nueva York), por día de la semana de la sesión (jornada de negociación CME, 18 h → 17 h ET: un trade del domingo por la noche cuenta el lunes), por instrumento, largo / corto. Filtros opcionales de fechas y cuenta. Solo se devuelven las franjas con trades.' + PROVENANCE_ES,
       );
     case 'monte_carlo':
       return tr(
