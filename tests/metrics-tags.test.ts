@@ -26,7 +26,7 @@ describe('étiquettes datées', () => {
 
   it('date la pose nouvelle et laisse les étiquettes anciennes sans date', () => {
     const stamped = stampTradeTags({ tags: ['A+'] }, ['A+', 'plan'], 5_000);
-    expect(stamped.schemaVersion).toBe(2);
+    expect(stamped.schemaVersion).toBe(3);
     expect(stamped.tags).toEqual(['A+', 'plan']);
     expect(stamped.tagEvents).toEqual([{ tag: 'plan', at: 5_000 }]);
     expect(tagTiming({ ...trade, ...stamped }, 'A+')).toBe('inconnue');

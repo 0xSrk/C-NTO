@@ -8,7 +8,7 @@ import { parseCsv } from '@/lib/csv';
 import { listenWorker } from '@/lib/worker';
 import { takeNewExecutionTrades } from '@/engine/import/identity';
 import { summarizeTrades } from '@/engine/metrics';
-import { SESSION_CAPACITY, type Session, type SessionSource, type Trade } from '@/engine/types';
+import { SESSION_CAPACITY, TRADE_SCHEMA_VERSION, type Session, type SessionSource, type Trade } from '@/engine/types';
 import { stampTradeTags } from '@/engine/tradeUnits';
 import { uid } from '@/lib/id';
 import { db, type ImportedExecution, type StoredOpenLot } from './db';
@@ -29,7 +29,7 @@ interface JournalState {
   /** Suppression en lot (trades inclus), une seule transaction. */
   deleteSessions: (ids: string[]) => Promise<void>;
   restoreSessions: (sessions: Session[], trades: Trade[], executions?: ImportedExecution[]) => Promise<void>;
-  updateTrade: (id: string, patch: Partial<Pick<Trade, 'tags' | 'risk' | 'strategy'>>) => Promise<void>;
+  updateTrade: (id: string, patch: Partial<Pick<Trade, 'tags' | 'risk' | 'strategy' | 'stopPrice' | 'targetPrice'>> & { stopPrice?: number | null; targetPrice?: number | null }) => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
@@ -182,9 +182,32 @@ export const useJournal = create<JournalState>((set, get) => ({
   async updateTrade(id, patch) {
     const current = get().trades.find((t) => t.id === id);
     if (!current) return;
-    const next = patch.tags ? { ...patch, ...stampTradeTags(current, patch.tags, Date.now()) } : patch;
+    const clears: ('stopPrice' | 'targetPrice')[] = [];
+    const next: Partial<Trade> = { ...patch };
+    if (patch.tags) Object.assign(next, stampTradeTags(current, patch.tags, Date.now()));
+    if (patch.stopPrice === null) {
+      delete next.stopPrice;
+      clears.push('stopPrice');
+    }
+    if (patch.targetPrice === null) {
+      delete next.targetPrice;
+      clears.push('targetPrice');
+    }
+    if (patch.tags || 'stopPrice' in patch || 'targetPrice' in patch) next.schemaVersion = TRADE_SCHEMA_VERSION;
     await db.trades.update(id, next);
-    set({ trades: get().trades.map((t) => (t.id === id ? { ...t, ...next } : t)) });
+    if (clears.length) {
+      await db.trades.where('id').equals(id).modify((row: Trade) => {
+        for (const key of clears) delete row[key];
+      });
+    }
+    set({
+      trades: get().trades.map((t) => {
+        if (t.id !== id) return t;
+        const merged: Trade = { ...t, ...next };
+        for (const key of clears) delete merged[key];
+        return merged;
+      }),
+    });
     scheduleOntologyRecompute();
   },
 

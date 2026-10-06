@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { adjustedRiskPoints, expectancy, expectancyR, floorMicroContracts, horizonSigma, rrMatrix, sigmaBand, sigmaDistance, theoreticalContracts, theoreticalNotional, thresholdWinRate, tradeRisk } from '@/engine/riskConsole';
+import { prepareVaultRestore } from '@/store/db';
 
 describe('risque du trade', () => {
   it('achat de 2 MNQ, stop à 10 points, sortie à +60 $ : 40 $, +1,5 R, source stop', () => {
@@ -70,5 +71,36 @@ describe('risque du trade', () => {
     expect(sigmaBand(1)).toBe('>1');
     expect(sigmaDistance(10, null)).toBeNull();
     expect(horizonSigma(20_000, 0.16, 52)).toBeGreaterThan(sigma);
+  });
+
+  it('relit un stop saisi et refuse un prix aberrant', () => {
+    const base = {
+      sessionId: 's',
+      instrument: 'NQ',
+      direction: 'long' as const,
+      qty: 1,
+      entryTime: 1,
+      exitTime: 2,
+      entryPrice: 20_000,
+      exitPrice: 20_010,
+      pnl: 100,
+      commission: 0,
+    };
+    const restored = prepareVaultRestore(
+      JSON.stringify({
+        format: 'canto-vault-v2',
+        schemaVersion: 2,
+        sessions: [{ id: 's', date: '2026-01-05', instruments: ['NQ'], source: 'csv', tradeCount: 1, pnl: 100, grossProfit: 100, grossLoss: 0, commission: 0, tags: [], createdAt: 0, updatedAt: 0 }],
+        trades: [
+          { ...base, id: 'kept', stopPrice: 19_990, targetPrice: 20_020 },
+          { ...base, id: 'old' },
+          { ...base, id: 'bad', stopPrice: -1 },
+        ],
+      }),
+    );
+    expect(restored.trades.map((row) => row.id).sort()).toEqual(['kept', 'old']);
+    expect(restored.trades.find((row) => row.id === 'kept')?.stopPrice).toBe(19_990);
+    expect(restored.trades.find((row) => row.id === 'old')?.stopPrice).toBeUndefined();
+    expect(restored.skipped.trades).toBe(1);
   });
 });

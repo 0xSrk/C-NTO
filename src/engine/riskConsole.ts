@@ -1,5 +1,7 @@
 import { mulberry32 } from '@/lib/rng';
+import { blockLengthOf } from './inference';
 import { getInstrument, hasInstrument } from './instruments';
+import { percentile } from './metrics';
 
 export type RiskSource = 'stop' | 'saisi' | 'fixe' | 'absent';
 
@@ -280,4 +282,37 @@ export function rateAfterStreak(pnls: readonly number[], streak: number, side: '
     if (current > 0) wins += 1;
   }
   return { count, wins, winRate: count > 0 ? wins / count : null };
+}
+
+/** IC 90 % de la moyenne des trades, rééchantillonnée par blocs de journées. */
+export function dayBlockedMeanCi(groups: readonly (readonly number[])[], draws = 2_000, seed = 1): { center: number; low: number; high: number } {
+  const flat: number[] = [];
+  for (const group of groups) for (const value of group) if (Number.isFinite(value)) flat.push(value);
+  const center = flat.length ? flat.reduce((sum, value) => sum + value, 0) / flat.length : 0;
+  const days = groups.filter((group) => group.some((value) => Number.isFinite(value)));
+  if (days.length === 0) return { center: 0, low: 0, high: 0 };
+  const rand = mulberry32(seed);
+  const block = blockLengthOf(days.length);
+  const means: number[] = [];
+  for (let draw = 0; draw < draws; draw++) {
+    let sum = 0;
+    let count = 0;
+    let filled = 0;
+    while (filled < days.length) {
+      const start = Math.floor(rand() * days.length);
+      const take = Math.min(block, days.length - filled);
+      for (let j = 0; j < take; j++) {
+        const day = days[(start + j) % days.length] ?? [];
+        for (const value of day) {
+          if (!Number.isFinite(value)) continue;
+          sum += value;
+          count += 1;
+        }
+      }
+      filled += take;
+    }
+    means.push(count > 0 ? sum / count : 0);
+  }
+  means.sort((a, b) => a - b);
+  return { center, low: percentile(means, 0.05), high: percentile(means, 0.95) };
 }

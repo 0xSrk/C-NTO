@@ -155,6 +155,26 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('Fenêtre de stabilité', 'Stability window', 'Ventana de estabilidad')} hint={tr('10 à 40 séances · départ 20', '10 to 40 sessions · default 20', '10 a 40 sesiones · inicio 20')}>
           <input type="number" min={10} max={40} step={1} value={settings.stabilityWindow} onChange={(e) => update({ stabilityWindow: Number(e.target.value) })} />
         </Field>
+        <Field label={tr('Risque de base (%)', 'Base risk (%)', 'Riesgo base (%)')} hint={tr('provisoire · pas de table profil × direction', 'provisional · no profile × direction table', 'provisional · sin tabla perfil × dirección')} className={s.full}>
+          <input type="number" min={0} max={20} step={0.1} value={settings.riskBasePoints} onChange={(e) => update({ riskBasePoints: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Ajustement Vol-LT', 'Vol-LT adjustment', 'Ajuste Vol-LT')} hint={tr('points de risque · provisoire, appliqué avec le contexte', 'risk points · provisional, applied with context', 'puntos de riesgo · provisional, se aplica con el contexto')}>
+          <input type="number" min={-0.6} max={-0.2} step={0.05} value={settings.volLtPoints} onChange={(e) => update({ volLtPoints: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Ajustement Cross-Vol', 'Cross-Vol adjustment', 'Ajuste Cross-Vol')} hint={tr('points de risque · provisoire, appliqué avec le contexte', 'risk points · provisional, applied with context', 'puntos de riesgo · provisional, se aplica con el contexto')}>
+          <input type="number" min={-0.25} max={-0.1} step={0.05} value={settings.crossVolPoints} onChange={(e) => update({ crossVolPoints: Number(e.target.value) })} />
+        </Field>
+        <Field label={tr('Volatilité implicite annuelle (%)', 'Annual implied volatility (%)', 'Volatilidad implícita anual (%)')} hint={tr('vide : les distances en σ attendent le contexte', 'empty: sigma distances wait for context', 'vacío: las distancias en σ esperan el contexto')}>
+          <input
+            type="number"
+            min={1}
+            max={300}
+            step={1}
+            value={settings.impliedVol == null ? '' : Math.round(settings.impliedVol * 1000) / 10}
+            placeholder="—"
+            onChange={(e) => update({ impliedVol: e.target.value === '' ? null : Number(e.target.value) / 100 })}
+          />
+        </Field>
         <DisciplineFields rules={settings.traderRules} onChange={(traderRules) => update({ traderRules })} />
         <Field label={tr('Canal de mise à jour', 'Update channel', 'Canal de actualización')} className={s.full} hint={tr('un clone git tire origin/main et relance ; sans git, page GitHub', 'a git clone pulls origin/main and restarts; without git, GitHub page', 'un clon git tira origin/main y reinicia; sin git, página GitHub')}>
           <select value={settings.updateChannel} onChange={(e) => update({ updateChannel: e.target.value === 'dev' ? 'dev' : 'release' })}>

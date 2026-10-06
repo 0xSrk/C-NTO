@@ -573,6 +573,27 @@ Onglets A, B et C. Moteur dans `src/engine/inference.ts` (bootstrap par blocs, p
 
 **Hors de cette étape.** Étapes 3 à 6, NinjaTrader, version `package.json`, changelog 3.5.0, extraction de l'ATR.
 
+## 3.5.0 — Ajustement du module Métriques, étape 3 : R et risque (2026-10-06)
+
+Moteur `src/engine/riskConsole.ts`. Les tables F20, F21 et F22 ne sont pas inventées. Tant qu'elles manquent, et tant que la fiche contexte n'existe pas, l'écran applique le risque de base seul (réglage 8, départ 1,5 %). Les ajustements Vol-LT et Cross-Vol sont stockés (réglages 9 et 10) et marqués provisoires ; ils ne s'appliquent pas encore. La mesure en σ n'utilise que la volatilité implicite saisie (réglage 11). `volCT` et l'élasticité attendent les étapes 4 et 5.
+
+| # | Ajustement | Test | Attendu | Obtenu |
+|---|---|---|---|---|
+| 3.1 | Risque = \|entrée − stop\| × valeur du point × quantité ; sinon risque saisi ; sinon fixe | `metrics-risk` | 2 MNQ, stop 19 990, +60 $ → 40 $, +1,5 R, source `stop` | conforme |
+| 3.1 | R/R, espérance, seuil | `metrics-risk` | 2 ; 875 ; 33,3 % | conforme |
+| 3.2 | Matrice en R | `metrics-risk` | 40 % et 1,5 → 0,00 R ; 50 % et 2 → +0,50 R | conforme |
+| 3.3 | Risque ajusté, notionnel, contrats | `metrics-risk` | 0,95 % ; 1 520 ; 0,475 NQ → 4 MNQ | conforme, avec les deux ajustements passés à la fonction. L'écran, lui, reste au risque de base. |
+| 3.4 | σ = cours × vol ÷ √périodes | `metrics-risk` | classes [0 ; 0,25) [0,25 ; 0,5) [0,5 ; 1) [1 ; ∞) | conforme, vol implicite seulement |
+| 3.5 | Bernoulli, série, Bayes | `metrics-series` | 0,0778 / 0,0102 ; moyenne ≈ 6,0 et 95e rang 9 ; 0,549 [0,468 ; 0,629] | conforme |
+
+**Écran.** B : stop initial et objectif initial sur chaque trade ; risque, R/R prévu, R réalisé et source. Mention si tout est en risque fixe. Largeurs ±1 σ jour / semaine / mois si une volatilité implicite est saisie, sans niveau atteint (il faut la clôture de la veille). C : matrice R-R, espérance avec IC par blocs de journées, respect du risque de base, Bernoulli, série de pertes, Bayes, taux après 1 à 3 gains ou pertes, tranches de stop en σ.
+
+**Coffre.** `stopPrice` et `targetPrice` facultatifs. `TRADE_SCHEMA_VERSION` passe à 3. Un coffre sans ces champs reste lisible ; un prix aberrant est écarté.
+
+**Règle 6.** Aucune des fonctions figées (`monteCarlo`, `drawdownSeries`, `evaluatePlan`, `computeTradeStats`, `computeDailyStats`) n'est réécrite.
+
+**Décisions.** n° 3 : capital de risque = perte maximale du plan si le compte filtré est le compte suivi, sinon capital de référence. n° 4 : tables non fournies, signalées provisoires.
+
 
 ## Couche agentique du trader — thèse et vague 1 (2026-10-06)
 

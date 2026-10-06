@@ -5,6 +5,7 @@ import { Empty, Segmented, cx } from '@/design/primitives';
 import { computeTradeStats, dayHourGrid, histogram, sessionDates, tradeDay, weekdayOf, WEEKDAY_KEYS } from '@/engine/metrics';
 import { analysisCandidates, DURATION_LABELS, durationLabel, markerVerdicts } from '@/engine/inference';
 import { aggregatePoints, exitReasonOf, tagTiming, type ExitReason } from '@/engine/tradeUnits';
+import { RiskReading } from './RiskReading';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { useSettings } from '@/store/settings';
@@ -539,6 +540,7 @@ export function Analyse({ sessions, trades }: { sessions: Session[]; trades: Tra
         </header>
         <InkRank rows={rankRows} label={rankLabel} />
       </section>
+      <RiskReading sessions={sessions} trades={trades} />
     </div>
   );
 }
