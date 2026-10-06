@@ -3,9 +3,18 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { DeskRelay, mcpRelay } from '../electron/desk-relay';
 import { handleMcpHttp, loadOrCreateToken, McpGateway, MCP_PROTOCOL_VERSIONS, outputSchemaFor, type McpContext, type McpRelay, type McpToolInfo } from '../electron/mcp-server';
 import { DESK_TOOL_KINDS } from '@/engine/agent/catalog';
 import { TOOL_PREAMBLE } from '@/engine/agent/loop';
+import type { DeskPorts } from '@/engine/agent/ports';
+import { executeDeskTool } from '@/engine/agent/runner';
+import { describedDeskTools } from '@/engine/agent/tools';
+import type { Bar, BarSeries } from '@/engine/bars';
+import { OrderBook } from '@/engine/execution/orderBook';
+import { QuoteBook } from '@/engine/marketdata/quotes';
+import { ET_ZONE, zonedToUtc } from '@/lib/time';
+import { DEMO_ACCOUNT, DEMO_END, demoDesk } from './helpers/demoDesk';
 
 const TOKEN = 'jeton-de-test-assez-long-pour-passer';
 const TOOLS: McpToolInfo[] = [
@@ -451,6 +460,32 @@ describe('passerelle MCP · serveur', () => {
     expect((await send(rpc('ping'))).status).toBe(200);
   });
 
+  it('A14.6 ressource note : un identifiant hors format rend -32002 sans atteindre le desk, jamais une erreur 500', async () => {
+    const calls: { name: string; args: unknown }[] = [];
+    const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), relay(calls, () => ({ result: { id: 'n_01K6Z9QWERTY2345', title: 'Plan', body: '' } })), '3.3.4');
+    gateways.push(gw);
+    const { port } = await gw.start(0);
+    const conn = (await gw.connection())!;
+    const read = async (uri: string) => {
+      const reply = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${conn.token}`, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(rpc('resources/read', { uri })),
+      });
+      return { status: reply.status, body: (await reply.json()) as { result?: { contents: { text: string }[] }; error?: { code: number } } };
+    };
+    for (const uri of ['canto://note/%E0%A4%A', 'canto://note/n%2F..%2Fx', `canto://note/${'n'.repeat(65)}`, 'canto://note/n 1', 'canto://note/n1?x=1', 'canto://note/']) {
+      const out = await read(uri);
+      expect(out.status, uri).toBe(200);
+      expect(out.body.error?.code, uri).toBe(-32002);
+    }
+    expect(calls).toEqual([]);
+    const ok = await read('canto://note/n_01K6Z9QWERTY2345');
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(ok.body.result!.contents[0]!.text).id).toBe('n_01K6Z9QWERTY2345');
+    expect(calls).toEqual([{ name: 'read_note', args: { id: 'n_01K6Z9QWERTY2345' } }]);
+  });
+
   it('au-delà de 40 requêtes par seconde : 429 avec Retry-After', async () => {
     const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), relay(), '3.3.4');
     gateways.push(gw);
@@ -491,6 +526,58 @@ describe('A14.4 schéma de sortie', () => {
     expect(refused.result?.isError).toBe(true);
     expect(refused.result?.structuredContent).toBeUndefined();
   });
+
+  it('A14.11 chaque propriété de tête déclarée existe dans la vraie sortie de l’outil, sur le desk de démo', async () => {
+    // Desk de démo, avec un pont vivant, un livre d'ordres, une cotation et une série de barres : chaque lecture rend sa sortie normale.
+    const desk = demoDesk();
+    const at = Date.parse(DEMO_END);
+    const quotes = new QuoteBook();
+    quotes.apply({ instrument: 'MNQ 12-26', time: at - 1_500, bid: 21_000, ask: 21_000.25, last: 21_000.25 }, at - 1_000);
+    const book = new OrderBook();
+    book.setLink('live', at);
+    book.apply({ account: 'Sim101', orderId: 'nt-1', instrument: 'MNQ 12-26', side: 'buy', type: 'limit', qty: 1, state: 'Working', limit: 21_000.25 }, at + 1_000);
+    const bars: Bar[] = [];
+    for (const [date, base] of [['2026-09-29', 21_000], ['2026-09-30', 21_100]] as const) {
+      for (let t = zonedToUtc(date, '09:30', ET_ZONE) / 1000, px = base; t <= zonedToUtc(date, '15:55', ET_ZONE) / 1000; t += 300, px += 1) {
+        bars.push({ time: t, open: px, high: px + 2, low: px - 1, close: px + 1, volume: 100 });
+      }
+    }
+    const series: BarSeries = { id: 'nt8:NQ:5', instrument: 'NQ', timeframe: 5, label: 'NQ 12-26 · 5 min · NinjaTrader', source: 'nt8-bridge', bars, createdAt: 0 };
+    const ports: DeskPorts = {
+      ...desk.ports,
+      bridge: async () => ({
+        nt: { link: 'live', addonVersion: '2.3.0', heartbeatLatencyMs: 12, ordersOpen: true, maxContractsPerOrder: 5, accounts: [{ name: DEMO_ACCOUNT, cashValue: 50_000, realizedPnl: 0, unrealizedPnl: -40, positions: [] }], accountsAt: at },
+        copier: null,
+      }),
+      workingOrders: async () => book.view(at + 2_000),
+      marketQuotes: () => quotes.all(),
+      barSeries: async () => [series],
+    };
+    // Le relais du desk : catalogue de desk.describe, appels par executeDeskTool (source orch), comme le renderer.
+    const demoRelay: McpRelay = {
+      tools: async () => describedDeskTools(),
+      call: async (name, args) => ({ result: await executeDeskTool(ports, name, args, { source: 'orch' }) }),
+    };
+    const args: Record<string, Record<string, unknown>> = {
+      get_session: { id: desk.sessions[0]!.id },
+      read_note: { id: 'n_plan' },
+      calendar_events: { from: '2026-09-01', to: '2026-10-31' },
+      market_levels: { instrument: 'NQ' },
+      market_quote: { instrument: 'MNQ' },
+    };
+    const listed = (await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: demoRelay })))).result?.tools as { name: string; outputSchema?: { properties: Record<string, unknown> } }[];
+    expect(listed.map((t) => t.name).sort()).toEqual(Object.keys(DESK_TOOL_KINDS).filter((name) => DESK_TOOL_KINDS[name as keyof typeof DESK_TOOL_KINDS] === 'read').sort());
+    const missing: string[] = [];
+    for (const tool of listed) {
+      const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: tool.name, arguments: args[tool.name] ?? {} })), ctx({ relay: demoRelay })));
+      expect(out.result?.isError, tool.name).toBeUndefined();
+      const structured = out.result?.structuredContent as Record<string, unknown>;
+      const heads = Object.keys(tool.outputSchema?.properties ?? {});
+      expect(heads.length, tool.name).toBeGreaterThan(0);
+      for (const key of heads) if (!Object.hasOwn(structured, key)) missing.push(`${tool.name} · ${key}`);
+    }
+    expect(missing).toEqual([]);
+  });
 });
 
 describe('A14.3 ressources MCP', () => {
@@ -516,5 +603,102 @@ describe('A14.3 ressources MCP', () => {
     const unknown = await out('resources/read', { uri: 'canto://order/submit' });
     expect(unknown.error?.code).toBe(-32002);
     expect(calls.some((c) => c.name === 'create_note' || c.name === 'propose_order')).toBe(false);
+  });
+
+  it('A14.7 un refus du desk ou un échec de l’outil rend -32002 avec son motif, jamais une ressource réussie', async () => {
+    // Réponses telles que le renderer les relaie (`onRequest`) : le motif suit le résultat, ou n'est que dans le résultat.
+    const answer = (name: string) => {
+      if (name === 'read_note') return { result: { error: 'Note introuvable' }, error: 'Note introuvable' };
+      if (name === 'get_session') return { result: { error: 'Séance introuvable' } };
+      if (name === 'propfirm_status') return { result: { ok: false, reason: 'unknown_tool' }, error: 'Outil inconnu' };
+      return { result: { ok: false, reason: 'args_too_large' } };
+    };
+    const read = async (uri: string, locale?: 'fr' | 'en' | 'es') => result(await handleMcpHttp(post(rpc('resources/read', { uri })), ctx({ relay: relay([], answer), locale })));
+    const note = await read('canto://note/n_01K6Z9QWERTY2345');
+    expect(note.error).toEqual({ code: -32002, message: 'Note introuvable' });
+    expect(note.result).toBeUndefined();
+    expect((await read('canto://session/2026-10-06')).error).toEqual({ code: -32002, message: 'Séance introuvable' });
+    expect((await read('canto://plan/tracked')).error).toEqual({ code: -32002, message: 'Outil inconnu' });
+    const bare = await read('canto://desk/overview');
+    expect(bare.error?.code).toBe(-32002);
+    expect(bare.error?.message).toBe('Ressource illisible : canto://desk/overview (args_too_large)');
+    expect((await read('canto://desk/overview', 'en')).error?.message).toBe('Resource unreadable: canto://desk/overview (args_too_large)');
+
+    // Une séance ambiguë est une réponse (les candidates), pas un refus.
+    const ambiguous = relay([], () => ({ result: { ambiguous: true, sessions: [{ id: 's1' }, { id: 's2' }] } }));
+    const both = await result(await handleMcpHttp(post(rpc('resources/read', { uri: 'canto://session/2026-10-06' })), ctx({ relay: ambiguous })));
+    expect(both.error).toBeUndefined();
+    expect(JSON.parse((both.result?.contents as { text: string }[])[0]!.text)).toMatchObject({ ambiguous: true });
+  });
+});
+
+describe('A14.10 noms stables, messages dans la langue du desk', () => {
+  const call = async (method: string, params: unknown = {}, over: Partial<McpContext> = {}) => result(await handleMcpHttp(post(rpc(method, params)), ctx(over)));
+  const httpMessage = async (req: ReturnType<typeof post>, locale: 'fr' | 'en' | 'es' = 'en') => JSON.parse((await handleMcpHttp(req, ctx({ locale }))).body ?? '{}').error?.message as string;
+
+  it('ressources et prompts : name identique dans les trois langues, seul title traduit', async () => {
+    const listed = async (locale: 'fr' | 'en' | 'es') => ({
+      resources: (await call('resources/list', {}, { locale })).result?.resources as { uri: string; name: string; title?: string }[],
+      templates: (await call('resources/templates/list', {}, { locale })).result?.resourceTemplates as { uriTemplate: string; name: string; title?: string }[],
+      prompts: (await call('prompts/list', {}, { locale })).result?.prompts as { name: string; title: string; arguments: { name: string }[] }[],
+    });
+    const fr = await listed('fr');
+    const en = await listed('en');
+    const es = await listed('es');
+    for (const key of ['resources', 'templates', 'prompts'] as const) {
+      const names = fr[key].map((r) => r.name);
+      expect(en[key].map((r) => r.name), key).toEqual(names);
+      expect(es[key].map((r) => r.name), key).toEqual(names);
+    }
+    expect(en.prompts.map((p) => p.arguments.map((a) => a.name))).toEqual(fr.prompts.map((p) => p.arguments.map((a) => a.name)));
+    expect(fr.resources.map((r) => [r.uri, r.name, r.title])).toEqual([
+      ['canto://desk/overview', 'desk_overview', 'Vue d’ensemble du desk'],
+      ['canto://plan/tracked', 'tracked_plan', 'Plan prop suivi'],
+    ]);
+    expect(en.resources.map((r) => r.title)).toEqual(['Desk overview', 'Tracked prop plan']);
+    expect(fr.templates.map((r) => [r.uriTemplate, r.name, r.title])).toEqual([
+      ['canto://session/{date}', 'session', 'Séance du journal'],
+      ['canto://note/{id}', 'note', 'Note du coffre'],
+    ]);
+    expect(en.templates.map((r) => r.title)).toEqual(['Journal session', 'Vault note']);
+    expect(es.templates.map((r) => r.title)).toEqual(['Sesión del diario', 'Nota de la caja']);
+  });
+
+  it('langue en : outil et méthode inconnus, contrôles HTTP, JSON-RPC mal formé, desk fermé ou muet, erreur interne', async () => {
+    expect((await call('tools/call', { name: 'place_order' }, { locale: 'en' })).error?.message).toBe('Unknown tool: place_order');
+    expect((await call('tools/call', {}, { locale: 'en' })).error?.message).toBe('Unknown tool: (no name)');
+    expect((await call('sampling/createMessage', {}, { locale: 'en' })).error?.message).toBe('Method not supported: sampling/createMessage');
+    expect(await httpMessage({ ...post(rpc('ping')), url: '/autre' })).toBe('Endpoint: /mcp');
+    expect(await httpMessage(post(rpc('ping'), { 'content-type': 'text/plain' }))).toBe('Expected Content-Type: application/json.');
+    expect(await httpMessage(post(rpc('ping'), { accept: 'text/html' }))).toBe('The gateway answers in application/json.');
+    expect(await httpMessage(post(rpc('ping'), { 'mcp-protocol-version': '1999-01-01' }))).toBe('Protocol version not supported: 1999-01-01.');
+    expect(await httpMessage(post('{pas du json'))).toBe('Invalid JSON');
+    expect(await httpMessage(post([rpc('ping')]))).toBe('JSON-RPC batches are not supported');
+    expect(await httpMessage(post('42'))).toBe('JSON-RPC object expected');
+    expect(await httpMessage(post('42'), 'es')).toBe('Se espera un objeto JSON-RPC');
+    expect(await httpMessage(post('{pas du json'), 'fr')).toBe('JSON invalide');
+
+    // Le relais du process principal : fenêtre fermée, puis renderer muet, lus par une ressource.
+    const closed = mcpRelay(new DeskRelay(() => false, 15_000, () => 'en'));
+    expect((await call('resources/read', { uri: 'canto://desk/overview' }, { locale: 'en', relay: closed })).error?.message).toBe('Desk unavailable: the CΛNTO window is closed.');
+    const silent = mcpRelay(new DeskRelay(() => true, 20, () => 'es'));
+    expect((await call('resources/read', { uri: 'canto://desk/overview' }, { locale: 'es', relay: silent })).error?.message).toBe('El desk no responde (tiempo agotado).');
+
+    // Erreur sans message (valeur levée qui n'est pas une Error) : 500 dans la langue du desk.
+    const throwing: McpRelay = { tools: async () => TOOLS, call: async () => Promise.reject('panne') };
+    const gw = new McpGateway(mkdtempSync(path.join(tmpdir(), 'canto-mcp-')), throwing, '3.3.4', undefined, () => 'en');
+    try {
+      const { port } = await gw.start(0);
+      const conn = (await gw.connection())!;
+      const reply = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${conn.token}`, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(rpc('resources/read', { uri: 'canto://desk/overview' })),
+      });
+      expect(reply.status).toBe(500);
+      expect(((await reply.json()) as { error: { message: string } }).error.message).toBe('Internal error');
+    } finally {
+      await gw.stop();
+    }
   });
 });

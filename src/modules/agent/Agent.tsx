@@ -3,7 +3,7 @@ import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { llmKeyBound } from '@/engine/agent/llm';
-import { coerceRoutineSeen, pressRoutine, routineDue, type RoutineCue, type RoutineSeen } from '@/engine/agent/routineDue';
+import { coerceRoutineSeen, ROUTINE_OF, routineDue, type RoutineCue, type RoutineSeen } from '@/engine/agent/routineDue';
 import { DESK_TOOLS, toolBlurb } from '@/engine/agent/tools';
 import { tradingDayNow } from '@/engine/discipline';
 import { tr, useI18n } from '@/i18n';
@@ -12,7 +12,7 @@ import { fmtNum } from '@/lib/format';
 import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
 import { db, type AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
-import { deskEventLog, useDeskEvents } from '@/store/deskEvents';
+import { dailyLossReached, useDeskEvents } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -152,12 +152,17 @@ export default function Agent() {
 
   const day = tradingDayNow(now);
   const tradesToday = sessions.reduce((n, row) => n + (row.date === day ? row.tradeCount : 0), 0);
-  const dailyLossFull = deskEventLog.read({ kinds: ['daily_loss'], limit: 200 }).events.some((event) => event.data.day === day && event.data.threshold === 1);
+  // Perte du jour recalculée du journal, des réglages et du pont (l'anneau d'événements, lui, repart vide au
+  // redémarrage) : à l'horloge, quand le journal change ou qu'un événement du desk arrive, pas à chaque jeton du flux.
+  const dailyLossFull = useMemo(() => dailyLossReached(now), [now, sessions, lastEvent]);
   const due = routineDue(now, { tradesToday, dailyLossFull, seen });
-  const launch = (which: RoutineCue) => {
-    const next = pressRoutine(which, due, seen, true, (name) => {
-      void runRoutine(name);
-    });
+  const launch = async (which: RoutineCue) => {
+    if (streaming) return;
+    const day = due.day;
+    // Datée de la journée CME, celle que la pastille et la journée vue retiennent (après 18 h, celle du lendemain).
+    // La journée n'est vue que si la routine part : outils coupés ou flux en cours, la pastille reste.
+    if (!(await runRoutine(ROUTINE_OF[which], { date: day }))) return;
+    const next = { ...seen, [which]: day };
     setSeen(next);
     void db.settings.put({ key: 'agent.routineSeen', value: next });
   };
@@ -238,11 +243,11 @@ export default function Agent() {
             </div>
             <div className={s.composer}>
               <div className={s.routines}>
-                <Button size="sm" variant="ghost" onClick={() => launch('brief')}>
+                <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('brief')}>
                   {tr('Brief', 'Brief', 'Brief')}
                   {due.brief ? <i className={s.cue} aria-hidden /> : null}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => launch('debrief')}>
+                <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('debrief')}>
                   {tr('Débrief', 'Debrief', 'Debrief')}
                   {due.debrief ? <i className={s.cue} aria-hidden /> : null}
                 </Button>
@@ -457,6 +462,8 @@ export default function Agent() {
                         ['claude', tr('Copier pour Claude Code', 'Copy for Claude Code', 'Copiar para Claude Code'), claudeCodeCommand],
                         ['desktop', tr('Copier pour Claude Desktop', 'Copy for Claude Desktop', 'Copiar para Claude Desktop'), claudeDesktopConfig],
                         ['codex', tr('Copier pour Codex', 'Copy for Codex', 'Copiar para Codex'), (url: string, _token: string) => codexConfig(url)],
+                        // Le jeton de la passerelle MCP, pour CANTO_MCP_TOKEN (Codex) : celui de l'orchestrateur est un autre jeton.
+                        ['token', tr('Copier le jeton MCP', 'Copy MCP token', 'Copiar el token MCP'), (_url: string, token: string) => token],
                         ['json', tr('Copier la configuration JSON', 'Copy JSON configuration', 'Copiar la configuración JSON'), mcpJsonConfig],
                       ] as const
                     ).map(([id, label, build]) => (
@@ -471,8 +478,18 @@ export default function Agent() {
                             !conn
                               ? tr('Passerelle indisponible.', 'Gateway unavailable.', 'Pasarela no disponible.')
                               : id === 'codex'
-                                ? tr('Copié. Exportez CANTO_MCP_TOKEN avec le jeton avant de lancer Codex.', 'Copied. Export CANTO_MCP_TOKEN with the token before starting Codex.', 'Copiado. Exporte CANTO_MCP_TOKEN con el token antes de lanzar Codex.')
-                                : tr('Copié. Le jeton y figure : ne le partagez pas.', 'Copied. It contains the token: do not share it.', 'Copiado. Contiene el token: no lo comparta.'),
+                                ? tr(
+                                    'Copié. Exportez CANTO_MCP_TOKEN avec le jeton MCP (« Copier le jeton MCP ») avant de lancer Codex.',
+                                    'Copied. Export CANTO_MCP_TOKEN with the MCP token (“Copy MCP token”) before starting Codex.',
+                                    'Copiado. Exporte CANTO_MCP_TOKEN con el token MCP (« Copiar el token MCP ») antes de lanzar Codex.',
+                                  )
+                                : id === 'token'
+                                  ? tr(
+                                      'Jeton MCP copié : exportez-le dans CANTO_MCP_TOKEN pour Codex. Ne le partagez pas.',
+                                      'MCP token copied: export it as CANTO_MCP_TOKEN for Codex. Do not share it.',
+                                      'Token MCP copiado: expórtelo en CANTO_MCP_TOKEN para Codex. No lo comparta.',
+                                    )
+                                  : tr('Copié. Le jeton y figure : ne le partagez pas.', 'Copied. It contains the token: do not share it.', 'Copiado. Contiene el token: no lo comparta.'),
                             conn ? 'ok' : 'warn',
                           );
                         }}

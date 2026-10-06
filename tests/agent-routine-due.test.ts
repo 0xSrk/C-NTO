@@ -43,4 +43,22 @@ describe('A12.1 quand proposer le brief et le débrief', () => {
     expect(next.day).toBe('2026-10-07');
     expect(next.brief).toBe(true);
   });
+
+  it('A12.7 minutes entamées, pas arrondies : 8 h 29 min 30 s n’ouvre pas le brief, 16 h 14 min 30 s pas le débrief', () => {
+    expect(routineDue(at(tuesday, '08:29') + 30_000, ctx()).brief).toBe(false);
+    expect(routineDue(at(tuesday, '08:29') + 59_999, ctx()).brief).toBe(false);
+    expect(routineDue(at(tuesday, '08:30'), ctx()).brief).toBe(true);
+    expect(routineDue(at(tuesday, '09:30') + 59_000, ctx()).brief).toBe(true);
+    expect(routineDue(at(tuesday, '09:31'), ctx()).brief).toBe(false);
+    expect(routineDue(at(tuesday, '16:14') + 30_000, ctx({ tradesToday: 2 })).debrief).toBe(false);
+    expect(routineDue(at(tuesday, '16:15'), ctx({ tradesToday: 2 })).debrief).toBe(true);
+  });
+
+  it('A12.7 garde du soir : à 20 h ET la journée CME a basculé, des trades du jour ne proposent pas le débrief à l’horloge', () => {
+    expect(routineDue(at(tuesday, '17:30'), ctx({ tradesToday: 3 }))).toEqual({ day: tuesday, brief: false, debrief: true });
+    expect(routineDue(at(tuesday, '20:00'), ctx({ tradesToday: 3 }))).toEqual({ day: '2026-10-07', brief: false, debrief: false });
+    expect(routineDue(at(tuesday, '23:59'), ctx({ tradesToday: 3 })).debrief).toBe(false);
+    // La perte du jour atteinte le propose encore, pour la journée CME en cours.
+    expect(routineDue(at(tuesday, '20:00'), ctx({ tradesToday: 3, dailyLossFull: true }))).toEqual({ day: '2026-10-07', brief: false, debrief: true });
+  });
 });
