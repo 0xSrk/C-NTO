@@ -690,3 +690,13 @@ Cinq sous-agents, un par piste, chacun dans son worktree ; fusion et intégratio
 - Deux passages complets de la suite, sous une charge machine élevée pendant la vague, ont montré chacun un échec non identifié ; quatre passages complets ensuite, puis trois sur la branche intégrée, sont verts.
 
 **Reste.** Vague 2 : brief et débrief dans l'agent embarqué, adoption d'une leçon proposée par l'agent, ressources MCP et schémas de sortie, configuration Codex et Claude Desktop, affichage du livre des ordres et de la séance en cours, abonnement de Visual au flux (D2). Vague 3, à l'ADMIN : `docs/THESE-AGENTIQUE.md` § 7.
+
+## Couche agentique du trader — vague 2 (2026-10-06)
+
+Reprise sur `main` (`c0d7753`). Un ticket = un commit = un test. Invariants de `CLAUDE.md` § 5 inchangés. `ninjatrader/CantoBridge.cs` ne change pas. Hors périmètre du brief : gardes de `propose_order`, marge lue sur `buffer`, abonnement de marché par l'agent, hôte du Lab, version de `package.json`.
+
+| Piste | Commits | Tests | Ce qui change |
+|---|---|---|---|
+| **A11 · Garde** | `A11.6` | `calendar-offline` | Les synchronisations de calendrier ne suivent plus les redirections : `redirect: 'manual'` (Electron 43.7.1, `net.fetch` transmet le mode au `ClientRequest`, qui annule au lieu de suivre). Un 3xx rendu quand même est refusé ; le 304 reste le rejeu du cache. L'état de la source porte « Redirection refusée ». |
+
+**Constats nouveaux, non corrigés.** Aucun sur cette piste.

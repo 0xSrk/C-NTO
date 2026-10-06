@@ -134,7 +134,9 @@ export const blsAdapter = {
         body: JSON.stringify(body),
       });
       if (res.ok) merged = applyBlsValues(merged, JSON.parse(await res.text()) as unknown);
-    } catch {
+    } catch (err) {
+      // Une redirection refusée (la clé `registrationkey` ne doit pas partir) reste visible.
+      if (err instanceof Error && err.message.startsWith('Redirection refusée')) throw err;
       /* les dates restent utilisables sans les valeurs */
     }
     return merged;

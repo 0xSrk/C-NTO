@@ -94,6 +94,36 @@ function blsAllowed(now: number): boolean {
   return true;
 }
 
+/** Hôte visé par une redirection, sans chemin ni requête (une clé peut y figurer). */
+function redirectHost(location: string | null, url: string): string {
+  if (!location) return '';
+  try {
+    return new URL(location, url).host;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Refus d'une réponse 3xx. Electron 43 (`net.fetch`, doc `net.md` de la 43.7.1) transmet
+ * `redirect` au `ClientRequest` : `manual` annule la redirection (« Redirect was cancelled »)
+ * au lieu de rendre le 3xx, tant que personne n'appelle `followRedirect`. Un 3xx rendu quand
+ * même (test, ou alignement futur sur le fetch de Node) est refusé ici, comme `llmFetch`.
+ * Le 304 reste le rejeu du cache : ce n'est pas un autre hôte.
+ */
+function redirectRefusal(status: number, target: string): string {
+  const where = target ? ` vers ${target}` : '';
+  const code = status >= 300 && status < 400 ? `HTTP ${status}` : 'opaque';
+  return `Redirection refusée (${code}${where})`;
+}
+
+function asSyncError(err: unknown): Error {
+  const raw = err instanceof Error ? err.message : 'réseau indisponible';
+  if (raw === 'Redirect was cancelled') return new Error('Redirection refusée');
+  if (err instanceof Error) return err;
+  return new Error(raw);
+}
+
 async function guardedFetch(url: string, init: RequestInit | undefined, opts: {
   fetchImpl: FetchLike;
   cache: CacheStore;
@@ -116,7 +146,11 @@ async function guardedFetch(url: string, init: RequestInit | undefined, opts: {
   if (cached?.etag) headers.set('If-None-Match', cached.etag);
   if (cached?.lastModified) headers.set('If-Modified-Since', cached.lastModified);
   try {
-    const res = await opts.fetchImpl(url, { ...init, headers });
+    const res = await opts.fetchImpl(url, { ...init, headers, redirect: 'manual' });
+    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400 && res.status !== 304)) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new Error(redirectRefusal(res.status, redirectHost(res.headers.get('location'), url)));
+    }
     if (res.status === 304 && cached) return new Response(cached.body, { status: 200 });
     const body = await res.text();
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -129,11 +163,12 @@ async function guardedFetch(url: string, init: RequestInit | undefined, opts: {
     });
     return new Response(body, { status: 200 });
   } catch (err) {
+    const syncErr = asSyncError(err);
     if (cached) {
-      opts.markStale(err instanceof Error ? err.message : 'réseau indisponible');
+      opts.markStale(syncErr.message);
       return new Response(cached.body, { status: 200 });
     }
-    throw err;
+    throw syncErr;
   }
 }
 
