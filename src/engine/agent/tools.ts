@@ -165,8 +165,18 @@ const FINDINGS_MAX = 50;
 /** Horizon de recherche du prochain catalyseur majeur. */
 const CATALYST_HORIZON_DAYS = 7;
 
+/** Une note d'agent adoptée garde `by: 'agent'` et porte `adoptedAt` (instant de l'adoption par le trader). */
 function memoryNoteOut(n: MemoryNote) {
-  return { id: n.id, title: n.title, tags: n.tags, by: n.by, date: n.date, body: n.body.slice(0, MEMORY_NOTE_MAX), ...(n.body.length > MEMORY_NOTE_MAX ? { truncated: true } : {}) };
+  return {
+    id: n.id,
+    title: n.title,
+    tags: n.tags,
+    by: n.by,
+    ...(n.adoptedAt !== undefined ? { adoptedAt: new Date(n.adoptedAt).toISOString() } : {}),
+    date: n.date,
+    body: n.body.slice(0, MEMORY_NOTE_MAX),
+    ...(n.body.length > MEMORY_NOTE_MAX ? { truncated: true } : {}),
+  };
 }
 
 /** Latent du compte suivi ('' = tous), d'après le pont vivant ; 0 hors pont. */
@@ -902,7 +912,7 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
       name: 'trader_memory',
       kind: 'read',
       description:
-        'Mémoire du trader : ses règles chiffrées actives (perte maximale du jour, trades par journée, fenêtre autour des catalyseurs majeurs, instruments autorisés, fenêtre de revanche), le plan prop suivi, sa note « Plan de trading », ses leçons (notes #leçon) et son playbook (notes #strategie), chacune avec son auteur et sa date. Les notes écrites par un agent n’y entrent pas (`excludedAgentNotes` les compte). Lecture seule.',
+        'Mémoire du trader : ses règles chiffrées actives (perte maximale du jour, trades par journée, fenêtre autour des catalyseurs majeurs, instruments autorisés, fenêtre de revanche), le plan prop suivi, sa note « Plan de trading », ses leçons (notes #leçon) et son playbook (notes #strategie), chacune avec son auteur et sa date. Une note écrite par un agent n’y entre que si le trader l’a adoptée : elle garde `by: agent` et porte `adoptedAt`, adoptée par le trader ; les autres en sont écartées (`excludedAgentNotes` les compte). Lecture seule.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       async run() {
         const m = traderMemory({ rules: ports.traderRules(), plan: findPlan(ports.planId()), planAccount: ports.planAccount(), notes: ports.notes() });
@@ -1120,8 +1130,8 @@ export function toolBlurb(name: string, fallback: string): string {
     case 'trader_memory':
       return tr(
         fallback,
-        'Trader memory: their active numeric rules (max daily loss, trades per day, window around major catalysts, allowed instruments, revenge window), the tracked prop plan, their “Trading plan” note, their lessons (#lesson notes) and their playbook (#strategy notes), each with its author and date. Notes written by an agent are left out (`excludedAgentNotes` counts them). Read only.',
-        'Memoria del trader: sus reglas numéricas activas (pérdida máxima del día, trades por jornada, ventana alrededor de los catalizadores mayores, instrumentos autorizados, ventana de revancha), el plan prop seguido, su nota «Plan de trading», sus lecciones (notas #lección) y su playbook (notas #estrategia), cada una con su autor y su fecha. Las notas escritas por un agente no entran (`excludedAgentNotes` las cuenta). Solo lectura.',
+        'Trader memory: their active numeric rules (max daily loss, trades per day, window around major catalysts, allowed instruments, revenge window), the tracked prop plan, their “Trading plan” note, their lessons (#lesson notes) and their playbook (#strategy notes), each with its author and date. A note written by an agent enters only once the trader has adopted it: it keeps `by: agent` and carries `adoptedAt`, adopted by the trader; the others stay out (`excludedAgentNotes` counts them). Read only.',
+        'Memoria del trader: sus reglas numéricas activas (pérdida máxima del día, trades por jornada, ventana alrededor de los catalizadores mayores, instrumentos autorizados, ventana de revancha), el plan prop seguido, su nota «Plan de trading», sus lecciones (notas #lección) y su playbook (notas #estrategia), cada una con su autor y su fecha. Una nota escrita por un agente solo entra si el trader la ha adoptado: conserva `by: agent` y lleva `adoptedAt`, adoptada por el trader; las demás quedan fuera (`excludedAgentNotes` las cuenta). Solo lectura.',
       );
     case 'discipline_status':
       return tr(
