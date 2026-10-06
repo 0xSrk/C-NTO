@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
-import { autocorrelations, cusum, dailyResultSeries, rollingBands, sessionWinRateSeries } from '@/engine/inference';
+import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, rollingBands, sessionWinRateSeries } from '@/engine/inference';
 import { aggregatePoints } from '@/engine/tradeUnits';
 import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
@@ -69,6 +69,11 @@ export function Dashboard({
   const winAcf = useMemo(() => autocorrelations(sessionWinRateSeries(sessions, trades)), [sessions, trades]);
   const pnlAcf = useMemo(() => autocorrelations(dailyPnls), [dailyPnls]);
   const limit = metricDrawdownLimit({ selected: metricAccount, planId, planAccount });
+  const trackedPlan = limit != null ? (findPlan(planId) ?? null) : null;
+  const allocated = useMemo(
+    () => (trackedPlan ? allocatedRiskStats(sessions, trackedPlan.maxDrawdown, { from: period.from ?? undefined, to: period.to }) : null),
+    [trackedPlan, sessions, period.from, period.to],
+  );
   const gauge = useMemo(
     () => drawdownGauge({ plan: limit != null ? (findPlan(planId) ?? null) : null, account: metricAccount, history, maxDrawdown: daily.maxDrawdown, startingBalance }),
     [limit, planId, metricAccount, history, daily.maxDrawdown, startingBalance],
@@ -425,6 +430,15 @@ export function Dashboard({
               `rf = 0 · √252 · ${plural(daily.tradingDays, 'jornada de cotización', 'jornadas de cotización')} en el período, días sin sesión contados en cero`,
             )}
           </p>
+          {allocated && trackedPlan ? (
+            <p className={s.hint}>
+              {tr(
+                `Rapportés à la perte maximale du plan (${fmtInt(trackedPlan.maxDrawdown)} $), pas au capital nominal · repli ${fmtPct(allocated.maxDrawdownPct, 1)} · Calmar ${fmtRatio(allocated.calmar)} · Ulcer ${fmtRatio(allocated.ulcerIndex, 4)}`,
+                `Relative to the plan’s maximum loss (${fmtInt(trackedPlan.maxDrawdown)} $), not the nominal capital · drawdown ${fmtPct(allocated.maxDrawdownPct, 1)} · Calmar ${fmtRatio(allocated.calmar)} · Ulcer ${fmtRatio(allocated.ulcerIndex, 4)}`,
+                `Respecto de la pérdida máxima del plan (${fmtInt(trackedPlan.maxDrawdown)} $), no del capital nominal · retroceso ${fmtPct(allocated.maxDrawdownPct, 1)} · Calmar ${fmtRatio(allocated.calmar)} · Ulcer ${fmtRatio(allocated.ulcerIndex, 4)}`,
+              )}
+            </p>
+          ) : null}
         </div>
       </details>
 

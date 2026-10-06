@@ -1,6 +1,6 @@
 import { mulberry32 } from '@/lib/rng';
 import { ET_ZONE, zonedWallClock } from '@/lib/time';
-import { aggregateByDate, mean, percentile, stddev, tradeDay, weekdayOf } from './metrics';
+import { aggregateByDate, calendarSeries, drawdownSeries, mean, percentile, stddev, tradeDay, weekdayOf, type DailyStatsOptions } from './metrics';
 import type { Session, Trade } from './types';
 
 /** Tirages des tests de permutation et des intervalles par blocs. */
@@ -440,4 +440,39 @@ export function cusum(input: readonly number[]): CusumResult {
     if (crossedAt == null && (upper > limit || lower > limit)) crossedAt = index;
   });
   return { alert: crossedAt != null, crossedAt, upper, lower, sigma };
+}
+
+export interface AllocatedRisk {
+  maxDrawdown: number;
+  /** Repli maximal divisé par la perte maximale autorisée. */
+  maxDrawdownPct: number;
+  calmar: number;
+  ulcerIndex: number;
+  tradingDays: number;
+}
+
+/**
+ * Repli, Calmar et Ulcer rapportés à la perte maximale du plan.
+ * `computeDailyStats` reste sur le capital nominal.
+ */
+export function allocatedRiskStats(sessions: readonly Session[], maxLoss: number, opts: DailyStatsOptions = {}): AllocatedRisk | null {
+  if (!(maxLoss > 0) || !Number.isFinite(maxLoss)) return null;
+  const days = aggregateByDate([...sessions]);
+  const series = calendarSeries(days, opts);
+  const net = days.reduce((sum, day) => sum + day.pnl, 0);
+  const path = drawdownSeries(
+    days.map((day) => ({ t: Date.parse(`${day.date}T12:00:00Z`), pnl: day.pnl })),
+    0,
+  );
+  let sumSq = 0;
+  for (const point of path.equity) {
+    const loss = Math.max(0, -point.drawdown);
+    const ratio = loss / maxLoss;
+    sumSq += ratio * ratio;
+  }
+  const ulcerIndex = path.equity.length ? Math.sqrt(sumSq / path.equity.length) : 0;
+  const maxDrawdownPct = path.maxDrawdown / maxLoss;
+  const annualized = series.length ? (net / maxLoss) * (252 / series.length) : 0;
+  const calmar = maxDrawdownPct > 1e-9 ? annualized / maxDrawdownPct : 0;
+  return { maxDrawdown: path.maxDrawdown, maxDrawdownPct, calmar, ulcerIndex, tradingDays: series.length };
 }
