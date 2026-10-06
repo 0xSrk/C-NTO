@@ -8,7 +8,7 @@ import type { Bar, BarSeries } from '@/engine/bars';
 import { buildMetricsContext } from '@/engine/metricsContext';
 import { useI18n } from '@/i18n';
 import { ContextNote } from '@/modules/metrique/Analyse';
-import { volBandLabel, volCycleLabel } from '@/modules/metrique/contextLabels';
+import { axisRowLabel, volBandLabel, volCycleLabel } from '@/modules/metrique/contextLabels';
 import { useBars } from '@/store/bars';
 import { useMacro } from '@/store/macro';
 
@@ -109,5 +109,13 @@ describe('libellés des régimes et des bandes', () => {
     useI18n.setState({ locale: 'es' });
     expect((['expansion', 'compression', 'choc', 'decrue'] as const).map(volCycleLabel)).toEqual(['expansión', 'compresión', 'choque', 'descenso']);
     expect((['basse', 'moyenne', 'haute'] as const).map(volBandLabel)).toEqual(['baja', 'media', 'alta']);
+  });
+
+  it('nomme le régime et la bande de la vue par axe comme le contexte du jour, dans les trois langues', () => {
+    for (const locale of ['fr', 'en', 'es'] as const) {
+      useI18n.setState({ locale });
+      for (const cycle of ['expansion', 'compression', 'choc', 'decrue'] as const) expect(`${locale} · ${axisRowLabel('regime', cycle)}`).toBe(`${locale} · ${volCycleLabel(cycle)}`);
+      for (const band of ['basse', 'moyenne', 'haute'] as const) expect(`${locale} · ${axisRowLabel('band', band)}`).toBe(`${locale} · ${volBandLabel(band)}`);
+    }
   });
 });

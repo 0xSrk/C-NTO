@@ -9,6 +9,7 @@ import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { AXES, axisReading, type Axis, type RegimeSource } from './axisReading';
+import { axisRowLabel } from './contextLabels';
 import s from './metrique.module.css';
 
 function axisLabel(axis: Axis): string {
@@ -32,47 +33,6 @@ function verdictLabel(verdict: ReadingVerdict): string {
   if (verdict === 'renverse') return tr('renversé', 'reversed', 'invertido');
   if (verdict === 'insuffisant') return tr('pas assez de données', 'not enough data', 'datos insuficientes');
   return tr('non concluant', 'inconclusive', 'no concluyente');
-}
-
-const KEY_NAMES: Partial<Record<Axis, Record<string, [string, string, string]>>> = {
-  regime: {
-    expansion: ['expansion', 'expansion', 'expansión'],
-    compression: ['compression', 'compression', 'compresión'],
-    choc: ['choc', 'shock', 'choque'],
-    decrue: ['décrue', 'receding', 'retroceso'],
-  },
-  band: {
-    basse: ['basse', 'low', 'baja'],
-    moyenne: ['moyenne', 'medium', 'media'],
-    haute: ['haute', 'high', 'alta'],
-  },
-  sigma: {
-    '<0.25': ['[0 ; 0,25) σ', '[0, 0.25) σ', '[0 ; 0,25) σ'],
-    '0.25-0.5': ['[0,25 ; 0,5) σ', '[0.25, 0.5) σ', '[0,25 ; 0,5) σ'],
-    '0.5-1': ['[0,5 ; 1) σ', '[0.5, 1) σ', '[0,5 ; 1) σ'],
-    '>1': ['[1 ; ∞) σ', '[1, ∞) σ', '[1 ; ∞) σ'],
-  },
-};
-
-function rowName(axis: Axis, key: string): string {
-  const named = KEY_NAMES[axis]?.[key];
-  if (named) return tr(named[0], named[1], named[2]);
-  if (axis === 'hour') return `${key}h`;
-  if (axis === 'afterLoss') return key === 'perte' ? tr('après une perte', 'after a loss', 'tras una pérdida') : tr('après un gain', 'after a win', 'tras una ganancia');
-  if (axis === 'release') return key === 'pres' ? tr('proche', 'near', 'cerca') : tr('loin', 'far', 'lejos');
-  if (axis === 'risk') return key === 'dans' ? tr('dans la recommandation', 'within the recommendation', 'dentro de la recomendación') : tr('au-dessus', 'above', 'por encima');
-  if (axis === 'weekday') {
-    const names: Record<string, [string, string, string]> = {
-      lun: ['lundi', 'Monday', 'lunes'],
-      mar: ['mardi', 'Tuesday', 'martes'],
-      mer: ['mercredi', 'Wednesday', 'miércoles'],
-      jeu: ['jeudi', 'Thursday', 'jueves'],
-      ven: ['vendredi', 'Friday', 'viernes'],
-    };
-    const row = names[key];
-    return row ? tr(row[0], row[1], row[2]) : key;
-  }
-  return key;
 }
 
 /** Pourquoi le régime et la bande ne se lisent pas pour cette racine. Null : ils se lisent. */
@@ -149,7 +109,7 @@ export function ContextAxis({ sessions, trades }: { sessions: Session[]; trades:
 function AxisLine({ axis, row }: { axis: Axis; row: AxisRow }) {
   return (
     <tr>
-      <td>{rowName(axis, row.key)}</td>
+      <td>{axisRowLabel(axis, row.key)}</td>
       <td className="num">{row.tradedShare == null ? '—' : fmtPct(row.tradedShare, 0)}</td>
       <td className={`num ${row.points == null ? '' : signClass(row.points)}`}>{row.points == null ? '—' : fmtRatio(row.points, 2)}</td>
       <td className="num">{row.low == null || row.high == null ? '—' : `${fmtRatio(row.low, 1)} – ${fmtRatio(row.high, 1)}`}</td>
