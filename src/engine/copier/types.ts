@@ -26,7 +26,7 @@ export interface CopierConfig {
   /** Fenêtre de copie, heure locale `HH:mm` */
   windowStart: string;
   windowEnd: string;
-  /** Rejeter une copie si le tampon du suiveur passe sous cette fraction du DD max. */
+  /** Refuser une ouverture copiée si la marge du suiveur (marge datée de la jauge K.04, latent négatif compris) est sous cette fraction du DD max. */
   followerBufferFloor: number;
   /** Aplatir les suiveurs quand on coupe. Défaut `false` (D1). */
   flattenOnCut: boolean;

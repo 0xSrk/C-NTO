@@ -243,7 +243,7 @@ export default function Copieur() {
                   <Field label={tr('Budget latence (ms)', 'Latency budget (ms)', 'Presupuesto de latencia (ms)')}>
                     <input type="number" min={50} step={50} value={config.latencyBudgetMs} onChange={(e) => updateConfig({ latencyBudgetMs: Number(e.target.value) || 250 })} />
                   </Field>
-                  <Field label={tr('Marge plancher minimale', 'Minimum floor buffer', 'Margen suelo mínimo')} hint={tr('fraction du DD max du plan suiveur', 'fraction of the follower plan max DD', 'fracción del DD máx. del plan seguidor')}>
+                  <Field label={tr('Marge plancher minimale', 'Minimum floor buffer', 'Margen suelo mínimo')} hint={tr('fraction du DD max du plan suiveur, sur la marge au plancher (K.04), latent compris', 'fraction of the follower plan max DD, on the margin to floor (K.04), unrealized included', 'fracción del DD máx. del plan seguidor, sobre el margen al suelo (K.04), latente incluida')}>
                     <input type="number" min={0} max={1} step={0.05} value={config.followerBufferFloor} onChange={(e) => updateConfig({ followerBufferFloor: Number(e.target.value) || 0 })} />
                   </Field>
                 </div>

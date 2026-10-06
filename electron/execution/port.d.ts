@@ -40,6 +40,7 @@ export interface OrderUpdate {
 export interface AccountView {
   name: string;
   positions: { instrument: string; qty: number; avgPrice: number }[];
+  unrealizedPnl?: number;
 }
 export type ExecutionEvent =
   | { kind: 'fill'; fill: Fill }

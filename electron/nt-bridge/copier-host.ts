@@ -87,7 +87,7 @@ export class CopierHost {
   private readonly exposure = new Map<string, MasterExposure>();
   /** Positions commandées aux suiveurs par le copieur, `compte|instrument`. Mises à jour à l'envoi, défaites sur refus. */
   private readonly commanded = new Map<string, number>();
-  /** Dernier état des comptes vu par le pont : positions réelles. */
+  /** Dernier état des comptes vu par le pont : positions réelles et P&L latent. */
   private accounts: AccountView[] | null = null;
   private readonly seenPath: string;
   private readonly unsubscribe: () => void;
@@ -264,6 +264,7 @@ export class CopierHost {
         copied: after.copied,
         commanded: Object.fromEntries(this.commanded),
         actual: this.actualPositions(sync),
+        unrealized: this.followerUnrealized(sync),
       },
     );
     for (const refusal of routed.refused) {
@@ -313,6 +314,17 @@ export class CopierHost {
         const instrument = key.slice(follower.account.length + 1);
         out[key] = view.positions.find((p) => p.instrument === instrument)?.qty ?? 0;
       }
+    }
+    return out;
+  }
+
+  /** P&L latent des suiveurs, d'après le dernier état des comptes du pont : le plancher prop le retranche de la marge. */
+  private followerUnrealized(sync: CopierSync): Record<string, number> {
+    const out: Record<string, number> = {};
+    if (!this.accounts) return out;
+    for (const follower of sync.topology.followers) {
+      const value = this.accounts.find((account) => account.name === follower.account)?.unrealizedPnl;
+      if (typeof value === 'number' && Number.isFinite(value)) out[follower.account] = value;
     }
     return out;
   }
