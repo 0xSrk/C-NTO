@@ -675,6 +675,19 @@ export interface PreparedVault {
   skipped: SkippedRows;
 }
 
+/**
+ * Notes d'un coffre, avant `rows` : un `adoptedAt` illisible (non numérique, infini) est retiré et la note
+ * gardée, non adoptée. Une ligne copiée garde ses clés propres : la garde `__proto__` de `rows` s'applique.
+ */
+function withoutInvalidAdoption(input: unknown): unknown {
+  if (!Array.isArray(input) || input.length > MAX_ROWS) return input;
+  return input.map((item) => {
+    if (!isRec(item) || !Object.prototype.hasOwnProperty.call(item, 'adoptedAt') || isNum(item.adoptedAt)) return item;
+    const { adoptedAt: _invalid, ...rest } = item;
+    return rest;
+  });
+}
+
 /** Analyse et valide un coffre JSON sans toucher la base : chaque table est filtrée, les réglages passés à l'allowlist. */
 export function prepareVaultRestore(json: string): PreparedVault {
   if (json.length > 400 * 1024 * 1024) throw new Error(tr('Sauvegarde trop volumineuse.', 'Backup too large.', 'Copia demasiado grande.'));
@@ -683,7 +696,7 @@ export function prepareVaultRestore(json: string): PreparedVault {
   const skipped: SkippedRows = {};
   const sessions = coerceSessions(rows<Session>(parsed.sessions, 'id', 'sessions', CHECKS.sessions!, skipped));
   const trades = rows<Trade>(parsed.trades, 'id', 'trades', CHECKS.trades!, skipped);
-  const notes = rows<Note>(parsed.notes, 'id', 'notes', CHECKS.notes!, skipped);
+  const notes = rows<Note>(withoutInvalidAdoption(parsed.notes), 'id', 'notes', CHECKS.notes!, skipped);
   const calendar = rows<CalendarEntry>(parsed.calendar, 'id', 'calendar', CHECKS.calendar!, skipped);
   // Réglages : allowlist stricte (jamais orchestrateur, dossier/chiffrement de sauvegarde, canal de mise à
   // jour, hôtes LLM ni secrets) ; une clé en clair issue d'un coffre navigateur v1 est reprise puis re-chiffrée.

@@ -19,7 +19,7 @@ const lesson = (id: string, adoptedAt?: number): DeskNote => ({
 });
 
 describe('A15.1 adopter une leçon', () => {
-  it('coffre ancien lisible, adoptedAt non numérique rejeté, leçon adoptée seule en mémoire, aucun outil ne la pose', async () => {
+  it('coffre ancien lisible, adoptedAt non numérique retiré (A15.4 : la note reste), leçon adoptée seule en mémoire, aucun outil ne la pose', async () => {
     const old = prepareVaultRestore(JSON.stringify({ artefact: 'CΛNTO', sessions: [], notes: [{ id: 'old', title: 'T', body: 'b', tags: [], updatedAt: 1 }] }));
     expect(old.notes.map((n) => n.id)).toEqual(['old']);
     const bad = prepareVaultRestore(
@@ -32,8 +32,10 @@ describe('A15.1 adopter une leçon', () => {
         ],
       }),
     );
-    expect(bad.notes.map((n) => n.id)).toEqual(['ok']);
-    expect(bad.skipped.notes).toBe(1);
+    expect(bad.notes.map((n) => n.id)).toEqual(['bad', 'ok']);
+    expect(bad.notes[0]).not.toHaveProperty('adoptedAt');
+    expect(bad.notes[1]?.adoptedAt).toBe(50);
+    expect(bad.skipped.notes).toBeUndefined();
 
     const adopted = lesson('a1', Date.UTC(2026, 9, 7));
     const loose = lesson('a2');
@@ -56,6 +58,33 @@ describe('A15.1 adopter une leçon', () => {
     expect(seen).toEqual([['Leçon', 'texte #leçon', ['leçon']]]);
     // Aucun paramètre d'outil ne porte ce nom (la description de trader_memory le cite comme champ rendu).
     expect(JSON.stringify(DESK_TOOLS.map((t) => t.parameters))).not.toContain('adoptedAt');
+  });
+});
+
+describe('A15.4 restauration d’un adoptedAt invalide', () => {
+  it('le champ est retiré et la note gardée ; un adoptedAt valide passe ; une clé __proto__ écarte toujours la note', () => {
+    const row = (id: string, extra: string) => `{"id":"${id}","title":"${id}","body":"b #leçon","tags":["leçon"],"updatedAt":1,"by":"agent"${extra}}`;
+    // Écrit à la main : JSON.stringify ne sait pas produire 1e999 (Infinity à la lecture) ni une clé __proto__ propre.
+    const json = `{"artefact":"CΛNTO","sessions":[],"notes":[${[
+      row('texte', ',"adoptedAt":"demain"'),
+      row('nul', ',"adoptedAt":null'),
+      row('infini', ',"adoptedAt":1e999'),
+      row('objet', ',"adoptedAt":{"at":1}'),
+      row('valide', ',"adoptedAt":50'),
+      row('proto', ',"adoptedAt":"x","__proto__":{"polluted":true}'),
+    ].join(',')}]}`;
+    const restored = prepareVaultRestore(json);
+    expect(restored.notes.map((n) => n.id)).toEqual(['texte', 'nul', 'infini', 'objet', 'valide']);
+    for (const n of restored.notes.slice(0, 4)) expect(Object.prototype.hasOwnProperty.call(n, 'adoptedAt'), n.id).toBe(false);
+    expect(restored.notes[4]?.adoptedAt).toBe(50);
+    expect(restored.notes.every((n) => n.by === 'agent' && n.body === 'b #leçon')).toBe(true);
+    // Seule la note à clé __proto__ est comptée écartée, comme avant.
+    expect(restored.skipped.notes).toBe(1);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    // Sans adoption lisible, la leçon d'agent reste hors de la mémoire.
+    const memory = traderMemory({ rules: DEFAULT_TRADER_RULES, plan: null, planAccount: '', notes: restored.notes });
+    expect(memory.lessons.map((n) => n.id)).toEqual(['valide']);
+    expect(memory.excludedAgentNotes).toBe(4);
   });
 });
 
