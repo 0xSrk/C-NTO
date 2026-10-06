@@ -141,7 +141,31 @@ function toolError(message: string) {
   return { content: [{ type: 'text', text: message }], isError: true };
 }
 
+/** Code JSON-RPC du desk fermé ou muet (le même que l'orchestrateur). */
+const DESK_UNAVAILABLE = -32002;
+
+/**
+ * Desk fermé ou muet. Pour `tools/list`, le client garde la liste reçue (`listChanged: false`) :
+ * il faut le reconnecter une fois le desk ouvert.
+ */
+function deskSilent(locale: AppLocale, during: 'list' | 'call'): string {
+  return during === 'list'
+    ? uiText(
+        locale,
+        'Desk indisponible : la fenêtre de CΛNTO est fermée ou ne répond pas. Ouvrez le desk CΛNTO, puis reconnectez le client MCP : la liste des outils ne se met pas à jour d’elle-même.',
+        'Desk unavailable: the CΛNTO window is closed or not responding. Open the CΛNTO desk, then reconnect the MCP client: the tool list does not refresh by itself.',
+        'Desk no disponible: la ventana de CΛNTO está cerrada o no responde. Abra el desk CΛNTO y luego reconecte el cliente MCP: la lista de herramientas no se actualiza sola.',
+      )
+    : uiText(
+        locale,
+        'Desk indisponible : la fenêtre de CΛNTO est fermée ou ne répond pas. Ouvrez le desk, puis réessayez.',
+        'Desk unavailable: the CΛNTO window is closed or not responding. Open the desk, then retry.',
+        'Desk no disponible: la ventana de CΛNTO está cerrada o no responde. Abra el desk y vuelva a intentarlo.',
+      );
+}
+
 async function dispatch(method: string, params: Record<string, unknown>, ctx: McpContext): Promise<{ result: unknown } | { error: { code: number; message: string } }> {
+  const locale = ctx.locale ?? 'fr';
   switch (method) {
     case 'initialize':
       return {
@@ -156,6 +180,8 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       return { result: {} };
     case 'tools/list': {
       const tools = await deskTools(ctx);
+      // Une liste vide resterait chez le client : il n'aurait aucun outil jusqu'à sa reconnexion.
+      if (!tools.length) return { error: { code: DESK_UNAVAILABLE, message: deskSilent(locale, 'list') } };
       return { result: { tools: tools.filter((t) => t.kind === 'read' || ctx.allowWrites).map(toMcpTool) } };
     }
     case 'tools/call': {
@@ -163,7 +189,7 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       const args = params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments) ? (params.arguments as Record<string, unknown>) : {};
       const catalog = await deskTools(ctx);
       // Catalogue vide : le desk est fermé ou muet, pas l'outil inconnu.
-      if (!catalog.length) return { result: toolError('Desk indisponible : la fenêtre de CΛNTO est fermée ou ne répond pas.') };
+      if (!catalog.length) return { result: toolError(deskSilent(locale, 'call')) };
       const tool = catalog.find((t) => t.name === name);
       if (!tool) return { error: { code: -32602, message: `Outil inconnu : ${name || '(sans nom)'}` } };
       if (tool.kind === 'write' && !ctx.allowWrites) {

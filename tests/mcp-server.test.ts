@@ -145,6 +145,18 @@ describe('passerelle MCP · protocole', () => {
     expect(JSON.stringify(out.result)).toMatch(/indisponible/);
   });
 
+  it('tools/list, desk muet : une erreur qui dit d’ouvrir le desk et de reconnecter, pas une liste vide', async () => {
+    const closed: McpRelay = { tools: async () => [], call: async () => ({ result: null }) };
+    const fr = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: closed })));
+    expect(fr.result).toBeUndefined();
+    expect(fr.error?.code).toBe(-32002);
+    expect(fr.error?.message).toMatch(/ouvrez .*CΛNTO.*reconnectez/i);
+    const en = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: closed, locale: 'en' })));
+    expect(en.error?.message).toMatch(/open .*CΛNTO.*reconnect/i);
+    const es = await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: closed, locale: 'es' })));
+    expect(es.error?.message).toMatch(/abra .*CΛNTO.*reconecte/i);
+  });
+
   it('méthode inconnue : -32601', async () => {
     const out = await result(await handleMcpHttp(post(rpc('resources/list')), ctx()));
     expect(out.error?.code).toBe(-32601);
