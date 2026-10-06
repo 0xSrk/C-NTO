@@ -39,6 +39,8 @@ export interface DayContext {
 export interface TradeContext {
   tradeId: string;
   minutesToRelease: number | null;
+  /** Publication − entrée, en minutes, pour chaque publication à 3 h au plus de l'entrée (la plus proche ne suffit pas : deux publications peuvent encadrer l'entrée). */
+  releaseMinutes: number[];
   straddlesRelease: boolean;
   rankInDay: number;
   afterLoss: boolean;
@@ -66,6 +68,9 @@ export interface DailyBar {
 
 /** Unité, en minutes, à partir de laquelle une barre porte une date civile (barre journalière ou plus). */
 export const DAILY_TIMEFRAME = 1440;
+
+/** Portée des publications retenues autour d'une entrée : au-delà des réglages (10 min avant, 60 min après au plus). */
+const RELEASE_REACH_MIN = 180;
 
 /**
  * Date civile d'une barre journalière. Un CSV journalier est lu à minuit **local** (`importBarsCsv`),
@@ -394,18 +399,21 @@ export function buildMetricsContext(input: {
     const prevAtr = sheet && sheet.index > 0 ? atr[sheet.index - 1] : undefined;
     const points = pointsPerContract(trade);
     let nearest: number | null = null;
+    const around: number[] = [];
     let straddles = false;
     for (const event of releases) {
       const at = releaseMs(event.date, event.timeET);
       if (at == null) continue;
       const minutes = (at - trade.entryTime) / 60_000;
       if (nearest == null || Math.abs(minutes) < Math.abs(nearest)) nearest = minutes;
+      if (Math.abs(minutes) <= RELEASE_REACH_MIN) around.push(minutes);
       if (trade.entryTime < at && at < trade.exitTime) straddles = true;
     }
     const size = standardEquivalentQty(trade);
     return {
       tradeId: trade.id,
       minutesToRelease: nearest,
+      releaseMinutes: around.sort((a, b) => a - b),
       straddlesRelease: straddles,
       rankInDay: ranked.get(trade.id) ?? 1,
       afterLoss: afterLoss.get(trade.id) ?? false,

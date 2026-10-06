@@ -90,6 +90,17 @@ describe('lecture par contexte, onglet C', () => {
     expect(Object.fromEntries(keyOf)).toEqual({ t0800: 'loin', t0827: 'pres', t0845: 'pres', t0905: 'loin' });
   });
 
+  it('classe « proche » une entrée dans la fenêtre de n’importe quelle publication, pas seulement de la plus proche', () => {
+    const day = '2026-01-13';
+    const ism: ContextEvent = { date: day, timeET: '09:45', title: 'PMI', impact: 2, estimated: false };
+    const jolts: ContextEvent = { date: day, timeET: '10:00', title: 'JOLTS', impact: 3, estimated: false };
+    // 09:54 : 9 min après la première (dans les 30 min d'après), 6 min avant la seconde, la plus proche (hors des 5 min d'avant).
+    const trades = [trade('t0954', day, '09:54'), trade('t1045', day, '10:45')];
+    const reading = read('release', { sessions: [session(day)], trades, series: [seriesOf('nq', 'NQ', [bar(day)])], activeId: 'nq', events: [ism, jolts] });
+    const keyOf = new Map(reading.samples.map((sample) => [sample.tradeId, sample.key]));
+    expect(Object.fromEntries(keyOf)).toEqual({ t0954: 'pres', t1045: 'loin' });
+  });
+
   it('rapproche aussi de la moyenne une heure qui n’a qu’un trade', () => {
     const dates = weekdays('2025-03-03', 20);
     const trades = dates.flatMap((date, day) => [trade(`a${day}`, date, '09:40', day % 2 ? 14 : -6), trade(`b${day}`, date, '10:15', day % 2 ? 10 : -10)]);

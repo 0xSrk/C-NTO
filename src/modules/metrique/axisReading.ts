@@ -125,8 +125,9 @@ export function axisReading(input: AxisReadingInput): AxisReading {
     else if (axis === 'band') key = bandOf.get(date) ?? null;
     else if (axis === 'afterLoss' && info) key = info.afterLoss ? 'perte' : 'gain';
     else if (axis === 'rank' && info) key = String(info.rankInDay);
-    // `minutesToRelease` = publication − entrée : l'entrée tombe à −minutesToRelease minutes de la publication.
-    else if (axis === 'release' && info?.minutesToRelease != null) key = inReleaseWindow(-info.minutesToRelease, 0, settings.releaseBefore, settings.releaseAfter) ? 'pres' : 'loin';
+    // `releaseMinutes` = publication − entrée : l'entrée tombe à −m minutes de chaque publication. Proche de l'une suffit.
+    else if (axis === 'release' && info?.minutesToRelease != null)
+      key = info.releaseMinutes.some((m) => inReleaseWindow(-m, 0, settings.releaseBefore, settings.releaseAfter)) ? 'pres' : 'loin';
     else if (axis === 'risk') {
       const risk = tradeRisk(trade, settings.riskPerContract, capital);
       if (risk.lossPct != null) key = risk.lossPct <= settings.riskBasePoints / 100 ? 'dans' : 'dessus';
