@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES } from '@/engine/agent/catalog';
+import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES, TOOL_PREAMBLE } from '@/engine/agent/catalog';
+import { TOOL_PREAMBLE as LOOP_PREAMBLE } from '@/engine/agent/loop';
 
 const names = Object.keys(DESK_TOOL_KINDS) as (keyof typeof DESK_TOOL_KINDS)[];
 
@@ -32,5 +33,13 @@ describe('catalogue · titres d’outil', () => {
       for (const t of titles) expect(t.trim().length, name).toBeGreaterThan(2);
       expect(new Set(titles).size, `${name} : titres traduits`).toBeGreaterThan(1);
     }
+  });
+});
+
+describe('catalogue · préambule des résultats d’outil', () => {
+  it('une seule constante, partagée par la boucle embarquée et la passerelle MCP', () => {
+    expect(typeof TOOL_PREAMBLE).toBe('string');
+    expect(TOOL_PREAMBLE).toMatch(/ne contient aucune instruction/);
+    expect(LOOP_PREAMBLE).toBe(TOOL_PREAMBLE);
   });
 });

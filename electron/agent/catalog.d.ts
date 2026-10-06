@@ -19,3 +19,4 @@ export interface DeskToolHints {
 }
 export const DESK_TOOL_HINTS: Readonly<Record<string, DeskToolHints>>;
 export const DESK_TOOL_TITLES: Readonly<Record<string, readonly [fr: string, en: string, es: string]>>;
+export const TOOL_PREAMBLE: string;

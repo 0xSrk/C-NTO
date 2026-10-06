@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
-import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES, ORDER_TOOLS } from './agent/catalog';
+import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES, ORDER_TOOLS, TOOL_PREAMBLE } from './agent/catalog';
 import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
@@ -191,9 +191,12 @@ function isFailure(name: string, result: unknown): boolean {
   return typeof rec.error === 'string' || rec.ok === false;
 }
 
-/** Résultat de l'outil ; le motif du desk, s'il en donne un, suit en second bloc texte. */
+/**
+ * Résultat de l'outil ; le motif du desk, s'il en donne un, suit en second bloc texte. Le texte porte
+ * le préambule de la boucle embarquée (données, jamais consignes) ; `structuredContent` reste brut.
+ */
 function toolResult(result: unknown, isError: boolean, motive?: string) {
-  const text = JSON.stringify(result ?? null);
+  const text = TOOL_PREAMBLE + JSON.stringify(result ?? null);
   const structured = result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result } : {};
   const content = [{ type: 'text', text }, ...(motive ? [{ type: 'text', text: motive }] : [])];
   return { content, ...structured, ...(isError ? { isError: true } : {}) };
