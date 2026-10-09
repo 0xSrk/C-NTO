@@ -817,3 +817,23 @@ L'ADMIN confie la sortie de la 3.5.0 et un README réagencé. En recapturant les
 - R1 : `Cannot find package '@/modules/portefeuille/labels'`.
 
 **Constat non corrigé.** Le jeu de démonstration étiquette ses séances en français dans toutes les langues (`plan respecté`, `sur-trading`, `src/engine/demo.ts:9`, `:96`). Ce sont des données, pas l'interface ; le README n'en montre pas.
+
+
+## Onglet 09 · CRY — module crypto personnel (2026-10-09)
+
+L'ADMIN ajoute au desk un onglet Crypto pour son usage personnel : le processus d'OpenMarket (chart, données, alertes, lecture et pilotage par un agent) dans le desk, au design de la 3.5.0. Spécification : `docs/ONGLET-CRYPTO.md`. Plan détaillé, ticket par ticket : `docs/ONGLET-CRYPTO-PLAN.md`. Décisions 8 à 10 : `docs/THESE-AGENTIQUE.md` § 7. Travail sur le poste de l'ADMIN, commits locaux sur `main`, sans PR. Un ticket = un commit = un test.
+
+**Poste.** Node 22.23.3 installé (archive officielle, empreinte SHA-256 vérifiée), `npm ci`. Les deux liens symboliques du dépôt (`electron/calendar-bundle`, `electron/changelog`) sortaient en fichiers texte sous Windows sans mode développeur (`core.symlinks=false`) : remplacés localement par des jonctions, masquées par `skip-worktree`. Point de départ : typecheck vert, `electron:compile` vert, 975 tests sur 976. Seul rouge, préexistant : `tests/bridge-symlink.test.ts` (`EPERM` à la création d'un lien, mode développeur absent).
+
+| Lot | Tickets | Objet |
+|---|---|---|
+| CRY0 | CRY0.1 à CRY0.4 | Spécification, design du desk, décisions et plan, onglet sur le rail éteint par défaut |
+| CRY1 | CRY1.1 à CRY1.7 | Moteur pur : registre, REST, WebSocket, bougies des trades et CVD, indicateurs UTC, température, alertes |
+| CRY2 | CRY2.1 à CRY2.5 | Process principal : interrupteur, fetch gardé, sockets par venue, température, IPC |
+| CRY3 | CRY3.1 à CRY3.4 | Renderer : réglages, port, store, flux en direct |
+| CRY4 | CRY4.1 à CRY4.4 | Interface : précision des prix, cartes d'indicateurs partagées, onglet, banc de capture |
+| CRY5 | CRY5.1 | Alertes signalées au desk et à l'agent |
+| CRY6 | CRY6.1 à CRY6.2 | Dix outils `crypto_*`, agent embarqué et passerelle MCP |
+| CRY7 | CRY7.1 | Recette et oracle OpenMarket |
+
+**Écarts à la spécification du 9 octobre, consignés en CRY0.3.** Persistance en lignes de réglages `crypto.*` (comme `chart.indicators`) au lieu d'une version Dexie 10 ; pas de prix fixés dans le registre après relevé des métadonnées des exchanges ; évaluation par croisement (`CrossWatch`) à la sémantique de `ThresholdWatch` ; bougies live de Coinbase et Bybit construites dans le main depuis les trades.

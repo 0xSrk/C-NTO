@@ -39,18 +39,19 @@ Base : CΛNTO 3.5.0 (`main`, 0796a9d). Usage : **personnel**, rien ne part en Re
 ## 4. Architecture
 
 ```
-Renderer (CSP inchangée)                 Process principal
-src/modules/crypto/   onglet 09 · CRY     electron/crypto/
-src/store/crypto.ts   état + Dexie v10    ├─ switch.ts    interrupteur (userData/crypto.json, dialogue)
-        │  window.canto.crypto.*          ├─ hosts.ts     CRYPTO_HOSTS, contrôle https/wss
-        └──────── IPC crypto:* ──────────►├─ rest.ts      historique et métadonnées (modèle guardedFetch)
-                                          ├─ feeds.ts     clients ws par venue, heartbeat, backoff
-src/engine/crypto/  (pur, partagé)        └─ temperature.ts relevés Binance
-  markets.ts  bars.ts  indicators.ts  temperature.ts  alerts.ts
+Renderer (CSP inchangée)                       Process principal
+src/modules/crypto/   onglet 09 · CRY           electron/crypto-switch.ts       interrupteur (userData/crypto.json, dialogue)
+src/store/crypto*.ts  état + réglages crypto.*  electron/crypto-net.ts          fetch gardé (https, hôte, 3xx, 429, 418)
+        │  window.canto.crypto.*                electron/crypto-feeds.ts        sockets par venue, ping, reconnexion
+        └──────── IPC crypto:* ────────────────►electron/crypto-temperature.ts  relevés Binance
+                                                electron/crypto-electron.ts     branchement net.fetch + ws, IPC
+src/engine/crypto/  (pur)                       electron/crypto/*.d.ts          typage des modules partagés
+  partagés avec le main, sans import : markets.ts  venues.ts  tradeBars.ts  temperature.ts
+  renderer seulement : indicators.ts  cvd.ts  alerts.ts  persist.ts  port.ts  views.ts
 ```
 
-- **Moteur pur** `src/engine/crypto/` : n'importe ni store, ni modules, ni Electron (CLAUDE.md § 4). Réutilise les calculs d'`indicators.ts` qui ne dépendent pas d'une séance (EMA, SMA, ATR, moyenne de volume) ; réécrit ceux qui en dépendent (VWAP, niveaux) avec une ancre UTC. Partagé avec le main : `electron/tsconfig.sources.json`, `.d.ts` dans `electron/`, `vitest.config.mts`.
-- **Interrupteur** : état tenu par le main dans `userData/crypto.json` (`{ "enabled": false }` par défaut). `crypto:requestEnable` ouvre un dialogue du main (Annuler par défaut) ; `crypto:disable` éteint sans dialogue, ferme tous les flux et vide les caches. Le renderer lit l'état, il ne l'écrit pas.
+- **Moteur pur** `src/engine/crypto/` : n'importe ni store, ni modules, ni Electron (CLAUDE.md § 4). Réutilise les définitions d'`indicators.ts` qui ne dépendent pas d'une séance (EMA, SMA, ATR, moyenne de volume) ; réécrit celles qui en dépendent (VWAP, niveaux) avec une ancre UTC. Les modules partagés avec le main n'ont aucun import (pas même `@/…` ni `../bars`, qui tirent `@/i18n`) : listés dans `electron/tsconfig.sources.json`, typés par `electron/crypto/<nom>.d.ts`, reliés dans la carte `engineSource` de `vitest.config.mts`. Le réseau vit dans `electron/crypto-*.ts` ; `electron/main.ts` ne contient jamais `net.fetch` (`tests/sources.test.ts`).
+- **Interrupteur** : état tenu par le main dans `userData/crypto.json` (`{ "enabled": false }` par défaut). `crypto:enable` ouvre un dialogue du main (Annuler par défaut) ; `crypto:disable` éteint sans dialogue, ferme tous les flux et vide les caches. Le renderer lit l'état, il ne l'écrit pas.
 - **IPC** : méthodes nommées dans `electron/preload.ts` sous `window.canto.crypto`, chaque `ipcMain` derrière `trusted(e)` et une validation de forme ; tout refusé interrupteur éteint.
 - **Flux** : comme pour NinjaTrader (`src/engine/marketdata/adapters/nt8.ts`), un adaptateur du moteur, `src/engine/crypto/port.ts`, implémente `MarketDataPort` (`src/engine/marketdata/port.ts:56-64`, `sourceId: 'crypto'`) avec un transport injecté qui appelle `window.canto.crypto` ; le réseau reste dans le main. Seul `src/store/crypto.ts` le consomme : `store/bars.ts`, `applyNtBar`, `QuoteBook` et `createPort` n'en voient rien.
 - **Identifiants de marché** : `venue:symbole` (`coinbase:BTC-USD`, `coinbase:ONDO-USD`, `binance:ONEUSDT`, `bybit:ZIGUSDT`), propres aux tables crypto ; `isInstrumentId` (`src/store/db.ts:338`) n'est ni utilisé ni élargi.
@@ -62,8 +63,10 @@ src/engine/crypto/  (pur, partagé)        └─ temperature.ts relevés Binanc
 | Marché | Historique (REST) | Live (WebSocket) | Volume acheteur dans les bougies |
 |---|---|---|---|
 | `coinbase:BTC-USD`, `coinbase:ONDO-USD` | `api.exchange.coinbase.com/products/{id}/candles` (300 par appel ; granularités 60, 300, 900, 3600, 21600, 86400 ; 4h agrégé depuis 1h) | `ws-feed.exchange.coinbase.com` : `ticker`, `matches`, `heartbeat` | Non |
-| `binance:ONEUSDT` | `api.binance.com/api/v3/klines` (1 000 par appel) | `stream.binance.com:9443` : `@miniTicker`, `@kline_<tf>`, `@aggTrade` | Oui (taker buy base volume) |
-| `bybit:ZIGUSDT` | `api.bybit.com/v5/market/kline?category=spot` (1 000 par appel) | `stream.bybit.com/v5/public/spot` : `tickers`, `kline.<tf>`, `publicTrade` | Non |
+| `binance:ONEUSDT` | `api.binance.com/api/v3/klines` (1 000 par appel) | `stream.binance.com:9443/ws` : `@miniTicker`, `@kline_<tf>` | Oui (taker buy base volume) |
+| `bybit:ZIGUSDT` | `api.bybit.com/v5/market/kline?category=spot` (1 000 par appel) | `stream.bybit.com/v5/public/spot` : `tickers`, `publicTrade` | Non |
+
+**Bougies live.** Binance : le flux `@kline_<tf>` porte la bougie entière et son volume acheteur. Coinbase et Bybit : le main construit les bougies à partir des trades (`TradeBarBuilder`, `src/engine/crypto/tradeBars.ts`), avec le volume acheteur de l'agresseur. La bougie entamée au moment de l'abonnement reste celle de l'historique REST (plus haut, plus bas et clôture mis à jour par les trades, volume inchangé, sans volume acheteur) : le CVD commence à la première bougie observée en entier.
 
 **Registre v1** : les quatre marchés affichables ci-dessus, fixés dans `src/engine/crypto/markets.ts`. `binance:BTCUSDT` et `binance:ONDOUSDT` n'y figurent que comme sources du CVD Binance : ils ne s'affichent pas, n'entrent pas dans la watchlist et ne portent pas d'alerte.
 
@@ -73,7 +76,7 @@ src/engine/crypto/  (pur, partagé)        └─ temperature.ts relevés Binanc
 1. *Léger, permanent* (interrupteur allumé, desk ouvert, quel que soit l'onglet) : tickers de la watchlist et relevés de température. Nécessaire aux alertes.
 2. *Lourd, à la vue* (onglet 09 affiché) : bougies et trades du chart actif ; ouverts au changement de marché ou de timeframe, fermés en quittant l'onglet.
 
-**Historique.** À l'ouverture du chart, le main charge 500 bougies et les garde en mémoire (aucune bougie crypto dans Dexie). Précision et pas de prix lus une fois dans les métadonnées de chaque exchange (`quote_increment`, `PRICE_FILTER.tickSize`, `priceFilter.tickSize`), qui pilotent le `priceFormat` du chart.
+**Historique.** À l'ouverture du chart, le main charge 500 bougies et les garde en mémoire (aucune bougie crypto dans Dexie). Le pas de prix de chaque marché a été relevé dans les métadonnées des exchanges le 9 octobre 2026 (`quote_increment`, `PRICE_FILTER.tickSize`, `priceFilter.tickSize`) et fixé dans le registre, où il pilote le `priceFormat` du chart : `coinbase:BTC-USD` 0,01 ; `coinbase:ONDO-USD` 0,00001 ; `binance:ONEUSDT` 0,000001 ; `bybit:ZIGUSDT` 0,00001 ; sources du CVD Binance `binance:BTCUSDT` 0,01 et `binance:ONDOUSDT` 0,0001.
 
 **CVD.**
 - Binance : complet, historique compris : delta = 2 × volume acheteur − volume.
@@ -82,7 +85,7 @@ src/engine/crypto/  (pur, partagé)        └─ temperature.ts relevés Binanc
 
 **Débit.** Lectures très en dessous des limites publiées. 429 : attente de `Retry-After` puis backoff exponentiel plafonné à 60 s. 418 Binance (IP bannie) : venue coupée jusqu'au redémarrage, voyant « bloqué ».
 
-**Voyants.** `connecting`, `live`, `reconnecting`, `stale`, `blocked`, `off`. La vie d'une connexion se juge au heartbeat ou au ping (Coinbase `heartbeat`, ping Binance, `ping` Bybit), pas à l'arrivée de trades : un marché peu liquide comme ZIG peut rester sans trade plus de 10 s sans être mort. `stale` après 30 s sans heartbeat. L'âge du dernier prix est affiché à part.
+**Voyants.** `connecting`, `live`, `reconnecting`, `stale`, `blocked`, `off`. La vie d'une connexion se juge à son activité, pas à l'arrivée de trades : un marché peu liquide comme ZIG peut rester sans trade plusieurs minutes sans être mort. Le main envoie un ping de protocole toutes les 15 s ; tout message ou pong compte comme activité ; Coinbase pousse son canal `heartbeat` chaque seconde ; Bybit reçoit en plus `{"op":"ping"}` toutes les 20 s, comme le demande sa documentation. `stale` après 30 s sans activité, puis reconnexion. L'âge du dernier prix est affiché à part.
 
 ## 6. Température globale (Binance)
 
@@ -128,17 +131,17 @@ Décision de l'ADMIN (9 octobre 2026) : l'onglet reprend le **design final de la
 
 ## 8. Alertes
 
-**Persistance.** Dexie `version(10)` avec trois tables : `cryptoWatchlist`, `cryptoAlerts`, `cryptoDrawings`. Chacune a son entrée `CHECKS` (`src/store/db.ts`), son export et sa restauration de coffre, et reste lisible par les coffres plus anciens. L'état du chart (marché, timeframe, indicateurs) passe par `setSetting('crypto.chart')` avec son assainisseur.
+**Persistance.** Comme les indicateurs de Visual (`chart.indicators`, `src/store/bars.ts:179`), l'état crypto vit dans quatre lignes de la table `settings` : `crypto.chart` (marché, timeframe, indicateurs), `crypto.watchlist`, `crypto.alerts` (50 au plus), `crypto.drawings` (100 au plus). Chaque clé a son assainisseur dans `SETTING_ROW_SANITIZERS` (`src/store/db.ts:599`), le même que celui qu'applique le store à la lecture. Pas de nouvelle version Dexie : rien à migrer.
 
-**Modèle.** `{ id, target, kind, level, mode, author, state, reason?, createdAt, lastTriggeredAt? }`
+**Modèle.** `{ id, target, kind, level, mode, author, state, createdAt, lastTriggeredAt? }`, plus un état d'évaluation calculé, jamais enregistré : `evaluable` et sa raison.
 - `target` : un marché **de la watchlist**, ou `temperature`.
 - `kind` prix : `price_above`, `price_below`.
 - `kind` température : `funding_median_above`, `funding_median_below`, `liquidations_long_1h_above`, `liquidations_short_1h_above`, `breadth_above`, `breadth_below`.
 - `level`, dans l'unité affichée : prix dans la devise de cotation du marché ; funding en pourcentage par intervalle de financement (`0.01` = 0,01 %) ; liquidations en dollars US ; largeur en pourcentage de paires (`40` = 40 %).
 - `mode` : `once` ou `rearm`. `author` : `trader` ou `agent`.
-- `state` : `armed`, `triggered`, `paused`, `not_evaluated` (avec `reason`).
+- `state` enregistré : `armed`, `triggered`, `paused`. À l'écran et dans `crypto_alert_list`, une alerte dont la donnée est `stale` ou `blocked` s'affiche « non évaluée », avec sa raison.
 
-**Évaluation.** Le prix est évalué à chaque ticker, la température à chaque relevé, avec l'hystérésis de `ThresholdWatch` (`src/engine/agent/events.ts:123`). Aucune évaluation sur une donnée `stale` ou `blocked` : l'état passe à `not_evaluated` avec sa raison, et le dit à l'écran.
+**Évaluation.** Le prix est évalué à chaque ticker, la température à chaque relevé, par un évaluateur de croisement (`CrossWatch`, `src/engine/crypto/alerts.ts`) qui reprend la sémantique de `ThresholdWatch` (`src/engine/agent/events.ts:123`) : la première lecture pose le côté sans alerter ; un franchissement alerte une seule fois ; une alerte `rearm` ne se réarme qu'après un retour au-delà de la bande d'hystérésis (prix : 0,1 % du niveau ; funding : 0,0005 point ; liquidations : 5 % du niveau ; largeur : 1 point). Aucune évaluation sur une donnée `stale` ou `blocked`.
 
 **Signal.** Toast du desk (`useUi.toast`) et événement `crypto_alert`, nouveau genre ajouté à `DESK_EVENT_KINDS` (`src/engine/agent/catalog.ts:132`) et au tuple de `electron/agent/catalog.d.ts`. L'agent le lit par `desk_events`, l'orchestrateur le diffuse. Aucune notification système.
 
@@ -160,7 +163,7 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 | `crypto_watchlist_set` | écriture | `action` add/remove, `market` | `watchlist_add/remove_symbols` |
 
 - **Registre seulement** : `market` est une valeur du registre crypto ; aucun argument n'accepte d'URL ni d'hôte (`docs/THESE-AGENTIQUE.md:53`). `label` borné par `SHORT_ARGS`.
-- **Lectures** : rien qu'à partir de l'état ouvert. Onglet fermé → réponse « onglet fermé » ; jamais d'ouverture de flux.
+- **Lectures** : rien qu'à partir de l'état ouvert. Onglet fermé → `crypto_chart_read` répond « onglet fermé » ; jamais d'ouverture de flux. Les « bougies visibles » sont les 160 dernières, la fenêtre que `Chart.tsx:215` montre à l'ouverture.
 - **Écritures** : confirmées par l'opérateur côté LLM (`confirmFn`) ; derrière `allowWrite` côté orchestrateur et `allowWrites` côté passerelle. Limite de 2 écritures par tour inchangée (`src/engine/agent/ports.ts`).
 - **Interrupteur éteint** : outils masqués de la liste (`electron/mcp-server.ts:314`) **et** refusés à l'appel (`:328`, même double verrou), y compris pour l'agent du desk.
 - **À toucher** : `DESK_TOOL_KINDS`, `DESK_TOOL_HINTS`, `DESK_TOOL_TITLES` (fr/en/es) dans `catalog.ts` ; `createDeskTools`, `toolBlurb`, `EMPTY_PORTS` dans `tools.ts` ; `DeskPorts` ; et les tests à liste figée : `mcp-catalog`, `orchestrator-allowlist`, `agent-tool-schemas`, `agent-injection` (chaque écriture), `mcp-server`, `agent-events`.
@@ -180,7 +183,7 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 - **Réseau** : faux serveur WebSocket local (`ws`, déjà dépendance) qui rejoue coupure, 429, 418 et silence de heartbeat ; faux `fetch` pour l'historique ; contrôle d'hôte (`https:`/`wss:`, hôte hors liste refusé, redirection refusée).
 - **Politique** : `CRYPTO_HOSTS` n'apparaît jamais dans `allowedHosts()` ; interrupteur éteint → IPC refusés, outils masqués et refusés, onglet absent ; `tests/sources.test.ts` inchangé.
 - **Interface** (jsdom, `Chart` et `window.canto` simulés, sur le modèle de `tests/visual-follow-reset.test.ts`) : en-tête et actions, légende et puce de source, six sections de la colonne dans l'ordre, ancrage du CVD affiché, état vide interrupteur éteint ; Visual inchangé sans les nouvelles props de `Chart.tsx`.
-- **Coffre** : export puis restauration avec les trois tables ; restauration d'un coffre v9 sans elles.
+- **Réglages** : assainisseurs des lignes `crypto.*` (valeur valide gardée, invalide écartée, marché hors registre retiré, plafonds tenus), à la lecture du store comme à la restauration d'un coffre v1.
 - **Listes figées** mises à jour : `tabs.test.ts`, catalogues de l'agent et de la passerelle, `agent-events`.
 
 **Recette (lot CRY7)**, desk lancé par l'ADMIN (`npm run desk:dev`) :
@@ -194,7 +197,7 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 ## 12. Organisation
 
 - **Prérequis** : Node 22.12 ou plus (absent de ce poste), puis `npm install` dans `c-nto`. Aucune autre dépendance : `ws`, `lightweight-charts` et `dexie` sont déjà là.
-- **Lots** : CRY0 décisions, interrupteur et coquille de l'onglet · CRY1 moteur · CRY2 réseau · CRY3 store et Dexie v10 · CRY4 interface au design du desk · CRY5 alertes · CRY6 outils de l'agent et passerelle · CRY7 recette.
+- **Lots** : CRY0 décisions, interrupteur et coquille de l'onglet · CRY1 moteur · CRY2 réseau · CRY3 store et réglages · CRY4 interface au design du desk · CRY5 alertes · CRY6 outils de l'agent et passerelle · CRY7 recette.
 - **Git** : commits locaux sur `main`, messages courts en français préfixés `CRY<lot>.<n>`, aucune attribution (CLAUDE.md § 1), aucun push. Constats et preuves dans `docs/AUDIT.md`, section « Onglet 09 · CRY ».
 
 ## 13. Risques et points ouverts
@@ -206,3 +209,4 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 - **ZIG** : peu liquide, d'où la vie jugée au heartbeat (§ 5) et l'âge du dernier prix affiché.
 - **Bannissement Binance (418)** : une seule IP, celle du poste. Le backoff et la coupure de venue l'évitent ; si elle survient, la température et ONE s'arrêtent jusqu'au redémarrage.
 - **CVD Coinbase/Bybit** : sans passé avant l'ouverture du flux, par construction (§ 5).
+- **Sauvegarde du coffre** : les lignes `crypto.*` ne sont pas dans l'export v2, comme les indicateurs de Visual ; une restauration ne les efface pas.

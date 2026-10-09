@@ -102,6 +102,12 @@ L'ADMIN a confirmé les sept propositions le 6 octobre 2026. `CLAUDE.md` § 5 en
 6. **Modèle du Lab (Artefact 003) : un préréglage épinglé, à son ouverture.** Il se branche comme les autres fournisseurs : une entrée dans `electron/llm-host.ts` et dans les préréglages, clé au process principal, aucune redirection suivie. Hôte et nom du modèle à fournir par l'ADMIN ; d'ici là, l'emplacement reste vide.
 7. **Ouverture hors de la machine : non.** La porte reste sur `127.0.0.1` : ni tunnel, ni connecteur cloud, ni ChatGPT branché sur le desk.
 
+Le 9 octobre 2026, l'ADMIN a ajouté trois décisions pour l'onglet 09 · CRY (`docs/ONGLET-CRYPTO.md`). Elles lèvent, pour ce seul module, « Hors périmètre définitif. Crypto » (`docs/AUDIT.md:13`) et la consigne « aucun nouveau module UI » de `docs/AGENT-HARDENING.md` § 0.
+
+8. **Module crypto personnel : oui, éteint par défaut.** La crypto entre dans le desk par l'onglet 09 · CRY, derrière un interrupteur que seul un dialogue du process principal allume. Portefeuille, discipline, Copieur, exécution, pont NinjaTrader et registre `instruments.ts` restent sans crypto.
+9. **Hôtes des exchanges : liste à part.** Les hôtes Coinbase, Binance et Bybit forment `CRYPTO_HOSTS`, consultée seulement interrupteur allumé. Ils n'entrent pas dans `allowedHosts()` : leurs conditions n'ont pas été revues pour un logiciel distribué (`sources.ts` › `redistributable`).
+10. **Geste du trader.** Une écriture de chart crypto que l'opérateur confirme vaut geste du trader : elle peut ouvrir un flux dans l'onglet Crypto. L'agent n'ouvre jamais de flux par une lecture. La décision 3 reste entière pour tout le reste du desk.
+
 ## 8. Sources de la veille
 
 Relevées le 6 octobre 2026. Plusieurs pages n'ont été lues qu'en extrait. À revérifier avant toute communication.
