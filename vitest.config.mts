@@ -27,6 +27,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'agent/orders': 'src/engine/agent/orders.ts',
     'agent/routines': 'src/engine/agent/routines.ts',
     'crypto/markets': 'src/engine/crypto/markets.ts',
+    'crypto/venues': 'src/engine/crypto/venues.ts',
   };
   const hit = map[rel];
   return hit ? path.join(root, hit) : null;
