@@ -23,11 +23,17 @@ import {
   type CryptoVenue,
 } from './markets';
 
-/** Bougies demandées en un appel à Binance et à Bybit, et plafond de ce que l'historique rend. */
+/** Bougies chargées au moins, quel que soit le timeframe : `historyTarget` en demande davantage en 1m et en 5m. */
 export const HISTORY_BARS = 500;
 
 /** Bougies que Coinbase rend au plus par appel : au-delà de 300 granularités d'écart, l'API répond 400. */
 const COINBASE_PAGE = 300;
+
+/** Bougies que Binance et Bybit rendent au plus par appel (`limit`). */
+const KLINE_PAGE = 1000;
+
+/** Secondes d'un jour UTC. */
+const DAY_SECONDS = 86400;
 
 /** Intervalle de chaque timeframe, dans la langue de la venue. */
 const BINANCE_INTERVAL: Record<CryptoTimeframe, string> = { 1: '1m', 5: '5m', 15: '15m', 60: '1h', 240: '4h', 1440: '1d' };
@@ -43,15 +49,34 @@ function iso(sec: number): string | null {
 }
 
 /**
+ * Le nombre de bougies à charger : au moins `HISTORY_BARS`, et assez pour remonter à 00:00 UTC de la veille de `nowSec`.
+ * Le VWAP 00:00 UTC et les niveaux du jour UTC précédent ne calculent une journée que si la fenêtre chargée en couvre le
+ * début (sa première bougie n'est pas plus tardive) : sans cela, ils restent vides la plupart du temps. Le début de la
+ * fenêtre est un multiple de 86 400 s, donc une frontière de bougie pour chaque timeframe du registre. 500 bougies y
+ * suffisent à partir de 15m ; il en faut de 289 à 576 en 5m et de 1 441 à 2 880 en 1m (de minuit à 23:59 UTC). Une heure
+ * ou un timeframe qui ne définissent aucune fenêtre (NaN, infini, timeframe nul) donnent `HISTORY_BARS`.
+ */
+export function historyTarget(timeframe: CryptoTimeframe, nowSec: number): number {
+  const windowStart = (Math.floor(nowSec / DAY_SECONDS) - 1) * DAY_SECONDS;
+  const needed = Math.floor((nowSec - windowStart) / (timeframe * 60)) + 1;
+  return Number.isFinite(needed) ? Math.max(HISTORY_BARS, needed) : HISTORY_BARS;
+}
+
+/**
  * Coinbase : `start` et `end` sont compris tous les deux (relevé le 9 octobre 2026). Une page couvre donc
  * 300 créneaux, soit `end - start = 299` granularités, et les pages se suivent en remontant, sans trou ni
- * recouvrement. Coinbase n'a pas de bougie de 4 h : quatre pages d'une heure, regroupées par quatre.
+ * recouvrement : `ceil(historyTarget / 300)` pages, deux au moins (en 1m, de cinq à dix). Coinbase n'a pas de bougie
+ * de 4 h : quatre pages d'une heure, regroupées par quatre, soit 300 bougies de 4 h quel que soit `historyTarget`
+ * (décision du registre).
  * La page la plus récente finit sur le dernier créneau du seau (de regroupement) qui contient `nowSec` : la
  * bougie entamée en fait partie, et la fenêtre commence sur une frontière de seau, jamais au milieu d'une 4 h.
  * Un `nowSec` qui n'est pas une date (NaN, infini, hors des bornes de `Date`) ne donne aucune URL.
  */
 function coinbaseRequests(symbol: string, timeframe: CryptoTimeframe, nowSec: number): { urls: string[]; aggregate: number } {
-  const { granularity, pages, aggregate } = timeframe === 240 ? { granularity: 3600, pages: 4, aggregate: 4 } : { granularity: timeframe * 60, pages: 2, aggregate: 1 };
+  const { granularity, pages, aggregate } =
+    timeframe === 240
+      ? { granularity: 3600, pages: 4, aggregate: 4 }
+      : { granularity: timeframe * 60, pages: Math.max(2, Math.ceil(historyTarget(timeframe, nowSec) / COINBASE_PAGE)), aggregate: 1 };
   const bucket = granularity * aggregate;
   const newest = Math.floor(Math.floor(nowSec) / bucket) * bucket + bucket - granularity;
   const urls: string[] = [];
@@ -67,21 +92,41 @@ function coinbaseRequests(symbol: string, timeframe: CryptoTimeframe, nowSec: nu
 }
 
 /**
+ * Binance et Bybit : `historyTarget` bougies. Jusqu'à 1 000, un appel (`root` suivi de `limit`) : les dernières bougies,
+ * comme avant. Au-delà (le 1m), des pages de 1 000 bougies en avançant, chacune lue depuis l'ouverture de sa première
+ * bougie (`startParam` en millisecondes : `startTime` chez Binance, `start` chez Bybit). La première part de
+ * `historyTarget - 1` bougies avant celle du seau qui contient `nowSec`, soit 00:00 UTC de la veille, chaque suivante
+ * 1 000 bougies plus loin, sans trou ni recouvrement : la dernière couvre le seau courant, que la venue rend entamé.
+ */
+function klineRequests(root: string, startParam: 'startTime' | 'start', timeframe: CryptoTimeframe, nowSec: number): string[] {
+  const target = historyTarget(timeframe, nowSec);
+  if (target <= KLINE_PAGE) return [`${root}&limit=${target}`];
+  const step = timeframe * 60;
+  const first = Math.floor(nowSec / step) * step - (target - 1) * step;
+  const urls: string[] = [];
+  for (let page = 0; page * KLINE_PAGE < target; page++) urls.push(`${root}&${startParam}=${(first + page * KLINE_PAGE * step) * 1000}&limit=${KLINE_PAGE}`);
+  return urls;
+}
+
+/**
  * Les URLs à interroger pour l'historique d'une série, et le regroupement que l'appelant doit appliquer aux
  * bougies lues : `aggregate` bougies de `timeframe / aggregate` minutes font une bougie de `timeframe`.
- * Binance et Bybit : un appel, les `HISTORY_BARS` dernières bougies, `aggregate` vaut 1. Coinbase : des pages
- * de 300 bougies, de la plus récente à la plus ancienne (deux pages, quatre en 4 h). Série ou timeframe hors
- * du registre, ou `nowSec` qui n'est pas une date : aucune URL.
+ * L'historique remonte à `historyTarget(timeframe, nowSec)` bougies, soit au moins `HISTORY_BARS` et, en 1m et 5m,
+ * jusqu'à 00:00 UTC de la veille. Binance et Bybit : un appel jusqu'à 1 000 bougies, sinon des pages de 1 000 de la plus
+ * ancienne à la plus récente, `aggregate` vaut 1. Coinbase : des pages de 300 bougies, de la plus récente à la plus
+ * ancienne (`ceil(historyTarget / 300)` pages, deux au moins ; quatre en 4 h, qui ne suit pas `historyTarget`). Série ou
+ * timeframe hors du registre, ou `nowSec` qui n'est pas une date : aucune URL.
  */
 export function historyRequests(series: CryptoSeriesId, timeframe: CryptoTimeframe, nowSec: number): { urls: string[]; aggregate: number } {
   const market = cryptoMarket(series);
-  if (!market || !isCryptoTimeframe(timeframe)) return none();
+  // Une heure qui n'est pas une date (NaN, infini, hors des bornes de `Date`) ne donne aucune URL, quelle que soit la venue.
+  if (!market || !isCryptoTimeframe(timeframe) || iso(nowSec) === null) return none();
   const symbol = encodeURIComponent(market.symbol);
   switch (market.venue) {
     case 'binance':
-      return { urls: [`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${BINANCE_INTERVAL[timeframe]}&limit=${HISTORY_BARS}`], aggregate: 1 };
+      return { urls: klineRequests(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${BINANCE_INTERVAL[timeframe]}`, 'startTime', timeframe, nowSec), aggregate: 1 };
     case 'bybit':
-      return { urls: [`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${BYBIT_INTERVAL[timeframe]}&limit=${HISTORY_BARS}`], aggregate: 1 };
+      return { urls: klineRequests(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${BYBIT_INTERVAL[timeframe]}`, 'start', timeframe, nowSec), aggregate: 1 };
     case 'coinbase':
       return coinbaseRequests(symbol, timeframe, nowSec);
     default:

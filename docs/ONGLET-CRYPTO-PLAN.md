@@ -409,6 +409,54 @@ Règles :
 - [ ] **Étape 4 : `npm run typecheck && npm test`** → vert.
 - [ ] **Étape 5 : commit** `CRY1.7 évaluer les alertes crypto par croisement`.
 
+### Tâche CRY1.8 : historique jusqu'à 00:00 UTC de la veille
+
+Ticket ajouté par le contrôleur le 9 octobre 2026 (registre : CRY1.5, finding I1). Le VWAP 00:00 UTC et les niveaux du jour UTC précédent (CRY1.5) ne calculent une journée que si la fenêtre chargée couvre son début. Avec 500 bougies, en 1m (8 h 20) et parfois en 5m (41 h 40), la fenêtre commence en cours de journée : VWAP et niveaux restent vides la plupart du temps. Ce ticket fait remonter l'historique au moins à 00:00 UTC de la veille.
+
+**Fichiers**
+- Modifier : `src/engine/crypto/venues.ts`, `electron/crypto/venues.d.ts`, `tests/crypto-venues-rest.test.ts` (dont la liste d'exports figée), `docs/ONGLET-CRYPTO.md` (§ 5, paragraphe « Historique »), `docs/ONGLET-CRYPTO-PLAN.md` (ajout de cette tâche après CRY1.7 ; dans CRY2.3, « les 500 dernières bougies » devient « les `historyTarget(timeframe, now)` dernières »).
+- Test : `tests/crypto-venues-rest.test.ts`.
+
+**Interfaces — produit**
+
+```ts
+/** Nombre de bougies à charger : au moins HISTORY_BARS, et assez pour couvrir depuis 00:00 UTC de la veille. */
+export function historyTarget(timeframe: CryptoTimeframe, nowSec: number): number;
+```
+
+Règles :
+- `windowStart = (floor(nowSec / 86400) − 1) × 86400` ; `needed = floor((nowSec − windowStart) / (tf × 60)) + 1` ; `historyTarget = max(HISTORY_BARS, needed)`. En pratique seuls 1m (jusqu'à 2 880) et 5m (jusqu'à 576) dépassent 500.
+- `historyRequests(series, timeframe, nowSec)` couvre `historyTarget(timeframe, nowSec)` bougies (sauf Coinbase 240, qui garde 4 pages et `aggregate: 4` : décision du registre, 300 bougies 4h) :
+  - **Binance** : `historyTarget ≤ 1000` → une URL, comme aujourd'hui, avec `limit=<historyTarget>` (inchangée pour 15m et au-dessus : `limit=500`). Au-delà → pages de 1 000 en avançant, `&startTime=<ms>&limit=1000`, la première à `(seau courant − (historyTarget − 1) × tf × 60) × 1000`, chaque suivante 1 000 bougies plus loin ; la dernière page couvre le seau courant.
+  - **Bybit** : même règle, paramètre `start=<ms>` (et `limit=1000`), `interval` inchangé.
+  - **Coinbase** : `ceil(historyTarget / 300)` pages de 300 en remontant depuis le seau courant, au moins 2 comme aujourd'hui (1m : 7 à 10 pages).
+- Toute URL passe `cryptoHostAllowed(url, 'https:')`. Les URLs des timeframes 15m, 1h, 4h et 1j restent identiques à celles de CRY1.2 (tests existants inchangés).
+- Spec § 5, « Historique », nouvelle première phrase : « À l'ouverture du chart, le main charge 500 bougies, ou davantage en 1m et 5m pour remonter au moins à 00:00 UTC de la veille (VWAP et niveaux du jour UTC) : jusqu'à 2 880 bougies en 1m et 576 en 5m. Coinbase 4h : 300 bougies (environ 50 jours). Elles restent en mémoire (aucune bougie crypto dans Dexie). »
+
+- [ ] **Étape 1 : test rouge**
+
+```ts
+const t = Date.UTC(2026, 9, 9, 10, 0, 0) / 1000;           // 2026-10-09T10:00:00Z
+expect(historyTarget(1, t)).toBe(2041);                     // 34 h × 60 + 1
+expect(historyTarget(5, t)).toBe(500);                      // 409 < 500
+expect(historyTarget(5, Date.UTC(2026, 9, 9, 23, 55) / 1000)).toBe(576);
+expect(historyTarget(15, t)).toBe(500); expect(historyTarget(1440, t)).toBe(500);
+expect(historyRequests('coinbase:BTC-USD', 1, t).urls).toHaveLength(7);
+const bn = historyRequests('binance:ONEUSDT', 1, t).urls;
+expect(bn).toHaveLength(3); expect(bn.every((u) => u.includes('limit=1000') && u.includes('startTime='))).toBe(true);
+expect(new URL(bn[0]!).searchParams.get('startTime')).toBe(String((t - 2040 * 60) * 1000));
+expect(historyRequests('bybit:ZIGUSDT', 1, t).urls).toHaveLength(3);
+expect(historyRequests('binance:ONEUSDT', 5, Date.UTC(2026, 9, 9, 23, 55) / 1000).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=576']);
+// les pages Binance/Bybit 1m sont contiguës et sans recouvrement ; leur union couvre de windowStart au seau courant
+```
+
+- [ ] **Étape 2 : lancer `npx vitest run tests/crypto-venues-rest.test.ts`** → échec.
+- [ ] **Étape 3 : implémenter**, puis mettre à jour spec et plan comme ci-dessus.
+- [ ] **Étape 4 : `npm run typecheck && npm test && npm run electron:compile`** → vert.
+- [ ] **Étape 5 : commit** `CRY1.8 charger l’historique crypto jusqu’à 00:00 UTC de la veille`.
+
+Ajout du contrôleur (relecture de CRY1.5) : dans `docs/ONGLET-CRYPTO.md` § 7, après la liste des indicateurs de la section 2 de la colonne, ajouter la phrase : « Le VWAP 00:00 UTC et les niveaux du jour UTC précédent ne se calculent que pour une journée dont la fenêtre chargée couvre le début (`bars[0].time <= début du jour`) : sinon la ligne s'interrompt, plutôt que d'afficher une valeur fausse. »
+
 ---
 
 ## Lot CRY2 — réseau dans le process principal
@@ -518,7 +566,7 @@ Règles :
   - compteur de références par clé de flux : une clé déjà active n'est pas réabonnée, et le dernier désabonnement d'une clé envoie l'`unsubscribe` ;
   - à chaque ouverture, réabonnement de toutes les clés actives ; dernier abonnement de la venue retiré → socket fermée, état `off`.
   - Événements : ticker → `{ kind: 'ticker' }` ; kline Binance → `{ kind: 'bar', final }` ; trades Coinbase et Bybit → `TradeBarBuilder` de chaque abonnement `bars` du même marché et timeframe (créé à l'abonnement avec `now()`) → `{ kind: 'bar', final }`.
-  - `history` : refusé `rate_limited` si la porte est fermée, `blocked` si la venue est bloquée ; pages récupérées en séquence ; agrégation si besoin ; les 500 dernières bougies.
+  - `history` : refusé `rate_limited` si la porte est fermée, `blocked` si la venue est bloquée ; pages récupérées en séquence ; agrégation si besoin ; les `historyTarget(timeframe, now)` dernières bougies.
   - `closeAll()` : toutes les sockets fermées, tous les abonnements oubliés, aucun timer vivant.
 
 - [ ] **Étape 1 : tests rouges** (fausse `WsLike`, `vi.useFakeTimers`) :

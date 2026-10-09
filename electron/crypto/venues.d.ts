@@ -4,12 +4,22 @@
  */
 import type { CryptoBar, CryptoSeriesId, CryptoTicker, CryptoTimeframe, CryptoTrade, CryptoVenue } from './markets';
 
-/** Bougies demandées en un appel à Binance et à Bybit, et plafond de ce que l'historique rend. */
+/** Bougies chargées au moins, quel que soit le timeframe : `historyTarget` en demande davantage en 1m et en 5m. */
 export const HISTORY_BARS: 500;
 /**
- * Les URLs à interroger pour l'historique d'une série, de la page la plus récente à la plus ancienne, et le
- * regroupement à appliquer aux bougies lues : `aggregate` bougies de `timeframe / aggregate` minutes font une
- * bougie de `timeframe`. Série ou timeframe hors du registre, `nowSec` qui n'est pas une date : aucune URL.
+ * Le nombre de bougies à charger : au moins `HISTORY_BARS`, et assez pour remonter à 00:00 UTC de la veille de `nowSec`
+ * (le VWAP et les niveaux du jour UTC ne calculent une journée que si la fenêtre chargée en couvre le début) : de 1 441 à
+ * 2 880 en 1m, de 500 à 576 en 5m, 500 au-dessus. L'appelant garde les `historyTarget` dernières bougies. Une heure ou un
+ * timeframe qui ne définissent aucune fenêtre (NaN, infini, timeframe nul) donnent `HISTORY_BARS`.
+ */
+export function historyTarget(timeframe: CryptoTimeframe, nowSec: number): number;
+/**
+ * Les URLs à interroger pour l'historique d'une série, et le regroupement à appliquer aux bougies lues : `aggregate`
+ * bougies de `timeframe / aggregate` minutes font une bougie de `timeframe`. L'historique remonte à
+ * `historyTarget(timeframe, nowSec)` bougies. Binance et Bybit : un appel jusqu'à 1 000 bougies, sinon des pages de 1 000,
+ * de la plus ancienne à la plus récente (`startTime` chez Binance, `start` chez Bybit). Coinbase : des pages de 300 bougies,
+ * de la plus récente à la plus ancienne (`ceil(historyTarget / 300)` pages, deux au moins ; quatre en 4 h, qui ne suit pas
+ * `historyTarget`). Série ou timeframe hors du registre, `nowSec` qui n'est pas une date : aucune URL.
  */
 export function historyRequests(series: CryptoSeriesId, timeframe: CryptoTimeframe, nowSec: number): { urls: string[]; aggregate: number };
 /**

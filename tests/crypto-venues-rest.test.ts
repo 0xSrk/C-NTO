@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { cryptoIndicatorById } from '@/engine/crypto/indicators';
 import {
   CRYPTO_MARKETS,
   CRYPTO_TIMEFRAMES,
@@ -9,13 +10,30 @@ import {
   type CryptoTimeframe,
   type CryptoVenue,
 } from '@/engine/crypto/markets';
-import { HISTORY_BARS, aggregateBars, historyRequests, parseCandles } from '@/engine/crypto/venues';
+import { HISTORY_BARS, aggregateBars, historyRequests, historyTarget, parseCandles } from '@/engine/crypto/venues';
 
 const HOUR = 3600;
+const ONE_DAY = 86400;
 /** 9 octobre 2026, 00:00 UTC. */
 const DAY = 1791504000;
 /** 9 octobre 2026, 10:00 UTC. */
 const NOW = DAY + 10 * HOUR;
+/** 9 octobre 2026, 23:55 UTC : en fin de journée, la fenêtre de 5 m est à son plus long. */
+const LATE = DAY + 23 * HOUR + 55 * 60;
+/** Des heures du 9 octobre 2026 où la fenêtre change de pas : minuit, les frontières de 1 800 et de 2 000 bougies d’une minute, 10:00, la fin de journée. */
+const INSTANTS = [DAY, DAY + 59, DAY + 5 * HOUR + 59 * 60, DAY + 6 * HOUR, DAY + 9 * HOUR + 19 * 60, DAY + 9 * HOUR + 20 * 60, NOW, NOW + 1234, LATE, DAY + ONE_DAY - 1];
+
+/** 00:00 UTC de la veille de `now` : le début de la fenêtre que l’historique doit couvrir. */
+const windowStartOf = (now: number): number => (Math.floor(now / ONE_DAY) - 1) * ONE_DAY;
+
+/**
+ * Les créneaux de `timeframe` minutes depuis celui de 00:00 UTC de la veille jusqu’à celui de `now` compris : de quoi
+ * couvrir la fenêtre. Compté en différence de créneaux, pas par la formule de `historyTarget` qu’il sert à vérifier.
+ */
+function slotsSinceWindowStart(timeframe: CryptoTimeframe, now: number): number {
+  const step = timeframe * 60;
+  return (Math.floor(now / step) * step - windowStartOf(now)) / step + 1;
+}
 
 // Réponses réelles du 9 octobre 2026 : Coinbase BTC-USD, Binance ONEUSDT et Bybit ZIGUSDT, en 1 h.
 const COINBASE = [[1791540000, 82374.03, 82655.46, 82587.75, 82404.31, 46.81410505], [1791536400, 82473.97, 82623.57, 82616.1, 82582.34, 54.4319952]];
@@ -282,19 +300,20 @@ describe('URLs de l’historique', () => {
   it('Binance : un appel, l’intervalle de la venue, 500 bougies, sans agrégation', () => {
     expect(HISTORY_BARS).toBe(500);
     expect(historyRequests('binance:ONEUSDT', 60, NOW)).toEqual({ urls: ['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=1h&limit=500'], aggregate: 1 });
-    const intervals = CRYPTO_TIMEFRAMES.map((tf) => historyRequests('binance:BTCUSDT', tf, NOW).urls.map((u) => new URL(u).searchParams.get('interval')));
+    // En 1m l’historique tient en plusieurs pages (voir « historique jusqu’à 00:00 UTC de la veille ») : l’intervalle, lui, ne change pas.
+    const intervals = CRYPTO_TIMEFRAMES.map((tf) => [...new Set(historyRequests('binance:BTCUSDT', tf, NOW).urls.map((u) => new URL(u).searchParams.get('interval')))]);
     expect(intervals).toEqual([['1m'], ['5m'], ['15m'], ['1h'], ['4h'], ['1d']]);
   });
 
   it('Bybit : un appel au comptant, l’intervalle de la venue, 500 bougies, sans agrégation', () => {
     expect(historyRequests('bybit:ZIGUSDT', 60, NOW)).toEqual({ urls: ['https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=60&limit=500'], aggregate: 1 });
     expect(historyRequests('bybit:ZIGUSDT', 1440, NOW).urls[0]).toContain('interval=D');
-    const intervals = CRYPTO_TIMEFRAMES.map((tf) => historyRequests('bybit:ZIGUSDT', tf, NOW).urls.map((u) => new URL(u).searchParams.get('interval')));
+    const intervals = CRYPTO_TIMEFRAMES.map((tf) => [...new Set(historyRequests('bybit:ZIGUSDT', tf, NOW).urls.map((u) => new URL(u).searchParams.get('interval')))]);
     expect(intervals).toEqual([['1'], ['5'], ['15'], ['60'], ['240'], ['D']]);
   });
 
-  it('Coinbase : deux pages en remontant, de granularité timeframe × 60, sauf le 4 h', () => {
-    for (const tf of [1, 5, 15, 60, 1440] as const) {
+  it('Coinbase : deux pages en remontant, de granularité timeframe × 60, sauf le 1 m (voir plus bas) et le 4 h', () => {
+    for (const tf of [5, 15, 60, 1440] as const) {
       const { urls, aggregate } = historyRequests('coinbase:BTC-USD', tf, NOW);
       expect(aggregate, `${tf}`).toBe(1);
       expect(urls.map((u) => pageOf(u).granularity), `${tf}`).toEqual([tf * 60, tf * 60]);
@@ -331,7 +350,7 @@ describe('URLs de l’historique', () => {
         const { urls, aggregate } = historyRequests('coinbase:ONDO-USD', tf, now);
         const pages = urls.map(pageOf);
         const label = `${tf} min à ${now}`;
-        expect(pages, label).toHaveLength(tf === 240 ? 4 : 2);
+        expect(pages, label).toHaveLength(tf === 240 ? 4 : Math.max(2, Math.ceil(slotsSinceWindowStart(tf, now) / 300)));
         pages.forEach((page, i) => {
           const g = page.granularity;
           expect((page.end - page.start) / g + 1, `${label}, page ${i}`).toBe(300);
@@ -361,18 +380,20 @@ describe('URLs de l’historique', () => {
     expect(endOf(240, NOW + 2 * HOUR)).toBe(NOW + 5 * HOUR);
   });
 
-  it('chaque URL, pour chaque série et chaque timeframe, passe cryptoHostAllowed et vise la venue de sa série', () => {
+  it('chaque URL, pour chaque série, chaque timeframe et en début comme en fin de journée, passe cryptoHostAllowed et vise la venue de sa série', () => {
     for (const market of CRYPTO_MARKETS) {
       for (const tf of CRYPTO_TIMEFRAMES) {
-        const { urls, aggregate } = historyRequests(market.id, tf, NOW);
-        const label = `${market.id} ${tf}`;
-        expect(urls.length, label).toBeGreaterThan(0);
-        expect(aggregate, label).toBe(market.venue === 'coinbase' && tf === 240 ? 4 : 1);
-        for (const url of urls) {
-          expect(cryptoHostAllowed(url, 'https:'), url).toBe(true);
-          expect(new URL(url).hostname, url).toBe(hosts[market.venue]);
-          expect(url, url).toContain(market.symbol);
-          expect(url, url).not.toMatch(/\s/);
+        for (const now of [NOW, LATE]) {
+          const { urls, aggregate } = historyRequests(market.id, tf, now);
+          const label = `${market.id} ${tf} à ${now}`;
+          expect(urls.length, label).toBeGreaterThan(0);
+          expect(aggregate, label).toBe(market.venue === 'coinbase' && tf === 240 ? 4 : 1);
+          for (const url of urls) {
+            expect(cryptoHostAllowed(url, 'https:'), url).toBe(true);
+            expect(new URL(url).hostname, url).toBe(hosts[market.venue]);
+            expect(url, url).toContain(market.symbol);
+            expect(url, url).not.toMatch(/\s/);
+          }
         }
       }
     }
@@ -386,12 +407,158 @@ describe('URLs de l’historique', () => {
     expect(historyRequests('coinbase:BTC-USD', 60, Number.POSITIVE_INFINITY)).toEqual(none);
     expect(historyRequests('coinbase:BTC-USD', 60, 1e20)).toEqual(none);
     expect(historyRequests('binance:ONEUSDT', asTimeframe(30), NOW)).toEqual(none);
+    // Quelle que soit la venue, une heure qui n’est pas une date ne donne aucune URL (Binance et Bybit l’écrivent dans `startTime` et `start`).
+    for (const series of ['coinbase:BTC-USD', 'binance:ONEUSDT', 'bybit:ZIGUSDT'] as const) {
+      for (const tf of CRYPTO_TIMEFRAMES) {
+        for (const now of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1e20, -1e20]) expect(historyRequests(series, tf, now), `${series} ${tf} à ${now}`).toEqual(none);
+      }
+    }
   });
 
   it('rend chaque fois un objet neuf', () => {
     const a = historyRequests(asSeries('kraken:BTC-USD'), 60, NOW);
     a.urls.push('https://api.binance.com/');
     expect(historyRequests(asSeries('kraken:BTC-USD'), 60, NOW).urls).toEqual([]);
+  });
+});
+
+describe('historyTarget : de quoi remonter à 00:00 UTC de la veille', () => {
+  it('à 10:00 UTC : 34 h de bougies d’une minute et celle qui est entamée, le plancher de 500 dès 5 m', () => {
+    expect(historyTarget(1, NOW)).toBe(2041); // 34 h × 60 + 1
+    expect(historyTarget(5, NOW)).toBe(500); // 409 < 500
+    expect(historyTarget(5, LATE)).toBe(576);
+    expect(historyTarget(15, NOW)).toBe(500);
+    expect(historyTarget(1440, NOW)).toBe(500);
+  });
+
+  it('1 m : de 1 441 bougies à minuit UTC à 2 880 à 23:59 ; 5 m : de 500 à 576 ; au-dessus : 500 à toute heure', () => {
+    const sweep = (tf: CryptoTimeframe): number[] => Array.from({ length: 1440 }, (_, minute) => historyTarget(tf, DAY + minute * 60 + 59));
+    expect([Math.min(...sweep(1)), Math.max(...sweep(1))]).toEqual([1441, 2880]);
+    expect([Math.min(...sweep(5)), Math.max(...sweep(5))]).toEqual([500, 576]);
+    for (const tf of [15, 60, 240, 1440] as const) expect(new Set(sweep(tf)), `${tf}`).toEqual(new Set([HISTORY_BARS]));
+  });
+
+  it('compte les créneaux de 00:00 UTC de la veille à celui de l’instant, au moins HISTORY_BARS, sur trois jours échantillonnés toutes les 61 s', () => {
+    for (const tf of CRYPTO_TIMEFRAMES) {
+      for (let at = DAY - ONE_DAY; at < DAY + 2 * ONE_DAY; at += 61) {
+        expect(historyTarget(tf, at), `${tf} min à ${at}`).toBe(Math.max(HISTORY_BARS, slotsSinceWindowStart(tf, at)));
+      }
+    }
+  });
+
+  it('la première des historyTarget bougies ouvre au plus tard à 00:00 UTC de la veille, et à cet instant même quand le plancher ne joue pas (un jour échantillonné toutes les 301 s)', () => {
+    for (const tf of CRYPTO_TIMEFRAMES) {
+      const step = tf * 60;
+      for (let at = DAY; at < DAY + ONE_DAY; at += 301) {
+        const target = historyTarget(tf, at);
+        const first = Math.floor(at / step) * step - (target - 1) * step;
+        expect(first, `${tf} min à ${at}`).toBeLessThanOrEqual(windowStartOf(at));
+        if (target > HISTORY_BARS) expect(first, `${tf} min à ${at}`).toBe(windowStartOf(at));
+      }
+    }
+  });
+
+  it('suit le jour UTC : à minuit pile, la veille est 24 h plus tôt ; une seconde avant, 48 h', () => {
+    expect(historyTarget(1, DAY)).toBe(1441);
+    expect(historyTarget(1, DAY - 1)).toBe(2880);
+  });
+
+  it('rend HISTORY_BARS quand l’heure ou le timeframe ne définissent aucune fenêtre', () => {
+    for (const now of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) expect(historyTarget(1, now), String(now)).toBe(HISTORY_BARS);
+    expect(historyTarget(asTimeframe(0), NOW)).toBe(HISTORY_BARS);
+    expect(historyTarget(asTimeframe(Number.NaN), NOW)).toBe(HISTORY_BARS);
+  });
+});
+
+describe('historique jusqu’à 00:00 UTC de la veille : URLs', () => {
+  /** Binance lit `startTime`, Bybit `start` : le point de départ d’une page, en secondes, ou `null` pour un appel sans départ. */
+  const startOf = (url: string, param: 'startTime' | 'start'): number | null => {
+    const value = new URL(url).searchParams.get(param);
+    return value === null ? null : Number(value) / 1000;
+  };
+
+  it('Coinbase 1 m : ceil(historyTarget / 300) pages, sept à 10:00 UTC', () => {
+    expect(historyRequests('coinbase:BTC-USD', 1, NOW).urls).toHaveLength(7); // 2 041 bougies
+    expect(historyRequests('coinbase:BTC-USD', 1, NOW).aggregate).toBe(1);
+    expect(historyRequests('coinbase:BTC-USD', 1, DAY + 59).urls).toHaveLength(5); // 1 441 bougies
+    expect(historyRequests('coinbase:BTC-USD', 1, DAY + 5 * HOUR + 59 * 60).urls).toHaveLength(6); // 1 800 bougies : six pages pleines
+    expect(historyRequests('coinbase:BTC-USD', 1, DAY + 6 * HOUR).urls).toHaveLength(7); // 1 801
+    expect(historyRequests('coinbase:BTC-USD', 1, DAY + ONE_DAY - 1).urls).toHaveLength(10); // 2 880
+  });
+
+  it('Coinbase 1 m et 5 m : la page la plus ancienne commence au plus tard à 00:00 UTC de la veille, et les 5 m gardent leurs deux pages', () => {
+    for (const tf of [1, 5] as const) {
+      for (const now of INSTANTS) {
+        const pages = historyRequests('coinbase:BTC-USD', tf, now).urls.map(pageOf);
+        expect(nth(pages, -1).start, `${tf} min à ${now}`).toBeLessThanOrEqual(windowStartOf(now));
+        if (tf === 5) expect(pages, `${now}`).toHaveLength(2);
+      }
+    }
+  });
+
+  it('Binance 1 m : trois pages de 1 000 en avançant à 10:00 UTC, la première à 00:00 UTC de la veille', () => {
+    const t = Date.UTC(2026, 9, 9, 10, 0, 0) / 1000;
+    const bn = historyRequests('binance:ONEUSDT', 1, t).urls;
+    expect(bn).toHaveLength(3);
+    expect(bn.every((u) => u.includes('limit=1000') && u.includes('startTime='))).toBe(true);
+    expect(new URL(nth(bn, 0)).searchParams.get('startTime')).toBe(String((t - 2040 * 60) * 1000));
+    expect(bn).toEqual([
+      'https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=1m&startTime=1791417600000&limit=1000',
+      'https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=1m&startTime=1791477600000&limit=1000',
+      'https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=1m&startTime=1791537600000&limit=1000',
+    ]);
+    expect(historyRequests('binance:ONEUSDT', 1, t).aggregate).toBe(1);
+  });
+
+  it('Bybit 1 m : trois pages de 1 000 en avançant à 10:00 UTC, par `start`, l’intervalle et la catégorie inchangés', () => {
+    const t = Date.UTC(2026, 9, 9, 10, 0, 0) / 1000;
+    const by = historyRequests('bybit:ZIGUSDT', 1, t).urls;
+    expect(by).toHaveLength(3);
+    expect(by.every((u) => u.includes('limit=1000') && u.includes('start=') && !u.includes('startTime'))).toBe(true);
+    expect(by).toEqual([
+      'https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=1&start=1791417600000&limit=1000',
+      'https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=1&start=1791477600000&limit=1000',
+      'https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=1&start=1791537600000&limit=1000',
+    ]);
+    expect(historyRequests('bybit:ZIGUSDT', 1, t).aggregate).toBe(1);
+  });
+
+  it('Binance et Bybit 1 m : deux pages tant que l’historique tient en 2 000 bougies, trois dès la 2 001e, jamais plus de trois', () => {
+    const at2000 = DAY + 9 * HOUR + 19 * 60;
+    expect([historyTarget(1, at2000), historyTarget(1, at2000 + 60)]).toEqual([2000, 2001]);
+    for (const series of ['binance:ONEUSDT', 'bybit:ZIGUSDT'] as const) {
+      expect(historyRequests(series, 1, DAY).urls, series).toHaveLength(2); // 1 441
+      expect(historyRequests(series, 1, at2000).urls, series).toHaveLength(2);
+      expect(historyRequests(series, 1, at2000 + 60).urls, series).toHaveLength(3);
+      expect(historyRequests(series, 1, DAY + ONE_DAY - 1).urls, series).toHaveLength(3); // 2 880
+    }
+  });
+
+  it('Binance et Bybit : les pages se suivent de 1 000 bougies, sans recouvrement, et la première part de 00:00 UTC de la veille', () => {
+    for (const [series, param] of [['binance:ONEUSDT', 'startTime'], ['bybit:ZIGUSDT', 'start']] as const) {
+      for (const now of [DAY, NOW, NOW + 1234, DAY + ONE_DAY - 1]) {
+        const starts = historyRequests(series, 1, now).urls.map((u) => startOf(u, param));
+        expect(starts, `${series} à ${now}`).toEqual(starts.map((_, i) => windowStartOf(now) + i * 1000 * 60));
+      }
+    }
+  });
+
+  it('5 m en fin de journée : un seul appel de 576 bougies, sans point de départ ; à 10:00 UTC : le plancher de 500', () => {
+    expect(historyRequests('binance:ONEUSDT', 5, LATE).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=576']);
+    expect(historyRequests('bybit:ZIGUSDT', 5, LATE).urls).toEqual(['https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=5&limit=576']);
+    expect(historyRequests('binance:ONEUSDT', 5, NOW).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=500']);
+    expect(historyRequests('bybit:ZIGUSDT', 5, NOW).urls).toEqual(['https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=5&limit=500']);
+    expect(historyRequests('binance:ONEUSDT', 5, Date.UTC(2026, 9, 9, 23, 55) / 1000).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=576']);
+  });
+
+  it('15 m, 1 h, 4 h et 1 j : les URLs de CRY1.2, à toute heure de la journée', () => {
+    const klines: [CryptoTimeframe, string, string][] = [[15, '15m', '15'], [60, '1h', '60'], [240, '4h', '240'], [1440, '1d', 'D']];
+    for (const now of [DAY, DAY + 59, NOW, LATE, DAY + ONE_DAY - 1]) {
+      for (const [tf, binance, bybit] of klines) {
+        expect(historyRequests('binance:BTCUSDT', tf, now), `binance ${tf} à ${now}`).toEqual({ urls: [`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${binance}&limit=500`], aggregate: 1 });
+        expect(historyRequests('bybit:ZIGUSDT', tf, now), `bybit ${tf} à ${now}`).toEqual({ urls: [`https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=${bybit}&limit=500`], aggregate: 1 });
+      }
+    }
   });
 });
 
@@ -504,7 +671,7 @@ describe('historique Coinbase de bout en bout, sur une API simulée', () => {
       const now = NOW + 777;
       const bars = coinbaseHistory('coinbase:ONDO-USD', tf, now);
       const step = tf * 60;
-      expect(bars, `${tf}`).toHaveLength(tf === 240 ? 300 : 600);
+      expect(bars, `${tf}`).toHaveLength(tf === 240 ? 300 : 300 * Math.max(2, Math.ceil(slotsSinceWindowStart(tf, now) / 300)));
       bars.forEach((b, i) => {
         if (i > 0) expect(b.time - nth(bars, i - 1).time, `${tf} index ${i}`).toBe(step);
       });
@@ -521,6 +688,106 @@ describe('historique Coinbase de bout en bout, sur une API simulée', () => {
       expect(bars.slice(0, -1).every((b) => b.volume === 4), `+${offset}`).toBe(true);
       const opening = Math.floor(now / (4 * HOUR)) * 4 * HOUR;
       expect(nth(bars, -1).volume, `+${offset}`).toBe(Math.floor((now - opening) / HOUR) + 1);
+    }
+  });
+});
+
+/**
+ * Ce que font les API Binance (`startTime`) et Bybit (`start`), relevé en direct le 9 octobre 2026 : sans point de départ,
+ * les `limit` dernières bougies ; avec, les `limit` premières depuis cette ouverture, jusqu’à la bougie entamée comprise
+ * (moins s’il n’y en a pas assez) ; `limit` va de 1 à 1 000. Les ouvertures rendues, de la plus ancienne à la plus récente.
+ */
+function fakeKlineTimes(url: string, startParam: 'startTime' | 'start', now: number, step: number): number[] {
+  const query = new URL(url).searchParams;
+  const limit = Number(query.get('limit'));
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error(`limit hors de 1 à 1 000 : ${query.get('limit')}`);
+  const current = Math.floor(now / step) * step;
+  const from = query.get(startParam);
+  const first = from === null ? current - (limit - 1) * step : Math.ceil(Number(from) / 1000 / step) * step;
+  const times: number[] = [];
+  for (let t = first; t <= current && times.length < limit; t += step) times.push(t);
+  return times;
+}
+
+type KlineVenue = 'binance' | 'bybit';
+const KLINE_VENUES: Record<KlineVenue, { series: CryptoSeriesId; startParam: 'startTime' | 'start' }> = {
+  binance: { series: 'binance:ONEUSDT', startParam: 'startTime' },
+  bybit: { series: 'bybit:ZIGUSDT', startParam: 'start' },
+};
+
+/** Le chemin du process principal pour Binance et Bybit : lire chaque page dans la langue de la venue, les fusionner. */
+function klineHistory(venue: KlineVenue, timeframe: CryptoTimeframe, now: number): CryptoBar[] {
+  const { series, startParam } = KLINE_VENUES[venue];
+  const bars = historyRequests(series, timeframe, now).urls.flatMap((url) => {
+    const rows = fakeKlineTimes(url, startParam, now, timeframe * 60).map((t) => rowAt(venue, t, 5));
+    return parseCandles(venue, FIXTURES[venue].wrap(venue === 'bybit' ? rows.reverse() : rows));
+  });
+  return aggregateBars(bars, timeframe, 1);
+}
+
+/** L’historique d’une venue pour son marché de test : Coinbase par ses pages en arrière, Binance et Bybit par les leurs. */
+function venueHistory(venue: CryptoVenue, timeframe: CryptoTimeframe, now: number): CryptoBar[] {
+  return venue === 'coinbase' ? coinbaseHistory('coinbase:BTC-USD', timeframe, now) : klineHistory(venue, timeframe, now);
+}
+
+describe('historique Binance et Bybit de bout en bout, sur une API simulée', () => {
+  it('1 m : les pages se suivent sans trou ni recouvrement, de 00:00 UTC de la veille à la bougie entamée', () => {
+    for (const venue of ['binance', 'bybit'] as const) {
+      const { series, startParam } = KLINE_VENUES[venue];
+      for (const now of INSTANTS) {
+        const opens = historyRequests(series, 1, now).urls.flatMap((url) => fakeKlineTimes(url, startParam, now, 60));
+        expect(opens, `${venue} à ${now}`).toEqual(Array.from({ length: slotsSinceWindowStart(1, now) }, (_, i) => windowStartOf(now) + i * 60));
+      }
+    }
+  });
+
+  it('chaque timeframe : historyTarget bougies contiguës au pas du timeframe, la bougie entamée en dernier', () => {
+    for (const venue of ['binance', 'bybit'] as const) {
+      for (const tf of CRYPTO_TIMEFRAMES) {
+        const step = tf * 60;
+        for (const now of INSTANTS) {
+          const target = historyTarget(tf, now);
+          const last = Math.floor(now / step) * step;
+          const expected = Array.from({ length: target }, (_, i) => last - (target - 1 - i) * step);
+          expect(klineHistory(venue, tf, now).map((b) => b.time), `${venue} ${tf} min à ${now}`).toEqual(expected);
+        }
+      }
+    }
+  });
+});
+
+describe('l’historique chargé couvre le début du jour UTC précédent', () => {
+  it('chaque venue, chaque timeframe, toute heure : les historyTarget dernières bougies vont de 00:00 UTC de la veille au plus tard à la bougie entamée', () => {
+    for (const venue of VENUES) {
+      for (const tf of CRYPTO_TIMEFRAMES) {
+        for (const now of INSTANTS) {
+          const loaded = venueHistory(venue, tf, now).slice(-historyTarget(tf, now));
+          const label = `${venue} ${tf} min à ${now}`;
+          expect(nth(loaded, 0).time, label).toBeLessThanOrEqual(windowStartOf(now));
+          expect(nth(loaded, -1).time, label).toBe(Math.floor(now / (tf * 60)) * tf * 60);
+        }
+      }
+    }
+  });
+
+  it('le VWAP 00:00 UTC et les niveaux de la veille se calculent en 1 m dès l’ouverture du chart, ce que les 500 dernières bougies ne permettent pas', () => {
+    /** Les points qui portent une valeur, de `since` à la fin, pour une ligne d’un indicateur du catalogue crypto. */
+    const points = (bars: readonly CryptoBar[], id: string, key: string, since: number): number => {
+      const def = cryptoIndicatorById(id);
+      if (!def) throw new Error(`indicateur absent du catalogue : ${id}`);
+      const line = def.compute([...bars], { bands: '0' }).lines.find((l) => l.key === key);
+      return (line?.data ?? []).filter((p) => p.value !== undefined && p.time >= since).length;
+    };
+    for (const venue of VENUES) {
+      const all = venueHistory(venue, 1, NOW);
+      const loaded = all.slice(-historyTarget(1, NOW));
+      // Aujourd’hui : 601 bougies, de 00:00 à 10:00 UTC compris. Chacune a son VWAP et les niveaux d’hier.
+      expect(points(loaded, 'vwap-utc', 'vwap', DAY), venue).toBe(601);
+      for (const key of ['pdh', 'pdl', 'pdc']) expect(points(loaded, 'levels-utc', key, DAY), `${venue} ${key}`).toBe(601);
+      // Les 500 dernières bougies commencent à 01:41 UTC : aujourd’hui n’est pas couvert, la ligne est interrompue.
+      const legacy = all.slice(-HISTORY_BARS);
+      expect(points(legacy, 'vwap-utc', 'vwap', DAY), venue).toBe(0);
+      expect(points(legacy, 'levels-utc', 'pdh', DAY), venue).toBe(0);
     }
   });
 });
@@ -556,6 +823,7 @@ describe('partage avec le process principal', () => {
       'WsParsed',
       'aggregateBars',
       'historyRequests',
+      'historyTarget',
       'openInterestUrl',
       'parseCandles',
       'parseWsMessage',
