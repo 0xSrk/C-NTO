@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cryptoHostAllowed, type CryptoVenue } from '@/engine/crypto/markets';
 import { VenueGate, VenueHttpError, cryptoFetchJson, type FetchLike } from '../electron/crypto-net';
@@ -134,6 +135,12 @@ describe('fetch gardé · la requête', () => {
     expect(headers.get('accept')).toBe('application/json');
     expect([...headers.keys()].sort()).toEqual(['accept', 'user-agent']); // ni cookie ni autorisation
     expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('demande credentials: omit : la session ne joint ni cookie ni identifiant, et n’en garde aucun', async () => {
+    const fetchImpl = answering(() => json({ ok: true }));
+    await cryptoFetchJson(API, { fetchImpl, hostOk: allow });
+    expect(fetchImpl.mock.calls[0]![1]?.credentials).toBe('omit');
   });
 });
 
@@ -370,6 +377,39 @@ describe('fetch gardé · taille de la réponse', () => {
     const error = await failure(cryptoFetchJson(API, { fetchImpl: answering(() => new Response(body, { status: 200 })), hostOk: allow }));
     expect(error.message).toBe('Réponse illisible');
     expect(cancelled).toBe(true);
+  });
+
+  it('lit un bloc Uint8Array venu d’un autre royaume : ArrayBuffer.isView, pas instanceof', async () => {
+    const foreign: unknown = runInNewContext('new Uint8Array([123, 34, 97, 34, 58, 49, 125])'); // {"a":1}
+    expect(foreign instanceof Uint8Array).toBe(false);
+    expect(ArrayBuffer.isView(foreign)).toBe(true);
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(foreign);
+        controller.close();
+      },
+    });
+    await expect(cryptoFetchJson(API, { fetchImpl: answering(() => new Response(body, { status: 200 })), hostOk: allow })).resolves.toEqual({ a: 1 });
+  });
+
+  it('lit les octets de toute vue, à sa place dans son tampon : DataView, vue décalée', async () => {
+    const framed = text.encode('xx{"a":1}yy');
+    const view = new DataView(framed.buffer, 2, framed.byteLength - 4);
+    const shifted = text.encode('zz{"b":[2,3]}').subarray(2);
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(view);
+        controller.close();
+      },
+    });
+    await expect(cryptoFetchJson(API, { fetchImpl: answering(() => new Response(body, { status: 200 })), hostOk: allow })).resolves.toEqual({ a: 1 });
+    const other = new ReadableStream({
+      start(controller) {
+        controller.enqueue(shifted);
+        controller.close();
+      },
+    });
+    await expect(cryptoFetchJson(API, { fetchImpl: answering(() => new Response(other, { status: 200 })), hostOk: allow })).resolves.toEqual({ b: [2, 3] });
   });
 
   it('lit un corps en plusieurs blocs', async () => {
@@ -688,6 +728,65 @@ describe('portes de venue', () => {
     gate.onSuccess('coinbase');
     expect(gate.allowed('coinbase')).toBe(true);
     expect(gate.blocked('coinbase')).toBe(false);
+  });
+
+  it('plafonne Retry-After à 3 600 s : une venue dérangée ne se ferme pas pour des années', () => {
+    const c = clock();
+    const gate = new VenueGate(c.now);
+    gate.onHttpError('binance', rateLimited(10 * 365 * 24 * 3600));
+    c.advance(3_600_000 - 1);
+    expect(gate.allowed('binance')).toBe(false);
+    c.advance(1);
+    expect(gate.allowed('binance')).toBe(true);
+
+    gate.onHttpError('coinbase', rateLimited(3_601));
+    c.advance(3_600_000);
+    expect(gate.allowed('coinbase')).toBe(true);
+  });
+
+  it('ne double le backoff qu’une fois par pause : une rafale de 429 en vol ne le redouble pas', () => {
+    const c = clock();
+    const gate = new VenueGate(c.now);
+    for (let i = 0; i < 5; i += 1) gate.onHttpError('bybit', rateLimited()); // cinq requêtes parties ensemble, cinq 429
+    c.advance(999);
+    expect(gate.allowed('bybit')).toBe(false);
+    c.advance(1);
+    expect(gate.allowed('bybit')).toBe(true); // 1 s, pas 16 s
+    gate.onHttpError('bybit', rateLimited()); // pause suivante : 2 s, pas 32 s
+    gate.onHttpError('bybit', rateLimited());
+    c.advance(1_999);
+    expect(gate.allowed('bybit')).toBe(false);
+    c.advance(1);
+    expect(gate.allowed('bybit')).toBe(true);
+    gate.onHttpError('bybit', rateLimited()); // puis 4 s
+    c.advance(3_999);
+    expect(gate.allowed('bybit')).toBe(false);
+    c.advance(1);
+    expect(gate.allowed('bybit')).toBe(true);
+  });
+
+  it('un 429 reçu pendant la pause peut l’allonger par son Retry-After, plafonné, sans redoubler le backoff', () => {
+    const c = clock();
+    const gate = new VenueGate(c.now);
+    gate.onHttpError('binance', rateLimited()); // 1 s ; le backoff passe à 2 s
+    c.advance(500);
+    gate.onHttpError('binance', rateLimited(10)); // la venue demande 10 s : la pause court jusqu’à 10,5 s
+    c.advance(9_999);
+    expect(gate.allowed('binance')).toBe(false);
+    c.advance(1);
+    expect(gate.allowed('binance')).toBe(true);
+    gate.onHttpError('binance', rateLimited()); // 2 s : le 429 en pause n’a pas redoublé le backoff
+    c.advance(1_999);
+    expect(gate.allowed('binance')).toBe(false);
+    c.advance(1);
+    expect(gate.allowed('binance')).toBe(true);
+    gate.onHttpError('binance', rateLimited()); // 4 s
+    c.advance(100);
+    gate.onHttpError('binance', rateLimited(86_400)); // demandé en pause : plafonné à 3 600 s depuis maintenant
+    c.advance(3_600_000 - 1);
+    expect(gate.allowed('binance')).toBe(false);
+    c.advance(1);
+    expect(gate.allowed('binance')).toBe(true);
   });
 });
 

@@ -55,6 +55,10 @@ function iso(sec: number): string | null {
  * fenêtre est un multiple de 86 400 s, donc une frontière de bougie pour chaque timeframe du registre. 500 bougies y
  * suffisent à partir de 15m ; il en faut de 289 à 576 en 5m et de 1 441 à 2 880 en 1m (de minuit à 23:59 UTC). Une heure
  * ou un timeframe qui ne définissent aucune fenêtre (NaN, infini, timeframe nul) donnent `HISTORY_BARS`.
+ * Ce nombre fixe les requêtes, pas la coupe : l'appelant garde les bougies dont `time >= min(00:00 UTC de la veille,
+ * seau courant − (HISTORY_BARS − 1) × timeframe × 60)`, par l'heure et jamais par le nombre. Un seau qui bascule pendant
+ * la pagination (ou pendant l'appel unique, d'où sa marge d'une bougie) rend une bougie de plus, en fin de série :
+ * garder les `historyTarget` dernières perdrait alors celle de 00:00 UTC de la veille.
  */
 export function historyTarget(timeframe: CryptoTimeframe, nowSec: number): number {
   const windowStart = (Math.floor(nowSec / DAY_SECONDS) - 1) * DAY_SECONDS;
@@ -93,14 +97,17 @@ function coinbaseRequests(symbol: string, timeframe: CryptoTimeframe, nowSec: nu
 
 /**
  * Binance et Bybit : `historyTarget` bougies. Jusqu'à 1 000, un appel (`root` suivi de `limit`) : les dernières bougies,
- * comme avant. Au-delà (le 1m), des pages de 1 000 bougies en avançant, chacune lue depuis l'ouverture de sa première
- * bougie (`startParam` en millisecondes : `startTime` chez Binance, `start` chez Bybit). La première part de
+ * comme avant ; au-delà du plancher de `HISTORY_BARS` (le 5m après 17:40 UTC), avec une bougie de marge,
+ * `limit = min(1000, historyTarget + 1)` : si le seau bascule pendant l'appel, la venue décale sa fenêtre d'une bougie et
+ * rend encore celle de 00:00 UTC de la veille ; sans bascule, la bougie de marge tombe avant et l'appelant l'écarte par
+ * l'heure. Au-delà de 1 000 (le 1m), des pages de 1 000 bougies en avançant, chacune lue depuis l'ouverture de sa
+ * première bougie (`startParam` en millisecondes : `startTime` chez Binance, `start` chez Bybit). La première part de
  * `historyTarget - 1` bougies avant celle du seau qui contient `nowSec`, soit 00:00 UTC de la veille, chaque suivante
  * 1 000 bougies plus loin, sans trou ni recouvrement : la dernière couvre le seau courant, que la venue rend entamé.
  */
 function klineRequests(root: string, startParam: 'startTime' | 'start', timeframe: CryptoTimeframe, nowSec: number): string[] {
   const target = historyTarget(timeframe, nowSec);
-  if (target <= KLINE_PAGE) return [`${root}&limit=${target}`];
+  if (target <= KLINE_PAGE) return [`${root}&limit=${target > HISTORY_BARS ? Math.min(KLINE_PAGE, target + 1) : target}`];
   const step = timeframe * 60;
   const first = Math.floor(nowSec / step) * step - (target - 1) * step;
   const urls: string[] = [];
@@ -112,8 +119,9 @@ function klineRequests(root: string, startParam: 'startTime' | 'start', timefram
  * Les URLs à interroger pour l'historique d'une série, et le regroupement que l'appelant doit appliquer aux
  * bougies lues : `aggregate` bougies de `timeframe / aggregate` minutes font une bougie de `timeframe`.
  * L'historique remonte à `historyTarget(timeframe, nowSec)` bougies, soit au moins `HISTORY_BARS` et, en 1m et 5m,
- * jusqu'à 00:00 UTC de la veille. Binance et Bybit : un appel jusqu'à 1 000 bougies, sinon des pages de 1 000 de la plus
- * ancienne à la plus récente, `aggregate` vaut 1. Coinbase : des pages de 300 bougies, de la plus récente à la plus
+ * jusqu'à 00:00 UTC de la veille. Binance et Bybit : un appel jusqu'à 1 000 bougies (une de marge au-delà de
+ * `HISTORY_BARS`), sinon des pages de 1 000 de la plus ancienne à la plus récente, `aggregate` vaut 1. L'appelant coupe
+ * ce qu'il reçoit par l'heure (voir `historyTarget`). Coinbase : des pages de 300 bougies, de la plus récente à la plus
  * ancienne (`ceil(historyTarget / 300)` pages, deux au moins ; quatre en 4 h, qui ne suit pas `historyTarget`). Série ou
  * timeframe hors du registre, ou `nowSec` qui n'est pas une date : aucune URL.
  */

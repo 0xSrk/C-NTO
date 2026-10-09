@@ -9,15 +9,20 @@ export const HISTORY_BARS: 500;
 /**
  * Le nombre de bougies à charger : au moins `HISTORY_BARS`, et assez pour remonter à 00:00 UTC de la veille de `nowSec`
  * (le VWAP et les niveaux du jour UTC ne calculent une journée que si la fenêtre chargée en couvre le début) : de 1 441 à
- * 2 880 en 1m, de 500 à 576 en 5m, 500 au-dessus. L'appelant garde les `historyTarget` dernières bougies. Une heure ou un
- * timeframe qui ne définissent aucune fenêtre (NaN, infini, timeframe nul) donnent `HISTORY_BARS`.
+ * 2 880 en 1m, de 500 à 576 en 5m, 500 au-dessus. Il fixe les requêtes, pas la coupe : l'appelant garde les bougies dont
+ * `time >= min(00:00 UTC de la veille, seau courant − (HISTORY_BARS − 1) × timeframe × 60)`, par l'heure et jamais par
+ * le nombre (un seau qui bascule pendant la pagination rend une bougie de plus, et garder les `historyTarget` dernières
+ * perdrait celle de 00:00 UTC de la veille). Une heure ou un timeframe qui ne définissent aucune fenêtre (NaN, infini,
+ * timeframe nul) donnent `HISTORY_BARS`.
  */
 export function historyTarget(timeframe: CryptoTimeframe, nowSec: number): number;
 /**
  * Les URLs à interroger pour l'historique d'une série, et le regroupement à appliquer aux bougies lues : `aggregate`
  * bougies de `timeframe / aggregate` minutes font une bougie de `timeframe`. L'historique remonte à
- * `historyTarget(timeframe, nowSec)` bougies. Binance et Bybit : un appel jusqu'à 1 000 bougies, sinon des pages de 1 000,
- * de la plus ancienne à la plus récente (`startTime` chez Binance, `start` chez Bybit). Coinbase : des pages de 300 bougies,
+ * `historyTarget(timeframe, nowSec)` bougies. Binance et Bybit : un appel jusqu'à 1 000 bougies, avec une bougie de marge
+ * au-delà de `HISTORY_BARS` (`limit = min(1000, historyTarget + 1)` : un seau qui bascule pendant l'appel ne fait pas perdre
+ * 00:00 UTC de la veille), sinon des pages de 1 000, de la plus ancienne à la plus récente (`startTime` chez Binance,
+ * `start` chez Bybit). L'appelant coupe par l'heure (voir `historyTarget`). Coinbase : des pages de 300 bougies,
  * de la plus récente à la plus ancienne (`ceil(historyTarget / 300)` pages, deux au moins ; quatre en 4 h, qui ne suit pas
  * `historyTarget`). Série ou timeframe hors du registre, `nowSec` qui n'est pas une date : aucune URL.
  */
@@ -26,8 +31,9 @@ export function historyRequests(series: CryptoSeriesId, timeframe: CryptoTimefra
  * Les bougies d'une réponse de venue (JSON décodé), par time croissant (secondes) et sans doublon. Une ligne courte,
  * non finie ou qui ne se tient pas est écartée : prix nul ou négatif, plus haut sous le plus bas, sous l'ouverture ou
  * sous la clôture, plus bas au-dessus, volume négatif, volume acheteur (Binance) hors de 0 et du volume. Les flux
- * WebSocket appliquent les mêmes règles aux bougies de `parseWsMessage`. Lève seulement `Error(retMsg)` pour Bybit
- * quand `retCode` n'est pas 0.
+ * WebSocket appliquent les mêmes règles aux bougies de `parseWsMessage`. Ne lève que pour Bybit, sur une réponse qui
+ * n'est pas un succès : `retCode` absent, non numérique ou autre que 0, ou réponse qui n'est pas un objet (`Error(retMsg)`,
+ * ou un texte de repli). L'appelant l'enveloppe d'un `try/catch`.
  */
 export function parseCandles(venue: CryptoVenue, json: unknown): CryptoBar[];
 /**

@@ -543,12 +543,23 @@ describe('historique jusqu’à 00:00 UTC de la veille : URLs', () => {
     }
   });
 
-  it('5 m en fin de journée : un seul appel de 576 bougies, sans point de départ ; à 10:00 UTC : le plancher de 500', () => {
-    expect(historyRequests('binance:ONEUSDT', 5, LATE).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=576']);
-    expect(historyRequests('bybit:ZIGUSDT', 5, LATE).urls).toEqual(['https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=5&limit=576']);
+  it('5 m en fin de journée : un seul appel de historyTarget + 1 bougies (577), sans point de départ ; à 10:00 UTC : le plancher de 500', () => {
+    expect(historyTarget(5, LATE)).toBe(576);
+    expect(historyRequests('binance:ONEUSDT', 5, LATE).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=577']);
+    expect(historyRequests('bybit:ZIGUSDT', 5, LATE).urls).toEqual(['https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=5&limit=577']);
     expect(historyRequests('binance:ONEUSDT', 5, NOW).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=500']);
     expect(historyRequests('bybit:ZIGUSDT', 5, NOW).urls).toEqual(['https://api.bybit.com/v5/market/kline?category=spot&symbol=ZIGUSDT&interval=5&limit=500']);
-    expect(historyRequests('binance:ONEUSDT', 5, Date.UTC(2026, 9, 9, 23, 55) / 1000).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=576']);
+    expect(historyRequests('binance:ONEUSDT', 5, Date.UTC(2026, 9, 9, 23, 55) / 1000).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=577']);
+  });
+
+  it('appel unique : la marge d’une bougie ne s’ajoute qu’au-delà du plancher de 500 (5 m dès 17:40 UTC)', () => {
+    const before = DAY + 17 * HOUR + 39 * 60 + 59;
+    const from = DAY + 17 * HOUR + 40 * 60;
+    expect([historyTarget(5, before), historyTarget(5, from)]).toEqual([500, 501]);
+    for (const series of ['binance:ONEUSDT', 'bybit:ZIGUSDT'] as const) {
+      expect(new URL(nth(historyRequests(series, 5, before).urls, 0)).searchParams.get('limit'), series).toBe('500');
+      expect(new URL(nth(historyRequests(series, 5, from).urls, 0)).searchParams.get('limit'), series).toBe('502');
+    }
   });
 
   it('15 m, 1 h, 4 h et 1 j : les URLs de CRY1.2, à toute heure de la journée', () => {
@@ -741,14 +752,16 @@ describe('historique Binance et Bybit de bout en bout, sur une API simulée', ()
     }
   });
 
-  it('chaque timeframe : historyTarget bougies contiguës au pas du timeframe, la bougie entamée en dernier', () => {
+  it('chaque timeframe : historyTarget bougies contiguës au pas du timeframe (une de plus en appel unique au-delà de 500), la bougie entamée en dernier', () => {
     for (const venue of ['binance', 'bybit'] as const) {
       for (const tf of CRYPTO_TIMEFRAMES) {
         const step = tf * 60;
         for (const now of INSTANTS) {
           const target = historyTarget(tf, now);
+          // La marge d’une bougie de l’appel unique : la plus ancienne tombe avant 00:00 UTC de la veille, l’appelant la coupe par l’heure.
+          const count = target > HISTORY_BARS && target <= 1000 ? target + 1 : target;
           const last = Math.floor(now / step) * step;
-          const expected = Array.from({ length: target }, (_, i) => last - (target - 1 - i) * step);
+          const expected = Array.from({ length: count }, (_, i) => last - (count - 1 - i) * step);
           expect(klineHistory(venue, tf, now).map((b) => b.time), `${venue} ${tf} min à ${now}`).toEqual(expected);
         }
       }

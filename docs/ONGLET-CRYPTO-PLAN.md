@@ -429,7 +429,7 @@ Règles :
 - `historyRequests(series, timeframe, nowSec)` couvre `historyTarget(timeframe, nowSec)` bougies (sauf Coinbase 240, qui garde 4 pages et `aggregate: 4` : décision du registre, 300 bougies 4h) :
   - **Binance** : `historyTarget ≤ 1000` → une URL, comme aujourd'hui, avec `limit=<historyTarget>` (inchangée pour 15m et au-dessus : `limit=500`). Au-delà → pages de 1 000 en avançant, `&startTime=<ms>&limit=1000`, la première à `(seau courant − (historyTarget − 1) × tf × 60) × 1000`, chaque suivante 1 000 bougies plus loin ; la dernière page couvre le seau courant.
   - **Bybit** : même règle, paramètre `start=<ms>` (et `limit=1000`), `interval` inchangé.
-  - **Coinbase** : `ceil(historyTarget / 300)` pages de 300 en remontant depuis le seau courant, au moins 2 comme aujourd'hui (1m : 7 à 10 pages).
+  - **Coinbase** : `ceil(historyTarget / 300)` pages de 300 en remontant depuis le seau courant, au moins 2 comme aujourd'hui (1m : 5 à 10 pages).
 - Toute URL passe `cryptoHostAllowed(url, 'https:')`. Les URLs des timeframes 15m, 1h, 4h et 1j restent identiques à celles de CRY1.2 (tests existants inchangés).
 - Spec § 5, « Historique », nouvelle première phrase : « À l'ouverture du chart, le main charge 500 bougies, ou davantage en 1m et 5m pour remonter au moins à 00:00 UTC de la veille (VWAP et niveaux du jour UTC) : jusqu'à 2 880 bougies en 1m et 576 en 5m. Coinbase 4h : 300 bougies (environ 50 jours). Elles restent en mémoire (aucune bougie crypto dans Dexie). »
 
@@ -565,8 +565,8 @@ Règles :
   - une socket par venue, ouverte au premier abonnement ;
   - compteur de références par clé de flux : une clé déjà active n'est pas réabonnée, et le dernier désabonnement d'une clé envoie l'`unsubscribe` ;
   - à chaque ouverture, réabonnement de toutes les clés actives ; dernier abonnement de la venue retiré → socket fermée, état `off`.
-  - Événements : ticker → `{ kind: 'ticker' }` ; kline Binance → `{ kind: 'bar', final }` ; trades Coinbase et Bybit → `TradeBarBuilder` de chaque abonnement `bars` du même marché et timeframe (créé à l'abonnement avec `now()`) → `{ kind: 'bar', final }`.
-  - `history` : refusé `rate_limited` si la porte est fermée, `blocked` si la venue est bloquée ; pages récupérées en séquence ; agrégation si besoin ; les `historyTarget(timeframe, now)` dernières bougies.
+  - Événements : ticker → `{ kind: 'ticker' }` ; kline Binance → `{ kind: 'bar', final }` ; trades Coinbase et Bybit → `TradeBarBuilder` de chaque abonnement `bars` du même marché et timeframe (créé au premier message confirmé de l'abonnement, `startedAtMs` = cet instant + 1 s, recréé à chaque reconnexion) → `{ kind: 'bar', final }`.
+  - `history` : refusé `rate_limited` si la porte est fermée, `blocked` si la venue est bloquée ; pages récupérées en séquence ; agrégation si besoin ; coupe par l'heure, jamais par le nombre : les bougies dont `time >= min(00:00 UTC de la veille, seau courant − (HISTORY_BARS − 1) × tf × 60)` (une bascule de seau pendant la pagination rend une bougie de plus, que la coupe garde).
   - `closeAll()` : toutes les sockets fermées, tous les abonnements oubliés, aucun timer vivant.
 
 - [ ] **Étape 1 : tests rouges** (fausse `WsLike`, `vi.useFakeTimers`) :

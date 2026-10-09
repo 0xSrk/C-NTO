@@ -20,6 +20,8 @@ const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const MESSAGE_MAX = 120;
 const BACKOFF_START_SEC = 1;
 const BACKOFF_MAX_SEC = 60;
+/** Plafond d'un `Retry-After` : une venue dérangée qui demande des années ne ferme la porte qu'une heure. */
+const RETRY_AFTER_MAX_SEC = 3600;
 
 /**
  * Réponse non OK d'une venue. `cryptoFetchJson` ne renseigne `retryAfterSec` que pour un 429 dont l'en-tête
@@ -109,7 +111,11 @@ function transportError(error: unknown, host: string, signal: AbortSignal): Erro
   return new Error(`Réseau indisponible (${where})`.slice(0, MESSAGE_MAX));
 }
 
-/** Corps d'une réponse OK, lu sur `MAX_BODY_BYTES` octets au plus, décodé en UTF-8 strict. */
+/**
+ * Corps d'une réponse OK, lu sur `MAX_BODY_BYTES` octets au plus, décodé en UTF-8 strict. Un bloc est reconnu par
+ * `ArrayBuffer.isView` et lu octet par octet à sa place dans son tampon : un `Uint8Array` d'un autre royaume (le fetch
+ * d'Electron) échoue à `instanceof`, et une autre vue (`DataView`, tableau typé décalé) ne se copie pas élément par élément.
+ */
 async function readBody(res: Response, host: string, signal: AbortSignal): Promise<string> {
   if (Number(res.headers.get('content-length')) > MAX_BODY_BYTES) {
     discard(res);
@@ -125,13 +131,13 @@ async function readBody(res: Response, host: string, signal: AbortSignal): Promi
       const step = await within(reader.read(), signal);
       if (step.done) break;
       const chunk: unknown = step.value;
-      if (!(chunk instanceof Uint8Array)) throw new TypeError('bloc inattendu');
+      if (!ArrayBuffer.isView(chunk)) throw new TypeError('bloc inattendu');
       size += chunk.byteLength;
       if (size > MAX_BODY_BYTES) {
         oversize = true;
         break;
       }
-      chunks.push(chunk);
+      chunks.push(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength));
     }
   } catch {
     // La cause d'origine ne sort pas : elle peut citer l'URL entière (voir `transportError`).
@@ -154,7 +160,7 @@ async function readBody(res: Response, host: string, signal: AbortSignal): Promi
 }
 
 /**
- * GET JSON vers un exchange. Les erreurs sont :
+ * GET JSON vers un exchange, sans cookie ni identifiant de session (`credentials: 'omit'`). Les erreurs sont :
  * - `Error('Hôte non autorisé')` : `hostOk` refuse (ou lève), l'URL n'est pas analysable ou n'est pas en https ;
  *   rien n'est envoyé ;
  * - `Error('Redirection refusée')` : réponse 3xx, `opaqueredirect`, ou redirection annulée par Electron ;
@@ -173,7 +179,7 @@ export async function cryptoFetchJson(
 
   let res: Response;
   try {
-    const init: RequestInit = { headers: { 'User-Agent': CRYPTO_UA, Accept: 'application/json' }, redirect: 'manual', signal };
+    const init: RequestInit = { headers: { 'User-Agent': CRYPTO_UA, Accept: 'application/json' }, redirect: 'manual', credentials: 'omit', signal };
     res = await within(deps.fetchImpl(url, init), signal);
   } catch (error) {
     throw transportError(error, host, signal);
@@ -208,8 +214,9 @@ interface VenueLine {
 
 /**
  * Portes de venue, en mémoire : le redémarrage du desk les remet à zéro, ce que veut aussi le 418.
- * - 429 : la venue est fermée jusqu'à `now + max(Retry-After, backoff)`. Le backoff vaut 1 s, double à chaque 429
- *   consécutif et plafonne à 60 s. Un 429 reçu pendant une pause ne la raccourcit jamais.
+ * - 429 : la venue est fermée jusqu'à `now + max(Retry-After, backoff)`, `Retry-After` plafonné à 3 600 s. Le backoff
+ *   vaut 1 s, double une fois par pause et plafonne à 60 s. Un 429 reçu pendant la pause (une requête partie avant
+ *   elle) ne redouble pas le backoff et ne la raccourcit jamais : seul son `Retry-After`, plafonné, peut l'allonger.
  * - Succès : le backoff retombe à 1 s. Une pause déjà décidée n'est pas levée : une autre requête, partie avant
  *   elle, peut aboutir pendant ce temps.
  * - 418 (IP bannie) : `blocked` jusqu'au redémarrage ; ni le temps ni un succès ne rouvrent la venue.
@@ -246,9 +253,15 @@ export class VenueGate {
     }
     if (err.status !== 429) return;
     const line = this.line(venue);
+    const now = this.now();
     const asked = err.retryAfterSec ?? 0;
-    const waitSec = Math.max(Number.isFinite(asked) && asked > 0 ? asked : 0, line.backoffSec);
-    line.until = Math.max(line.until, this.now() + waitSec * 1000);
+    const askedSec = Number.isFinite(asked) && asked > 0 ? Math.min(asked, RETRY_AFTER_MAX_SEC) : 0;
+    if (now < line.until) {
+      // Même pause : une rafale de requêtes parties ensemble ne redouble pas le backoff.
+      line.until = Math.max(line.until, now + askedSec * 1000);
+      return;
+    }
+    line.until = now + Math.max(askedSec, line.backoffSec) * 1000;
     line.backoffSec = Math.min(line.backoffSec * 2, BACKOFF_MAX_SEC);
   }
 
