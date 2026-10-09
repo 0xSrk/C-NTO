@@ -56,10 +56,36 @@ const FIXTURES: Record<CryptoVenue, { row: unknown[]; fields: number[]; needs: n
 };
 const VENUES = Object.keys(FIXTURES) as CryptoVenue[];
 
+/** Une bougie qui se tient : plus bas 1, plus haut 10, ouverture 2, et une clôture que l’appelant choisit entre 1 et 10. */
 function rowAt(venue: CryptoVenue, sec: number, close: number): unknown[] {
-  if (venue === 'coinbase') return [sec, 1, 3, 2, close, 7];
-  if (venue === 'binance') return [sec * 1000, '2', '3', '1', String(close), '7', sec * 1000 + 59999, '0', 0, '4'];
-  return [String(sec * 1000), '2', '3', '1', String(close), '7', '0'];
+  if (venue === 'coinbase') return [sec, 1, 10, 2, close, 7];
+  if (venue === 'binance') return [sec * 1000, '2', '10', '1', String(close), '7', sec * 1000 + 59999, '0', 0, '4'];
+  return [String(sec * 1000), '2', '10', '1', String(close), '7', '0'];
+}
+
+type Field = 'open' | 'high' | 'low' | 'close' | 'volume' | 'buyVolume';
+/** La position de chaque valeur de la bougie dans la ligne de chaque venue (Coinbase : [time, low, high, open, close, volume]). */
+const LAYOUT: Record<CryptoVenue, Partial<Record<Field, number>>> = {
+  coinbase: { low: 1, high: 2, open: 3, close: 4, volume: 5 },
+  binance: { open: 1, high: 2, low: 3, close: 4, volume: 5, buyVolume: 9 },
+  bybit: { open: 1, high: 2, low: 3, close: 4, volume: 5 },
+};
+
+/** La ligne témoin de la venue dont ces valeurs sont remplacées. Un nombre s’écrit en chaîne chez Binance et Bybit, comme dans leur API. */
+function rowWith(venue: CryptoVenue, over: Partial<Record<Field, unknown>>): unknown[] {
+  const row = [...FIXTURES[venue].row];
+  for (const [field, value] of Object.entries(over)) {
+    const index = LAYOUT[venue][field as Field];
+    if (index !== undefined) row[index] = typeof value === 'number' && venue !== 'coinbase' ? String(value) : value;
+  }
+  return row;
+}
+
+/** Ce que doit rendre `parseCandles` pour `rowWith(venue, over)` quand la ligne est admise (le témoin : ouverture 2, haut 3, bas 1, clôture 2,5, volume 7, et 4 d’achat chez Binance). */
+function barWith(venue: CryptoVenue, over: Partial<Record<Field, number>>): CryptoBar {
+  const { buyVolume = 4, ...values } = over;
+  const bar = { time: 1791536400, open: 2, high: 3, low: 1, close: 2.5, volume: 7, ...values };
+  return venue === 'binance' ? { ...bar, buyVolume } : bar;
 }
 
 describe('lecture des bougies', () => {
@@ -82,6 +108,15 @@ describe('lecture des bougies', () => {
     for (const venue of VENUES) {
       const { row, wrap } = FIXTURES[venue];
       expect(parseCandles(venue, wrap([row])), venue).toEqual([venue === 'binance' ? { ...expected, buyVolume: 4 } : expected]);
+    }
+  });
+
+  it('arrondit l’ouverture à la seconde entière, quelle que soit la précision de la venue', () => {
+    const times: Record<CryptoVenue, unknown> = { coinbase: 1791536400.9, binance: 1791536400999, bybit: '1791536400999' };
+    for (const venue of VENUES) {
+      const row = [...FIXTURES[venue].row];
+      row[0] = times[venue];
+      expect(parseCandles(venue, FIXTURES[venue].wrap([row])).map((b) => b.time), venue).toEqual([1791536400]);
     }
   });
 
@@ -130,6 +165,66 @@ describe('lecture des bougies', () => {
           expect(parseCandles(venue, wrap([broken])), `${venue} champ ${field} = ${JSON.stringify(bad) ?? 'undefined'}`).toEqual([]);
         }
       }
+    }
+  });
+
+  it('écarte une ligne dont un prix est nul ou négatif, ou dont le volume est négatif', () => {
+    const bad: unknown[] = [0, -1, -0.000001, '0', '0.00000000', '-0', '-1'];
+    for (const venue of VENUES) {
+      const { wrap } = FIXTURES[venue];
+      for (const field of ['open', 'high', 'low', 'close'] as const) {
+        for (const value of bad) expect(parseCandles(venue, wrap([rowWith(venue, { [field]: value })])), `${venue} ${field} = ${JSON.stringify(value)}`).toEqual([]);
+      }
+      for (const value of [-1, -0.000001, '-1']) expect(parseCandles(venue, wrap([rowWith(venue, { volume: value })])), `${venue} volume = ${JSON.stringify(value)}`).toEqual([]);
+    }
+  });
+
+  it('écarte une bougie qui ne se tient pas : plus haut sous le plus bas, sous l’ouverture ou sous la clôture, plus bas au-dessus de l’une ou de l’autre', () => {
+    const broken: Partial<Record<Field, unknown>>[] = [
+      { high: 1, low: 3, open: 2, close: 2 },
+      { high: 2.4 },
+      { high: 1.9 },
+      { low: 2.1 },
+      { low: 2.6 },
+      { open: 0.5 },
+      { open: 3.5 },
+      { close: 0.5 },
+      { close: 3.5 },
+    ];
+    for (const venue of VENUES) {
+      for (const over of broken) expect(parseCandles(venue, FIXTURES[venue].wrap([rowWith(venue, over)])), `${venue} ${JSON.stringify(over)}`).toEqual([]);
+    }
+  });
+
+  it('Binance : un volume acheteur négatif ou supérieur au volume écarte la ligne', () => {
+    for (const buyVolume of [-1, -0.000001, 7.000001, 8, '8', '-1']) {
+      expect(parseCandles('binance', [rowWith('binance', { buyVolume })]), JSON.stringify(buyVolume)).toEqual([]);
+    }
+    expect(parseCandles('binance', [rowWith('binance', { volume: 0, buyVolume: 0.1 })])).toEqual([]);
+    expect(parseCandles('binance', [rowWith('binance', { volume: -1, buyVolume: -1 })])).toEqual([]);
+  });
+
+  it('garde les bougies limites : prix égaux, ouverture sur le plus bas, clôture sur le plus haut, volume nul, volume acheteur égal au volume, plus petit prix', () => {
+    const edges: Partial<Record<Field, number>>[] = [
+      { open: 2, high: 2, low: 2, close: 2 },
+      { open: 1, close: 3 },
+      { open: 3, close: 1 },
+      { volume: 0, buyVolume: 0 },
+      { buyVolume: 7 },
+      { buyVolume: 0 },
+      { low: 0.00000001 },
+    ];
+    for (const venue of VENUES) {
+      for (const over of edges) {
+        expect(parseCandles(venue, FIXTURES[venue].wrap([rowWith(venue, over)])), `${venue} ${JSON.stringify(over)}`).toEqual([barWith(venue, over)]);
+      }
+    }
+  });
+
+  it('une ligne écartée par ces règles ne gêne pas ses voisines', () => {
+    for (const venue of VENUES) {
+      const rows = [rowWith(venue, { low: 0 }), FIXTURES[venue].row, rowWith(venue, { high: 1 }), rowWith(venue, { volume: -1 })];
+      expect(parseCandles(venue, FIXTURES[venue].wrap(rows)), venue).toEqual([barWith(venue, {})]);
     }
   });
 

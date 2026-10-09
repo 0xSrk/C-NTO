@@ -13,8 +13,11 @@ export const HISTORY_BARS: 500;
  */
 export function historyRequests(series: CryptoSeriesId, timeframe: CryptoTimeframe, nowSec: number): { urls: string[]; aggregate: number };
 /**
- * Les bougies d'une réponse de venue (JSON décodé), par time croissant (secondes) et sans doublon. Une ligne courte
- * ou non finie est écartée. Lève seulement `Error(retMsg)` pour Bybit quand `retCode` n'est pas 0.
+ * Les bougies d'une réponse de venue (JSON décodé), par time croissant (secondes) et sans doublon. Une ligne courte,
+ * non finie ou qui ne se tient pas est écartée : prix nul ou négatif, plus haut sous le plus bas, sous l'ouverture ou
+ * sous la clôture, plus bas au-dessus, volume négatif, volume acheteur (Binance) hors de 0 et du volume. Les flux
+ * WebSocket appliquent les mêmes règles aux bougies de `parseWsMessage`. Lève seulement `Error(retMsg)` pour Bybit
+ * quand `retCode` n'est pas 0.
  */
 export function parseCandles(venue: CryptoVenue, json: unknown): CryptoBar[];
 /**
@@ -52,7 +55,8 @@ export function streamKeys(series: CryptoSeriesId, kind: 'ticker' | 'bars', time
 export function subscribeMessage(venue: CryptoVenue, keys: readonly string[], on: boolean, id: number): string;
 /**
  * Ce qu'un message de flux donne : un ticker, un trade (`aggressor` est le côté qui a pris la liquidité), une
- * bougie Binance entière (`final` : elle est close), la preuve de vie de la socket, l'erreur de la venue, ou rien.
+ * bougie Binance entière (`final` : elle est close), la preuve de vie de la socket, l'erreur de la venue (une erreur
+ * Coinbase, une demande refusée chez Bybit ou Binance ; `detail` tient en 200 caractères), ou rien.
  */
 export type WsParsed =
   | { kind: 'ticker'; ticker: CryptoTicker }
@@ -64,7 +68,10 @@ export type WsParsed =
 /**
  * Lit un message de flux, le texte JSON tel que la socket le livre. Ne lève jamais et ne rend jamais de tableau
  * vide : un texte illisible ou coupé, une venue ou un type inconnus, un symbole hors du registre, un côté qui n'est
- * pas celui de la venue, un nombre non fini donnent `[{ kind: 'ignored' }]` ; un message de trades porte un trade par
- * ligne valide. Les acquittements d'abonnement ne donnent rien, `heartbeat` est la preuve de vie.
+ * pas celui de la venue, un nombre non fini, un prix ou une quantité nuls ou négatifs, une bougie qui ne se tient pas
+ * (les règles de `parseCandles`), un horodatage Coinbase qui n'est pas de l'ISO 8601 en UTC terminé par `Z` donnent
+ * `[{ kind: 'ignored' }]` ; un message de trades porte un trade par ligne valide. Les acquittements réussis ne
+ * donnent rien ; une demande refusée (Coinbase `error`, Bybit `success: false`, Binance `error`) donne
+ * `{ kind: 'error', detail }`, `detail` borné à 200 caractères. `heartbeat` est la preuve de vie.
  */
 export function parseWsMessage(venue: CryptoVenue, raw: string): WsParsed[];

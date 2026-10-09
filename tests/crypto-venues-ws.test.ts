@@ -4,6 +4,7 @@ import {
   CRYPTO_MARKETS,
   CRYPTO_TIMEFRAMES,
   cryptoHostAllowed,
+  type CryptoBar,
   type CryptoSeriesId,
   type CryptoTimeframe,
   type CryptoVenue,
@@ -13,6 +14,7 @@ import {
   PREMIUM_INDEX_URL,
   TICKER_24H_URL,
   openInterestUrl,
+  parseCandles,
   parseWsMessage,
   streamKeys,
   subscribeMessage,
@@ -56,6 +58,8 @@ const BN_KLINE_FINAL =
 const BN_KLINE_LIVE =
   '{"e":"kline","E":1791549142026,"s":"BTCUSDT","k":{"t":1791547200000,"T":1791550799999,"s":"BTCUSDT","i":"1h","f":6750796658,"L":6750886254,"o":"83246.82000000","c":"83108.52000000","h":"83418.00000000","l":"83050.02000000","v":"345.01548000","n":89597,"x":false,"q":"28716628.00892020","V":"188.43058000","Q":"15685554.35113190","B":"0"}}';
 const BN_ACK = '{"result":null,"id":1}';
+// Demande refusée, relevée en direct : params n’était pas un tableau. Binance ferme ensuite la socket (1008).
+const BN_REFUSED = '{"error":{"code":2,"msg":"Invalid request: streams must be an array"},"id":11}';
 
 const BY_TICKER =
   '{"topic":"tickers.ZIGUSDT","ts":1791540000123,"type":"snapshot","data":{"symbol":"ZIGUSDT","lastPrice":"0.05932","price24hPcnt":"0.0061","highPrice24h":"0.06102","lowPrice24h":"0.0579","prevPrice24h":"0.05897","volume24h":"19122164.31","turnover24h":"1133429.78"}}';
@@ -66,6 +70,8 @@ const BY_TRADES =
   '{"topic":"publicTrade.ZIGUSDT","ts":1791540000123,"type":"snapshot","data":[{"i":"2290000001228943833","T":1791540000100,"p":"0.05931","v":"120.5","S":"Sell","seq":115188396083,"s":"ZIGUSDT","BT":false,"RPI":false},{"i":"2290000001228943834","T":1791540000100,"p":"0.05932","v":"61","S":"Buy","seq":115188396083,"s":"ZIGUSDT","BT":false,"RPI":false}]}';
 const BY_ACK = '{"success":true,"ret_msg":"subscribe","conn_id":"d9avrremonceh80v85sg-gbvsb","op":"subscribe"}';
 const BY_PONG = '{"success":true,"ret_msg":"pong","conn_id":"d9avrremonceh80v85sg-gbvsb","op":"ping"}';
+// Abonnement refusé, relevé en direct : un symbole que la venue ne connaît pas.
+const BY_REFUSED = '{"success":false,"ret_msg":"Invalid symbol :[tickers.NOPENOPEUSDT]","conn_id":"d9avtftc9enb83116hvg-gozf5","op":"subscribe"}';
 
 /** Chaque message de référence, avec la venue qui le parle. */
 const SAMPLES: { venue: CryptoVenue; name: string; raw: string }[] = [
@@ -82,11 +88,13 @@ const SAMPLES: { venue: CryptoVenue; name: string; raw: string }[] = [
   { venue: 'binance', name: 'kline finale', raw: BN_KLINE_FINAL },
   { venue: 'binance', name: 'kline réelle', raw: BN_KLINE_LIVE },
   { venue: 'binance', name: 'acquittement', raw: BN_ACK },
+  { venue: 'binance', name: 'demande refusée', raw: BN_REFUSED },
   { venue: 'bybit', name: 'tickers', raw: BY_TICKER },
   { venue: 'bybit', name: 'tickers réel', raw: BY_TICKER_LIVE },
   { venue: 'bybit', name: 'publicTrade', raw: BY_TRADES },
   { venue: 'bybit', name: 'acquittement', raw: BY_ACK },
   { venue: 'bybit', name: 'pong', raw: BY_PONG },
+  { venue: 'bybit', name: 'abonnement refusé', raw: BY_REFUSED },
 ];
 
 /** Les mêmes messages, en objets, que les tests cassent champ par champ. */
@@ -426,6 +434,9 @@ describe('lecture des messages Coinbase', () => {
       { kind: 'error', detail: 'Failed to subscribe: ETH-XXX is not a valid product' },
     ]);
     expect(parseWsMessage('coinbase', '{"type":"error","reason":"rate limit"}')).toEqual([{ kind: 'error', detail: 'rate limit' }]);
+    // Un texte blanc ne compte pas : il n’ajoute ni séparateur ni espaces.
+    expect(parseWsMessage('coinbase', '{"type":"error","message":"Failed to subscribe","reason":"   "}')).toEqual([{ kind: 'error', detail: 'Failed to subscribe' }]);
+    expect(parseWsMessage('coinbase', '{"type":"error","message":"  ","reason":"rate limit"}')).toEqual([{ kind: 'error', detail: 'rate limit' }]);
   });
 
   it('error sans texte exploitable : un détail quand même, jamais vide', () => {
@@ -460,6 +471,74 @@ describe('lecture des messages Coinbase', () => {
   it('price: abc est ignoré, ticker comme match', () => {
     expect(parseWsMessage('coinbase', wire({ ...BASE.cbTicker, price: 'abc' }))).toEqual(IGNORED);
     expect(parseWsMessage('coinbase', wire({ ...BASE.cbMatch, price: 'abc' }))).toEqual(IGNORED);
+  });
+
+  it('time : un horodatage ISO 8601 en UTC terminé par Z est lu, avec ou sans fraction de seconde', () => {
+    const accepted: [string, number][] = [
+      ['2026-10-09T10:00:01Z', 1791540001000],
+      ['2026-10-09T10:00:01.5Z', 1791540001500],
+      ['2026-10-09T10:00:01.000Z', 1791540001000],
+      ['2026-10-09T09:57:05.853031Z', 1791539825853],
+      ['2026-10-09T23:59:59.999999Z', 1791590399999],
+      ['2028-02-29T12:00:00Z', 1835438400000],
+    ];
+    for (const [time, ms] of accepted) {
+      expect(parseWsMessage('coinbase', wire({ ...BASE.cbTicker, time })), time).toEqual([
+        { kind: 'ticker', ticker: { market: 'coinbase:BTC-USD', last: 82595.17, change24hPct: expect.closeTo(1.8436128, 6), time: ms } },
+      ]);
+      expect(parseWsMessage('coinbase', wire({ ...BASE.cbMatch, time })), time).toEqual([
+        { kind: 'trade', trade: { market: 'coinbase:BTC-USD', time: ms, price: 82500.1, size: 0.01, aggressor: 'buy' } },
+      ]);
+    }
+  });
+
+  it('time : tout ce que Date.parse lirait par complaisance écarte le message : chiffres seuls, mois en lettres, date sans heure, heure sans Z, décalage, casse', () => {
+    const rejected: unknown[] = [
+      '1',
+      '2026',
+      'Oct 9 2026',
+      '2026-10-09',
+      '2026-10-09T10:00:01',
+      '2026-10-09T10:00:01.000',
+      '2026-10-09T10:00:01+00:00',
+      '2026-10-09T10:00:01+02:00',
+      '2026-10-09T10:00:01z',
+      '2026-10-09t10:00:01Z',
+      '2026-10-09 10:00:01Z',
+      ' 2026-10-09T10:00:01Z',
+      '2026-10-09T10:00:01Z ',
+      '2026-10-09T10:00:01Z\n',
+      '2026-10-09T10:00:01.Z',
+      '2026-10-09T10:00Z',
+      'Fri, 09 Oct 2026 10:00:01 GMT',
+      '1791540001000',
+      1791540001000,
+      '',
+    ];
+    for (const time of rejected) {
+      expect(parseWsMessage('coinbase', wire({ ...BASE.cbTicker, time })), JSON.stringify(time)).toEqual(IGNORED);
+      expect(parseWsMessage('coinbase', wire({ ...BASE.cbMatch, time })), JSON.stringify(time)).toEqual(IGNORED);
+    }
+  });
+
+  it('time : une date qui n’existe pas est ignorée, au lieu d’être reportée au lendemain ou au mois suivant', () => {
+    const impossible = [
+      '2026-02-30T00:00:00Z',
+      '2026-02-29T00:00:00Z',
+      '2026-04-31T00:00:00Z',
+      '2026-13-01T00:00:00Z',
+      '2026-00-10T00:00:00Z',
+      '2026-10-00T00:00:00Z',
+      '2026-10-32T00:00:00Z',
+      '2026-10-09T24:00:00Z',
+      '2026-10-09T25:00:00Z',
+      '2026-10-09T10:60:00Z',
+      '2026-10-09T10:00:60Z',
+    ];
+    for (const time of impossible) {
+      expect(parseWsMessage('coinbase', wire({ ...BASE.cbTicker, time })), time).toEqual(IGNORED);
+      expect(parseWsMessage('coinbase', wire({ ...BASE.cbMatch, time })), time).toEqual(IGNORED);
+    }
   });
 });
 
@@ -581,11 +660,10 @@ describe('lecture des messages Bybit', () => {
     ]);
   });
 
-  it('tickers réel : la variation est celle de prevPrice24h, en pourcent', () => {
-    const [event] = parseWsMessage('bybit', BY_TICKER_LIVE);
-    expect(event).toEqual({ kind: 'ticker', ticker: { market: 'bybit:ZIGUSDT', last: 0.05967, change24hPct: expect.closeTo(1.05, 9), time: 1791549140024 } });
-    // 0,05967 / 0,05905 - 1, en pourcent : la venue arrondit à quatre décimales.
-    expect(0.05967 / 0.05905 - 1).toBeCloseTo(0.0105, 4);
+  it('tickers réel : la variation est price24hPcnt (0,0105 pour 0,05905 la veille), soit 1,05 %', () => {
+    expect(parseWsMessage('bybit', BY_TICKER_LIVE)).toEqual([
+      { kind: 'ticker', ticker: { market: 'bybit:ZIGUSDT', last: 0.05967, change24hPct: expect.closeTo(1.05, 9), time: 1791549140024 } },
+    ]);
   });
 
   it('tickers : sans price24hPcnt exploitable, le prix passe et la variation est null', () => {
@@ -667,6 +745,204 @@ describe('lecture des messages Bybit', () => {
   it('tickers sans data exploitable : ignoré', () => {
     for (const data of [undefined, null, 'x', 5, [], [{ lastPrice: '1' }], true]) {
       expect(parseWsMessage('bybit', wire({ ...BASE.byTicker, data })), JSON.stringify(data) ?? 'undefined').toEqual(IGNORED);
+    }
+  });
+});
+
+describe('valeurs nulles, négatives ou incohérentes', () => {
+  /** Chaque prix et chaque quantité que portent les messages : strictement positifs, sinon le message, ou sa ligne, est écarté. */
+  const POSITIVE: { venue: CryptoVenue; name: string; base: unknown; paths: string[][] }[] = [
+    { venue: 'coinbase', name: 'ticker', base: BASE.cbTicker, paths: [['price']] },
+    { venue: 'coinbase', name: 'match', base: BASE.cbMatch, paths: [['price'], ['size']] },
+    { venue: 'binance', name: 'miniTicker', base: BASE.bnTicker, paths: [['c']] },
+    { venue: 'binance', name: 'kline', base: BASE.bnKline, paths: [['k', 'o'], ['k', 'h'], ['k', 'l'], ['k', 'c']] },
+    { venue: 'bybit', name: 'tickers', base: BASE.byTicker, paths: [['data', 'lastPrice']] },
+    { venue: 'bybit', name: 'publicTrade', base: BASE.byTrade, paths: [['data', '0', 'p'], ['data', '0', 'v']] },
+  ];
+  const NON_POSITIVE: unknown[] = [0, '0', '0.0', '0.00000000', -1, '-1', '-0.5', '-0', '-0.00000001', -1e-300];
+
+  /** Un message kline Binance (ONEUSDT, 1 h) dont ces valeurs remplacent celles du témoin, et la bougie qu’il donne (`null` : écartée). */
+  const klineMessage = (over: Record<string, unknown>): string => wire({ ...BASE.bnKline, k: { ...BASE.bnKline.k, ...over } });
+  const klineBar = (text: string): CryptoBar | null => {
+    const [event] = parseWsMessage('binance', text);
+    return event?.kind === 'kline' ? event.bar : null;
+  };
+
+  it('un prix ou une quantité nuls ou négatifs écartent le message, partout où il y en a un', () => {
+    for (const { venue, name, base, paths } of POSITIVE) {
+      expect(parseWsMessage(venue, wire(base)).map((e) => e.kind), `${venue} ${name} (témoin)`).not.toEqual(['ignored']);
+      for (const path of paths) {
+        for (const bad of NON_POSITIVE) {
+          expect(parseWsMessage(venue, wire(withField(base, path, bad))), `${venue} ${name} ${path.join('.')} = ${JSON.stringify(bad)}`).toEqual(IGNORED);
+        }
+      }
+    }
+  });
+
+  it('le plus petit prix positif passe : tickers, trades et bougies', () => {
+    for (const tiny of ['0.00000001', 1e-8, '1e-300', 5e-324]) {
+      for (const { venue, name, base, paths } of POSITIVE) {
+        if (name === 'kline') continue;
+        for (const path of paths) {
+          expect(parseWsMessage(venue, wire(withField(base, path, tiny))).map((e) => e.kind), `${venue} ${name} ${path.join('.')} = ${tiny}`).not.toEqual(['ignored']);
+        }
+      }
+    }
+    expect(klineBar(klineMessage({ o: '0.00000001', h: '0.00000001', l: '0.00000001', c: '0.00000001' }))).toEqual({
+      time: 1791536400,
+      open: 1e-8,
+      high: 1e-8,
+      low: 1e-8,
+      close: 1e-8,
+      volume: 87072165.8,
+      buyVolume: 46488643.3,
+    });
+  });
+
+  it('publicTrade : une ligne au prix ou à la quantité nuls ou négatifs est écartée, ses voisines valides sont gardées', () => {
+    const good = BASE.byTrade.data[0];
+    const data = [{ ...good, v: '0' }, { ...good, v: '2' }, { ...good, p: '0' }, { ...good, p: '-1' }, { ...good, v: '-1' }, { ...good, S: 'Buy', v: '3' }];
+    expect(parseWsMessage('bybit', wire({ ...BASE.byTrade, data })).map((e) => (e.kind === 'trade' ? [e.trade.size, e.trade.aggressor] : e.kind))).toEqual([
+      [2, 'sell'],
+      [3, 'buy'],
+    ]);
+  });
+
+  it('kline : un volume nul est admis, un volume négatif ne l’est pas', () => {
+    expect(klineBar(klineMessage({ v: '0', V: '0' }))).toEqual({ time: 1791536400, open: 0.002142, high: 0.002217, low: 0.002139, close: 0.002158, volume: 0, buyVolume: 0 });
+    for (const v of ['-1', -1, '-0.00000001']) expect(klineBar(klineMessage({ v, V: '0' })), JSON.stringify(v)).toBeNull();
+  });
+
+  it('kline : le volume acheteur reste entre 0 et le volume', () => {
+    expect(klineBar(klineMessage({ v: '7', V: '7' }))?.buyVolume).toBe(7);
+    expect(klineBar(klineMessage({ v: '7', V: '0' }))?.buyVolume).toBe(0);
+    for (const V of ['7.000001', '8', 8, '-1', -1, '-0.000001']) expect(klineBar(klineMessage({ v: '7', V })), JSON.stringify(V)).toBeNull();
+    expect(klineBar(klineMessage({ v: '0', V: '0.1' }))).toBeNull();
+  });
+
+  it('kline : une bougie qui se tient passe, une bougie qui ne se tient pas est écartée', () => {
+    // [ouverture, plus haut, plus bas, clôture]
+    const holds: [number, number, number, number][] = [[2, 3, 1, 2.5], [2, 2, 2, 2], [1, 3, 1, 3], [3, 3, 1, 1], [2, 3, 1, 1], [2, 3, 1, 3], [2.5, 2.5, 1, 1]];
+    const broken: [number, number, number, number][] = [
+      [2, 1, 3, 2], // plus haut sous le plus bas
+      [3, 2, 1, 1.5], // plus haut sous l’ouverture
+      [2, 2.4, 1, 2.5], // plus haut sous la clôture
+      [2, 3, 2.1, 2.5], // plus bas au-dessus de l’ouverture
+      [2.5, 3, 2.2, 2.1], // plus bas au-dessus de la clôture
+      [3.5, 3, 1, 2], // ouverture au-dessus du plus haut
+      [2, 3, 1, 3.5], // clôture au-dessus du plus haut
+      [0.5, 3, 1, 2], // ouverture sous le plus bas
+      [2, 3, 1, 0.5], // clôture sous le plus bas
+    ];
+    const text = ([o, h, l, c]: [number, number, number, number]): string => klineMessage({ o: String(o), h: String(h), l: String(l), c: String(c) });
+    for (const prices of holds) {
+      const [open, high, low, close] = prices;
+      expect(klineBar(text(prices)), `${prices}`).toEqual({ time: 1791536400, open, high, low, close, volume: 87072165.8, buyVolume: 46488643.3 });
+    }
+    for (const prices of broken) expect(klineBar(text(prices)), `${prices}`).toBeNull();
+  });
+
+  it('une bougie Binance reçoit le même verdict et la même valeur de la ligne REST et du message kline, sur toute une grille', () => {
+    const prices = [-1, 0, 1, 2, 3];
+    const volumes: [number, number][] = [[7, 4], [7, 7], [7, 8], [7, -1], [0, 0], [0, 1], [-1, 0], [-1, -1]];
+    let accepted = 0;
+    let total = 0;
+    for (const o of prices) {
+      for (const h of prices) {
+        for (const l of prices) {
+          for (const c of prices) {
+            for (const [v, V] of volumes) {
+              total++;
+              const label = `ouverture ${o}, haut ${h}, bas ${l}, clôture ${c}, volume ${v}, acheteur ${V}`;
+              const holds = [o, h, l, c].every((p) => p > 0) && l <= Math.min(o, c) && Math.max(o, c) <= h && v >= 0 && V >= 0 && V <= v;
+              const expected = holds ? [{ time: 1791536400, open: o, high: h, low: l, close: c, volume: v, buyVolume: V }] : [];
+              const row = [1791536400000, String(o), String(h), String(l), String(c), String(v), 1791539999999, '0', 0, String(V)];
+              const live = klineBar(klineMessage({ o: String(o), h: String(h), l: String(l), c: String(c), v: String(v), V: String(V) }));
+              expect(parseCandles('binance', [row]), `REST : ${label}`).toEqual(expected);
+              expect(live === null ? [] : [live], `WebSocket : ${label}`).toEqual(expected);
+              if (holds) accepted++;
+            }
+          }
+        }
+      }
+    }
+    // 20 formes de bougie qui se tiennent × 3 couples de volumes admis, sur 5 000 combinaisons.
+    expect({ total, accepted }).toEqual({ total: 5000, accepted: 60 });
+  });
+});
+
+describe('demandes refusées par la venue', () => {
+  const detailOf = (venue: CryptoVenue, text: string): string | null => {
+    const [event] = parseWsMessage(venue, text);
+    return event?.kind === 'error' ? event.detail : null;
+  };
+  /** Le message d’erreur de chaque venue, avec ce texte. */
+  const ERRORS: { venue: CryptoVenue; name: string; message: (text: string) => string }[] = [
+    { venue: 'coinbase', name: 'error', message: (text) => wire({ type: 'error', message: text }) },
+    { venue: 'bybit', name: 'abonnement refusé', message: (text) => wire({ success: false, ret_msg: text, op: 'subscribe' }) },
+    { venue: 'binance', name: 'demande refusée', message: (text) => wire({ error: { code: 2, msg: text }, id: 1 }) },
+  ];
+
+  it('Bybit : un abonnement refusé est une erreur avec le texte de la venue, un abonnement réussi reste ignoré', () => {
+    expect(parseWsMessage('bybit', BY_REFUSED)).toEqual([{ kind: 'error', detail: 'Invalid symbol :[tickers.NOPENOPEUSDT]' }]);
+    const refusals: [string, string][] = [
+      ['Invalid topic :[foo.bar]', 'subscribe'],
+      ['args required!', 'subscribe'],
+      ['Invalid op!', ''],
+    ];
+    for (const [ret_msg, op] of refusals) {
+      expect(parseWsMessage('bybit', wire({ success: false, ret_msg, conn_id: 'd9avtftc9enb83116hvg-gozf5', op })), ret_msg).toEqual([{ kind: 'error', detail: ret_msg }]);
+    }
+    // Sans texte exploitable : un détail quand même.
+    for (const ret_msg of [undefined, null, '', '   ', 5, {}, []]) {
+      expect(parseWsMessage('bybit', wire({ success: false, ret_msg, op: 'subscribe' })), JSON.stringify(ret_msg) ?? 'undefined').toEqual([{ kind: 'error', detail: 'bybit: request rejected' }]);
+    }
+    // Les réussites restent ignorées, et seul `success: false` refuse.
+    expect(parseWsMessage('bybit', BY_ACK)).toEqual(IGNORED);
+    expect(parseWsMessage('bybit', '{"success":true,"ret_msg":"unsubscribe","conn_id":"abc","op":"unsubscribe"}')).toEqual(IGNORED);
+    for (const success of [undefined, null, 'false', 0, 'no', [], {}]) {
+      expect(parseWsMessage('bybit', wire({ success, ret_msg: 'x', op: 'subscribe' })), JSON.stringify(success) ?? 'undefined').toEqual(IGNORED);
+    }
+  });
+
+  it('Binance : une demande refusée est une erreur avec le texte de la venue, un acquittement reste ignoré', () => {
+    expect(parseWsMessage('binance', BN_REFUSED)).toEqual([{ kind: 'error', detail: 'Invalid request: streams must be an array' }]);
+    // Relevés en direct : sans identifiant (JSON illisible), avec un identifiant null.
+    expect(parseWsMessage('binance', '{"error":{"code":3,"msg":"Invalid JSON: EOF while parsing an object at line 1 column 1"}}')).toEqual([
+      { kind: 'error', detail: 'Invalid JSON: EOF while parsing an object at line 1 column 1' },
+    ]);
+    expect(parseWsMessage('binance', '{"error":{"code":2,"msg":"Invalid request: missing field `method`"},"id":null}')).toEqual([
+      { kind: 'error', detail: 'Invalid request: missing field `method`' },
+    ]);
+    // Sans texte exploitable : un détail quand même.
+    for (const error of [{}, { code: 2 }, { msg: '' }, { msg: '   ' }, { msg: 5 }, { msg: null }]) {
+      expect(parseWsMessage('binance', wire({ error, id: 1 })), JSON.stringify(error)).toEqual([{ kind: 'error', detail: 'binance: request rejected' }]);
+    }
+    // `error` n’est une erreur que s’il est un objet ; les acquittements restent ignorés.
+    for (const error of [null, undefined, 'boom', 5, true, [], ['x']]) {
+      expect(parseWsMessage('binance', wire({ error, id: 1 })), JSON.stringify(error) ?? 'undefined').toEqual(IGNORED);
+    }
+    expect(parseWsMessage('binance', BN_ACK)).toEqual(IGNORED);
+    expect(parseWsMessage('binance', '{"result":null,"id":null}')).toEqual(IGNORED);
+    expect(parseWsMessage('binance', '{"result":null,"id":"abc"}')).toEqual(IGNORED);
+  });
+
+  it('le texte d’une erreur est borné à 200 caractères, pour les trois venues', () => {
+    for (const { venue, name, message } of ERRORS) {
+      for (const length of [1, 199, 200]) expect(detailOf(venue, message('x'.repeat(length))), `${venue} ${name} ${length}`).toBe('x'.repeat(length));
+      for (const length of [201, 5000, 100000]) expect(detailOf(venue, message('x'.repeat(length))), `${venue} ${name} ${length}`).toBe('x'.repeat(200));
+    }
+    // Coinbase assemble message et reason : c’est le texte assemblé qui est borné.
+    expect(detailOf('coinbase', wire({ type: 'error', message: 'a'.repeat(150), reason: 'b'.repeat(150) }))).toBe(`${'a'.repeat(150)}: ${'b'.repeat(48)}`);
+  });
+
+  it('le texte borné ne coupe pas une paire de substitution en deux', () => {
+    const emoji = '\u{1F600}'; // deux unités UTF-16
+    for (const { venue, name, message } of ERRORS) {
+      // La 200e unité serait la moitié haute d’une paire : la paire entière est écartée.
+      expect(detailOf(venue, message(`a${emoji.repeat(150)}`)), `${venue} ${name}`).toBe(`a${emoji.repeat(99)}`);
+      // La coupure tombe entre deux paires : rien à écarter.
+      expect(detailOf(venue, message(emoji.repeat(150))), `${venue} ${name}`).toBe(emoji.repeat(100));
     }
   });
 });
@@ -815,8 +1091,17 @@ describe('partage avec le process principal', () => {
     }
   });
 
-  it('le .d.ts déclare les six genres de WsParsed', () => {
+  it('le .d.ts déclare WsParsed avec ses six genres, dans l’ordre du module', () => {
     const declaration = readFileSync('electron/crypto/venues.d.ts', 'utf8');
-    for (const kind of ['ticker', 'trade', 'kline', 'heartbeat', 'error', 'ignored']) expect(declaration, kind).toContain(`kind: '${kind}'`);
+    // Seul le bloc de WsParsed compte : `kind: 'ticker'` s’écrit aussi dans la signature de streamKeys.
+    const start = declaration.indexOf('export type WsParsed =');
+    expect(start).toBeGreaterThan(-1);
+    const end = declaration.indexOf('/**', start);
+    const block = declaration.slice(start, end === -1 ? undefined : end);
+    expect([...block.matchAll(/kind: '(\w+)'/g)].map((m) => m[1])).toEqual(['ticker', 'trade', 'kline', 'heartbeat', 'error', 'ignored']);
+    expect(block).toContain("{ kind: 'ticker'; ticker: CryptoTicker }");
+    expect(block).toContain("{ kind: 'trade'; trade: CryptoTrade }");
+    expect(block).toContain("{ kind: 'kline'; series: CryptoSeriesId; timeframe: CryptoTimeframe; bar: CryptoBar; final: boolean }");
+    expect(block).toContain("{ kind: 'error'; detail: string }");
   });
 });
