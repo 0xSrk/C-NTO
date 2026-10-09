@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { uid } from '@/lib/id';
 
-/** `copieur` : `08 · CPY` sur le rail depuis la 3.3.0. */
-export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur' | 'portefeuille';
+/** `copieur` : `08 · CPY` sur le rail depuis la 3.3.0. `crypto` : `09 · CRY`, éteint par défaut. */
+export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur' | 'portefeuille' | 'crypto';
 
 export interface Toast {
   id: string;

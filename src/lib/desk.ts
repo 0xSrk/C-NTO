@@ -132,6 +132,23 @@ export interface SeatApi {
   submit: (line: string) => Promise<{ ok: true; client: string } | { ok: false }>;
 }
 
+/** État d'une venue du module crypto, tenu par le process principal. */
+export type CryptoVenueState = 'off' | 'connecting' | 'live' | 'reconnecting' | 'stale' | 'blocked';
+
+/** Module crypto (onglet 09) : l'interrupteur et l'état des trois venues. Le renderer les lit, le process principal les tient. */
+export interface CryptoMainStatus {
+  enabled: boolean;
+  venues: Record<'coinbase' | 'binance' | 'bybit', CryptoVenueState>;
+}
+
+export interface CryptoApi {
+  status: () => Promise<CryptoMainStatus>;
+  /** Dialogue du process principal ; rend le statut, allumé ou non. */
+  enable: () => Promise<CryptoMainStatus>;
+  disable: () => Promise<CryptoMainStatus>;
+  onStatus: (cb: (s: CryptoMainStatus) => void) => () => void;
+}
+
 export interface NtBridgeApi {
   status: () => Promise<NtBridgeStatus | null>;
   rotateToken: () => Promise<{ hasToken: boolean }>;
@@ -217,6 +234,8 @@ export interface DeskApi {
   copier?: CopierApi;
   agentOrders?: AgentOrdersApi;
   seat?: SeatApi;
+  /** Module crypto personnel, éteint par défaut ; absent hors du desk. */
+  crypto?: CryptoApi;
   secrets: {
     /** Chiffre avec le trousseau du système ; null si indisponible */
     encrypt: (text: string) => Promise<string | null>;

@@ -89,7 +89,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const m = /^Digit([1-8])$/.exec(e.code);
+      const m = /^Digit([1-9])$/.exec(e.code);
       if ((e.ctrlKey || e.metaKey) && m && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         const next = TABS[Number(m[1]) - 1];

@@ -72,6 +72,14 @@ export const IconCopier = (p: P) => (
   </svg>
 );
 
+export const IconCrypto = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M5 3.5h3.25a2 2 0 010 4H5z" />
+    <path d="M5 7.5h4a2.25 2.25 0 010 4.5H5z" />
+    <path d="M6.5 2v1.5M8 2v1.5M6.5 12v2M8 12v2" opacity=".55" />
+  </svg>
+);
+
 export const IconImport = (p: P) => (
   <svg {...base(p)}>
     <path d="M8 2v8M5 7l3 3 3-3" />

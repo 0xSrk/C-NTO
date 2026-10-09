@@ -1,7 +1,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import { tr } from '@/i18n';
 import type { TabId } from '@/store/ui';
-import { IconAgent, IconBot, IconCalendar, IconCopier, IconMetric, IconNote, IconPortfolio, IconVisual } from './icons';
+import { IconAgent, IconBot, IconCalendar, IconCopier, IconCrypto, IconMetric, IconNote, IconPortfolio, IconVisual } from './icons';
 
 export interface TabDef {
   id: TabId;
@@ -21,6 +21,7 @@ export const TABS: TabDef[] = [
   { id: 'agent', index: '06', label: 'Agent IA', code: 'AGT', tagline: 'Passerelle native · orchestrateur', icon: IconAgent },
   { id: 'bot', index: '07', label: 'Bot', code: 'BOT', tagline: 'Atelier d’automates · CONCEPTION', icon: IconBot },
   { id: 'copieur', index: '08', label: 'Copieur', code: 'CPY', tagline: 'Réplication · comptes Sim', icon: IconCopier },
+  { id: 'crypto', index: '09', label: 'Crypto', code: 'CRY', tagline: 'Chart · température · alertes', icon: IconCrypto },
 ];
 
 const CONCEPTION = new Set<TabId>(['agent', 'bot']);
@@ -38,6 +39,7 @@ const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
   bot: { label: 'Bot', tagline: 'Automaton workshop · DESIGN' },
   copieur: { label: 'Copier', tagline: 'Replication · Sim accounts' },
   portefeuille: { label: 'Portfolio', tagline: 'Synthesis · heart · projection' },
+  crypto: { label: 'Crypto', tagline: 'Chart · temperature · alerts' },
 };
 
 const TAB_ES: Record<TabId, { label: string; tagline: string }> = {
@@ -49,6 +51,7 @@ const TAB_ES: Record<TabId, { label: string; tagline: string }> = {
   bot: { label: 'Bot', tagline: 'Taller de autómatas · DISEÑO' },
   copieur: { label: 'Copiador', tagline: 'Réplica · cuentas Sim' },
   portefeuille: { label: 'Cartera', tagline: 'Síntesis · corazón · proyección' },
+  crypto: { label: 'Cripto', tagline: 'Gráfico · temperatura · alertas' },
 };
 
 /** Libellé et baseline de l'onglet dans la langue active. */

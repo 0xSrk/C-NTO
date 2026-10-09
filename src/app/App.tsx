@@ -29,6 +29,7 @@ const Agent = lazy(() => import('@/modules/agent/Agent'));
 const Bot = lazy(() => import('@/modules/bot/Bot'));
 const Portefeuille = lazy(() => import('@/modules/portefeuille/Portefeuille'));
 const Copieur = lazy(() => import('@/modules/copieur/Copieur'));
+const Crypto = lazy(() => import('@/modules/crypto/Crypto'));
 
 function initialSteps(): BootStep[] {
   return [
@@ -173,6 +174,7 @@ export function App() {
               {tab === 'bot' && <Bot />}
               {(tab === 'portefeuille') && <Portefeuille />}
               {tab === 'copieur' && <Copieur />}
+              {tab === 'crypto' && <Crypto />}
             </Suspense>
           </ErrorBoundary>
         </Shell>
