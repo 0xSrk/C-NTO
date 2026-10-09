@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -15,6 +15,8 @@ interface HarnessOptions {
   hold?: boolean;
   /** Le dialogue échoue (fenêtre détruite pendant l'attente, par exemple). */
   fail?: boolean;
+  /** Valeur brute rendue par le dialogue, mal formée : `undefined`, `null`, `{}`, `{ response: '0' }`… */
+  reply?: unknown;
   dir?: string;
   locale?: AppLocale;
   window?: Win | null;
@@ -37,6 +39,7 @@ function harness(opts: HarnessOptions = {}) {
       parents.push(parent);
       dialogs.push(options);
       if (opts.fail) return Promise.reject(new Error('fenêtre détruite'));
+      if ('reply' in opts) return Promise.resolve(opts.reply as { response: number });
       if (opts.hold) return new Promise<{ response: number }>((resolve) => waiting.push(resolve));
       return Promise.resolve({ response: answers.shift() ?? 1 });
     },
@@ -67,9 +70,24 @@ const CLOSED_WINDOWS: ReadonlyArray<[string, Win | null]> = [
 ];
 
 const LANGUAGES = [
-  ['fr', 'Activer le module crypto ?', ['Activer', 'Annuler'], ['usage personnel', 'à tout moment']],
-  ['en', 'Turn on the crypto module?', ['Turn on', 'Cancel'], ['personal use', 'at any time']],
-  ['es', '¿Activar el módulo cripto?', ['Activar', 'Cancelar'], ['uso personal', 'en cualquier momento']],
+  [
+    'fr',
+    'Activer le module crypto ?',
+    ['Activer', 'Annuler'],
+    ['usage personnel', 'à tout moment', 'Ce choix vaut aussi pour les prochains lancements, jusqu’à ce que vous éteigniez le module.'],
+  ],
+  [
+    'en',
+    'Turn on the crypto module?',
+    ['Turn on', 'Cancel'],
+    ['personal use', 'at any time', 'This choice also applies to the next launches, until you turn the module off.'],
+  ],
+  [
+    'es',
+    '¿Activar el módulo cripto?',
+    ['Activar', 'Cancelar'],
+    ['uso personal', 'en cualquier momento', 'Esta elección también se aplica a los próximos arranques, hasta que apague el módulo.'],
+  ],
 ] as const;
 
 describe('interrupteur crypto · process principal', () => {
@@ -186,7 +204,9 @@ describe('interrupteur crypto · process principal', () => {
       expect(() => h.host.disable()).not.toThrow();
       expect(seen).toEqual([true, false]);
       expect(h.host.enabled).toBe(false);
-      expect(h.logs.filter((line) => line.includes('abonné'))).toHaveLength(2);
+      const failures = h.logs.filter((line) => line.includes('abonné'));
+      expect(failures).toHaveLength(2);
+      for (const line of failures) expect(line).toContain('(fenêtre détruite)'); // la cause suit, comme dans les autres lignes d'échec
     });
 
     it('un abonné qui éteint pendant l’allumage : les suivants ne reçoivent jamais un true périmé', async () => {
@@ -252,7 +272,7 @@ describe('interrupteur crypto · process principal', () => {
   });
 
   describe('dialogue', () => {
-    it.each(LANGUAGES)('en %s : question, titre CΛNTO, Annuler par défaut, hôtes et usage nommés', async (locale, message, buttons, phrases) => {
+    it.each(LANGUAGES)('en %s : question, titre CΛNTO, Annuler par défaut, hôtes, usage et durée du choix nommés', async (locale, message, buttons, phrases) => {
       const h = harness({ locale, answers: [1] });
       await h.host.requestEnable();
       const dialog = h.dialogs[0]!;
@@ -271,6 +291,20 @@ describe('interrupteur crypto · process principal', () => {
       expect(h.dialogs.map((dialog) => dialog.message)).toEqual(['Activer le module crypto ?', 'Turn on the crypto module?']);
     });
 
+    it.each([
+      ['undefined', undefined],
+      ['null', null],
+      ['{}', {}],
+      ["{ response: '0' }", { response: '0' }],
+    ])('réponse mal formée %s : reste éteint, rien n’est écrit à true', async (_shape, reply) => {
+      const h = harness({ reply });
+      expect(await h.host.requestEnable()).toBe(false);
+      expect(h.host.enabled).toBe(false);
+      expect(h.dialogs).toHaveLength(1);
+      expect(written(h.file)).not.toEqual({ enabled: true });
+      expect(harness({ dir: h.dir }).host.enabled).toBe(false);
+    });
+
     it('un dialogue qui échoue : reste éteint, ne lève pas, libère la place', async () => {
       const h = harness({ fail: true });
       expect(await h.host.requestEnable()).toBe(false);
@@ -283,9 +317,9 @@ describe('interrupteur crypto · process principal', () => {
   });
 
   describe('persistance', () => {
-    it('crypto.json impossible à écrire : allumé pour la séance seulement, journalisé, jamais de levée', async () => {
+    it('crypto.json impossible à écrire ni à supprimer : allumé pour la séance seulement, journalisé, jamais de levée', async () => {
       const dir = mkdtempSync(path.join(tmpdir(), 'canto-crypto-switch-'));
-      mkdirSync(path.join(dir, 'crypto.json')); // un dossier occupe la place du fichier
+      mkdirSync(path.join(dir, 'crypto.json')); // un dossier occupe la place du fichier : ni l'écrire ni le supprimer
       const h = harness({ dir, answers: [0] });
       const seen: boolean[] = [];
       h.host.onChange((enabled) => seen.push(enabled));
@@ -293,11 +327,36 @@ describe('interrupteur crypto · process principal', () => {
       expect(await h.host.requestEnable()).toBe(true);
       expect(h.host.enabled).toBe(true);
       expect(h.logs.some((line) => line.includes('crypto.json'))).toBe(true);
+      expect(h.logs.some((line) => line.includes('non supprimé'))).toBe(false); // allumer ne supprime jamais rien
       expect(harness({ dir }).host.enabled).toBe(false);
 
       expect(() => h.host.disable()).not.toThrow();
       expect(h.host.enabled).toBe(false);
       expect(seen).toEqual([true, false]);
+      // Éteint, le repli (supprimer) échoue lui aussi : une ligne distincte, avec la cause, dit que l'ancien état sera relu.
+      const unremoved = h.logs.filter((line) => line.includes('non supprimé'));
+      expect(unremoved).toHaveLength(1);
+      expect(unremoved[0]).toMatch(/non supprimé \([^)]+\)/);
+      expect(unremoved[0]).toContain('relu au prochain lancement');
+    });
+
+    it('écriture de false impossible (fichier en lecture seule) : le fichier est supprimé, un nouvel hôte relit éteint', () => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'canto-crypto-switch-'));
+      const file = path.join(dir, 'crypto.json');
+      writeFileSync(file, '{"enabled":true}');
+      // Écrire échoue ensuite (EPERM sous Windows, EACCES ailleurs) et l'ancien true resterait sur le disque. Sous un
+      // compte administrateur POSIX l'écriture réussit : le test reste vrai, sans exercer le repli.
+      chmodSync(file, 0o444);
+      try {
+        const h = harness({ dir });
+        expect(h.host.enabled).toBe(true);
+        expect(h.host.disable()).toBe(false);
+        expect(written(file)).not.toEqual({ enabled: true });
+        expect(h.logs.some((line) => line.includes('relu au prochain lancement'))).toBe(false); // le repli a réussi
+        expect(harness({ dir }).host.enabled).toBe(false);
+      } finally {
+        if (existsSync(file)) chmodSync(file, 0o644); // le dossier temporaire reste effaçable
+      }
     });
 
     it('journalise chaque changement d’état, une ligne chacun, et rien quand rien ne change', async () => {

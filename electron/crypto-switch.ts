@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { AgentDialogOptions } from './agent-orders';
 import { uiText, type AppLocale } from './locale';
@@ -59,8 +59,22 @@ export class CryptoSwitchHost {
       mkdirSync(this.deps.userDataDir, { recursive: true });
       writeFileSync(this.file, JSON.stringify({ enabled: this.on }), { encoding: 'utf8', mode: 0o600 });
     } catch (error) {
-      // L'état reste tenu en mémoire pour la séance ; sans fichier, le prochain lancement sera éteint.
+      // L'état reste tenu en mémoire pour la séance. Allumé, le prochain lancement sera éteint : sens sûr.
       this.deps.log(`crypto : ${SWITCH_FILE} non écrit (${why(error)})`);
+      if (!this.on) this.removeFile();
+    }
+  }
+
+  /**
+   * Éteint, un fichier qui ne s'écrit pas n'est pas sans danger : l'ancien `true` resterait sur le disque et
+   * rallumerait le module, sans dialogue, au prochain lancement. « Absent » vaut « éteint » à la lecture, et
+   * supprimer réussit parfois quand écrire échoue (fichier en lecture seule). Jamais `recursive` : seul le fichier.
+   */
+  private removeFile(): void {
+    try {
+      rmSync(this.file, { force: true });
+    } catch (error) {
+      this.deps.log(`crypto : ${SWITCH_FILE} non supprimé (${why(error)}) ; l’état précédent du disque sera relu au prochain lancement`);
     }
   }
 
@@ -74,9 +88,9 @@ export class CryptoSwitchHost {
       title: 'CΛNTO',
       message: this.t('Activer le module crypto ?', 'Turn on the crypto module?', '¿Activar el módulo cripto?'),
       detail: this.t(
-        'Le desk se connectera aux données publiques de Coinbase, Binance et Bybit, pour un usage personnel. Vous pouvez éteindre le module à tout moment, dans l’onglet 09 · CRY.',
-        'The desk will connect to the public data of Coinbase, Binance and Bybit, for personal use. You can turn the module off at any time, in the 09 · CRY tab.',
-        'El desk se conectará a los datos públicos de Coinbase, Binance y Bybit, para uso personal. Puede apagar el módulo en cualquier momento, en la pestaña 09 · CRY.',
+        'Le desk se connectera aux données publiques de Coinbase, Binance et Bybit, pour un usage personnel. Vous pouvez éteindre le module à tout moment, dans l’onglet 09 · CRY. Ce choix vaut aussi pour les prochains lancements, jusqu’à ce que vous éteigniez le module.',
+        'The desk will connect to the public data of Coinbase, Binance and Bybit, for personal use. You can turn the module off at any time, in the 09 · CRY tab. This choice also applies to the next launches, until you turn the module off.',
+        'El desk se conectará a los datos públicos de Coinbase, Binance y Bybit, para uso personal. Puede apagar el módulo en cualquier momento, en la pestaña 09 · CRY. Esta elección también se aplica a los próximos arranques, hasta que apague el módulo.',
       ),
       buttons: [this.t('Activer', 'Turn on', 'Activar'), this.t('Annuler', 'Cancel', 'Cancelar')],
       defaultId: 1,
@@ -87,7 +101,8 @@ export class CryptoSwitchHost {
 
   /**
    * Change l'état : mémoire, fichier, journal, puis abonnés. Le fichier est écrit même sans changement, pour
-   * qu'après `disable()` il ne dise jamais `true`. Les abonnés ne sont prévenus que d'un changement réel.
+   * qu'après `disable()` il ne dise jamais `true` (supprimé, s'il ne peut être écrit : `persist`). Les abonnés
+   * ne sont prévenus que d'un changement réel, et même quand le disque a échoué : l'extinction ne dépend pas de lui.
    */
   private set(enabled: boolean): void {
     const changed = enabled !== this.on;
@@ -100,9 +115,9 @@ export class CryptoSwitchHost {
       if (this.on !== enabled) return;
       try {
         listener.cb(enabled);
-      } catch {
+      } catch (error) {
         // Un abonné défaillant (fenêtre détruite…) ne doit empêcher ni les autres ni l'extinction.
-        this.deps.log('crypto : un abonné de l’interrupteur a échoué');
+        this.deps.log(`crypto : un abonné de l’interrupteur a échoué (${why(error)})`);
       }
     }
   }
