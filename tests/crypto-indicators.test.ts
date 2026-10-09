@@ -42,6 +42,10 @@ const valueAt = (out: IndicatorOutput, key: string, time: number): number | unde
 const valued = (l: IndicatorLine): { time: number; value: number }[] =>
   l.data.flatMap((p) => (p.value === undefined ? [] : [{ time: p.time, value: p.value }]));
 
+/** Les points qui portent une valeur, parmi ceux du jour `d` d’octobre 2026 (UTC). */
+const onDay = (l: IndicatorLine, d: number): { time: number; value: number }[] =>
+  valued(l).filter((p) => p.time >= utc(d, '00:00:00') && p.time < utc(d + 1, '00:00:00'));
+
 /** Les segments que le chart dessine : une série par suite de points contigus, coupée à chaque blanc (`splitSegments`, `Chart.tsx`). */
 function segments(l: IndicatorLine): { time: number; value: number }[][] {
   const out: { time: number; value: number }[][] = [];
@@ -162,8 +166,13 @@ describe('catalogue d’indicateurs crypto', () => {
 
 describe('VWAP 00:00 UTC', () => {
   it('vaut le prix typique (h + l + c) / 3 à la première bougie après minuit UTC, bandes comprises', () => {
-    // La veille finit sur un gros volume, loin du prix du jour : la première bougie du 9 en repart de zéro.
-    const bars = [bar(utc(8, '23:00:00'), 500, 520, 480, 510, 1_000_000), bar(utc(9, '00:00:00'), 100, 110, 90, 107, 3.5), bar(utc(9, '01:00:00'), 107, 112, 104, 108, 2)];
+    // La veille, couverte depuis 00:00 UTC, finit sur un gros volume loin du prix du jour : la première bougie du 9 en repart de zéro.
+    const bars = [
+      bar(utc(8, '00:00:00'), 500, 520, 480, 510, 1_000_000),
+      bar(utc(8, '23:00:00'), 500, 520, 480, 510, 1_000_000),
+      bar(utc(9, '00:00:00'), 100, 110, 90, 107, 3.5),
+      bar(utc(9, '01:00:00'), 107, 112, 104, 108, 2),
+    ];
     const out = run('vwap-utc', bars);
     const typical = (110 + 90 + 107) / 3;
     expect(typical).not.toBe(Math.round(typical));
@@ -179,16 +188,18 @@ describe('VWAP 00:00 UTC', () => {
   });
 
   it('repart de zéro à 00:00 UTC, et non à 18:00 ET (22:00 UTC)', () => {
+    // Le 9 est couvert depuis 00:00 UTC. Un VWAP qui repartirait à 22:00 UTC (18:00 ET) vaudrait 110 à la bougie de 22:00.
     const bars = [
+      flat(utc(9, '00:00:00'), 100, 1),
       flat(utc(9, '21:00:00'), 100, 1),
-      flat(utc(9, '22:00:00'), 110, 3),
-      flat(utc(9, '23:00:00'), 120, 1),
+      flat(utc(9, '22:00:00'), 110, 2),
+      flat(utc(9, '23:00:00'), 120, 4),
       flat(utc(10, '00:00:00'), 200, 50),
       flat(utc(10, '01:00:00'), 210, 50),
     ];
     const values = valued(line(run('vwap-utc', bars), 'vwap')).map((p) => p.value);
-    expect(values).toHaveLength(5);
-    [100, 107.5, 110, 200, 205].forEach((expected, i) => expect(nth(values, i), `bougie ${i}`).toBeCloseTo(expected, 10));
+    expect(values).toHaveLength(6);
+    [100, 100, 105, 112.5, 200, 205].forEach((expected, i) => expect(nth(values, i), `bougie ${i}`).toBeCloseTo(expected, 10));
   });
 
   it('égale le VWAP de séance du desk quand les deux ancres coïncident', () => {
@@ -369,7 +380,9 @@ describe('niveaux du jour UTC précédent', () => {
 
   it('coupe les jours à minuit UTC, et non à 18:00 ET (22:00 UTC)', () => {
     // 23:59 et 00:00 : deux jours. 21:59, 22:00 et 22:30 : le même jour (plus haut 150 avant 22:00 UTC, plus bas 50 à 22:00).
+    // La fenêtre commence à 00:00 UTC le 8 : ce jour est couvert, ses niveaux comptent.
     const edge = [
+      flat(utc(8, '00:00:00'), 100, 1),
       bar(utc(8, '21:59:00'), 100, 150, 100, 100, 1),
       bar(utc(8, '22:00:00'), 100, 100, 50, 100, 1),
       bar(utc(8, '22:30:00'), 100, 100, 70, 70, 1),
@@ -392,11 +405,158 @@ describe('niveaux du jour UTC précédent', () => {
     expect(line(out, 'pdc').data).toStrictEqual([{ time: utc(11, '00:00:00'), value: 130 }]);
   });
 
+  it('ignore une bougie sans plus haut, plus bas ou clôture fini : les niveaux du jour suivant restent', () => {
+    // Trois bougies invalides le 8, une par champ. Chacune est écartée en entier : ni son plus haut de 200, ni son plus
+    // bas de 40 ou de 50, ni sa clôture ne comptent, et la clôture du jour reste celle de la dernière bougie valide.
+    const dirty = [
+      bar(utc(8, '00:00:00'), 100, 110, 95, 105, 10),
+      bar(utc(8, '06:00:00'), 105, Number.NaN, 50, 106, 1),
+      bar(utc(8, '12:00:00'), 105, 120, 100, 115, 20),
+      bar(utc(8, '18:00:00'), 115, 200, Number.NaN, 116, 1),
+      bar(utc(8, '23:00:00'), 100, 101, 91, 92, 4),
+      bar(utc(8, '23:30:00'), 92, 99, 40, Number.NaN, 1),
+      bar(utc(9, '00:00:00'), 92, 130, 91, 125, 8),
+    ];
+    const out = run('levels-utc', dirty);
+    expect(line(out, 'pdh').data).toStrictEqual([{ time: utc(9, '00:00:00'), value: 120 }]);
+    expect(line(out, 'pdl').data).toStrictEqual([{ time: utc(9, '00:00:00'), value: 91 }]);
+    expect(line(out, 'pdc').data).toStrictEqual([{ time: utc(9, '00:00:00'), value: 92 }]);
+  });
+
+  it('ne donne aucun niveau le lendemain d’un jour dont toutes les bougies sont invalides', () => {
+    const empty = [bar(utc(8, '00:00:00'), 100, Number.NaN, 95, 105, 10), bar(utc(8, '12:00:00'), 105, 120, Number.NaN, 115, 20), bar(utc(9, '00:00:00'), 92, 130, 91, 125, 8)];
+    for (const l of run('levels-utc', empty).lines) expect(l.data, l.key).toEqual([]);
+  });
+
   it('reprend les clés, les étiquettes et le style des niveaux de séance du desk', () => {
     const desk = indicatorById('prev-session');
     expect(desk).toBeDefined();
     expect(cryptoIndicatorById('levels-utc')?.params).toEqual([]);
     expect(run('levels-utc', bars).lines.map(style)).toEqual(desk?.compute([...bars], {}).lines.map(style));
+  });
+});
+
+describe('journées couvertes par la fenêtre de bougies', () => {
+  // Une journée n’est ancrée que si la fenêtre remonte jusqu’à son 00:00 UTC (première bougie ≤ 00:00 UTC de ce jour).
+  // Le 9 a pour plus haut 130, plus bas 90, clôture 95 ; le 8 change de rôle d’un test à l’autre.
+  const nine = [bar(utc(9, '00:00:00'), 108, 130, 105, 120, 4), bar(utc(9, '12:00:00'), 120, 125, 90, 95, 6)];
+  const ten = [bar(utc(10, '00:00:00'), 95, 99, 93, 97, 3), bar(utc(10, '12:00:00'), 97, 98, 92, 94, 5)];
+
+  it('ne calcule ni VWAP ni niveaux sur une journée que la fenêtre ne couvre pas depuis 00:00 UTC', () => {
+    // La fenêtre commence le 8 à 12:00 : ce jour est partiel. Le 9 et le 10 sont entiers.
+    const bars = [bar(utc(8, '12:00:00'), 100, 104, 98, 102, 2), bar(utc(8, '18:00:00'), 102, 110, 100, 108, 2), ...nine, ...ten];
+    const vwap = run('vwap-utc', bars, { bands: '2' });
+    const levels = run('levels-utc', bars);
+    for (const l of vwap.lines) {
+      // Aucun VWAP, aucune bande le 8 : un VWAP parti de 12:00 ne serait celui de personne. Le 9 et le 10 repartent de minuit.
+      expect(onDay(l, 8), `${l.key} · le 8`).toEqual([]);
+      expect(nth(onDay(l, 9), 0), `${l.key} · le 9`).toStrictEqual({ time: utc(9, '00:00:00'), value: typicalOf(nth(nine, 0)) });
+      expect(nth(onDay(l, 10), 0), `${l.key} · le 10`).toStrictEqual({ time: utc(10, '00:00:00'), value: typicalOf(nth(ten, 0)) });
+    }
+    // Niveaux : rien le 8 (premier jour), rien le 9 (il lirait le 8, partiel), ceux du 9 le 10.
+    for (const l of levels.lines) {
+      expect(onDay(l, 8), `${l.key} · le 8`).toEqual([]);
+      expect(onDay(l, 9), `${l.key} · le 9`).toEqual([]);
+    }
+    expect(onDay(line(levels, 'pdh'), 10).map((p) => p.value)).toEqual([130, 130]);
+    expect(onDay(line(levels, 'pdl'), 10).map((p) => p.value)).toEqual([90, 90]);
+    expect(onDay(line(levels, 'pdc'), 10).map((p) => p.value)).toEqual([95, 95]);
+  });
+
+  it('couvre la première journée d’une fenêtre qui commence à 00:00 UTC pile, et pas une seconde plus tard', () => {
+    const eight = [bar(utc(8, '00:00:00'), 100, 104, 98, 102, 2), bar(utc(8, '18:00:00'), 102, 110, 100, 108, 2)];
+    const exact = [...eight, ...nine, ...ten];
+    const vwap = run('vwap-utc', exact, { bands: '2' });
+    const levels = run('levels-utc', exact);
+    for (const l of vwap.lines) expect(nth(onDay(l, 8), 0), `${l.key} · 00:00:00`).toStrictEqual({ time: utc(8, '00:00:00'), value: typicalOf(nth(eight, 0)) });
+    expect(onDay(line(levels, 'pdh'), 9).map((p) => p.value)).toEqual([110, 110]);
+    expect(onDay(line(levels, 'pdl'), 9).map((p) => p.value)).toEqual([98, 98]);
+    expect(onDay(line(levels, 'pdc'), 9).map((p) => p.value)).toEqual([108, 108]);
+
+    // La même fenêtre, dont la première bougie est à 00:00:01 : elle ne remonte plus jusqu'au début du 8.
+    const late = [{ ...nth(eight, 0), time: utc(8, '00:00:01') }, ...exact.slice(1)];
+    for (const l of run('vwap-utc', late, { bands: '2' }).lines) expect(onDay(l, 8), `${l.key} · 00:00:01`).toEqual([]);
+    for (const l of run('levels-utc', late).lines) expect(onDay(l, 9), `${l.key} · 00:00:01`).toEqual([]);
+  });
+
+  it('couvre le jour dont le seau de 00:00 manque, pourvu que la fenêtre commence avant minuit', () => {
+    // Coinbase n’envoie pas de bougie pour un seau sans trade : le 9, la première bougie est celle de 00:05.
+    const bars = [bar(utc(8, '22:00:00'), 100, 104, 98, 102, 2), bar(utc(8, '23:00:00'), 102, 110, 100, 108, 2), bar(utc(9, '00:05:00'), 108, 130, 105, 120, 4), nth(nine, 1), ...ten];
+    const vwap = run('vwap-utc', bars, { bands: '2' });
+    const levels = run('levels-utc', bars);
+    for (const l of vwap.lines) {
+      // Le 8 est partiel : pas de VWAP. Le 9 est couvert : son VWAP part de sa première bougie, celle de 00:05.
+      expect(onDay(l, 8), `${l.key} · le 8`).toEqual([]);
+      expect(nth(onDay(l, 9), 0), `${l.key} · le 9`).toStrictEqual({ time: utc(9, '00:05:00'), value: typicalOf(nth(bars, 2)) });
+    }
+    // Le 9 lirait le 8, partiel : pas de niveaux. Le 10 lit le 9, couvert.
+    for (const l of levels.lines) expect(onDay(l, 9), `${l.key} · le 9`).toEqual([]);
+    expect(onDay(line(levels, 'pdh'), 10).map((p) => p.value)).toEqual([130, 130]);
+    expect(onDay(line(levels, 'pdl'), 10).map((p) => p.value)).toEqual([90, 90]);
+    expect(onDay(line(levels, 'pdc'), 10).map((p) => p.value)).toEqual([95, 95]);
+  });
+});
+
+describe('ruptures de ligne entre deux jours', () => {
+  it('interrompt le VWAP et ses bandes à chaque jour, que minuit soit liquide ou non', () => {
+    const cases = [
+      {
+        label: 'minuit liquide',
+        bars: [flat(utc(9, '00:00:00'), 100, 1), flat(utc(9, '12:00:00'), 110, 1), flat(utc(10, '00:00:00'), 200, 1), flat(utc(10, '12:00:00'), 210, 1)],
+        firstOn10: utc(10, '00:00:00'),
+      },
+      {
+        label: 'minuit sans volume',
+        bars: [flat(utc(9, '00:00:00'), 100, 1), flat(utc(9, '12:00:00'), 110, 1), flat(utc(10, '00:00:00'), 200, 0), flat(utc(10, '06:00:00'), 200, 1), flat(utc(10, '12:00:00'), 210, 1)],
+        firstOn10: utc(10, '06:00:00'),
+      },
+    ];
+    for (const { label, bars, firstOn10 } of cases) {
+      const out = run('vwap-utc', bars, { bands: '2' });
+      expect(out.lines, label).toHaveLength(5);
+      for (const l of out.lines) {
+        const where = `${label} · ${l.key}`;
+        // Un segment par jour, un seul blanc entre eux, posé entre la dernière bougie du 9 et la première valeur du 10.
+        expect(segments(l).map((s) => s.length), where).toEqual([2, 2]);
+        const blanks = l.data.filter((p) => p.value === undefined);
+        expect(blanks, where).toHaveLength(1);
+        expect(nth(blanks, 0).time, where).toBeGreaterThan(utc(9, '12:00:00'));
+        expect(nth(blanks, 0).time, where).toBeLessThan(firstOn10);
+      }
+    }
+  });
+
+  it('pose chaque blanc sur un instant entier, même entre deux bougies séparées par un nombre impair de secondes', () => {
+    const bars = [
+      flat(utc(9, '00:00:00'), 100, 1),
+      flat(utc(9, '23:58:59'), 101, 1), // 61 s avant minuit
+      flat(utc(10, '00:00:00'), 102, 1),
+      flat(utc(10, '23:59:57'), 103, 1), // 3 s avant minuit
+      flat(utc(11, '00:00:00'), 104, 1),
+    ];
+    const vwap = run('vwap-utc', bars, { bands: '2' });
+    const levels = run('levels-utc', bars);
+    for (const l of [...vwap.lines, ...levels.lines]) {
+      l.data.forEach((p, i) => {
+        if (p.value !== undefined) return;
+        const where = `${l.key} · point ${i}`;
+        expect(Number.isInteger(p.time), where).toBe(true);
+        expect(p.time, where).toBeGreaterThan(nth(l.data, i - 1).time);
+        expect(p.time, where).toBeLessThan(nth(l.data, i + 1).time);
+      });
+    }
+    // La moitié, arrondie vers le bas : 23:58:59 → 00:00:00 (61 s) donne 23:59:29, 23:59:57 → 00:00:00 (3 s) donne 23:59:58.
+    const blankTimes = (l: IndicatorLine): number[] => l.data.filter((p) => p.value === undefined).map((p) => p.time);
+    expect(blankTimes(line(vwap, 'vwap'))).toEqual([utc(9, '23:59:29'), utc(10, '23:59:58')]);
+    expect(blankTimes(line(levels, 'pdh'))).toEqual([utc(10, '23:59:58')]);
+  });
+
+  it('ne pose aucun blanc quand deux bougies sont à une seconde l’une de l’autre : aucun instant entier entre elles', () => {
+    const bars = [flat(utc(9, '00:00:00'), 100, 1), flat(utc(9, '23:59:59'), 101, 1), flat(utc(10, '00:00:00'), 102, 1), flat(utc(10, '12:00:00'), 103, 1)];
+    for (const l of [...run('vwap-utc', bars, { bands: '2' }).lines, ...run('levels-utc', bars).lines]) {
+      expect(l.data.every((p) => p.value !== undefined), l.key).toBe(true);
+      for (let i = 1; i < l.data.length; i++) expect(nth(l.data, i).time, `${l.key} · point ${i}`).toBeGreaterThan(nth(l.data, i - 1).time);
+    }
   });
 });
 

@@ -5,6 +5,10 @@
  * sans séance, ils sont donc réécrits ici avec une ancre UTC : le VWAP repart de zéro à 00:00 UTC, les niveaux sont ceux
  * du jour UTC précédent. Le CVD vient de `./cvd`. Les lignes gardent les clés, les étiquettes et les teintes de leurs
  * équivalents du desk.
+ * Une journée n'est ancrée que si la fenêtre de bougies la couvre : sa première bougie n'est pas plus tardive que 00:00 UTC
+ * de cette journée. L'historique chargé (500 bougies) commence en pleine journée : sa première journée est partielle, et
+ * un VWAP parti du début de la fenêtre ou des extrêmes partiels présentés comme ceux de la veille seraient faux sans le
+ * paraître. Une journée non couverte n'a donc ni VWAP, ni bandes ; le jour d'après n'a pas de niveaux.
  */
 import type { Bar } from '@/engine/bars';
 import { indicatorById, type IndicatorDefinition, type IndicatorInstance, type IndicatorLine } from '@/engine/indicators';
@@ -40,20 +44,37 @@ function deskIndicator(id: string): IndicatorDefinition {
 }
 
 /**
- * Comme `toLine` de `src/engine/indicators.ts`, qui ne l'exporte pas : aucun point avant la première valeur, puis un
- * blanc pour chaque valeur manquante ou non finie.
+ * Vrai quand la fenêtre de bougies remonte jusqu'au début du jour UTC `day` : sa première bougie n'est pas plus tardive
+ * que 00:00 UTC de ce jour. Le test ne lit jamais l'heure de la première bougie du jour, qui peut être 00:05 quand la
+ * venue n'envoie pas de bougie pour un seau vide : seul compte ce que la fenêtre contient avant ce jour.
  */
-function toLine(bars: readonly Bar[], values: readonly (number | null)[]): LinePoint[] {
+function reachesDayStart(bars: readonly Bar[], day: number): boolean {
+  const first = bars[0];
+  return first !== undefined && first.time <= day * DAY_SECONDS;
+}
+
+/**
+ * Les points d'une ligne ancrée sur le jour UTC : un point par bougie qui a une valeur, et un blanc entre le dernier point
+ * d'un jour et le premier du suivant, que minuit soit liquide ou non. Le chart dessine alors un segment par jour, sans
+ * raccord oblique. Une bougie sans valeur n'a pas de point : le blanc, lui, n'est posé qu'à la rupture. Il tombe sur
+ * l'instant entier à mi-chemin entre ces deux bougies, jamais sur celui d'une bougie ; deux bougies à moins de 2 s l'une
+ * de l'autre n'en laissent aucun (la plus courte bougie dure 1 min), et la ligne n'y est pas coupée.
+ */
+function dayLine(bars: readonly Bar[], values: readonly (number | null)[]): LinePoint[] {
   const data: LinePoint[] = [];
-  let started = false;
+  let lastDay = Number.NaN;
+  let lastTime = Number.NaN;
   bars.forEach((bar, i) => {
     const value = values[i];
-    if (value !== null && value !== undefined && Number.isFinite(value)) {
-      data.push({ time: bar.time, value });
-      started = true;
-    } else if (started) {
-      data.push({ time: bar.time });
+    if (value === null || value === undefined || !Number.isFinite(value)) return;
+    const day = utcDay(bar.time);
+    if (data.length > 0 && day !== lastDay) {
+      const blank = Math.floor((lastTime + bar.time) / 2);
+      if (blank > lastTime) data.push({ time: blank });
     }
+    data.push({ time: bar.time, value });
+    lastDay = day;
+    lastTime = bar.time;
   });
   return data;
 }
@@ -70,6 +91,7 @@ const vwapUtc: IndicatorDefinition = {
     // exactement son prix typique, avec un σ nul. (Le VWAP du desk somme prix et prix², qui perdent des chiffres là.)
     const rows: ({ mean: number; sd: number } | null)[] = [];
     let day = Number.NaN;
+    let covered = false;
     let volume = 0;
     let mean = 0;
     let spread = 0;
@@ -77,9 +99,15 @@ const vwapUtc: IndicatorDefinition = {
       const barDay = utcDay(bar.time);
       if (barDay !== day) {
         day = barDay;
+        covered = reachesDayStart(bars, barDay);
         volume = 0;
         mean = 0;
         spread = 0;
+      }
+      // Un jour que la fenêtre ne couvre pas depuis 00:00 UTC n'a pas de VWAP : jamais ancré ailleurs qu'à minuit.
+      if (!covered) {
+        rows.push(null);
+        continue;
       }
       const typical = (bar.high + bar.low + bar.close) / 3;
       // Le volume pèse tel quel, sous 1 aussi : le VWAP du desk compte au moins 1 par bougie (des contrats entiers), alors
@@ -95,14 +123,14 @@ const vwapUtc: IndicatorDefinition = {
     }
     const band = (k: number): (number | null)[] => rows.map((row) => (row ? row.mean + k * row.sd : null));
     const bands = Number(p.bands);
-    const lines: IndicatorLine[] = [{ key: 'vwap', label: 'VWAP', color: COLOR.ink, lineWidth: 2, pane: 'price', data: toLine(bars, rows.map((row) => (row ? row.mean : null))) }];
+    const lines: IndicatorLine[] = [{ key: 'vwap', label: 'VWAP', color: COLOR.ink, lineWidth: 2, pane: 'price', data: dayLine(bars, rows.map((row) => (row ? row.mean : null))) }];
     if (bands >= 1) {
-      lines.push({ key: 'up1', label: '+1σ', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: toLine(bars, band(1)) });
-      lines.push({ key: 'dn1', label: '−1σ', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: toLine(bars, band(-1)) });
+      lines.push({ key: 'up1', label: '+1σ', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: dayLine(bars, band(1)) });
+      lines.push({ key: 'dn1', label: '−1σ', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: dayLine(bars, band(-1)) });
     }
     if (bands >= 2) {
-      lines.push({ key: 'up2', label: '+2σ', color: COLOR.steel, lineStyle: 'dashed', pane: 'price', data: toLine(bars, band(2)) });
-      lines.push({ key: 'dn2', label: '−2σ', color: COLOR.steel, lineStyle: 'dashed', pane: 'price', data: toLine(bars, band(-2)) });
+      lines.push({ key: 'up2', label: '+2σ', color: COLOR.steel, lineStyle: 'dashed', pane: 'price', data: dayLine(bars, band(2)) });
+      lines.push({ key: 'dn2', label: '−2σ', color: COLOR.steel, lineStyle: 'dashed', pane: 'price', data: dayLine(bars, band(-2)) });
     }
     return { id: 'vwap-utc', lines };
   },
@@ -115,8 +143,10 @@ interface DayLevels {
 }
 
 /**
- * Pour chaque bougie, plus haut, plus bas et clôture du jour UTC qui précède le sien, ou `null` quand ce jour n'a pas
- * de bougie. Seul le jour calendaire d'avant compte : un jour sans bougie ne se remplace pas par un plus ancien.
+ * Pour chaque bougie, plus haut, plus bas et clôture du jour UTC qui précède le sien, ou `null`. Seul le jour calendaire
+ * d'avant compte, et seulement s'il a des bougies valides et que la fenêtre le couvre depuis 00:00 UTC : un jour sans
+ * bougie ne se remplace pas par un plus ancien, et les extrêmes d'un jour partiel ne passent pas pour ceux de la veille.
+ * Une bougie sans plus haut, plus bas ou clôture fini est écartée en entier, sans effacer le reste du jour.
  */
 function previousDayLevels(bars: readonly Bar[]): (DayLevels | null)[] {
   const out: (DayLevels | null)[] = [];
@@ -126,39 +156,19 @@ function previousDayLevels(bars: readonly Bar[]): (DayLevels | null)[] {
   for (const bar of bars) {
     const barDay = utcDay(bar.time);
     if (barDay !== day) {
-      previous = current !== null && barDay === day + 1 ? current : null;
+      previous = current !== null && barDay === day + 1 && reachesDayStart(bars, day) ? current : null;
       current = null;
       day = barDay;
     }
-    current =
-      current === null
-        ? { high: bar.high, low: bar.low, close: bar.close }
-        : { high: Math.max(current.high, bar.high), low: Math.min(current.low, bar.low), close: bar.close };
+    if (Number.isFinite(bar.high) && Number.isFinite(bar.low) && Number.isFinite(bar.close)) {
+      current =
+        current === null
+          ? { high: bar.high, low: bar.low, close: bar.close }
+          : { high: Math.max(current.high, bar.high), low: Math.min(current.low, bar.low), close: bar.close };
+    }
     out.push(previous);
   }
   return out;
-}
-
-/**
- * Un niveau en ligne interrompue à chaque jour : un point par bougie qui a un niveau, et un blanc entre le dernier point
- * d'un jour et le premier du suivant. Le chart dessine alors un segment par jour, sans raccord oblique entre deux jours.
- * Le blanc tombe à mi-chemin entre ces deux bougies, sur l'instant d'aucune d'elles.
- */
-function levelLine(bars: readonly Bar[], levels: readonly (DayLevels | null)[], pick: (level: DayLevels) => number): LinePoint[] {
-  const data: LinePoint[] = [];
-  let lastDay = Number.NaN;
-  let lastTime = Number.NaN;
-  bars.forEach((bar, i) => {
-    const level = levels[i];
-    const value = level ? pick(level) : Number.NaN;
-    if (!Number.isFinite(value)) return;
-    const day = utcDay(bar.time);
-    if (data.length > 0 && day !== lastDay) data.push({ time: (lastTime + bar.time) / 2 });
-    data.push({ time: bar.time, value });
-    lastDay = day;
-    lastTime = bar.time;
-  });
-  return data;
 }
 
 const levelsUtc: IndicatorDefinition = {
@@ -173,9 +183,9 @@ const levelsUtc: IndicatorDefinition = {
     return {
       id: 'levels-utc',
       lines: [
-        { key: 'pdh', label: 'PDH', color: COLOR.mint, lineStyle: 'dashed', pane: 'price', data: levelLine(bars, levels, (level) => level.high) },
-        { key: 'pdl', label: 'PDL', color: COLOR.ember, lineStyle: 'dashed', pane: 'price', data: levelLine(bars, levels, (level) => level.low) },
-        { key: 'pdc', label: 'PDC', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: levelLine(bars, levels, (level) => level.close) },
+        { key: 'pdh', label: 'PDH', color: COLOR.mint, lineStyle: 'dashed', pane: 'price', data: dayLine(bars, levels.map((level) => (level ? level.high : null))) },
+        { key: 'pdl', label: 'PDL', color: COLOR.ember, lineStyle: 'dashed', pane: 'price', data: dayLine(bars, levels.map((level) => (level ? level.low : null))) },
+        { key: 'pdc', label: 'PDC', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: dayLine(bars, levels.map((level) => (level ? level.close : null))) },
       ],
     };
   },
