@@ -192,8 +192,11 @@ export function isCryptoTimeframe(v: unknown): v is CryptoTimeframe {
 /**
  * Vrai si l'URL est analysable, dans le protocole demandé (`https:` pour le REST, `wss:` pour les flux),
  * sans utilisateur ni mot de passe, et si son hôte (en minuscules) est dans `CRYPTO_HOSTS`. Le port est libre.
+ * Le protocole demandé est revérifié à l'exécution, quel que soit le typage de l'appelant : tout autre que
+ * `https:` ou `wss:` (`http:`, `ws:`, `ftp:`, `file:`…) est refusé, même vers un hôte de la liste.
  */
 export function cryptoHostAllowed(url: string, protocol: 'https:' | 'wss:'): boolean {
+  if (protocol !== 'https:' && protocol !== 'wss:') return false;
   try {
     const u = new URL(url);
     if (u.protocol !== protocol) return false;

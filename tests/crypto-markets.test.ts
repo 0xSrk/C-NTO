@@ -123,6 +123,28 @@ describe('hôtes des exchanges', () => {
     expect(cryptoHostAllowed('ftp://api.binance.com/', 'https:')).toBe(false);
   });
 
+  it('refuse à l’exécution tout protocole demandé autre que https: ou wss:, même vers un hôte de la liste', () => {
+    // Le type n’admet que 'https:' et 'wss:' ; un appelant JavaScript ou un cast ne doit pas pouvoir élargir la liste.
+    expect(cryptoHostAllowed('http://api.binance.com/', 'http:' as never)).toBe(false);
+    expect(cryptoHostAllowed('ws://stream.binance.com:9443/ws', 'ws:' as never)).toBe(false);
+    expect(cryptoHostAllowed('ftp://api.binance.com/', 'ftp:' as never)).toBe(false);
+    expect(cryptoHostAllowed('file://api.binance.com/etc/hosts', 'file:' as never)).toBe(false);
+    for (const protocol of ['http:', 'ws:', 'ftp:', 'file:', 'data:', 'blob:', 'javascript:']) {
+      for (const host of CRYPTO_HOSTS) {
+        expect(cryptoHostAllowed(`${protocol}//${host}/`, protocol as never), `${protocol}//${host}/`).toBe(false);
+      }
+    }
+  });
+
+  it('refuse une valeur de protocole qui n’est pas exactement https: ou wss:', () => {
+    for (const protocol of ['', 'https', 'wss', 'HTTPS:', 'WSS:', ' https:', 'https: ', undefined, null, 0, {}, ['https:']]) {
+      for (const host of CRYPTO_HOSTS) {
+        expect(cryptoHostAllowed(`https://${host}/`, protocol as never), `https://${host}/ demandé en ${JSON.stringify(protocol)}`).toBe(false);
+        expect(cryptoHostAllowed(`wss://${host}/ws`, protocol as never), `wss://${host}/ws demandé en ${JSON.stringify(protocol)}`).toBe(false);
+      }
+    }
+  });
+
   it('refuse un utilisateur ou un mot de passe', () => {
     expect(cryptoHostAllowed('https://user:pw@api.binance.com/', 'https:')).toBe(false);
     expect(cryptoHostAllowed('https://user@api.binance.com/', 'https:')).toBe(false);
