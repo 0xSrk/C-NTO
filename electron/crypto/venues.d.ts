@@ -20,9 +20,11 @@ export function historyTarget(timeframe: CryptoTimeframe, nowSec: number): numbe
  * Les URLs à interroger pour l'historique d'une série, et le regroupement à appliquer aux bougies lues : `aggregate`
  * bougies de `timeframe / aggregate` minutes font une bougie de `timeframe`. L'historique remonte à
  * `historyTarget(timeframe, nowSec)` bougies. Binance et Bybit : un appel jusqu'à 1 000 bougies, avec une bougie de marge
- * au-delà de `HISTORY_BARS` (`limit = min(1000, historyTarget + 1)` : un seau qui bascule pendant l'appel ne fait pas perdre
- * 00:00 UTC de la veille), sinon des pages de 1 000, de la plus ancienne à la plus récente (`startTime` chez Binance,
- * `start` chez Bybit). L'appelant coupe par l'heure (voir `historyTarget`). Coinbase : des pages de 300 bougies,
+ * (`limit = min(1000, historyTarget + 1)`) dès que la fenêtre de 00:00 UTC de la veille au seau courant compte
+ * `HISTORY_BARS` bougies ou plus (`needed >= HISTORY_BARS`, le 5m dès 17:35 UTC : un seau qui bascule pendant l'appel ne
+ * fait pas perdre 00:00 UTC de la veille ; 15m et au-dessus, toujours `limit=500`), sinon des pages de 1 000, de la plus
+ * ancienne à la plus récente (`startTime` chez Binance, `start` chez Bybit). L'appelant coupe par l'heure (voir
+ * `historyTarget`). Coinbase : des pages de 300 bougies,
  * de la plus récente à la plus ancienne (`ceil(historyTarget / 300)` pages, deux au moins ; quatre en 4 h, qui ne suit pas
  * `historyTarget`). Série ou timeframe hors du registre, `nowSec` qui n'est pas une date : aucune URL.
  */

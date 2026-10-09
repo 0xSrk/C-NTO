@@ -83,8 +83,13 @@ interface Subscription {
   /** Bougies construites ici depuis les trades : Coinbase et Bybit. */
   fromTrades: boolean;
   builder: TradeBarBuilder | null;
-  /** Sa demande est partie sur la connexion courante (ou ses clés y étaient déjà) : le prochain message le confirme. */
+  /** En attente de confirmation sur la connexion courante. */
   awaiting: boolean;
+  /**
+   * Les demandes d'abonnement en attente qui portent ses clés : l'accusé de la dernière le confirme. La première trame de
+   * son propre flux le confirme aussi (`confirmOwn`) ; vide, ses clés étaient déjà actives et accusées.
+   */
+  waitingFor: Set<number>;
   /** Refusé par la venue : ses clés sont rendues et il n'est plus jamais redemandé. */
   refused: boolean;
 }
@@ -145,14 +150,19 @@ function keepWindow(bars: readonly CryptoBar[], timeframe: CryptoTimeframe, nowS
  * (série, genre ou timeframe que `streamKeys` ne sert pas) ; `unsubscribe` dit si l'identifiant était connu.
  * Événements : un ticker suivi → `{ kind: 'ticker' }` ; une bougie Binance suivie → `{ kind: 'bar', final }` ; un trade
  * Coinbase ou Bybit → le `TradeBarBuilder` de chaque abonnement `bars` du marché, une bougie émise par timeframe.
- * Le constructeur d'un abonnement naît au premier message confirmé de cet abonnement sur la connexion courante (l'accusé
- * de la venue ou la première trame reçue après sa demande), avec `startedAtMs` = cet instant + 1 s, et renaît à chaque
- * reconnexion : une bougie entamée avant que le flux ne soit effectif, ou qui chevauche une coupure, n'est jamais
- * marquée complète. Un trade ou une bougie Binance datés de plus d'un seau en avance sur `now()` sont écartés.
+ * Le constructeur d'un abonnement naît à la confirmation de cet abonnement sur la connexion courante, avec
+ * `startedAtMs` = cet instant + 1 s, et renaît à chaque reconnexion : une bougie entamée avant que son flux ne soit
+ * effectif, ou qui chevauche une coupure, n'est jamais marquée complète. Confirment un abonnement : l'accusé de la venue
+ * pour la demande qui porte ses clés (la dernière, s'il en attend plusieurs) ; ou la première trame de son propre flux
+ * (un trade de son marché, son ticker, sa bougie Binance), sauf quand une de ses clés attend encore un désabonnement sur
+ * la connexion (la trame peut venir de l'activation précédente du flux). Une trame d'un autre flux, même du même marché
+ * (heartbeat, ticker), ne confirme rien. Un trade ou une bougie Binance datés de plus d'un seau en avance sur `now()`
+ * sont écartés.
  * Une demande refusée par la venue (Coinbase `error`, Bybit `success: false`, Binance `{ error }`, que Binance fait
  * suivre d'une fermeture 1008) est journalisée ; les abonnements qu'elle portait sont abandonnés et jamais
- * redemandés, si bien qu'une reconnexion ne boucle pas sur une clé refusée ; s'il ne reste rien à suivre, la socket
- * est fermée et la venue passe `blocked` jusqu'au prochain abonnement.
+ * redemandés, si bien qu'une reconnexion ne boucle pas sur une clé refusée.
+ * Jamais de socket sans flux : quand plus aucun abonnement actif ne reste sur une venue (désabonnement, refus, ou
+ * ouverture sans clé), la socket ferme ; la venue passe `blocked` s'il reste des abonnements refusés, `off` sinon.
  * Une venue que sa porte bloque (418, REST ou socket) reste `blocked` jusqu'au redémarrage, même sans abonnement.
  */
 export class CryptoFeedHost {
@@ -188,6 +198,7 @@ export class CryptoFeedHost {
       fromTrades: kind === 'bars' && venue !== 'binance',
       builder: null,
       awaiting: false,
+      waitingFor: new Set(),
       refused: false,
     };
     this.subs.set(sub.id, sub);
@@ -201,8 +212,8 @@ export class CryptoFeedHost {
     if (line.socket === null) {
       this.openSocket(venue, line);
     } else if (line.socket.state === 'live') {
-      sub.awaiting = true;
       this.request(venue, line, fresh, true);
+      this.expect(sub, line);
     }
     return { ok: true, subscriptionId: sub.id };
   }
@@ -225,13 +236,8 @@ export class CryptoFeedHost {
         }
       }
     }
-    if (![...this.subs.values()].some((other) => other.venue === sub.venue)) {
-      // Dernier abonnement de la venue : la socket ferme, rien à désabonner sur une connexion qui s'en va.
-      line.keys.clear();
-      this.shut(sub.venue, line, false);
-    } else {
-      this.request(sub.venue, line, gone, false);
-    }
+    // Plus aucun flux à suivre : la socket ferme, rien à désabonner sur une connexion qui s'en va.
+    if (!this.closeIfIdle(sub.venue, line)) this.request(sub.venue, line, gone, false);
     return true;
   }
 
@@ -240,7 +246,8 @@ export class CryptoFeedHost {
    * pause (avant chaque page), `no_history` s'il n'y a rien à demander ; pages récupérées l'une après l'autre, chacune
    * lue par `parseCandles` (une page en erreur fait échouer la requête, avec un détail borné), regroupées si besoin
    * (`aggregateBars(bars, timeframe / aggregate, aggregate)`), puis coupées par l'heure (`keepWindow`). Un 429 ou un 418
-   * passe par la porte ; un 418 coupe aussi la socket de la venue. Après `closeAll`, la requête s'arrête (`closed`).
+   * passe par la porte ; un 418 coupe aussi la socket de la venue ; seule une page lue sans erreur compte comme un
+   * succès pour la porte (`onSuccess`). Après `closeAll`, la requête s'arrête (`closed`).
    */
   async history(req: { series: CryptoSeriesId; timeframe: CryptoTimeframe }): Promise<HistoryResult> {
     const generation = this.generation;
@@ -264,12 +271,13 @@ export class CryptoFeedHost {
         return this.historyFailed(venue, market.id, timeframe, detail);
       }
       if (generation !== this.generation) return { ok: false, detail: 'closed' };
-      this.deps.gate.onSuccess(venue);
       try {
         for (const bar of parseCandles(venue, json)) received.push(bar);
       } catch (error) {
+        // Une page refusée par la venue (Bybit `retCode`) n'est pas un succès : le backoff de la porte reste où il est.
         return this.historyFailed(venue, market.id, timeframe, errorText(error));
       }
+      this.deps.gate.onSuccess(venue);
     }
     const bars = aggregateBars(received, (timeframe / aggregate) as CryptoTimeframe, aggregate);
     return { ok: true, bars: keepWindow(bars, timeframe, nowSec) };
@@ -341,15 +349,65 @@ export class CryptoFeedHost {
     this.publish(venue);
   }
 
-  /** À chaque ouverture : constructeurs remis à zéro (des trades ont pu manquer), toutes les clés actives redemandées. */
+  /**
+   * À chaque ouverture : toutes les clés actives redemandées en une demande, et chaque abonnement attend son accusé
+   * (constructeurs remis à zéro : des trades ont pu manquer). Une ouverture sans clé à suivre ferme la socket.
+   */
   private resubscribe(venue: CryptoVenue, line: VenueLine): void {
     line.pending = [];
-    for (const sub of this.subs.values()) {
-      if (sub.venue !== venue || sub.refused) continue;
-      sub.builder = null;
-      sub.awaiting = true;
-    }
+    if (this.closeIfIdle(venue, line)) return;
     this.request(venue, line, [...line.keys.keys()], true);
+    for (const sub of this.subs.values()) if (sub.venue === venue && !sub.refused) this.expect(sub, line);
+  }
+
+  /**
+   * Plus aucun abonnement actif sur la venue (ou plus aucune clé) : la socket ferme, jamais de socket sans flux. La venue
+   * passe `blocked` s'il lui reste des abonnements refusés, `off` sinon. Vrai si la venue a été fermée.
+   */
+  private closeIfIdle(venue: CryptoVenue, line: VenueLine): boolean {
+    if (line.keys.size > 0 && this.follows(venue, () => true)) return false;
+    line.keys.clear();
+    this.shut(venue, line, [...this.subs.values()].some((sub) => sub.venue === venue && sub.refused));
+    return true;
+  }
+
+  /**
+   * L'abonnement attend sa confirmation sur la connexion courante : l'accusé de chaque demande en attente qui porte ses
+   * clés (celle qui vient de partir pour lui, ou une plus ancienne pour une clé partagée), ou la première trame de son
+   * propre flux (`confirmOwn`).
+   */
+  private expect(sub: Subscription, line: VenueLine): void {
+    sub.awaiting = true;
+    sub.builder = null;
+    sub.waitingFor = new Set(line.pending.filter((request) => request.on && request.keys.some((key) => sub.keys.includes(key))).map((request) => request.id));
+  }
+
+  /** Confirmé à `at` : un abonnement de trades reçoit son constructeur, `startedAtMs` = `at` + 1 s. */
+  private confirm(sub: Subscription, at: number): void {
+    sub.awaiting = false;
+    sub.waitingFor.clear();
+    if (sub.fromTrades && sub.timeframe !== null) sub.builder = new TradeBarBuilder(sub.timeframe, at + CONFIRM_MARGIN_MS);
+  }
+
+  /** L'accusé d'une demande d'abonnement : les abonnements qui n'attendaient plus qu'elle sont confirmés. */
+  private acknowledge(venue: CryptoVenue, id: number, at: number): void {
+    for (const sub of this.subs.values()) {
+      if (sub.venue !== venue || !sub.awaiting || sub.refused || !sub.waitingFor.delete(id)) continue;
+      if (sub.waitingFor.size === 0) this.confirm(sub, at);
+    }
+  }
+
+  /**
+   * Une trame de son propre flux confirme un abonnement : sur une activation neuve, la venue ne l'envoie qu'après avoir
+   * traité la demande. Sauf quand une de ses clés attend encore un désabonnement sur cette connexion : la trame peut
+   * venir de l'activation précédente de son flux, et seul l'accusé de sa propre demande le confirmera.
+   */
+  private confirmOwn(venue: CryptoVenue, line: VenueLine, at: number, own: (sub: Subscription) => boolean): void {
+    for (const sub of this.subs.values()) {
+      if (sub.venue !== venue || !sub.awaiting || sub.refused || !own(sub)) continue;
+      if (line.pending.some((request) => !request.on && request.keys.some((key) => sub.keys.includes(key)))) continue;
+      this.confirm(sub, at);
+    }
   }
 
   private request(venue: CryptoVenue, line: VenueLine, keys: readonly string[], on: boolean): void {
@@ -368,37 +426,35 @@ export class CryptoFeedHost {
     const parsed = parseWsMessage(venue, raw);
     const at = this.deps.now();
     for (const item of parsed) {
-      if (item.kind === 'error') this.refusal(venue, line, item.detail, raw);
-      else if (item.kind === 'ignored' && line.pending.length > 0 && isAck(venue, raw)) this.answered(venue, line, raw);
+      if (item.kind === 'error') {
+        this.refusal(venue, line, item.detail, raw);
+      } else if (item.kind === 'ignored' && line.pending.length > 0 && isAck(venue, raw)) {
+        const request = this.answered(venue, line, raw);
+        if (request !== null && request.on) this.acknowledge(venue, request.id, at);
+      }
     }
     if (line.socket === null) return; // un refus a fermé la venue
-    this.confirm(venue, at);
-    for (const item of parsed) this.dispatch(venue, item, at);
+    for (const item of parsed) this.dispatch(venue, line, item, at);
   }
 
-  /** Les abonnements en attente sont confirmés par ce message : ceux des trades reçoivent leur constructeur. */
-  private confirm(venue: CryptoVenue, at: number): void {
-    for (const sub of this.subs.values()) {
-      if (sub.venue !== venue || !sub.awaiting || sub.refused) continue;
-      sub.awaiting = false;
-      if (sub.fromTrades && sub.timeframe !== null) sub.builder = new TradeBarBuilder(sub.timeframe, at + CONFIRM_MARGIN_MS);
-    }
-  }
-
-  private dispatch(venue: CryptoVenue, item: WsParsed, at: number): void {
+  private dispatch(venue: CryptoVenue, line: VenueLine, item: WsParsed, at: number): void {
     switch (item.kind) {
       case 'ticker': {
         const { ticker } = item;
-        if (this.follows(venue, (sub) => sub.kind === 'ticker' && sub.series === ticker.market)) this.emit({ kind: 'ticker', ticker });
+        const own = (sub: Subscription): boolean => sub.kind === 'ticker' && sub.series === ticker.market;
+        this.confirmOwn(venue, line, at, own);
+        if (this.follows(venue, own)) this.emit({ kind: 'ticker', ticker });
         return;
       }
       case 'kline': {
         if (!withinOneBucket(item.bar.time * 1000, item.timeframe, at)) return;
-        const followed = this.follows(venue, (sub) => sub.kind === 'bars' && !sub.fromTrades && sub.series === item.series && sub.timeframe === item.timeframe);
-        if (followed) this.emit({ kind: 'bar', series: item.series, timeframe: item.timeframe, bar: item.bar, final: item.final });
+        const own = (sub: Subscription): boolean => sub.kind === 'bars' && !sub.fromTrades && sub.series === item.series && sub.timeframe === item.timeframe;
+        this.confirmOwn(venue, line, at, own);
+        if (this.follows(venue, own)) this.emit({ kind: 'bar', series: item.series, timeframe: item.timeframe, bar: item.bar, final: item.final });
         return;
       }
       case 'trade':
+        this.confirmOwn(venue, line, at, (sub) => sub.fromTrades && sub.series === item.trade.market);
         this.onTrade(venue, item.trade, at);
         return;
       default:
@@ -434,6 +490,7 @@ export class CryptoFeedHost {
       if (sub.venue !== venue || sub.refused || !sub.keys.some((key) => refused.has(key))) continue;
       sub.refused = true;
       sub.awaiting = false;
+      sub.waitingFor.clear();
       sub.builder = null;
       for (const key of sub.keys) {
         const count = line.keys.get(key);
@@ -447,8 +504,7 @@ export class CryptoFeedHost {
       }
       this.log(`crypto ${venue}: abonnement ${sub.series} ${sub.kind} abandonné, jamais redemandé`);
     }
-    if (line.keys.size === 0) this.shut(venue, line, true);
-    else this.request(venue, line, release, false);
+    if (!this.closeIfIdle(venue, line)) this.request(venue, line, release, false);
   }
 
   /** La demande en attente à laquelle répond ce message, retirée de la file : par son `id` chez Binance, sinon la plus ancienne. */

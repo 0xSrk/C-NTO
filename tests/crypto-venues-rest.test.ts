@@ -552,13 +552,19 @@ describe('historique jusqu’à 00:00 UTC de la veille : URLs', () => {
     expect(historyRequests('binance:ONEUSDT', 5, Date.UTC(2026, 9, 9, 23, 55) / 1000).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=577']);
   });
 
-  it('appel unique : la marge d’une bougie ne s’ajoute qu’au-delà du plancher de 500 (5 m dès 17:40 UTC)', () => {
-    const before = DAY + 17 * HOUR + 39 * 60 + 59;
-    const from = DAY + 17 * HOUR + 40 * 60;
-    expect([historyTarget(5, before), historyTarget(5, from)]).toEqual([500, 501]);
-    for (const series of ['binance:ONEUSDT', 'bybit:ZIGUSDT'] as const) {
-      expect(new URL(nth(historyRequests(series, 5, before).urls, 0)).searchParams.get('limit'), series).toBe('500');
-      expect(new URL(nth(historyRequests(series, 5, from).urls, 0)).searchParams.get('limit'), series).toBe('502');
+  it('appel unique : la marge d’une bougie s’ajoute dès que la fenêtre depuis 00:00 UTC de la veille compte 500 bougies (5 m dès 17:35 UTC)', () => {
+    // [instant, bougies depuis 00:00 UTC de la veille (needed), historyTarget, limit]
+    const cases: [number, number, number, number][] = [
+      [DAY + 17 * HOUR + 34 * 60 + 59, 499, 500, 500], // la fenêtre de 500 commence avant 00:00 de la veille : une bascule la garde
+      [DAY + 17 * HOUR + 35 * 60, 500, 500, 501], // 500 pile : sans marge, une bascule perdrait 00:00 de la veille
+      [DAY + 17 * HOUR + 39 * 60 + 59, 500, 500, 501],
+      [DAY + 17 * HOUR + 40 * 60, 501, 501, 502],
+    ];
+    for (const [now, needed, target, limit] of cases) {
+      expect([slotsSinceWindowStart(5, now), historyTarget(5, now)], `${now}`).toEqual([needed, target]);
+      for (const series of ['binance:ONEUSDT', 'bybit:ZIGUSDT'] as const) {
+        expect(new URL(nth(historyRequests(series, 5, now).urls, 0)).searchParams.get('limit'), `${series} à ${now}`).toBe(String(limit));
+      }
     }
   });
 
@@ -752,14 +758,14 @@ describe('historique Binance et Bybit de bout en bout, sur une API simulée', ()
     }
   });
 
-  it('chaque timeframe : historyTarget bougies contiguës au pas du timeframe (une de plus en appel unique au-delà de 500), la bougie entamée en dernier', () => {
+  it('chaque timeframe : historyTarget bougies contiguës au pas du timeframe (une de plus en appel unique dès 500 depuis 00:00 UTC de la veille), la bougie entamée en dernier', () => {
     for (const venue of ['binance', 'bybit'] as const) {
       for (const tf of CRYPTO_TIMEFRAMES) {
         const step = tf * 60;
         for (const now of INSTANTS) {
           const target = historyTarget(tf, now);
           // La marge d’une bougie de l’appel unique : la plus ancienne tombe avant 00:00 UTC de la veille, l’appelant la coupe par l’heure.
-          const count = target > HISTORY_BARS && target <= 1000 ? target + 1 : target;
+          const count = slotsSinceWindowStart(tf, now) >= HISTORY_BARS && target <= 1000 ? target + 1 : target;
           const last = Math.floor(now / step) * step;
           const expected = Array.from({ length: count }, (_, i) => last - (count - 1 - i) * step);
           expect(klineHistory(venue, tf, now).map((b) => b.time), `${venue} ${tf} min à ${now}`).toEqual(expected);

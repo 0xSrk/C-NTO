@@ -5,8 +5,9 @@ import { VenueHttpError, type VenueGate } from './crypto-net';
  * Une WebSocket d'exchange tenue en vie, côté process principal (`docs/ONGLET-CRYPTO.md` § 5, « Voyants »).
  * La vie d'une connexion se juge à son activité, jamais à l'arrivée de trades : toute trame ou tout pong compte. Un
  * ping de protocole part toutes les 15 s, plus un ping applicatif quand la venue en demande un (Bybit, toutes les 20 s).
- * 30 s sans activité : `stale`, puis fermeture et reconnexion, après 1 s, 2 s, 4 s… plafonné à 60 s, remis à 1 s à
- * chaque ouverture réussie. La porte de la venue (`VenueGate`) décide avant chaque tentative : bloquée (418) ou hôte
+ * 30 s sans activité : `stale`, puis fermeture et reconnexion, après 1 s, 2 s, 4 s… plafonné à 60 s, remis à 1 s
+ * seulement quand une connexion est restée `live` et active 30 s : une venue qui accepte puis ferme aussitôt n'est pas
+ * relancée chaque seconde. La porte de la venue (`VenueGate`) décide avant chaque tentative : bloquée (418) ou hôte
  * refusé, la socket passe `blocked` et ne se reconnecte plus ; en pause (429), elle attend.
  * Aucun import d'Electron ni de `ws` : la fabrique de sockets, les minuteurs, l'horloge et la porte sont injectés
  * (CRY2.5 lie le client `ws`), ce qui garde le module testable avec une fausse socket et de faux minuteurs.
@@ -162,6 +163,7 @@ function closeReason(code: unknown): string {
  * États : `off` avant `open()` et après `close()` ; `connecting` à la première tentative ; `live` ouverte ; `stale` à
  * 30 s sans activité, aussitôt suivi de `reconnecting` jusqu'à la prochaine ouverture ; `blocked` sans reconnexion
  * (hôte refusé, 418, porte bloquée). Une tentative qui ne s'ouvre pas en 30 s est abandonnée comme une socket périmée.
+ * Le délai entre deux tentatives double à chaque perte et ne retombe à 1 s qu'après 30 s de connexion vivante et active.
  */
 export class ManagedSocket {
   private socket: WsLike | null = null;
@@ -172,6 +174,8 @@ export class ManagedSocket {
   private pingTimer: TimerHandle | null = null;
   private appPingTimer: TimerHandle | null = null;
   private watchdog: TimerHandle | null = null;
+  /** Échéance des 30 s de connexion vivante après lesquelles le délai de reconnexion retombe à 1 s. */
+  private settleTimer: TimerHandle | null = null;
   private lastActivity = 0;
   private oversizeLogged = false;
   private readonly where: string;
@@ -258,13 +262,20 @@ export class ManagedSocket {
 
   private opened(socket: WsLike): void {
     if (socket !== this.socket || this.current === 'live') return;
-    this.delayMs = RECONNECT_START_MS;
     this.touch();
     this.pingTimer = this.opts.timers.setInterval(() => this.ping(), PING_EVERY_MS);
     if (this.opts.appPing) this.appPingTimer = this.opts.timers.setInterval(() => this.sendAppPing(), BYBIT_PING_EVERY_MS);
+    this.settleTimer = this.opts.timers.setTimeout(() => this.settled(), STALE_AFTER_MS);
     this.setState('live');
     if (socket !== this.socket) return;
     this.guard(() => this.opts.onOpen());
+  }
+
+  /** 30 s après l'ouverture : une connexion encore vivante et active a fait ses preuves, le délai retombe à 1 s. */
+  private settled(): void {
+    this.settleTimer = null;
+    if (this.socket === null || this.current !== 'live') return;
+    if (this.opts.now() - this.lastActivity < STALE_AFTER_MS) this.delayMs = RECONNECT_START_MS;
   }
 
   private frame(socket: WsLike, data: unknown): void {
@@ -388,9 +399,11 @@ export class ManagedSocket {
     if (this.pingTimer !== null) timers.clearInterval(this.pingTimer);
     if (this.appPingTimer !== null) timers.clearInterval(this.appPingTimer);
     if (this.watchdog !== null) timers.clearTimeout(this.watchdog);
+    if (this.settleTimer !== null) timers.clearTimeout(this.settleTimer);
     this.pingTimer = null;
     this.appPingTimer = null;
     this.watchdog = null;
+    this.settleTimer = null;
   }
 
   private cancelRetry(): void {

@@ -7,9 +7,9 @@ import type { CryptoBar, CryptoTimeframe, CryptoTrade } from './markets';
 /**
  * Construit les bougies d'un marché à partir de ses trades. Un constructeur par abonnement : `timeframe` (en
  * minutes) fixe la largeur du seau, `startedAtMs` est l'instant à partir duquel le flux est tenu pour effectif :
- * `crypto-feeds.ts` le prend au premier message confirmé de l'abonnement (accusé de la venue ou première trame reçue
- * après la demande), plus une marge d'une seconde, et recrée le constructeur à chaque reconnexion ; une bougie entamée
- * avant n'est jamais marquée complète.
+ * `crypto-feeds.ts` le prend à la confirmation de l'abonnement (l'accusé de la demande qui porte ses clés, ou la
+ * première trame de son propre flux, jamais celle d'un autre flux), plus une marge d'une seconde, et recrée le
+ * constructeur à chaque reconnexion ; une bougie entamée avant n'est jamais marquée complète.
  * Le seau d'un trade commence à `floor(time / 1000 / (timeframe × 60)) × timeframe × 60` secondes, aligné sur
  * l'epoch UTC. Un seau commencé avant `startedAtMs` est incomplet : sa bougie n'a pas de `buyVolume`. Un seau
  * commencé à `startedAtMs` ou après est complet : sa bougie porte le `buyVolume`, la somme des quantités dont

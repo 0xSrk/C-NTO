@@ -427,7 +427,7 @@ export function historyTarget(timeframe: CryptoTimeframe, nowSec: number): numbe
 Règles :
 - `windowStart = (floor(nowSec / 86400) − 1) × 86400` ; `needed = floor((nowSec − windowStart) / (tf × 60)) + 1` ; `historyTarget = max(HISTORY_BARS, needed)`. En pratique seuls 1m (jusqu'à 2 880) et 5m (jusqu'à 576) dépassent 500.
 - `historyRequests(series, timeframe, nowSec)` couvre `historyTarget(timeframe, nowSec)` bougies (sauf Coinbase 240, qui garde 4 pages et `aggregate: 4` : décision du registre, 300 bougies 4h) :
-  - **Binance** : `historyTarget ≤ 1000` → une URL, comme aujourd'hui, avec `limit=<historyTarget>` (inchangée pour 15m et au-dessus : `limit=500`). Au-delà → pages de 1 000 en avançant, `&startTime=<ms>&limit=1000`, la première à `(seau courant − (historyTarget − 1) × tf × 60) × 1000`, chaque suivante 1 000 bougies plus loin ; la dernière page couvre le seau courant.
+  - **Binance** : `historyTarget ≤ 1000` → une URL, comme aujourd'hui, avec `limit=<historyTarget>`, plus une bougie de marge dès que `needed ≥ 500` (`limit = min(1000, historyTarget + 1)`, le 5m dès 17:35 UTC, `limit=577` à 23:55 : une bascule de seau pendant l'appel ne fait pas perdre 00:00 UTC de la veille, que l'appelant garde en coupant par l'heure ; règle ajoutée en CRY2.3) ; inchangée pour 15m et au-dessus : `limit=500`. Au-delà → pages de 1 000 en avançant, `&startTime=<ms>&limit=1000`, la première à `(seau courant − (historyTarget − 1) × tf × 60) × 1000`, chaque suivante 1 000 bougies plus loin ; la dernière page couvre le seau courant.
   - **Bybit** : même règle, paramètre `start=<ms>` (et `limit=1000`), `interval` inchangé.
   - **Coinbase** : `ceil(historyTarget / 300)` pages de 300 en remontant depuis le seau courant, au moins 2 comme aujourd'hui (1m : 5 à 10 pages).
 - Toute URL passe `cryptoHostAllowed(url, 'https:')`. Les URLs des timeframes 15m, 1h, 4h et 1j restent identiques à celles de CRY1.2 (tests existants inchangés).
@@ -446,7 +446,7 @@ const bn = historyRequests('binance:ONEUSDT', 1, t).urls;
 expect(bn).toHaveLength(3); expect(bn.every((u) => u.includes('limit=1000') && u.includes('startTime='))).toBe(true);
 expect(new URL(bn[0]!).searchParams.get('startTime')).toBe(String((t - 2040 * 60) * 1000));
 expect(historyRequests('bybit:ZIGUSDT', 1, t).urls).toHaveLength(3);
-expect(historyRequests('binance:ONEUSDT', 5, Date.UTC(2026, 9, 9, 23, 55) / 1000).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=576']);
+expect(historyRequests('binance:ONEUSDT', 5, Date.UTC(2026, 9, 9, 23, 55) / 1000).urls).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=577']); // needed = 576 ≥ 500 : une bougie de marge (CRY2.3)
 // les pages Binance/Bybit 1m sont contiguës et sans recouvrement ; leur union couvre de windowStart au seau courant
 ```
 
@@ -558,14 +558,14 @@ Règles :
   - contrôle `hostOk(url)` avant d'ouvrir ; refus → `blocked`, journal.
   - `connecting` → `live` à l'ouverture ; ping de protocole toutes les 15 s, plus `appPing()` toutes les 20 s s'il est fourni (Bybit : `{"op":"ping"}`).
   - toute trame ou pong compte comme activité ; 30 s sans activité → `stale`, puis fermeture et reconnexion.
-  - fermeture non demandée → `reconnecting`, nouvel essai après 1 s, 2 s, 4 s… plafonné à 60 s, remis à 1 s après une ouverture réussie.
+  - fermeture non demandée → `reconnecting`, nouvel essai après 1 s, 2 s, 4 s… plafonné à 60 s, remis à 1 s seulement après 30 s de connexion `live` et active (une venue qui accepte puis ferme aussitôt continue de doubler ; décision du contrôleur, revue de CRY2.3).
   - `unexpected-response` 418 → `gate.onHttpError` et `blocked` sans reconnexion ; 429 → backoff de la porte.
   - `close()` demandé : timers arrêtés, plus aucune reconnexion.
 - `CryptoFeedHost` :
   - une socket par venue, ouverte au premier abonnement ;
   - compteur de références par clé de flux : une clé déjà active n'est pas réabonnée, et le dernier désabonnement d'une clé envoie l'`unsubscribe` ;
-  - à chaque ouverture, réabonnement de toutes les clés actives ; dernier abonnement de la venue retiré → socket fermée, état `off`.
-  - Événements : ticker → `{ kind: 'ticker' }` ; kline Binance → `{ kind: 'bar', final }` ; trades Coinbase et Bybit → `TradeBarBuilder` de chaque abonnement `bars` du même marché et timeframe (créé au premier message confirmé de l'abonnement, `startedAtMs` = cet instant + 1 s, recréé à chaque reconnexion) → `{ kind: 'bar', final }`.
+  - à chaque ouverture, réabonnement de toutes les clés actives ; plus aucun abonnement actif sur la venue → socket fermée (jamais de socket sans flux), état `off`, ou `blocked` s'il ne reste que des abonnements refusés.
+  - Événements : ticker → `{ kind: 'ticker' }` ; kline Binance → `{ kind: 'bar', final }` ; trades Coinbase et Bybit → `TradeBarBuilder` de chaque abonnement `bars` du même marché et timeframe (créé à la confirmation de l'abonnement : l'accusé de la demande qui porte ses clés, ou la première trame de son propre flux, jamais celle d'un autre flux ; `startedAtMs` = cet instant + 1 s ; recréé à chaque reconnexion) → `{ kind: 'bar', final }`.
   - `history` : refusé `rate_limited` si la porte est fermée, `blocked` si la venue est bloquée ; pages récupérées en séquence ; agrégation si besoin ; coupe par l'heure, jamais par le nombre : les bougies dont `time >= min(00:00 UTC de la veille, seau courant − (HISTORY_BARS − 1) × tf × 60)` (une bascule de seau pendant la pagination rend une bougie de plus, que la coupe garde).
   - `closeAll()` : toutes les sockets fermées, tous les abonnements oubliés, aucun timer vivant.
 

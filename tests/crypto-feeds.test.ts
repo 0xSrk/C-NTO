@@ -117,13 +117,36 @@ function fakeNet(): { sockets: FakeWs[]; ws: WsFactory } {
 /** Les minuteurs du moment : appelée après `vi.useFakeTimers()`, elle rend les faux. */
 const timers = (): Timers => ({ setTimeout, clearTimeout, setInterval, clearInterval });
 
+/**
+ * Coinbase simulé : chaque socket s’ouvre aussitôt, et la venue la ferme si aucun `subscribe` n’arrive dans les 5 s
+ * (règle documentée de Coinbase). Minuteurs du test, donc faux.
+ */
+function coinbaseNet(): { sockets: FakeWs[]; ws: WsFactory } {
+  const net = fakeNet();
+  return {
+    sockets: net.sockets,
+    ws: (url) => {
+      const socket = net.ws(url) as FakeWs;
+      setTimeout(() => {
+        if (socket.closed) return;
+        socket.open();
+        setTimeout(() => {
+          if (!socket.closed && !socket.sent.some((m) => m.includes('"type":"subscribe"'))) socket.drop(1000);
+        }, 5_000);
+      }, 0);
+      return socket;
+    },
+  };
+}
+
 interface HarnessOptions {
   fetch?: (url: string) => Promise<unknown>;
   now?: () => number;
+  net?: { sockets: FakeWs[]; ws: WsFactory };
 }
 
 function harness(options: HarnessOptions = {}) {
-  const { sockets, ws } = fakeNet();
+  const { sockets, ws } = options.net ?? fakeNet();
   const events: CryptoFeedEvent[] = [];
   const statuses: [CryptoVenue, VenueState][] = [];
   const logs: string[] = [];
@@ -163,6 +186,8 @@ async function flush(): Promise<void> {
 // Messages des venues, aux formes relevées en direct (CRY1.3).
 const CB_SUBSCRIBE_TICKER = { type: 'subscribe', channels: [{ name: 'ticker', product_ids: ['BTC-USD'] }, { name: 'heartbeat', product_ids: ['BTC-USD'] }] };
 const CB_SUBSCRIBED = '{"type":"subscriptions","channels":[{"name":"heartbeat","product_ids":["BTC-USD"],"account_ids":null},{"name":"ticker","product_ids":["BTC-USD"],"account_ids":null}]}';
+const CB_SUBSCRIBED_ALL =
+  '{"type":"subscriptions","channels":[{"name":"heartbeat","product_ids":["BTC-USD"],"account_ids":null},{"name":"ticker","product_ids":["BTC-USD"],"account_ids":null},{"name":"matches","product_ids":["BTC-USD"],"account_ids":null}]}';
 const cbHeartbeat = (ms: number): string => JSON.stringify({ type: 'heartbeat', last_trade_id: 69152544, product_id: 'BTC-USD', sequence: 17330104222, time: iso(ms) });
 const cbTicker = (price: string, ms: number): string =>
   JSON.stringify({ type: 'ticker', sequence: 137481121996, product_id: 'BTC-USD', price, open_24h: '81100.00', side: 'sell', time: iso(ms), last_size: '0.001' });
@@ -350,7 +375,7 @@ describe('ManagedSocket', () => {
     expect(sockets).toHaveLength(1);
   });
 
-  it('fermeture non demandée : nouvel essai après 1 s, 2 s, 4 s… plafonné à 60 s, remis à 1 s après une ouverture réussie', () => {
+  it('fermeture non demandée : nouvel essai après 1 s, 2 s, 4 s… plafonné à 60 s, remis à 1 s après 30 s de connexion vivante', () => {
     const { socket, sockets } = managed();
     socket.open();
     nth(sockets, 0).open();
@@ -367,14 +392,53 @@ describe('ManagedSocket', () => {
     }
     expect(RECONNECT_MAX_MS).toBe(60_000);
     vi.advanceTimersByTime(60_000);
-    nth(sockets, -1).open(); // une ouverture réussie remet le délai à 1 s
+    const lasting = nth(sockets, -1);
+    lasting.open();
     expect(socket.state).toBe('live');
-    nth(sockets, -1).drop();
+    vi.advanceTimersByTime(PING_EVERY_MS);
+    lasting.pong();
+    vi.advanceTimersByTime(STALE_AFTER_MS - PING_EVERY_MS); // 30 s vivante et active : le délai retombe à 1 s
+    lasting.pong();
+    lasting.drop();
     const before = sockets.length;
     vi.advanceTimersByTime(999);
     expect(sockets).toHaveLength(before);
     vi.advanceTimersByTime(1);
     expect(sockets).toHaveLength(before + 1);
+  });
+
+  it('une venue qui accepte puis ferme aussitôt : 1, 2, 4, 8 s, sans retomber à 1 s à chaque ouverture', () => {
+    const { socket, sockets } = managed();
+    socket.open();
+    for (const wait of [1, 2, 4, 8]) {
+      nth(sockets, -1).open();
+      expect(socket.state).toBe('live');
+      nth(sockets, -1).drop(); // acceptée puis fermée aussitôt
+      const before = sockets.length;
+      vi.advanceTimersByTime(wait * 1000 - 1);
+      expect(sockets.length, `${wait} s : rien juste avant`).toBe(before);
+      vi.advanceTimersByTime(1);
+      expect(sockets.length, `${wait} s : nouvelle socket à l’échéance`).toBe(before + 1);
+    }
+  });
+
+  it('une connexion restée muette 30 s ne compte pas comme vivante : le délai continue de doubler', () => {
+    const { socket, sockets } = managed();
+    socket.open();
+    nth(sockets, 0).drop(); // 1 s
+    vi.advanceTimersByTime(1_000);
+    nth(sockets, 1).drop(); // 2 s
+    vi.advanceTimersByTime(2_000);
+    const silent = nth(sockets, 2);
+    vi.advanceTimersByTime(2_000);
+    silent.open(); // ouverte 2 s après sa création, puis plus rien
+    vi.advanceTimersByTime(STALE_AFTER_MS);
+    expect(socket.state).toBe('reconnecting'); // périmée
+    const before = sockets.length;
+    vi.advanceTimersByTime(3_999);
+    expect(sockets).toHaveLength(before);
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(before + 1); // 4 s, pas 1 s
   });
 
   it('une erreur de socket ferme et relance, sans lever, et son texte est borné, sans URL complète', () => {
@@ -523,6 +587,25 @@ describe('CryptoFeedHost · sockets', () => {
     socket.drop();
     vi.advanceTimersByTime(5 * 60_000);
     expect(sockets).toHaveLength(1);
+  });
+
+  it('un désabonnement pendant la reconnexion est laissé hors du réabonnement', () => {
+    const { host, sockets } = harness();
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' });
+    const ondo = idOf(host.subscribe({ series: 'coinbase:ONDO-USD', kind: 'ticker' }));
+    const first = nth(sockets, 0);
+    first.open();
+    expect(first.json()).toEqual([
+      { type: 'subscribe', channels: [{ name: 'ticker', product_ids: ['BTC-USD', 'ONDO-USD'] }, { name: 'heartbeat', product_ids: ['BTC-USD', 'ONDO-USD'] }] },
+    ]);
+    first.drop();
+    expect(host.states().coinbase).toBe('reconnecting');
+    expect(host.unsubscribe(ondo)).toBe(true);
+    expect(first.sent).toHaveLength(1); // rien ne part sur une socket qui n’est pas ouverte
+    vi.advanceTimersByTime(1_000);
+    const second = nth(sockets, 1);
+    second.open();
+    expect(second.json()).toEqual([CB_SUBSCRIBE_TICKER]);
   });
 
   it('refuse un flux que streamKeys ne connaît pas : unknown_stream, sans socket ni état', () => {
@@ -852,6 +935,29 @@ describe('CryptoFeedHost · refus de la venue', () => {
     expect(statesOf(statuses, 'binance')).toEqual(['connecting', 'live', 'blocked']);
   });
 
+  it('Coinbase : bougies refusées puis ticker retiré → la socket ferme, aucune reconnexion pendant 10 min, journal borné', () => {
+    const { host, sockets, logs, statuses } = harness({ net: coinbaseNet() });
+    const ticker = idOf(host.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' }));
+    vi.advanceTimersByTime(0); // la venue ouvre la socket
+    const socket = nth(sockets, 0);
+    expect(socket.json()).toEqual([CB_SUBSCRIBE_TICKER]);
+    socket.message(CB_SUBSCRIBED);
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'bars', timeframe: 1 });
+    expect(nth(socket.json(), -1)).toEqual({ type: 'subscribe', channels: [{ name: 'matches', product_ids: ['BTC-USD'] }] });
+    socket.message(cbError('Failed to subscribe', 'matches is not available for BTC-USD'));
+    expect(host.states().coinbase).toBe('live'); // le ticker suit toujours
+    expect(host.unsubscribe(ticker)).toBe(true);
+    // Il ne reste qu’un abonnement refusé : aucune socket sans flux, la venue passe blocked.
+    expect(socket.closed).toBe(true);
+    expect(host.states().coinbase).toBe('blocked');
+    socket.drop(1000);
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(sockets).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(logs.length).toBeLessThanOrEqual(5);
+    expect(statesOf(statuses, 'coinbase')).toEqual(['connecting', 'live', 'blocked']);
+  });
+
   it('une erreur qui ne répond à aucune demande en attente est seulement journalisée', () => {
     const { host, sockets, logs, events } = harness();
     host.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' });
@@ -949,6 +1055,95 @@ describe('CryptoFeedHost · bougies depuis les trades', () => {
     // Pas d’accusé : la première trame confirme (10:00:25), le seau de 10:00 a commencé avant.
     socket.message(cbMatch('sell', '100', '1', at('10:00:25')));
     expect(events).toEqual([bar('coinbase:BTC-USD', 1, { time: sec('10:00:00'), open: 100, high: 100, low: 100, close: 100, volume: 1 }, false)]);
+  });
+
+  it('une trame étrangère à l’abonnement ne le confirme pas : startedAtMs vient de son accusé, même arrivé tard', () => {
+    vi.setSystemTime(at('10:00:50'));
+    const { host, sockets, events } = harness();
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' });
+    const socket = nth(sockets, 0);
+    socket.open();
+    socket.message(CB_SUBSCRIBED);
+    heartbeatsUntil(socket, at('10:00:58.900'));
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'bars', timeframe: 1 }); // demande de `matches` à 10:00:58.900
+    expect(nth(socket.json(), -1)).toEqual({ type: 'subscribe', channels: [{ name: 'matches', product_ids: ['BTC-USD'] }] });
+    vi.advanceTimersByTime(50);
+    socket.message(cbHeartbeat(Date.now())); // 10:00:58.950 : le heartbeat que tient le ticker, pas une trame de l’abonnement
+    socket.message(cbTicker('82500.00', Date.now())); // même marché, autre flux
+    vi.advanceTimersByTime(1_550);
+    socket.message(CB_SUBSCRIBED_ALL); // son accusé, à 10:01:00.500 → startedAtMs 10:01:01.500
+    heartbeatsUntil(socket, at('10:01:05'));
+    socket.message(cbMatch('sell', '100', '1', at('10:01:05')));
+    heartbeatsUntil(socket, at('10:02:01'));
+    socket.message(cbMatch('sell', '101', '2', at('10:02:01')));
+    const ten01 = { time: sec('10:01:00'), open: 100, high: 100, low: 100, close: 100, volume: 1 }; // des trades de 10:01 ont pu manquer
+    expect(events.filter((e) => e.kind === 'bar')).toEqual([
+      bar('coinbase:BTC-USD', 1, ten01, false),
+      bar('coinbase:BTC-USD', 1, ten01, true),
+      bar('coinbase:BTC-USD', 1, { time: sec('10:02:00'), open: 101, high: 101, low: 101, close: 101, volume: 2, buyVolume: 2 }, false),
+    ]);
+  });
+
+  it('un abonnement qui attend deux demandes (la sienne et une plus ancienne pour une clé partagée) n’est confirmé qu’au dernier accusé', () => {
+    vi.setSystemTime(at('10:00:57'));
+    const { host, sockets, events } = harness();
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' });
+    const socket = nth(sockets, 0);
+    socket.open(); // demande du ticker et du heartbeat, pas encore accusée
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'bars', timeframe: 1 }); // demande de `matches` ; le heartbeat est partagé
+    vi.advanceTimersByTime(1_000);
+    socket.message(CB_SUBSCRIBED); // 10:00:58 : accusé de la première demande seulement
+    vi.advanceTimersByTime(2_500);
+    socket.message(CB_SUBSCRIBED_ALL); // 10:01:00.500 : accusé de la sienne → startedAtMs 10:01:01.500
+    heartbeatsUntil(socket, at('10:01:05'));
+    socket.message(cbMatch('sell', '100', '1', at('10:01:05')));
+    expect(events.filter((e) => e.kind === 'bar')).toEqual([bar('coinbase:BTC-USD', 1, { time: sec('10:01:00'), open: 100, high: 100, low: 100, close: 100, volume: 1 }, false)]);
+  });
+
+  it('un abonnement sur un flux déjà actif et accusé est confirmé par sa première trame, pas par celle d’un autre flux', () => {
+    const { host, sockets, events } = harness();
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'bars', timeframe: 5 });
+    const socket = nth(sockets, 0);
+    socket.open();
+    socket.message(CB_SUBSCRIBED_MATCHES); // accusé à 10:00:20
+    heartbeatsUntil(socket, at('10:00:58.500'));
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'bars', timeframe: 1 }); // clés déjà actives et accusées : rien à envoyer
+    expect(socket.sent).toHaveLength(1);
+    vi.advanceTimersByTime(100);
+    socket.message(cbHeartbeat(Date.now())); // 10:00:58.600 : heartbeat, autre flux
+    heartbeatsUntil(socket, at('10:01:05'));
+    socket.message(cbMatch('sell', '100', '1', at('10:01:05'))); // sa première trame → startedAtMs 10:01:06
+    expect(events).toEqual([
+      bar('coinbase:BTC-USD', 5, { time: sec('10:00:00'), open: 100, high: 100, low: 100, close: 100, volume: 1 }, false),
+      bar('coinbase:BTC-USD', 1, { time: sec('10:01:00'), open: 100, high: 100, low: 100, close: 100, volume: 1 }, false),
+    ]);
+  });
+
+  it('un flux redemandé pendant son désabonnement : une trame en vol de l’activation précédente ne confirme pas, seul l’accusé', () => {
+    const { host, sockets, events } = harness();
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' }); // tient la socket et le heartbeat
+    const oneMinute = idOf(host.subscribe({ series: 'coinbase:BTC-USD', kind: 'bars', timeframe: 1 }));
+    const socket = nth(sockets, 0);
+    socket.open();
+    socket.message(CB_SUBSCRIBED_ALL); // 10:00:20
+    heartbeatsUntil(socket, at('10:04:57'));
+    host.unsubscribe(oneMinute); // le désabonnement de `matches` part…
+    host.subscribe({ series: 'coinbase:BTC-USD', kind: 'bars', timeframe: 5 }); // … et `matches` est redemandé aussitôt
+    expect(socket.json().slice(-2)).toEqual([
+      { type: 'unsubscribe', channels: [{ name: 'matches', product_ids: ['BTC-USD'] }] },
+      { type: 'subscribe', channels: [{ name: 'matches', product_ids: ['BTC-USD'] }] },
+    ]);
+    vi.advanceTimersByTime(1_000);
+    socket.message(cbMatch('sell', '99', '1', at('10:04:58'))); // envoyée avant le désabonnement : ne prouve rien pour le nouveau
+    vi.advanceTimersByTime(2_500);
+    socket.message(CB_SUBSCRIBED); // 10:05:00.500 : accusé du désabonnement
+    vi.advanceTimersByTime(100);
+    socket.message(CB_SUBSCRIBED_ALL); // 10:05:00.600 : accusé de la nouvelle demande → startedAtMs 10:05:01.600
+    heartbeatsUntil(socket, at('10:05:10'));
+    socket.message(cbMatch('sell', '100', '1', at('10:05:10')));
+    expect(events.filter((e) => e.kind === 'bar')).toEqual([
+      bar('coinbase:BTC-USD', 5, { time: sec('10:05:00'), open: 100, high: 100, low: 100, close: 100, volume: 1 }, false),
+    ]);
   });
 
   it('une reconnexion recrée le constructeur : le seau qui chevauche la coupure n’est pas complet', () => {
@@ -1066,6 +1261,20 @@ describe('CryptoFeedHost · history', () => {
       ],
     });
     expect(success).toHaveBeenCalledWith('binance');
+  });
+
+  it('history : une page Bybit en erreur (retCode) ne remet pas le backoff de la porte à 1 s', async () => {
+    const { host, gate } = harness({ fetch: async () => ({ retCode: 10006, retMsg: 'Too many visits!' }) });
+    const success = vi.spyOn(gate, 'onSuccess');
+    gate.onHttpError('bybit', new VenueHttpError(429, 'HTTP 429 (api.bybit.com)')); // 1 s ; le backoff passe à 2 s
+    vi.advanceTimersByTime(1_000);
+    await expect(host.history({ series: 'bybit:ZIGUSDT', timeframe: 60 })).resolves.toEqual({ ok: false, detail: 'Too many visits!' });
+    expect(success).not.toHaveBeenCalled();
+    gate.onHttpError('bybit', new VenueHttpError(429, 'HTTP 429 (api.bybit.com)')); // pause suivante : toujours 2 s
+    vi.advanceTimersByTime(1_999);
+    expect(gate.allowed('bybit')).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(gate.allowed('bybit')).toBe(true);
   });
 
   it('history : Coinbase 240 → quatre appels en séquence, puis des bougies 4 h regroupées depuis l’heure', async () => {
@@ -1246,6 +1455,22 @@ describe('CryptoFeedHost · fenêtre gardée : par l’heure, jamais par le nomb
     expect(bars).toHaveLength(target + 1);
     expect(nth(bars, 0).time).toBe(WINDOW_START);
     expect(nth(bars, -1).time).toBe(sec('23:55:00'));
+  });
+
+  it('5 m à 17:39:59 (500 bougies pile depuis 00:00 UTC de la veille) : la marge joue déjà, 00:00 de la veille reste après une bascule', async () => {
+    vi.setSystemTime(at('17:39:59'));
+    expect(historyTarget(5, Date.now() / 1000)).toBe(HISTORY_BARS);
+    const { host, fetchJson } = harness({
+      fetch: async (url) => {
+        vi.setSystemTime(at('17:40:00.200')); // la venue répond après la bascule du seau
+        return fakeKlines(url, Date.now());
+      },
+    });
+    const bars = barsOf(await host.history({ series: 'binance:ONEUSDT', timeframe: 5 }));
+    expect(fetchJson.mock.calls.map(([url]) => url)).toEqual(['https://api.binance.com/api/v3/klines?symbol=ONEUSDT&interval=5m&limit=501']);
+    expect(bars).toHaveLength(HISTORY_BARS + 1);
+    expect(nth(bars, 0).time).toBe(WINDOW_START);
+    expect(nth(bars, -1).time).toBe(sec('17:40:00'));
   });
 
   it('5 m sans bascule : la bougie de marge tombe avant la fenêtre, et la coupe par l’heure l’écarte', async () => {
