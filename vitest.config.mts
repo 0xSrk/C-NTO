@@ -28,6 +28,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'agent/routines': 'src/engine/agent/routines.ts',
     'crypto/markets': 'src/engine/crypto/markets.ts',
     'crypto/venues': 'src/engine/crypto/venues.ts',
+    'crypto/tradeBars': 'src/engine/crypto/tradeBars.ts',
   };
   const hit = map[rel];
   return hit ? path.join(root, hit) : null;
