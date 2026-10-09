@@ -1,12 +1,25 @@
 /**
- * Historique des bougies des trois venues : les URLs REST à interroger, puis la lecture de leurs réponses.
+ * Les trois venues vues du process principal : l'historique des bougies (les URLs REST à interroger, puis la
+ * lecture de leurs réponses), les flux WebSocket (URLs, clés de flux, messages d'abonnement, lecture des
+ * messages reçus) et les URLs Binance de la température du marché.
  * Partagé par le process principal, qui fait les appels (`electron/crypto-feeds.ts`), et par le renderer
  * (émis vers `dist-electron/crypto/venues.js` par `electron/tsconfig.sources.json`). Il n'importe que
  * `./markets` : le process principal le compile sans alias ni `bars.ts`. Aucun réseau ici, seulement des
- * URLs et du JSON déjà reçu. Barres en secondes UTC. Un nombre d'exchange passe par `Number(...)` puis
- * `Number.isFinite` : une ligne qui n'en tient pas un est écartée, jamais propagée.
+ * URLs, des messages à envoyer et du JSON déjà reçu. Barres en secondes UTC, trades et tickers en
+ * millisecondes. Un nombre d'exchange passe par `Number(...)` puis `Number.isFinite` : une ligne qui n'en
+ * tient pas un est écartée, jamais propagée.
  */
-import { cryptoMarket, isCryptoTimeframe, type CryptoBar, type CryptoSeriesId, type CryptoTimeframe, type CryptoVenue } from './markets';
+import {
+  CRYPTO_TIMEFRAMES,
+  cryptoMarket,
+  isCryptoTimeframe,
+  type CryptoBar,
+  type CryptoSeriesId,
+  type CryptoTicker,
+  type CryptoTimeframe,
+  type CryptoTrade,
+  type CryptoVenue,
+} from './markets';
 
 /** Bougies demandées en un appel à Binance et à Bybit, et plafond de ce que l'historique rend. */
 export const HISTORY_BARS = 500;
@@ -206,4 +219,301 @@ export function aggregateBars(bars: CryptoBar[], timeframe: CryptoTimeframe, fac
     else buckets.set(start, [bar]);
   }
   return [...buckets].map(([time, group]) => mergeBars(time, group));
+}
+
+/**
+ * Le flux WebSocket public de la venue, en `wss:`. Binance sur le port 9443, que `cryptoHostAllowed` laisse libre.
+ * Venue inconnue : chaîne vide, que `cryptoHostAllowed` refuse.
+ */
+export function wsUrl(venue: CryptoVenue): string {
+  switch (venue) {
+    case 'coinbase':
+      return 'wss://ws-feed.exchange.coinbase.com';
+    case 'binance':
+      return 'wss://stream.binance.com:9443/ws';
+    case 'bybit':
+      return 'wss://stream.bybit.com/v5/public/spot';
+    default:
+      return '';
+  }
+}
+
+/** Les liquidations de tous les perps USDT de Binance : un flux à part, pour la température du marché. */
+export const FORCE_ORDER_URL = 'wss://fstream.binance.com/ws/!forceOrder@arr';
+/** Le funding de tous les perps USDT de Binance, en un appel. */
+export const PREMIUM_INDEX_URL = 'https://fapi.binance.com/fapi/v1/premiumIndex';
+/** La variation sur 24 h de toutes les paires spot de Binance, en un appel. */
+export const TICKER_24H_URL = 'https://api.binance.com/api/v3/ticker/24hr';
+
+/** L'open interest horaire de BTC ou d'ETH sur Binance : 25 points, de quoi lire la variation sur 24 h. */
+export function openInterestUrl(symbol: 'BTCUSDT' | 'ETHUSDT'): string {
+  return `https://fapi.binance.com/futures/data/openInterestHist?symbol=${encodeURIComponent(symbol)}&period=1h&limit=25`;
+}
+
+/**
+ * Les clés de flux d'une série, dans la langue de sa venue : une clé est ce que le message d'abonnement nomme.
+ * Coinbase : `canal:produit`, plus le `heartbeat` du produit, qui prouve la vie d'un marché sans trade. Binance :
+ * `symbole@flux`, symbole en minuscules, le flux de bougies portant l'intervalle du timeframe. Bybit :
+ * `topic.symbole`. Coinbase et Bybit n'ont pas de flux de bougies : `bars` leur donne les trades, que le process
+ * principal assemble, et le timeframe ne change pas la clé. Série ou genre inconnus, ou bougies Binance sans
+ * timeframe du registre : aucune clé.
+ */
+export function streamKeys(series: CryptoSeriesId, kind: 'ticker' | 'bars', timeframe?: CryptoTimeframe): string[] {
+  const market = cryptoMarket(series);
+  if (!market || (kind !== 'ticker' && kind !== 'bars')) return [];
+  const { symbol } = market;
+  switch (market.venue) {
+    case 'coinbase':
+      return [`${kind === 'ticker' ? 'ticker' : 'matches'}:${symbol}`, `heartbeat:${symbol}`];
+    case 'binance':
+      if (kind === 'ticker') return [`${symbol.toLowerCase()}@miniTicker`];
+      return isCryptoTimeframe(timeframe) ? [`${symbol.toLowerCase()}@kline_${BINANCE_INTERVAL[timeframe]}`] : [];
+    case 'bybit':
+      return [`${kind === 'ticker' ? 'tickers' : 'publicTrade'}.${symbol}`];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Les canaux d'un message d'abonnement Coinbase : les clés `canal:produit` regroupées par canal, dans l'ordre où
+ * elles se présentent, chaque produit une seule fois. Une clé sans canal ou sans produit est écartée.
+ */
+function coinbaseChannels(keys: readonly string[]): { name: string; product_ids: string[] }[] {
+  const channels = new Map<string, string[]>();
+  for (const key of keys) {
+    const colon = key.indexOf(':');
+    if (colon < 1 || colon === key.length - 1) continue;
+    const name = key.slice(0, colon);
+    const product = key.slice(colon + 1);
+    const products = channels.get(name);
+    if (products === undefined) channels.set(name, [product]);
+    else if (!products.includes(product)) products.push(product);
+  }
+  return [...channels].map(([name, products]) => ({ name, product_ids: products }));
+}
+
+/**
+ * Le message JSON qui abonne (`on`) ou désabonne la socket d'une venue des flux `keys`. Coinbase :
+ * `{ type, channels: [{ name, product_ids }] }`, un seul message pour tous les canaux. Binance :
+ * `{ method, params, id }`, l'`id` revenant dans l'acquittement. Bybit : `{ op, args }`, sans identifiant.
+ * Venue inconnue : chaîne vide.
+ */
+export function subscribeMessage(venue: CryptoVenue, keys: readonly string[], on: boolean, id: number): string {
+  switch (venue) {
+    case 'coinbase':
+      return JSON.stringify({ type: on ? 'subscribe' : 'unsubscribe', channels: coinbaseChannels(keys) });
+    case 'binance':
+      return JSON.stringify({ method: on ? 'SUBSCRIBE' : 'UNSUBSCRIBE', params: [...keys], id });
+    case 'bybit':
+      return JSON.stringify({ op: on ? 'subscribe' : 'unsubscribe', args: [...keys] });
+    default:
+      return '';
+  }
+}
+
+/**
+ * Ce qu'un message de flux donne : un ticker, un trade (`aggressor` est le côté qui a pris la liquidité), une
+ * bougie Binance entière (`final` : elle est close), la preuve de vie de la socket, l'erreur de la venue, ou rien.
+ */
+export type WsParsed =
+  | { kind: 'ticker'; ticker: CryptoTicker }
+  | { kind: 'trade'; trade: CryptoTrade }
+  | { kind: 'kline'; series: CryptoSeriesId; timeframe: CryptoTimeframe; bar: CryptoBar; final: boolean }
+  | { kind: 'heartbeat' }
+  | { kind: 'error'; detail: string }
+  | { kind: 'ignored' };
+
+/** Un message sans suite : ni exception ni valeur douteuse, seulement « ignoré ». */
+const ignored = (): WsParsed[] => [{ kind: 'ignored' }];
+
+const finiteOrNull = (n: number): number | null => (Number.isFinite(n) ? n : null);
+
+/** La série du registre qui porte ce symbole natif sur cette venue, ou `null` : absent, mal typé ou hors registre. */
+function seriesOf(venue: CryptoVenue, symbol: unknown): CryptoSeriesId | null {
+  return typeof symbol === 'string' ? (cryptoMarket(`${venue}:${symbol}`)?.id ?? null) : null;
+}
+
+/** La variation depuis `open`, en pourcent ; `null` quand l'ouverture manque ou n'est pas positive, ou que le résultat déborde. */
+function changeSince(open: number | null, last: number): number | null {
+  return open !== null && open > 0 ? finiteOrNull((last / open - 1) * 100) : null;
+}
+
+/** L'horodatage ISO 8601 de Coinbase (en UTC, jusqu'à la microseconde) en millisecondes ; `null` si ce n'est pas une date. */
+function coinbaseTime(v: unknown): number | null {
+  return typeof v === 'string' ? finiteOrNull(Date.parse(v)) : null;
+}
+
+function coinbaseTicker(msg: Record<string, unknown>): CryptoTicker | null {
+  const market = seriesOf('coinbase', msg.product_id);
+  const last = num(msg.price);
+  const time = coinbaseTime(msg.time);
+  if (market === null || last === null || time === null) return null;
+  return { market, last, change24hPct: changeSince(num(msg.open_24h), last), time };
+}
+
+/** Coinbase donne dans `side` le côté du maker : l'agresseur, qui a pris sa liquidité, est l'autre côté. */
+function coinbaseTrade(msg: Record<string, unknown>): CryptoTrade | null {
+  const market = seriesOf('coinbase', msg.product_id);
+  const time = coinbaseTime(msg.time);
+  const price = num(msg.price);
+  const size = num(msg.size);
+  const aggressor = msg.side === 'sell' ? 'buy' : msg.side === 'buy' ? 'sell' : null;
+  if (market === null || time === null || price === null || size === null || aggressor === null) return null;
+  return { market, time, price, size, aggressor };
+}
+
+/** Le texte de l'erreur de Coinbase : `message`, puis `reason` quand il y en a un ; jamais vide. */
+function coinbaseError(msg: Record<string, unknown>): string {
+  const parts = [msg.message, msg.reason].filter((part): part is string => typeof part === 'string' && part.trim() !== '');
+  return parts.length > 0 ? parts.join(': ') : 'coinbase: error';
+}
+
+function parseCoinbase(msg: Record<string, unknown>): WsParsed[] {
+  switch (msg.type) {
+    case 'ticker': {
+      const ticker = coinbaseTicker(msg);
+      return ticker ? [{ kind: 'ticker', ticker }] : [];
+    }
+    case 'match':
+    case 'last_match': {
+      const trade = coinbaseTrade(msg);
+      return trade ? [{ kind: 'trade', trade }] : [];
+    }
+    case 'heartbeat':
+      return [{ kind: 'heartbeat' }];
+    case 'error':
+      return [{ kind: 'error', detail: coinbaseError(msg) }];
+    default:
+      return [];
+  }
+}
+
+/** Binance : `c` dernier prix, `o` prix d'il y a 24 h, `E` heure de l'événement en millisecondes. */
+function binanceTicker(msg: Record<string, unknown>): CryptoTicker | null {
+  const market = seriesOf('binance', msg.s);
+  const last = num(msg.c);
+  const time = num(msg.E);
+  if (market === null || last === null || time === null) return null;
+  return { market, last, change24hPct: changeSince(num(msg.o), last), time };
+}
+
+/** Le timeframe d'un intervalle de bougie Binance (`1m`, `1h`, …) ; `undefined` s'il n'est pas l'un des six du registre. */
+function binanceTimeframe(interval: unknown): CryptoTimeframe | undefined {
+  return CRYPTO_TIMEFRAMES.find((tf) => BINANCE_INTERVAL[tf] === interval);
+}
+
+/**
+ * Binance : la bougie entière dans `k` (`t` ouverture en millisecondes, `o h l c`, `v` volume, `V` volume acheteur,
+ * `i` intervalle), renvoyée à chaque mise à jour jusqu'à sa clôture ; `x` ne vaut vrai qu'à la clôture. Le symbole
+ * est celui du message, pas celui de `k`.
+ */
+function binanceKline(msg: Record<string, unknown>): WsParsed | null {
+  const k = msg.k;
+  if (!isRecord(k)) return null;
+  const series = seriesOf('binance', msg.s);
+  const timeframe = binanceTimeframe(k.i);
+  const bar = makeBar(seconds(num(k.t)), num(k.o), num(k.h), num(k.l), num(k.c), num(k.v));
+  const buyVolume = num(k.V);
+  if (series === null || timeframe === undefined || bar === null || buyVolume === null) return null;
+  return { kind: 'kline', series, timeframe, bar: { ...bar, buyVolume }, final: k.x === true };
+}
+
+function parseBinance(msg: Record<string, unknown>): WsParsed[] {
+  switch (msg.e) {
+    case '24hrMiniTicker': {
+      const ticker = binanceTicker(msg);
+      return ticker ? [{ kind: 'ticker', ticker }] : [];
+    }
+    case 'kline': {
+      const kline = binanceKline(msg);
+      return kline ? [kline] : [];
+    }
+    default:
+      return [];
+  }
+}
+
+/** Bybit : `lastPrice` dernier prix, `price24hPcnt` variation sur 24 h en fraction (0,0061 vaut 0,61 %), `ts` en millisecondes. */
+function bybitTicker(symbol: string, msg: Record<string, unknown>): CryptoTicker | null {
+  const market = seriesOf('bybit', symbol);
+  const data = isRecord(msg.data) ? msg.data : null;
+  const last = data === null ? null : num(data.lastPrice);
+  const time = num(msg.ts);
+  if (market === null || data === null || last === null || time === null) return null;
+  const fraction = num(data.price24hPcnt);
+  return { market, last, change24hPct: fraction === null ? null : finiteOrNull(fraction * 100), time };
+}
+
+/** Bybit : `T` heure du trade en millisecondes, `p` prix, `v` quantité, `S` le côté du taker, qui est l'agresseur. */
+function bybitTrade(market: CryptoSeriesId, row: unknown): CryptoTrade | null {
+  if (!isRecord(row)) return null;
+  const time = num(row.T);
+  const price = num(row.p);
+  const size = num(row.v);
+  const aggressor = row.S === 'Buy' ? 'buy' : row.S === 'Sell' ? 'sell' : null;
+  if (time === null || price === null || size === null || aggressor === null) return null;
+  return { market, time, price, size, aggressor };
+}
+
+/** Un trade par élément de `data`, dans l'ordre ; l'élément invalide est écarté, ses voisins gardés. */
+function bybitTrades(symbol: string, data: unknown): WsParsed[] {
+  const market = seriesOf('bybit', symbol);
+  if (market === null || !Array.isArray(data)) return [];
+  const events: WsParsed[] = [];
+  for (const row of data) {
+    const trade = bybitTrade(market, row);
+    if (trade) events.push({ kind: 'trade', trade });
+  }
+  return events;
+}
+
+/**
+ * Bybit : `op` ou `ret_msg` valent `pong` en réponse au `ping` ; un message de données porte son `topic`
+ * (`tickers.<symbole>`, `publicTrade.<symbole>`) ; les acquittements d'abonnement et tout autre topic ne donnent rien.
+ */
+function parseBybit(msg: Record<string, unknown>): WsParsed[] {
+  if (msg.op === 'pong' || msg.ret_msg === 'pong') return [{ kind: 'heartbeat' }];
+  const topic = msg.topic;
+  if (typeof topic !== 'string') return [];
+  const dot = topic.indexOf('.');
+  if (dot < 0) return [];
+  const channel = topic.slice(0, dot);
+  const symbol = topic.slice(dot + 1);
+  if (channel === 'tickers') {
+    const ticker = bybitTicker(symbol, msg);
+    return ticker ? [{ kind: 'ticker', ticker }] : [];
+  }
+  return channel === 'publicTrade' ? bybitTrades(symbol, msg.data) : [];
+}
+
+function readMessage(venue: CryptoVenue, msg: Record<string, unknown>): WsParsed[] {
+  switch (venue) {
+    case 'coinbase':
+      return parseCoinbase(msg);
+    case 'binance':
+      return parseBinance(msg);
+    case 'bybit':
+      return parseBybit(msg);
+    default:
+      return [];
+  }
+}
+
+/**
+ * Lit un message de flux, le texte JSON tel que la socket le livre. Ne lève jamais : un texte illisible, coupé ou
+ * qui n'est pas un objet, une venue ou un type de message inconnus, un symbole hors du registre, un côté qui n'est
+ * pas celui de la venue, un nombre non fini (aussi bien `abc` que `1e999`) donnent `[{ kind: 'ignored' }]`, et une
+ * ligne invalide d'un message qui en porte plusieurs est écartée sans gêner les autres. Jamais de tableau vide.
+ * Les acquittements d'abonnement ne donnent rien ; `heartbeat` est la preuve de vie (le canal `heartbeat` de
+ * Coinbase, le `pong` de Bybit). Une variation sur 24 h dont l'ouverture manque, est nulle ou déborde vaut `null`.
+ */
+export function parseWsMessage(venue: CryptoVenue, raw: string): WsParsed[] {
+  try {
+    const msg: unknown = JSON.parse(raw);
+    const events = isRecord(msg) ? readMessage(venue, msg) : [];
+    return events.length > 0 ? events : ignored();
+  } catch {
+    return ignored();
+  }
 }

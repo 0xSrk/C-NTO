@@ -453,7 +453,21 @@ describe('partage avec le process principal', () => {
       [...text.matchAll(/^export (?:declare )?(?:const|function|type|interface) (\w+)/gm)].map((m) => m[1] ?? '').sort();
     const declaration = readFileSync('electron/crypto/venues.d.ts', 'utf8');
     expect(exported(declaration)).toEqual(exported(source));
-    expect(exported(source)).toEqual(['HISTORY_BARS', 'aggregateBars', 'historyRequests', 'parseCandles']);
+    expect(exported(source)).toEqual([
+      'FORCE_ORDER_URL',
+      'HISTORY_BARS',
+      'PREMIUM_INDEX_URL',
+      'TICKER_24H_URL',
+      'WsParsed',
+      'aggregateBars',
+      'historyRequests',
+      'openInterestUrl',
+      'parseCandles',
+      'parseWsMessage',
+      'streamKeys',
+      'subscribeMessage',
+      'wsUrl',
+    ]);
     expect(declaration).toMatch(/from '\.\/markets'/);
   });
 
