@@ -25,6 +25,7 @@
     "../src/engine/agent/routines.ts",
     "../src/engine/crypto/markets.ts",
     "../src/engine/crypto/venues.ts",
-    "../src/engine/crypto/tradeBars.ts"
+    "../src/engine/crypto/tradeBars.ts",
+    "../src/engine/crypto/temperature.ts"
   ]
 }
