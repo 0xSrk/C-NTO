@@ -1,0 +1,239 @@
+/**
+ * Le catalogue d'indicateurs du chart crypto, côté renderer seulement (`docs/ONGLET-CRYPTO.md` § 3 et § 7).
+ * L'EMA, la SMA, le volume relatif et l'ATR du desk ne dépendent d'aucune séance : ils sont repris tels quels.
+ * Le VWAP et les niveaux du desk sont ancrés sur la séance Globex (bascule à 18:00 ET) ; la crypto se négocie 24 h sur 24,
+ * sans séance, ils sont donc réécrits ici avec une ancre UTC : le VWAP repart de zéro à 00:00 UTC, les niveaux sont ceux
+ * du jour UTC précédent. Le CVD vient de `./cvd`. Les lignes gardent les clés, les étiquettes et les teintes de leurs
+ * équivalents du desk.
+ */
+import type { Bar } from '@/engine/bars';
+import { indicatorById, type IndicatorDefinition, type IndicatorInstance, type IndicatorLine } from '@/engine/indicators';
+import { cvdPoints } from './cvd';
+import type { CryptoBar } from './markets';
+
+type LinePoint = IndicatorLine['data'][number];
+
+/**
+ * Les teintes des lignes du desk (`PALETTE` de `src/engine/indicators.ts`, qui ne l'exporte pas), et `--amber` de
+ * `src/design/tokens.css` pour le CVD.
+ */
+const COLOR = {
+  ink: '#ffffff',
+  steel: '#6c6c6c',
+  mint: '#7fcf9a',
+  ember: '#e0776c',
+  amber: '#d8b45a',
+} as const;
+
+const DAY_SECONDS = 86_400;
+
+/** Le rang du jour UTC d'une bougie depuis l'epoch (`time` est en secondes UTC) : l'ancre du VWAP et des niveaux. */
+function utcDay(timeSec: number): number {
+  return Math.floor(timeSec / DAY_SECONDS);
+}
+
+/** Une définition du desk reprise telle quelle : l'objet même de `INDICATORS`, jamais une copie. */
+function deskIndicator(id: string): IndicatorDefinition {
+  const def = indicatorById(id);
+  if (!def) throw new Error(`indicateur du desk introuvable : ${id}`);
+  return def;
+}
+
+/**
+ * Comme `toLine` de `src/engine/indicators.ts`, qui ne l'exporte pas : aucun point avant la première valeur, puis un
+ * blanc pour chaque valeur manquante ou non finie.
+ */
+function toLine(bars: readonly Bar[], values: readonly (number | null)[]): LinePoint[] {
+  const data: LinePoint[] = [];
+  let started = false;
+  bars.forEach((bar, i) => {
+    const value = values[i];
+    if (value !== null && value !== undefined && Number.isFinite(value)) {
+      data.push({ time: bar.time, value });
+      started = true;
+    } else if (started) {
+      data.push({ time: bar.time });
+    }
+  });
+  return data;
+}
+
+const vwapUtc: IndicatorDefinition = {
+  id: 'vwap-utc',
+  name: 'VWAP 00:00 UTC',
+  short: 'VWAP',
+  description: 'Prix moyen pondéré par le volume, réinitialisé chaque jour à 00:00 UTC : la crypto se négocie 24 h sur 24, sans séance. Bandes ±1σ / ±2σ.',
+  family: 'volume',
+  params: [{ key: 'bands', label: 'Bandes', type: 'select', default: '2', options: [{ value: '0', label: 'Aucune' }, { value: '1', label: '±1σ' }, { value: '2', label: '±1σ et ±2σ' }] }],
+  compute: (bars, p) => {
+    // Moyenne et variance pondérées par le volume, mises à jour bougie après bougie : la première bougie du jour vaut
+    // exactement son prix typique, avec un σ nul. (Le VWAP du desk somme prix et prix², qui perdent des chiffres là.)
+    const rows: ({ mean: number; sd: number } | null)[] = [];
+    let day = Number.NaN;
+    let volume = 0;
+    let mean = 0;
+    let spread = 0;
+    for (const bar of bars) {
+      const barDay = utcDay(bar.time);
+      if (barDay !== day) {
+        day = barDay;
+        volume = 0;
+        mean = 0;
+        spread = 0;
+      }
+      const typical = (bar.high + bar.low + bar.close) / 3;
+      // Le volume pèse tel quel, sous 1 aussi : le VWAP du desk compte au moins 1 par bougie (des contrats entiers), alors
+      // qu'une bougie de BTC pèse souvent moins d'un BTC. Une bougie sans volume, ou sans prix ou volume fini, ne pèse
+      // rien : le VWAP ne bouge pas.
+      if (bar.volume > 0 && Number.isFinite(bar.volume) && Number.isFinite(typical)) {
+        volume += bar.volume;
+        const gap = typical - mean;
+        mean += gap * (bar.volume / volume);
+        spread += bar.volume * gap * (typical - mean);
+      }
+      rows.push(volume > 0 ? { mean, sd: Math.sqrt(Math.max(0, spread / volume)) } : null);
+    }
+    const band = (k: number): (number | null)[] => rows.map((row) => (row ? row.mean + k * row.sd : null));
+    const bands = Number(p.bands);
+    const lines: IndicatorLine[] = [{ key: 'vwap', label: 'VWAP', color: COLOR.ink, lineWidth: 2, pane: 'price', data: toLine(bars, rows.map((row) => (row ? row.mean : null))) }];
+    if (bands >= 1) {
+      lines.push({ key: 'up1', label: '+1σ', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: toLine(bars, band(1)) });
+      lines.push({ key: 'dn1', label: '−1σ', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: toLine(bars, band(-1)) });
+    }
+    if (bands >= 2) {
+      lines.push({ key: 'up2', label: '+2σ', color: COLOR.steel, lineStyle: 'dashed', pane: 'price', data: toLine(bars, band(2)) });
+      lines.push({ key: 'dn2', label: '−2σ', color: COLOR.steel, lineStyle: 'dashed', pane: 'price', data: toLine(bars, band(-2)) });
+    }
+    return { id: 'vwap-utc', lines };
+  },
+};
+
+interface DayLevels {
+  high: number;
+  low: number;
+  close: number;
+}
+
+/**
+ * Pour chaque bougie, plus haut, plus bas et clôture du jour UTC qui précède le sien, ou `null` quand ce jour n'a pas
+ * de bougie. Seul le jour calendaire d'avant compte : un jour sans bougie ne se remplace pas par un plus ancien.
+ */
+function previousDayLevels(bars: readonly Bar[]): (DayLevels | null)[] {
+  const out: (DayLevels | null)[] = [];
+  let day = Number.NaN;
+  let current: DayLevels | null = null;
+  let previous: DayLevels | null = null;
+  for (const bar of bars) {
+    const barDay = utcDay(bar.time);
+    if (barDay !== day) {
+      previous = current !== null && barDay === day + 1 ? current : null;
+      current = null;
+      day = barDay;
+    }
+    current =
+      current === null
+        ? { high: bar.high, low: bar.low, close: bar.close }
+        : { high: Math.max(current.high, bar.high), low: Math.min(current.low, bar.low), close: bar.close };
+    out.push(previous);
+  }
+  return out;
+}
+
+/**
+ * Un niveau en ligne interrompue à chaque jour : un point par bougie qui a un niveau, et un blanc entre le dernier point
+ * d'un jour et le premier du suivant. Le chart dessine alors un segment par jour, sans raccord oblique entre deux jours.
+ * Le blanc tombe à mi-chemin entre ces deux bougies, sur l'instant d'aucune d'elles.
+ */
+function levelLine(bars: readonly Bar[], levels: readonly (DayLevels | null)[], pick: (level: DayLevels) => number): LinePoint[] {
+  const data: LinePoint[] = [];
+  let lastDay = Number.NaN;
+  let lastTime = Number.NaN;
+  bars.forEach((bar, i) => {
+    const level = levels[i];
+    const value = level ? pick(level) : Number.NaN;
+    if (!Number.isFinite(value)) return;
+    const day = utcDay(bar.time);
+    if (data.length > 0 && day !== lastDay) data.push({ time: (lastTime + bar.time) / 2 });
+    data.push({ time: bar.time, value });
+    lastDay = day;
+    lastTime = bar.time;
+  });
+  return data;
+}
+
+const levelsUtc: IndicatorDefinition = {
+  id: 'levels-utc',
+  name: 'Niveaux du jour UTC précédent',
+  short: 'PDH/PDL',
+  description: 'Plus haut, plus bas et clôture du jour UTC précédent (de 00:00 à 24:00 UTC) : supports et résistances suivis par la majorité des intervenants.',
+  family: 'niveaux',
+  params: [],
+  compute: (bars) => {
+    const levels = previousDayLevels(bars);
+    return {
+      id: 'levels-utc',
+      lines: [
+        { key: 'pdh', label: 'PDH', color: COLOR.mint, lineStyle: 'dashed', pane: 'price', data: levelLine(bars, levels, (level) => level.high) },
+        { key: 'pdl', label: 'PDL', color: COLOR.ember, lineStyle: 'dashed', pane: 'price', data: levelLine(bars, levels, (level) => level.low) },
+        { key: 'pdc', label: 'PDC', color: COLOR.steel, lineStyle: 'dotted', pane: 'price', data: levelLine(bars, levels, (level) => level.close) },
+      ],
+    };
+  },
+};
+
+/** Le CVD du chart et le CVD Binance : la même ligne de panneau, sur des bougies différentes (voir `inputBarsFor`). */
+function cvdIndicator(def: Pick<IndicatorDefinition, 'id' | 'name' | 'description'>, label: string): IndicatorDefinition {
+  return {
+    ...def,
+    short: 'CVD',
+    family: 'volume',
+    params: [],
+    // `buyVolume` n'est pas dans `Bar` : les bougies sont des `CryptoBar` à l'exécution, et `cvdPoints` le lit.
+    compute: (bars) => ({ id: def.id, lines: [{ key: 'cvd', label, color: COLOR.amber, pane: 'pane', data: cvdPoints(bars) }] }),
+  };
+}
+
+/** Les huit indicateurs du chart crypto, dans l'ordre du catalogue. */
+export const CRYPTO_INDICATORS: IndicatorDefinition[] = [
+  deskIndicator('ema'),
+  deskIndicator('sma'),
+  deskIndicator('volume-ma'),
+  deskIndicator('atr'),
+  vwapUtc,
+  levelsUtc,
+  cvdIndicator(
+    {
+      id: 'cvd',
+      name: 'Delta de volume cumulé',
+      description: 'Acheteurs moins vendeurs, cumulés bougie après bougie. Complet sur Binance ; sur Coinbase et Bybit, il commence à l’ouverture du flux.',
+    },
+    'CVD',
+  ),
+  cvdIndicator(
+    {
+      id: 'cvd-binance',
+      name: 'Delta de volume cumulé · Binance',
+      description: 'CVD de la série Binance USDT du même actif (BTCUSDT, ONDOUSDT), historique complet : un autre marché que celui du chart.',
+    },
+    'CVD Binance',
+  ),
+];
+
+/** La définition du catalogue crypto qui porte cet identifiant. Le VWAP et les niveaux de séance du desk n'y sont pas. */
+export function cryptoIndicatorById(id: string): IndicatorDefinition | undefined {
+  return CRYPTO_INDICATORS.find((def) => def.id === id);
+}
+
+/** Ce que le chart affiche à la première ouverture : le CVD, et le VWAP à ±1σ (la définition propose ±1σ et ±2σ). */
+export const DEFAULT_CRYPTO_INDICATORS: IndicatorInstance[] = [
+  { id: 'i_cvd', definitionId: 'cvd', params: {}, visible: true },
+  { id: 'i_vwap', definitionId: 'vwap-utc', params: { bands: '1' }, visible: true },
+];
+
+/**
+ * Les bougies qu'un indicateur lit : celles du marché affiché, sauf `cvd-binance`, qui lit la série Binance du même actif.
+ * Sans bougie de cette série, `cvd-binance` n'a rien à tracer : il ne se rabat pas sur celles du chart.
+ */
+export function inputBarsFor(definitionId: string, chartBars: readonly CryptoBar[], proxyBars: readonly CryptoBar[]): readonly CryptoBar[] {
+  return definitionId === 'cvd-binance' ? proxyBars : chartBars;
+}
