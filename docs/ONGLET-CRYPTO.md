@@ -15,12 +15,12 @@ Base : CΛNTO 3.5.0 (`main`, 0796a9d). Usage : **personnel**, rien ne part en Re
 | Binance | Température globale du marché, non liée à un actif |
 | Alertes | Locales, desk ouvert seulement ; prix et température ; toast et `desk_events`, sans notification système |
 | CVD Coinbase | Live depuis les trades, plus une option « CVD Binance » à historique complet |
-| Disposition | Cockpit (§ 7) |
+| Design | Celui du desk 3.5.0, comme chaque onglet : composition de 02 · VIS, primitives du Système 3.4 (§ 7) |
 | Git | Commits locaux sur `main`, jamais de push |
 
 **Hypothèses retenues sans question.** Bybit pour ZIG (absent de Coinbase et de Binance) ; une seule watchlist ; registre de marchés fixé dans le code en v1 ; aucune exécution d'ordre.
 
-**Succès.** Desk lancé, interrupteur allumé : l'onglet 09 montre les quatre marchés en direct avec leurs voyants, la température, le CVD ; l'agent du desk et Claude Code (passerelle MCP) lisent le chart et, après confirmation, le modifient ; une alerte prix et une alerte température se déclenchent en toast ; les bougies BTC-USD 1h du desk égalent celles d'OpenMarket (§ 11). Interrupteur éteint : le desk est identique à la 3.5.0.
+**Succès.** Desk lancé, interrupteur allumé : l'onglet 09 montre les quatre marchés en direct avec leurs voyants, la température, le CVD ; l'agent du desk et Claude Code (passerelle MCP) lisent le chart et, après confirmation, le modifient ; une alerte prix et une alerte température se déclenchent en toast ; les bougies BTC-USD 1h du desk égalent celles d'OpenMarket (§ 11) ; l'onglet ne se distingue pas des autres onglets du desk. Interrupteur éteint : le desk est celui de la 3.5.0, plus l'onglet 09 en état vide, sans flux ni outil.
 
 ## 2. Décisions de l'ADMIN à consigner
 
@@ -32,7 +32,7 @@ Base : CΛNTO 3.5.0 (`main`, 0796a9d). Usage : **personnel**, rien ne part en Re
 
 ## 3. Périmètre
 
-**v1.** Interrupteur ; onglet 09 en disposition Cockpit ; quatre marchés, six timeframes (1m, 5m, 15m, 1h, 4h, 1d) ; indicateurs CVD, CVD Binance, VWAP ancré 00:00 UTC, EMA, SMA, moyenne de volume, ATR, niveaux du jour UTC précédent ; température globale Binance ; alertes prix et température ; tracés (niveau, zone) ; dix outils d'agent exposés aussi par la passerelle MCP.
+**v1.** Interrupteur ; onglet 09 au design du desk (composition de 02 · VIS) ; quatre marchés, six timeframes (1m, 5m, 15m, 1h, 4h, 1d) ; indicateurs CVD, CVD Binance, VWAP ancré 00:00 UTC, EMA, SMA, moyenne de volume, ATR, niveaux du jour UTC précédent ; température globale Binance ; alertes prix et température ; tracés (niveau, zone) ; dix outils d'agent exposés aussi par la passerelle MCP.
 
 **Hors v1.** Ordres, comptes, positions ; marchés hors registre ; bougies sous la minute ; screener multi-venues ; dominance BTC (autre hôte) ; score composite de température ; notification système ; crypto dans les routines `pre_session_brief` et `session_debrief` ; mise à jour du README, des captures et du changelog (rien n'est publié).
 
@@ -40,7 +40,7 @@ Base : CΛNTO 3.5.0 (`main`, 0796a9d). Usage : **personnel**, rien ne part en Re
 
 ```
 Renderer (CSP inchangée)                 Process principal
-src/modules/crypto/   Cockpit UI          electron/crypto/
+src/modules/crypto/   onglet 09 · CRY     electron/crypto/
 src/store/crypto.ts   état + Dexie v10    ├─ switch.ts    interrupteur (userData/crypto.json, dialogue)
         │  window.canto.crypto.*          ├─ hosts.ts     CRYPTO_HOSTS, contrôle https/wss
         └──────── IPC crypto:* ──────────►├─ rest.ts      historique et métadonnées (modèle guardedFetch)
@@ -54,7 +54,7 @@ src/engine/crypto/  (pur, partagé)        └─ temperature.ts relevés Binanc
 - **IPC** : méthodes nommées dans `electron/preload.ts` sous `window.canto.crypto`, chaque `ipcMain` derrière `trusted(e)` et une validation de forme ; tout refusé interrupteur éteint.
 - **Flux** : comme pour NinjaTrader (`src/engine/marketdata/adapters/nt8.ts`), un adaptateur du moteur, `src/engine/crypto/port.ts`, implémente `MarketDataPort` (`src/engine/marketdata/port.ts:56-64`, `sourceId: 'crypto'`) avec un transport injecté qui appelle `window.canto.crypto` ; le réseau reste dans le main. Seul `src/store/crypto.ts` le consomme : `store/bars.ts`, `applyNtBar`, `QuoteBook` et `createPort` n'en voient rien.
 - **Identifiants de marché** : `venue:symbole` (`coinbase:BTC-USD`, `coinbase:ONDO-USD`, `binance:ONEUSDT`, `bybit:ZIGUSDT`), propres aux tables crypto ; `isInstrumentId` (`src/store/db.ts:338`) n'est ni utilisé ni élargi.
-- **Onglet** : `'crypto'` dans `TabId` (`src/store/ui.ts:5`), entrée `09 · CRY` dans `src/app/tabs.ts`, `lazy` dans `src/app/App.tsx`, raccourci `Digit([1-9])` (`src/app/Shell.tsx:92`). Interrupteur éteint : absent du rail, Ctrl+9 sans effet.
+- **Onglet** : `'crypto'` dans `TabId` (`src/store/ui.ts:5`), entrée `09 · CRY` dans `src/app/tabs.ts`, `lazy` dans `src/app/App.tsx`, raccourci `Digit([1-9])` (`src/app/Shell.tsx:92`). Interrupteur éteint : l'onglet reste sur le rail et Ctrl+9 l'ouvre, en état vide (§ 7), sans flux ni outil.
 - **Intouchés** : `src/engine/instruments.ts`, `src/engine/portfolio/*`, `discipline`, `copier`, `execution`, `electron/nt-bridge/*`, `allowedHosts()`.
 
 ## 5. Marchés et données
@@ -95,24 +95,36 @@ src/engine/crypto/  (pur, partagé)        └─ temperature.ts relevés Binanc
 
 Les liquidations sont un **minorant** : Binance ne pousse qu'une liquidation par symbole et par seconde ; la fenêtre repart de zéro à chaque lancement du desk. Ces deux faits sont écrits à l'écran et dans `crypto_temperature`. Chaque lecture porte son horodatage. Pas de score composite en v1.
 
-## 7. Interface — disposition Cockpit
+## 7. Interface — design du desk 3.5.0
 
-```
-┌ 09 · CRY  [BTC-USD · COINBASE] [1H] [CVD] [CVD BINANCE]            ● CB ● BN ● BY ┐
-├ FUNDING MÉDIAN      │ LARGEUR 24 H        │ LIQ. 1 H (MINORANT)  │ OPEN INTEREST 24 H ┤
-├──────────────────────────────────────────────────────┬──────────────────────────────┤
-│ chart : bougies · volume · CVD (ancrage affiché)     │ WATCHLIST                    │
-│ tracés de l'agent en violet, étiquette AGENT         │ BTC · ONDO · ONE · ZIG       │
-├───────────────────────────┬──────────────────────────┴──────────────────────────────┤
-│ ALERTES (armées, déclenchées, non évaluées)  │ AGENT (en attente · historique)       │
-└───────────────────────────┴─────────────────────────────────────────────────────────┘
-```
+Décision de l'ADMIN (9 octobre 2026) : l'onglet reprend le **design final de la 3.5.0**, comme chaque onglet. Mêmes primitives (`src/design/primitives.tsx`), même châssis (`ModuleHeader`, `ModuleContent`, `src/app/Shell.tsx:358-381`), même composition que 02 · VIS (`src/modules/visual/Visual.tsx`). Aucune mise en page, aucun composant visuel et aucun jeton nouveaux. Références : `docs/DESIGN.md` (Système 3.4) et les planches `docs/media/visual.png`, `copieur.png`, `portefeuille.png`, `agent.png`.
 
-- Jetons de `src/design/tokens.css` seulement ; `tests/design-guard.test.ts` reste vert. Le rouge `--gold` ne marque que le vivant (flux live, écriture en attente) ; gains et pertes en `--mint` / `--ember` ; tracés de l'agent en `--violet` (catégorie).
-- Chart : `src/modules/visual/Chart.tsx` réutilisé, `priceFormat` (précision, `minMove`) passé par symbole au lieu de `precision: 2, minMove: 0.25` (`Chart.tsx:145`).
-- Toutes les chaînes par `tr(fr, en, es)`.
-- Le tiroir Agent liste l'écriture en attente (avec Refuser / Confirmer, mêmes effets que le dialogue du desk) et les écritures passées, lues ou confirmées.
-- Maquette de référence : variante B validée le 9 octobre 2026.
+**En-tête.** `ModuleHeader tab="crypto"` : plaque `CRY │ Crypto · CHART · TEMPÉRATURE · ALERTES` (libellé et tagline en trois langues dans `src/app/tabs.ts`), `meta` `4 MARCHÉS · 3 VENUES`. Actions, dans l'ordre de Visual (`Visual.tsx:273-298`) :
+- `Tag` d'état du flux du chart : `mint` « direct », `ember` « données périmées », rien sinon ;
+- `<select>` du marché (`BTC-USD · Coinbase`, `ONDO-USD · Coinbase`, `ONEUSDT · Binance`, `ZIGUSDT · Bybit`) à la place du sélecteur de série ;
+- `Segmented` des six timeframes.
+
+**Corps.** `ModuleContent noPad`, puis la grille `layout` de Visual : `chartWrap` à gauche, colonne `side` à droite.
+
+*Chart.*
+- Ligne `legend` de Visual : `BTC-USD · 1h`, date et heure de la bougie, O H L C colorés par `signClass`, Vol ; au survol, la valeur de chaque indicateur ; l'ancrage du CVD (« CVD depuis 11:43 » ou « CVD Binance »).
+- Puce `stamp` : `Tag tone="mint"` « Coinbase · direct », `Tag tone="ember"` « Coinbase · figé », `Tag tone="ice"` « Historique » avant le premier tick.
+- `Chart.tsx` réutilisé, avec deux props optionnelles, sans effet sur Visual quand elles sont absentes : `priceFormat` (précision et pas du marché, au lieu de `precision: 2, minMove: 0.25`, `Chart.tsx:145`) et `priceLines` (tracés en `--violet`, titre `AGENT` quand l'agent les a posés). `fmtPrice` (`src/lib/format.ts:75`) gagne un nombre de décimales optionnel, 2 par défaut.
+- Le CVD est une `IndicatorLine` `pane: 'pane'` : panneau propre, déjà géré par `Chart.tsx:222-239`.
+
+*Colonne* (`sideSection`, `sideTitle`, `desc` de Visual), dans cet ordre :
+1. **Marchés · 4** — une ligne par marché au format `tradeRow` : `Led` et symbole, `Etiquette` de la venue, dernier prix, variation 24 h en `signClass`. Un clic change le marché du chart.
+2. **Indicateurs · n** — les cartes de Visual à l'identique (`Toggle`, nom, ×, paramètres, description) et le bouton `+ Ajouter` ; catalogue crypto : CVD, CVD Binance, VWAP 00:00 UTC, EMA, SMA, volume relatif, ATR, niveaux du jour UTC précédent.
+3. **Température · Binance** — une `Regle` par lecture (`Funding médian ···· +0,0030 %`, `Largeur 24 h ···· 38 %`, `Liquidations 1 h ···· L 4,1 M$ · S 1,2 M$`, `Open interest 24 h ···· BTC +2,4 %`), puis une `desc` avec l'heure de chaque lecture et « liquidations : minorant ».
+4. **Alertes · n** — une ligne par alerte : cible, condition, niveau, état, `Etiquette` `[ AGENT ]` si l'agent l'a posée. `+ Ajouter` ouvre une `Modal` du desk (`Field`, `<select>`, `input`, boutons `ghost` et `gold`), sur le modèle de l'import de barres (`Visual.tsx:517-599`).
+5. **Source** — `desc` à la manière de Visual : venue, nombre de bougies, période ; un voyant par venue (`connecting` … `blocked`) ; « Données publiques des exchanges, usage personnel. » ; bouton `ghost` « Éteindre le module ».
+6. **Agent** — dernières écritures de l'agent sur l'onglet (heure, outil, effet) au format `tradeRow`. La confirmation passe par le `ConfirmDialog` du desk (`Shell.tsx:332`), comme toute écriture de l'agent.
+
+**Interrupteur éteint.** L'onglet garde sa place sur le rail. `ModuleContent` montre `Empty` : titre, texte, et `Button variant="chamfer"` « Activer le module crypto », seule action principale de l'écran, qui demande le dialogue du process principal.
+
+**Styles.** `src/modules/crypto/Crypto.tsx` importe `src/modules/visual/visual.module.css` pour tout ce qu'il partage avec Visual : rendu identique, aucune copie. `crypto.module.css` ne porte que les lignes de marché et d'alerte, en jetons de `tokens.css`. `--gold` ne marque que le vivant ; tracés et séries d'indicateurs en couleurs catégorielles (`--violet`, `--ice`, `--amber`) ; aucun `--lab`. Chaînes par `tr(fr, en, es)`. `tests/design-guard.test.ts` reste vert.
+
+**Preuve visuelle.** Au lot CRY4, capture de l'onglet par le chemin des planches du README, à poser à côté de `docs/media/visual.png`.
 
 ## 8. Alertes
 
@@ -167,12 +179,12 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 - **Moteur** (Vitest, environnement node, `TZ=UTC`) : registre ; agrégation 4h ; CVD Binance (formule) et CVD trades (inversion maker de Coinbase, taker de Bybit) ; VWAP et niveaux ancrés UTC ; température (médiane, largeur, fenêtre glissante de liquidations) ; alertes (seuils, hystérésis, `once`/`rearm`, refus sur `stale`).
 - **Réseau** : faux serveur WebSocket local (`ws`, déjà dépendance) qui rejoue coupure, 429, 418 et silence de heartbeat ; faux `fetch` pour l'historique ; contrôle d'hôte (`https:`/`wss:`, hôte hors liste refusé, redirection refusée).
 - **Politique** : `CRYPTO_HOSTS` n'apparaît jamais dans `allowedHosts()` ; interrupteur éteint → IPC refusés, outils masqués et refusés, onglet absent ; `tests/sources.test.ts` inchangé.
-- **Interface** (jsdom, `Chart` et `window.canto` simulés) : rendu Cockpit, voyants, ancrage du CVD affiché, tiroir Agent.
+- **Interface** (jsdom, `Chart` et `window.canto` simulés, sur le modèle de `tests/visual-follow-reset.test.ts`) : en-tête et actions, légende et puce de source, six sections de la colonne dans l'ordre, ancrage du CVD affiché, état vide interrupteur éteint ; Visual inchangé sans les nouvelles props de `Chart.tsx`.
 - **Coffre** : export puis restauration avec les trois tables ; restauration d'un coffre v9 sans elles.
 - **Listes figées** mises à jour : `tabs.test.ts`, catalogues de l'agent et de la passerelle, `agent-events`.
 
 **Recette (lot CRY7)**, desk lancé par l'ADMIN (`npm run desk:dev`) :
-1. Interrupteur éteint : desk identique à la 3.5.0.
+1. Interrupteur éteint : desk de la 3.5.0, onglet 09 en état vide, aucune connexion vers `CRYPTO_HOSTS`.
 2. Allumé : les quatre voyants passent à `live`, la température se remplit, le CVD affiche son ancrage.
 3. Oracle BTC-USD Coinbase 1h : les 50 dernières bougies closes du desk égalent `chart_read bars:50` d'OpenMarket (O, H, L, C au pas de prix ; volume à ±1 %).
 4. Oracle ONE Binance : le CVD du desk suit celui d'OpenMarket en direction, bougie par bougie, sur 50 bougies (chart temporaire OpenMarket, avec l'accord de l'ADMIN au moment de la recette).
@@ -182,13 +194,14 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 ## 12. Organisation
 
 - **Prérequis** : Node 22.12 ou plus (absent de ce poste), puis `npm install` dans `c-nto`. Aucune autre dépendance : `ws`, `lightweight-charts` et `dexie` sont déjà là.
-- **Lots** : CRY0 décisions, interrupteur et coquille de l'onglet · CRY1 moteur · CRY2 réseau · CRY3 store et Dexie v10 · CRY4 interface Cockpit · CRY5 alertes · CRY6 outils de l'agent et passerelle · CRY7 recette.
+- **Lots** : CRY0 décisions, interrupteur et coquille de l'onglet · CRY1 moteur · CRY2 réseau · CRY3 store et Dexie v10 · CRY4 interface au design du desk · CRY5 alertes · CRY6 outils de l'agent et passerelle · CRY7 recette.
 - **Git** : commits locaux sur `main`, messages courts en français préfixés `CRY<lot>.<n>`, aucune attribution (CLAUDE.md § 1), aucun push. Constats et preuves dans `docs/AUDIT.md`, section « Onglet 09 · CRY ».
 
 ## 13. Risques et points ouverts
 
 - **Conditions des exchanges.** Usage personnel de données publiques : admis en pratique, non revu juridiquement. Toute distribution du module exige une revue des conditions et une nouvelle décision (D9).
 - **Interrupteur allumé dans une Release.** L'état vit dans `userData` du poste, jamais dans le dépôt ; un test vérifie le défaut `false`.
+- **Onglet visible à la réouverture du dépôt.** Éteint, l'onglet 09 reste sur le rail, en état vide. Avant toute Release, l'ADMIN tranche : le garder, le retirer du rail, ou le réserver à un build personnel.
 - **ONE** : écart de 10 à 18 % entre Binance, Gate et KuCoin relevé le 9 octobre 2026. La venue de référence est Binance, et elle est affichée.
 - **ZIG** : peu liquide, d'où la vie jugée au heartbeat (§ 5) et l'âge du dernier prix affiché.
 - **Bannissement Binance (418)** : une seule IP, celle du poste. Le backoff et la coupure de venue l'évitent ; si elle survient, la température et ONE s'arrêtent jusqu'au redémarrage.
