@@ -48,6 +48,9 @@ const fake = vi.hoisted(() => {
   return { ...api, main, off, on, push };
 });
 
+// Allumé, l'onglet monte le chart (CRY4.3) : le canevas n'existe pas sous jsdom, et ce fichier ne regarde que l'interrupteur.
+vi.mock('@/modules/visual/Chart', () => ({ Chart: () => null }));
+
 import Crypto from '@/modules/crypto/Crypto';
 import { useCrypto } from '@/store/crypto';
 

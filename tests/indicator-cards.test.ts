@@ -371,13 +371,29 @@ describe('CRY4.2 indicatorCopy', () => {
       useI18n.setState({ locale });
       for (const id of ['ema', 'sma', 'volume-ma', 'atr']) {
         expect(cryptoIndicatorName(id, 'repli')).toBe(trIndicatorName(id, 'repli'));
-        expect(cryptoIndicatorDesc(id, 'repli')).toBe(trIndicatorDesc(id, 'repli'));
         expect(cryptoIndicatorName(id, 'repli')).not.toBe('repli');
         expect(cryptoIndicatorDesc(id, 'repli')).not.toBe('repli');
       }
+      // CRY4.3 : l'EMA et l'ATR ont leur description crypto (voir le test suivant) ; la SMA et le volume relatif gardent celle de Visual.
+      for (const id of ['sma', 'volume-ma']) expect(cryptoIndicatorDesc(id, 'repli')).toBe(trIndicatorDesc(id, 'repli'));
       expect(cryptoIndicatorName('inconnu', 'nom de repli')).toBe('nom de repli');
       expect(cryptoIndicatorDesc('inconnu', 'description de repli')).toBe('description de repli');
     }
+  });
+
+  it('CRY4.3 : décrit l’EMA et l’ATR sans le Nasdaq ni les points de future, dans les trois langues', () => {
+    for (const id of ['ema', 'atr']) {
+      const byLocale = {} as Record<Locale, string>;
+      for (const locale of ['fr', 'en', 'es'] as const) {
+        useI18n.setState({ locale });
+        byLocale[locale] = cryptoIndicatorDesc(id, 'repli');
+        expect(byLocale[locale], `${locale} · ${id}`).not.toBe(trIndicatorDesc(id, 'repli'));
+        expect(byLocale[locale], `${locale} · ${id}`).not.toMatch(/Nasdaq|NQ|points|puntos/);
+      }
+      expect(new Set(Object.values(byLocale)).size, id).toBe(3);
+    }
+    useI18n.setState({ locale: 'fr' });
+    expect(cryptoIndicatorDesc('atr', '')).toContain('devise de cotation');
   });
 
   it('couvre tout le catalogue crypto : hors du français, aucune entrée ne retombe sur son texte français', () => {

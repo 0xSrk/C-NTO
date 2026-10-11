@@ -1,7 +1,8 @@
 /**
  * Les noms et les descriptions des indicateurs propres au chart crypto, dans les trois langues (`docs/ONGLET-CRYPTO.md` § 7).
  * Le catalogue de `src/engine/crypto/indicators.ts` porte un texte français de repli ; ce que l'écran affiche passe ici,
- * par identifiant. Tout autre identifiant (EMA, SMA, volume relatif, ATR) garde la copie de Visual.
+ * par identifiant. L'EMA et l'ATR ont ici leur propre description : celle de Visual parle des scalpers du Nasdaq et de
+ * points de future. Tout autre identifiant (SMA, volume relatif, et les noms de l'EMA et de l'ATR) garde la copie de Visual.
  * Chaque phrase dit ce que l'indicateur calcule, et seulement cela (`src/engine/crypto/indicators.ts`, `cvd.ts`).
  */
 import { tr } from '@/i18n';
@@ -49,6 +50,18 @@ export function cryptoIndicatorDesc(id: string, fallback: string): string {
         'Plus haut (PDH), plus bas (PDL) et clôture (PDC) du jour UTC précédent, de 00:00 à 24:00 UTC. Sans niveaux quand l’historique chargé ne couvre pas la veille depuis 00:00 UTC.',
         'High (PDH), low (PDL) and close (PDC) of the previous UTC day, from 00:00 to 24:00 UTC. No levels when the loaded history does not cover the previous day from 00:00 UTC.',
         'Máximo (PDH), mínimo (PDL) y cierre (PDC) del día UTC anterior, de 00:00 a 24:00 UTC. Sin niveles cuando el historial cargado no cubre el día anterior desde las 00:00 UTC.',
+      );
+    case 'ema':
+      return tr(
+        'Moyenne des clôtures qui pèse davantage les plus récentes : la tendance de court et moyen terme, sur l’unité de temps du chart.',
+        'Average of closes that weighs the most recent ones more: the short and medium-term trend, on the chart’s timeframe.',
+        'Media de los cierres que pondera más los más recientes: la tendencia de corto y medio plazo, en el marco temporal del gráfico.',
+      );
+    case 'atr':
+      return tr(
+        'Volatilité moyenne par bougie, dans la devise de cotation du marché. Sert à dimensionner stops et objectifs.',
+        'Average volatility per candle, in the market’s quote currency. Used to size stops and targets.',
+        'Volatilidad media por vela, en la divisa de cotización del mercado. Sirve para dimensionar stops y objetivos.',
       );
     default:
       return trIndicatorDesc(id, fallback);

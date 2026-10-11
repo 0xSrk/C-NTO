@@ -1,0 +1,79 @@
+/*
+ * Onglet 09 · CRY : seules les lignes de marché et d'alerte vivent ici. Tout le reste (grille, chart, légende, colonne,
+ * `tradeRow`) vient de `../visual/visual.module.css`. Même grain que `tradeRow` (mono 11, filet pointillé), en jetons.
+ */
+
+/* Une ligne par marché, sur deux rangs : voyant, symbole et venue | dernier prix ; âge de la mise à jour | variation 24 h. */
+.marketRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--line-0);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  text-align: left;
+}
+.marketRow:hover,
+.marketRow.active {
+  color: var(--text-0);
+}
+.marketHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.marketAge {
+  min-width: 0;
+  color: var(--text-3);
+}
+
+/* Une ligne par alerte : cible | état | ×, puis la condition et son niveau, puis « non évaluée » et sa raison. */
+.alertRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--line-0);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.alertTarget {
+  min-width: 0;
+  color: var(--text-1);
+}
+.alertLine {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.alertIdle {
+  grid-column: 1 / -1;
+  color: var(--ember);
+}
+.alertRemove {
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.alertRemove:hover {
+  color: var(--text-0);
+}
+
+/* Le refus de la fenêtre d'alerte, en clair. */
+.alertError {
+  margin: 12px 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  color: var(--ember);
+}

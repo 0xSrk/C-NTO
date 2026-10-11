@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { IconPlus } from '@/app/icons';
 import { Button, Toggle, cx } from '@/design/primitives';
 import type { IndicatorDefinition, IndicatorInstance, IndicatorParam } from '@/engine/indicators';
@@ -109,6 +109,8 @@ export interface IndicatorCardsProps {
   onToggle: (id: string) => void;
   onUpdate: (id: string, patch: Record<string, number | string>) => void;
   onRemove: (id: string) => void;
+  /** Sous les cartes. Absent : la note du Lab de Visual ; `null` : rien (le catalogue crypto est fixe, le Lab n'y forge rien). */
+  footer?: ReactNode;
 }
 
 /**
@@ -116,7 +118,7 @@ export interface IndicatorCardsProps {
  * et son catalogue, une carte par instance (interrupteur, nom, ×, paramètres, description), puis la note du Lab.
  * Le composant ne lit aucun store : les instances, le catalogue, la copie et les actions arrivent par les props.
  */
-export function IndicatorCards({ instances, catalog, nameOf, descOf, onAdd, onToggle, onUpdate, onRemove }: IndicatorCardsProps) {
+export function IndicatorCards({ instances, catalog, nameOf, descOf, onAdd, onToggle, onUpdate, onRemove, footer }: IndicatorCardsProps) {
   useI18n((st) => st.locale);
   const [open, setOpen] = useState(false);
   return (
@@ -180,7 +182,11 @@ export function IndicatorCards({ instances, catalog, nameOf, descOf, onAdd, onTo
           </div>
         );
       })}
-      <p className={s.desc}>{tr('Chaque nouvel indicateur forgé par le Lab rejoint ce catalogue avec ses paramètres : le graphique évolue avec la méthode du trader.', 'Each new indicator forged by the Lab joins this catalog with its parameters: the chart evolves with the trader’s method.', 'Cada nuevo indicador forjado por el Lab se une a este catálogo con sus parámetros: el gráfico evoluciona con el método del trader.')}</p>
+      {footer === undefined ? (
+        <p className={s.desc}>{tr('Chaque nouvel indicateur forgé par le Lab rejoint ce catalogue avec ses paramètres : le graphique évolue avec la méthode du trader.', 'Each new indicator forged by the Lab joins this catalog with its parameters: the chart evolves with the trader’s method.', 'Cada nuevo indicador forjado por el Lab se une a este catálogo con sus parámetros: el gráfico evoluciona con el método del trader.')}</p>
+      ) : (
+        footer
+      )}
     </div>
   );
 }
