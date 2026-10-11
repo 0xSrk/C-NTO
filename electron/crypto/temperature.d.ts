@@ -41,9 +41,13 @@ export function oiChange(json: unknown): number | null;
  * `totals(now)` rend les montants des liquidations longues (ordre `SELL`) et courtes (ordre `BUY`) des `windowMs`
  * écoulées, et `since = max(startedAt, now − windowMs)`. Un minorant : Binance ne pousse qu'une liquidation par symbole
  * et par seconde.
+ * `push(raw, now)` : avec `now`, l'horloge de l'appelant en millisecondes, une liquidation datée de plus de 60 s après
+ * elle est écartée (une heure d'ordre lointaine ne doit pas figer l'élagage de la fenêtre) ; sans `now`, ou avec une
+ * valeur qui n'est pas un nombre fini, la garde ne s'applique pas. Une liquidation de plus de 1e12 dollars est toujours
+ * écartée : aucun `Infinity` ne sort de `totals`.
  */
 export class LiquidationWindow {
   constructor(startedAt: number, windowMs?: number);
-  push(raw: string): void;
+  push(raw: string, now?: number): void;
   totals(now: number): { long: number; short: number; since: number };
 }

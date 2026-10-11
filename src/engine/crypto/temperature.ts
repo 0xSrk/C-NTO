@@ -29,6 +29,10 @@ export interface TemperatureReading {
 
 /** Largeur de la fenêtre des liquidations, en millisecondes : une heure. */
 const DEFAULT_WINDOW_MS = 3_600_000;
+/** Avance qu'une liquidation peut avoir sur l'horloge de l'appelant, en millisecondes : celle de Binance et celle du poste ne coïncident qu'à quelques secondes près. */
+const FUTURE_SKEW_MS = 60_000;
+/** Le montant, en dollars US, au-delà duquel un message ne décrit pas une liquidation : une donnée corrompue ou forgée, pas un marché. */
+const MAX_LIQUIDATION_USD = 1e12;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -167,7 +171,8 @@ function notional(price: unknown, quantity: unknown): number | null {
  * position longue, `BUY` une courte ; tout autre côté est écarté. Le montant est le prix moyen exécuté × la quantité
  * exécutée (`ap` × `z`) quand ils sont tous deux positifs, sinon le prix × la quantité de l'ordre (`p` × `q`). L'heure
  * est celle de l'ordre (`T`), à défaut celle de l'événement (`E`) : sans l'une ni l'autre, la liquidation ne peut
- * pas être placée dans la fenêtre.
+ * pas être placée dans la fenêtre. Un montant retenu de plus de `MAX_LIQUIDATION_USD` écarte la liquidation, sans retomber
+ * sur `p` × `q` : une somme de montants bornés reste un nombre fini.
  */
 function readLiquidation(raw: string): Liquidation | null {
   try {
@@ -177,7 +182,7 @@ function readLiquidation(raw: string): Liquidation | null {
     const long = order.S === 'SELL' ? true : order.S === 'BUY' ? false : null;
     const time = positive(order.T) ?? positive(msg.E);
     const usd = notional(order.ap, order.z) ?? notional(order.p, order.q);
-    return long === null || time === null || usd === null ? null : { time, long, usd };
+    return long === null || time === null || usd === null || usd > MAX_LIQUIDATION_USD ? null : { time, long, usd };
   } catch {
     return null;
   }
@@ -194,6 +199,11 @@ function readLiquidation(raw: string): Liquidation | null {
  * La mémoire reste bornée sur plusieurs jours : une liquidation datée de plus de `windowMs` avant la plus récente reçue
  * est oubliée, ou refusée si elle arrive ainsi. Une liquidation datée d'avant `startedAt` mais reçue après lui est
  * comptée : l'horloge du poste peut avancer sur celle de Binance, et la perdre fausserait le minorant sans le dire.
+ * Avec `now`, l'horloge de l'appelant (millisecondes), `push` écarte une liquidation datée de plus de 60 s après elle :
+ * sans cette garde, une heure d'ordre lointaine ferait de « la plus récente » une borne que rien d'actuel n'atteint, et
+ * la fenêtre refuserait toute liquidation jusqu'au prochain lancement. Sans `now`, ou avec une valeur qui n'est pas un
+ * nombre fini, la garde ne s'applique pas. Une liquidation de plus de 1e12 dollars est toujours écartée (voir
+ * `readLiquidation`) : aucun `Infinity` ne sort de `totals`.
  */
 export class LiquidationWindow {
   private readonly startedAt: number;
@@ -208,9 +218,10 @@ export class LiquidationWindow {
     this.windowMs = windowMs;
   }
 
-  push(raw: string): void {
+  push(raw: string, now?: number): void {
     const event = readLiquidation(raw);
     if (event === null) return;
+    if (typeof now === 'number' && Number.isFinite(now) && event.time - now > FUTURE_SKEW_MS) return;
     this.newest = Math.max(this.newest, event.time);
     const oldest = this.newest - this.windowMs;
     if (event.time < oldest) return;

@@ -611,6 +611,105 @@ describe('LiquidationWindow', () => {
     expect(window.totals(START + 3 * HOUR).long).toBe(200);
   });
 
+  describe('avec l’heure de l’appelant', () => {
+    const NOW = START + 10 * MINUTE;
+
+    it('écarte un événement daté de plus de 60 s après elle : un T lointain ne fige pas la fenêtre', () => {
+      const window = new LiquidationWindow(START);
+      // Une heure d’ordre à dix jours d’ici : sans garde, elle ferait de « la plus récente » une borne que rien d’actuel n’atteint.
+      window.push(order(NOW + 10 * 24 * HOUR, { ap: '100', z: '2' }), NOW);
+      expect(stored(window)).toBe(0);
+      expect(window.totals(NOW)).toEqual({ long: 0, short: 0, since: START });
+      // Les liquidations d’à présent se comptent encore, et la fenêtre glisse comme d’habitude.
+      window.push(order(NOW - MINUTE, { ap: '10', z: '3' }), NOW);
+      expect(window.totals(NOW)).toEqual({ long: 30, short: 0, since: START });
+      expect(window.totals(NOW + 2 * HOUR).long).toBe(0);
+    });
+
+    it('garde un événement daté d’exactement 60 s après elle, et écarte celui d’une milliseconde de plus', () => {
+      const kept = new LiquidationWindow(START);
+      kept.push(order(NOW + MINUTE, { ap: '100', z: '2' }), NOW);
+      expect(stored(kept)).toBe(1);
+      const dropped = new LiquidationWindow(START);
+      dropped.push(order(NOW + MINUTE + 1, { ap: '100', z: '2' }), NOW);
+      expect(stored(dropped)).toBe(0);
+    });
+
+    it('garde un événement daté d’avant elle, de quelques secondes ou de quelques minutes', () => {
+      const window = new LiquidationWindow(START);
+      window.push(order(NOW - 5000, { ap: '100', z: '2' }), NOW);
+      window.push(order(NOW - 30 * MINUTE, { ap: '10', z: '3' }), NOW);
+      expect(window.totals(NOW).long).toBe(230);
+    });
+
+    it('juge l’avance sur l’heure de l’ordre T, ou sur E quand T manque', () => {
+      const far = NOW + 3 * HOUR;
+      const window = new LiquidationWindow(START);
+      window.push(force({ ap: '100', z: '2', T: far }, { E: NOW }), NOW);
+      window.push(force({ ap: '100', z: '2', T: undefined }, { E: far }), NOW);
+      expect(stored(window)).toBe(0);
+      window.push(force({ ap: '100', z: '2', T: undefined }, { E: NOW }), NOW);
+      expect(stored(window)).toBe(1);
+    });
+
+    it('sans heure donnée, ou avec une heure qui n’est pas un nombre fini, ne juge pas l’avance', () => {
+      for (const given of [undefined, NaN, Infinity, -Infinity]) {
+        const window = new LiquidationWindow(START);
+        window.push(order(NOW + 10 * 24 * HOUR, { ap: '100', z: '2' }), given);
+        expect(stored(window), String(given)).toBe(1);
+      }
+      const bare = new LiquidationWindow(START);
+      bare.push(order(NOW + 10 * 24 * HOUR, { ap: '100', z: '2' }));
+      expect(stored(bare)).toBe(1);
+    });
+  });
+
+  describe('montant unitaire aberrant', () => {
+    it('garde un montant de 1e12 dollars, la borne comprise, et écarte celui qui la dépasse', () => {
+      const at = START + 1000;
+      const kept = new LiquidationWindow(START);
+      kept.push(order(at, { ap: '1000000000000', z: '1' }));
+      expect(kept.totals(at + 1000).long).toBe(1e12);
+      const dropped = new LiquidationWindow(START);
+      dropped.push(order(at, { ap: '1000000000001', z: '1' }));
+      expect(dropped.totals(at + 1000)).toEqual({ long: 0, short: 0, since: START });
+      expect(stored(dropped)).toBe(0);
+      // Le prix × la quantité de l’ordre, quand ils font le montant, sont bornés de même.
+      const byOrder = new LiquidationWindow(START);
+      byOrder.push(order(at, { ap: undefined, z: undefined, p: '1000000000001', q: '1' }));
+      expect(stored(byOrder)).toBe(0);
+    });
+
+    it('écarte la liquidation dont le montant retenu dépasse la borne, même quand prix × quantité de l’ordre tiendraient', () => {
+      const window = new LiquidationWindow(START);
+      window.push(order(START + 1000, { ap: '1e13', z: '1', p: '100', q: '1' }));
+      expect(stored(window)).toBe(0);
+      expect(window.totals(START + 2000)).toEqual({ long: 0, short: 0, since: START });
+    });
+
+    it('ne laisse sortir aucun Infinity de totals : trois montants de 1e308 ne se somment pas', () => {
+      const window = new LiquidationWindow(START);
+      // Chacun est un nombre fini (1e154 × 1e154), mais deux suffisent à déborder en Infinity une fois additionnés.
+      for (let i = 0; i < 3; i++) {
+        window.push(order(START + 1000 + i, { S: 'SELL', ap: '1e154', z: '1e154' }));
+        window.push(order(START + 2000 + i, { S: 'BUY', ap: '1e154', z: '1e154' }));
+      }
+      const totals = window.totals(START + 3000);
+      expect(Number.isFinite(totals.long) && Number.isFinite(totals.short)).toBe(true);
+      expect(totals).toEqual({ long: 0, short: 0, since: START });
+      expect(stored(window)).toBe(0);
+    });
+
+    it('compte les montants plausibles à côté de ceux qu’il écarte', () => {
+      const window = new LiquidationWindow(START);
+      window.push(order(START + 1000, { ap: '1e154', z: '1e154' }));
+      window.push(order(START + 2000, { ap: '100', z: '2' }));
+      window.push(order(START + 3000, { S: 'BUY', ap: '1e20', z: '1' }));
+      window.push(order(START + 4000, { S: 'BUY', ap: '50', z: '4' }));
+      expect(window.totals(START + 5000)).toEqual({ long: 200, short: 200, since: START });
+    });
+  });
+
   it('lit un message réel du flux !forceOrder@arr', () => {
     const real =
       '{"e":"forceOrder","E":1791539845123,"o":{"s":"BTCUSDT","S":"SELL","o":"LIMIT","f":"IOC","q":"0.014","p":"82500.10","ap":"82512.30","X":"FILLED","l":"0.014","z":"0.014","T":1791539845100}}';
@@ -664,9 +763,9 @@ describe('entrées absurdes', () => {
   const SYMBOLS: unknown[] = ['BTCUSDT', 'ETHUSDT', 'ONEUSDT', 'BTCUSDC', 'ETHUSDT_261225', 'USDT', 'btcusdt', '', null, 42, undefined];
   const NUMBERS: unknown[] = [...NOT_A_NUMBER, 0, -0, 1, -1, 0.5, 1e308, -1e308, 5e-324, 0.00002929, -3.178, 4407, '0', '-0', '0.00002929', '-3.178', '4407', '1e-7', '1e308', '-1e308', '  12  '];
   const START = at('10:00:00');
-  // Pour les liquidations : des heures plausibles, ou illisibles, et des montants dont la somme ne déborde pas.
+  // Pour les liquidations : des heures plausibles, ou illisibles, et tous les montants, 1e308 compris : la borne d’un montant empêche la somme de déborder.
   const TIMES: unknown[] = [...NOT_A_NUMBER, 0, -5, ...Array.from({ length: 24 }, (_, i) => START + i * 7 * MINUTE), ...Array.from({ length: 6 }, (_, i) => String(START + i * 11 * MINUTE))];
-  const AMOUNTS: unknown[] = NUMBERS.filter((v) => ![1e308, -1e308, '1e308', '-1e308'].includes(v as number | string));
+  const AMOUNTS: unknown[] = NUMBERS;
 
   function rows(rand: () => number, make: () => Record<string, unknown>): unknown[] {
     return Array.from({ length: Math.floor(rand() * 8) }, () => (rand() < 0.15 ? pick<unknown>(rand, [null, 7, 'x', [], [1]]) : make()));
@@ -770,7 +869,7 @@ describe('partage avec le process principal', () => {
     expect(declaration).toContain('export function oiChange(json: unknown): number | null;');
     expect(declaration).toContain('export class LiquidationWindow {');
     expect(declaration).toContain('constructor(startedAt: number, windowMs?: number);');
-    expect(declaration).toContain('push(raw: string): void;');
+    expect(declaration).toContain('push(raw: string, now?: number): void;');
     expect(declaration).toContain('totals(now: number): { long: number; short: number; since: number };');
     expect(declaration).not.toMatch(/^\s*import\b/m);
   });
