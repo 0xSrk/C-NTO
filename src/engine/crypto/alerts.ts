@@ -1,12 +1,12 @@
 /**
  * Les alertes de l'onglet crypto, côté renderer seulement (`docs/ONGLET-CRYPTO.md` § 8) : le modèle et les unités du
- * niveau, les bandes d'hystérésis, la valeur qu'une alerte surveille, l'évaluateur de croisement et l'assainisseur de la
- * ligne `crypto.alerts`. Rien ici ne lit d'horloge ni de réseau : l'appelant donne les valeurs, ce module dit s'il y a
- * eu franchissement.
+ * niveau, les bandes d'hystérésis, la valeur qu'une alerte surveille, l'évaluateur de croisement, la règle « non évaluée »
+ * et l'assainisseur de la ligne `crypto.alerts`. Rien ici ne lit d'horloge ni de réseau : l'appelant donne les valeurs et
+ * l'heure, ce module dit s'il y a eu franchissement et si une alerte peut être évaluée.
  * Il n'est pas émis pour le process principal (absent de `electron/tsconfig.sources.json`, sans `.d.ts`) et n'importe
  * que `./markets` et `./temperature`.
  */
-import { isChartableMarket, type CryptoMarketId, type CryptoTicker } from './markets';
+import { cryptoMarket, isChartableMarket, type CryptoMarketId, type CryptoTicker, type CryptoVenue, type VenueState } from './markets';
 import type { TemperatureReading } from './temperature';
 
 export type PriceAlertKind = 'price_above' | 'price_below';
@@ -144,6 +144,85 @@ export function alertValue(alert: CryptoAlert, data: { tickers: Partial<Record<C
     case 'breadth_below':
       return scaled(data.temperature?.breadth?.upShare, 100);
   }
+}
+
+/**
+ * Âge au-delà duquel une lecture de température ne s'évalue plus : deux cadences du process principal
+ * (`electron/crypto-temperature.ts`). Le funding est relevé toutes les 60 s, et les liquidations sont redatées au moins à
+ * chaque relevé : 120 s. La largeur et l'open interest sont relevés toutes les 5 min : 10 min.
+ */
+export const FUNDING_STALE_MS = 120_000;
+export const SLOW_STALE_MS = 600_000;
+
+/** Les relevés dont une alerte de température dépend : un par famille de genres. */
+export type AlertReading = 'funding' | 'liquidations' | 'breadth';
+
+/**
+ * Pourquoi une alerte armée n'est pas évaluée en ce moment, en code stable (l'écran et `crypto_alert_list` le disent en
+ * clair) :
+ * - `venue` : la venue de la donnée n'est pas en direct (prix : celle du marché, qui doit être `live`) ou, pour la température,
+ *   Binance est `blocked` ou `stale` ;
+ * - `no_price` : la venue est en direct mais aucun prix n'est arrivé ;
+ * - `no_temperature` : aucune lecture de la température ;
+ * - `no_reading` / `stale_reading` : le relevé dont le genre dépend manque, ou a plus de deux cadences.
+ */
+export type AlertIdleReason =
+  | { code: 'venue'; venue: CryptoVenue; state: VenueState }
+  | { code: 'no_price' }
+  | { code: 'no_temperature' }
+  | { code: 'no_reading'; source: AlertReading }
+  | { code: 'stale_reading'; source: AlertReading };
+
+export type AlertEvaluability = { ok: true } | { ok: false; reason: AlertIdleReason };
+
+/** Les données dont l'évaluabilité dépend : l'état des venues, les derniers prix, la dernière lecture et l'heure (millisecondes). */
+export interface EvaluabilityData {
+  venues: Readonly<Record<CryptoVenue, VenueState>>;
+  tickers: Partial<Record<CryptoMarketId, CryptoTicker>>;
+  temperature: TemperatureReading | null;
+  now: number;
+}
+
+/** Le relevé dont dépend un genre de température, et son âge maximal. */
+function readingOf(kind: CryptoAlertKind): { source: AlertReading; maxAge: number } {
+  switch (kind) {
+    case 'funding_median_above':
+    case 'funding_median_below':
+      return { source: 'funding', maxAge: FUNDING_STALE_MS };
+    case 'breadth_above':
+    case 'breadth_below':
+      return { source: 'breadth', maxAge: SLOW_STALE_MS };
+    default:
+      // Les deux genres de liquidations (un genre de prix vise un marché et ne passe pas ici).
+      return { source: 'liquidations', maxAge: FUNDING_STALE_MS };
+  }
+}
+
+/**
+ * Si une alerte armée peut être évaluée en ce moment : la seule règle « non évaluée », celle de l'écran (colonne de l'onglet),
+ * de l'évaluateur du desk (donnée `fresh`) et de `crypto_alert_list`. L'appelant écarte lui-même une alerte qui n'est pas armée.
+ * - Prix : la venue du marché visé doit être `live`, et un prix doit être arrivé.
+ * - Température : Binance ne doit pas être `blocked` ni `stale` (c'est elle qui porte les relevés), une lecture doit exister, et
+ *   le relevé du genre doit dater de moins de deux cadences (`FUNDING_STALE_MS`, `SLOW_STALE_MS`). Un relevé absent, ou dont
+ *   l'heure n'est pas un nombre fini, est « absent », jamais « périmé ».
+ * Aucune horloge ici : `now` vient de l'appelant.
+ */
+export function alertEvaluability(alert: CryptoAlert, data: EvaluabilityData): AlertEvaluability {
+  const { target } = alert;
+  if (isChartableMarket(target)) {
+    const spec = cryptoMarket(target);
+    const state = spec ? data.venues[spec.venue] : 'off';
+    if (spec && state !== 'live') return { ok: false, reason: { code: 'venue', venue: spec.venue, state } };
+    return data.tickers[target] ? { ok: true } : { ok: false, reason: { code: 'no_price' } };
+  }
+  const binance = data.venues.binance;
+  if (binance === 'blocked' || binance === 'stale') return { ok: false, reason: { code: 'venue', venue: 'binance', state: binance } };
+  const reading = data.temperature;
+  if (!reading) return { ok: false, reason: { code: 'no_temperature' } };
+  const { source, maxAge } = readingOf(alert.kind);
+  const at = reading[source]?.at;
+  if (!isNum(at)) return { ok: false, reason: { code: 'no_reading', source } };
+  return data.now - at > maxAge ? { ok: false, reason: { code: 'stale_reading', source } } : { ok: true };
 }
 
 /**

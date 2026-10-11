@@ -2,8 +2,8 @@
  * La fenêtre « Nouvelle alerte » de l'onglet 09 · CRY (`docs/ONGLET-CRYPTO.md` § 7 et § 8), sur le modèle de l'import de
  * barres de Visual : `Modal` du desk, `Field`, trois `<select>` (cible, type, mode), un `input` pour le niveau, boutons
  * `ghost` et `gold`. Le refus du store s'y lit en clair.
- * Ce fichier porte aussi les textes que l'onglet partage autour des alertes et des refus : chaque code du process principal
- * et chaque refus du store en phrase (jamais le code seul), le genre et le niveau d'une alerte dans son unité.
+ * Ce fichier porte aussi les textes que l'onglet partage autour des refus : chaque code du process principal et chaque refus du
+ * store en phrase (jamais le code seul). Le genre, le niveau et la cible d'une alerte sont dans `@/lib/cryptoAlertText`.
  */
 import { useState } from 'react';
 import { Modal } from '@/design/Modal';
@@ -12,7 +12,7 @@ import { ALERTS_MAX, CRYPTO_ALERT_KINDS, type CryptoAlert, type CryptoAlertKind 
 import { cryptoMarket, isChartableMarket, type CryptoMarketId } from '@/engine/crypto/markets';
 import { DRAWINGS_MAX, INDICATORS_MAX, LABEL_MAX } from '@/engine/crypto/persist';
 import { tr, useI18n } from '@/i18n';
-import { fmtNum, fmtPrice } from '@/lib/format';
+import { alertKindText, alertTargetText } from '@/lib/cryptoAlertText';
 import type { CryptoRefusal, WriteResult } from '@/store/crypto';
 import { useUi } from '@/store/ui';
 import v from '../visual/visual.module.css';
@@ -61,71 +61,7 @@ export function saveFailedText(): string {
   return tr('Enregistrement impossible : la base du desk a refusé l’écriture.', 'Could not save: the desk database refused the write.', 'Imposible guardar: la base del desk rechazó la escritura.');
 }
 
-/** Un nombre signé (le plus réservé aux variations et aux écarts), à `digits` décimales. */
-export function fmtSigned(v: number | null | undefined, digits: number): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  const body = fmtNum(v, digits);
-  return v > 0 && !/^[0.,\s]+$/.test(body) ? `+${body}` : body;
-}
-
-/** Un montant en dollars US compact : `4,1 M$`, `850 k$` (`$4.1M` en anglais). */
-export function fmtUsdCompact(v: number | null | undefined): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  const abs = Math.abs(v);
-  const [n, unit] = abs >= 1e6 ? [v / 1e6, 'M'] : abs >= 1e3 ? [v / 1e3, 'k'] : [v, ''];
-  const body = fmtNum(n, unit === '' ? 0 : 1);
-  return tr(`${body} ${unit}$`, `$${body}${unit}`, `${body} ${unit}$`);
-}
-
-/** Le genre d'une alerte, en tête de sa condition. */
-export function alertKindText(kind: CryptoAlertKind): string {
-  switch (kind) {
-    case 'price_above':
-      return tr('Prix au-dessus de', 'Price above', 'Precio por encima de');
-    case 'price_below':
-      return tr('Prix en dessous de', 'Price below', 'Precio por debajo de');
-    case 'funding_median_above':
-      return tr('Funding médian au-dessus de', 'Median funding above', 'Funding mediano por encima de');
-    case 'funding_median_below':
-      return tr('Funding médian en dessous de', 'Median funding below', 'Funding mediano por debajo de');
-    case 'liquidations_long_1h_above':
-      return tr('Liquidations longues 1 h au-dessus de', 'Long liquidations 1 h above', 'Liquidaciones largas 1 h por encima de');
-    case 'liquidations_short_1h_above':
-      return tr('Liquidations courtes 1 h au-dessus de', 'Short liquidations 1 h above', 'Liquidaciones cortas 1 h por encima de');
-    case 'breadth_above':
-      return tr('Largeur 24 h au-dessus de', '24 h breadth above', 'Amplitud 24 h por encima de');
-    case 'breadth_below':
-      return tr('Largeur 24 h en dessous de', '24 h breadth below', 'Amplitud 24 h por debajo de');
-  }
-}
-
 const isPriceKind = (kind: CryptoAlertKind): boolean => kind === 'price_above' || kind === 'price_below';
-
-/** Le niveau dans son unité (§ 8) : prix à la précision du marché et sa devise de cotation, funding en %, liquidations en dollars, largeur en %. */
-export function alertLevelText(alert: Pick<CryptoAlert, 'target' | 'kind' | 'level'>): string {
-  const { kind, level } = alert;
-  switch (kind) {
-    case 'price_above':
-    case 'price_below': {
-      const spec = cryptoMarket(alert.target);
-      return spec ? `${fmtPrice(level, spec.precision)} ${spec.quote}` : fmtPrice(level);
-    }
-    case 'funding_median_above':
-    case 'funding_median_below':
-      return `${fmtSigned(level, 4)} %`;
-    case 'liquidations_long_1h_above':
-    case 'liquidations_short_1h_above':
-      return fmtUsdCompact(level);
-    case 'breadth_above':
-    case 'breadth_below':
-      return `${fmtNum(level, Number.isInteger(level) ? 0 : 1)} %`;
-  }
-}
-
-/** La cible d'une alerte : le libellé du marché, ou la température. */
-export function alertTargetText(target: CryptoAlert['target']): string {
-  return target === 'temperature' ? tr('Température · Binance', 'Temperature · Binance', 'Temperatura · Binance') : (cryptoMarket(target)?.label ?? target);
-}
 
 /** L'unité du niveau, puis la règle du franchissement (la même pour tous les genres). */
 function levelHint(target: CryptoAlert['target'], kind: CryptoAlertKind): string {

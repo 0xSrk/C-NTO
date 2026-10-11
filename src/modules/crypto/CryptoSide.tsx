@@ -8,32 +8,24 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { IconPlus } from '@/app/icons';
 import { Button, Etiquette, Led, Regle, cx } from '@/design/primitives';
-import type { CryptoAlert } from '@/engine/crypto/alerts';
-import { CHARTABLE_MARKETS, cryptoMarket, isChartableMarket, type CryptoMarketId, type CryptoTicker, type CryptoTimeframe, type CryptoVenue, type VenueState } from '@/engine/crypto/markets';
-import type { TemperatureReading } from '@/engine/crypto/temperature';
+import { alertEvaluability, type AlertIdleReason, type AlertReading, type CryptoAlert, type EvaluabilityData } from '@/engine/crypto/alerts';
+import { CHARTABLE_MARKETS, cryptoMarket, type CryptoMarketId, type CryptoTimeframe, type CryptoVenue, type VenueState } from '@/engine/crypto/markets';
 import type { IndicatorDefinition, IndicatorInstance } from '@/engine/indicators';
 import { tr, useI18n } from '@/i18n';
+import { alertKindText, alertLevelText, alertTargetText, fmtSigned, fmtUsdCompact } from '@/lib/cryptoAlertText';
 import { fmtInt, fmtNum, fmtPrice, signClass } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatDuration, formatTimeLocal } from '@/lib/time';
 import { useCrypto, type WriteResult } from '@/store/crypto';
 import { useUi } from '@/store/ui';
 import { IndicatorCards } from '../visual/IndicatorCards';
 import v from '../visual/visual.module.css';
-import { AlertModal, alertKindText, alertLevelText, alertTargetText, cryptoCodeText, fmtSigned, fmtUsdCompact, saveFailedText } from './AlertModal';
+import { AlertModal, cryptoCodeText, saveFailedText } from './AlertModal';
 import c from './crypto.module.css';
 import { cryptoIndicatorDesc, cryptoIndicatorName } from './indicatorCopy';
 
 /** Les venues, dans l'ordre du registre, et leur nom. */
 const VENUES: readonly CryptoVenue[] = ['coinbase', 'binance', 'bybit'];
 export const VENUE_NAME: Record<CryptoVenue, string> = { coinbase: 'Coinbase', binance: 'Binance', bybit: 'Bybit' };
-
-/**
- * Âge au-delà duquel une lecture de température ne s'évalue plus : deux cadences du process principal
- * (`electron/crypto-temperature.ts`). Le funding est relevé toutes les 60 s, et les liquidations sont redatées au moins à
- * chaque relevé ; la largeur et l'open interest toutes les 5 min.
- */
-const FUNDING_STALE_MS = 120_000;
-const SLOW_STALE_MS = 600_000;
 
 /** L'horloge de l'écran, pour les âges : un rendu par seconde. */
 function useNow(everyMs = 1000): number {
@@ -110,51 +102,46 @@ function changeText(pct: number | null | undefined): string {
   return pct === null || pct === undefined || !Number.isFinite(pct) ? '—' : `${fmtSigned(pct, 2)} %`;
 }
 
-interface LiveData {
-  venues: Record<CryptoVenue, VenueState>;
-  tickers: Partial<Record<CryptoMarketId, CryptoTicker>>;
-  temperature: TemperatureReading | null;
-  now: number;
+/** Un relevé de la température qui manque, en clair. */
+function missingReadingText(source: AlertReading): string {
+  switch (source) {
+    case 'funding':
+      return tr('aucun relevé du funding', 'no funding reading', 'ninguna lectura del funding');
+    case 'breadth':
+      return tr('aucun relevé de la largeur', 'no breadth reading', 'ninguna lectura de la amplitud');
+    case 'liquidations':
+      return tr('aucun relevé des liquidations', 'no liquidations reading', 'ninguna lectura de las liquidaciones');
+  }
 }
 
-/** Une lecture de température relevée à `at` : `missing`, `stale` (plus de `maxAge`), ou `null` si elle s'évalue. */
-function readingAge(at: number | undefined, maxAge: number, now: number): 'missing' | 'stale' | null {
-  if (at === undefined) return 'missing';
-  return now - at > maxAge ? 'stale' : null;
+/** Un relevé de la température de plus de deux cadences, en clair. */
+function staleReadingText(source: AlertReading): string {
+  switch (source) {
+    case 'funding':
+      return tr('relevé du funding périmé', 'stale funding reading', 'lectura del funding caducada');
+    case 'breadth':
+      return tr('relevé de la largeur périmé', 'stale breadth reading', 'lectura de la amplitud caducada');
+    case 'liquidations':
+      return tr('relevé des liquidations périmé', 'stale liquidations reading', 'lectura de las liquidaciones caducada');
+  }
 }
 
 /**
- * Pourquoi une alerte armée n'est pas évaluée en ce moment, ou `null` : la venue de son marché n'est pas en direct, aucun prix
- * n'est arrivé, ou sa lecture de température manque ou a plus de deux cadences. Calculé pour l'écran, jamais enregistré.
+ * Pourquoi une alerte armée n'est pas évaluée en ce moment, en clair. Le code vient de `alertEvaluability` (moteur), la règle que
+ * partagent la colonne, l'évaluateur du desk et `crypto_alert_list` ; calculé pour l'écran, jamais enregistré.
  */
-function idleReason(alert: CryptoAlert, data: LiveData): string | null {
-  const { target } = alert;
-  if (isChartableMarket(target)) {
-    const spec = cryptoMarket(target);
-    const state = spec ? data.venues[spec.venue] : 'off';
-    if (spec && state !== 'live') return `${VENUE_NAME[spec.venue]} : ${venueStateText(state)}`;
-    return data.tickers[target] ? null : tr('aucun prix reçu', 'no price received', 'ningún precio recibido');
-  }
-  const reading = data.temperature;
-  if (!reading) return tr('aucune lecture de la température', 'no temperature reading', 'ninguna lectura de la temperatura');
-  switch (alert.kind) {
-    case 'funding_median_above':
-    case 'funding_median_below': {
-      const age = readingAge(reading.funding?.at, FUNDING_STALE_MS, data.now);
-      if (age === 'missing') return tr('aucun relevé du funding', 'no funding reading', 'ninguna lectura del funding');
-      return age === 'stale' ? tr('relevé du funding périmé', 'stale funding reading', 'lectura del funding caducada') : null;
-    }
-    case 'breadth_above':
-    case 'breadth_below': {
-      const age = readingAge(reading.breadth?.at, SLOW_STALE_MS, data.now);
-      if (age === 'missing') return tr('aucun relevé de la largeur', 'no breadth reading', 'ninguna lectura de la amplitud');
-      return age === 'stale' ? tr('relevé de la largeur périmé', 'stale breadth reading', 'lectura de la amplitud caducada') : null;
-    }
-    default: {
-      const age = readingAge(reading.liquidations?.at, FUNDING_STALE_MS, data.now);
-      if (age === 'missing') return tr('aucun relevé des liquidations', 'no liquidations reading', 'ninguna lectura de las liquidaciones');
-      return age === 'stale' ? tr('relevé des liquidations périmé', 'stale liquidations reading', 'lectura de las liquidaciones caducada') : null;
-    }
+function idleText(reason: AlertIdleReason): string {
+  switch (reason.code) {
+    case 'venue':
+      return `${VENUE_NAME[reason.venue]} : ${venueStateText(reason.state)}`;
+    case 'no_price':
+      return tr('aucun prix reçu', 'no price received', 'ningún precio recibido');
+    case 'no_temperature':
+      return tr('aucune lecture de la température', 'no temperature reading', 'ninguna lectura de la temperatura');
+    case 'no_reading':
+      return missingReadingText(reason.source);
+    case 'stale_reading':
+      return staleReadingText(reason.source);
   }
 }
 
@@ -213,7 +200,7 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
   const [alertOpen, setAlertOpen] = useState(false);
   const [turningOff, setTurningOff] = useState(false);
 
-  const live: LiveData = { venues, tickers, temperature, now };
+  const live: EvaluabilityData = { venues, tickers, temperature, now };
   const spec = cryptoMarket(market);
   const firstBar = bars[0];
   const lastBar = bars[bars.length - 1];
@@ -327,7 +314,8 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
           </div>
         )}
         {alerts.map((alert) => {
-          const idle = alert.state === 'armed' ? idleReason(alert, live) : null;
+          const verdict = alert.state === 'armed' ? alertEvaluability(alert, live) : null;
+          const idle = verdict && !verdict.ok ? idleText(verdict.reason) : null;
           return (
             <div key={alert.id} className={c.alertRow}>
               <span className={c.alertTarget}>{alertTargetText(alert.target)}</span>

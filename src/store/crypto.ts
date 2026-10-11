@@ -19,6 +19,7 @@ import { defaultParams, type IndicatorDefinition, type IndicatorInstance, type I
 import { tr } from '@/i18n';
 import { desk, type CryptoMainStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
+import { startAlertRunner } from './cryptoAlerts';
 import { startChart, startLight } from './cryptoLive';
 import { getSetting, setSetting } from './db';
 
@@ -670,13 +671,15 @@ export const useCrypto = create<CryptoState>((set, get) => {
 
 // --- Flux en direct (`./cryptoLive`) -----------------------------------------------------------------------------------
 
-/** L'arrêt du flux en cours, ou `null` quand il est éteint. */
+/** L'arrêt du flux en cours, ou `null` quand il est éteint. `stopAlerts` : l'évaluation des alertes (`./cryptoAlerts`), qui suit le flux léger. */
 let stopLight: (() => void) | null = null;
 let stopChart: (() => void) | null = null;
+let stopAlerts: (() => void) | null = null;
 
 /**
  * Accorde les deux flux à l'état, à chaque changement : rien tant que le store n'est pas prêt (statut et réglages lus) ou que
- * l'interrupteur est éteint ; le léger dès qu'il s'allume, le lourd quand le chart est en plus ouvert. Un flux est relancé à
+ * l'interrupteur est éteint ; le léger dès qu'il s'allume, le lourd quand le chart est en plus ouvert. L'évaluation des alertes
+ * (`startAlertRunner`) suit le léger, onglet ouvert ou non : elle lit les tickers et la température qu'il écrit. Un flux est relancé à
  * neuf à chaque allumage : un abonnement refusé par le process principal pendant l'extinction n'est jamais ranimé.
  * L'arrêt d'un flux vide ses données (une écriture de l'état, qui rappelle cette écoute) : la variable est remise à `null`
  * avant l'arrêt, pour que l'appel imbriqué voie le flux déjà éteint. Le démarrage n'écrit pas l'état.
@@ -689,12 +692,18 @@ function syncFlows(): void {
     stopChart = null;
     stop();
   }
+  if (!on && stopAlerts) {
+    const stop = stopAlerts;
+    stopAlerts = null;
+    stop();
+  }
   if (!on && stopLight) {
     const stop = stopLight;
     stopLight = null;
     stop();
   }
   if (on && !stopLight) stopLight = startLight();
+  if (on && !stopAlerts) stopAlerts = startAlertRunner();
   if (on && chartOpen && !stopChart) stopChart = startChart();
 }
 

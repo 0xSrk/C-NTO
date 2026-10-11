@@ -56,7 +56,7 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
 
 | Zone | Chemin | Faits à ne pas contredire |
 |---|---|---|
-| Catalogue | `src/engine/agent/catalog.ts` | **Aucun import** (le process principal le compile). Il contient :<br>• `DESK_TOOL_KINDS` : 23 outils, 18 lectures et 5 écritures ;<br>• `ORDER_TOOLS` ;<br>• `DESK_TOOL_HINTS` et `DESK_TOOL_TITLES`, typés `Record<DeskToolName, …>` : un outil nouveau sans entrée = typecheck rouge ;<br>• `TOOL_PREAMBLE` ;<br>• `DESK_EVENT_KINDS` : `fill`, `order`, `prop_buffer`, `catalyst`, `bridge_link`, `agent_order`, `daily_loss`, `discipline`. |
+| Catalogue | `src/engine/agent/catalog.ts` | **Aucun import** (le process principal le compile). Il contient :<br>• `DESK_TOOL_KINDS` : 23 outils, 18 lectures et 5 écritures ;<br>• `ORDER_TOOLS` ;<br>• `DESK_TOOL_HINTS` et `DESK_TOOL_TITLES`, typés `Record<DeskToolName, …>` : un outil nouveau sans entrée = typecheck rouge ;<br>• `TOOL_PREAMBLE` ;<br>• `DESK_EVENT_KINDS` : `fill`, `order`, `prop_buffer`, `catalyst`, `bridge_link`, `agent_order`, `daily_loss`, `discipline`, `crypto_alert`. |
 | Outils | `src/engine/agent/tools.ts` | • `createDeskTools(ports)` : description française dans l'outil, anglais et espagnol dans `toolBlurb` ;<br>• `EMPTY_PORTS` ;<br>• les lectures du journal rendent `asOf`, `sources`, `demo`. |
 | Ports | `src/engine/agent/ports.ts` | Un port nouveau s'ajoute partout :<br>• `livePorts` (`src/store/agent.ts`) ;<br>• `EMPTY_PORTS` ;<br>• `tests/helpers/deskPorts.ts` ;<br>• `tests/helpers/demoDesk.ts` ;<br>• les faux ports de plusieurs tests (`grep -rn "bridge: async" tests`). |
 | Boucle | `src/engine/agent/loop.ts`, `context.ts`, `runner.ts` | • `runAgentTurn` : `MAX_TOOL_ROUNDS` = 6, chaque appel reçoit un résultat ;<br>• `fitHistory` ;<br>• `executeDeskTool` : source `llm` ou `orch`, `confirmFn`, `allowWrite`. |
@@ -89,7 +89,7 @@ Tu es un agent d'implémentation. Tu reprends la couche agentique là où la vag
   - tout identifiant en snake_case est un outil ou un type d'événement du catalogue ;
   - étapes numérotées de 1 à n dans **chaque** langue ;
   - jamais `propose_order`.
-- **`tests/agent-events.test.ts` et `tests/agent-events-tool.test.ts`** : ils figent la liste `DESK_EVENT_KINDS`. La description de `desk_events` doit nommer `order`, `daily_loss`, `discipline` et `agent_order`.
+- **`tests/agent-events.test.ts` et `tests/agent-events-tool.test.ts`** : ils figent la liste `DESK_EVENT_KINDS`. La description de `desk_events` doit nommer `order`, `daily_loss`, `discipline`, `agent_order` et `crypto_alert`.
 - **Fuseau** : `TZ=UTC` est fixé par `vitest.config.mts` (`tests/suite-timezone.test.ts`).
 - **Binaire Electron** : `tests/orchestrator-allowlist.test.ts` importe `electron`. Si `npm ci` n'a pas téléchargé le binaire, lance `node node_modules/electron/install.js`.
 - **Typecheck** : Vitest passe même quand les types des aides de test sont faux. Lance toujours `npm run typecheck`, qui couvre `tests/helpers`.

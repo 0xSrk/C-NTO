@@ -12,7 +12,7 @@ describe('outil desk_events', () => {
     for (const locale of ['fr', 'en', 'es'] as const) {
       useI18n.setState({ locale });
       const description = toolSchemas().find((t) => t.name === 'desk_events')!.description;
-      for (const kind of ['order', 'daily_loss', 'discipline', 'agent_order']) expect(description, `${locale} ${kind}`).toContain(kind);
+      for (const kind of ['order', 'daily_loss', 'discipline', 'agent_order', 'crypto_alert']) expect(description, `${locale} ${kind}`).toContain(kind);
     }
     useI18n.setState({ locale: 'fr' });
   });
@@ -45,7 +45,7 @@ describe('outil desk_events', () => {
   it('lecture seule, curseur borné, schéma limité aux types connus', async () => {
     const tool = DESK_TOOLS.find((t) => t.name === 'desk_events');
     expect(tool?.kind).toBe('read');
-    expect(JSON.stringify(tool?.parameters)).toContain('"enum":["fill","order","prop_buffer","catalyst","bridge_link","agent_order","daily_loss","discipline"]');
+    expect(JSON.stringify(tool?.parameters)).toContain('"enum":["fill","order","prop_buffer","catalyst","bridge_link","agent_order","daily_loss","discipline","crypto_alert"]');
     expect(await executeDeskTool(fakePorts(), 'desk_events', { cursor: 'x'.repeat(65) }, { source: 'orch' })).toEqual({ ok: false, reason: 'args_too_large' });
   });
 });
