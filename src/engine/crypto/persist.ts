@@ -45,7 +45,7 @@ export interface CryptoChartSetting {
 /** Longueur maximale d'un identifiant de tracé. */
 const ID_MAX = 64;
 /** Comme `chart.indicators` (`db.ts`) : 50 indicateurs au plus, 100 caractères au plus par id, definitionId et paramètre texte. */
-const INDICATORS_MAX = 50;
+export const INDICATORS_MAX = 50;
 const INDICATOR_TEXT_MAX = 100;
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
