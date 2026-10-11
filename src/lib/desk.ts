@@ -2,6 +2,8 @@
 import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEvents';
 import type { ChangelogFile } from '@/engine/changelog';
 import type { AgentOrderRefusal } from '@/engine/agent/orders';
+import type { CryptoBar, CryptoFeedEvent, CryptoSeriesId, CryptoTimeframe, CryptoVenue, VenueState } from '@/engine/crypto/markets';
+import type { TemperatureReading } from '@/engine/crypto/temperature';
 import type { KillSwitchReport } from '@/engine/execution/killSwitch';
 import type { OrderBookView, OrderChange } from '@/engine/execution/orderBook';
 /** Passerelle MCP des agents externes (process principal). Le jeton n'y figure jamais. */
@@ -132,20 +134,31 @@ export interface SeatApi {
   submit: (line: string) => Promise<{ ok: true; client: string } | { ok: false }>;
 }
 
-/** État d'une venue du module crypto, tenu par le process principal. */
-export type CryptoVenueState = 'off' | 'connecting' | 'live' | 'reconnecting' | 'stale' | 'blocked';
-
 /** Module crypto (onglet 09) : l'interrupteur et l'état des trois venues. Le renderer les lit, le process principal les tient. */
 export interface CryptoMainStatus {
   enabled: boolean;
-  venues: Record<'coinbase' | 'binance' | 'bybit', CryptoVenueState>;
+  venues: Record<CryptoVenue, VenueState>;
 }
 
+/**
+ * Le module crypto vu du renderer : tout le réseau est dans le process principal, qui valide chaque requête et refuse tout
+ * interrupteur éteint (`crypto_disabled`, `{ ok: false }`, `null`) ou forme invalide (`invalid_request`).
+ */
 export interface CryptoApi {
   status: () => Promise<CryptoMainStatus>;
   /** Dialogue du process principal ; rend le statut, allumé ou non. */
   enable: () => Promise<CryptoMainStatus>;
   disable: () => Promise<CryptoMainStatus>;
+  /** Historique d'une série (marché affichable ou source du CVD Binance), bougies en secondes UTC. */
+  history: (req: { series: CryptoSeriesId; timeframe: CryptoTimeframe }) => Promise<{ ok: true; bars: CryptoBar[] } | { ok: false; detail: string }>;
+  /** `ticker` : marché affichable ; `bars` : affichable ou source du CVD, timeframe requis. */
+  subscribe: (req: { series: CryptoSeriesId; kind: 'ticker' | 'bars'; timeframe?: CryptoTimeframe }) => Promise<{ ok: true; subscriptionId: string } | { ok: false; detail: string }>;
+  unsubscribe: (id: string) => Promise<{ ok: boolean }>;
+  /** Dernière lecture de la température ; `null` interrupteur éteint. */
+  temperature: () => Promise<TemperatureReading | null>;
+  /** Tickers et bougies des abonnements, au plus un envoi toutes les 250 ms par série et timeframe ou par marché. */
+  onEvent: (cb: (e: CryptoFeedEvent) => void) => () => void;
+  onTemperature: (cb: (r: TemperatureReading) => void) => () => void;
   onStatus: (cb: (s: CryptoMainStatus) => void) => () => void;
 }
 

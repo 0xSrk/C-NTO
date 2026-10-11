@@ -19,6 +19,8 @@ export interface WsLike {
   send(data: string): void;
   ping(): void;
   close(): void;
+  /** Coupe net, sans poignée de fermeture : servi à une socket jugée morte. Facultatif : sans lui, `close()`. */
+  terminate?(): void;
   on(event: 'open' | 'close' | 'pong', cb: () => void): void;
   on(event: 'message', cb: (data: unknown) => void): void;
   on(event: 'error', cb: (err: unknown) => void): void;
@@ -44,8 +46,8 @@ export const BYBIT_PING_EVERY_MS = 20_000;
 export const RECONNECT_MAX_MS = 60_000;
 
 const RECONNECT_START_MS = 1_000;
-/** Une trame plus lourde n'est pas lue : les messages de ces flux pèsent quelques Kio. */
-const FRAME_MAX = 1024 * 1024;
+/** Une trame plus lourde n'est pas lue : les messages de ces flux pèsent quelques Kio. Le client `ws` réel (CRY2.5) a le même plafond. */
+export const FRAME_MAX = 1024 * 1024;
 /** Borne d'un texte venu du réseau (message d'erreur, refus de la venue). */
 const TEXT_MAX = 200;
 /** Borne d'une ligne de journal. */
@@ -163,6 +165,8 @@ function closeReason(code: unknown): string {
  * États : `off` avant `open()` et après `close()` ; `connecting` à la première tentative ; `live` ouverte ; `stale` à
  * 30 s sans activité, aussitôt suivi de `reconnecting` jusqu'à la prochaine ouverture ; `blocked` sans reconnexion
  * (hôte refusé, 418, porte bloquée). Une tentative qui ne s'ouvre pas en 30 s est abandonnée comme une socket périmée.
+ * Une socket que la veille juge morte (périmée, ou sans ouverture en 30 s) est coupée par `terminate()` quand la fabrique
+ * l'expose, sinon fermée par `close()` ; toute autre fermeture passe par `close()`.
  * Le délai entre deux tentatives double à chaque perte et ne retombe à 1 s qu'après 30 s de connexion vivante et active.
  */
 export class ManagedSocket {
@@ -304,11 +308,14 @@ export class ManagedSocket {
     this.lost(status === null ? 'réponse inattendue' : `HTTP ${status} (${this.where})`);
   }
 
-  /** Fermeture non demandée : la socket est abandonnée, une nouvelle tentative suit après le délai courant. */
-  private lost(reason: string): void {
+  /**
+   * Fermeture non demandée : la socket est abandonnée, une nouvelle tentative suit après le délai courant. `dead` : la
+   * veille l'a jugée morte, elle est coupée net (`release`).
+   */
+  private lost(reason: string, dead = false): void {
     if (!this.running) return;
     this.stopTimers();
-    this.release();
+    this.release(dead);
     this.log(`connexion perdue (${reason}) ; nouvel essai dans ${this.delayMs / 1000} s`);
     this.setState('reconnecting');
     this.retry();
@@ -352,9 +359,9 @@ export class ManagedSocket {
     const seconds = Math.round(idle / 1000);
     if (this.current === 'live') {
       this.setState('stale');
-      this.lost(`aucune activité depuis ${seconds} s`);
+      this.lost(`aucune activité depuis ${seconds} s`, true);
     } else {
-      this.lost(`pas d’ouverture en ${seconds} s`);
+      this.lost(`pas d’ouverture en ${seconds} s`, true);
     }
   }
 
@@ -382,13 +389,18 @@ export class ManagedSocket {
     if (typeof message === 'string' && message !== '') this.send(message);
   }
 
-  /** Lâche la socket courante : ses événements ne comptent plus, et elle est fermée (une poignée de main est abandonnée). */
-  private release(): void {
+  /**
+   * Lâche la socket courante : ses événements ne comptent plus, et elle est fermée (une poignée de main est abandonnée).
+   * Jugée morte (`dead`), elle est coupée net quand la fabrique expose `terminate()` : `close()` attendrait la poignée de
+   * fermeture d'un lien qui ne répond plus.
+   */
+  private release(dead = false): void {
     const socket = this.socket;
     this.socket = null;
     if (socket === null) return;
     try {
-      socket.close();
+      if (dead && socket.terminate) socket.terminate();
+      else socket.close();
     } catch {
       // déjà fermée
     }

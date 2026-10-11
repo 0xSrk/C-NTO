@@ -24,6 +24,7 @@ import { planUserData } from './user-data';
 import { initMainLog, mainLog } from './main-log';
 import { SeatHost } from './seat';
 import { SEAT_PUBLIC_KEYS } from './seat-keys';
+import { createCryptoRuntime, type CryptoMainStatus, type CryptoRuntime } from './crypto-electron';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 /**
@@ -190,6 +191,8 @@ function mcpGateway(): McpGateway {
 let bridge: NinjaBridge | null = null;
 let ntBridge: NtBridgeHost | null = null;
 let agentOrders: AgentOrderHost | null = null;
+/** Module crypto (onglet 09 · CRY) : interrupteur, flux et température, créés dans `app.whenReady`. */
+let cryptoRuntime: CryptoRuntime | null = null;
 let updateBusy = false;
 /** Dossiers accordés par un dialogue système : seuls ceux-là sont accessibles en écriture / surveillance. */
 const grants = new FolderGrants(gpuDir);
@@ -474,6 +477,17 @@ app.whenReady().then(() => {
     submit: (order) => (ntBridge ? ntBridge.order(order) : Promise.resolve({ ok: false, code: -32011, message: 'pont indisponible' })),
     log: (line) => mainLog('info', line),
   });
+  // Tout le réseau crypto vit dans `crypto-electron.ts` ; un module allumé au dernier lancement reprend ici, sans dialogue.
+  cryptoRuntime = createCryptoRuntime({
+    userDataDir: app.getPath('userData'),
+    locale: () => readLocaleFile(app.getPath('userData')),
+    window: () => (win && !win.isDestroyed() ? win : null),
+    showMessageBox: (target, options) => dialog.showMessageBox(target as BrowserWindow, options),
+    send: (channel, payload) => {
+      if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+    },
+    log: (line) => mainLog('info', line),
+  });
   void ntBridge.start();
   const shortcut = globalShortcut.register(KILL_SWITCH_SHORTCUT, () => {
     // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont.
@@ -504,6 +518,8 @@ app.on('window-all-closed', () => {
   orchestrator.stop();
   void mcp?.stop();
   bridge?.dispose();
+  // Flux et relevés fermés ; l'interrupteur reste tel quel (macOS rouvre une fenêtre sur `activate`).
+  cryptoRuntime?.shutdown();
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -663,6 +679,17 @@ ipcMain.handle('marketdata:history', (e, req: unknown) => {
   if (!trusted(e) || !ntBridge) return { ok: false as const, detail: 'aucune source live' };
   return ntBridge.history(req);
 });
+
+/* ─── Module crypto (onglet 09 · CRY) : interrupteur, flux et température tenus ici ; forme validée par le runtime ─── */
+const CRYPTO_OFF: CryptoMainStatus = { enabled: false, venues: { coinbase: 'off', binance: 'off', bybit: 'off' } };
+const CRYPTO_REFUSED = { ok: false as const, detail: 'crypto_disabled' };
+ipcMain.handle('crypto:status', (e) => (trusted(e) && cryptoRuntime ? cryptoRuntime.status() : CRYPTO_OFF));
+ipcMain.handle('crypto:enable', (e) => (trusted(e) && cryptoRuntime ? cryptoRuntime.enable() : CRYPTO_OFF));
+ipcMain.handle('crypto:disable', (e) => (trusted(e) && cryptoRuntime ? cryptoRuntime.disable() : CRYPTO_OFF));
+ipcMain.handle('crypto:history', (e, req: unknown) => (trusted(e) && cryptoRuntime ? cryptoRuntime.history(req) : CRYPTO_REFUSED));
+ipcMain.handle('crypto:subscribe', (e, req: unknown) => (trusted(e) && cryptoRuntime ? cryptoRuntime.subscribe(req) : CRYPTO_REFUSED));
+ipcMain.handle('crypto:unsubscribe', (e, id: unknown) => (trusted(e) && cryptoRuntime ? cryptoRuntime.unsubscribe(id) : { ok: false }));
+ipcMain.handle('crypto:temperature', (e) => (trusted(e) && cryptoRuntime ? cryptoRuntime.temperature() : null));
 
 ipcMain.handle('ntbridge:status', (e) => (trusted(e) ? ntBridge?.publicStatus() ?? null : null));
 ipcMain.handle('ntbridge:orders', (e) => (trusted(e) ? ntBridge?.orders() ?? null : null));

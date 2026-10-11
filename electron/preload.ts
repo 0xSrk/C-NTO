@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { ChangelogFile } from './changelog';
+import type { CryptoFeedEvent, CryptoSeriesId, CryptoTimeframe } from './crypto/markets';
+import type { TemperatureReading } from './crypto/temperature';
+import type { CryptoMainStatus } from './crypto-electron';
 
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
   const handler = (_e: IpcRendererEvent, payload: T) => cb(payload);
@@ -68,6 +71,18 @@ contextBridge.exposeInMainWorld('canto', {
   seat: {
     status: () => ipcRenderer.invoke('seat:status'),
     submit: (line: string) => ipcRenderer.invoke('seat:submit', line),
+  },
+  crypto: {
+    status: () => ipcRenderer.invoke('crypto:status'),
+    enable: () => ipcRenderer.invoke('crypto:enable'),
+    disable: () => ipcRenderer.invoke('crypto:disable'),
+    history: (req: { series: CryptoSeriesId; timeframe: CryptoTimeframe }) => ipcRenderer.invoke('crypto:history', req),
+    subscribe: (req: { series: CryptoSeriesId; kind: 'ticker' | 'bars'; timeframe?: CryptoTimeframe }) => ipcRenderer.invoke('crypto:subscribe', req),
+    unsubscribe: (id: string) => ipcRenderer.invoke('crypto:unsubscribe', id),
+    temperature: () => ipcRenderer.invoke('crypto:temperature'),
+    onEvent: (cb: (event: CryptoFeedEvent) => void) => subscribe('crypto:event', cb),
+    onTemperature: (cb: (reading: TemperatureReading) => void) => subscribe('crypto:temperature', cb),
+    onStatus: (cb: (status: CryptoMainStatus) => void) => subscribe('crypto:status', cb),
   },
   agentOrders: {
     status: () => ipcRenderer.invoke('agent-orders:status'),
