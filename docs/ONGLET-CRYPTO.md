@@ -93,8 +93,10 @@ src/engine/crypto/  (pur)                       electron/crypto/*.d.ts          
 |---|---|---|
 | Funding médian des perps USDT, funding BTC | `fapi.binance.com/fapi/v1/premiumIndex` (tous les symboles, un appel) | 60 s |
 | Largeur : part des paires spot USDT en hausse sur 24 h | `api.binance.com/api/v3/ticker/24hr` (tous les symboles) | 5 min |
-| Liquidations sur 1 h glissante, longues et courtes | `fstream.binance.com/ws/!forceOrder@arr` | continu |
+| Liquidations sur 1 h glissante, longues et courtes | `fstream.binance.com/market/ws/!forceOrder@arr` | continu |
 | Open interest BTC et ETH, variation 24 h | `fapi.binance.com/futures/data/openInterestHist` (`period=1h`) | 5 min |
+
+Le flux des liquidations est servi sur la route `/market` de `fstream.binance.com` ; le chemin sans route (`/ws/`) accepte la connexion mais n'en envoie plus.
 
 Les liquidations sont un **minorant** : Binance ne pousse qu'une liquidation par symbole et par seconde ; la fenêtre repart de zéro à chaque lancement du desk. Ces deux faits sont écrits à l'écran et dans `crypto_temperature`. Chaque lecture porte son horodatage. Pas de score composite en v1.
 

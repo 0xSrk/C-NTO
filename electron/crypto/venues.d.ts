@@ -50,8 +50,11 @@ export function aggregateBars(bars: CryptoBar[], timeframe: CryptoTimeframe, fac
  * `cryptoHostAllowed` refuse.
  */
 export function wsUrl(venue: CryptoVenue): string;
-/** Les liquidations de tous les perps USDT de Binance : un flux à part, pour la température du marché. */
-export const FORCE_ORDER_URL: 'wss://fstream.binance.com/ws/!forceOrder@arr';
+/**
+ * Les liquidations de tous les perps USDT de Binance : un flux à part, pour la température du marché. Elles sont
+ * servies sur la route `/market` de `fstream` : le chemin sans route (`/ws/`) n'envoie plus aucune trame.
+ */
+export const FORCE_ORDER_URL: 'wss://fstream.binance.com/market/ws/!forceOrder@arr';
 /** Le funding de tous les perps USDT de Binance, en un appel. */
 export const PREMIUM_INDEX_URL: 'https://fapi.binance.com/fapi/v1/premiumIndex';
 /** La variation sur 24 h de toutes les paires spot de Binance, en un appel. */

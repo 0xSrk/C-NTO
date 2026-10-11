@@ -155,7 +155,8 @@ describe('URLs des flux et de la température', () => {
   });
 
   it('FORCE_ORDER_URL : le flux des liquidations Binance, en wss:', () => {
-    expect(FORCE_ORDER_URL).toBe('wss://fstream.binance.com/ws/!forceOrder@arr');
+    // Route `/market` de fstream : le chemin sans route (`/ws/`) accepte la connexion mais n’envoie plus aucune liquidation.
+    expect(FORCE_ORDER_URL).toBe('wss://fstream.binance.com/market/ws/!forceOrder@arr');
     expect(cryptoHostAllowed(FORCE_ORDER_URL, 'wss:')).toBe(true);
     expect(cryptoHostAllowed(FORCE_ORDER_URL, 'https:')).toBe(false);
   });

@@ -244,7 +244,7 @@ expect([...four.urls, ...historyRequests('coinbase:ONDO-USD', 5, 1791540000).url
 ```ts
 export function wsUrl(venue: CryptoVenue): string;
 // coinbase 'wss://ws-feed.exchange.coinbase.com' · binance 'wss://stream.binance.com:9443/ws' · bybit 'wss://stream.bybit.com/v5/public/spot'
-export const FORCE_ORDER_URL = 'wss://fstream.binance.com/ws/!forceOrder@arr';
+export const FORCE_ORDER_URL = 'wss://fstream.binance.com/market/ws/!forceOrder@arr';
 export const PREMIUM_INDEX_URL = 'https://fapi.binance.com/fapi/v1/premiumIndex';
 export const TICKER_24H_URL = 'https://api.binance.com/api/v3/ticker/24hr';
 export function openInterestUrl(symbol: 'BTCUSDT' | 'ETHUSDT'): string; // https://fapi.binance.com/futures/data/openInterestHist?symbol=<s>&period=1h&limit=25
