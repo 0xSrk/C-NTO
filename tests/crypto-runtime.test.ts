@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -66,8 +66,16 @@ interface HarnessOptions {
   send?: (channel: Channel, payload: unknown) => void;
 }
 
+/** Les dossiers `userData` que les harnais ont créés dans le dossier temporaire : chaque test efface les siens (voir plus bas). */
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+});
+
 function harness(opts: HarnessOptions = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'canto-crypto-runtime-'));
+  tempDirs.push(dir);
   const file = path.join(dir, 'crypto.json');
   if (opts.enabled) writeFileSync(file, JSON.stringify({ enabled: true }));
   const { sockets, ws } = fakeNet();
@@ -588,6 +596,22 @@ describe('createCryptoRuntime', () => {
       await settle();
       expect(h.logs).toContain('température · crypto binance: température premiumIndex indisponible · HTTP 503 (fapi.binance.com)');
     });
+  });
+});
+
+describe('dossiers temporaires du harnais', () => {
+  /** Le dossier que le test précédent a créé : le suivant le cherche, et il doit avoir disparu. */
+  let created = '';
+
+  it('chaque harnais crée un dossier userData dans le dossier temporaire', () => {
+    created = path.dirname(harness({ enabled: true }).file);
+    expect(path.basename(created)).toMatch(/^canto-crypto-runtime-/);
+    expect(existsSync(created)).toBe(true);
+  });
+
+  it('ce dossier est effacé à la fin du test qui l’a créé', () => {
+    expect(created, 'le test précédent doit avoir tourné').not.toBe('');
+    expect(existsSync(created)).toBe(false);
   });
 });
 
