@@ -303,6 +303,14 @@ describe('mergeLiveBar', () => {
     expect(mergeLiveBar(history(), bar(T1, 11.5, 12.8, 10.2, 12.1, 90, 40))).toStrictEqual([bar(T0, 10, 12, 9, 11, 100), bar(T1, 11.5, 12.8, 10.2, 12.1, 90, 40)]);
   });
 
+  it('remplace la bougie de même instant par une bougie complète dont le volume acheteur vaut 0', () => {
+    // Un volume acheteur nul est un volume acheteur : la bougie est complète, tout son volume est vendeur. Un test « truthy »
+    // la prendrait pour partielle : il garderait le volume, le plus haut et le plus bas de l’historique.
+    expect(mergeLiveBar(history(), bar(T1, 11.5, 12.5, 10.5, 11, 90, 0))).toStrictEqual([bar(T0, 10, 12, 9, 11, 100), bar(T1, 11.5, 12.5, 10.5, 11, 90, 0)]);
+    const complete = [bar(T0, 10, 12, 9, 11, 100, 60), bar(T1, 11, 13, 10, 12, 80, 30)];
+    expect(mergeLiveBar(complete, bar(T1, 11.5, 12.5, 10.5, 11, 90, 0))).toStrictEqual([bar(T0, 10, 12, 9, 11, 100, 60), bar(T1, 11.5, 12.5, 10.5, 11, 90, 0)]);
+  });
+
   it('ajoute une bougie plus récente, partielle ou complète, sans toucher aux autres', () => {
     expect(mergeLiveBar(history(), bar(T2, 12, 13, 11, 12.5, 7, 3))).toStrictEqual([...history(), bar(T2, 12, 13, 11, 12.5, 7, 3)]);
     expect(mergeLiveBar(history(), bar(T2, 12, 12, 12, 12, 1))).toStrictEqual([...history(), bar(T2, 12, 12, 12, 12, 1)]);

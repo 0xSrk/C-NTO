@@ -19,6 +19,7 @@ import { defaultParams, type IndicatorDefinition, type IndicatorInstance, type I
 import { tr } from '@/i18n';
 import { desk, type CryptoMainStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
+import { startChart, startLight } from './cryptoLive';
 import { getSetting, setSetting } from './db';
 
 /** Hors desk, avant la première lecture : aucune venue ouverte. */
@@ -89,12 +90,26 @@ export interface CryptoState {
   alerts: CryptoAlert[];
   drawings: CryptoDrawing[];
 
-  /** Données vivantes, jamais enregistrées : remplies par le flux (CRY3.4). Les bougies sont en secondes UTC. */
+  /**
+   * Données vivantes, jamais enregistrées, remplies par les flux (`./cryptoLive`). Les bougies sont en secondes UTC. `bars` et
+   * `proxyBars` (la série Binance du CVD Binance) suivent le chart ouvert, interrupteur allumé, et se vident à tout changement de
+   * marché ou de timeframe et à l'arrêt du flux ; `cvdAnchoredAt` est `cvdAnchor(bars)`. `tickers` (watchlist) et `temperature`
+   * suivent l'interrupteur et se vident à l'extinction.
+   */
   bars: CryptoBar[];
   proxyBars: CryptoBar[];
   cvdAnchoredAt: number | null;
   tickers: Partial<Record<CryptoMarketId, CryptoTicker>>;
   temperature: TemperatureReading | null;
+  /**
+   * Le dernier refus du flux du chart (abonnement ou historique), de celui du CVD Binance, et de l'abonnement ticker de chaque
+   * marché : le code du process principal tel quel (`crypto_disabled`, `blocked`, `rate_limited`, `no_history`,
+   * `unknown_stream`, `invalid_request`), que l'écran traduit. Effacés avec les données de leur flux.
+   */
+  chartError: string | null;
+  proxyError: string | null;
+  tickerErrors: Partial<Record<CryptoMarketId, string>>;
+  /** Le chart est à l'écran : posé par `openChart` et `closeChart`. */
   chartOpen: boolean;
   /** Les écritures de l'agent, la plus récente d'abord, `AGENT_LOG_MAX` au plus. Jamais enregistré. */
   agentLog: AgentLogLine[];
@@ -119,6 +134,14 @@ export interface CryptoState {
   /** Demande l'allumage : le process principal ouvre son dialogue et rend le statut, allumé ou non. */
   requestEnable: () => Promise<void>;
   disable: () => Promise<void>;
+
+  /**
+   * Le chart entre à l'écran (montage de l'onglet) : tant que l'interrupteur est allumé et le store prêt, le flux lourd suit son
+   * marché, son timeframe et le CVD Binance. L'agent ne l'appelle pas : il lit ce que le trader a ouvert.
+   */
+  openChart: () => void;
+  /** Le chart quitte l'écran : le flux lourd est lâché, ses bougies vidées. Le flux léger continue. */
+  closeChart: () => void;
 
   /**
    * Les écritures. Chacune s'assure d'abord que les réglages enregistrés sont lus (la même étape que `load()`, partagée par les
@@ -388,6 +411,9 @@ export const useCrypto = create<CryptoState>((set, get) => {
     cvdAnchoredAt: null,
     tickers: {},
     temperature: null,
+    chartError: null,
+    proxyError: null,
+    tickerErrors: {},
     chartOpen: false,
     agentLog: [],
 
@@ -425,6 +451,14 @@ export const useCrypto = create<CryptoState>((set, get) => {
     async disable() {
       const status = await desk?.crypto?.disable();
       if (status) apply(status);
+    },
+
+    openChart() {
+      set({ chartOpen: true });
+    },
+
+    closeChart() {
+      set({ chartOpen: false });
     },
 
     async setMarket(id, by = 'trader') {
@@ -633,3 +667,35 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
   };
 });
+
+// --- Flux en direct (`./cryptoLive`) -----------------------------------------------------------------------------------
+
+/** L'arrêt du flux en cours, ou `null` quand il est éteint. */
+let stopLight: (() => void) | null = null;
+let stopChart: (() => void) | null = null;
+
+/**
+ * Accorde les deux flux à l'état, à chaque changement : rien tant que le store n'est pas prêt (statut et réglages lus) ou que
+ * l'interrupteur est éteint ; le léger dès qu'il s'allume, le lourd quand le chart est en plus ouvert. Un flux est relancé à
+ * neuf à chaque allumage : un abonnement refusé par le process principal pendant l'extinction n'est jamais ranimé.
+ * L'arrêt d'un flux vide ses données (une écriture de l'état, qui rappelle cette écoute) : la variable est remise à `null`
+ * avant l'arrêt, pour que l'appel imbriqué voie le flux déjà éteint. Le démarrage n'écrit pas l'état.
+ */
+function syncFlows(): void {
+  const { ready, enabled, chartOpen } = useCrypto.getState();
+  const on = ready && enabled;
+  if (!(on && chartOpen) && stopChart) {
+    const stop = stopChart;
+    stopChart = null;
+    stop();
+  }
+  if (!on && stopLight) {
+    const stop = stopLight;
+    stopLight = null;
+    stop();
+  }
+  if (on && !stopLight) stopLight = startLight();
+  if (on && chartOpen && !stopChart) stopChart = startChart();
+}
+
+useCrypto.subscribe(syncFlows);

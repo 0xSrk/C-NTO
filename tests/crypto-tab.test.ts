@@ -31,6 +31,13 @@ const fake = vi.hoisted(() => {
       listeners.add(cb);
       return () => listeners.delete(cb);
     }),
+    // Allumé, le store ouvre son flux léger (CRY3.4) : ces flux répondent sans rien pousser.
+    history: vi.fn(async () => ({ ok: false, detail: 'no_history' })),
+    subscribe: vi.fn(async () => ({ ok: true, subscriptionId: 'sub' })),
+    unsubscribe: vi.fn(async () => ({ ok: true })),
+    temperature: vi.fn(async () => null),
+    onEvent: vi.fn(() => () => {}),
+    onTemperature: vi.fn(() => () => {}),
   };
   (window as unknown as { canto: unknown }).canto = { crypto: api };
   /** Le process principal change d'état de lui-même et le pousse au renderer. */

@@ -171,7 +171,17 @@ describe('load : réglages', () => {
   it('un second load() relit le statut, pas les réglages', async () => {
     const venues = { coinbase: 'connecting', binance: 'connecting', bybit: 'connecting' };
     const status = vi.fn(async () => ({ enabled: true, venues }));
-    h.desk.crypto = { status, onStatus: vi.fn(() => () => {}) };
+    // Allumé et prêt, le store ouvre son flux léger (CRY3.4) : le reste de `desk.crypto` répond, sans rien pousser.
+    h.desk.crypto = {
+      status,
+      onStatus: vi.fn(() => () => {}),
+      history: vi.fn(async () => ({ ok: false, detail: 'no_history' })),
+      subscribe: vi.fn(async () => ({ ok: true, subscriptionId: 'sub' })),
+      unsubscribe: vi.fn(async () => ({ ok: true })),
+      temperature: vi.fn(async () => null),
+      onEvent: vi.fn(() => () => {}),
+      onTemperature: vi.fn(() => () => {}),
+    };
     await s().load();
     await s().load();
     expect(status).toHaveBeenCalledTimes(2);
