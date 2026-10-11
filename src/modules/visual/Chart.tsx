@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, CrosshairMode, HistogramSeries, LineSeries, LineStyle, type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type SeriesMarker, type Time, type UTCTimestamp } from 'lightweight-charts';
+import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, CrosshairMode, HistogramSeries, LineSeries, LineStyle, type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type SeriesMarker, type Time, type UTCTimestamp } from 'lightweight-charts';
 import type { Bar } from '@/engine/bars';
 import type { IndicatorLine } from '@/engine/indicators';
 import type { Trade } from '@/engine/types';
@@ -15,12 +15,38 @@ export interface HoverInfo {
   values: { key: string; label: string; color: string; value: number | null }[];
 }
 
+/** Précision d'affichage des prix : décimales de l'échelle et pas minimal de la série. */
+export interface ChartPriceFormat {
+  precision: number;
+  minMove: number;
+}
+
+/** Tracé horizontal à un prix, repéré par `id` (la couleur est déjà résolue : le canevas ne lit pas `var(--x)`). */
+export interface ChartPriceLine {
+  id: string;
+  price: number;
+  title: string;
+  color: string;
+}
+
 interface Props {
   bars: Bar[];
   timeframe: number;
   lines: IndicatorLine[];
   trades: Trade[];
   onHover?: (info: HoverInfo | null) => void;
+  /** Absent : deux décimales et un pas de 0,25, comme pour les futures de Visual. */
+  priceFormat?: ChartPriceFormat;
+  priceLines?: readonly ChartPriceLine[];
+}
+
+const DEFAULT_PRICE_FORMAT: ChartPriceFormat = { precision: 2, minMove: 0.25 };
+
+interface DrawnPriceLine {
+  line: IPriceLine;
+  price: number;
+  title: string;
+  color: string;
 }
 
 const LINE_STYLE: Record<NonNullable<IndicatorLine['lineStyle']>, LineStyle> = { solid: LineStyle.Solid, dashed: LineStyle.Dashed, dotted: LineStyle.Dotted };
@@ -67,7 +93,33 @@ function splitSegments(data: IndicatorLine['data'], maxSegments = 80): { time: n
   return segments.length > maxSegments ? segments.slice(-maxSegments) : segments;
 }
 
-export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
+/**
+ * Aligne les tracés dessinés sur ceux demandés, par `id` : un id nouveau crée sa ligne, un id disparu
+ * la retire, un prix, un titre ou une couleur changés la modifient en place. Un prix non fini, nul
+ * ou négatif n'est pas tracé (le tracé qui existait sous cet id, s'il y en avait un, est retiré).
+ */
+function syncPriceLines(series: ISeriesApi<'Candlestick'>, drawn: Map<string, DrawnPriceLine>, wanted: readonly ChartPriceLine[] | undefined): void {
+  const next = new Map<string, ChartPriceLine>();
+  for (const spec of wanted ?? []) if (Number.isFinite(spec.price) && spec.price > 0) next.set(spec.id, spec);
+  for (const [id, entry] of drawn) {
+    if (next.has(id)) continue;
+    series.removePriceLine(entry.line);
+    drawn.delete(id);
+  }
+  for (const [id, spec] of next) {
+    const entry = drawn.get(id);
+    if (!entry) {
+      drawn.set(id, { line: series.createPriceLine({ price: spec.price, color: spec.color, lineStyle: LineStyle.Dashed, title: spec.title }), price: spec.price, title: spec.title, color: spec.color });
+    } else if (entry.price !== spec.price || entry.title !== spec.title || entry.color !== spec.color) {
+      entry.line.applyOptions({ price: spec.price, title: spec.title, color: spec.color });
+      entry.price = spec.price;
+      entry.title = spec.title;
+      entry.color = spec.color;
+    }
+  }
+}
+
+export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, priceLines }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -76,6 +128,15 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
   /** Dernières données poussées par segment : un segment dont la référence n'a pas changé n'est pas renvoyé au graphique. */
   const segmentDataRef = useRef<Map<string, IndicatorLine['data']>>(new Map());
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const precision = priceFormat?.precision ?? DEFAULT_PRICE_FORMAT.precision;
+  const minMove = priceFormat?.minMove ?? DEFAULT_PRICE_FORMAT.minMove;
+  /** Format courant, lu à la création du graphique ; `appliedFormatRef` : celui que le graphique porte. */
+  const formatRef = useRef<ChartPriceFormat>({ precision, minMove });
+  formatRef.current = { precision, minMove };
+  const appliedFormatRef = useRef<ChartPriceFormat | null>(null);
+  const priceLinesRef = useRef(priceLines);
+  priceLinesRef.current = priceLines;
+  const drawnLinesRef = useRef<Map<string, DrawnPriceLine>>(new Map());
   const [ready, setReady] = useState(false);
   const [fault, setFault] = useState<Error | null>(null);
   const linesRef = useRef(lines);
@@ -99,6 +160,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       const width = Math.floor(el.clientWidth);
       const height = Math.floor(el.clientHeight);
       if (!chartHostReady(width, height)) return;
+      const format = formatRef.current;
       try {
         chart = createChart(el, {
       autoSize: false,
@@ -129,7 +191,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       localization: {
         locale: intlTag(),
         timeFormatter: (time: Time) => dateTimeFormatter(DATE_TIME_OPTS).format(new Date((time as number) * 1000)),
-        priceFormatter: (p: number) => fmtPrice(p),
+        priceFormatter: (p: number) => fmtPrice(p, format.precision),
       },
       handleScroll: { vertTouchDrag: false },
     });
@@ -142,7 +204,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       wickDownColor: 'rgba(224,119,108,0.8)',
       priceLineColor: '#8a8a8a',
       priceLineStyle: LineStyle.Dotted,
-      priceFormat: { type: 'price', precision: 2, minMove: 0.25 },
+      priceFormat: { type: 'price', precision: format.precision, minMove: format.minMove },
     });
     const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: 'rgba(138,138,138,0.35)', lastValueVisible: false, priceLineVisible: false }, 1);
     const volPane = chart.panes()[1];
@@ -152,6 +214,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
     candleRef.current = candles;
     volumeRef.current = volume;
     markersRef.current = createSeriesMarkers(candles, []);
+    appliedFormatRef.current = format;
+    syncPriceLines(candles, drawnLinesRef.current, priceLinesRef.current);
 
     chart.subscribeCrosshairMove((param) => {
       if (!onHover) return;
@@ -202,6 +266,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
       lineRefs.current.clear();
       segmentDataRef.current.clear();
       markersRef.current = null;
+      appliedFormatRef.current = null;
+      drawnLinesRef.current.clear();
       setReady(false);
     };
   }, [onHover]);
@@ -283,6 +349,24 @@ export function Chart({ bars, timeframe, lines, trades, onHover }: Props) {
     markers.sort((a, b) => (a.time as number) - (b.time as number));
     markersRef.current.setMarkers(markers);
   }, [trades, bars, timeframe, ready]);
+
+  // Changement de marché : la série et l'échelle suivent la nouvelle précision sans recréer le graphique.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const candles = candleRef.current;
+    if (!ready || !chart || !candles) return;
+    const applied = appliedFormatRef.current;
+    if (applied && applied.precision === precision && applied.minMove === minMove) return;
+    appliedFormatRef.current = { precision, minMove };
+    candles.applyOptions({ priceFormat: { type: 'price', precision, minMove } });
+    chart.applyOptions({ localization: { priceFormatter: (p: number) => fmtPrice(p, precision) } });
+  }, [ready, precision, minMove]);
+
+  useEffect(() => {
+    const candles = candleRef.current;
+    if (!ready || !candles) return;
+    syncPriceLines(candles, drawnLinesRef.current, priceLines);
+  }, [ready, priceLines]);
 
   if (fault) throw fault;
   return <div ref={containerRef} className={s.chart} />;

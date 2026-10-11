@@ -72,9 +72,10 @@ export function fmtPoints(v: number | undefined | null): string {
   return `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} pts`;
 }
 
-export function fmtPrice(v: number | undefined | null): string {
+/** Prix à `digits` décimales (2 par défaut : les futures) ; un marché de petit prix demande davantage. */
+export function fmtPrice(v: number | undefined | null, digits = 2): string {
   if (v === undefined || v === null || !Number.isFinite(v)) return '—';
-  return fixedFormatter(2).format(v);
+  return fixedFormatter(digits).format(v);
 }
 
 /** Identité du formateur en cache — exposé pour les tests (vérifie la réutilisation). */
