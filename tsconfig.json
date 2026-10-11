@@ -22,5 +22,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "tests", "vite.config.mts", "vitest.config.mts"]
+  "include": ["src", "tests", "scripts/harness", "vite.config.mts", "vitest.config.mts"]
 }

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark only" />
+    <!-- Banc de capture de l'onglet 09 · CRY (CRY4.4). La page ne parle qu'à son origine : aucun appel vers un exchange. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+    <title>CΛNTO · crypto (banc de capture)</title>
+    <style>
+      :root {
+        color-scheme: dark only;
+        --bg-1: #0f1013;
+      }
+      html,
+      body,
+      #root {
+        background: var(--bg-1);
+        margin: 0;
+        height: 100%;
+        color: #a3a7af;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      `--screenshot` photographie la page à l'événement load. Tant que ce document intérieur reste ouvert, load n'a pas lieu :
+      le banc le referme (`__releaseCapture`) quand l'onglet est composé, ou au plus tard après 30 s.
+    -->
+    <iframe id="capture-hold" title="capture" hidden></iframe>
+    <script>
+      (function () {
+        var hold = document.getElementById('capture-hold').contentDocument;
+        var released = false;
+        hold.open();
+        window.__releaseCapture = function () {
+          if (released) return;
+          released = true;
+          hold.close();
+        };
+        setTimeout(window.__releaseCapture, 30000);
+      })();
+    </script>
+    <script type="module" src="/scripts/harness/crypto-harness.tsx"></script>
+  </body>
+</html>
