@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import type { Bar } from '@/engine/bars';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { CRYPTO_MARKETS, type CryptoBar, type CryptoFeedEvent, type CryptoSeriesId, type CryptoTimeframe } from '@/engine/crypto/markets';
-import { createCryptoPort, type CryptoTransport } from '@/engine/crypto/port';
-import type { FeedEvent, MarketDataPort, SubscribeRequest } from '@/engine/marketdata/port';
+import { createCryptoPort, type CryptoMarketDataPort, type CryptoPortEvent, type CryptoQuote, type CryptoTransport } from '@/engine/crypto/port';
+import { mergeLiveBar } from '@/engine/crypto/tradeBars';
+import type { FeedEvent, MarketDataPort, Quote, SubscribeRequest } from '@/engine/marketdata/port';
 
 type HistoryCall = Parameters<CryptoTransport['history']>[0];
 type SubscribeCall = Parameters<CryptoTransport['subscribe']>[0];
@@ -93,25 +93,28 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
   throw new Error('la promesse devait être rejetée');
 }
 
-function listen(port: MarketDataPort, req: SubscribeRequest) {
-  const seen: FeedEvent[] = [];
-  const stop = port.subscribe!(req, (event) => seen.push(event));
+function listen(port: CryptoMarketDataPort, req: SubscribeRequest) {
+  const seen: CryptoPortEvent[] = [];
+  const stop = port.subscribe(req, (event) => seen.push(event));
   return { seen, stop };
 }
 
 /** Sans les statuts : les barres et les derniers prix reçus. */
-const data = (events: FeedEvent[]): FeedEvent[] => events.filter((event) => event.kind !== 'status');
+const data = (events: CryptoPortEvent[]): CryptoPortEvent[] => events.filter((event) => event.kind !== 'status');
 
-/** Une bougie du transport, `buyVolume` se pose par `over`. */
+/** Une bougie du transport (volume 10), `buyVolume` se pose par `over`. */
 const row = (time: number, close: number, over: Partial<CryptoBar> = {}): CryptoBar => ({ time, open: close - 1, high: close + 1, low: close - 2, close, volume: 10, ...over });
-/** La même, telle que le moteur la lit : les six champs de `Bar`. */
-const bar = (time: number, close: number): Bar => ({ time, open: close - 1, high: close + 1, low: close - 2, close, volume: 10 });
+/** La même, telle que le port la rend : sans `buyVolume` sauf si `over` le pose. */
+const bar = row;
+
+/** Ce que le transport ne devrait jamais porter, en ligne d'historique comme en événement : tout sauf un objet. */
+const NOT_OBJECTS: unknown[] = [null, undefined, 42, 'row', true];
 
 const barEvent = (series: CryptoSeriesId, timeframe: CryptoTimeframe, bars: CryptoBar, final = false): CryptoFeedEvent => ({ kind: 'bar', series, timeframe, bar: bars, final });
-const tickerEvent = (market: CryptoSeriesId, last: number): CryptoFeedEvent => ({ kind: 'ticker', ticker: { market, last, change24hPct: 1.25, time: NOW_MS } });
+const tickerEvent = (market: CryptoSeriesId, last: number, change24hPct: number | null = 1.25): CryptoFeedEvent => ({ kind: 'ticker', ticker: { market, last, change24hPct, time: NOW_MS } });
 
-const barOut = (series: CryptoSeriesId, timeframe: CryptoTimeframe, time: number, close: number, final = false): FeedEvent => ({ kind: 'bar', instrument: series, timeframe, bar: bar(time, close), final });
-const quoteOut = (market: CryptoSeriesId, last: number): FeedEvent => ({ kind: 'quote', quote: { instrument: market, time: NOW_MS, last } });
+const barOut = (series: CryptoSeriesId, timeframe: CryptoTimeframe, time: number, close: number, final = false): CryptoPortEvent => ({ kind: 'bar', instrument: series, timeframe, bar: bar(time, close), final });
+const quoteOut = (market: CryptoSeriesId, last: number, change24hPct: number | null = 1.25): CryptoPortEvent => ({ kind: 'quote', quote: { instrument: market, time: NOW_MS, last, change24hPct } });
 
 describe('port crypto du moteur', () => {
   it('se déclare source crypto : historique, barres et derniers prix, sur les six séries du registre', () => {
@@ -126,22 +129,44 @@ describe('port crypto du moteur', () => {
       fake.replyHistory({ ok: true, bars: [row(T0 + 2 * HOUR, 3), row(T0 - HOUR, 9), row(T0 + HOUR, 2), row(T0, 1), row(T0 + HOUR, 5), row(T0 + 3 * HOUR, 8)] });
       const port = createCryptoPort(fake.transport);
 
-      const bars = await port.history!({ instrument: BTC, timeframe: 60, from: T0, to: T0 + 2 * HOUR });
+      const bars = await port.history({ instrument: BTC, timeframe: 60, from: T0, to: T0 + 2 * HOUR });
 
       expect(fake.histories).toEqual([{ series: BTC, timeframe: 60 }]);
       // Avant `from` et après `to` : écartées. Deux barres à T0 + 1 h : la dernière gagne.
       expect(bars).toEqual([bar(T0, 1), bar(T0 + HOUR, 5), bar(T0 + 2 * HOUR, 3)]);
     });
 
-    it('rend des barres du moteur : les six champs de Bar, sans buyVolume, même quand il vaut NaN', async () => {
+    it('garde le volume acheteur d’une barre quand il est fini et compris entre 0 et son volume', async () => {
       const fake = fakeTransport();
-      fake.replyHistory({ ok: true, bars: [row(T0, 100, { buyVolume: 4 }), row(T0 + 60, 101, { buyVolume: Number.NaN })] });
+      // Volume 10 : 0 et 10 sont les bornes, comprises.
+      fake.replyHistory({ ok: true, bars: [row(T0, 100, { buyVolume: 4 }), row(T0 + 60, 101, { buyVolume: 0 }), row(T0 + 120, 102, { buyVolume: 10 }), row(T0 + 180, 103)] });
       const port = createCryptoPort(fake.transport);
 
-      const bars = await port.history!({ instrument: BTC, timeframe: 1, from: 0, to: T0 + 60 });
+      const bars = await port.history({ instrument: BTC, timeframe: 1, from: 0, to: T0 + 180 });
 
-      expect(bars).toEqual([bar(T0, 100), bar(T0 + 60, 101)]);
+      expect(bars).toEqual([bar(T0, 100, { buyVolume: 4 }), bar(T0 + 60, 101, { buyVolume: 0 }), bar(T0 + 120, 102, { buyVolume: 10 }), bar(T0 + 180, 103)]);
+      // Absent en entrée, absent en sortie : la barre n'est pas rendue avec `buyVolume: undefined`.
+      expect(Object.keys(bars[3]!).sort()).toEqual(['close', 'high', 'low', 'open', 'time', 'volume']);
+    });
+
+    it('omet le volume acheteur hors de [0, volume] ou qui n’est pas un nombre fini, sans écarter la barre', async () => {
+      const outOfRange: unknown[] = [Number.NaN, Infinity, -Infinity, -0.5, 10.000001, 11, '4', null, undefined, {}];
+      const fake = fakeTransport();
+      fake.replyHistory({ ok: true, bars: outOfRange.map((buyVolume, i) => row(T0 + 60 * i, 50 + i, { buyVolume } as Partial<CryptoBar>)) });
+      const port = createCryptoPort(fake.transport);
+
+      const bars = await port.history({ instrument: BTC, timeframe: 1, from: 0, to: T0 + 3600 });
+
+      expect(bars).toEqual(outOfRange.map((_, i) => bar(T0 + 60 * i, 50 + i)));
       for (const one of bars) expect(Object.keys(one).sort()).toEqual(['close', 'high', 'low', 'open', 'time', 'volume']);
+    });
+
+    it('écarte sans lever une ligne qui n’est pas un objet', async () => {
+      const fake = fakeTransport();
+      fake.replyHistory({ ok: true, bars: [row(T0, 1), ...NOT_OBJECTS, row(T0 + 60, 2)] as CryptoBar[] });
+      const port = createCryptoPort(fake.transport);
+
+      expect(await port.history({ instrument: BTC, timeframe: 1, from: 0, to: T0 + 3600 })).toEqual([bar(T0, 1), bar(T0 + 60, 2)]);
     });
 
     it('garde les prix minuscules et énormes tels quels', async () => {
@@ -151,7 +176,7 @@ describe('port crypto du moteur', () => {
       fake.replyHistory({ ok: true, bars: [tiny, huge] });
       const port = createCryptoPort(fake.transport);
 
-      expect(await port.history!({ instrument: ONE, timeframe: 60, from: 0, to: T0 + HOUR })).toEqual([tiny, huge]);
+      expect(await port.history({ instrument: ONE, timeframe: 60, from: 0, to: T0 + HOUR })).toEqual([tiny, huge]);
     });
 
     it('écarte une barre dont un champ n’est pas un nombre fini : jamais de NaN dans l’historique', async () => {
@@ -163,7 +188,7 @@ describe('port crypto du moteur', () => {
       fake.replyHistory({ ok: true, bars: [row(T0, 1), ...broken, row(T0 + 120, 2)] });
       const port = createCryptoPort(fake.transport);
 
-      const bars = await port.history!({ instrument: BTC, timeframe: 1, from: 0, to: T0 + 3600 });
+      const bars = await port.history({ instrument: BTC, timeframe: 1, from: 0, to: T0 + 3600 });
 
       expect(bars).toEqual([bar(T0, 1), bar(T0 + 120, 2)]);
       expect(bars.flatMap((one) => Object.values(one)).every((value) => Number.isFinite(value))).toBe(true);
@@ -174,7 +199,7 @@ describe('port crypto du moteur', () => {
       fake.replyHistory({ ok: false, detail: 'rate_limited' });
       const port = createCryptoPort(fake.transport);
 
-      const error = await rejection(port.history!({ instrument: BTC, timeframe: 60, from: 0, to: 1 }));
+      const error = await rejection(port.history({ instrument: BTC, timeframe: 60, from: 0, to: 1 }));
 
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toContain('rate_limited');
@@ -185,12 +210,12 @@ describe('port crypto du moteur', () => {
       const port = createCryptoPort(fake.transport);
 
       for (const instrument of UNKNOWN_SERIES) {
-        const error = await rejection(port.history!({ instrument, timeframe: 60, from: 0, to: 1 }));
+        const error = await rejection(port.history({ instrument, timeframe: 60, from: 0, to: 1 }));
         expect(error, instrument).toBeInstanceOf(Error);
         expect((error as Error).message, instrument).toContain(`Série crypto inconnue : ${instrument}`);
       }
       for (const timeframe of UNKNOWN_TIMEFRAMES) {
-        const error = await rejection(port.history!({ instrument: BTC, timeframe, from: 0, to: 1 }));
+        const error = await rejection(port.history({ instrument: BTC, timeframe, from: 0, to: 1 }));
         expect(error, String(timeframe)).toBeInstanceOf(Error);
         expect((error as Error).message, String(timeframe)).toContain(`Unité de temps crypto inconnue : ${timeframe}`);
       }
@@ -202,7 +227,7 @@ describe('port crypto du moteur', () => {
       const port = createCryptoPort(fake.transport);
       port.dispose();
 
-      const error = await rejection(port.history!({ instrument: BTC, timeframe: 60, from: 0, to: 1 }));
+      const error = await rejection(port.history({ instrument: BTC, timeframe: 60, from: 0, to: 1 }));
 
       expect((error as Error).message).toMatch(/libéré/);
       expect(fake.histories).toEqual([]);
@@ -220,12 +245,53 @@ describe('port crypto du moteur', () => {
       expect(fake.subscribes).toEqual([{ series: BTC, kind: 'bars', timeframe: 60 }]);
       expect(seen).toEqual([{ kind: 'status', state: 'live' }]);
 
-      fake.emit(barEvent(BTC, 60, row(T0, 1, { buyVolume: 3 })));
-      fake.emit(barEvent(BTC, 60, row(T0, 2), true));
+      fake.emit(barEvent(BTC, 60, row(T0, 1)));
+      fake.emit(barEvent(BTC, 60, row(T0, 2, { buyVolume: 3 }), true));
       expect(data(seen)).toEqual([
         { kind: 'bar', instrument: BTC, timeframe: 60, bar: bar(T0, 1), final: false },
-        { kind: 'bar', instrument: BTC, timeframe: 60, bar: bar(T0, 2), final: true },
+        { kind: 'bar', instrument: BTC, timeframe: 60, bar: bar(T0, 2, { buyVolume: 3 }), final: true },
       ]);
+    });
+
+    it('garde le volume acheteur d’une barre en direct, l’omet hors de [0, volume] ou non fini : une barre partielle reste reconnaissable', async () => {
+      const fake = fakeTransport();
+      const port = createCryptoPort(fake.transport);
+      const { seen } = listen(port, { instrument: BTC, kind: 'bars', timeframe: 60 });
+      await flush();
+
+      const sent: unknown[] = [4, 0, 10, Number.NaN, Infinity, -Infinity, -1, 10.5, '4', null, undefined];
+      for (const buyVolume of sent) fake.emit(barEvent(BTC, 60, row(T0, 1, { buyVolume } as Partial<CryptoBar>), true));
+
+      const bars = data(seen).map((event) => (event.kind === 'bar' ? event.bar : null));
+      expect(bars).toEqual([bar(T0, 1, { buyVolume: 4 }), bar(T0, 1, { buyVolume: 0 }), bar(T0, 1, { buyVolume: 10 }), ...Array.from({ length: 8 }, () => bar(T0, 1))]);
+      for (const one of bars.slice(3)) expect(one && 'buyVolume' in one).toBe(false);
+    });
+
+    it('rangées avec mergeLiveBar, les barres en direct suivent le signal : sans buyVolume elle prolonge la dernière, avec buyVolume elle remplace', async () => {
+      const fake = fakeTransport();
+      const port = createCryptoPort(fake.transport);
+      const { seen } = listen(port, { instrument: BTC, kind: 'bars', timeframe: 60 });
+      await flush();
+      const history = [row(T0 - HOUR, 90, { buyVolume: 2 }), row(T0, 100, { buyVolume: 6, volume: 30 })];
+
+      // Seau commencé avant l'ouverture du flux : le direct n'a pas de buyVolume, il prolonge la dernière barre de l'historique.
+      fake.emit(barEvent(BTC, 60, row(T0, 107, { volume: 4, high: 109, low: 97 })));
+      // Seau vu depuis son début : bougie entière, avec buyVolume ; sa version close la remplace.
+      fake.emit(barEvent(BTC, 60, row(T0 + HOUR, 111, { volume: 12, buyVolume: 5 })));
+      fake.emit(barEvent(BTC, 60, row(T0 + HOUR, 112, { volume: 14, buyVolume: 7 }), true));
+      const [partial, full, closed] = data(seen).flatMap((event) => (event.kind === 'bar' ? [event.bar] : [])) as [CryptoBar, CryptoBar, CryptoBar];
+
+      const extended = mergeLiveBar(history, partial);
+      expect(extended).toHaveLength(2);
+      // Ouverture, volume et buyVolume de l'historique ; clôture du direct ; plus haut et plus bas élargis.
+      expect(extended.at(-1)).toEqual({ time: T0, open: 99, high: 109, low: 97, close: 107, volume: 30, buyVolume: 6 });
+
+      const appended = mergeLiveBar(extended, full);
+      expect(appended).toHaveLength(3);
+      expect(appended.at(-1)).toEqual(full);
+      const replaced = mergeLiveBar(appended, closed);
+      expect(replaced).toHaveLength(3);
+      expect(replaced.at(-1)).toEqual(row(T0 + HOUR, 112, { volume: 14, buyVolume: 7 }));
     });
 
     it('derniers prix : demande {series, ticker} sans timeframe, puis rend chaque ticker en quote (heure en millisecondes)', async () => {
@@ -244,7 +310,7 @@ describe('port crypto du moteur', () => {
       expect(first.seen).toEqual([{ kind: 'status', state: 'live' }]);
 
       fake.emit(tickerEvent(ONE, 0.002163));
-      expect(data(first.seen)).toEqual([{ kind: 'quote', quote: { instrument: ONE, time: NOW_MS, last: 0.002163 } }]);
+      expect(data(first.seen)).toEqual([{ kind: 'quote', quote: { instrument: ONE, time: NOW_MS, last: 0.002163, change24hPct: 1.25 } }]);
       expect(data(second.seen)).toEqual(data(first.seen));
     });
 
@@ -328,7 +394,7 @@ describe('port crypto du moteur', () => {
       const port = createCryptoPort(fakeTransport().transport);
       const seen: FeedEvent[] = [];
 
-      port.subscribe!({ instrument: BTC, kind: 'tick' }, (event) => seen.push(event));
+      port.subscribe({ instrument: BTC, kind: 'tick' }, (event) => seen.push(event));
       expect(seen).toEqual([]);
       await flush();
 
@@ -405,6 +471,43 @@ describe('port crypto du moteur', () => {
       expect(data(quotes.seen)).toEqual([quoteOut(BTC, 10)]);
     });
 
+    it('porte la variation sur 24 h du ticker, un nombre fini ou null quand elle est inconnue ou n’est pas finie ; le prix passe quand même', async () => {
+      const fake = fakeTransport();
+      const port = createCryptoPort(fake.transport);
+      const { seen } = listen(port, { instrument: BTC, kind: 'quote' });
+      await flush();
+
+      const sent: unknown[] = [-3.5, 0, 12.25, null, Number.NaN, Infinity, -Infinity, '1.25', undefined];
+      sent.forEach((change24hPct, i) => fake.emit({ kind: 'ticker', ticker: { market: BTC, last: 100 + i, change24hPct, time: NOW_MS } } as CryptoFeedEvent));
+
+      const expected: Array<number | null> = [-3.5, 0, 12.25, null, null, null, null, null, null];
+      expect(data(seen)).toEqual(expected.map((change, i) => quoteOut(BTC, 100 + i, change)));
+    });
+
+    it('écarte sans lever un événement qui n’est pas un objet ou qui n’a pas sa charge, et l’abonnement continue', async () => {
+      const fake = fakeTransport();
+      const port = createCryptoPort(fake.transport);
+      const bars = listen(port, { instrument: BTC, kind: 'bars', timeframe: 60 });
+      const quotes = listen(port, { instrument: BTC, kind: 'quote' });
+      await flush();
+
+      const malformed: unknown[] = [
+        ...NOT_OBJECTS,
+        {},
+        ...NOT_OBJECTS.map((bad) => ({ kind: 'bar', series: BTC, timeframe: 60, bar: bad, final: false })),
+        { kind: 'ticker' },
+        ...NOT_OBJECTS.map((bad) => ({ kind: 'ticker', ticker: bad })),
+      ];
+      for (const event of malformed) expect(() => fake.emit(event as CryptoFeedEvent), JSON.stringify(event)).not.toThrow();
+      expect(data(bars.seen)).toEqual([]);
+      expect(data(quotes.seen)).toEqual([]);
+
+      fake.emit(barEvent(BTC, 60, row(T0, 9)));
+      fake.emit(tickerEvent(BTC, 10));
+      expect(data(bars.seen)).toEqual([barOut(BTC, 60, T0, 9)]);
+      expect(data(quotes.seen)).toEqual([quoteOut(BTC, 10)]);
+    });
+
     it('désabonner lâche le transport une seule fois, coupe l’écoute, et laisse les autres abonnés de la même série', async () => {
       const fake = fakeTransport();
       const port = createCryptoPort(fake.transport);
@@ -431,7 +534,7 @@ describe('port crypto du moteur', () => {
       const port = createCryptoPort(fake.transport);
       let stop = (): void => undefined;
 
-      stop = port.subscribe!({ instrument: BTC, kind: 'bars', timeframe: 60 }, (event) => {
+      stop = port.subscribe({ instrument: BTC, kind: 'bars', timeframe: 60 }, (event) => {
         if (event.kind === 'status' && event.state === 'live') stop();
       });
       await flush();
@@ -444,8 +547,8 @@ describe('port crypto du moteur', () => {
       const fake = fakeTransport();
       const port = createCryptoPort(fake.transport);
       let dropSecond = (): void => undefined;
-      const firstSeen: FeedEvent[] = [];
-      port.subscribe!({ instrument: BTC, kind: 'bars', timeframe: 60 }, (event) => {
+      const firstSeen: CryptoPortEvent[] = [];
+      port.subscribe({ instrument: BTC, kind: 'bars', timeframe: 60 }, (event) => {
         firstSeen.push(event);
         if (event.kind === 'bar') dropSecond();
       });
@@ -569,6 +672,51 @@ describe('port crypto du moteur', () => {
   });
 });
 
+describe('types du port', () => {
+  it('se lit sans conversion : CryptoBar de l’historique et des barres, change24hPct des prix, et reste un MarketDataPort', async () => {
+    const fake = fakeTransport();
+    fake.replyHistory({ ok: true, bars: [row(T0, 1, { buyVolume: 2 })] });
+    const port = createCryptoPort(fake.transport);
+
+    // Ni `!` ni conversion : `history` et `subscribe` sont déclarés, et rendent les types du registre crypto.
+    expectTypeOf<CryptoMarketDataPort>().toExtend<MarketDataPort>();
+    expectTypeOf<CryptoQuote>().toExtend<Quote>();
+    expectTypeOf(port).toEqualTypeOf<CryptoMarketDataPort>();
+    const base: MarketDataPort = port;
+    expect(base.sourceId).toBe('crypto');
+
+    const bars = await port.history({ instrument: BTC, timeframe: 60, from: 0, to: T0 });
+    expectTypeOf(bars).toEqualTypeOf<CryptoBar[]>();
+    const history: Array<number | undefined> = bars.map((one) => one.buyVolume);
+
+    const live: Array<number | undefined> = [];
+    const changes: Array<number | null> = [];
+    port.subscribe({ instrument: BTC, kind: 'bars', timeframe: 60 }, (event) => {
+      expectTypeOf(event).toEqualTypeOf<CryptoPortEvent>();
+      if (event.kind === 'bar') {
+        expectTypeOf(event.instrument).toEqualTypeOf<CryptoSeriesId>();
+        expectTypeOf(event.bar).toEqualTypeOf<CryptoBar>();
+        live.push(event.bar.buyVolume);
+      }
+    });
+    port.subscribe({ instrument: BTC, kind: 'quote' }, (event) => {
+      if (event.kind === 'quote') {
+        expectTypeOf(event.quote).toEqualTypeOf<CryptoQuote>();
+        expectTypeOf(event.quote.change24hPct).toEqualTypeOf<number | null>();
+        expectTypeOf(event.quote.last).toEqualTypeOf<number>();
+        changes.push(event.quote.change24hPct);
+      }
+    });
+    await flush();
+    fake.emit(barEvent(BTC, 60, row(T0, 5, { buyVolume: 3 })));
+    fake.emit(tickerEvent(BTC, 6, -2));
+
+    expect(history).toEqual([2]);
+    expect(live).toEqual([3]);
+    expect(changes).toEqual([-2]);
+  });
+});
+
 describe('renderer seulement', () => {
   it('n’est pas émis pour le process principal et n’importe que le moteur', () => {
     const config = JSON.parse(readFileSync('electron/tsconfig.sources.json', 'utf8')) as { files: string[] };
@@ -581,9 +729,8 @@ describe('renderer seulement', () => {
     expect(specifiers).toContain('./markets');
     expect(specifiers).toContain('@/engine/marketdata/port');
     expect(specifiers.filter((s) => !/^(@\/engine\/|\.\/)/.test(s))).toEqual([]);
-    // `bars.ts` tire l’i18n et le CSV : seul le type `Bar` en vient.
-    expect(source).toMatch(/^import type \{[^}]*\} from '@\/engine\/bars';/m);
-    expect(source).not.toMatch(/^import (?!type\b)[^;]*from '@\/engine\/bars'/m);
+    // `bars.ts` tire l’i18n et le CSV : le port n’en importe rien, ses barres sont des `CryptoBar`.
+    expect(source).not.toMatch(/from\s+['"]@\/engine\/bars['"]/);
     expect(source).not.toMatch(/\bimport\s*\(/);
     expect(source).not.toMatch(/\brequire\s*\(/);
   });

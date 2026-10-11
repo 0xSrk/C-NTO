@@ -64,9 +64,9 @@ export interface MarketDataPort {
 }
 
 /** Tri et dédoublonnage par `time` : la dernière barre d'un même instant gagne. */
-export function dedupeBars(bars: Bar[]): Bar[] {
+export function dedupeBars<T extends Bar>(bars: T[]): T[] {
   const sorted = [...bars].sort((a, b) => a.time - b.time);
-  const out: Bar[] = [];
+  const out: T[] = [];
   for (const bar of sorted) {
     const last = out[out.length - 1];
     if (last && last.time === bar.time) out[out.length - 1] = bar;

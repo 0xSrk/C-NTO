@@ -11,14 +11,18 @@
  *   `time` en millisecondes) ; `tick` n'existe pas en crypto. Le process principal pousse ses événements sans
  *   identifiant d'abonnement : chaque abonnement ne reçoit que ceux de sa série et de son timeframe (barres) ou de son
  *   marché (tickers), et plus rien une fois lâché.
- * - Un `Bar` a six champs : `buyVolume` (volume acheteur, pour le CVD) n'en fait pas partie, qui en a besoin lit les
- *   bougies du transport. Une bougie ou un prix dont un nombre n'est pas fini est écarté : jamais de NaN en sortie.
+ * - Le port rend les types du registre crypto (`CryptoMarketDataPort`, qui reste un `MarketDataPort`) : des `CryptoBar`
+ *   et des `CryptoQuote`. Une bougie garde son `buyVolume` (volume acheteur, pour le CVD) quand il est fini et compris
+ *   entre 0 et son volume, sans quoi le champ est omis : c'est le signal que lit `mergeLiveBar` (`tradeBars.ts`), une
+ *   bougie en direct sans `buyVolume` est partielle et prolonge la dernière, avec `buyVolume` elle la remplace. Un
+ *   dernier prix porte la variation sur 24 h du ticker (`null` quand elle est inconnue ou non finie).
+ * - Rien ne lève sur ce que le transport envoie : une ligne d'historique ou un événement qui n'est pas un objet, une
+ *   bougie ou un prix dont un nombre n'est pas fini est écarté. Jamais de NaN en sortie.
  * - Une demande hors du registre (série, timeframe) est refusée sans toucher au transport. Un refus ou un échec de
  *   l'abonnement arrive en `status` `error`, après le retour de `subscribe` comme tout statut de ce port ; les motifs
  *   du transport passent tels quels (codes du process principal : `crypto_disabled`, `blocked`, `rate_limited`…).
  */
-import type { Bar } from '@/engine/bars';
-import { dedupeBars, type MarketDataPort, type SubscribeRequest, type Unsubscribe } from '@/engine/marketdata/port';
+import { dedupeBars, type FeedEvent, type HistoryRequest, type MarketDataPort, type Quote, type SubscribeRequest, type Unsubscribe } from '@/engine/marketdata/port';
 import { CRYPTO_MARKETS, isCryptoSeriesId, isCryptoTimeframe, type CryptoBar, type CryptoFeedEvent, type CryptoSeriesId, type CryptoTimeframe } from './markets';
 
 export interface CryptoTransport {
@@ -28,6 +32,38 @@ export interface CryptoTransport {
   onEvent(cb: (e: CryptoFeedEvent) => void): () => void;
 }
 
+/** Dernier prix d'un marché crypto : un `Quote` dont `last` est toujours là, avec la variation sur 24 h du ticker. */
+export interface CryptoQuote extends Quote {
+  instrument: CryptoSeriesId;
+  last: number;
+  /** Variation sur 24 h, en pourcent ; `null` quand le transport ne la donne pas ou qu'elle n'est pas finie. */
+  change24hPct: number | null;
+}
+
+export interface CryptoBarEvent {
+  kind: 'bar';
+  instrument: CryptoSeriesId;
+  timeframe: CryptoTimeframe;
+  bar: CryptoBar;
+  final: boolean;
+}
+
+export interface CryptoQuoteEvent {
+  kind: 'quote';
+  quote: CryptoQuote;
+}
+
+export type CryptoStatusEvent = Extract<FeedEvent, { kind: 'status' }>;
+
+/** Ce que le port crypto pousse : un `FeedEvent` dont les barres et les prix portent les types du registre. */
+export type CryptoPortEvent = CryptoBarEvent | CryptoQuoteEvent | CryptoStatusEvent;
+
+/** Le port de la source `crypto`, tel que le store le lit : un `MarketDataPort` dont `history` et `subscribe` sont toujours là et rendent des `CryptoBar`. */
+export interface CryptoMarketDataPort extends MarketDataPort {
+  history(req: HistoryRequest): Promise<CryptoBar[]>;
+  subscribe(req: SubscribeRequest, onEvent: (event: CryptoPortEvent) => void): Unsubscribe;
+}
+
 type SubscribeReply = Awaited<ReturnType<CryptoTransport['subscribe']>>;
 type TransportRequest = Parameters<CryptoTransport['subscribe']>[0];
 
@@ -35,10 +71,16 @@ const unknownSeries = (instrument: string): string => `Série crypto inconnue : 
 const unknownTimeframe = (timeframe: number | undefined): string => `Unité de temps crypto inconnue : ${timeframe}`;
 const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/** Une bougie du moteur : les six champs de `Bar`, ou `null` si l'un n'est pas un nombre fini. */
-function toBar(row: CryptoBar): Bar | null {
-  const { time, open, high, low, close, volume } = row;
-  return [time, open, high, low, close, volume].every(Number.isFinite) ? { time, open, high, low, close, volume } : null;
+/**
+ * Une bougie du transport, ou `null` si ce n'est pas un objet ou si l'un de ses six champs n'est pas un nombre fini.
+ * Le `buyVolume` n'est gardé que fini et compris entre 0 et le volume : hors de là le champ est omis, la bougie reste.
+ */
+function toBar(row: CryptoBar): CryptoBar | null {
+  if (typeof row !== 'object' || row === null) return null;
+  const { time, open, high, low, close, volume, buyVolume } = row;
+  if (![time, open, high, low, close, volume].every(Number.isFinite)) return null;
+  const bar: CryptoBar = { time, open, high, low, close, volume };
+  return typeof buyVolume === 'number' && Number.isFinite(buyVolume) && buyVolume >= 0 && buyVolume <= volume ? { ...bar, buyVolume } : bar;
 }
 
 /** La demande telle que le transport l'attend, ou le motif pour lequel ce port ne la sert pas. */
@@ -55,7 +97,7 @@ function toTransportRequest(req: SubscribeRequest): { ok: true; request: Transpo
   return isCryptoTimeframe(timeframe) ? { ok: true, request: { series: instrument, kind: 'bars', timeframe } } : { ok: false, detail: unknownTimeframe(timeframe) };
 }
 
-export function createCryptoPort(transport: CryptoTransport): MarketDataPort {
+export function createCryptoPort(transport: CryptoTransport): CryptoMarketDataPort {
   let disposed = false;
   /** Les abonnements ouverts ; chacun se retire en se fermant. */
   const active = new Set<Unsubscribe>();
@@ -81,7 +123,7 @@ export function createCryptoPort(transport: CryptoTransport): MarketDataPort {
       if (!isCryptoTimeframe(timeframe)) throw new Error(unknownTimeframe(timeframe));
       const res = await transport.history({ series: instrument, timeframe });
       if (!res.ok) throw new Error(res.detail);
-      const bars: Bar[] = [];
+      const bars: CryptoBar[] = [];
       for (const row of res.bars) {
         const bar = toBar(row);
         if (bar && bar.time >= req.from && bar.time <= req.to) bars.push(bar);
@@ -106,15 +148,20 @@ export function createCryptoPort(transport: CryptoTransport): MarketDataPort {
       let subscriptionId: string | null = null;
       // L'écoute précède la demande : le flux peut devancer la réponse du transport.
       const stopListening = transport.onEvent((event) => {
-        if (closed) return;
+        if (closed || typeof event !== 'object' || event === null) return;
         if (event.kind === 'bar') {
           if (request.kind !== 'bars' || event.series !== request.series || event.timeframe !== request.timeframe) return;
           const bar = toBar(event.bar);
           if (bar) onEvent({ kind: 'bar', instrument: event.series, timeframe: event.timeframe, bar, final: event.final === true });
         } else if (event.kind === 'ticker') {
-          const { market, last, time } = event.ticker;
+          const { ticker } = event;
+          if (typeof ticker !== 'object' || ticker === null) return;
+          const { market, last, time, change24hPct } = ticker;
           if (request.kind !== 'ticker' || market !== request.series) return;
-          if (Number.isFinite(last) && Number.isFinite(time)) onEvent({ kind: 'quote', quote: { instrument: market, time, last } });
+          if (Number.isFinite(last) && Number.isFinite(time)) {
+            const change = typeof change24hPct === 'number' && Number.isFinite(change24hPct) ? change24hPct : null;
+            onEvent({ kind: 'quote', quote: { instrument: market, time, last, change24hPct: change } });
+          }
         }
       });
       const stop: Unsubscribe = () => {
