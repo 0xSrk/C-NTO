@@ -72,8 +72,8 @@ export interface CryptoState {
   ready: boolean;
   /**
    * Vrai une fois les quatre lignes de réglages lues sans erreur (par `load()` ou par la première écriture) ; une lecture
-   * réussie n'est pas refaite. Faux tant que la base ne se lit pas, même quand `ready` est vrai : toute écriture relit alors
-   * d'abord, et refuse (`not_ready`) si la lecture échoue encore.
+   * réussie n'est pas refaite, sauf par `reloadSettings()`. Faux tant que la base ne se lit pas, même quand `ready` est vrai :
+   * toute écriture relit alors d'abord, et refuse (`not_ready`) si la lecture échoue encore.
    */
   settingsRead: boolean;
   /** L'interrupteur appartient au process principal : le renderer le lit, il ne l'écrit pas. */
@@ -106,6 +106,16 @@ export interface CryptoState {
    * À attendre avant d'ouvrir un flux : `ready` ne passe à vrai qu'ensuite. Les écritures n'ont pas besoin de l'attendre.
    */
   load: () => Promise<void>;
+  /**
+   * Relit les quatre lignes de réglages même si elles ont déjà été lues : à appeler quand la base a changé sous le store (la
+   * restauration d'un coffre, `restoreVault`), sans quoi la prochaine écriture poserait l'état d'avant par-dessus les lignes
+   * restaurées. Efface le mémo de `settingsRead` puis passe par la même étape de lecture que `load()` (mêmes assainisseurs, même
+   * réparation de la watchlist) et applique les lignes à l'état. Les écritures lancées pendant la relecture l'attendent ; une
+   * lecture déjà en vol, qui peut dater d'avant, n'est pas appliquée : ceux qui l'attendaient reçoivent la relecture. Si la base
+   * ne se lit pas, le mémo reste effacé : l'écriture suivante relit, et refuse `not_ready` en attendant. Ne rejette jamais,
+   * n'écrit jamais.
+   */
+  reloadSettings: () => Promise<void>;
   /** Demande l'allumage : le process principal ouvre son dialogue et rend le statut, allumé ou non. */
   requestEnable: () => Promise<void>;
   disable: () => Promise<void>;
@@ -255,6 +265,8 @@ async function readRow<T>(key: SettingKey, sanitize: (v: unknown) => T | undefin
 
 /** La lecture des quatre lignes en cours, partagée par tous ceux qui l'attendent ; `null` hors d'une lecture (et donc après un échec). */
 let settingsPending: Promise<boolean> | null = null;
+/** Le rang de la lecture voulue : `reloadSettings` l'incrémente, ce qui rend caduque la lecture alors en vol (elle a pu lire avant le changement de la base). */
+let settingsEpoch = 0;
 
 let unsubscribeStatus: (() => void) | null = null;
 
@@ -267,12 +279,16 @@ export const useCrypto = create<CryptoState>((set, get) => {
    * pas. Aucune écriture ne peut passer pendant la lecture : elles attendent toutes cette étape (`readSettings`).
    */
   async function loadSettings(): Promise<boolean> {
+    const epoch = settingsEpoch;
     const [chart, watchlist, alerts, drawings] = await Promise.all([
       readRow(KEY.chart, sanitizeCryptoChart),
       readRow(KEY.watchlist, sanitizeWatchlist),
       readRow(KEY.alerts, sanitizeAlerts),
       readRow(KEY.drawings, sanitizeDrawings),
     ]);
+    // Une relecture a été demandée pendant celle-ci (`reloadSettings`) : ce qui vient d'être lu peut dater d'avant le changement de
+    // la base, rien n'en est appliqué. Ceux qui attendent cette lecture reçoivent le résultat de la relecture.
+    if (epoch !== settingsEpoch) return settingsPending ?? get().settingsRead;
     const complete = chart.read && watchlist.read && alerts.read && drawings.read;
     set((cur) => {
       const chartNext: CryptoChartSetting = chart.read ? (chart.value ?? defaultChart()) : { market: cur.market, timeframe: cur.timeframe, indicators: cur.indicators };
@@ -287,9 +303,9 @@ export const useCrypto = create<CryptoState>((set, get) => {
   }
 
   /**
-   * L'étape de lecture des réglages, la même pour `load()` et pour toutes les écritures. Idempotente : une fois les quatre lignes
-   * lues elle ne relit plus ; les appels concurrents partagent la même lecture ; après un échec, rien n'est gardé et l'appel
-   * suivant relit. Rend faux si la base ne se lit pas ; ne rejette pas.
+   * L'étape de lecture des réglages, la même pour `load()`, pour `reloadSettings()` et pour toutes les écritures. Idempotente : une
+   * fois les quatre lignes lues elle ne relit plus (jusqu'à `reloadSettings`, qui efface ce mémo) ; les appels concurrents partagent
+   * la même lecture ; après un échec, rien n'est gardé et l'appel suivant relit. Rend faux si la base ne se lit pas ; ne rejette pas.
    *
    * Une écriture l'attend ainsi : `if (!get().settingsRead && !(await readSettings())) return …`. Le test de `settingsRead`
    * évite l'`await` quand les réglages sont déjà lus, pour que l'état change dans le tour de l'appel, comme avant. Les appels
@@ -298,9 +314,11 @@ export const useCrypto = create<CryptoState>((set, get) => {
   function readSettings(): Promise<boolean> {
     if (get().settingsRead) return Promise.resolve(true);
     if (!settingsPending) {
-      settingsPending = loadSettings().finally(() => {
-        settingsPending = null;
+      const read: Promise<boolean> = loadSettings().finally(() => {
+        // Une lecture rendue caduque ne libère pas la relecture qui l'a remplacée.
+        if (settingsPending === read) settingsPending = null;
       });
+      settingsPending = read;
     }
     return settingsPending;
   }
@@ -374,6 +392,15 @@ export const useCrypto = create<CryptoState>((set, get) => {
       }
       await settings;
       set(api ? { ready: true } : { ready: true, enabled: false, venues: OFF_VENUES });
+    },
+
+    async reloadSettings() {
+      // Le mémo est effacé : les écritures qui arrivent maintenant attendent la relecture (leur garde `settingsRead`). La lecture en vol,
+      // s'il y en a une, est écartée : `loadSettings` voit que le rang a changé et n'applique rien.
+      settingsEpoch++;
+      settingsPending = null;
+      set({ settingsRead: false });
+      await readSettings();
     },
 
     async requestEnable() {

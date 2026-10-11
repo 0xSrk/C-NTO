@@ -19,6 +19,7 @@ import { useMacro } from '@/store/macro';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useCopier } from '@/store/copier';
+import { useCrypto } from '@/store/crypto';
 import { useNotes } from '@/store/notes';
 import { useUi } from '@/store/ui';
 import { Analyse } from './Analyse';
@@ -132,6 +133,7 @@ export default function Metrique() {
         useLinks.getState().load(),
         useAgent.getState().load(),
         useBars.getState().load(),
+        useCrypto.getState().reloadSettings(),
       ]);
       const skippedNote = r.skipped > 0 ? ` ${plural(r.skipped, tr('ligne invalide ignorée', 'invalid row skipped', 'fila inválida ignorada'), tr('lignes invalides ignorées', 'invalid rows skipped', 'filas inválidas ignoradas'))}.` : '';
       toast(

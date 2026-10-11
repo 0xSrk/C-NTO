@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ALERTS_MAX, sanitizeAlerts } from '@/engine/crypto/alerts';
 import { DEFAULT_CRYPTO_INDICATORS } from '@/engine/crypto/indicators';
@@ -441,6 +442,185 @@ describe('réglages illisibles', () => {
     expect(s().alerts).toEqual(stored['crypto.alerts']);
     expect(await s().deleteAlert('a1')).toEqual({ ok: true });
     expect(setSetting).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * `restoreVault` (CRY3.1) peut réécrire les quatre lignes sous un store déjà lu : sans relecture, l'état en mémoire date d'avant
+ * la restauration et la prochaine écriture (trader ou agent) poserait cet état par-dessus les lignes restaurées.
+ * `reloadSettings()` efface le mémo de la lecture et relit par la même étape que `load()` ; `Metrique.tsx` l'appelle après la restauration.
+ */
+describe('relecture après une restauration du coffre', () => {
+  const STALE = {
+    'crypto.chart': { market: ZIG, timeframe: 5, indicators: [] },
+    'crypto.watchlist': [ZIG, BTC],
+    'crypto.alerts': [storedAlert({ id: 'old', target: BTC })],
+    'crypto.drawings': [storedLevel({ id: 'old-d' })],
+  };
+  const RESTORED = {
+    'crypto.chart': { market: ONE, timeframe: 240, indicators: [ema] },
+    'crypto.watchlist': [ONE, ONDO, BTC],
+    'crypto.alerts': [storedAlert({ id: 'new', target: ONE, level: 0.0023 })],
+    'crypto.drawings': [storedLevel({ id: 'new-d', market: ONE, price: 0.002 })],
+  };
+  const price = { target: ONE, kind: 'price_above', level: 0.0025, mode: 'once' } as const;
+  /** La restauration vue de la table : les lignes sont remplacées sous le store, qui ne le sait pas. */
+  const restoreRows = (rows: Record<string, unknown>) => {
+    h.rows.clear();
+    for (const [key, value] of Object.entries(rows)) h.rows.set(key, clone(value));
+  };
+  /** Retient une lecture de la base jusqu'à `open()`. Toute barrière est ouverte en fin de test : une assertion qui échoue ne laisse pas une lecture suspendue au test suivant. */
+  const gates: { open: () => void }[] = [];
+  const gate = () => {
+    let open: () => void = () => {};
+    const promise = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const made = { promise, open };
+    gates.push(made);
+    return made;
+  };
+  afterEach(() => {
+    for (const made of gates.splice(0)) made.open();
+  });
+  const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  it('applique les lignes restaurées à l’état, par une lecture des quatre lignes, sans rien écrire', async () => {
+    await fresh(STALE);
+    expect(s()).toMatchObject({ market: ZIG, timeframe: 5 });
+    restoreRows(RESTORED);
+    await expect(s().reloadSettings()).resolves.toBeUndefined();
+    expect(s()).toMatchObject({ settingsRead: true, market: ONE, timeframe: 240, indicators: [ema], watchlist: [ONE, ONDO, BTC] });
+    expect(s().alerts).toEqual(RESTORED['crypto.alerts']);
+    expect(s().drawings).toEqual(RESTORED['crypto.drawings']);
+    expect(vi.mocked(getSetting).mock.calls.map((call) => call[0]).sort()).toEqual(['crypto.alerts', 'crypto.chart', 'crypto.drawings', 'crypto.watchlist']);
+    expect(setSetting).not.toHaveBeenCalled();
+  });
+
+  it('passe par les mêmes assainisseurs et la même réparation de la watchlist que load()', async () => {
+    await fresh(STALE);
+    restoreRows({
+      // Pas de ligne chart : les défauts. Une alerte de prix sur un marché que la watchlist restaurée n'a pas : le marché revient en mémoire.
+      'crypto.watchlist': [ONE],
+      'crypto.alerts': [storedAlert({ id: 'a1', target: ONDO, level: 0.9 }), storedAlert({ id: 'a2', level: -1 })],
+      'crypto.drawings': [storedLevel({ id: 'd1' }), storedLevel({ id: 'd2', price: 0 })],
+    });
+    await s().reloadSettings();
+    expect(s()).toMatchObject({ market: DEFAULT_CRYPTO_MARKET, timeframe: DEFAULT_CRYPTO_TIMEFRAME, watchlist: [ONE, ONDO] });
+    expect(s().indicators).toEqual(DEFAULT_CRYPTO_INDICATORS);
+    expect(s().indicators).not.toBe(DEFAULT_CRYPTO_INDICATORS);
+    expect(s().alerts.map((alert) => alert.id)).toEqual(['a1']);
+    expect(s().drawings.map((drawing) => drawing.id)).toEqual(['d1']);
+    expect(setSetting).not.toHaveBeenCalled();
+  });
+
+  it('une écriture faite ensuite se pose sur les lignes restaurées, pas sur l’état d’avant', async () => {
+    await fresh(STALE);
+    restoreRows(RESTORED);
+    await s().reloadSettings();
+    const alert = await s().createAlert(price, 'agent');
+    if (!alert.ok) throw new Error('création refusée');
+    expect(lastWrite('crypto.alerts')).toEqual([RESTORED['crypto.alerts'][0], expect.objectContaining({ id: alert.id, target: ONE, author: 'agent' })]);
+    expect(await s().setTimeframe(15)).toEqual({ ok: true });
+    expect(lastWrite('crypto.chart')).toEqual({ market: ONE, timeframe: 15, indicators: [ema] });
+    expect(await s().addToWatchlist(ZIG)).toEqual({ ok: true });
+    expect(lastWrite('crypto.watchlist')).toEqual([ONE, ONDO, BTC, ZIG]);
+    expect(await s().addDrawing({ market: ONE, kind: 'level', price: 0.0021 })).toMatchObject({ ok: true });
+    expect(lastWrite('crypto.drawings')).toEqual([RESTORED['crypto.drawings'][0], expect.objectContaining({ market: ONE, price: 0.0021 })]);
+    // Rien de l'état d'avant n'a été reposé, et la lecture réussie n'est pas refaite.
+    const ids = (key: string) => (h.rows.get(key) as { id: string }[]).map((entry) => entry.id);
+    expect(ids('crypto.alerts')).not.toContain('old');
+    expect(ids('crypto.drawings')).not.toContain('old-d');
+    expect(getSetting).toHaveBeenCalledTimes(4);
+    expectRowsSurvive();
+  });
+
+  it('une écriture lancée pendant la relecture l’attend, puis se pose sur ce qu’elle a lu', async () => {
+    await fresh(STALE);
+    restoreRows(RESTORED);
+    const read = gate();
+    vi.mocked(getSetting).mockImplementation(async (key: string, fallback: unknown) => {
+      const value = await readRows(key, fallback);
+      await read.promise;
+      return value;
+    });
+    const reload = s().reloadSettings();
+    await vi.waitFor(() => expect(getSetting).toHaveBeenCalledTimes(4));
+    expect(s().settingsRead).toBe(false);
+    const write = s().createAlert(price);
+    await tick();
+    // Elle attend : l'état est encore celui d'avant et rien n'est écrit.
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(s().alerts.map((alert) => alert.id)).toEqual(['old']);
+    read.open();
+    await reload;
+    const result = await write;
+    if (!result.ok) throw new Error('création refusée');
+    expect(lastWrite('crypto.alerts')).toEqual([RESTORED['crypto.alerts'][0], expect.objectContaining({ id: result.id, target: ONE })]);
+    expect(s()).toMatchObject({ market: ONE, timeframe: 240 });
+    // La relecture et l'écriture partagent la même lecture.
+    expect(getSetting).toHaveBeenCalledTimes(4);
+  });
+
+  it('une relecture qui échoue ne rejette pas et laisse le mémo effacé : l’écriture suivante relit, refuse not_ready tant que la base ne se lit pas', async () => {
+    await fresh(STALE);
+    restoreRows(RESTORED);
+    vi.mocked(getSetting).mockRejectedValue(new Error('IndexedDB indisponible'));
+    await expect(s().reloadSettings()).resolves.toBeUndefined();
+    expect(s().settingsRead).toBe(false);
+    // L'état connu reste (aucune ligne n'a pu être lue).
+    expect(s()).toMatchObject({ market: ZIG, timeframe: 5 });
+    expect(getSetting).toHaveBeenCalledTimes(4);
+    expect(await s().createAlert(price)).toEqual({ ok: false, reason: 'not_ready' });
+    expect(getSetting).toHaveBeenCalledTimes(8);
+    expect(setSetting).not.toHaveBeenCalled();
+    // La base revient : la prochaine écriture relit, puis se pose sur les lignes restaurées.
+    vi.mocked(getSetting).mockImplementation(readRows);
+    const result = await s().createAlert(price);
+    if (!result.ok) throw new Error('création refusée');
+    expect(getSetting).toHaveBeenCalledTimes(12);
+    expect(lastWrite('crypto.alerts')).toEqual([RESTORED['crypto.alerts'][0], expect.objectContaining({ id: result.id })]);
+    expect(s()).toMatchObject({ settingsRead: true, market: ONE, timeframe: 240 });
+  });
+
+  it('une lecture déjà en vol au moment de la relecture n’est pas appliquée : ceux qui l’attendaient reçoivent la relecture', async () => {
+    seed(STALE);
+    // Les quatre premières lectures lisent les lignes d'avant, les quatre suivantes celles restaurées ; chaque série est retenue à part.
+    const series = [gate(), gate()];
+    let calls = 0;
+    vi.mocked(getSetting).mockImplementation(async (key: string, fallback: unknown) => {
+      const value = readRows(key, fallback);
+      await series[Math.floor(calls++ / 4)]?.promise;
+      return value;
+    });
+    const write = s().createAlert(price, 'agent');
+    await vi.waitFor(() => expect(getSetting).toHaveBeenCalledTimes(4));
+    restoreRows(RESTORED);
+    const reload = s().reloadSettings();
+    await vi.waitFor(() => expect(getSetting).toHaveBeenCalledTimes(8));
+    // La lecture d'avant se termine la première : elle n'applique rien et n'ouvre pas la voie à l'écriture.
+    series[0]?.open();
+    await tick();
+    expect(s()).toMatchObject({ settingsRead: false, market: DEFAULT_CRYPTO_MARKET, alerts: [] });
+    expect(setSetting).not.toHaveBeenCalled();
+    series[1]?.open();
+    await reload;
+    const result = await write;
+    if (!result.ok) throw new Error('création refusée');
+    expect(lastWrite('crypto.alerts')).toEqual([RESTORED['crypto.alerts'][0], expect.objectContaining({ id: result.id, target: ONE, author: 'agent' })]);
+    expect(s()).toMatchObject({ settingsRead: true, market: ONE, timeframe: 240, watchlist: [ONE, ONDO, BTC] });
+    expect(getSetting).toHaveBeenCalledTimes(8);
+  });
+
+  it('Metrique relit le store crypto après restoreVault, dans la liste des stores rechargés', () => {
+    const src = readFileSync('src/modules/metrique/Metrique.tsx', 'utf8');
+    expect(src).toMatch(/import \{ useCrypto \} from '@\/store\/crypto';/);
+    const restore = src.slice(src.indexOf('await restoreVault('), src.indexOf('const skippedNote'));
+    expect(restore).toContain('useCrypto.getState().reloadSettings()');
+    // Dans le `Promise.all` des rechargements, avec les autres stores.
+    expect(restore.indexOf('Promise.all([')).toBeGreaterThan(-1);
+    expect(restore.indexOf('useCrypto.getState().reloadSettings()')).toBeGreaterThan(restore.indexOf('Promise.all(['));
+    expect(restore.indexOf('useCrypto.getState().reloadSettings()')).toBeLessThan(restore.indexOf(']);'));
   });
 });
 
