@@ -51,14 +51,23 @@ function expectRowsSurvive() {
   for (const [key, value] of h.rows) expect(SANITIZERS[key]?.(value), key).toEqual(value);
 }
 
-async function fresh(rows: Record<string, unknown> = {}) {
+/** La lecture d'une ligne de la table mémoire, comme `getSetting`. */
+const readRows = async (key: string, fallback: unknown) => (h.rows.has(key) ? h.rows.get(key) : fallback);
+
+/** La table et le store comme à l'ouverture du desk, avant tout `load()` : les lignes sont posées, rien n'est lu. */
+function seed(rows: Record<string, unknown> = {}) {
   h.rows.clear();
   for (const [key, value] of Object.entries(rows)) h.rows.set(key, clone(value));
-  vi.mocked(getSetting).mockReset().mockImplementation(async (key: string, fallback: unknown) => (h.rows.has(key) ? h.rows.get(key) : fallback));
+  vi.mocked(getSetting).mockReset().mockImplementation(readRows);
   vi.mocked(setSetting).mockReset().mockImplementation(async (key: string, value: unknown) => {
     h.rows.set(key, clone(value));
   });
   useCrypto.setState(useCrypto.getInitialState(), true);
+}
+
+/** Comme `seed`, puis le premier `load()` de l'onglet ; les compteurs d'appels repartent de zéro. */
+async function fresh(rows: Record<string, unknown> = {}) {
+  seed(rows);
   await s().load();
   vi.mocked(getSetting).mockClear();
   vi.mocked(setSetting).mockClear();
@@ -96,14 +105,16 @@ describe('load : réglages', () => {
     await s().toggleIndicator('i_cvd');
     await s().removeIndicator('i_cvd');
     expect(JSON.stringify(DEFAULT_CRYPTO_INDICATORS)).toBe(before);
-    // Un nouveau chargement sans ligne repart d'une copie neuve des défauts, pas des indicateurs modifiés.
-    h.rows.clear();
+    // Un premier chargement sans ligne repart d'une copie neuve des défauts, pas des indicateurs modifiés.
+    seed();
+    useCrypto.setState({ indicators: [] });
     await s().load();
     expect(s().indicators).toEqual(DEFAULT_CRYPTO_INDICATORS);
     expect(s().indicators[1]).not.toBe(DEFAULT_CRYPTO_INDICATORS[1]);
   });
 
   it('lit exactement les quatre lignes du § 8, et n’écrit rien', async () => {
+    seed();
     await s().load();
     expect(vi.mocked(getSetting).mock.calls.map((call) => call[0]).sort()).toEqual(['crypto.alerts', 'crypto.chart', 'crypto.drawings', 'crypto.watchlist']);
     expect(setSetting).not.toHaveBeenCalled();
@@ -144,11 +155,27 @@ describe('load : réglages', () => {
     expect(s().watchlist).toEqual([...CHARTABLE_MARKETS]);
   });
 
-  it('un rechargement dont la lecture échoue garde l’état connu, sans le remplacer par les défauts', async () => {
-    await fresh({ 'crypto.chart': { market: ONE, timeframe: 15, indicators: [] }, 'crypto.watchlist': [ONE] });
-    vi.mocked(getSetting).mockRejectedValue(new Error('IndexedDB indisponible'));
+  it('une ligne illisible garde l’état connu, les autres sont reprises', async () => {
+    seed({ 'crypto.chart': { market: ONE, timeframe: 15, indicators: [] }, 'crypto.watchlist': [ONE], 'crypto.alerts': [storedAlert({ target: ONE })] });
+    vi.mocked(getSetting).mockImplementation(async (key: string, fallback: unknown) => {
+      if (key === 'crypto.alerts') throw new Error('ligne illisible');
+      return readRows(key, fallback);
+    });
     await expect(s().load()).resolves.toBeUndefined();
-    expect(s()).toMatchObject({ market: ONE, timeframe: 15, indicators: [], watchlist: [ONE] });
+    expect(s()).toMatchObject({ ready: true, market: ONE, timeframe: 15, indicators: [], watchlist: [ONE], alerts: [] });
+    expect(setSetting).not.toHaveBeenCalled();
+  });
+
+  it('un second load() relit le statut, pas les réglages', async () => {
+    const venues = { coinbase: 'connecting', binance: 'connecting', bybit: 'connecting' };
+    const status = vi.fn(async () => ({ enabled: true, venues }));
+    h.desk.crypto = { status, onStatus: vi.fn(() => () => {}) };
+    await s().load();
+    await s().load();
+    expect(status).toHaveBeenCalledTimes(2);
+    expect(s()).toMatchObject({ ready: true, enabled: true, venues });
+    // `fresh()` a lu les quatre lignes au premier load : les suivants n'y retournent pas.
+    expect(getSetting).not.toHaveBeenCalled();
   });
 
   it('une alerte de prix dont le marché manque à la watchlist le ramène en mémoire, sans la supprimer ni écrire', async () => {
@@ -196,23 +223,224 @@ describe('load : réglages', () => {
     expect(s().watchlist).toEqual([BTC, ONDO, ONE]);
   });
 
-  it('une écriture faite pendant la lecture garde son état', async () => {
+  it('une écriture faite pendant la première lecture l’attend, puis s’applique sur ce qu’elle a lu', async () => {
+    seed({ 'crypto.watchlist': [ONE, ZIG, BTC] });
     let open: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       open = resolve;
     });
-    // La valeur est lue avant la porte : la lecture rend ce que la table portait avant l'écriture.
     vi.mocked(getSetting).mockImplementation(async (key: string, fallback: unknown) => {
-      const value = h.rows.has(key) ? h.rows.get(key) : fallback;
+      const value = await readRows(key, fallback);
       await gate;
       return value;
     });
-    const reload = s().load();
+    const load = s().load();
     await vi.waitFor(() => expect(getSetting).toHaveBeenCalledTimes(4));
-    await s().removeFromWatchlist(ZIG);
+    const write = s().removeFromWatchlist(ZIG);
     open();
-    await reload;
-    expect(s().watchlist).toEqual([BTC, ONDO, ONE]);
+    await load;
+    expect(await write).toEqual({ ok: true });
+    expect(s().watchlist).toEqual([ONE, BTC]);
+    expect(h.rows.get('crypto.watchlist')).toEqual([ONE, BTC]);
+    expect(getSetting).toHaveBeenCalledTimes(4);
+  });
+});
+
+/*
+ * Les outils de l'agent (CRY6.1) écrivent que l'onglet ait été ouvert ou non : `load()` n'a alors jamais tourné. Une écriture
+ * qui partirait des défauts écraserait les lignes enregistrées. Chaque écriture lit donc d'abord les quatre lignes, par la même
+ * étape que `load()` : une seule lecture, partagée, jamais refaite une fois réussie.
+ */
+describe('écrire avant tout load', () => {
+  const STORED = {
+    'crypto.chart': { market: ONE, timeframe: 15, indicators: [ema] },
+    'crypto.watchlist': [ONE, BTC],
+    'crypto.alerts': [storedAlert({ target: ONE, level: 0.0023 })],
+    'crypto.drawings': [storedLevel()],
+  };
+  const price = { target: BTC, kind: 'price_above', level: 90_000, mode: 'once' } as const;
+  const chart = (over: Record<string, unknown>) => ({ market: ONE, timeframe: 15, indicators: [ema], ...over });
+
+  it('createAlert prolonge les alertes enregistrées au lieu de les remplacer', async () => {
+    seed(STORED);
+    const result = await s().createAlert(price, 'agent');
+    if (!result.ok) throw new Error('création refusée');
+    const written = lastWrite('crypto.alerts') as { id: string; author: string }[];
+    expect(written).toHaveLength(2);
+    expect(written[0]).toEqual(STORED['crypto.alerts'][0]);
+    expect(written[1]).toMatchObject({ id: result.id, target: BTC, author: 'agent' });
+    expect(s().alerts).toEqual(written);
+  });
+
+  it('setMarket garde les indicateurs, le timeframe et la watchlist enregistrés', async () => {
+    seed(STORED);
+    expect(await s().setMarket(ZIG)).toEqual({ ok: true });
+    expect(lastWrite('crypto.chart')).toEqual(chart({ market: ZIG }));
+    expect(s()).toMatchObject({ market: ZIG, timeframe: 15, indicators: [ema], watchlist: [ONE, BTC], drawings: [storedLevel()] });
+    expectRowsSurvive();
+  });
+
+  // Une écriture par action : l'état de départ est celui de la base, jamais celui des défauts.
+  const actions: [string, () => Promise<unknown>, string, unknown][] = [
+    ['setMarket', () => s().setMarket(ZIG), 'crypto.chart', chart({ market: ZIG })],
+    ['setTimeframe', () => s().setTimeframe(5), 'crypto.chart', chart({ timeframe: 5 })],
+    ['addIndicator', () => s().addIndicator('sma'), 'crypto.chart', chart({ indicators: [ema, expect.objectContaining({ definitionId: 'sma' })] })],
+    ['updateIndicator', () => s().updateIndicator('i_ema', { period: 30 }), 'crypto.chart', chart({ indicators: [{ ...ema, params: { period: 30 } }] })],
+    ['toggleIndicator', () => s().toggleIndicator('i_ema'), 'crypto.chart', chart({ indicators: [{ ...ema, visible: false }] })],
+    ['removeIndicator', () => s().removeIndicator('i_ema'), 'crypto.chart', chart({ indicators: [] })],
+    ['addDrawing', () => s().addDrawing({ market: BTC, kind: 'level', price: 80_000 }), 'crypto.drawings', [storedLevel(), expect.objectContaining({ market: BTC, price: 80_000 })]],
+    ['removeDrawing', () => s().removeDrawing('d1'), 'crypto.drawings', []],
+    ['createAlert', () => s().createAlert(price), 'crypto.alerts', [STORED['crypto.alerts'][0], expect.objectContaining({ target: BTC, level: 90_000 })]],
+    ['deleteAlert', () => s().deleteAlert('a1'), 'crypto.alerts', []],
+    ['setAlertState', () => s().setAlertState('a1', 'paused'), 'crypto.alerts', [{ ...STORED['crypto.alerts'][0], state: 'paused' }]],
+    ['addToWatchlist', () => s().addToWatchlist(ZIG), 'crypto.watchlist', [ONE, BTC, ZIG]],
+    ['removeFromWatchlist', () => s().removeFromWatchlist(BTC), 'crypto.watchlist', [ONE]],
+  ];
+
+  it.each(actions)('%s part des lignes enregistrées, après une seule lecture', async (_name, run, key, expected) => {
+    seed(STORED);
+    await run();
+    expect(lastWrite(key)).toEqual(expected);
+    expect(getSetting).toHaveBeenCalledTimes(4);
+    expect(writtenKeys()).toEqual([key]);
+    expectRowsSurvive();
+  });
+
+  it('deux écritures lancées sans attendre, avant tout load, se composent dans l’ordre sur les lignes enregistrées', async () => {
+    seed(STORED);
+    const first = s().createAlert(price);
+    const second = s().createAlert({ ...price, level: 91_000 });
+    const third = s().addDrawing({ market: BTC, kind: 'level', price: 80_000 });
+    const [a, b, c] = await Promise.all([first, second, third]);
+    if (!a.ok || !b.ok || !c.ok) throw new Error('écriture refusée');
+    expect(s().alerts.map((alert) => alert.id)).toEqual(['a1', a.id, b.id]);
+    expect(s().drawings.map((drawing) => drawing.id)).toEqual(['d1', c.id]);
+    const alertWrites = vi.mocked(setSetting).mock.calls.filter((call) => call[0] === 'crypto.alerts').map((call) => (call[1] as { id: string }[]).map((alert) => alert.id));
+    expect(alertWrites).toEqual([
+      ['a1', a.id],
+      ['a1', a.id, b.id],
+    ]);
+    expect(h.rows.get('crypto.alerts')).toEqual(s().alerts);
+    expect(h.rows.get('crypto.drawings')).toEqual(s().drawings);
+    expect(getSetting).toHaveBeenCalledTimes(4);
+  });
+
+  it('une écriture et un load() lancés ensemble partagent la même lecture', async () => {
+    seed(STORED);
+    const write = s().createAlert(price);
+    const load = s().load();
+    await Promise.all([write, load]);
+    expect(getSetting).toHaveBeenCalledTimes(4);
+    expect(s()).toMatchObject({ ready: true, market: ONE, timeframe: 15 });
+    expect(s().alerts).toHaveLength(2);
+  });
+
+  it('load() après une écriture ne relit pas et n’écrase pas l’écriture encore en vol', async () => {
+    seed(STORED);
+    let release: () => void = () => {};
+    vi.mocked(setSetting).mockImplementationOnce(async (key: string, value: unknown) => {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      h.rows.set(key, clone(value));
+    });
+    const write = s().createAlert(price);
+    await vi.waitFor(() => expect(setSetting).toHaveBeenCalledTimes(1));
+    try {
+      // La base ne porte pas encore l'alerte : une relecture la ferait disparaître de l'état.
+      expect(getSetting).toHaveBeenCalledTimes(4);
+      await s().load();
+      expect(getSetting).toHaveBeenCalledTimes(4);
+      expect(s().alerts).toHaveLength(2);
+    } finally {
+      release();
+    }
+    expect(await write).toMatchObject({ ok: true });
+    expect(h.rows.get('crypto.alerts')).toEqual(s().alerts);
+  });
+});
+
+describe('réglages illisibles', () => {
+  const stored = { 'crypto.chart': { market: ONE, timeframe: 15, indicators: [ema] }, 'crypto.alerts': [storedAlert({ target: ONE })], 'crypto.watchlist': [ONE, BTC] };
+  const price = { target: BTC, kind: 'price_above', level: 90_000, mode: 'once' } as const;
+  const down = () => vi.mocked(getSetting).mockRejectedValue(new Error('IndexedDB indisponible'));
+  const up = () => vi.mocked(getSetting).mockImplementation(readRows);
+  const notReady = { ok: false, reason: 'not_ready' };
+
+  it('les écritures qui rendent un résultat refusent not_ready, les autres ne font rien, et rien n’est écrit', async () => {
+    seed(stored);
+    down();
+    const before = s();
+    const results = await Promise.all([
+      s().setMarket(ZIG),
+      s().setTimeframe(5),
+      s().addIndicator('sma'),
+      s().removeIndicator('i_cvd'),
+      s().addDrawing({ market: BTC, kind: 'level', price: 80_000 }),
+      s().removeDrawing('d1'),
+      s().createAlert(price),
+      s().deleteAlert('a1'),
+      s().addToWatchlist(ZIG),
+      s().removeFromWatchlist(ZIG),
+    ]);
+    for (const result of results) expect(result).toEqual(notReady);
+    await expect(Promise.all([s().updateIndicator('i_cvd', { bands: '2' }), s().toggleIndicator('i_cvd'), s().setAlertState('a1', 'paused')])).resolves.toEqual([undefined, undefined, undefined]);
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(s()).toMatchObject({ market: before.market, timeframe: before.timeframe, indicators: before.indicators, watchlist: before.watchlist, alerts: [], drawings: [], agentLog: [] });
+    expect(h.rows.get('crypto.alerts')).toEqual(stored['crypto.alerts']);
+  });
+
+  it('une seule ligne illisible suffit à refuser, même pour une écriture qui n’y touche pas', async () => {
+    seed(stored);
+    vi.mocked(getSetting).mockImplementation(async (key: string, fallback: unknown) => {
+      if (key === 'crypto.drawings') throw new Error('ligne illisible');
+      return readRows(key, fallback);
+    });
+    expect(await s().addToWatchlist(ZIG, 'agent')).toEqual(notReady);
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(s().agentLog).toEqual([]);
+  });
+
+  it('la lecture suivante recommence : rétablie, l’écriture passe sur les lignes enregistrées', async () => {
+    seed(stored);
+    down();
+    expect(await s().createAlert(price)).toEqual(notReady);
+    expect(await s().createAlert(price)).toEqual(notReady);
+    // Deux refus, deux lectures : l'échec n'est pas gardé.
+    expect(getSetting).toHaveBeenCalledTimes(8);
+    up();
+    const result = await s().createAlert(price);
+    expect(result).toMatchObject({ ok: true });
+    expect(getSetting).toHaveBeenCalledTimes(12);
+    expect(lastWrite('crypto.alerts')).toHaveLength(2);
+    expect(s()).toMatchObject({ market: ONE, timeframe: 15 });
+    // Réussie, la lecture n'est plus refaite.
+    expect(await s().deleteAlert('a1')).toEqual({ ok: true });
+    expect(getSetting).toHaveBeenCalledTimes(12);
+  });
+
+  it('plusieurs appels pendant la même lecture ratée partagent son échec, puis le suivant la refait', async () => {
+    seed(stored);
+    down();
+    await Promise.all([s().createAlert(price), s().createAlert(price), s().load()]);
+    expect(getSetting).toHaveBeenCalledTimes(4);
+    up();
+    expect(await s().createAlert(price)).toMatchObject({ ok: true });
+    expect(getSetting).toHaveBeenCalledTimes(8);
+  });
+
+  it('load() ne rejette pas et montre l’écran, puis le load() suivant relit et reprend les lignes', async () => {
+    seed(stored);
+    down();
+    await expect(s().load()).resolves.toBeUndefined();
+    expect(s()).toMatchObject({ ready: true, market: DEFAULT_CRYPTO_MARKET, alerts: [] });
+    expect(await s().deleteAlert('a1')).toEqual(notReady);
+    up();
+    await s().load();
+    expect(s()).toMatchObject({ ready: true, market: ONE, timeframe: 15, watchlist: [ONE, BTC] });
+    expect(s().alerts).toEqual(stored['crypto.alerts']);
+    expect(await s().deleteAlert('a1')).toEqual({ ok: true });
+    expect(setSetting).toHaveBeenCalledTimes(1);
   });
 });
 

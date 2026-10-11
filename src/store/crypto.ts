@@ -35,9 +35,11 @@ export type WriteResult = { ok: true; id?: string } | { ok: false; reason: strin
 
 /**
  * Les refus d'une écriture. `bad_target`, `bad_kind` et `bad_level` sont les raisons de `validateAlert` ; `bad_kind` sert aussi
- * au genre d'un tracé, et `bad_mode` au mode d'une alerte comme à un acteur ou un auteur hors de `trader | agent`.
+ * au genre d'un tracé, et `bad_mode` au mode d'une alerte comme à un acteur ou un auteur hors de `trader | agent`. `not_ready` :
+ * les réglages enregistrés n'ont pas pu être lus, rien n'a été écrit.
  */
 export type CryptoRefusal =
+  | 'not_ready'
   | 'bad_mode'
   | 'unknown_market'
   | 'bad_timeframe'
@@ -68,6 +70,12 @@ export interface AgentLogLine {
 export interface CryptoState {
   /** Vrai une fois la lecture de l'interrupteur et des réglages terminée : lus, illisibles, ou constatés absents hors du desk. */
   ready: boolean;
+  /**
+   * Vrai une fois les quatre lignes de réglages lues sans erreur (par `load()` ou par la première écriture) ; une lecture
+   * réussie n'est pas refaite. Faux tant que la base ne se lit pas, même quand `ready` est vrai : toute écriture relit alors
+   * d'abord, et refuse (`not_ready`) si la lecture échoue encore.
+   */
+  settingsRead: boolean;
   /** L'interrupteur appartient au process principal : le renderer le lit, il ne l'écrit pas. */
   enabled: boolean;
   venues: CryptoMainStatus['venues'];
@@ -92,9 +100,10 @@ export interface CryptoState {
   agentLog: AgentLogLine[];
 
   /**
-   * Lit l'interrupteur auprès du process principal et les quatre lignes de réglages dans la base du renderer (avec ou sans
-   * `desk.crypto`). Ne rejette jamais. À attendre avant toute écriture et avant d'ouvrir un flux : `ready` ne passe à vrai
-   * qu'ensuite.
+   * Lit l'interrupteur auprès du process principal (à chaque appel) et les quatre lignes de réglages dans la base du renderer
+   * (avec ou sans `desk.crypto`) : la lecture des réglages est l'étape que partagent toutes les écritures, faite une seule
+   * fois tant qu'elle réussit. Ne rejette jamais, même si la base ne se lit pas (l'état connu reste, `settingsRead` reste faux).
+   * À attendre avant d'ouvrir un flux : `ready` ne passe à vrai qu'ensuite. Les écritures n'ont pas besoin de l'attendre.
    */
   load: () => Promise<void>;
   /** Demande l'allumage : le process principal ouvre son dialogue et rend le statut, allumé ou non. */
@@ -102,10 +111,13 @@ export interface CryptoState {
   disable: () => Promise<void>;
 
   /**
-   * Les écritures. Chacune valide, change l'état tout de suite (avant le premier `await` : deux appels qui se suivent se
-   * composent), puis enregistre la valeur assainie par `setSetting`. Une entrée refusée ne change rien et n'écrit rien. Si
-   * la base refuse l'écriture, l'état est déjà changé et la promesse rejette, comme celle des indicateurs de Visual
-   * (`src/store/bars.ts`) : l'appelant l'attrape.
+   * Les écritures. Chacune s'assure d'abord que les réglages enregistrés sont lus (la même étape que `load()`, partagée par les
+   * appels concurrents, jamais refaite une fois réussie), même si l'onglet n'a jamais été ouvert : sans quoi elle partirait
+   * des défauts et écraserait les lignes. Si la base ne se lit pas, les écritures qui rendent un résultat refusent `not_ready`,
+   * les autres ne font rien, et rien n'est écrit. Puis elle valide, change l'état tout de suite (avant le premier `await` une
+   * fois les réglages lus : deux appels qui se suivent se composent), et enregistre la valeur assainie par `setSetting`. Une
+   * entrée refusée ne change rien et n'écrit rien. Si la base refuse l'écriture, l'état est déjà changé et la promesse
+   * rejette, comme celle des indicateurs de Visual (`src/store/bars.ts`) : l'appelant l'attrape.
    * `by` vaut `'trader'` par défaut ; `'agent'` marque les alertes et les tracés créés et inscrit une ligne dans `agentLog`
    * (écritures réussies seulement). Tout autre acteur est refusé (`bad_mode`).
    */
@@ -225,42 +237,24 @@ function kindText(kind: CryptoAlertKind): string {
 const alertText = (alert: Pick<CryptoAlert, 'target' | 'kind' | 'level'>): string =>
   `${kindText(alert.kind)} ${alert.level} · ${alert.target === 'temperature' ? tr('température', 'temperature', 'temperatura') : marketLabel(alert.target)}`;
 
-// --- Écritures en vol -------------------------------------------------------------------------------------------------
-
-/** Les écritures lancées et pas encore terminées (réussies ou non) : un rechargement les attend avant de relire la base. */
-const inFlight = new Set<Promise<void>>();
-/** Un jeu par `load()` en cours : les lignes écrites depuis son début, que sa lecture, plus ancienne, ne doit pas écraser. */
-const loads = new Set<Set<SettingKey>>();
+// --- Lecture des réglages ---------------------------------------------------------------------------------------------
 
 /**
- * Enregistre une ligne. `setSetting` est appelé tout de suite, dans l'ordre des écritures : les lignes arrivent à la base dans
- * l'ordre où l'état a changé, et la dernière porte l'état de la dernière. La promesse rendue est celle de la base (elle
- * rejette si la base refuse) ; ce que le store garde de son côté ne rejette jamais.
+ * Une ligne lue et assainie. `read` est faux quand la base a refusé la lecture ; `value` est `undefined` quand la ligne est
+ * absente ou invalide (ses défauts s'appliquent).
  */
-function persist(key: SettingKey, value: unknown): Promise<void> {
-  for (const touched of loads) touched.add(key);
-  const write = Promise.resolve(setSetting(key, value));
-  const settled: Promise<void> = write
-    .then(
-      () => undefined,
-      () => undefined,
-    )
-    .then(() => {
-      inFlight.delete(settled);
-    });
-  inFlight.add(settled);
-  return write;
-}
+type Row<T> = { read: true; value: T | undefined } | { read: false };
 
-/** Une ligne lue et assainie, ou `undefined` (absente, invalide). Une lecture qui échoue garde l'état connu de cette ligne. */
-async function readRow<T>(touched: Set<SettingKey>, key: SettingKey, sanitize: (v: unknown) => T | undefined): Promise<T | undefined> {
+async function readRow<T>(key: SettingKey, sanitize: (v: unknown) => T | undefined): Promise<Row<T>> {
   try {
-    return sanitize(await getSetting<unknown>(key, undefined));
+    return { read: true, value: sanitize(await getSetting<unknown>(key, undefined)) };
   } catch {
-    touched.add(key);
-    return undefined;
+    return { read: false };
   }
 }
+
+/** La lecture des quatre lignes en cours, partagée par tous ceux qui l'attendent ; `null` hors d'une lecture (et donc après un échec). */
+let settingsPending: Promise<boolean> | null = null;
 
 let unsubscribeStatus: (() => void) | null = null;
 
@@ -268,32 +262,47 @@ export const useCrypto = create<CryptoState>((set, get) => {
   const apply = (status: CryptoMainStatus) => set({ enabled: status.enabled, venues: status.venues });
 
   /**
-   * Lit les quatre lignes et les met dans l'état. Une ligne absente ou invalide donne ses défauts ; une ligne écrite depuis le
-   * début de la lecture, ou qui ne se lit pas, garde l'état. N'écrit jamais ; ne rejette pas.
+   * Lit les quatre lignes et les met dans l'état. Une ligne absente ou invalide donne ses défauts ; une ligne qui ne se lit
+   * pas garde l'état connu. Rend vrai si les quatre se sont lues (et pose alors `settingsRead`). N'écrit jamais ; ne rejette
+   * pas. Aucune écriture ne peut passer pendant la lecture : elles attendent toutes cette étape (`readSettings`).
    */
-  async function loadSettings(): Promise<void> {
-    const touched = new Set<SettingKey>();
-    loads.add(touched);
-    try {
-      await Promise.allSettled([...inFlight]);
-      const [chart, watchlist, alerts, drawings] = await Promise.all([
-        readRow(touched, KEY.chart, sanitizeCryptoChart),
-        readRow(touched, KEY.watchlist, sanitizeWatchlist),
-        readRow(touched, KEY.alerts, sanitizeAlerts),
-        readRow(touched, KEY.drawings, sanitizeDrawings),
-      ]);
-      set((cur) => {
-        const chartNext: CryptoChartSetting = touched.has(KEY.chart) ? { market: cur.market, timeframe: cur.timeframe, indicators: cur.indicators } : (chart ?? defaultChart());
-        const alertsNext = touched.has(KEY.alerts) ? cur.alerts : (alerts ?? []);
-        const watchlistNext = touched.has(KEY.watchlist) ? cur.watchlist : (watchlist ?? defaultWatchlist());
-        const drawingsNext = touched.has(KEY.drawings) ? cur.drawings : (drawings ?? []);
-        // Après la restauration d'un coffre, une alerte peut viser un marché que la watchlist n'a plus : la watchlist reprend ce
-        // marché en mémoire (jamais l'alerte supprimée, jamais d'écriture ici).
-        return { ...chartNext, alerts: alertsNext, drawings: drawingsNext, watchlist: withAlertMarkets(watchlistNext, alertsNext) };
+  async function loadSettings(): Promise<boolean> {
+    const [chart, watchlist, alerts, drawings] = await Promise.all([
+      readRow(KEY.chart, sanitizeCryptoChart),
+      readRow(KEY.watchlist, sanitizeWatchlist),
+      readRow(KEY.alerts, sanitizeAlerts),
+      readRow(KEY.drawings, sanitizeDrawings),
+    ]);
+    const complete = chart.read && watchlist.read && alerts.read && drawings.read;
+    set((cur) => {
+      const chartNext: CryptoChartSetting = chart.read ? (chart.value ?? defaultChart()) : { market: cur.market, timeframe: cur.timeframe, indicators: cur.indicators };
+      const alertsNext = alerts.read ? (alerts.value ?? []) : cur.alerts;
+      const watchlistNext = watchlist.read ? (watchlist.value ?? defaultWatchlist()) : cur.watchlist;
+      const drawingsNext = drawings.read ? (drawings.value ?? []) : cur.drawings;
+      // Après la restauration d'un coffre, une alerte peut viser un marché que la watchlist n'a plus : la watchlist reprend ce
+      // marché en mémoire (jamais l'alerte supprimée, jamais d'écriture ici).
+      return { ...chartNext, alerts: alertsNext, drawings: drawingsNext, watchlist: withAlertMarkets(watchlistNext, alertsNext), settingsRead: complete };
+    });
+    return complete;
+  }
+
+  /**
+   * L'étape de lecture des réglages, la même pour `load()` et pour toutes les écritures. Idempotente : une fois les quatre lignes
+   * lues elle ne relit plus ; les appels concurrents partagent la même lecture ; après un échec, rien n'est gardé et l'appel
+   * suivant relit. Rend faux si la base ne se lit pas ; ne rejette pas.
+   *
+   * Une écriture l'attend ainsi : `if (!get().settingsRead && !(await readSettings())) return …`. Le test de `settingsRead`
+   * évite l'`await` quand les réglages sont déjà lus, pour que l'état change dans le tour de l'appel, comme avant. Les appels
+   * en attente reprennent dans l'ordre où ils sont arrivés, chacun lisant l'état laissé par le précédent : ils se composent.
+   */
+  function readSettings(): Promise<boolean> {
+    if (get().settingsRead) return Promise.resolve(true);
+    if (!settingsPending) {
+      settingsPending = loadSettings().finally(() => {
+        settingsPending = null;
       });
-    } finally {
-      loads.delete(touched);
     }
+    return settingsPending;
   }
 
   /** La ligne du journal d'une écriture réussie de l'agent, la plus récente d'abord ; rien pour le trader. */
@@ -304,33 +313,36 @@ export const useCrypto = create<CryptoState>((set, get) => {
   const clearedBars = (): Partial<CryptoState> => ({ bars: [], proxyBars: [], cvdAnchoredAt: null });
 
   // Chaque `save…` change l'état d'un coup avec `extra` (le journal, les bougies vidées), puis enregistre la valeur assainie :
-  // l'état et la ligne sont la même valeur, celle que l'assainisseur rendrait au rechargement.
+  // l'état et la ligne sont la même valeur, celle que l'assainisseur rendrait au rechargement. `setSetting` est appelé tout de
+  // suite, dans l'ordre des écritures : les lignes arrivent à la base dans l'ordre où l'état a changé, et la dernière porte
+  // l'état de la dernière. La promesse rendue est celle de la base (elle rejette si la base refuse).
   const saveChart = (patch: Partial<Pick<CryptoState, 'market' | 'timeframe' | 'indicators'>>, extra: Partial<CryptoState> = {}): Promise<void> => {
     const cur = get();
     const next = { market: patch.market ?? cur.market, timeframe: patch.timeframe ?? cur.timeframe, indicators: patch.indicators ?? cur.indicators };
     // Le marché et l'unité de temps sont déjà validés : l'assainisseur ne rend `undefined` que pour un état posé de l'extérieur.
     const chart = sanitizeCryptoChart(next) ?? next;
     set({ ...extra, ...chart });
-    return persist(KEY.chart, chart);
+    return setSetting(KEY.chart, chart);
   };
   const saveWatchlist = (watchlist: CryptoMarketId[], extra: Partial<CryptoState> = {}): Promise<void> => {
     const clean = sanitizeWatchlist(watchlist) ?? watchlist;
     set({ ...extra, watchlist: clean });
-    return persist(KEY.watchlist, clean);
+    return setSetting(KEY.watchlist, clean);
   };
   const saveAlerts = (alerts: CryptoAlert[], extra: Partial<CryptoState> = {}): Promise<void> => {
     const clean = sanitizeAlerts(alerts) ?? alerts;
     set({ ...extra, alerts: clean });
-    return persist(KEY.alerts, clean);
+    return setSetting(KEY.alerts, clean);
   };
   const saveDrawings = (drawings: CryptoDrawing[], extra: Partial<CryptoState> = {}): Promise<void> => {
     const clean = sanitizeDrawings(drawings) ?? drawings;
     set({ ...extra, drawings: clean });
-    return persist(KEY.drawings, clean);
+    return setSetting(KEY.drawings, clean);
   };
 
   return {
     ready: false,
+    settingsRead: false,
     enabled: false,
     venues: OFF_VENUES,
 
@@ -349,7 +361,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
 
     async load() {
       // Lancée avant la lecture du statut : les deux se font en même temps, et le statut est demandé dans le même tour qu'avant.
-      const settings = loadSettings();
+      const settings = readSettings();
       const api = desk?.crypto;
       if (api) {
         try {
@@ -375,6 +387,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async setMarket(id, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       if (!isChartableMarket(id)) return refuse('unknown_market');
@@ -390,6 +403,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async setTimeframe(tf, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       if (!isCryptoTimeframe(tf)) return refuse('bad_timeframe');
@@ -405,6 +419,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async addIndicator(definitionId, params, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       const def = cryptoIndicatorById(definitionId);
@@ -422,6 +437,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async updateIndicator(id, patch) {
+      if (!get().settingsRead && !(await readSettings())) return;
       const { indicators } = get();
       const instance = indicators.find((i) => i.id === id);
       const def = instance && cryptoIndicatorById(instance.definitionId);
@@ -431,12 +447,14 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async toggleIndicator(id) {
+      if (!get().settingsRead && !(await readSettings())) return;
       const { indicators } = get();
       if (!indicators.some((i) => i.id === id)) return;
       await saveChart({ indicators: indicators.map((i) => (i.id === id ? { ...i, visible: !i.visible } : i)) });
     },
 
     async removeIndicator(id, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       const { indicators } = get();
@@ -451,6 +469,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async addDrawing(d, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       const { market, kind, price, from, to, label } = d;
@@ -487,6 +506,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async removeDrawing(id, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       const { drawings } = get();
@@ -501,6 +521,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async createAlert(a, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       const { target, kind, level, mode } = a;
@@ -519,6 +540,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async deleteAlert(id, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       const { alerts } = get();
@@ -532,6 +554,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async setAlertState(id, state, at) {
+      if (!get().settingsRead && !(await readSettings())) return;
       if (state !== 'armed' && state !== 'triggered' && state !== 'paused') return;
       if (at !== undefined && !Number.isFinite(at)) return;
       const { alerts } = get();
@@ -541,6 +564,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async addToWatchlist(id, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       if (!isChartableMarket(id)) return refuse('unknown_market');
@@ -553,6 +577,7 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
 
     async removeFromWatchlist(id, by = 'trader') {
+      if (!get().settingsRead && !(await readSettings())) return refuse('not_ready');
       const actor = readBy(by);
       if (!actor) return refuse('bad_mode');
       if (!isChartableMarket(id)) return refuse('unknown_market');
