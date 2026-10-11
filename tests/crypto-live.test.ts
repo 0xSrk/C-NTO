@@ -96,6 +96,7 @@ vi.mock('@/store/db', () => ({
 }));
 
 import { useCrypto } from '@/store/crypto';
+import { getSetting } from '@/store/db';
 
 const BTC: CryptoMarketId = 'coinbase:BTC-USD';
 const ONDO: CryptoMarketId = 'coinbase:ONDO-USD';
@@ -257,6 +258,50 @@ describe('flux léger : tickers de la watchlist et température', () => {
     fake.temperatures.shift()!(reading(0.00009));
     await flush();
     expect(s().temperature).toEqual(reading(0.00011));
+  });
+
+  /*
+   * Le flux léger part au démarrage du desk (`App`), puis l'onglet rappelle `load()` à son montage : le second appel ne
+   * doit rien ajouter. `onStatus` n'est jamais remis à zéro par `fake.reset()` (le store pose son écoute une fois pour
+   * toutes) : un seul appel à `onStatus` en tout, et une seule écoute en vie, quel que soit le nombre de `load()`.
+   */
+  async function expectOneLightFlow() {
+    expect(fake.api.onStatus).toHaveBeenCalledTimes(1);
+    expect(fake.listeners.status.size).toBe(1);
+    expect(opened()).toEqual(TICKERS);
+    expect(fake.api.subscribe).toHaveBeenCalledTimes(4);
+    // Le port écoute les événements du process principal une fois par abonnement : quatre tickers, quatre écoutes, pas huit.
+    expect(fake.api.onEvent).toHaveBeenCalledTimes(4);
+    expect(fake.listeners.event.size).toBe(4);
+    expect(fake.api.onTemperature).toHaveBeenCalledTimes(1);
+    expect(fake.listeners.temperature.size).toBe(1);
+    expect(fake.api.temperature).toHaveBeenCalledTimes(1);
+    expect(fake.api.history).not.toHaveBeenCalled();
+    // Les réglages ne sont lus qu'une fois : les quatre lignes du premier `load()`.
+    expect(vi.mocked(getSetting)).toHaveBeenCalledTimes(4);
+  }
+
+  it('load() appelé deux fois, le démarrage du desk puis l’onglet : une écoute du statut, un seul flux léger, une seule lecture des réglages', async () => {
+    vi.mocked(getSetting).mockClear();
+    await boot();
+    await s().load();
+    await flush();
+    expect(s()).toMatchObject({ ready: true, enabled: true });
+    await expectOneLightFlow();
+    // Le statut est relu à chaque appel (inchangé) : cela ne ferme ni ne rouvre aucun flux.
+    expect(fake.api.status).toHaveBeenCalledTimes(2);
+    expect(fake.api.unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it('load() appelé deux fois sans attendre le premier : même résultat', async () => {
+    vi.mocked(getSetting).mockClear();
+    fake.main.enabled = true;
+    rows.clear();
+    await Promise.all([s().load(), s().load()]);
+    await flush();
+    expect(s()).toMatchObject({ ready: true, enabled: true });
+    await expectOneLightFlow();
+    expect(fake.api.unsubscribe).not.toHaveBeenCalled();
   });
 
   it('éteint, ou tant que le store n’est pas prêt : rien n’est abonné, rien n’est lu', async () => {

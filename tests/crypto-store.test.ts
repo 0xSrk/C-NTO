@@ -633,6 +633,31 @@ describe('relecture après une restauration du coffre', () => {
     expect(restore.indexOf('useCrypto.getState().reloadSettings()')).toBeGreaterThan(restore.indexOf('Promise.all(['));
     expect(restore.indexOf('useCrypto.getState().reloadSettings()')).toBeLessThan(restore.indexOf(']);'));
   });
+
+  /*
+   * Le flux léger (tickers de la watchlist, température) est permanent, quel que soit l'onglet, et les alertes en ont besoin
+   * (docs/ONGLET-CRYPTO.md § 5) : il part au premier `load()` du store, que le montage de l'onglet ne doit plus être seul à
+   * appeler. `App` ne se rend pas en test (écran de boot, porte, modules paresseux) : le câblage se lit dans sa source.
+   */
+  it('App lance load() du store crypto au démarrage du desk, après le coffre, sans l’attendre et sans ligne de boot de plus', () => {
+    const src = readFileSync('src/app/App.tsx', 'utf8');
+    expect(src).toMatch(/import \{ useCrypto \} from '@\/store\/crypto';/);
+    const boot = src.slice(src.indexOf('function boot()'), src.indexOf('export function App()'));
+    const call = boot.indexOf('useCrypto.getState().load()');
+    expect(call).toBeGreaterThan(-1);
+    // Une seule fois, lancé sans attendre : `void`, jamais `await`, pour ne pas retarder l'écran de chargement.
+    expect(boot.match(/useCrypto\.getState\(\)\.load\(\)/g)).toHaveLength(1);
+    expect(boot.slice(call - 5, call)).toBe('void ');
+    // Après l'étape du coffre, une fois fermée : les réglages crypto sont dans la base du renderer.
+    const vault = boot.indexOf("step('vault'");
+    expect(vault).toBeGreaterThan(-1);
+    expect(call).toBeGreaterThan(boot.indexOf('});', vault));
+    // Aucune ligne de boot de plus : ni dans les étapes de départ, ni dans la séquence.
+    expect(src).not.toMatch(/id: 'crypto'/);
+    expect(boot).not.toMatch(/step\('crypto'/);
+    // L'onglet garde son appel : `load()` est idempotent (tests/crypto-live.test.ts).
+    expect(readFileSync('src/modules/crypto/Crypto.tsx', 'utf8')).toContain('void useCrypto.getState().load();');
+  });
 });
 
 describe('chart : marché et timeframe', () => {

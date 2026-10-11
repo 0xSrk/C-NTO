@@ -8,6 +8,7 @@ import { useDeskEvents } from '@/store/deskEvents';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { startCopierSync } from '@/store/copierSync';
+import { useCrypto } from '@/store/crypto';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useLinks } from '@/store/links';
@@ -88,6 +89,10 @@ function boot(): Promise<void> {
       const j = useJournal.getState();
       return ['ok', `${plural(j.sessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · ${plural(j.trades.length, 'trade')}`];
     });
+    // Le flux léger du module crypto (tickers de la watchlist, température) est permanent, onglet ouvert ou non : les alertes
+    // en dépendent. Il part au chargement du store (réglages dans la base du renderer, d'où après le coffre). Sans attendre et
+    // sans ligne de boot : `load()` ne rejette jamais, et l'onglet le rappelle à son montage sans rien ouvrir de plus.
+    void useCrypto.getState().load();
     await Promise.all([
       step('engine', async () => ['ok', tr('ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm')]),
       step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} ${tr('repères', 'markers', 'referencias')} ${year}`]),
