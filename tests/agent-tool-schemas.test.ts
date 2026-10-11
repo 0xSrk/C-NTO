@@ -16,7 +16,17 @@ interface Prop {
 }
 
 /** Arguments réels : des prix et des montants. Tout autre nombre est un compte, donc un entier. */
-const REAL_VALUED = new Set(['propose_order.limit', 'propose_order.stop', 'monte_carlo.ruinDrawdown', 'monte_carlo.target']);
+const REAL_VALUED = new Set([
+  'propose_order.limit',
+  'propose_order.stop',
+  'monte_carlo.ruinDrawdown',
+  'monte_carlo.target',
+  // Niveau d'alerte dans son unité (prix, funding en %, dollars, largeur en %) et prix des tracés crypto.
+  'crypto_alert_set.level',
+  'crypto_drawing_set.price',
+  'crypto_drawing_set.from',
+  'crypto_drawing_set.to',
+]);
 /** Noms d'arguments qui comptent quelque chose (contrats, lignes, tirages, journées, minutes, niveaux). */
 const COUNT_NAMES = new Set(['qty', 'limit', 'minImpact', 'runs', 'horizon', 'timeframe', 'openingRangeMinutes']);
 const DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
@@ -24,12 +34,13 @@ const DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
 const DATE_ARGS = ['desk_overview.from', 'desk_overview.to', 'list_sessions.from', 'list_sessions.to', 'get_session.date', 'calendar_events.from', 'calendar_events.to', 'journal_breakdown.from', 'journal_breakdown.to', 'monte_carlo.from', 'monte_carlo.to'];
 
 function properties(): [string, Prop][] {
-  return toolSchemas().flatMap((tool) => Object.entries(((tool.parameters as { properties?: Record<string, Prop> }).properties ?? {})).map(([key, prop]) => [`${tool.name}.${key}`, prop] as [string, Prop]));
+  return toolSchemas({ crypto: true }).flatMap((tool) => Object.entries(((tool.parameters as { properties?: Record<string, Prop> }).properties ?? {})).map(([key, prop]) => [`${tool.name}.${key}`, prop] as [string, Prop]));
 }
 
 describe('schémas des outils : arguments typés', () => {
   it('chaque outil du catalogue a un schéma objet fermé', () => {
-    const schemas = toolSchemas();
+    // Les outils crypto ne sont donnés qu'avec le module allumé (`{ crypto: true }`) ; le catalogue les porte toujours.
+    const schemas = toolSchemas({ crypto: true });
     expect(schemas.map((t) => t.name).sort()).toEqual(Object.keys(DESK_TOOL_KINDS).sort());
     for (const t of schemas) expect(t.parameters, t.name).toMatchObject({ type: 'object', additionalProperties: false });
   });

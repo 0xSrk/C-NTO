@@ -566,7 +566,12 @@ describe('A14.4 schéma de sortie', () => {
       market_quote: { instrument: 'MNQ' },
     };
     const listed = (await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: demoRelay })))).result?.tools as { name: string; outputSchema?: { properties: Record<string, unknown> } }[];
-    expect(listed.map((t) => t.name).sort()).toEqual(Object.keys(DESK_TOOL_KINDS).filter((name) => DESK_TOOL_KINDS[name as keyof typeof DESK_TOOL_KINDS] === 'read').sort());
+    // Les lectures `crypto_*` n'entrent pas dans ce catalogue tant que la garde de l'interrupteur côté main n'existe pas (CRY6.2).
+    expect(listed.map((t) => t.name).sort()).toEqual(
+      Object.keys(DESK_TOOL_KINDS)
+        .filter((name) => DESK_TOOL_KINDS[name as keyof typeof DESK_TOOL_KINDS] === 'read' && !name.startsWith('crypto_'))
+        .sort(),
+    );
     const missing: string[] = [];
     for (const tool of listed) {
       const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: tool.name, arguments: args[tool.name] ?? {} })), ctx({ relay: demoRelay })));

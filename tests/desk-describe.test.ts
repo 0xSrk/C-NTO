@@ -34,8 +34,10 @@ describe('A14.1 titres dans desk.describe', () => {
 
   it('chaque outil porte le titre du catalogue dans la langue active', () => {
     useI18n.setState({ locale: 'en' });
-    const tools = describedDeskTools();
+    // Les outils crypto ne sont décrits qu'avec le module allumé (`{ crypto: true }`).
+    const tools = describedDeskTools({ crypto: true });
     expect(tools.length).toBe(Object.keys(DESK_TOOL_TITLES).length);
+    expect(describedDeskTools().length).toBe(Object.keys(DESK_TOOL_TITLES).filter((name) => !name.startsWith('crypto_')).length);
     for (const tool of tools) {
       const titles = DESK_TOOL_TITLES[tool.name as keyof typeof DESK_TOOL_TITLES];
       expect(tool.title, tool.name).toBe(titles[1]);
@@ -73,7 +75,10 @@ describe('A14.1 titres dans desk.describe', () => {
     await useAgent.getState().load();
     expect(handler).not.toBeNull();
 
-    const names = Object.keys(catalog.DESK_TOOL_KINDS).sort();
+    // Le desk ne branche pas encore de port crypto (CRY6.2) : ses outils `crypto_*` ne sont pas décrits.
+    const names = Object.keys(catalog.DESK_TOOL_KINDS)
+      .filter((name) => !name.startsWith('crypto_'))
+      .sort();
     for (const [index, locale] of (['fr', 'en', 'es'] as const).entries()) {
       i18n.useI18n.setState({ locale });
       for (const clientId of ['mcp', 'c1']) {

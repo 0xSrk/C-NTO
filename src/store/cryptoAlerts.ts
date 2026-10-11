@@ -9,7 +9,7 @@
  *   température, il évalue ce qui a changé, puis signale chaque franchissement d'un toast `warn` et d'un événement `crypto_alert`
  *   (journal du desk, lu par `desk_events`, diffusé par l'orchestrateur) et enregistre l'état de l'alerte.
  */
-import { alertDirection, alertEvaluability, alertValue, CrossWatch, hysteresisBand, type CryptoAlert, type EvaluabilityData } from '@/engine/crypto/alerts';
+import { alertDirection, alertEvaluability, alertValue, CrossWatch, hysteresisBand, roundAlertValue, type CryptoAlert, type EvaluabilityData } from '@/engine/crypto/alerts';
 import { CHARTABLE_MARKETS, type CryptoTicker } from '@/engine/crypto/markets';
 import type { TemperatureReading } from '@/engine/crypto/temperature';
 import { tr } from '@/i18n';
@@ -116,12 +116,14 @@ const saveFailedText = (): string =>
 
 /**
  * Signale un franchissement : le toast et l'événement d'abord (un franchissement est signalé une fois, quoi qu'il advienne de
- * l'enregistrement), puis l'état. `once` passe à `triggered`, `rearm` reste `armed` avec `lastTriggeredAt` ; `now` est l'instant du
- * franchissement. Un refus de la base devient un toast `warn`, jamais un rejet non géré.
+ * l'enregistrement), puis l'état. La valeur de l'événement est arrondie à la précision affichée (`roundAlertValue`). `once` passe
+ * à `triggered`, `rearm` reste `armed` avec `lastTriggeredAt` ; `now` est l'instant du franchissement. Un refus de la base devient
+ * un toast `warn`, jamais un rejet non géré.
  */
 function signal(alert: CryptoAlert, value: number | null, now: number): void {
   useUi.getState().toast(toastText(alert, value), 'warn');
-  recordDeskEvent('crypto_alert', { alertId: alert.id, target: alert.target, kind: alert.kind, level: alert.level, value, author: alert.author });
+  // L'agent lit la valeur par `desk_events` : à la précision affichée, sans bruit de flottant.
+  recordDeskEvent('crypto_alert', { alertId: alert.id, target: alert.target, kind: alert.kind, level: alert.level, value: roundAlertValue(alert, value), author: alert.author });
   useCrypto
     .getState()
     .setAlertState(alert.id, alert.mode === 'once' ? 'triggered' : 'armed', now)

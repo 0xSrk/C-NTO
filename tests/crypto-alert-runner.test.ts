@@ -482,12 +482,22 @@ describe('le store signale les alertes, onglet fermé', () => {
     await flush();
     expect(events()).toHaveLength(1);
     expect(events()[0]).toMatchObject({ kind: 'crypto_alert', data: { alertId: 'f1', target: 'temperature', kind: 'funding_median_above', level: 0.01, author: 'trader' } });
-    // La valeur est dans l'unité du niveau : la médiane en pourcentage.
-    expect(events()[0]!.data.value).toBeCloseTo(0.011, 10);
+    // La valeur est dans l'unité du niveau : la médiane en pourcentage, arrondie à la précision affichée (4 décimales),
+    // sans le bruit du produit 0,00011 × 100 = 0,011000000000000001 que l'agent lirait par `desk_events`.
+    expect(events()[0]!.data.value).toBe(0.011);
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0]!.tone).toBe('warn');
     expect(toasts()[0]!.text).toContain('0,0100 %');
     expect(s().alerts).toMatchObject([{ state: 'armed', lastTriggeredAt: NOW }]);
+  });
+
+  it('la valeur de l’événement est arrondie à la précision affichée de l’alerte : largeur 1 décimale, liquidations au dollar', async () => {
+    await boot([tempAlert({ id: 'b1', kind: 'breadth_above', level: 40, mode: 'once' }), tempAlert({ id: 'l1', kind: 'liquidations_long_1h_above', level: 5_000_000, mode: 'once' })]);
+    emitReading(reading({ upShare: 0.39, long: 4_000_000 }));
+    emitReading(reading({ upShare: 0.40567, long: 5_000_123.456 }));
+    await flush();
+    const byId = Object.fromEntries(events().map((e) => [e.data.alertId, e.data.value]));
+    expect(byId).toEqual({ b1: 40.6, l1: 5_000_123 });
   });
 
   it('texte du toast dans les trois langues', async () => {

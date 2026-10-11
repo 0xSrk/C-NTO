@@ -19,6 +19,7 @@ import { buildMetricsContext, contextSeries } from '@/engine/metricsContext';
 import { standardRoot } from '@/engine/tradeUnits';
 import type { ToolSchema } from './llm';
 import { DESK_EVENT_KINDS, DESK_TOOL_TITLES, isDeskEventKind, ORDER_TOOLS } from './catalog';
+import { createCryptoTools, cryptoPortOn, cryptoToolBlurb, isCryptoTool } from './cryptoTools';
 import { EVENTS_PAGE_DEFAULT, EVENTS_PAGE_MAX } from './events';
 import { AGENT_ORDER_BOUNDS } from './orders';
 import { traderMemory, type MemoryNote } from './memory';
@@ -1109,6 +1110,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         };
       },
     },
+    // Les dix outils du module crypto (`./cryptoTools.ts`), toujours définis : sans port allumé, ils refusent.
+    ...createCryptoTools(ports),
   ];
 }
 
@@ -1260,17 +1263,23 @@ export function toolBlurb(name: string, fallback: string): string {
         'Disciplina de la jornada CME en curso (18 h → 17 h, hora de Nueva York) en la cuenta seguida: pérdida del día (realizado del diario + latente negativo del puente), límite aplicado (el más bajo entre la regla del trader y el plan prop) y su fuente, parte consumida, trades del día frente al máximo, desvíos tras una pérdida (revancha, tamaño aumentado) y desvíos de las reglas del día, próximo catalizador mayor y su ventana. Solo lectura: constata, no impide nada.',
       );
     default:
-      return fallback;
+      return cryptoToolBlurb(name, fallback) ?? fallback;
   }
 }
 
-export function toolSchemas(): ToolSchema[] {
-  return DESK_TOOLS.map(({ name, description, parameters }) => ({ name, description: toolBlurb(name, description), parameters }));
+/** Options du catalogue rendu : `crypto` ajoute les dix outils `crypto_*`, qui ne se donnent qu'avec le module allumé. */
+export interface ToolCatalogOptions {
+  crypto?: boolean;
 }
 
-/** Catalogue annoncé par `desk.describe` : le titre suit la langue du desk. */
-export function describedDeskTools(): (ToolSchema & { kind: 'read' | 'write'; title: string })[] {
-  return toolSchemas().map((tool) => {
+/** Schémas donnés au modèle, sans les outils crypto par défaut. */
+export function toolSchemas(opts: ToolCatalogOptions = {}): ToolSchema[] {
+  return DESK_TOOLS.filter((t) => opts.crypto === true || !isCryptoTool(t.name)).map(({ name, description, parameters }) => ({ name, description: toolBlurb(name, description), parameters }));
+}
+
+/** Catalogue annoncé par `desk.describe` : le titre suit la langue du desk. Sans les outils crypto par défaut. */
+export function describedDeskTools(opts: ToolCatalogOptions = {}): (ToolSchema & { kind: 'read' | 'write'; title: string })[] {
+  return toolSchemas(opts).map((tool) => {
     const titles = DESK_TOOL_TITLES[tool.name as keyof typeof DESK_TOOL_TITLES];
     return { ...tool, kind: toolKind(tool.name), title: tr(titles[0], titles[1], titles[2]) };
   });
@@ -1313,13 +1322,19 @@ const KNOWN_TOOLS = new Set(DESK_TOOLS.map((t) => t.name));
 const PREVIEW_BODY_MAX = 2000;
 const PREVIEW_KNOWN = new Set(['title', 'id', 'tags', 'body', 'note']);
 
-/** Aperçu lisible pour la confirmation d'écriture : titre, tags, séance cible, corps (≤ 2000 car., tronqué explicitement). */
-function previewArgs(args: Record<string, unknown>): string {
+/**
+ * Aperçu lisible pour la confirmation d'écriture : titre, tags, séance cible, corps (≤ 2000 car., tronqué explicitement).
+ * L'`id` d'un outil crypto désigne un indicateur, un tracé ou une alerte, jamais une séance.
+ */
+function previewArgs(name: string, args: Record<string, unknown>): string {
   const truncated = tr('(tronqué)', '(truncated)', '(truncado)');
   const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}… ${truncated}` : s);
   const parts: string[] = [];
   if (typeof args.title === 'string') parts.push(`${tr('Titre', 'Title', 'Título')} : ${clip(args.title, 200)}`);
-  if (typeof args.id === 'string') parts.push(`${tr('Séance cible', 'Target session', 'Sesión objetivo')} : ${clip(args.id, 64)}`);
+  if (typeof args.id === 'string') {
+    const label = isCryptoTool(name) ? tr('Identifiant', 'Identifier', 'Identificador') : tr('Séance cible', 'Target session', 'Sesión objetivo');
+    parts.push(`${label} : ${clip(args.id, 64)}`);
+  }
   if (Array.isArray(args.tags)) parts.push(`Tags : ${clip(args.tags.map(String).join(', '), 400)}`);
   const body = typeof args.body === 'string' ? args.body : typeof args.note === 'string' ? args.note : undefined;
   if (body !== undefined) {
@@ -1357,6 +1372,8 @@ export async function executeDeskTool(ports: DeskPorts, name: string, args: stri
   if (!parsed.ok) return { error: parsed.error };
   const clamped = clampToolArgs(parsed.args, declaredKeys(DESK_TOOLS.find((t) => t.name === name)));
   if (!clamped.ok) return { ok: false, reason: clamped.reason };
+  // Module crypto éteint (ou sans port) : refusé avant toute confirmation, lecture comme écriture, quelle que soit la source.
+  if (isCryptoTool(name) && !cryptoPortOn(ports)) return { ok: false, reason: 'crypto_disabled' };
   if (toolKind(name) === 'write') {
     if (ctx.source === 'orch' && ctx.allowWrite !== true) return { ok: false, reason: 'write_disabled' };
     // Un ordre est confirmé par le dialogue du process principal, pas par celui du renderer.
@@ -1364,7 +1381,7 @@ export async function executeDeskTool(ports: DeskPorts, name: string, args: stri
       const ok = ctx.confirmFn
         ? await ctx.confirmFn(
             tr(`L’agent veut exécuter « ${name} »`, `The agent wants to run “${name}”`, `El agente quiere ejecutar « ${name} »`),
-            `${tr('Arguments', 'Arguments', 'Argumentos')} :\n${previewArgs(clamped.args)}`,
+            `${tr('Arguments', 'Arguments', 'Argumentos')} :\n${previewArgs(name, clamped.args)}`,
           )
         : false;
       if (!ok) return { ok: false, reason: 'operator_denied' };

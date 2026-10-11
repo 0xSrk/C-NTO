@@ -135,6 +135,13 @@ const AIMED: Record<string, { args: Record<string, unknown>; done: (result: Reco
     args: { account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, reason: 'Deux pertes : la leçon le permet' },
     done: (r) => expect(r).toMatchObject({ ok: false, status: 'refused', reason: 'disabled' }),
   },
+  // Les écritures crypto, l'id de la note glissé partout où un id passe : `livePorts()` n'a pas encore de port crypto (CRY6.2),
+  // elles sont refusées avant toute écriture.
+  crypto_chart_set: { args: { market: 'coinbase:BTC-USD' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
+  crypto_indicator_set: { args: { action: 'remove', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
+  crypto_drawing_set: { args: { action: 'remove', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
+  crypto_alert_set: { args: { action: 'delete', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
+  crypto_watchlist_set: { args: { action: 'add', market: 'binance:ONEUSDT' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
 };
 
 const kept = (n: Note | undefined) => n && { body: n.body, tags: n.tags, by: n.by, adoptedAt: n.adoptedAt };

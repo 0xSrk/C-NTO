@@ -147,6 +147,40 @@ export function alertValue(alert: CryptoAlert, data: { tickers: Partial<Record<C
 }
 
 /**
+ * Les décimales d'une valeur dans l'unité de l'alerte, celles de l'affichage (`alertLevelText`, `src/lib/cryptoAlertText.ts`) :
+ * un prix à la précision de son marché, le funding à 4 décimales de pourcent, les liquidations au dollar, la largeur à une
+ * décimale de point.
+ */
+export function alertValueDecimals(alert: Pick<CryptoAlert, 'target' | 'kind'>): number {
+  switch (alert.kind) {
+    case 'price_above':
+    case 'price_below':
+      return cryptoMarket(alert.target)?.precision ?? 2;
+    case 'funding_median_above':
+    case 'funding_median_below':
+      return 4;
+    case 'liquidations_long_1h_above':
+    case 'liquidations_short_1h_above':
+      return 0;
+    case 'breadth_above':
+    case 'breadth_below':
+      return 1;
+  }
+}
+
+/**
+ * Une valeur arrondie aux décimales d'affichage de l'alerte (`alertValueDecimals`), sans le bruit des produits de flottants
+ * (0,00011 × 100 = 0,011000000000000001) : c'est elle que l'événement `crypto_alert` porte à l'agent. `null` reste `null`, une
+ * valeur non finie devient `null`, et un zéro négatif devient 0.
+ */
+export function roundAlertValue(alert: Pick<CryptoAlert, 'target' | 'kind'>, value: number | null): number | null {
+  if (!isNum(value)) return null;
+  const factor = 10 ** alertValueDecimals(alert);
+  const rounded = Math.round(value * factor) / factor;
+  return Number.isFinite(rounded) ? rounded + 0 : null;
+}
+
+/**
  * Âge au-delà duquel une lecture de température ne s'évalue plus : deux cadences du process principal
  * (`electron/crypto-temperature.ts`). Le funding est relevé toutes les 60 s, et les liquidations sont redatées au moins à
  * chaque relevé : 120 s. La largeur et l'open interest sont relevés toutes les 5 min : 10 min.

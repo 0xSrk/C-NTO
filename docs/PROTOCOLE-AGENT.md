@@ -35,7 +35,7 @@ Chaque lecture de `tools/list` porte un `outputSchema` minimal (objet, propriét
 
 ### Écriture
 
-Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_session`, `propose_order`) sont **masqués** de `tools/list` et **refusés** tant que le trader ne coche pas *écriture autorisée*. Le réglage vaut pour les deux portes. Il est contrôlé deux fois : dans le process principal, qui lit le type de l'outil dans `DESK_TOOL_KINDS` et jamais dans la réponse du renderer (un outil hors catalogue est écarté), puis par `executeDeskTool` (source `orch`). Il n'est jamais restauré depuis un coffre.
+Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_session`, `propose_order` et les cinq `crypto_*_set`) sont **masqués** de `tools/list` et **refusés** tant que le trader ne coche pas *écriture autorisée*. Le réglage vaut pour les deux portes. Il est contrôlé deux fois : dans le process principal, qui lit le type de l'outil dans `DESK_TOOL_KINDS` et jamais dans la réponse du renderer (un outil hors catalogue est écarté), puis par `executeDeskTool` (source `orch`). Il n'est jamais restauré depuis un coffre.
 
 ### Outils
 
@@ -60,6 +60,10 @@ Les outils d'écriture (`create_note`, `branch_note`, `link_notes`, `annotate_se
 | `create_note` / `branch_note` / `link_notes` | écriture | Notes |
 | `annotate_session` | écriture | Note et tags d'une séance (remplace) |
 | `propose_order` | écriture | Propose un ordre sur un compte Sim ; le trader le confirme ou le refuse (§ 5) |
+| `crypto_status` / `crypto_chart_read` / `crypto_watchlist_get` / `crypto_temperature` / `crypto_alert_list` | lecture | Module crypto (onglet 09 · CRY), sur le modèle de `chart_status`, `chart_read`, `watchlist_get` et `alert_list` d'OpenMarket : ce que le trader a ouvert, jamais un flux de plus. `crypto_chart_read` lit les 160 dernières bougies du chart à l'écran (`bars` : jusqu'à 300 lignes) ; onglet fermé, `available: false` et `tab_closed`. `crypto_alert_list` porte `evaluable` et `reason`, la règle « non évaluée » de l'onglet |
+| `crypto_chart_set` / `crypto_indicator_set` / `crypto_drawing_set` / `crypto_alert_set` / `crypto_watchlist_set` | écriture | Marché et unité de temps du chart, indicateurs, tracés, alertes, watchlist, écrits avec `by: "agent"`. Arguments contrôlés avant le port (marché du registre, énumérations, label ≤ 40, prix finis et positifs) ; base qui refuse : `persist_failed` |
+
+Les dix outils `crypto_*` ne sont donnés au modèle (`toolSchemas({ crypto: true })`) qu'avec le module crypto allumé ; module éteint ou absent, `executeDeskTool` les refuse (`crypto_disabled`) avant toute confirmation, quelle que soit la porte.
 
 Les lectures du journal rendent `asOf` (instant de la lecture), `sources` (séances lues par source) et `demo: true` quand le jeu de démonstration y est compté. Les arguments sont typés : entiers bornés, dates `^\d{4}-\d{2}-\d{2}$`, prédicats énumérés.
 

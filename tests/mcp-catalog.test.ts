@@ -22,6 +22,15 @@ describe('catalogue · indications d’outil', () => {
     expect(DESK_TOOL_HINTS.propose_order).toEqual({ readOnly: false, destructive: true, idempotent: false, openWorld: true });
     expect(DESK_TOOL_HINTS.create_note).toEqual({ readOnly: false, destructive: false, idempotent: false, openWorld: false });
   });
+
+  it('écritures crypto : le chart se règle (idempotent, il recharge des bougies d’exchange), le reste remplace ou retire', () => {
+    expect(DESK_TOOL_HINTS.crypto_chart_set).toEqual({ readOnly: false, destructive: false, idempotent: true, openWorld: true });
+    for (const name of ['crypto_indicator_set', 'crypto_drawing_set', 'crypto_alert_set'] as const) {
+      expect(DESK_TOOL_HINTS[name], name).toEqual({ readOnly: false, destructive: true, idempotent: false, openWorld: false });
+    }
+    // Un marché ajouté ouvre son ticker chez l'exchange.
+    expect(DESK_TOOL_HINTS.crypto_watchlist_set).toEqual({ readOnly: false, destructive: true, idempotent: false, openWorld: true });
+  });
 });
 
 describe('catalogue · titres d’outil', () => {

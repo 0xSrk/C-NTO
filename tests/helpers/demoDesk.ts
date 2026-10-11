@@ -1,7 +1,9 @@
 import { AGENT_ORDER_DEFAULTS, guardProposal, parseProposal, type AgentOrderPolicy, type AgentOrderProposal } from '@/engine/agent/orders';
-import type { DeskCalendarEntry, DeskNote, DeskPorts } from '@/engine/agent/ports';
+import type { CryptoDeskPort, DeskCalendarEntry, DeskNote, DeskPorts } from '@/engine/agent/ports';
 import { bundleCoverage, materializeBundle } from '@/engine/calendar-bundle';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
+import { DEFAULT_CRYPTO_INDICATORS } from '@/engine/crypto/indicators';
+import { CHARTABLE_MARKETS, cryptoMarket } from '@/engine/crypto/markets';
 import { generateDemoJournal } from '@/engine/demo';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import { linkId, PREDICATES, type Predicate } from '@/engine/ontology/schema';
@@ -21,7 +23,8 @@ export type DeskWrite =
   | { port: 'createNote'; title: string; body: string; tags: string[] }
   | { port: 'branchNote'; parentId: string; ancre: string; question: string }
   | { port: 'linkNotes'; fromId: string; toId: string; predicate: string }
-  | { port: 'proposeOrder'; args: Record<string, unknown>; outcome: Record<string, unknown> };
+  | { port: 'proposeOrder'; args: Record<string, unknown>; outcome: Record<string, unknown> }
+  | { port: 'crypto'; method: 'setChart' | 'setIndicator' | 'setDrawing' | 'setAlert' | 'setWatchlist'; args: Record<string, unknown> };
 
 export interface DemoDeskOptions {
   sessions?: number;
@@ -45,6 +48,8 @@ export interface DemoDeskOptions {
   confirmOrder?: (p: AgentOrderProposal) => boolean;
   /** Horloge du desk (epoch ms) ; défaut : fin du jeu de démo. */
   now?: number;
+  /** Port du module crypto ; défaut : allumé, onglet ouvert, écritures notées dans `writes`. `null` : aucun port. */
+  crypto?: CryptoDeskPort | null;
 }
 
 export interface DemoDesk {
@@ -56,7 +61,7 @@ export interface DemoDesk {
   planId: string;
   planAccount: string;
   startingBalance: number;
-  /** Chaque appel d'un port d'écriture (`updateSession`, `createNote`, `branchNote`, `linkNotes`, `proposeOrder`). */
+  /** Chaque appel d'un port d'écriture (`updateSession`, `createNote`, `branchNote`, `linkNotes`, `proposeOrder`, écritures du port crypto). */
   writes: DeskWrite[];
   /** Ordres réellement soumis : garde du process principal passée et opérateur d'accord. */
   submitted: AgentOrderProposal[];
@@ -89,6 +94,38 @@ export function demoDesk(opts: DemoDeskOptions = {}): DemoDesk {
   const planAccount = opts.planAccount ?? DEMO_ACCOUNT;
   const startingBalance = opts.startingBalance ?? 50_000;
   let noteSeq = 0;
+  let cryptoSeq = 0;
+
+  /** Écriture du port crypto : notée dans `writes`, acceptée, avec un id neuf. */
+  const cryptoWrite =
+    (method: Extract<DeskWrite, { port: 'crypto' }>['method']) =>
+    async (args: object) => {
+      writes.push({ port: 'crypto', method, args: { ...args } });
+      return { ok: true as const, id: `crypto_${++cryptoSeq}` };
+    };
+  // Le module crypto du desk de démo : allumé, onglet ouvert, chart par défaut, aucune donnée de marché.
+  const demoCrypto: CryptoDeskPort = {
+    enabled: () => true,
+    tabOpen: () => true,
+    status: () => ({
+      market: 'coinbase:BTC-USD',
+      timeframe: 60,
+      venues: { coinbase: 'live', binance: 'live', bybit: 'live' },
+      indicators: DEFAULT_CRYPTO_INDICATORS.map((i) => ({ ...i, params: { ...i.params } })),
+      drawings: [],
+      chartError: null,
+    }),
+    chart: () => null,
+    watchlist: () => CHARTABLE_MARKETS.map((market) => ({ market, venue: cryptoMarket(market)!.venue, venueState: 'live' as const, last: null, change24hPct: null, at: null })),
+    temperature: () => null,
+    alerts: () => [],
+    setChart: cryptoWrite('setChart'),
+    setIndicator: cryptoWrite('setIndicator'),
+    setDrawing: cryptoWrite('setDrawing'),
+    setAlert: cryptoWrite('setAlert'),
+    setWatchlist: cryptoWrite('setWatchlist'),
+  };
+  const crypto = opts.crypto === undefined ? demoCrypto : opts.crypto;
 
   const ports: DeskPorts = {
     sessions: () => sessions,
@@ -134,6 +171,7 @@ export function demoDesk(opts: DemoDeskOptions = {}): DemoDesk {
     regimeRules: () => ({ confirm: 2, minStay: 5 }),
     events: () => ({ cursor: '', events: [], more: false, dropped: 0, reset: false }),
     now: () => opts.now ?? Date.parse(opts.end ?? DEMO_END),
+    crypto: () => crypto,
     async proposeOrder(args) {
       // Même ordre que le process principal : lecture, garde, dialogue de l'opérateur, soumission.
       const outcome = ((): Record<string, unknown> => {

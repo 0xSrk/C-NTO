@@ -22,11 +22,21 @@ export const DESK_TOOL_KINDS = {
   trader_memory: 'read',
   discipline_status: 'read',
   desk_events: 'read',
+  crypto_status: 'read',
+  crypto_chart_read: 'read',
+  crypto_watchlist_get: 'read',
+  crypto_temperature: 'read',
+  crypto_alert_list: 'read',
   annotate_session: 'write',
   create_note: 'write',
   branch_note: 'write',
   link_notes: 'write',
   propose_order: 'write',
+  crypto_chart_set: 'write',
+  crypto_indicator_set: 'write',
+  crypto_drawing_set: 'write',
+  crypto_alert_set: 'write',
+  crypto_watchlist_set: 'write',
 } as const satisfies Record<string, 'read' | 'write'>;
 
 /**
@@ -51,6 +61,8 @@ export interface DeskToolHints {
 
 const READ_HINTS: DeskToolHints = { readOnly: true, destructive: false, idempotent: true, openWorld: false };
 const ADD_HINTS: DeskToolHints = { readOnly: false, destructive: false, idempotent: false, openWorld: false };
+/** Ajoute ou retire une entrée du module crypto (indicateur, tracé, alerte) : un retrait efface, un ajout répété en crée une autre. */
+const CRYPTO_EDIT_HINTS: DeskToolHints = { readOnly: false, destructive: true, idempotent: false, openWorld: false };
 
 /** Indications de chaque outil : le process principal en tire les `annotations` MCP. */
 export const DESK_TOOL_HINTS: Record<DeskToolName, DeskToolHints> = {
@@ -72,6 +84,11 @@ export const DESK_TOOL_HINTS: Record<DeskToolName, DeskToolHints> = {
   trader_memory: READ_HINTS,
   discipline_status: READ_HINTS,
   desk_events: READ_HINTS,
+  crypto_status: READ_HINTS,
+  crypto_chart_read: READ_HINTS,
+  crypto_watchlist_get: READ_HINTS,
+  crypto_temperature: READ_HINTS,
+  crypto_alert_list: READ_HINTS,
   // Remplace la note et les tags de la séance : le même appel répété laisse le même état.
   annotate_session: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
   create_note: ADD_HINTS,
@@ -79,6 +96,13 @@ export const DESK_TOOL_HINTS: Record<DeskToolName, DeskToolHints> = {
   link_notes: ADD_HINTS,
   // Un ordre confirmé part au pont NinjaTrader : hors du desk, et chaque appel en propose un nouveau.
   propose_order: { readOnly: false, destructive: true, idempotent: false, openWorld: true },
+  // Règle le marché et l'unité de temps du chart : le même appel laisse le même chart ; le flux du chart suit chez l'exchange.
+  crypto_chart_set: { readOnly: false, destructive: false, idempotent: true, openWorld: true },
+  crypto_indicator_set: CRYPTO_EDIT_HINTS,
+  crypto_drawing_set: CRYPTO_EDIT_HINTS,
+  crypto_alert_set: CRYPTO_EDIT_HINTS,
+  // Un marché ajouté ouvre son ticker chez l'exchange ; un retrait l'efface de la liste.
+  crypto_watchlist_set: { readOnly: false, destructive: true, idempotent: false, openWorld: true },
 };
 
 /** Titre lisible de chaque outil : français, anglais, espagnol (`title` de `tools/list`). */
@@ -106,6 +130,16 @@ export const DESK_TOOL_TITLES: Record<DeskToolName, readonly [fr: string, en: st
   branch_note: ['Ouvrir une note fille', 'Branch a note', 'Abrir una nota hija'],
   link_notes: ['Relier deux notes', 'Link two notes', 'Relacionar dos notas'],
   propose_order: ['Proposer un ordre Sim au trader', 'Propose a Sim order to the trader', 'Proponer una orden Sim al trader'],
+  crypto_status: ['État du module crypto', 'Crypto module status', 'Estado del módulo cripto'],
+  crypto_chart_read: ['Lire le chart crypto', 'Read the crypto chart', 'Leer el gráfico cripto'],
+  crypto_watchlist_get: ['Marchés crypto suivis', 'Watched crypto markets', 'Mercados cripto seguidos'],
+  crypto_temperature: ['Température du marché crypto', 'Crypto market temperature', 'Temperatura del mercado cripto'],
+  crypto_alert_list: ['Alertes crypto', 'Crypto alerts', 'Alertas cripto'],
+  crypto_chart_set: ['Changer le chart crypto', 'Change the crypto chart', 'Cambiar el gráfico cripto'],
+  crypto_indicator_set: ['Indicateur du chart crypto', 'Crypto chart indicator', 'Indicador del gráfico cripto'],
+  crypto_drawing_set: ['Tracé du chart crypto', 'Crypto chart drawing', 'Trazado del gráfico cripto'],
+  crypto_alert_set: ['Poser ou retirer une alerte crypto', 'Set or remove a crypto alert', 'Poner o quitar una alerta cripto'],
+  crypto_watchlist_set: ['Watchlist crypto', 'Crypto watchlist', 'Watchlist cripto'],
 };
 
 /**

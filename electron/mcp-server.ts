@@ -220,6 +220,13 @@ const READ_OUTPUT_HEADS: Record<string, readonly string[]> = {
   trader_memory: ['lessons', 'rules'],
   discipline_status: ['day', 'dailyLoss'],
   desk_events: ['cursor', 'events'],
+  // Module crypto : les clés présentes dans toute sortie normale (onglet fermé et sans relevé compris), vérifiées par
+  // `tests/crypto-tools.test.ts` ; ces outils n'entrent au catalogue du desk qu'avec le module allumé.
+  crypto_status: ['tabOpen', 'market', 'timeframe', 'venues', 'asOf'],
+  crypto_chart_read: ['available'],
+  crypto_watchlist_get: ['count', 'markets', 'registry'],
+  crypto_temperature: ['available'],
+  crypto_alert_list: ['count', 'alerts'],
 };
 
 export function outputSchemaFor(name: string): { type: 'object'; properties: Record<string, Record<string, never>>; additionalProperties: true } | undefined {

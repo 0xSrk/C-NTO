@@ -1,4 +1,8 @@
 import type { CalendarEventRow } from '../calendarEvents';
+import type { CryptoAlertKind } from '../crypto/alerts';
+import type { CryptoMarketId, CryptoTimeframe } from '../crypto/markets';
+import type { TemperatureReading } from '../crypto/temperature';
+import type { CryptoAlertView, CryptoChartView, CryptoStatusView, CryptoWatchRow, CryptoWriteResult } from '../crypto/views';
 import type { DeskEventPage } from './events';
 import type { BarSeries } from '../bars';
 import type { OrderBookView } from '../execution/orderBook';
@@ -45,6 +49,29 @@ export interface DeskBridgeView {
   copier: { armed: boolean; routed: number; lastRefusal: { reason: string; account: string; instrument: string; qty: number } | null } | null;
 }
 
+/**
+ * Le module crypto (onglet 09 · CRY) vu par les outils `crypto_*` (`./cryptoTools.ts`). Les lectures rendent ce que le trader a
+ * ouvert, sans ouvrir de flux : `chart()` est le chart à l'écran, `null` sans lui. Les écritures sont celles du store, faites
+ * avec `by: 'agent'` ; elles rendent le refus du store en code stable et rejettent si la base refuse d'enregistrer. Les outils
+ * valident leurs arguments avant de les appeler, et ne les appellent que si `enabled()` est vrai.
+ */
+export interface CryptoDeskPort {
+  /** L'interrupteur du module, tenu par le process principal. */
+  enabled(): boolean;
+  /** Le chart de l'onglet est à l'écran (son flux lourd suit alors le marché et l'unité de temps). */
+  tabOpen(): boolean;
+  status(): CryptoStatusView;
+  chart(): CryptoChartView | null;
+  watchlist(): CryptoWatchRow[];
+  temperature(): TemperatureReading | null;
+  alerts(): CryptoAlertView[];
+  setChart(p: { market?: CryptoMarketId; timeframe?: CryptoTimeframe }): Promise<CryptoWriteResult>;
+  setIndicator(p: { action: 'add' | 'remove'; indicator?: string; params?: Record<string, number | string>; id?: string }): Promise<CryptoWriteResult>;
+  setDrawing(p: { action: 'add' | 'remove'; kind?: 'level' | 'zone'; market?: CryptoMarketId; price?: number; from?: number; to?: number; label?: string; id?: string }): Promise<CryptoWriteResult>;
+  setAlert(p: { action: 'create' | 'delete'; target?: CryptoMarketId | 'temperature'; kind?: CryptoAlertKind; level?: number; mode?: 'once' | 'rearm'; id?: string }): Promise<CryptoWriteResult>;
+  setWatchlist(p: { action: 'add' | 'remove'; market: CryptoMarketId }): Promise<CryptoWriteResult>;
+}
+
 /** Accès desk injecté — pas de stores dans `tools.ts`. */
 export interface DeskPorts {
   sessions(): Session[];
@@ -87,6 +114,8 @@ export interface DeskPorts {
   proposeOrder(args: Record<string, unknown>): Promise<unknown>;
   /** Horloge des lectures datées (`asOf`), epoch ms. Défaut : `Date.now()`. */
   now?(): number;
+  /** Module crypto ; absent ou `null` : les outils `crypto_*` refusent (`crypto_disabled`). */
+  crypto?(): CryptoDeskPort | null;
 }
 
 export const BODY_MAX = 20_000;
@@ -101,11 +130,11 @@ export const TITLE_MAX = 200;
 export const ANCRE_MAX = 500;
 export const QUESTION_MAX = 200;
 export const SHORT_ARG_MAX = 64;
-const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId', 'account', 'instrument', 'cursor'] as const;
+const SHORT_ARGS = ['query', 'id', 'date', 'from', 'to', 'planId', 'account', 'instrument', 'cursor', 'market', 'label'] as const;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
- * Borne les arguments d'outil : corps/note ≤ 20 000, titre ≤ 200, identifiants/dates/requête ≤ 64,
+ * Borne les arguments d'outil : corps/note ≤ 20 000, titre ≤ 200, identifiants/dates/requête/marché/label ≤ 64,
  * tags ≤ 20 × 40. Avec `allowedKeys` (propriétés déclarées par l'outil), tout argument non déclaré est retiré.
  */
 export function clampToolArgs(args: Record<string, unknown>, allowedKeys?: readonly string[]): { ok: true; args: Record<string, unknown> } | { ok: false; reason: string } {

@@ -6,7 +6,9 @@ import {
   CrossWatch,
   alertDirection,
   alertValue,
+  alertValueDecimals,
   hysteresisBand,
+  roundAlertValue,
   sanitizeAlerts,
   validateAlert,
   type CryptoAlert,
@@ -289,6 +291,28 @@ describe('alertValue', () => {
     const badLiquidations = reading({ liquidations: { long: Number.NaN, short: Number.POSITIVE_INFINITY, since: NOW, at: NOW, lowerBound: true } });
     expect(alertValue(sample('liquidations_long_1h_above'), data({}, badLiquidations))).toBeNull();
     expect(alertValue(sample('liquidations_short_1h_above'), data({}, badLiquidations))).toBeNull();
+  });
+});
+
+describe('roundAlertValue', () => {
+  it('arrondit à la précision affichée : prix du marché, funding 4 décimales, liquidations au dollar, largeur 1 décimale', () => {
+    expect(alertValueDecimals(alert({ target: 'coinbase:BTC-USD' }))).toBe(2);
+    expect(alertValueDecimals(alert({ target: 'binance:ONEUSDT' }))).toBe(6);
+    expect(roundAlertValue(alert({ target: 'coinbase:BTC-USD' }), 85_100.004999)).toBe(85_100);
+    expect(roundAlertValue(alert({ target: 'binance:ONEUSDT', level: 0.002 }), 0.0021714999)).toBe(0.002171);
+    expect(roundAlertValue(alert({ target: 'coinbase:ONDO-USD', level: 1 }), 0.8123456)).toBe(0.81235);
+    expect(roundAlertValue(sample('funding_median_above'), 0.00011 * 100)).toBe(0.011);
+    expect(roundAlertValue(sample('funding_median_below'), -0.0123456)).toBe(-0.0123);
+    expect(roundAlertValue(sample('liquidations_long_1h_above'), 5_000_123.5)).toBe(5_000_124);
+    expect(roundAlertValue(sample('liquidations_short_1h_above'), 812.25)).toBe(812);
+    expect(roundAlertValue(sample('breadth_above'), 0.40567 * 100)).toBe(40.6);
+    expect(roundAlertValue(sample('breadth_below'), 39.94)).toBe(39.9);
+  });
+
+  it('null reste null ; un nombre non fini devient null ; jamais -0', () => {
+    expect(roundAlertValue(sample('breadth_above'), null)).toBeNull();
+    for (const v of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) expect(roundAlertValue(sample('funding_median_above'), v), String(v)).toBeNull();
+    expect(Object.is(roundAlertValue(sample('funding_median_below'), -0.00001), 0)).toBe(true);
   });
 });
 
