@@ -242,10 +242,11 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
   const liquidations = temperature?.liquidations ?? null;
   const openInterest = temperature?.openInterest ?? null;
   const at = (ms: number | undefined) => (ms === undefined ? '—' : formatTimeLocal(ms));
-  const oiText = openInterest ? `BTC ${fmtSigned(openInterest.btc === null ? null : openInterest.btc * 100, 1)} % · ETH ${fmtSigned(openInterest.eth === null ? null : openInterest.eth * 100, 1)} %` : '—';
+  /** La variation de l'open interest d'un actif sur 24 h (une part : 0,024 = +2,4 %), ou un tiret. */
+  const oiChange = (share: number | null | undefined) => (share === null || share === undefined || !Number.isFinite(share) ? '—' : `${fmtSigned(share * 100, 1)} %`);
 
   return (
-    <aside className={v.side}>
+    <aside className={cx(v.side, c.side)}>
       <div className={v.sideSection}>
         <SideTitle>
           {tr('Marchés', 'Markets', 'Mercados')} · {CHARTABLE_MARKETS.length}
@@ -283,11 +284,14 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
 
       <div className={v.sideSection}>
         <SideTitle>{tr('Température', 'Temperature', 'Temperatura')} · Binance</SideTitle>
+        {/* Une règle par lecture, par côté des liquidations et par actif de l'open interest : une ligne chacune, 24 signes au plus (libellé et valeur) pour la colonne. */}
         <div>
           <Regle label={tr('Funding médian', 'Median funding', 'Funding mediano')} value={funding ? `${fmtSigned(funding.median * 100, 4)} %` : '—'} />
           <Regle label={tr('Largeur 24 h', '24 h breadth', 'Amplitud 24 h')} value={breadth ? `${fmtNum(breadth.upShare * 100, 0)} %` : '—'} />
-          <Regle label={tr('Liquidations 1 h', '1 h liquidations', 'Liquidaciones 1 h')} value={liquidations ? `L ${fmtUsdCompact(liquidations.long)} · S ${fmtUsdCompact(liquidations.short)}` : '—'} />
-          <Regle label={tr('Open interest 24 h', '24 h open interest', 'Open interest 24 h')} value={oiText} />
+          <Regle label={tr('Liq. 1 h · long', 'Liq. 1 h · long', 'Liq. 1 h · long')} value={liquidations ? fmtUsdCompact(liquidations.long) : '—'} />
+          <Regle label={tr('Liq. 1 h · short', 'Liq. 1 h · short', 'Liq. 1 h · short')} value={liquidations ? fmtUsdCompact(liquidations.short) : '—'} />
+          <Regle label={tr('OI 24 h · BTC', 'OI 24 h · BTC', 'OI 24 h · BTC')} value={oiChange(openInterest?.btc)} />
+          <Regle label={tr('OI 24 h · ETH', 'OI 24 h · ETH', 'OI 24 h · ETH')} value={oiChange(openInterest?.eth)} />
         </div>
         <div className={v.desc}>
           {tr(
@@ -378,7 +382,7 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
             <div key={`${line.at}-${i}`} className={v.tradeRow}>
               <span>{formatTimeLocal(line.at)}</span>
               <span>{line.tool}</span>
-              <span style={{ gridColumn: '1 / -1' }}>{line.effect}</span>
+              <span style={{ gridColumn: '1 / -1', minWidth: 0, overflowWrap: 'anywhere' }}>{line.effect}</span>
             </div>
           ))
         )}

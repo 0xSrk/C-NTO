@@ -221,6 +221,8 @@ function CryptoDesk({ meta }: { meta: string }) {
   const shownBar = hover?.bar ?? bars[bars.length - 1] ?? null;
   const visible = (definitionId: string) => shown.some((inst) => inst.visible && inst.definitionId === definitionId);
   const cvdBinance = visible(CVD_BINANCE);
+  /** L'heure d'ancrage du CVD, quand la ligne est visible et qu'elle s'ancre (Coinbase et Bybit, première bougie vue en entier). */
+  const cvdSince = cvdAnchoredAt !== null && visible(CVD) ? formatTimeLocal(cvdAnchoredAt * 1000) : null;
   /** La valeur d'une ligne au survol : à la précision du marché pour un prix (et l'ATR, en unité de prix), en volume sinon. */
   const lineValue = (key: string, value: number) => {
     const line = lines.find((l) => l.key === key);
@@ -271,9 +273,14 @@ function CryptoDesk({ meta }: { meta: string }) {
                     <span>Vol {fmtVolume(shownBar.volume)}</span>
                   </>
                 )}
-                {cvdAnchoredAt !== null && visible(CVD) && <span>{tr(`CVD depuis ${formatTimeLocal(cvdAnchoredAt * 1000)}`, `CVD since ${formatTimeLocal(cvdAnchoredAt * 1000)}`, `CVD desde ${formatTimeLocal(cvdAnchoredAt * 1000)}`)}</span>}
-                {cvdBinance && <span>{tr('CVD Binance', 'CVD Binance', 'CVD Binance')}</span>}
               </div>
+              {/* L'ancrage du CVD vit sur la deuxième ligne, comme les valeurs au survol : la première ligne, déjà longue, passerait sous la puce. */}
+              {(cvdSince !== null || cvdBinance) && (
+                <div className={v.legendRow}>
+                  {cvdSince !== null && <span>{tr(`CVD depuis ${cvdSince}`, `CVD since ${cvdSince}`, `CVD desde ${cvdSince}`)}</span>}
+                  {cvdBinance && <span>{tr('CVD Binance', 'CVD Binance', 'CVD Binance')}</span>}
+                </div>
+              )}
               {hover && hover.values.length > 0 && (
                 <div className={v.legendRow}>
                   {hover.values

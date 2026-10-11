@@ -78,6 +78,8 @@ vi.mock('@/modules/visual/Chart', () => ({
 }));
 
 import { CHARTABLE_MARKETS, CRYPTO_MARKETS } from '@/engine/crypto/markets';
+import p from '@/design/primitives.module.css';
+import c from '@/modules/crypto/crypto.module.css';
 import { useI18n } from '@/i18n';
 import { fmtPrice } from '@/lib/format';
 import Crypto from '@/modules/crypto/Crypto';
@@ -175,6 +177,9 @@ function section(node: HTMLElement, title: string): HTMLElement {
   if (!head?.parentElement) throw new Error(`section « ${title} » introuvable`);
   return head.parentElement;
 }
+
+/** Les `Regle` d'une section : [libellé, valeur] (`<span>libellé</span><i /><span>valeur</span>`). */
+const rules = (el: HTMLElement): [string, string][] => [...el.querySelectorAll(`.${p.regle}`)].map((r) => [r.children[0]?.textContent ?? '', r.children[2]?.textContent ?? '']);
 
 const legend = (node: HTMLElement): string => node.querySelector(`.${v.legend}`)?.textContent ?? '';
 const stamp = (node: HTMLElement): string => node.querySelector(`.${v.stamp}`)?.textContent ?? '';
@@ -282,6 +287,24 @@ describe('CRY4.3 › chart et légende', () => {
     expect(legend(node)).not.toContain('CVD Binance');
     await set({ indicators: [...useCrypto.getState().indicators, instance('i_bin', 'cvd-binance')] });
     expect(legend(node)).toContain('CVD Binance');
+  });
+
+  it('ancrage du CVD : sur la deuxième ligne de la légende, jamais sur la première, que la puce recouvre', async () => {
+    const node = await mount({ bars: btcBars, cvdAnchoredAt: T0 + 3600 });
+    await set({ indicators: [...useCrypto.getState().indicators, instance('i_bin', 'cvd-binance')] });
+    const main = node.querySelector(`.${v.legendMain}`) as HTMLElement;
+    const rows = [...node.querySelectorAll(`.${v.legendRow}`)];
+    expect(main.textContent).toContain('BTC-USD · 1h');
+    expect(main.textContent).not.toContain('CVD');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain('CVD depuis 10:00');
+    expect(rows[0]?.textContent).toContain('CVD Binance');
+    expect(main.nextElementSibling).toBe(rows[0]);
+  });
+
+  it('ancrage du CVD : sans ancre ni CVD Binance, la légende n’a pas de deuxième ligne', async () => {
+    const node = await mount({ bars: btcBars });
+    expect(node.querySelectorAll(`.${v.legendRow}`)).toHaveLength(0);
   });
 
   it('un code du process principal s’affiche en clair, jamais seul', async () => {
@@ -446,7 +469,7 @@ describe('CRY4.3 › colonne', () => {
     expect(useCrypto.getState().market).toBe(ONE);
   });
 
-  it('température : une règle par lecture, et le minorant des liquidations écrit', async () => {
+  it('température : une règle par lecture, par côté des liquidations et par actif de l’open interest, et le minorant écrit', async () => {
     const now = Date.now();
     const temperature: TemperatureReading = {
       funding: { median: 0.00003, btc: 0.0001, symbols: 300, at: now },
@@ -455,13 +478,41 @@ describe('CRY4.3 › colonne', () => {
       openInterest: { btc: 0.024, eth: -0.011, at: now },
     };
     const node = await mount({ temperature });
-    const text = section(node, 'Température').textContent ?? '';
-    expect(text).toContain('Funding médian');
-    expect(text).toContain('+0,0030 %');
-    expect(text).toContain('38 %');
-    expect(text).toMatch(/L 4,1 M\$ · S 1,2 M\$/);
-    expect(text).toMatch(/BTC \+2,4 %/);
-    expect(text).toMatch(/minorant/);
+    const side = section(node, 'Température');
+    expect(rules(side)).toEqual([
+      ['Funding médian', '+0,0030 %'],
+      ['Largeur 24 h', '38 %'],
+      ['Liq. 1 h · long', '4,1 M$'],
+      ['Liq. 1 h · short', '1,2 M$'],
+      ['OI 24 h · BTC', '+2,4 %'],
+      ['OI 24 h · ETH', '-1,1 %'],
+    ]);
+    expect(side.textContent).toMatch(/minorant/);
+    // Sans lecture : les six règles restent, avec des tirets.
+    await set({ temperature: null });
+    expect(rules(section(node, 'Température')).map(([, value]) => value)).toEqual(['—', '—', '—', '—', '—', '—']);
+  });
+
+  it('chaque règle de la colonne tient sur une ligne : 24 signes au plus, libellé et valeur, en trois langues', async () => {
+    // Colonne de 240 à 255 px (300 moins le filet, deux marges de 16, la bande de 12 de la plaque, et 0 à 15 de barre de
+    // défilement), règle en 12 px mono : 8,4 px par signe et deux intervalles de 10 px. 24 signes laissent au moins 18 px au
+    // filet pointillé (mesuré dans le navigateur). Les valeurs sont les plus longues attendues.
+    const now = Date.now();
+    const temperature: TemperatureReading = {
+      funding: { median: -0.000125, btc: -0.0001, symbols: 300, at: now },
+      breadth: { upShare: 1, pairs: 400, at: now },
+      liquidations: { long: 123_400_000, short: 612_000, since: now - 3_600_000, at: now, lowerBound: true },
+      openInterest: { btc: 0.123, eth: -0.123, at: now },
+    };
+    const node = await mount({ temperature, venues: { coinbase: 'reconnecting', binance: 'reconnecting', bybit: 'reconnecting' } });
+    for (const locale of ['fr', 'en', 'es'] as const) {
+      await act(async () => useI18n.setState({ locale }));
+      const temp = rules(section(node, locale === 'fr' ? 'Température' : locale === 'en' ? 'Temperature' : 'Temperatura'));
+      const source = rules(section(node, locale === 'es' ? 'Fuente' : 'Source'));
+      expect(temp, locale).toHaveLength(6);
+      expect(source, locale).toHaveLength(3);
+      for (const [label, value] of [...temp, ...source]) expect(label.length + value.length, `${locale} : ${label} · ${value}`).toBeLessThanOrEqual(24);
+    }
   });
 
   it('Source : venues et leurs voyants, données publiques, « Éteindre le module » appelle disable puis l’état vide', async () => {
@@ -483,6 +534,16 @@ describe('CRY4.3 › colonne', () => {
     expect(text).toContain('14:05');
     expect(text).toContain('crypto_alert_set');
     expect(text).toContain('Alerte créée');
+  });
+
+  it('Agent : l’effet occupe toute la largeur et se coupe n’importe où, un mot long ne fait pas défiler la colonne', async () => {
+    const effect = 'Niveau tracé : BTC-USD · Coinbase à Résistance_hebdomadaire_très_longue_sans_espace_82100.123456789';
+    const node = await mount({ agentLog: [{ at: Date.now(), tool: 'crypto_drawing_set', effect }] });
+    const cell = [...section(node, 'Agent').querySelectorAll(`.${v.tradeRow} > span`)].find((el) => el.textContent === effect) as HTMLElement | undefined;
+    expect(cell, 'cellule de l’effet').toBeDefined();
+    expect(cell?.style.gridColumn).toBe('1 / -1');
+    expect(cell?.style.minWidth).toBe('0px');
+    expect(cell?.style.overflowWrap).toBe('anywhere');
   });
 });
 
@@ -668,6 +729,17 @@ describe('CRY4.3 › design', () => {
     const css = readFileSync('src/modules/crypto/crypto.module.css', 'utf8');
     expect(css).not.toContain('--lab');
     expect(css).not.toMatch(/rgba?\(/);
+  });
+
+  it('la colonne laisse libre la bande de la plaque verticale du châssis (valeurs alignées à droite, fins de ligne)', async () => {
+    // `.edge` (shell.module.css) : texte vertical à 13 px du bord droit, large de 13 px ; les sections de Visual n'ont que 16 px de marge.
+    expect(c.side, 'classe .side de crypto.module.css').toBeTruthy();
+    const node = await mount();
+    const side = node.querySelector('aside');
+    expect(side?.classList.contains(v.side as string)).toBe(true);
+    expect(side?.classList.contains(c.side as string)).toBe(true);
+    const css = readFileSync('src/modules/crypto/crypto.module.css', 'utf8');
+    expect(css).toMatch(/\.side\s*\{[^}]*padding-right:\s*12px/);
   });
 
   it('l’onglet importe la feuille de Visual, sans copie', () => {
