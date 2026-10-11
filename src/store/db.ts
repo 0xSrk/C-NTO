@@ -9,6 +9,8 @@ import { TRADE_LEVEL_KEYS, tradeLevelIssue } from '@/engine/riskConsole';
 import { CREATABLE_POCKET_KINDS, assertNoCryptoPockets, type CashBalance, type EquityPoint, type FxRate, type Pocket, type Position } from '@/engine/portfolio/types';
 import type { Instrument, Session, Trade } from '@/engine/types';
 import { coerceRoutineSeen } from '@/engine/agent/routineDue';
+import { sanitizeAlerts } from '@/engine/crypto/alerts';
+import { sanitizeCryptoChart, sanitizeDrawings, sanitizeWatchlist } from '@/engine/crypto/persist';
 import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
@@ -622,6 +624,12 @@ const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
     if (isEnum(v.channel, ['stable', 'beta'] as const)) out.channel = v.channel;
     return out;
   },
+  // Onglet crypto (`docs/ONGLET-CRYPTO.md` § 8) : les assainisseurs de `src/engine/crypto`, tels quels. Une valeur de la mauvaise
+  // forme rend `undefined` et écarte la ligne ; sinon la valeur nettoyée est reprise, ses entrées invalides retirées.
+  'crypto.alerts': sanitizeAlerts,
+  'crypto.chart': sanitizeCryptoChart,
+  'crypto.drawings': sanitizeDrawings,
+  'crypto.watchlist': sanitizeWatchlist,
 };
 
 /**
