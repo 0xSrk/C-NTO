@@ -15,7 +15,7 @@ import {
 } from '@/engine/crypto/markets';
 import { DRAWINGS_MAX, INDICATORS_MAX, LABEL_MAX, sanitizeCryptoChart, sanitizeDrawings, sanitizeWatchlist, type CryptoChartSetting, type CryptoDrawing } from '@/engine/crypto/persist';
 import type { TemperatureReading } from '@/engine/crypto/temperature';
-import { defaultParams, type IndicatorDefinition, type IndicatorInstance } from '@/engine/indicators';
+import { defaultParams, type IndicatorDefinition, type IndicatorInstance, type IndicatorParam } from '@/engine/indicators';
 import { tr } from '@/i18n';
 import { desk, type CryptoMainStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
@@ -194,11 +194,24 @@ function freshId(prefix: string, taken: readonly { id: string }[]): string {
 }
 
 /**
- * Les paramètres d'un indicateur du catalogue, ou `null`. Seules les clés de la définition passent (jamais `__proto__` ou
- * `constructor`), un nombre doit être fini et dans les bornes de la définition, un choix doit être l'une de ses options :
- * ce que la ligne `crypto.chart` garde au rechargement, et rien d'autre.
+ * Un nombre est sur la grille d'un paramètre quand `(valeur - min) / pas` est entier, `min` valant 0 s'il manque. Un pas
+ * absent, nul, négatif ou non fini n'est pas une grille. L'écart toléré (relatif au nombre de pas) absorbe le bruit des
+ * flottants : 0,3 / 0,1 vaut 2,9999999999999996.
  */
-function readParams(def: IndicatorDefinition, patch: unknown): Record<string, number | string> | null {
+function onStepGrid(value: number, spec: IndicatorParam): boolean {
+  const { step } = spec;
+  if (step === undefined || !Number.isFinite(step) || step <= 0) return true;
+  const steps = (value - (spec.min ?? 0)) / step;
+  return Math.abs(steps - Math.round(steps)) <= 1e-12 * Math.max(1, Math.abs(steps));
+}
+
+/**
+ * Les paramètres d'un indicateur du catalogue, ou `null`. Seules les clés de la définition passent (jamais `__proto__` ou
+ * `constructor`), un nombre doit être fini, dans les bornes de la définition et sur son pas (une période de 20,5 donnerait
+ * à `sma` et `ema` une série fausse mais finie), un choix doit être l'une de ses options : ce que la ligne `crypto.chart`
+ * garde au rechargement, et plus strict sur le pas.
+ */
+export function readParams(def: IndicatorDefinition, patch: unknown): Record<string, number | string> | null {
   if (!isRec(patch)) return null;
   const out: Record<string, number | string> = {};
   for (const [key, value] of Object.entries(patch)) {
@@ -207,6 +220,7 @@ function readParams(def: IndicatorDefinition, patch: unknown): Record<string, nu
     if (spec.type === 'number') {
       if (typeof value !== 'number' || !Number.isFinite(value)) return null;
       if ((spec.min !== undefined && value < spec.min) || (spec.max !== undefined && value > spec.max)) return null;
+      if (!onStepGrid(value, spec)) return null;
     } else if (typeof value !== 'string' || !spec.options?.some((option) => option.value === value)) {
       return null;
     }

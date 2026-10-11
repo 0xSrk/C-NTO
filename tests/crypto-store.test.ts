@@ -4,6 +4,7 @@ import { ALERTS_MAX, sanitizeAlerts } from '@/engine/crypto/alerts';
 import { DEFAULT_CRYPTO_INDICATORS } from '@/engine/crypto/indicators';
 import { CHARTABLE_MARKETS, DEFAULT_CRYPTO_MARKET, DEFAULT_CRYPTO_TIMEFRAME } from '@/engine/crypto/markets';
 import { DRAWINGS_MAX, INDICATORS_MAX, LABEL_MAX, sanitizeCryptoChart, sanitizeDrawings, sanitizeWatchlist } from '@/engine/crypto/persist';
+import type { IndicatorDefinition } from '@/engine/indicators';
 import { useI18n } from '@/i18n';
 
 /*
@@ -22,7 +23,7 @@ vi.mock('@/store/db', () => ({
 vi.mock('@/lib/desk', () => ({ desk: h.desk }));
 
 const { getSetting, setSetting } = await import('@/store/db');
-const { useCrypto } = await import('@/store/crypto');
+const { useCrypto, readParams } = await import('@/store/crypto');
 
 const BTC = 'coinbase:BTC-USD';
 const ONDO = 'coinbase:ONDO-USD';
@@ -708,6 +709,70 @@ describe('indicateurs', () => {
     }
     expect(await s().addIndicator('vwap-utc', { bands: '2' })).toMatchObject({ ok: true });
     expect(setSetting).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuse un paramètre hors de son pas : ema avec une période de 20,5 donnerait une série fausse', async () => {
+    for (const period of [20.5, 2.000001, 499.5, 21.0000001]) {
+      expect(await s().addIndicator('ema', { period }), String(period)).toEqual({ ok: false, reason: 'bad_params' });
+    }
+    // Le pas vaut pour tout indicateur du catalogue, sma comme ema.
+    expect(await s().addIndicator('sma', { period: 20.5 })).toEqual({ ok: false, reason: 'bad_params' });
+    expect(s().indicators).toEqual(DEFAULT_CRYPTO_INDICATORS);
+    expect(setSetting).not.toHaveBeenCalled();
+    // Un entier du pas passe, bornes comprises.
+    expect(await s().addIndicator('ema', { period: 20 })).toMatchObject({ ok: true });
+    expect(await s().addIndicator('ema', { period: 2 })).toMatchObject({ ok: true });
+    expect(await s().addIndicator('ema', { period: 500 })).toMatchObject({ ok: true });
+    expect(setSetting).toHaveBeenCalledTimes(3);
+  });
+
+  it('updateIndicator ignore un patch hors du pas : l’instance ne change pas et rien n’est écrit', async () => {
+    const added = await s().addIndicator('ema', { period: 20 });
+    if (!added.ok || !added.id) throw new Error('ajout refusé');
+    const periodOf = () => s().indicators.find((indicator) => indicator.id === added.id)?.params;
+    vi.mocked(setSetting).mockClear();
+    const before = clone(s().indicators);
+    await s().updateIndicator(added.id, { period: 20.5 });
+    expect(s().indicators).toEqual(before);
+    expect(periodOf()).toEqual({ period: 20 });
+    expect(setSetting).not.toHaveBeenCalled();
+    await s().updateIndicator(added.id, { period: 30 });
+    expect(periodOf()).toEqual({ period: 30 });
+    expect(setSetting).toHaveBeenCalledTimes(1);
+    vi.mocked(setSetting).mockClear();
+    await s().updateIndicator(added.id, { period: 30.25 });
+    expect(periodOf()).toEqual({ period: 30 });
+    expect(setSetting).not.toHaveBeenCalled();
+    expectRowsSurvive();
+  });
+
+  it('refuse un pas fractionnaire non respecté et laisse passer un pas fractionnaire atteint malgré les flottants', () => {
+    // Aucun paramètre du catalogue crypto n'a de pas fractionnaire : la règle se prouve sur une définition d'essai.
+    const def: IndicatorDefinition = {
+      id: 'essai',
+      name: 'essai',
+      short: 'essai',
+      description: 'essai',
+      family: 'tendance',
+      params: [
+        { key: 'k', label: 'k', type: 'number', default: 1, min: 0.5, max: 5, step: 0.1 },
+        { key: 'free', label: 'free', type: 'number', default: 1, min: 0, max: 5 },
+        { key: 'bare', label: 'bare', type: 'number', default: 0, max: 50, step: 5 },
+      ],
+      compute: () => ({ id: 'essai', lines: [] }),
+    };
+    // 0,3 / 0,1 vaut 2,9999999999999996 en flottant, 1,1 - 0,5 = 0,6000000000000001 : sur la grille, malgré le bruit binaire.
+    for (const k of [0.5, 0.6, 1.1, 2.3, 4.9, 5]) expect(readParams(def, { k }), String(k)).toEqual({ k });
+    for (const k of [0.55, 0.51, 1.05, 4.95, 0.500001]) expect(readParams(def, { k }), String(k)).toBeNull();
+    // Sans pas, tout nombre dans les bornes passe ; sans minimum, la grille part de 0.
+    expect(readParams(def, { free: 1.2345 })).toEqual({ free: 1.2345 });
+    expect(readParams(def, { bare: 15 })).toEqual({ bare: 15 });
+    expect(readParams(def, { bare: 16 })).toBeNull();
+    // Un pas nul, négatif ou non fini n'est pas une grille : il est ignoré.
+    for (const step of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const loose: IndicatorDefinition = { ...def, params: [{ key: 'k', label: 'k', type: 'number', default: 1, min: 0, max: 5, step }] };
+      expect(readParams(loose, { k: 1.7 }), String(step)).toEqual({ k: 1.7 });
+    }
   });
 
   it('refuse le 51e indicateur : la ligne n’en garde pas plus', async () => {
