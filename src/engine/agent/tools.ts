@@ -28,6 +28,11 @@ import { clampToolArgs, TAG_LEN_MAX, TAGS_MAX, type DeskPorts } from './ports';
 export interface DeskTool extends ToolSchema {
   kind: 'read' | 'write';
   run: (args: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * Contrôle pur des arguments d'une écriture, sans port : le refus que `run` rendrait, ou `null` s'ils passent.
+   * `executeDeskTool` l'appelle avant la confirmation de l'opérateur ; `run` garde son propre contrôle.
+   */
+  precheck?: (args: Record<string, unknown>) => { ok: false; reason: string } | null;
 }
 
 /** Une plage de dates longue produirait des milliers de lignes : le modèle n'en lit pas autant. */
@@ -1370,12 +1375,16 @@ export async function executeDeskTool(ports: DeskPorts, name: string, args: stri
   if (!KNOWN_TOOLS.has(name)) return { ok: false, reason: 'unknown_tool' };
   const parsed = parseArgs(args);
   if (!parsed.ok) return { error: parsed.error };
-  const clamped = clampToolArgs(parsed.args, declaredKeys(DESK_TOOLS.find((t) => t.name === name)));
+  const tool = DESK_TOOLS.find((t) => t.name === name);
+  const clamped = clampToolArgs(parsed.args, declaredKeys(tool));
   if (!clamped.ok) return { ok: false, reason: clamped.reason };
   // Module crypto éteint (ou sans port) : refusé avant toute confirmation, lecture comme écriture, quelle que soit la source.
   if (isCryptoTool(name) && !cryptoPortOn(ports)) return { ok: false, reason: 'crypto_disabled' };
   if (toolKind(name) === 'write') {
     if (ctx.source === 'orch' && ctx.allowWrite !== true) return { ok: false, reason: 'write_disabled' };
+    // Arguments invalides (écritures crypto) : le refus de `run`, sans dialogue ni appel au port, quelle que soit la source.
+    const refused = tool?.precheck?.(clamped.args);
+    if (refused) return refused;
     // Un ordre est confirmé par le dialogue du process principal, pas par celui du renderer.
     if (ctx.source === 'llm' && !ORDER_TOOLS.includes(name)) {
       const ok = ctx.confirmFn

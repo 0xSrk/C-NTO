@@ -217,6 +217,14 @@ export interface EvaluabilityData {
   now: number;
 }
 
+/**
+ * Binance porte chaque relevé de la température : `blocked` ou `stale`, aucun ne s'évalue ni ne se lit frais. La règle de
+ * `alertEvaluability` et du `stale` de `crypto_temperature`.
+ */
+export function temperatureVenueDown(binance: VenueState | undefined): boolean {
+  return binance === 'blocked' || binance === 'stale';
+}
+
 /** Le relevé dont dépend un genre de température, et son âge maximal. */
 function readingOf(kind: CryptoAlertKind): { source: AlertReading; maxAge: number } {
   switch (kind) {
@@ -250,7 +258,7 @@ export function alertEvaluability(alert: CryptoAlert, data: EvaluabilityData): A
     return data.tickers[target] ? { ok: true } : { ok: false, reason: { code: 'no_price' } };
   }
   const binance = data.venues.binance;
-  if (binance === 'blocked' || binance === 'stale') return { ok: false, reason: { code: 'venue', venue: 'binance', state: binance } };
+  if (temperatureVenueDown(binance)) return { ok: false, reason: { code: 'venue', venue: 'binance', state: binance } };
   const reading = data.temperature;
   if (!reading) return { ok: false, reason: { code: 'no_temperature' } };
   const { source, maxAge } = readingOf(alert.kind);

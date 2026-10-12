@@ -7,14 +7,15 @@
  *   le vérifie avant la confirmation de l'opérateur ; `run` le revérifie (les dix définitions existent toujours, port ou non).
  * - Lectures : ce que le trader a ouvert, jamais un flux de plus. Onglet fermé, `crypto_chart_read` le dit (`tab_closed`).
  * - Écritures : chaque argument est contrôlé avant le port (marché du registre, énumérations, label ≤ 40, id ≤ 64, prix finis et
- *   strictement positifs, zone dans l'ordre) et refusé en code stable sans l'appeler. Le port écrit avec `by: 'agent'` et rend
+ *   strictement positifs, zone dans l'ordre) et refusé en code stable sans l'appeler. Ce contrôle est pur (`precheck`) :
+ *   `executeDeskTool` le passe avant la confirmation de l'opérateur, `run` le refait. Le port écrit avec `by: 'agent'` et rend
  *   le refus du store tel quel ; un port qui rejette (la base refuse d'enregistrer) rend `persist_failed`. Aucune exception ne
  *   sort d'un `run`.
  * - Nombres : une bougie sans prix fini est écartée ; toute autre valeur non finie devient `null`. Les prix sont arrondis à la
  *   précision du marché, les pourcentages à 2 à 4 décimales, les volumes à 6.
  */
 import { tr } from '@/i18n';
-import { CRYPTO_ALERT_KINDS, FUNDING_STALE_MS, SLOW_STALE_MS, validateAlert, type CryptoAlertKind } from '@/engine/crypto/alerts';
+import { CRYPTO_ALERT_KINDS, FUNDING_STALE_MS, SLOW_STALE_MS, temperatureVenueDown, validateAlert, type CryptoAlertKind } from '@/engine/crypto/alerts';
 import { CRYPTO_INDICATORS, cryptoIndicatorById } from '@/engine/crypto/indicators';
 import { CHARTABLE_MARKETS, CRYPTO_TIMEFRAMES, cryptoMarket, isChartableMarket, isCryptoTimeframe, type CryptoBar, type CryptoMarketId, type CryptoTimeframe } from '@/engine/crypto/markets';
 import { LABEL_MAX } from '@/engine/crypto/persist';
@@ -135,6 +136,21 @@ async function write<P>(ports: DeskPorts, checked: Checked<P>, send: (port: Cryp
 }
 
 // --- Contrôle des arguments ----------------------------------------------------------------------------------------------
+
+/**
+ * Le contrôle pur d'une écriture (`DeskTool.precheck`) : le refus de son plan, celui que `run` rendrait, ou `null` si les
+ * arguments passent. Aucun port. Un plan qui lèverait rend `null` : `run` lève alors aussi, et `runTool` le rattrape.
+ */
+function precheckOf<P>(plan: (args: Record<string, unknown>) => Checked<P>): (args: Record<string, unknown>) => Refusal | null {
+  return (args) => {
+    try {
+      const checked = plan(args);
+      return checked.ok ? null : checked;
+    } catch {
+      return null;
+    }
+  };
+}
 
 type ChartPlan = { market?: CryptoMarketId; timeframe?: CryptoTimeframe };
 
@@ -380,7 +396,9 @@ const pct = (v: unknown): number | null => (isNum(v) ? v * 100 : null);
 function temperatureRead(port: CryptoDeskPort, now: number): Record<string, unknown> {
   const reading = port.temperature();
   if (!reading) return { available: false, reason: 'no_reading' };
-  const stale = (at: unknown, maxAge: number): boolean | null => (isNum(at) ? now - at > maxAge : null);
+  // Binance bloquée ou périmée : chaque relevé est `stale`, même récent, comme dans `alertEvaluability`.
+  const venueDown = temperatureVenueDown(port.status().venues.binance);
+  const stale = (at: unknown, maxAge: number): boolean | null => (venueDown ? true : isNum(at) ? now - at > maxAge : null);
   const count = (v: unknown): number | null => (isNum(v) ? v : null);
   const { funding, breadth, liquidations, openInterest } = reading;
   return {
@@ -439,9 +457,9 @@ const ADD_REMOVE = { type: 'string', enum: ['add', 'remove'] };
 const OFF_FR = ' Module crypto éteint : `crypto_disabled`.';
 const OFF_EN = ' Crypto module off: `crypto_disabled`.';
 const OFF_ES = ' Módulo cripto apagado: `crypto_disabled`.';
-const CONFIRM_FR = ' Le trader confirme chaque écriture ; un argument hors registre ou hors bornes est refusé avant (code stable), un enregistrement refusé par la base rend `persist_failed`.';
-const CONFIRM_EN = ' The trader confirms every write; an argument outside the registry or bounds is refused first (stable code), a save refused by the database returns `persist_failed`.';
-const CONFIRM_ES = ' El trader confirma cada escritura; un argumento fuera del registro o de los límites se rechaza antes (código estable), un guardado rechazado por la base devuelve `persist_failed`.';
+const CONFIRM_FR = ' Le trader confirme chaque écriture. Un argument hors registre ou hors bornes est refusé avant la confirmation, sans rien écrire (code stable) ; un enregistrement refusé par la base rend `persist_failed`.';
+const CONFIRM_EN = ' The trader confirms every write. An argument outside the registry or bounds is refused before the confirmation, with nothing written (stable code); a save refused by the database returns `persist_failed`.';
+const CONFIRM_ES = ' El trader confirma cada escritura. Un argumento fuera del registro o de los límites se rechaza antes de la confirmación, sin escribir nada (código estable); un guardado rechazado por la base devuelve `persist_failed`.';
 
 /** Les dix définitions, toujours : sans port crypto, leur `run` refuse (`crypto_disabled`), et `DESK_TOOLS` égale le catalogue. */
 export function createCryptoTools(ports: DeskPorts): DeskTool[] {
@@ -481,7 +499,7 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
       name: 'crypto_temperature',
       kind: 'read',
       description:
-        'Température du marché crypto lue chez Binance (OpenMarket n’a pas d’équivalent) : funding médian des perps USDT et funding de BTC en % par intervalle de financement, largeur du spot (part des paires USDT en hausse sur 24 h, en %), liquidations longues et courtes de l’heure glissante en dollars US, variation de l’open interest de BTC et d’ETH sur 24 h en %. Chaque relevé porte son heure (`at`) et `stale` au-delà de deux cadences. Les liquidations sont un minorant (Binance ne pousse qu’une liquidation par symbole et par seconde) et leur fenêtre repart de zéro à chaque lancement du desk. Unités du `level` d’une alerte de température. Sans relevé : `available: false`, `no_reading`.' +
+        'Température du marché crypto lue chez Binance (OpenMarket n’a pas d’équivalent) : funding médian des perps USDT et funding de BTC en % par intervalle de financement, largeur du spot (part des paires USDT en hausse sur 24 h, en %), liquidations longues et courtes de l’heure glissante en dollars US, variation de l’open interest de BTC et d’ETH sur 24 h en %. Chaque relevé porte son heure (`at`) et `stale` : vrai au-delà de deux cadences, ou quand Binance est `blocked` ou `stale` (voyant de crypto_status), même pour un relevé récent — la règle « non évaluée » des alertes. Les liquidations sont un minorant (Binance ne pousse qu’une liquidation par symbole et par seconde) et leur fenêtre repart de zéro à chaque lancement du desk. Unités du `level` d’une alerte de température. Sans relevé : `available: false`, `no_reading`.' +
         OFF_FR,
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       run: () => read(ports, (port) => temperatureRead(port, clock(ports))),
@@ -490,7 +508,7 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
       name: 'crypto_alert_list',
       kind: 'read',
       description:
-        'Alertes crypto, comme `alert_list` d’OpenMarket : cible (marché ou `temperature`), genre, niveau dans son unité, mode (`once`, `rearm`), auteur (`trader`, `agent`), état (`armed`, `triggered`, `paused`), dates. Une alerte armée qui n’est pas évaluée en ce moment porte `evaluable: false` et `reason`, la règle « non évaluée » de l’onglet : `venue` (venue pas en direct, ou Binance bloquée ou périmée pour la température), `no_price`, `no_temperature`, `no_reading`, `stale_reading`. Lecture seule.' +
+        'Alertes crypto, comme `alert_list` d’OpenMarket : cible (marché ou `temperature`), genre, niveau dans son unité, mode (`once`, `rearm`), auteur (`trader`, `agent`), état (`armed`, `triggered`, `paused`), dates. Une alerte armée qui n’est pas évaluée en ce moment porte `evaluable: false` et `reason`, un objet, la règle « non évaluée » de l’onglet. `reason.code` : `venue` (venue pas en direct, ou Binance bloquée ou périmée pour la température ; avec `reason.venue` et `reason.state`), `no_price`, `no_temperature`, `no_reading` ou `stale_reading` (avec `reason.source` : `funding`, `liquidations` ou `breadth`). Lecture seule.' +
         OFF_FR,
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       run: () => read(ports, (port) => alertListRead(port, clock(ports))),
@@ -507,6 +525,7 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
         properties: { market: MARKET, timeframe: { type: 'integer', enum: [...CRYPTO_TIMEFRAMES], minimum: 1, maximum: 1440, description: 'Unité de temps du chart, en minutes' } },
         additionalProperties: false,
       },
+      precheck: precheckOf(chartPlan),
       run: (args) =>
         write(
           ports,
@@ -532,6 +551,7 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
         },
         additionalProperties: false,
       },
+      precheck: precheckOf(indicatorPlan),
       run: (args) =>
         write(
           ports,
@@ -561,6 +581,7 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
         },
         additionalProperties: false,
       },
+      precheck: precheckOf(drawingPlan),
       run: (args) =>
         write(
           ports,
@@ -592,6 +613,7 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
         },
         additionalProperties: false,
       },
+      precheck: precheckOf(alertPlan),
       run: (args) =>
         write(
           ports,
@@ -608,6 +630,7 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
         CONFIRM_FR +
         OFF_FR,
       parameters: { type: 'object', properties: { action: ADD_REMOVE, market: MARKET }, additionalProperties: false },
+      precheck: precheckOf(watchPlan),
       run: (args) =>
         write(
           ports,
@@ -649,17 +672,17 @@ export function cryptoToolBlurb(name: string, fallback: string): string | null {
     case 'crypto_temperature':
       return tr(
         fallback,
-        'Crypto market temperature read from Binance (OpenMarket has no equivalent): median funding of the USDT perps and BTC funding in % per funding interval, spot breadth (share of USDT pairs up over 24 h, in %), long and short liquidations of the rolling hour in US dollars, 24 h change of BTC and ETH open interest in %. Each reading carries its time (`at`) and `stale` beyond two cadences. Liquidations are a lower bound (Binance pushes at most one liquidation per symbol per second) and their window restarts from zero at each desk launch. Units of a temperature alert’s `level`. Without a reading: `available: false`, `no_reading`.' +
+        'Crypto market temperature read from Binance (OpenMarket has no equivalent): median funding of the USDT perps and BTC funding in % per funding interval, spot breadth (share of USDT pairs up over 24 h, in %), long and short liquidations of the rolling hour in US dollars, 24 h change of BTC and ETH open interest in %. Each reading carries its time (`at`) and `stale`: true beyond two cadences, or when Binance is `blocked` or `stale` (venue state in crypto_status), even for a recent reading — the alerts’ “not evaluated” rule. Liquidations are a lower bound (Binance pushes at most one liquidation per symbol per second) and their window restarts from zero at each desk launch. Units of a temperature alert’s `level`. Without a reading: `available: false`, `no_reading`.' +
           OFF_EN,
-        'Temperatura del mercado cripto leída en Binance (OpenMarket no tiene equivalente): funding mediano de los perps USDT y funding de BTC en % por intervalo de financiación, amplitud del spot (parte de los pares USDT al alza en 24 h, en %), liquidaciones largas y cortas de la hora móvil en dólares estadounidenses, variación del open interest de BTC y ETH en 24 h en %. Cada lectura lleva su hora (`at`) y `stale` pasadas dos cadencias. Las liquidaciones son una cota inferior (Binance solo envía una liquidación por símbolo y por segundo) y su ventana vuelve a cero en cada arranque del desk. Unidades del `level` de una alerta de temperatura. Sin lectura: `available: false`, `no_reading`.' +
+        'Temperatura del mercado cripto leída en Binance (OpenMarket no tiene equivalente): funding mediano de los perps USDT y funding de BTC en % por intervalo de financiación, amplitud del spot (parte de los pares USDT al alza en 24 h, en %), liquidaciones largas y cortas de la hora móvil en dólares estadounidenses, variación del open interest de BTC y ETH en 24 h en %. Cada lectura lleva su hora (`at`) y `stale`: verdadero pasadas dos cadencias, o cuando Binance está `blocked` o `stale` (estado del venue en crypto_status), incluso para una lectura reciente — la regla «no evaluada» de las alertas. Las liquidaciones son una cota inferior (Binance solo envía una liquidación por símbolo y por segundo) y su ventana vuelve a cero en cada arranque del desk. Unidades del `level` de una alerta de temperatura. Sin lectura: `available: false`, `no_reading`.' +
           OFF_ES,
       );
     case 'crypto_alert_list':
       return tr(
         fallback,
-        'Crypto alerts, like OpenMarket’s `alert_list`: target (market or `temperature`), kind, level in its unit, mode (`once`, `rearm`), author (`trader`, `agent`), state (`armed`, `triggered`, `paused`), dates. An armed alert that is not evaluated right now carries `evaluable: false` and `reason`, the tab’s “not evaluated” rule: `venue` (venue not live, or Binance blocked or stale for the temperature), `no_price`, `no_temperature`, `no_reading`, `stale_reading`. Read only.' +
+        'Crypto alerts, like OpenMarket’s `alert_list`: target (market or `temperature`), kind, level in its unit, mode (`once`, `rearm`), author (`trader`, `agent`), state (`armed`, `triggered`, `paused`), dates. An armed alert that is not evaluated right now carries `evaluable: false` and `reason`, an object, the tab’s “not evaluated” rule. `reason.code`: `venue` (venue not live, or Binance blocked or stale for the temperature; with `reason.venue` and `reason.state`), `no_price`, `no_temperature`, `no_reading` or `stale_reading` (with `reason.source`: `funding`, `liquidations` or `breadth`). Read only.' +
           OFF_EN,
-        'Alertas cripto, como `alert_list` de OpenMarket: objetivo (mercado o `temperature`), tipo, nivel en su unidad, modo (`once`, `rearm`), autor (`trader`, `agent`), estado (`armed`, `triggered`, `paused`), fechas. Una alerta armada que no se evalúa en este momento lleva `evaluable: false` y `reason`, la regla «no evaluada» de la pestaña: `venue` (venue no en directo, o Binance bloqueada o caducada para la temperatura), `no_price`, `no_temperature`, `no_reading`, `stale_reading`. Solo lectura.' +
+        'Alertas cripto, como `alert_list` de OpenMarket: objetivo (mercado o `temperature`), tipo, nivel en su unidad, modo (`once`, `rearm`), autor (`trader`, `agent`), estado (`armed`, `triggered`, `paused`), fechas. Una alerta armada que no se evalúa en este momento lleva `evaluable: false` y `reason`, un objeto, la regla «no evaluada» de la pestaña. `reason.code`: `venue` (venue no en directo, o Binance bloqueada o caducada para la temperatura; con `reason.venue` y `reason.state`), `no_price`, `no_temperature`, `no_reading` o `stale_reading` (con `reason.source`: `funding`, `liquidations` o `breadth`). Solo lectura.' +
           OFF_ES,
       );
     case 'crypto_chart_set':

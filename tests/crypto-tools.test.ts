@@ -3,7 +3,7 @@ import { outputSchemaFor } from '../electron/mcp-server';
 import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES } from '@/engine/agent/catalog';
 import { CRYPTO_TOOL_NAMES, createCryptoTools, cryptoToolBlurb, isCryptoTool } from '@/engine/agent/cryptoTools';
 import { clampToolArgs, type CryptoDeskPort, type DeskPorts } from '@/engine/agent/ports';
-import { describedDeskTools, executeDeskTool, toolBlurb, toolSchemas, type ExecuteCtx } from '@/engine/agent/tools';
+import { DESK_TOOLS, describedDeskTools, executeDeskTool, toolBlurb, toolSchemas, type ExecuteCtx } from '@/engine/agent/tools';
 import { alertEvaluability, CRYPTO_ALERT_KINDS, type CryptoAlert, type EvaluabilityData } from '@/engine/crypto/alerts';
 import { cryptoIndicatorById } from '@/engine/crypto/indicators';
 import { CHARTABLE_MARKETS, CRYPTO_TIMEFRAMES, type CryptoBar } from '@/engine/crypto/markets';
@@ -266,6 +266,32 @@ describe('schémas des outils crypto', () => {
     expect(cryptoToolBlurb('desk_overview', 'x')).toBeNull();
   });
 
+  it('crypto_alert_list dit `reason.code` (la sortie porte un objet, pas un code nu), en trois langues', () => {
+    for (const locale of ['fr', 'en', 'es'] as const) {
+      useI18n.setState({ locale });
+      const text = toolSchemas({ crypto: true }).find((t) => t.name === 'crypto_alert_list')!.description;
+      expect(text, locale).toContain('reason.code');
+      for (const code of ['venue', 'no_price', 'no_temperature', 'no_reading', 'stale_reading']) expect(text, `${locale} ${code}`).toContain(`\`${code}\``);
+    }
+  });
+
+  it('crypto_temperature dit que `stale` vaut aussi quand Binance est blocked ou stale, en trois langues', () => {
+    for (const locale of ['fr', 'en', 'es'] as const) {
+      useI18n.setState({ locale });
+      const text = toolSchemas({ crypto: true }).find((t) => t.name === 'crypto_temperature')!.description;
+      expect(text, locale).toContain('`blocked`');
+      expect(text, locale).toContain('Binance');
+    }
+  });
+
+  it('chaque écriture crypto dit qu’un argument invalide est refusé avant la confirmation, en trois langues', () => {
+    const before = { fr: 'avant la confirmation', en: 'before the confirmation', es: 'antes de la confirmación' } as const;
+    for (const locale of ['fr', 'en', 'es'] as const) {
+      useI18n.setState({ locale });
+      for (const name of WRITES) expect(toolSchemas({ crypto: true }).find((t) => t.name === name)!.description, `${locale} ${name}`).toContain(before[locale]);
+    }
+  });
+
   it('market et label sont des arguments courts (≤ 64)', () => {
     for (const k of ['market', 'label']) {
       expect(clampToolArgs({ [k]: 'x'.repeat(65) }), k).toEqual({ ok: false, reason: 'args_too_large' });
@@ -428,7 +454,9 @@ describe('lectures sur un faux port', () => {
   });
 
   it('crypto_temperature : unités des alertes, heure et fraîcheur de chaque relevé, liquidations en minorant', async () => {
-    const out = await call<Record<string, unknown> & { liquidations: Record<string, unknown> }>(ports(fakeCrypto().port), 'crypto_temperature');
+    // Binance en direct : la fraîcheur ne dépend que de l'âge de chaque relevé.
+    const live = fakeCrypto({ status: () => ({ ...STATUS, venues: { ...STATUS.venues, binance: 'live' } }) }).port;
+    const out = await call<Record<string, unknown> & { liquidations: Record<string, unknown> }>(ports(live), 'crypto_temperature');
     expect(out).toMatchObject({
       available: true,
       funding: { medianPct: 0.011, btcPct: 0.0123, symbols: 412, at: new Date(NOW - 30_000).toISOString(), stale: false },
@@ -442,6 +470,34 @@ describe('lectures sur un faux port', () => {
     useI18n.setState({ locale: 'en' });
     expect(String((await call<{ liquidations: { note: string } }>(ports(fakeCrypto().port), 'crypto_temperature')).liquidations.note)).toMatch(/lower bound/);
     expect(await call(ports(fakeCrypto({ temperature: () => null }).port), 'crypto_temperature')).toEqual({ available: false, reason: 'no_reading' });
+  });
+
+  it('crypto_temperature : Binance blocked ou stale rend chaque relevé stale, même récent — la règle de alertEvaluability', async () => {
+    const sections = ['funding', 'breadth', 'liquidations', 'openInterest'] as const;
+    // Le genre d'alerte qui dépend de chaque relevé (l'open interest n'en porte aucune).
+    const kindOf = { funding: 'funding_median_above', breadth: 'breadth_above', liquidations: 'liquidations_long_1h_above' } as const;
+    const fresh: TemperatureReading = {
+      funding: { ...READING.funding!, at: NOW - 1_000 },
+      breadth: { ...READING.breadth!, at: NOW - 1_000 },
+      liquidations: { ...READING.liquidations!, at: NOW - 1_000 },
+      openInterest: { ...READING.openInterest!, at: NOW - 1_000 },
+    };
+    for (const binance of ['off', 'connecting', 'live', 'reconnecting', 'stale', 'blocked'] as const) {
+      const venues = { ...STATUS.venues, binance };
+      const port = fakeCrypto({ status: () => ({ ...STATUS, venues }), temperature: () => fresh }).port;
+      const out = await call<Record<(typeof sections)[number], { stale: boolean | null }>>(ports(port), 'crypto_temperature');
+      const down = binance === 'blocked' || binance === 'stale';
+      for (const key of sections) expect(out[key].stale, `${binance} ${key}`).toBe(down);
+      // Même verdict que l'onglet et l'évaluateur : une alerte de température s'évalue si et seulement si son relevé n'est pas stale.
+      for (const [key, kind] of Object.entries(kindOf) as [keyof typeof kindOf, CryptoAlert['kind']][]) {
+        const alert: CryptoAlert = { id: 'x', target: 'temperature', kind, level: 1, mode: 'once', author: 'trader', state: 'armed', createdAt: NOW };
+        const verdict = alertEvaluability(alert, { venues, tickers: {}, temperature: fresh, now: NOW });
+        expect(verdict.ok, `${binance} ${key}`).toBe(!out[key].stale);
+      }
+    }
+    // Un relevé sans heure, Binance bloquée : stale quand même (jamais `null` quand la venue tombe).
+    const noTime = fakeCrypto({ status: () => ({ ...STATUS, venues: { ...STATUS.venues, binance: 'blocked' } }), temperature: () => ({ ...fresh, funding: { ...fresh.funding!, at: Number.NaN } }) }).port;
+    expect((await call<{ funding: { stale: boolean | null } }>(ports(noTime), 'crypto_temperature')).funding.stale).toBe(true);
   });
 
   it('crypto_alert_list : évaluabilité tirée de alertEvaluability, la règle de l’onglet', async () => {
@@ -644,10 +700,19 @@ describe('arguments refusés avant le port', () => {
     ['crypto_watchlist_set', { action: 'pin', market: BTC }, 'bad_action'],
   ];
 
-  it.each(cases)('%s %j → %s, sans appel au port', async (name, args, reason) => {
+  it.each(cases)('%s %j → %s, avant la confirmation et sans appel au port, par les deux sources', async (name, args, reason) => {
     const { port, calls } = fakeCrypto();
-    expect(await call(ports(port), name, args)).toEqual({ ok: false, reason });
+    const confirmFn = vi.fn(async () => true);
+    expect(await call(ports(port), name, args, { confirmFn })).toEqual({ ok: false, reason });
+    expect(confirmFn).not.toHaveBeenCalled();
+    expect(await executeDeskTool(ports(port), name, args, { source: 'orch', allowWrite: true })).toEqual({ ok: false, reason });
     expect(calls).toEqual([]);
+  });
+
+  it.each(cases)('le contrôle pur de %s %j rend le refus que run rendrait (%s)', async (name, args) => {
+    const precheck = DESK_TOOLS.find((t) => t.name === name)!.precheck!;
+    const run = createCryptoTools(ports(fakeCrypto().port)).find((t) => t.name === name)!.run;
+    expect(precheck(args)).toEqual(await run(args));
   });
 
   it('binance:BTCUSDT → unknown_market sans appel, quel que soit l’outil qui prend un marché', async () => {
@@ -668,6 +733,86 @@ describe('arguments refusés avant le port', () => {
     expect(await call(ports(port), 'crypto_drawing_set', { action: 'add', kind: 'level', market: BTC, price: 1, label: 'x'.repeat(65) })).toEqual({ ok: false, reason: 'args_too_large' });
     expect(await call(ports(port), 'crypto_indicator_set', { action: 'remove', id: 'x'.repeat(65) })).toEqual({ ok: false, reason: 'args_too_large' });
     expect(calls).toEqual([]);
+  });
+});
+
+// --- Contrôle avant la confirmation --------------------------------------------------------------------------------------
+
+describe('une écriture crypto invalide est refusée avant la confirmation de l’opérateur', () => {
+  /** Pour chaque écriture : des arguments valides, et des arguments invalides avec le refus attendu. */
+  const WRITE_CASES: Record<string, { valid: Record<string, unknown>; invalid: [Record<string, unknown>, string][] }> = {
+    crypto_chart_set: { valid: { market: ONE, timeframe: 15 }, invalid: [[{ market: 'binance:BTCUSDT' }, 'unknown_market'], [{ timeframe: 30 }, 'bad_timeframe']] },
+    crypto_indicator_set: { valid: { action: 'add', indicator: 'ema', params: { period: 50 } }, invalid: [[{ action: 'add', indicator: 'ema', params: { period: -3 } }, 'bad_params'], [{ action: 'remove' }, 'bad_id']] },
+    crypto_drawing_set: {
+      valid: { action: 'add', kind: 'level', market: BTC, price: 85_000, label: 'résistance' },
+      invalid: [
+        // Le cas du constat : un marché hors registre, un prix négatif et un label de 50 caractères passent la borne commune (≤ 64).
+        [{ action: 'add', kind: 'level', market: 'binance:BTCUSDT', price: -5, label: 'x'.repeat(50) }, 'unknown_market'],
+        [{ action: 'add', kind: 'level', market: BTC, price: -5, label: 'x'.repeat(50) }, 'bad_price'],
+        [{ action: 'add', kind: 'level', market: BTC, price: 85_000, label: 'x'.repeat(50) }, 'label_too_long'],
+      ],
+    },
+    crypto_alert_set: {
+      valid: { action: 'create', target: BTC, kind: 'price_above', level: 90_000, mode: 'once' },
+      invalid: [[{ action: 'create', target: BTC, kind: 'price_above', level: -1, mode: 'once' }, 'bad_level'], [{ action: 'create', target: 'temperature', kind: 'breadth_above', level: 40, mode: 'always' }, 'bad_mode']],
+    },
+    crypto_watchlist_set: { valid: { action: 'add', market: ONE }, invalid: [[{ action: 'add', market: 'binance:BTCUSDT' }, 'unknown_market'], [{ action: 'pin', market: BTC }, 'bad_action']] },
+  };
+
+  it('les cinq écritures crypto, et elles seules, exposent un contrôle pur', () => {
+    expect(Object.keys(WRITE_CASES).sort()).toEqual([...WRITES].sort());
+    expect(DESK_TOOLS.filter((t) => typeof t.precheck === 'function').map((t) => t.name).sort()).toEqual([...WRITES].sort());
+    for (const name of WRITES) expect(DESK_TOOLS.find((t) => t.name === name)!.precheck!(WRITE_CASES[name]!.valid), name).toBeNull();
+  });
+
+  it('argument invalide : le refus de run, sans dialogue ni appel au port, source llm comme orch', async () => {
+    for (const [name, { invalid }] of Object.entries(WRITE_CASES)) {
+      for (const [args, reason] of invalid) {
+        const { port, calls } = fakeCrypto();
+        const confirmFn = vi.fn(async () => true);
+        expect(await executeDeskTool(ports(port), name, args, { source: 'llm', confirmFn }), `llm ${name} ${reason}`).toEqual({ ok: false, reason });
+        expect(confirmFn, `${name} ${reason}`).not.toHaveBeenCalled();
+        expect(await executeDeskTool(ports(port), name, args, { source: 'orch', allowWrite: true }), `orch ${name} ${reason}`).toEqual({ ok: false, reason });
+        expect(calls, `${name} ${reason}`).toEqual([]);
+      }
+    }
+  });
+
+  it('argument valide : la confirmation est toujours demandée ; refusée, rien n’est écrit ; acceptée, le port écrit', async () => {
+    for (const [name, { valid }] of Object.entries(WRITE_CASES)) {
+      const denied = fakeCrypto();
+      const deny = vi.fn(async () => false);
+      expect(await executeDeskTool(ports(denied.port), name, valid, { source: 'llm', confirmFn: deny }), name).toEqual({ ok: false, reason: 'operator_denied' });
+      expect(deny, name).toHaveBeenCalledTimes(1);
+      expect((deny.mock.calls[0] as unknown as [string, string])[0], name).toContain(name);
+      expect(denied.calls, name).toEqual([]);
+      const accepted = fakeCrypto();
+      const allow = vi.fn(async () => true);
+      expect(await executeDeskTool(ports(accepted.port), name, valid, { source: 'llm', confirmFn: allow }), name).toMatchObject({ ok: true });
+      expect(allow, name).toHaveBeenCalledTimes(1);
+      expect(accepted.calls, name).toHaveLength(1);
+    }
+  });
+
+  it('orchestrateur sans allowWrite : write_disabled d’abord, argument valide ou non (ordre inchangé)', async () => {
+    const { port, calls } = fakeCrypto();
+    for (const [name, { valid, invalid }] of Object.entries(WRITE_CASES)) {
+      for (const args of [valid, invalid[0]![0]]) expect(await executeDeskTool(ports(port), name, args, { source: 'orch' }), name).toEqual({ ok: false, reason: 'write_disabled' });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('une écriture hors crypto garde son chemin : confirmation d’abord, puis son propre contrôle', async () => {
+    const createNote = vi.fn(async (title: string) => ({ id: 'n1', title }));
+    const confirmFn = vi.fn(async () => true);
+    expect(await executeDeskTool(fakePorts({ createNote }), 'create_note', { title: 'Plan', body: 'x' }, { source: 'llm', confirmFn })).toEqual({ id: 'n1', title: 'Plan' });
+    expect(confirmFn).toHaveBeenCalledTimes(1);
+    expect(createNote).toHaveBeenCalledTimes(1);
+    // Une note parente introuvable : refusée par `run`, donc après la confirmation, comme avant.
+    const confirmBranch = vi.fn(async () => true);
+    const out = (await executeDeskTool(fakePorts(), 'branch_note', { id: 'absente', ancre: 'a', question: 'q' }, { source: 'llm', confirmFn: confirmBranch })) as { error?: string };
+    expect(out.error).toBe('Note introuvable');
+    expect(confirmBranch).toHaveBeenCalledTimes(1);
   });
 });
 
