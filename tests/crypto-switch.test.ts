@@ -1,12 +1,26 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { AgentDialogOptions } from '../electron/agent-orders';
 import { CryptoSwitchHost } from '../electron/crypto-switch';
 import type { AppLocale } from '../electron/locale';
 
 type Win = { isDestroyed(): boolean };
+
+/** Les dossiers de données que les tests ont créés dans le dossier temporaire : chaque test efface les siens. */
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+});
+
+/** Un dossier de données neuf dans le dossier temporaire, effacé à la fin du test. */
+function tempDir(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'canto-crypto-switch-'));
+  tempDirs.push(dir);
+  return dir;
+}
 
 interface HarnessOptions {
   /** Réponses successives du dialogue (0 = Activer, 1 = Annuler) ; Annuler quand la liste est vide. */
@@ -23,7 +37,7 @@ interface HarnessOptions {
 }
 
 function harness(opts: HarnessOptions = {}) {
-  const dir = opts.dir ?? mkdtempSync(path.join(tmpdir(), 'canto-crypto-switch-'));
+  const dir = opts.dir ?? tempDir();
   const win: Win | null = opts.window === undefined ? { isDestroyed: () => false } : opts.window;
   const dialogs: AgentDialogOptions[] = [];
   const parents: Win[] = [];
@@ -121,7 +135,7 @@ describe('interrupteur crypto · process principal', () => {
   });
 
   it('crée le dossier de données s’il manque', async () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'canto-crypto-switch-'));
+    const root = tempDir();
     const h = harness({ dir: path.join(root, 'profil', 'neuf'), answers: [0] });
     expect(await h.host.requestEnable()).toBe(true);
     expect(written(h.file)).toEqual({ enabled: true });
@@ -318,7 +332,7 @@ describe('interrupteur crypto · process principal', () => {
 
   describe('persistance', () => {
     it('crypto.json impossible à écrire ni à supprimer : allumé pour la séance seulement, journalisé, jamais de levée', async () => {
-      const dir = mkdtempSync(path.join(tmpdir(), 'canto-crypto-switch-'));
+      const dir = tempDir();
       mkdirSync(path.join(dir, 'crypto.json')); // un dossier occupe la place du fichier : ni l'écrire ni le supprimer
       const h = harness({ dir, answers: [0] });
       const seen: boolean[] = [];
@@ -341,7 +355,7 @@ describe('interrupteur crypto · process principal', () => {
     });
 
     it('écriture de false impossible (fichier en lecture seule) : le fichier est supprimé, un nouvel hôte relit éteint', () => {
-      const dir = mkdtempSync(path.join(tmpdir(), 'canto-crypto-switch-'));
+      const dir = tempDir();
       const file = path.join(dir, 'crypto.json');
       writeFileSync(file, '{"enabled":true}');
       // Écrire échoue ensuite (EPERM sous Windows, EACCES ailleurs) et l'ancien true resterait sur le disque. Sous un
@@ -372,5 +386,23 @@ describe('interrupteur crypto · process principal', () => {
       expect(h.logs).toHaveLength(2);
       expect(h.logs[1]).toMatch(/^crypto désactivé/);
     });
+  });
+});
+
+describe('dossiers temporaires des tests', () => {
+  /** Le dossier que le test précédent a créé : le suivant le cherche, et il doit avoir disparu. */
+  let created = '';
+
+  it('chaque harnais crée un dossier de données dans le dossier temporaire', async () => {
+    const h = harness({ answers: [0] });
+    await h.host.requestEnable();
+    created = h.dir;
+    expect(path.basename(created)).toMatch(/^canto-crypto-switch-/);
+    expect(existsSync(h.file)).toBe(true);
+  });
+
+  it('ce dossier est effacé à la fin du test qui l’a créé', () => {
+    expect(created, 'le test précédent doit avoir tourné').not.toBe('');
+    expect(existsSync(created)).toBe(false);
   });
 });
