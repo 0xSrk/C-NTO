@@ -76,7 +76,7 @@ src/engine/crypto/  (pur)                       electron/crypto/*.d.ts          
 1. *Léger, permanent* (interrupteur allumé, desk ouvert, quel que soit l'onglet) : tickers de la watchlist et relevés de température. Nécessaire aux alertes.
 2. *Lourd, à la vue* (onglet 09 affiché) : bougies et trades du chart actif ; ouverts au changement de marché ou de timeframe, fermés en quittant l'onglet.
 
-**Historique.** À l'ouverture du chart, le main charge 500 bougies, ou davantage en 1m et 5m pour remonter au moins à 00:00 UTC de la veille (VWAP et niveaux du jour UTC) : jusqu'à 2 880 bougies en 1m et 576 en 5m. Coinbase 4h : 300 bougies (environ 50 jours). Elles restent en mémoire (aucune bougie crypto dans Dexie). Coinbase n'envoie aucune bougie pour un seau sans trade, et le volume d'une bougie grossière peut différer un peu de la somme des bougies plus fines du même intervalle (relevé en CRY1.2 ; mesuré par l'oracle de CRY7.1, `docs/AUDIT.md` › « Onglet 09 · CRY »). Le pas de prix de chaque marché a été relevé dans les métadonnées des exchanges le 9 octobre 2026 (`quote_increment`, `PRICE_FILTER.tickSize`, `priceFilter.tickSize`) et fixé dans le registre, où il pilote le `priceFormat` du chart : `coinbase:BTC-USD` 0,01 ; `coinbase:ONDO-USD` 0,00001 ; `binance:ONEUSDT` 0,000001 ; `bybit:ZIGUSDT` 0,00001 ; sources du CVD Binance `binance:BTCUSDT` 0,01 et `binance:ONDOUSDT` 0,0001.
+**Historique.** À l'ouverture du chart, le main charge 500 bougies, ou davantage en 1m et 5m pour remonter au moins à 00:00 UTC de la veille (VWAP et niveaux du jour UTC) : jusqu'à 2 880 bougies en 1m et 576 en 5m, une de plus si le seau bascule pendant le chargement (la fenêtre gardée va jusqu'au seau qui suit le seau courant ; sans bascule, la bougie de marge que la requête Binance demande en plus, `limit` = cible + 1, tombe de la fenêtre). Coinbase 4h : 300 bougies (environ 50 jours). Elles restent en mémoire (aucune bougie crypto dans Dexie). Coinbase n'envoie aucune bougie pour un seau sans trade, et le volume d'une bougie grossière peut différer un peu de la somme des bougies plus fines du même intervalle (relevé en CRY1.2 ; mesuré par l'oracle de CRY7.1, `docs/AUDIT.md` › « Onglet 09 · CRY »). Le pas de prix de chaque marché a été relevé dans les métadonnées des exchanges le 9 octobre 2026 (`quote_increment`, `PRICE_FILTER.tickSize`, `priceFilter.tickSize`) et fixé dans le registre, où il pilote le `priceFormat` du chart : `coinbase:BTC-USD` 0,01 ; `coinbase:ONDO-USD` 0,00001 ; `binance:ONEUSDT` 0,000001 ; `bybit:ZIGUSDT` 0,00001 ; sources du CVD Binance `binance:BTCUSDT` 0,01 et `binance:ONDOUSDT` 0,0001.
 
 **CVD.**
 - Binance : complet, historique compris : delta = 2 × volume acheteur − volume.
@@ -173,7 +173,7 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 ## 10. OpenMarket : usage correct
 
 1. **Modèle de grammaire.** Les outils du § 9 en reprennent le sens et citent l'équivalent dans leur description : un agent qui sait piloter l'un sait piloter l'autre.
-2. **Oracle de recette.** Par Claude Code, en lecture, sur le plan Free : comparaison des bougies et du CVD du desk avec `chart_read` (§ 11).
+2. **Oracle de recette.** Par Claude Code, en lecture, sur le plan Free : comparaison des bougies et du CVD du desk avec `chart_read` (§ 11). CRY7.1 l'a fait avec le seul outil `points`, en lecture seule, sans `chart_read` ni chart temporaire : écart consigné dans `docs/AUDIT.md` › « Onglet 09 · CRY », que l'ADMIN juge.
 3. **Jamais dans le desk.** Le desk ne charge aucun serveur MCP tiers (`docs/THESE-AGENTIQUE.md:53`) ; OpenMarket reste un connecteur de Claude Code, au niveau « Read and control charts », jamais « trade ».
 4. Ses données ne couvrent pas CME : il ne sert à rien côté futures.
 
@@ -191,10 +191,10 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 **Recette (lot CRY7)**, desk lancé par l'ADMIN (`npm run desk:dev`) :
 1. Interrupteur éteint : desk de la 3.5.0, onglet 09 en état vide, aucune connexion vers `CRYPTO_HOSTS`.
 2. Allumé : les quatre voyants passent à `live`, la température se remplit, le CVD affiche son ancrage.
-3. Oracle BTC-USD Coinbase 1h : les 50 dernières bougies closes du desk égalent `chart_read bars:50` d'OpenMarket (O, H, L, C au pas de prix ; volume à ±1 %).
-4. Oracle ONE Binance : le CVD du desk suit celui d'OpenMarket en direction, bougie par bougie, sur 50 bougies (chart temporaire OpenMarket, avec l'accord de l'ADMIN au moment de la recette).
+3. Oracle BTC-USD Coinbase 1h : les 50 dernières bougies closes du desk égalent `chart_read bars:50` d'OpenMarket (O, H, L, C au pas de prix ; volume à ±1 %). Fait en CRY7.1 avec `points` en lecture seule, pas `chart_read` : à l'ADMIN de juger (`docs/AUDIT.md` › « Onglet 09 · CRY »).
+4. Oracle ONE Binance : le CVD du desk suit celui d'OpenMarket en direction, bougie par bougie, sur 50 bougies (chart temporaire OpenMarket, avec l'accord de l'ADMIN au moment de la recette). Fait en CRY7.1 avec `points` en lecture seule, sans chart temporaire : à l'ADMIN de juger (même renvoi).
 5. Une alerte prix et une alerte funding se déclenchent en toast et apparaissent dans `desk_events`.
-6. Par Claude Code sur la passerelle : `crypto_chart_read` égale l'écran ; `crypto_indicator_set` ajoute EMA 200 après confirmation.
+6. Par Claude Code sur la passerelle : `crypto_chart_read` égale l'écran ; `crypto_indicator_set` ajoute EMA 200 derrière l'interrupteur d'écriture (`orchestratorAllowWrite`, éteint par défaut), sans dialogue (§ 1) ; le même appel par l'agent du desk ouvre le dialogue de confirmation.
 
 ## 12. Organisation
 
