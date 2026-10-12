@@ -680,6 +680,9 @@ describe('arguments refusés avant le port', () => {
     ['crypto_indicator_set', { action: 'add', indicator: 'ema', params: { length: 21 } }, 'bad_params'],
     ['crypto_indicator_set', { action: 'add', indicator: 'ema', params: { period: Number.NaN } }, 'bad_params'],
     ['crypto_indicator_set', { action: 'add', indicator: 'ema', params: { period: '21' } }, 'bad_params'],
+    // Hors de la grille du pas (1) : la règle du store, appliquée avant la confirmation.
+    ['crypto_indicator_set', { action: 'add', indicator: 'ema', params: { period: 20.5 } }, 'bad_params'],
+    ['crypto_indicator_set', { action: 'add', indicator: 'atr', params: { period: 14.000001 } }, 'bad_params'],
     ['crypto_indicator_set', { action: 'add', indicator: 'ema', params: JSON.parse('{"__proto__":{"period":1}}') as Record<string, unknown> }, 'bad_params'],
     ['crypto_indicator_set', { action: 'remove' }, 'bad_id'],
     ['crypto_indicator_set', { action: 'remove', id: '' }, 'bad_id'],

@@ -6,8 +6,9 @@
  * - Interrupteur : sans port, port éteint ou port qui lève, chaque outil rend `crypto_disabled`. `executeDeskTool` (`./tools.ts`)
  *   le vérifie avant la confirmation de l'opérateur ; `run` le revérifie (les dix définitions existent toujours, port ou non).
  * - Lectures : ce que le trader a ouvert, jamais un flux de plus. Onglet fermé, `crypto_chart_read` le dit (`tab_closed`).
- * - Écritures : chaque argument est contrôlé avant le port (marché du registre, énumérations, label ≤ 40, id ≤ 64, prix finis et
- *   strictement positifs, zone dans l'ordre) et refusé en code stable sans l'appeler. Ce contrôle est pur (`precheck`) :
+ * - Écritures : chaque argument est contrôlé avant le port (marché du registre, énumérations, paramètres d'indicateur dans leurs
+ *   bornes et sur leur pas, label ≤ 40, id ≤ 64, prix finis et strictement positifs, zone dans l'ordre) et refusé en code
+ *   stable sans l'appeler. Ce contrôle est pur (`precheck`) :
  *   `executeDeskTool` le passe avant la confirmation de l'opérateur, `run` le refait. Le port écrit avec `by: 'agent'` et rend
  *   le refus du store tel quel ; un port qui rejette (la base refuse d'enregistrer) rend `persist_failed`. Aucune exception ne
  *   sort d'un `run`.
@@ -16,7 +17,7 @@
  */
 import { tr } from '@/i18n';
 import { CRYPTO_ALERT_KINDS, FUNDING_STALE_MS, SLOW_STALE_MS, temperatureVenueDown, validateAlert, type CryptoAlertKind } from '@/engine/crypto/alerts';
-import { CRYPTO_INDICATORS, cryptoIndicatorById } from '@/engine/crypto/indicators';
+import { CRYPTO_INDICATORS, cryptoIndicatorById, onStepGrid } from '@/engine/crypto/indicators';
 import { CHARTABLE_MARKETS, CRYPTO_TIMEFRAMES, cryptoMarket, isChartableMarket, isCryptoTimeframe, type CryptoBar, type CryptoMarketId, type CryptoTimeframe } from '@/engine/crypto/markets';
 import { LABEL_MAX } from '@/engine/crypto/persist';
 import type { CryptoChartView, CryptoLineView, CryptoWriteResult } from '@/engine/crypto/views';
@@ -171,7 +172,8 @@ function chartPlan(args: Record<string, unknown>): Checked<ChartPlan> {
 
 /**
  * Les paramètres d'un indicateur, contrôlés en forme : un objet dont chaque clé est un paramètre de l'indicateur, un nombre fini
- * dans ses bornes, ou l'une de ses options. Le pas de la grille est vérifié par le store (`readParams`), qui refuse `bad_params`.
+ * dans ses bornes et sur la grille de son pas (`onStepGrid`, la règle de `readParams` du store), ou l'une de ses options. Le
+ * contrôle passe avant la confirmation : une période de 20,5 est refusée (`bad_params`) sans dialogue.
  */
 function readParamsShape(def: IndicatorDefinition, raw: unknown): Record<string, number | string> | null {
   if (!isRec(raw)) return null;
@@ -182,6 +184,7 @@ function readParamsShape(def: IndicatorDefinition, raw: unknown): Record<string,
     if (spec.type === 'number') {
       if (!isNum(value)) return null;
       if ((spec.min !== undefined && value < spec.min) || (spec.max !== undefined && value > spec.max)) return null;
+      if (!onStepGrid(value, spec)) return null;
     } else if (typeof value !== 'string' || !spec.options?.some((option) => option.value === value)) {
       return null;
     }

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { CryptoDeskPort } from '@/engine/agent/ports';
 import { ALERTS_MAX, sanitizeAlerts, validateAlert, type CryptoAlert, type CryptoAlertKind } from '@/engine/crypto/alerts';
-import { cryptoIndicatorById, DEFAULT_CRYPTO_INDICATORS, inputBarsFor, offeredCatalog } from '@/engine/crypto/indicators';
+import { cryptoIndicatorById, DEFAULT_CRYPTO_INDICATORS, inputBarsFor, offeredCatalog, onStepGrid } from '@/engine/crypto/indicators';
 import {
   CHARTABLE_MARKETS,
   DEFAULT_CRYPTO_MARKET,
@@ -17,7 +17,7 @@ import {
 import { DRAWINGS_MAX, INDICATORS_MAX, LABEL_MAX, sanitizeCryptoChart, sanitizeDrawings, sanitizeWatchlist, type CryptoChartSetting, type CryptoDrawing } from '@/engine/crypto/persist';
 import type { TemperatureReading } from '@/engine/crypto/temperature';
 import { cryptoAlertViews, type CryptoChartView, type CryptoLineView, type CryptoWatchRow, type CryptoWriteResult } from '@/engine/crypto/views';
-import { defaultParams, type IndicatorDefinition, type IndicatorInstance, type IndicatorParam } from '@/engine/indicators';
+import { defaultParams, type IndicatorDefinition, type IndicatorInstance } from '@/engine/indicators';
 import { tr } from '@/i18n';
 import { desk, type CryptoMainStatus } from '@/lib/desk';
 import { uid } from '@/lib/id';
@@ -220,22 +220,10 @@ function freshId(prefix: string, taken: readonly { id: string }[]): string {
 }
 
 /**
- * Un nombre est sur la grille d'un paramètre quand `(valeur - min) / pas` est entier, `min` valant 0 s'il manque. Un pas
- * absent, nul, négatif ou non fini n'est pas une grille. L'écart toléré (relatif au nombre de pas) absorbe le bruit des
- * flottants : 0,3 / 0,1 vaut 2,9999999999999996.
- */
-function onStepGrid(value: number, spec: IndicatorParam): boolean {
-  const { step } = spec;
-  if (step === undefined || !Number.isFinite(step) || step <= 0) return true;
-  const steps = (value - (spec.min ?? 0)) / step;
-  return Math.abs(steps - Math.round(steps)) <= 1e-12 * Math.max(1, Math.abs(steps));
-}
-
-/**
  * Les paramètres d'un indicateur du catalogue, ou `null`. Seules les clés de la définition passent (jamais `__proto__` ou
- * `constructor`), un nombre doit être fini, dans les bornes de la définition et sur son pas (une période de 20,5 donnerait
- * à `sma` et `ema` une série fausse mais finie), un choix doit être l'une de ses options : ce que la ligne `crypto.chart`
- * garde au rechargement, et plus strict sur le pas.
+ * `constructor`), un nombre doit être fini, dans les bornes de la définition et sur son pas (`onStepGrid` ; une période de
+ * 20,5 donnerait à `sma` et `ema` une série fausse mais finie), un choix doit être l'une de ses options : ce que la ligne
+ * `crypto.chart` garde au rechargement, et plus strict sur le pas.
  */
 export function readParams(def: IndicatorDefinition, patch: unknown): Record<string, number | string> | null {
   if (!isRec(patch)) return null;

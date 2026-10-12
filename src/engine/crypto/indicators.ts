@@ -12,7 +12,7 @@
  * couverte n'a donc ni VWAP, ni bandes ; le jour d'après n'a pas de niveaux.
  */
 import type { Bar } from '@/engine/bars';
-import { indicatorById, type IndicatorDefinition, type IndicatorInstance, type IndicatorLine } from '@/engine/indicators';
+import { indicatorById, type IndicatorDefinition, type IndicatorInstance, type IndicatorLine, type IndicatorParam } from '@/engine/indicators';
 import { cvdPoints } from './cvd';
 import { cryptoMarket, type CryptoBar, type CryptoMarketId, type CryptoTimeframe } from './markets';
 
@@ -246,6 +246,19 @@ export function offeredCatalog(market: CryptoMarketId, timeframe: CryptoTimefram
 /** La définition du catalogue crypto qui porte cet identifiant. Le VWAP et les niveaux de séance du desk n'y sont pas. */
 export function cryptoIndicatorById(id: string): IndicatorDefinition | undefined {
   return CRYPTO_INDICATORS.find((def) => def.id === id);
+}
+
+/**
+ * Un nombre est sur la grille d'un paramètre quand `(valeur - min) / pas` est entier, `min` valant 0 s'il manque. Un pas
+ * absent, nul, négatif ou non fini n'est pas une grille. L'écart toléré (relatif au nombre de pas) absorbe le bruit des
+ * flottants : 0,3 / 0,1 vaut 2,9999999999999996. La règle du store (`readParams`) et du contrôle des outils de l'agent
+ * (`readParamsShape`, avant la confirmation de l'opérateur).
+ */
+export function onStepGrid(value: number, spec: IndicatorParam): boolean {
+  const { step } = spec;
+  if (step === undefined || !Number.isFinite(step) || step <= 0) return true;
+  const steps = (value - (spec.min ?? 0)) / step;
+  return Math.abs(steps - Math.round(steps)) <= 1e-12 * Math.max(1, Math.abs(steps));
 }
 
 /** Ce que le chart affiche à la première ouverture : le CVD, et le VWAP à ±1σ (la définition propose ±1σ et ±2σ). */
