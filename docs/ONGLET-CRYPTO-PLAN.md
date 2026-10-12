@@ -40,7 +40,7 @@
 | Fichier | Rôle | Tâche |
 |---|---|---|
 | `src/engine/crypto/markets.ts` (partagé) | registre, timeframes, hôtes, types communs | CRY1.1 |
-| `src/engine/crypto/venues.ts` (partagé) | URLs REST/WS, messages d'abonnement, analyse REST et WS | CRY1.2, CRY1.3 |
+| `src/engine/crypto/venues.ts` (partagé) | URLs REST/WS, messages d'abonnement, analyse REST et WS, profondeur de l'historique | CRY1.2, CRY1.3, CRY1.8 |
 | `src/engine/crypto/tradeBars.ts` (partagé) | bougies depuis les trades, fusion d'une bougie live | CRY1.4 |
 | `src/engine/crypto/temperature.ts` (partagé) | funding, largeur, liquidations, open interest | CRY1.6 |
 | `src/engine/crypto/cvd.ts` | points et ancre du CVD | CRY1.4 |
@@ -207,7 +207,7 @@ export const HISTORY_BARS = 500;
 Règles :
 - Binance : `https://api.binance.com/api/v3/klines?symbol=<symbol>&interval=<1m|5m|15m|1h|4h|1d>&limit=500`, `aggregate: 1`.
 - Bybit : `https://api.bybit.com/v5/market/kline?category=spot&symbol=<symbol>&interval=<1|5|15|60|240|D>&limit=500`, `aggregate: 1`.
-- Coinbase : `https://api.exchange.coinbase.com/products/<symbol>/candles?granularity=<g>&start=<ISO>&end=<ISO>`, pages de 300 bougies en remontant depuis `nowSec` ; 2 pages pour `g = timeframe × 60` ; pour 240, 4 pages en `granularity=3600` et `aggregate: 4`.
+- Coinbase : `https://api.exchange.coinbase.com/products/<symbol>/candles?granularity=<g>&start=<ISO>&end=<ISO>`, pages de 300 bougies en remontant depuis le seau courant (la page la plus récente finit sur le dernier créneau du seau qui contient `nowSec` : en 4h, à la fin de la 4h entamée) ; 2 pages pour `g = timeframe × 60` ; pour 240, 4 pages en `granularity=3600` et `aggregate: 4`.
 - `parseCandles` : Coinbase `[time, low, high, open, close, volume]`, plus récentes d'abord ; Binance `[openTime ms, o, h, l, c, v, closeTime, quoteVol, trades, takerBuyBase, …]` en chaînes, `buyVolume = Number(row[9])` ; Bybit `{ retCode, retMsg, result: { list: [[startMs, o, h, l, c, volume, turnover]] } }`, plus récentes d'abord, `retCode !== 0` lève `Error(retMsg)`. Toute ligne courte ou non finie est écartée.
 - `aggregateBars` : seaux de `timeframe × factor × 60` secondes alignés sur l'epoch UTC ; open du premier, high max, low min, close du dernier, volume somme, `buyVolume` somme seulement si toutes les bougies du seau en ont un.
 
@@ -401,7 +401,7 @@ Règles :
 - Bandes : prix `|level| × 0.001` ; funding `0.0005` ; liquidations `level × 0.05` ; largeur `1`.
 - `CrossWatch.step` : le premier appel pose le côté et rend `false`. En direction `above` : alerte quand le côté était `below` et que `value >= level`, puis le côté passe à `above` ; il ne revient à `below` qu'une fois `value < level − band`. `below` est le miroir.
 - Cibles : une alerte de prix vise un marché affichable, une alerte de température vise `'temperature'`.
-- Assainisseurs : chaque entrée invalide est écartée, les plafonds sont tenus (50 alertes, 100 tracés), un marché hors registre est retiré, les chaînes sont bornées (id ≤ 64, label ≤ 40) ; une valeur qui n'est pas un tableau (ou un objet pour `sanitizeCryptoChart`) rend `undefined` ; les indicateurs reprennent la forme de `'chart.indicators'` (`db.ts:603`) avec un `definitionId` du catalogue crypto ; une zone a `from < to`.
+- Assainisseurs : chaque entrée invalide est écartée, les plafonds sont tenus (50 alertes, 100 tracés), un marché hors registre est retiré, les chaînes sont bornées (id ≤ 64, label ≤ 40) ; une valeur qui n'est pas un tableau (ou un objet pour `sanitizeCryptoChart`) rend `undefined` ; les indicateurs reprennent la forme de `'chart.indicators'` (`db.ts:605`) avec un `definitionId` du catalogue crypto ; une zone a `from < to`.
 
 - [ ] **Étape 1 : test rouge** : `CrossWatch` (pas d'alerte au premier pas, une seule alerte au franchissement, rien tant qu'on reste au-dessus, réarmement seulement sous `level − band`) ; bandes relatives `hysteresisBand('price_above', 0.002) === 0.000002` et `hysteresisBand('price_above', 85000) === 85` ; `alertValue` funding = `median × 100` ; validation (prix sur `'temperature'` refusé, `level` non fini refusé) ; assainisseurs (51 alertes → 50, marché `binance:BTCUSDT` retiré d'une watchlist, zone inversée écartée, label de 41 caractères écarté).
 - [ ] **Étape 2 : lancer le test** → échec.
@@ -414,7 +414,7 @@ Règles :
 Ticket ajouté par le contrôleur le 9 octobre 2026 (registre : CRY1.5, finding I1). Le VWAP 00:00 UTC et les niveaux du jour UTC précédent (CRY1.5) ne calculent une journée que si la fenêtre chargée couvre son début. Avec 500 bougies, en 1m (8 h 20) et parfois en 5m (41 h 40), la fenêtre commence en cours de journée : VWAP et niveaux restent vides la plupart du temps. Ce ticket fait remonter l'historique au moins à 00:00 UTC de la veille.
 
 **Fichiers**
-- Modifier : `src/engine/crypto/venues.ts`, `electron/crypto/venues.d.ts`, `tests/crypto-venues-rest.test.ts` (dont la liste d'exports figée), `docs/ONGLET-CRYPTO.md` (§ 5, paragraphe « Historique »), `docs/ONGLET-CRYPTO-PLAN.md` (ajout de cette tâche après CRY1.7 ; dans CRY2.3, « les 500 dernières bougies » devient « les `historyTarget(timeframe, now)` dernières »).
+- Modifier : `src/engine/crypto/venues.ts`, `electron/crypto/venues.d.ts`, `tests/crypto-venues-rest.test.ts` (dont la liste d'exports figée), `docs/ONGLET-CRYPTO.md` (§ 5, paragraphe « Historique »), `docs/ONGLET-CRYPTO-PLAN.md` (ajout de cette tâche après CRY1.7 ; dans CRY2.3, « les 500 dernières bougies » devient « les `historyTarget(timeframe, now)` dernières », puis, en CRY2.3, une coupe par l'heure, jamais par le nombre).
 - Test : `tests/crypto-venues-rest.test.ts`.
 
 **Interfaces — produit**

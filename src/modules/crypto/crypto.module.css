@@ -1,6 +1,7 @@
 /*
- * Onglet 09 · CRY : seules les lignes de marché et d'alerte vivent ici. Tout le reste (grille, chart, légende, colonne,
- * `tradeRow`) vient de `../visual/visual.module.css`. Même grain que `tradeRow` (mono 11, filet pointillé), en jetons.
+ * Onglet 09 · CRY : seules les lignes de marché et d'alerte vivent ici, avec la marge droite de la colonne (`.side`, plus
+ * bas). Tout le reste (grille, chart, légende, colonne, `tradeRow`) vient de `../visual/visual.module.css`. Même grain
+ * que `tradeRow` (mono 11, filet pointillé), en jetons.
  */
 
 /*

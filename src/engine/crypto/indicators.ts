@@ -6,9 +6,10 @@
  * du jour UTC précédent. Le CVD vient de `./cvd`. Les lignes gardent les clés, les étiquettes et les teintes de leurs
  * équivalents du desk.
  * Une journée n'est ancrée que si la fenêtre de bougies la couvre : sa première bougie n'est pas plus tardive que 00:00 UTC
- * de cette journée. L'historique chargé (500 bougies) commence en pleine journée : sa première journée est partielle, et
- * un VWAP parti du début de la fenêtre ou des extrêmes partiels présentés comme ceux de la veille seraient faux sans le
- * paraître. Une journée non couverte n'a donc ni VWAP, ni bandes ; le jour d'après n'a pas de niveaux.
+ * de cette journée. L'historique chargé (500 bougies, ou depuis 00:00 UTC de la veille si c'est plus : `historyTarget`)
+ * commence le plus souvent en pleine journée : sa première journée est alors partielle, et un VWAP parti du début de la
+ * fenêtre ou des extrêmes partiels présentés comme ceux de la veille seraient faux sans le paraître. Une journée non
+ * couverte n'a donc ni VWAP, ni bandes ; le jour d'après n'a pas de niveaux.
  */
 import type { Bar } from '@/engine/bars';
 import { indicatorById, type IndicatorDefinition, type IndicatorInstance, type IndicatorLine } from '@/engine/indicators';

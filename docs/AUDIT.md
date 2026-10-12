@@ -828,7 +828,7 @@ L'ADMIN ajoute au desk un onglet Crypto pour son usage personnel : le processus 
 | Lot | Tickets | Objet |
 |---|---|---|
 | CRY0 | CRY0.1 à CRY0.4 | Spécification, design du desk, décisions et plan, onglet sur le rail éteint par défaut |
-| CRY1 | CRY1.1 à CRY1.7 | Moteur pur : registre, REST, WebSocket, bougies des trades et CVD, indicateurs UTC, température, alertes |
+| CRY1 | CRY1.1 à CRY1.8 | Moteur pur : registre, REST, WebSocket, bougies des trades et CVD, indicateurs UTC, température, alertes ; historique jusqu'à 00:00 UTC de la veille (CRY1.8, ajouté en cours de lot) |
 | CRY2 | CRY2.1 à CRY2.5 | Process principal : interrupteur, fetch gardé, sockets par venue, température, IPC |
 | CRY3 | CRY3.1 à CRY3.4 | Renderer : réglages, port, store, flux en direct |
 | CRY4 | CRY4.1 à CRY4.4 | Interface : précision des prix, cartes d'indicateurs partagées, onglet, banc de capture |
@@ -837,3 +837,238 @@ L'ADMIN ajoute au desk un onglet Crypto pour son usage personnel : le processus 
 | CRY7 | CRY7.1 | Recette et oracle OpenMarket |
 
 **Écarts à la spécification du 9 octobre, consignés en CRY0.3.** Persistance en lignes de réglages `crypto.*` (comme `chart.indicators`) au lieu d'une version Dexie 10 ; pas de prix fixés dans le registre après relevé des métadonnées des exchanges ; évaluation par croisement (`CrossWatch`) à la sémantique de `ThresholdWatch` ; bougies live de Coinbase et Bybit construites dans le main depuis les trades.
+
+**Écarts consignés pendant l'exécution.** Deux, portés au § 5 de la spécification :
+- Coinbase 4h garde 300 bougies (quatre pages d'une heure, regroupées par quatre : environ 50 jours), pas 500 (CRY1.2). Trois pages de plus si l'ADMIN veut 500.
+- Coinbase n'envoie aucune bougie pour un seau sans trade, et le volume d'une bougie grossière peut différer un peu de la somme des bougies plus fines (CRY1.2). L'oracle BTC-USD l'a mesuré (ci-dessous).
+
+### Livraison (2026-10-12)
+
+Un ticket, un commit, un test, rouge sans le correctif. En fin de lot : `npm run typecheck`, `npm test`, `npm run build` et `npm run electron:compile`, lancés un à un (`npm run check` s'arrête au rouge toléré, avant `build`). Seul rouge à chaque fin de lot : `tests/bridge-symlink.test.ts` (`EPERM`). Aucune nouvelle dépendance ; `ninjatrader/CantoBridge.cs`, `allowedHosts()` et `tests/sources.test.ts` inchangés.
+
+| Lot | Commits | Tests en fin de lot |
+|---|---|---|
+| CRY0 | `5030e4d` `03c6685` `e98d047` `ab54fc9` | 986 sur 987 |
+| CRY1 | `f12c32d` `3e1d4a9` `ab70bef` `6892841` `11c9849` `84e61fd` `3bb3802` `8c7627e` `ec98885` `7b837c1` | 1 401 sur 1 402 |
+| CRY2 | `7db3d71` `4badf97` `af5f8c7` `6247153` `9ec2dbb` `75146df` `b41e2fa` `aededd8` `ec4ed38` | 1 751 sur 1 752 |
+| CRY3 | `baa7b29` `ea92591` `9b170d3` `b5bd09b` `86b225c` `d59a6d1` `e0fb19a` `bc68c47` `05a762c` | 1 907 sur 1 908 |
+| CRY4 | `46decff` `0400483` `33483a9` `5c41b99` `4d2c7f4` `6a6b6b4` | 2 029 sur 2 030 |
+| CRY5 | `8eaeae1` | 2 065 sur 2 066 |
+| CRY6 | `b07995a` `81805d9` `cbad7fc` | 2 249 sur 2 250 |
+| CRY7 | CRY7.1 (ce relevé : documents et deux commentaires) | 2 249 sur 2 250 |
+
+`8c7627e` (CRY1.8) est un ticket ajouté en cours de lot, après la revue de CRY1.5. `4d2c7f4` corrige un test de CRY2.5 (dossiers temporaires laissés dans `%TEMP%`), relevé en CRY4.4.
+
+### Échecs observés sans les correctifs
+
+Tours de correction et correctifs d'avant revue : tests écrits d'abord, rouges sans le correctif, verts avec.
+- CRY1.3 (`6892841`) : 16 rouges. Trade de quantité nulle gardé (`expected [ [+0, 'sell'], [2, 'sell'], …(4) ] to deeply equal [ [2,'sell'], [3,'buy'] ]`) ; bougie Coinbase à ouverture nulle, ou au plus bas au-dessus du plus haut, gardée ; refus de Bybit et de Binance lus comme des acquittements (`expected [ { kind: 'ignored' } ] to deeply equal [ { kind: 'error', …(1) } ]`) ; date `2026-02-30T00:00:00Z` acceptée ; détail d'erreur non borné.
+- CRY1.5 (`3bb3802`) : 7 rouges. Une clôture invalide effaçait les niveaux du lendemain (`expected [] to strictly equal [ { time: 1791504000, value: 120 } ]`) ; un VWAP était tracé sur une journée que la fenêtre ne couvre qu'à partir de 12:00 ; un seul segment de VWAP à minuit liquide (`expected [ 4 ] to deeply equal [ 2, 2 ]`) ; blanc des niveaux posé sur un instant fractionnaire.
+- CRY2.1 (`4badf97`) : 6 rouges, dont le défaut lui-même : `crypto.json` en lecture seule, `{ "enabled": true }` restait sur le disque après `disable()` (`expected { enabled: true } to not deeply equal { enabled: true }`), et le lancement suivant rallumait le module sans dialogue.
+- CRY2.3 (`9ec2dbb`) : 8 rouges. La socket d'une venue sans flux restait ouverte (`expected false to be true` sur `socket.closed`) ; une trame étrangère à l'abonnement marquait complète la bougie de 10:01 ; `onSuccess` était appelé après une page Bybit en erreur (`expected "onSuccess" to not be called at all, but actually been called 1 times`) ; le backoff repartait de 1 s à chaque ouverture (`expected 3 to be 2`) ; en 5m à 17:39:59, pas de bougie de marge (`expected '500' to be '501'`).
+- CRY2.4 (`75146df`, mineurs de CRY1.6) : 8 rouges. Liquidation datée du futur lointain retenue (`expected 1 to be +0`) ; montants absurdes comptés (`expected { long: 1e+308, …(2) } to deeply equal { long: 200, short: 200, …(1) }`) ; `Infinity` sorti de `totals`.
+- CRY2.4 (`aededd8`) : `Expected: "wss://fstream.binance.com/market/ws/!forceOrder@arr"`, `Received: "wss://fstream.binance.com/ws/!forceOrder@arr"`. Mesuré en direct : le chemin sans route acceptait la connexion et n'envoyait rien (0 trame en 220 s ; `/market` : 3 trames en 4 s).
+- CRY3.2 (`9b170d3`) : 11 rouges, et `tsc` (`has no exported member 'CryptoMarketDataPort'`, `'change24hPct' does not exist in type 'Quote'`) : le port retirait le volume acheteur, dont le CVD et `mergeLiveBar` ont besoin, et la variation sur 24 h.
+- CRY3.3 (`86b225c`) : une écriture de l'agent avant la première ouverture de l'onglet aurait écrasé les quatre lignes `crypto.*` par les défauts. 13 tests, un par action ; preuve par six mutations, chacune rouge (le rapport ne relève pas de message d'échec).
+- CRY3.3 (`d59a6d1`) : 7 rouges (`reloadSettings is not a function` ; `useCrypto` absent de `Metrique.tsx`) : après une restauration du coffre, la première écriture crypto aurait reposé l'état d'avant.
+- CRY3.3 (`e0fb19a`) : 3 rouges. Une EMA de période 20.5 était acceptée et enregistrée, un patch 20.5 appliqué ; `readParams is not a function`.
+- CRY3.4 (`05a762c`) : `expected 'import { lazy, Suspense, useCallback,…' to match /import \{ useCrypto \} from '@\/store\/crypto';/` : le flux léger, dont les alertes dépendent, ne partait qu'à l'ouverture de l'onglet.
+- CRY4.3 (`33483a9`, mineur de CRY0.4) : `Error: canal fermé` en rejet non géré : `void requestEnable()` laissait échapper le rejet du process principal.
+- CRY4.4 (`4d2c7f4`) : `expected true to be false` ; 25 dossiers `canto-crypto-runtime-*` laissés dans `%TEMP%` à chaque passage du fichier, 0 avec le correctif.
+- CRY4.4 (`6a6b6b4`) : 5 rouges sur 6 tests nouveaux. La capture montrait la légende sous la puce `COINBASE · LIVE` (ancrage du CVD caché), « % » et « LIVE » sous la plaque verticale du châssis, et un effet d'agent qui faisait défiler la colonne (`scrollWidth` 432 pour 299).
+- CRY6.1 (`81805d9`) : 100 rouges, dont 47 × `expected "vi.fn()" to not be called at all, but actually been called 1 times` : une écriture crypto invalide ouvrait le dialogue de confirmation avant d'être refusée ; et `stale funding: expected false to be true` (Binance bloquée, température lue comme fraîche).
+
+### Oracle OpenMarket (2026-10-12)
+
+Fait en lecture seule, hors du desk (§ 10 de la spécification) : du côté d'OpenMarket, le seul outil `points` ; aucun chart créé, lu ni sélectionné, aucune alerte (`chart_read` demande l'onglet du chart ouvert, et `chart_workspace_select` change l'espace par défaut du compte). Du côté du desk, un script Node jetable, hors dépôt, charge `dist-electron/crypto/venues.js` (après `npm run electron:compile`), interroge par `fetch`, sans identifiant, les URLs de `historyRequests`, lit les réponses par `parseCandles` et ne garde que les bougies closes (`time + 3600 <= nowSec`). Le dépôt n'a pas changé.
+
+**BTC-USD Coinbase 1h (spécification § 11, point 3).**
+- Fenêtre : 50 bougies, ouvertes du 2026-10-10 04:00 au 2026-10-12 05:00 UTC, la dernière close à 06:00. Desk lu à 06:27:34 UTC, OpenMarket à 06:27:38 (`last_trade_at`). La bougie de 06:00, entamée, est écartée des deux côtés.
+- Méthode. Desk : `historyRequests('coinbase:BTC-USD', 60, nowSec)`, deux pages `granularity=3600`, 300 + 300 bougies, fusionnées par `aggregateBars(bars, 60, 1)` : 599 closes. OpenMarket : `points`, type `TRADE_SIDE_AGNOSTIC_AGG`, `exchanges ["COINBASE"]`, `rawSymbol BTC-USD`, `interval HOUR`, sur 56 h : 56 bougies ; transcription vérifiée sur le résumé de l'outil (56 bougies, volume total 4 882,4312, première et dernière clôtures). Comparaison sur les mêmes heures d'ouverture : O, H, L, C égaux si l'écart est sous un demi-pas (0,005 USD) ; volume à ±1 % de celui d'OpenMarket.
+- Résultat : O, H, L et C égaux au pas sur 50 bougies sur 50. Volume à ±1 % sur 45 (31 identiques à 1e-6 près en relatif, 14 écarts de 0,0006 % à 0,72 %), hors tolérance sur 5 ; les cinq champs concordent sur 45 bougies. Partout où il diffère, le volume du desk est sous celui d'OpenMarket.
+- Pires écarts de volume (desk / OpenMarket) : 2026-10-10 07:00 UTC −3,133 % (159,41206728 / 164,56851) ; 2026-10-11 00:00 −3,050 % (47,31950073 / 48,808048) ; 2026-10-11 12:00 −2,003 % (69,42958502 / 70,848451) ; 2026-10-11 13:00 −1,655 % (51,68108351 / 52,551046) ; 2026-10-10 09:00 −1,254 % (64,96972508 / 65,79472). Plus grands écarts dans la tolérance : 2026-10-10 18:00 −0,718 %, 2026-10-12 02:00 −0,417 %, 2026-10-11 14:00 −0,405 %. Aucun écart sur O, H, L ou C.
+- Diagnostic : sur les 19 bougies qui ont un écart de volume, une relecture des bougies 1h de l'API Coinbase rend exactement le volume du desk (`parseCandles` ne change rien, et Coinbase ne les avait pas révisées). Les bougies d'une minute de Coinbase, sommées sur l'heure, diffèrent parfois de sa bougie 1h : 2026-10-11 12:00 UTC, somme des minutes 70,68509529, bougie 1h 69,42958502, OpenMarket 70,848451. L'écart vient de la source (bougie 1h de Coinbase contre agrégation des trades par OpenMarket) : c'est l'écart entre bougies grossières et fines consigné plus haut, pas le code du desk.
+- Verdict : attendu tenu pour O, H, L et C ; pour le volume, tenu sur 45 bougies sur 50.
+
+**ONE Binance 1h, CVD (spécification § 11, point 4).** La spécification prévoyait un chart temporaire OpenMarket, avec l'accord de l'ADMIN. `points` lit les mêmes trades sans chart : l'oracle a été fait ainsi, en lecture seule, sans rien créer. À l'ADMIN de juger s'il tient lieu de la condition du plan.
+- Fenêtre : 50 bougies, ouvertes du 2026-10-10 04:00 au 2026-10-12 05:00 UTC, la dernière close à 06:00. Desk lu à 06:27:38 UTC (`nowSec` 1791786458), OpenMarket `last_trade_at` 06:27:11. La bougie de 06:00, entamée, est écartée des deux côtés.
+- Méthode. OpenMarket : deux appels `points`, type `TRADE_AGG`, `exchanges ["BINANCE"]`, `rawSymbol ONEUSDT`, `interval HOUR`, sur 56 h, `side BUY` puis `side SELL`, 56 bougies chacun (2026-10-09 23:00 à 2026-10-12 06:00) ; delta par bougie = BUY − SELL. Desk : `historyRequests('binance:ONEUSDT', 60, nowSec)`, une URL (`klines`, `interval=1h`, `limit=500`), 500 bougies, 499 closes ; delta par bougie = 2 × `buyVolume` − `volume`. 55 bougies communes ; les 50 plus récentes comparées par leur signe, zéro compris ; « presque nul » : |delta| sous 0,5 % du volume de la bougie.
+- Résultat : signe égal sur 50 bougies sur 50. Les 499 bougies closes du desk portent toutes `buyVolume`. Aucune bougie à delta nul ou presque nul ; le plus petit, −0,79 % du volume, à 2026-10-12 01:00 (desk −210 933,6, OpenMarket −210 933). Unités : OpenMarket n'en donne pas, mais ses volumes sont en ONE : sur les 50 bougies, (BUY + SELL) / volume du desk = 1,0000 et BUY / `buyVolume` du desk = 1,0000. Plus grand écart absolu entre les deux deltas : 0,8 ONE (2026-10-10 14:00, −5 640 486,8 contre −5 640 486 ; 2026-10-11 04:00, −3 337 109,2 contre −3 337 110) : OpenMarket arrondit ses volumes à environ 8 chiffres significatifs.
+- Verdict : attendu tenu, la direction du CVD est la même bougie par bougie sur 50.
+
+### Recette de l'ADMIN, desk lancé
+
+Ce qui ne se vérifie qu'avec le desk lancé (`npm run desk:dev`) sur le poste. Journal du process principal : `logs/main.log` du dossier de données du desk. Connexions (PowerShell) : `Get-NetTCPConnection -State Established -OwningProcess (Get-Process electron).Id | Select-Object RemoteAddress, RemotePort`, à comparer aux adresses que `Resolve-DnsName` donne pour les huit hôtes de `CRYPTO_HOSTS`. Les points 3 et 4 du § 11 de la spécification sont l'oracle ci-dessus.
+
+1. **Interrupteur éteint** (spécification § 11, point 1). Geste : `crypto.json` absent du dossier de données, ou `{ "enabled": false }`, puis `npm run desk:dev`. Attendu : les onglets 01 à 08 comme en 3.5.0 ; Ctrl+9 ouvre 09 · CRY sur l'état vide et le bouton « Activer le module crypto » ; aucun outil `crypto_*` dans l'onglet Agent ; aucune connexion vers un hôte de `CRYPTO_HOSTS`, aucune sur le port 9443 ; aucune ligne `crypto <venue>:` au journal.
+2. **Allumé** (spécification § 11, point 2). Geste : « Activer le module crypto », puis « Activer » dans le dialogue du process principal (Annuler par défaut). Attendu : les quatre lignes de « Marchés · 4 » allumées, avec un âge de mise à jour qui se renouvelle (ZIG peut rester sans trade plusieurs minutes et rester `live`) ; dans Source, Coinbase, Binance et Bybit `live` ; les six règles de « Température · Binance » remplies en 5 minutes au plus (funding en 60 s, largeur et open interest en 5 min) ; la légende du chart BTC-USD porte « CVD depuis HH:MM ».
+3. **Un appel réel par `net.fetch`** (CRY2.2 : la correspondance « Redirect was cancelled » et le `signal` n'ont été vérifiés qu'avec le fetch de Node). Geste : module allumé, BTC-USD en 1h. Attendu : la puce passe de « Historique » à « Coinbase · direct », Source donne le nombre de bougies et la période, la légende porte date, heure et O H L C ; aucune ligne `crypto coinbase: historique … refusé` au journal. Changer vite de timeframe deux ou trois fois : le chart montre la dernière demande.
+4. **WebSocket réel vers les trois venues.** Geste : module allumé, laisser tourner 15 minutes, puis couper le réseau 40 s et le rendre. Attendu : les trois voyants `live` ; à la coupure, `stale` après 30 s sans activité, puis `reconnecting` ; au retour, `live` sans geste ; au journal, des lignes `crypto <venue>:` en nombre borné.
+5. **Liquidations sur la route `/market`.** Geste : module allumé, marché actif, 15 minutes. Attendu : une connexion vers l'adresse de `fstream.binance.com` ; « Liq. 1 h · long » ou « · short » au-dessus de 0 $, et « liquidations depuis HH:MM » sous la température ; par l'agent, `crypto_temperature` rend `lowerBound: true`. Un total à 0 $ avec une heure fraîche pendant plus de 10 minutes de marché agité signale une socket muette (mineur ouvert de CRY2.4).
+6. **Alertes en toast et dans `desk_events`** (spécification § 11, point 5). Geste : « + Ajouter » sous Alertes : une alerte de prix sur BTC-USD à un pas du dernier prix, dans le sens du mouvement ; une alerte de funding médian à un pas de la valeur affichée. La première lecture pose le côté sans alerter ; le funding est relevé toutes les 60 s, il peut falloir plusieurs relevés. Attendu : un toast `warn` à chaque franchissement ; par l'agent du desk, `desk_events` rend deux événements `crypto_alert` (identifiant, genre, niveau, valeur arrondie à la précision affichée).
+7. **Passerelle MCP** (spécification § 11, point 6). Geste : onglet Agent, passerelle démarrée sur `127.0.0.1:47118`, *Copier le jeton MCP*, un client MCP de l'ADMIN connecté. Attendu : `crypto_chart_read` rend le marché, le timeframe, le dernier prix et la dernière bougie de l'écran ; `crypto_indicator_set` `{ "action": "add", "indicator": "ema", "params": { "period": 200 } }` ajoute EMA 200 au chart. Par la passerelle, l'écriture passe derrière l'interrupteur d'écriture (`orchestratorAllowWrite`, éteint par défaut), sans dialogue (`CLAUDE.md` § 5) ; le même appel par l'agent du desk ouvre le dialogue de confirmation du desk. Module éteint : les outils `crypto_*` disparaissent de `tools/list` et sont refusés à l'appel ; rallumé, ils reviennent après au plus 5 s (cache du relais).
+8. **Fermeture de la fenêtre (`window-all-closed` → `shutdown()`).** Geste, Windows : module allumé, fermer la fenêtre du desk, puis relancer `npm run desk:dev`. Attendu : plus aucune connexion vers `CRYPTO_HOSTS` une fois la fenêtre fermée ; au lancement suivant, le module est allumé sans dialogue (l'interrupteur n'a pas bougé) et les flux repartent.
+9. **macOS, `activate`.** Geste, sur un Mac seulement : module allumé, fermer la fenêtre (le process reste), puis cliquer l'icône du Dock. Attendu : fenêtre fermée, `lsof -i -P -n | grep -i electron` ne montre plus de connexion vers les hôtes crypto ; à la réouverture, fenêtre recréée, flux et température repartis au premier abonnement du renderer. Sans Mac au poste, ce point reste ouvert.
+
+### Écarts tranchés pendant l'exécution
+
+Chaque choix laissé ouvert par une fiche, ou soulevé par une revue, a été tranché pendant l'exécution. Repris ici, par ticket, avec ce qu'il coûte s'il est faux.
+
+*Plan (avant CRY0.4).*
+- Les fiches de ticket sont extraites du plan par un script local sur les titres `### Tâche CRYx.y`. Coût : nul (25 fiches non vides vérifiées).
+- CRY6.1 répare tout test que les dix entrées `crypto_*` du catalogue font tomber, dont l'attente de `tests/mcp-server.test.ts:569` (exclure `crypto_*` tant que la garde du process principal manque) et les têtes de `READ_OUTPUT_HEADS` ; CRY6.2 garde la garde du process principal et la liste module allumé. Coût : un léger recouvrement entre 6.1 et 6.2.
+- `createCryptoTools(ports)` rend toujours les dix définitions, même sans port crypto (leur `run` refuse) : `DESK_TOOLS` égale toujours `DESK_TOOL_KINDS`. Coût : nul.
+- Les assertions de bandes d'hystérésis de CRY1.7 comparent par `toBeCloseTo` (0,002 × 0,001 n'est pas exact en binaire). Coût : nul.
+- Les tests jsdom de CRY4.1 et CRY4.3 simulent `@/modules/visual/chartBox` et `ResizeObserver` : un élément jsdom n'a pas de taille, le `Chart` n'y démarrerait jamais. Coût : nul.
+- CRY4.4 cherche Edge (`EDGE_PATH` ou le chemin standard) ; sans Edge, un autre navigateur sans interface (Chrome, voir CRY4.4).
+- CRY2.5 remplace les types littéraux de CRY0.4 dans `src/lib/desk.ts` par ceux du moteur. Coût : nul.
+- Effort d'exécution et de relecture renforcé sur CRY2.3, CRY2.5, CRY3.4, CRY4.3, CRY6.1 (exécution), CRY2.3, CRY2.5, CRY6.1, CRY6.2 (relecture) et la revue finale. Coût : du temps de calcul de trop, ou une reprise s'il manquait.
+
+*CRY0.4.*
+- `tests/tabs.test.ts` lit `Shell.tsx` (expression du raccourci) : gardé, `TABS[8]` fige la correspondance et une vraie touche demanderait de rendre tout le Shell. Coût : une régression du raccourci passerait inaperçue.
+
+*CRY1.1.*
+- Le `protocol` de `cryptoHostAllowed` n'était tenu que par le typage : CRY2.2, qui porte la garde réseau, ajoute le contrôle à l'exécution et son test. Coût : une petite retouche croisée.
+
+*CRY1.2.*
+- Coinbase 4h : la page la plus récente finit à la fin de la 4h entamée ; la plus ancienne bougie de 4h est complète (vérifié sur l'API). Coût : une ligne à revenir si Coinbase refuse un jour un `end` futur.
+- Coinbase 4h : quatre pages, 300 bougies (environ 50 jours), pas 500 ; écart à la spécification. Coût : trois pages de plus si l'ADMIN veut 500.
+- CRY1.3 met à jour la liste d'exports figée de `tests/crypto-venues-rest.test.ts`. Coût : nul.
+
+*CRY1.3.*
+- Côté du trade strict : un trade dont le côté Coinbase (`side`) ou Bybit (`S`) n'est pas exactement `buy`/`sell` ou `Buy`/`Sell` est écarté. Coût : une ligne à revenir.
+- Quatre mineurs portent la suite (les volumes nourrissent les bougies, `ticker.last` les alertes, un refus d'abonnement paraîtrait vivant) : tour de correction immédiat (prix et quantités positifs, 0 ≤ volume acheteur ≤ volume, cohérence OHLC aussi dans `parseCandles`, refus Bybit et Binance en `error`, heure Coinbase ISO avec `Z`, détail borné à 200 signes). Coût : un tour de plus s'il était inutile.
+
+*CRY1.4.*
+- Choix ouverts acceptés : garde du trade invalide dans `push`, plafond dans chaque branche de la fusion, une fusion partielle garde le volume acheteur de la dernière bougie, un blanc après l'ancre laisse la somme du CVD inchangée. Coût : quelques lignes chacun.
+
+*CRY1.5.*
+- Jamais un chiffre plausible et faux : un jour UTC n'est calculé que si la fenêtre couvre son début (`bars[0].time <= début du jour`), sinon des blancs, pour le VWAP comme pour les niveaux ; tour de correction immédiat. Coût : des blancs sur le jour le plus ancien seulement, une fois CRY1.8 en place.
+- Ticket nouveau CRY1.8 avant CRY2 : l'historique remonte au moins à 00:00 UTC de la veille en intraday ; § 5 de la spécification amendé (« 500 bougies, ou depuis 00:00 UTC de la veille si c'est plus »). Coût : une dizaine de requêtes Coinbase en 1m à l'ouverture du chart.
+- CRY2.3 garde max(500, bougies depuis 00:00 UTC de la veille), pas 500 tout rond ; CRY3.4 fusionne avec un plafond au moins égal (3 000), jamais le défaut de 1 000. Coût : des ancrages faux si c'était oublié.
+
+*CRY1.8.*
+- Coinbase 1m : 5 à 10 pages selon la formule (le « 7 à 10 » de la fiche était faux avant 06:00 UTC) ; un `nowSec` qui n'est pas une date ne donne aucune URL, quelle que soit la venue. Coût : nul.
+
+*CRY1.6.*
+- Choix d'interprétation acceptés : événements antérieurs au départ comptés, lignes de largeur illisibles hors du dénominateur, point d'open interest avec une heure finie et un `sumOpenInterest` positif, heure de l'événement `o.T` sinon `E`, flux `forceOrder` brut seulement, paramètres de l'appelant crus. Coût : une ligne chacun.
+
+*CRY1.7.*
+- Choix ouverts acceptés : un libellé trop long écarte le tracé, un niveau hors domaine rend `bad_level`, le premier identifiant gagne, prix de tracé > 0, export `CRYPTO_ALERT_KINDS` en plus, bande sur |niveau|, `sanitizeCryptoChart` tout ou rien sur marché, timeframe et liste. Coût : une ou deux lignes chacun.
+
+*CRY2.1.*
+- Écriture de `false` impossible : le fichier est supprimé (absence = éteint), une ligne distincte au journal si la suppression échoue aussi ; test du fichier en lecture seule ; cause d'un abonné en échec journalisée, réponses de dialogue mal formées figées, texte du dialogue qui dit que le choix vaut pour les lancements suivants (trois langues). Tour de correction immédiat. Coût : un tour.
+
+*CRY2.2.*
+- `Retry-After` plafonné à 3 600 s, backoff doublé une fois par épisode de pause (pas par 429 en vol) ; fait en CRY2.3, premier consommateur concurrent. Coût : une ligne chacun.
+- `credentials: 'omit'` dans le fetch et `ArrayBuffer.isView` pour les morceaux du corps (CRY2.3). Coût : une ligne chacun.
+
+*CRY2.3.*
+- Tour de correction : socket refusée qui restait ouverte et « vivante », confirmation d'un abonnement par sa propre trame ou son accusé, bougie de marge dès que `needed >= HISTORY_BARS` (le plan disait `>`, contredit : la fenêtre 17:35–17:40 UTC en 5m restait sans marge), `onSuccess` après une lecture réussie seulement, backoff remis seulement après 30 s de connexion vivante (contre le plan), trois tests manquants, lignes 430 et 449 du plan alignées. Coût : un tour.
+- Un abonnement de bougies ajouté sur un flux déjà actif et accusé n'est confirmé que par sa première trame : jamais une bougie complète à tort. Coût : une bougie incomplète de plus sur un marché peu liquide.
+
+*CRY2.4.*
+- Deuxième exécution depuis `9ec2dbb` : la première, interrompue, n'avait laissé ni commit ni rapport. Coût : nul.
+- La porte reste 429/418 seulement ; 403 et 5xx répétés sont bornés par la cadence (60 s, 5 min) ; l'hôte de la température ne journalise une panne de source que quand son détail change. Coût : quelques lignes de journal, ou une panne durable plus discrète.
+- Pas de marque de trou sur `since` après une longue coupure : le total reste un minorant (`lowerBound: true`). Coût : un total sous-estimé après une longue coupure, toujours étiqueté minorant.
+- Chaque émission recalcule les liquidations par `window.totals(now())` ; les trames `forceOrder` déclenchent au plus un recalcul par seconde. Coût : nul.
+- Un relevé en échec ou illisible laisse la valeur et l'heure d'avant ; open interest fusionné par symbole ; une requête en vol par source ; une réponse arrivée après `stop()` est écartée. Coût : une ligne chacun.
+- `current()` nul avant `start()` et après `stop()`, lecture vide juste après `start()`, rien d'émis avant un premier relevé. Coût : un changement trivial si CRY2.5 voulait une émission immédiate.
+- `FORCE_ORDER_URL` passe sur la route `/market` (`venues.ts`, `.d.ts`, test de CRY1.3, spécification, plan). Coût : une ligne à revenir si Binance rétablit le chemin sans route.
+- Choix ouverts acceptés : un relevé en échec n'émet rien, un 418 REST ferme la socket des liquidations, pas de rattrapage d'un tour manqué, un échec après `stop()` informe encore la porte, une trame illisible déclenche au plus un recalcul, une émission qui lève est journalisée une fois par panne. Coût : une ligne chacun.
+
+*CRY2.5.*
+- Voyant `blocked` dès que la porte bloque la venue (un 418 survit à éteindre puis rallumer), sinon l'état des flux. Coût : nul.
+- `shutdown()` ferme les flux et arrête la température sans toucher l'interrupteur ; le premier `temperature()` ou `subscribe()` suivant les relance (macOS garde le process et recrée la fenêtre). Coût : quelques lignes si c'était inutile.
+- Journal de la température préfixé `température · ` ; nouveaux faux de test sous `tests/helpers/`. Coût : nul.
+- `electron/crypto-socket.ts` retouché hors de la carte des fichiers (`terminate()` d'une socket morte, `FRAME_MAX` pour `maxPayload`), comme la note de CRY2.3 l'exigeait. Coût : nul.
+- Mis de côté pour l'ADMIN : un 418 de la température montre Binance `blocked` aussitôt, mais la socket Binance du flux déjà ouverte tourne jusqu'à sa prochaine reconnexion. Coût : un voyant bloqué au-dessus d'un prix ONE qui bouge encore.
+- Mis de côté pour l'ADMIN : un rechargement du renderer laisse ouverts les abonnements de la page d'avant jusqu'à l'extinction ou la fermeture de la fenêtre (même chose que le flux NinjaTrader). Coût : des flux orphelins après un rechargement sur plantage.
+- Une bougie `final: true` part aussitôt, hors de l'espacement de 250 ms des bougies partielles. Coût : un message IPC de plus par clôture.
+
+*CRY3.1.*
+- Les lignes `crypto.*` ne passent que par la restauration v1, comme `chart.indicators` : l'export v2 n'en porte pas. Coût : des réglages crypto perdus à un export v2 si l'ADMIN attendait autre chose.
+
+*CRY3.2.*
+- Refus d'abonnement livré en `status error` dans une microtâche après le retour de `subscribe` (comme nt8) ; cotation demandée avec un timeframe hors registre refusée. Coût : une ligne chacun.
+- Le port porte ce dont le store a besoin : volume acheteur des bougies quand il est fini et dans [0, volume], historique et direct ; `change24hPct` des cotations ; `CryptoMarketDataPort` exporté ; une ligne ou un événement qui n'est pas un objet est écarté sans lever. Tour de correction. Coût : un tour.
+- `dedupeBars` générique dans `src/engine/marketdata/port.ts`, hors de la carte des fichiers. Coût : nul.
+
+*CRY3.3.*
+- Journal de l'agent : le nom de l'outil de CRY6.1 qui porte l'action, et un effet court en trois langues. Coût : un renommage si CRY6.1 voulait une autre forme.
+- `load()` répare une alerte de prix restaurée dont le marché manque à la watchlist en remettant ce marché en mémoire ; jamais d'alerte retirée, aucune écriture au chargement. Coût : une entrée de watchlist de plus après une restauration atypique.
+- Chaque écriture valide, change l'état dans le même tour, puis enregistre la valeur assainie ; un `setSetting` rejeté n'échappe jamais en rejet non géré. Coût : nul.
+- Réserves 1 à 3 acceptées : un `setSetting` rejeté rejette l'action après le changement d'état (comme `chart.indicators`), `INDICATORS_MAX` exporté, refus en plus (`not_in_watchlist`, `unknown_drawing`, `unknown_alert`, `bad_mode`, `bad_params`). Coût : de petits changements d'API.
+- Perte de données : chaque écriture attend d'abord une lecture des réglages, unique et partagée ; si elle échoue, `not_ready`, et l'écriture suivante relit. Correctif d'avant revue. Coût : un tour.
+- `settingsRead` champ d'état public ; `not_ready` masque le vrai refus tant que la base est illisible. Coût : nul.
+- Perte de données : une restauration du coffre laissait le store sur ses réglages d'avant ; `reloadSettings()` et son appel dans la liste de `Metrique.tsx`. Second correctif d'avant revue. Coût : un tour.
+
+*CRY3.4.*
+- Le flux léger part quand le store voit `enabled` passer à vrai et s'arrête quand il repasse à faux ; un abonnement refusé module éteint n'est jamais relancé, le store réabonne à l'allumage suivant. Coût : nul.
+- Données en direct vidées à tout changement de marché ou de timeframe, quelle qu'en soit l'origine, avant le réabonnement différé. Coût : nul.
+- Faux de test complétés sans assertion changée ; abonnement refusé module allumé repris au prochain allumage ou changement ; bascule du CVD Binance différée de 300 ms ; fermeture du chart ou extinction vide les données du flux ; historique en échec : bougies en direct seules, code dans `chartError`. Coût : de petits changements.
+- Le flux léger est permanent (spécification § 5) : `load()` du store crypto part au démarrage du desk (`App.tsx`, sans attendre, sans ligne de boot), l'onglet garde son appel idempotent. Correctif d'avant revue. Coût : un tour.
+- Une écriture de l'agent confirmée par l'opérateur qui change le marché ou la watchlist laisse les flux du desk suivre : l'abonnement est celui du desk, pas de l'agent (décisions 8 à 10, `CLAUDE.md` § 5). Coût : une décision de l'ADMIN s'il le lit autrement.
+
+*CRY4.2.*
+- Les cartes d'indicateurs affichaient le paragraphe du Lab, faux pour le catalogue crypto : prop `footer` optionnelle (CRY4.3), Visual inchangé. Coût : une prop optionnelle.
+- Les textes crypto remplacent aussi ceux des indicateurs partagés écrits pour le Nasdaq (EMA « scalpers Nasdaq », ATR « en points »). Coût : quelques lignes de texte.
+
+*CRY4.3.*
+- Décisions de la fiche : pied de cartes, textes EMA et ATR, catalogue en 1d et CVD Binance, copie mémorisée des bougies, codes en clair, chaque action rattrapée, activation et extinction en cours, âge de la mise à jour du ticker, aide du funding, `onHover` stable, couleur de repli `rgb(169,150,224)` hors hexadécimal, « non évaluée », règles de l'étiquette et de la puce. Coût : de petits changements d'interface chacun.
+- Lectures de l'exécution acceptées : « non évaluée » sur les alertes armées seulement ; « CVD depuis HH:MM » seulement quand la ligne `cvd` est visible ; un indicateur hors du catalogue offert n'a pas de carte et n'est pas compté (gardé en réglage) ; lignes de marché sur deux rangs ; « × » pour supprimer une alerte ; chart simulé dans `tests/crypto-tab.test.ts` ; textes des codes partagés dans `AlertModal.tsx` ; `CryptoSide.tsx` long. Coût : une ligne chacun.
+
+*CRY4.4.*
+- Edge absent, Chrome présent : `capture-crypto.mjs` essaie `EDGE_PATH`, `CHROME_PATH`, puis les chemins standard d'Edge et de Chrome. Coût : nul.
+- Fixtures du banc : réponses REST publiques réelles de la fenêtre du 9 octobre, sous `scripts/harness/fixtures/`, rien d'importé par l'application. Coût : quelques centaines de Ko.
+- Écarts du banc acceptés (dossier de profil temporaire, `iframe` qui retient `load`, CSP de la page du banc, `scripts/harness` dans le `tsconfig`, plaque `--scroll end` en plus) ; fixtures relevées le 11 octobre pour la fenêtre close le 9 (600 bougies BTC-USD 1h). Coût : nul.
+- Preuve visuelle : les défauts que la capture montre sont corrigés avant de clore CRY4.4 (légende sous la puce, règles de température qui débordent, Source et Agent coupés au bord). Coût : un tour.
+- `.side { padding-right: 12px }` dans `crypto.module.css` : « % » et « LIVE » passaient sous la plaque verticale du châssis. Coût : une ligne à retirer si l'ADMIN préfère la marge de Visual.
+- Libellés courts de la température (« Liq. 1 h · long/short », « OI 24 h · BTC/ETH ») : les longs ne tiennent pas dans la colonne ; § 7 aligné en CRY7.1. Coût : un changement de texte.
+
+*CRY5.1.*
+- Décisions de la fiche : une seule règle d'évaluabilité, dans `src/engine/crypto/alerts.ts`, Binance `blocked` ou `stale` bloque les alertes de température ; évaluation sur le flux léger du store ; cycle de vie des croisements ; effets du franchissement, enregistrement en échec compris ; genre ajouté au tuple de `electron/agent/catalog.d.ts` ; conversions par les aides de CRY1.7. Coût : de petits changements.
+- `fresh` booléen ou fonction ; `alertEvaluability` lit aussi les tickers (« aucun prix reçu ») et rend un code ; textes d'alerte déplacés dans `src/lib/cryptoAlertText.ts` (le store n'importe pas `src/modules`) ; `docs/PROTOCOLE-AGENT.md` et `docs/BRIEF-AGENTIQUE-VAGUE-2.md` à jour. Coût : de petits changements.
+- Mis de côté pour l'ADMIN : un franchissement pendant l'écran de verrouillage d'ouverture fait quand même un toast et un événement ; une base de réglages illisible fait sortir `setAlertState` sans écrire ni prévenir (une alerte `once` reste armée à l'écran). Coût : une petite garde chacun.
+
+*CRY6.1.*
+- Décisions de la fiche : validation avant le port, rejet d'enregistrement → `persist_failed`, évaluabilité partagée, aucun `NaN` vers l'agent, valeur de `crypto_alert` arrondie dans `cryptoAlerts.ts`, l'agent lit ce que le trader a ouvert, port du store et garde MCP laissés à CRY6.2. Coût : de petits changements.
+- `CryptoLineView.unit` (`price` ou `other`), codes de refus en plus (`nothing_to_change`, `bad_action`, `bad_id`, `bad_params`, `read_failed`, `write_failed`). Le contrôle sémantique après la confirmation, accepté d'abord, a été repris par le tour de correction ci-dessous. Coût : de petits changements.
+- L'onglet Agent listait les 33 outils module éteint : CRY6.2 fait suivre l'interrupteur à cette liste. Coût : nul.
+- Tour de correction : le contrôle pur de chaque écriture crypto passe dans `executeDeskTool`, après la garde de l'interrupteur et avant `confirmFn` (et reste dans `run`) ; description de `crypto_alert_list` (`reason.code`) ; `crypto_temperature.stale` suit aussi l'état de Binance. Coût : un tour.
+- Restent après la confirmation les refus qui dépendent de l'état (`market_has_alerts`, `not_in_watchlist`, grille du pas) ; `write_disabled` précède le contrôle pour l'orchestrateur ; `crypto_temperature` lit `port.status().venues`. Coût : de petits changements.
+
+*CRY6.2.*
+- Mis de côté pour l'ADMIN : l'orchestrateur WebSocket ne garde les outils `crypto_*` que côté renderer (`desk.describe` suit l'interrupteur, `executeDeskTool` rend `crypto_disabled`) ; le process principal ne relit pas l'interrupteur comme le fait maintenant la passerelle MCP. Coût : une garde dans `electron/orchestrator.ts` si l'ADMIN veut le double verrou.
+- Une écriture de l'agent qui change marché, watchlist ou CVD Binance laisse le desk ouvrir les flux correspondants ; par la passerelle ou l'orchestrateur, elle passe derrière `orchestratorAllowWrite`, sans dialogue, comme `CLAUDE.md` § 5 le permet. Signalé à l'ADMIN. Coût : une reformulation du § 5, ou moins d'outils d'écriture.
+
+*CRY7.1.* L'oracle passe par `points` d'OpenMarket, en lecture seule, sans `chart_read` ni `chart_workspace_select` (ci-dessus). Coût : l'ADMIN peut demander l'oracle ONE sur un chart temporaire, comme le prévoyait le plan.
+
+### Mineurs différés encore ouverts
+
+Relus sur `cbad7fc`, base de CRY7.1 ; ceux qu'un ticket suivant a corrigés n'y sont plus.
+- **CRY0.4.** `load()` du store avale l'erreur du process principal (voulu, figé), sans toast. Le rendu paresseux de l'onglet dans `App.tsx` et l'ordre abonnement avant lecture de `load()` ne sont figés par aucun test (le lancement au démarrage l'est, par lecture du source). `tests/crypto-tab.test.ts` : « `onStatus` une fois » repose sur l'historique cumulé du faux (dit). `IconCrypto` n'est rendue nulle part (`TabDef.icon` jamais affichée). `tests/tabs.test.ts` lit `Shell.tsx` (gardé, ci-dessus).
+- **CRY1.1.** `CRYPTO_HOSTS` et `CRYPTO_MARKETS` non gelés (comme `SOURCES`). `tests/crypto-markets.test.ts:153` : `api.binance.com@evil.io` dans le test des identifiants, alors que la règle d'hôte le refuse. Table des hôtes sans tabulation ni saut de ligne injectés, barre oblique inverse, `%2e`, hôte IP numérique ou hexadécimal.
+- **CRY1.2.** `iso()` accepte une année hors de 1970–9999 (des millisecondes passées pour des secondes donnent une URL absurde). Détails : `Math.floor` redondant dans `coinbaseRequests`, type `{ urls; aggregate }` répété, branches `default:` qui avaleraient une venue future.
+- **CRY1.3.** Heures (bougie, `E` de Binance, `ts` et `T` de Bybit) contrôlées finies, pas bornées. `price24hPcnt` de Bybit ≤ −1 (−100 % ou moins) accepté ; volume et volume acheteur admettent −0. `parseCandles` écarte des lignes sans les compter ; `aggregateBars` ne contrôle que la finitude des bougies faites à la main.
+- **CRY1.4.** `mergeLiveBar` ne contrôle pas `max` (NaN ou non entier désactivent le plafond).
+- **CRY1.5.** Copies locales de `toLine` et de quatre teintes (tests de parité de style). Aucun avis à l'écran quand une ligne UTC manque faute de couvrir le début du jour. Le commentaire de `reachesDayStart` (`src/engine/crypto/indicators.ts:47-51`) est un peu trop affirmatif.
+- **CRY1.8.** Détails de test dans `tests/crypto-venues-rest.test.ts` : comparaison qui passerait sur une liste vide (`:541`), titres « un appel … 500 bougies », faux qui coupent par le nombre (`:783`, `:802`).
+- **CRY1.6.** `stored()` du test lit un champ privé ; `num` et `isRecord` dupliqués de `venues.ts` (règle du plan : aucun import).
+- **CRY1.7.** `levelFits` accepte des extrêmes de largeur qui ne se déclenchent jamais (`breadth_above 0`, `breadth_below 100`) ; égalité au premier pas non figée ; conversions ×100 non arrondies (franchissement en retard d'un ulp) ; `ID_MAX` et aides dupliqués ; tests d'import structurels fragiles.
+- **CRY2.1.** `rmSync` sans `force` survit à la mutation (effet de journal seulement) ; écriture et suppression toutes deux impossibles (fichier verrouillé) laissent `true`, journalisé à part (risque accepté) ; `why()` borne les causes à 120 signes.
+- **CRY2.2.** `Retry-After` en date HTTP non lu (repli sur le backoff) ; test de ligne d'import fragile ; réponse tardive d'un `fetchImpl` qui ignore le signal non annulée.
+- **CRY2.3.** Refus attribués par lot : un marché refusé à la réouverture abandonne toute la venue jusqu'au prochain abonnement ; `answered()` attribue une erreur Coinbase ou Bybit à la plus ancienne demande en attente ; une longue pause 429 écrit une ligne par essai. Commentaires à reprendre (`VenueLine.refused`, `shut`, doc de `historyRequests` dans `electron/crypto/venues.d.ts`, retours à la ligne égarés).
+- **CRY2.4.** Socket des liquidations muette mais qui répond aux pings : 0 $ avec une heure fraîche, sans compte de trames ni ligne au journal après une dizaine de minutes. L'heure glissante cale tant que `premiumIndex` échoue sur un marché calme. Une horloge locale en retard de plus de 60 s sur Binance écarte chaque liquidation sans bruit. La garde « une requête en vol » vaut par lancement : après `stop()` puis `start()`, une requête d'avant peut encore courir (bornée par le délai du fetch). Faux `ws` et minuteurs dupliqués dans `tests/crypto-temperature-host.test.ts` et `tests/crypto-feeds.test.ts` ; `LINE_MAX` déclaré trois fois ; `not.toThrow` vide à `tests/crypto-temperature-host.test.ts:717`.
+- **CRY2.5.** Les deux points mis de côté (418 de la température et socket Binance ouverte ; abonnements orphelins après un rechargement du renderer). `tests/crypto-runtime.test.ts:713` : l'expression des gestionnaires accepte toute méthode du runtime. `HistoryResult`, `SubscribeResult` et `TimerHandle` redéclarés dans `electron/crypto-electron.ts`. Aides inutilisées dans `tests/helpers/cryptoFakes.ts`.
+- **CRY3.1.** Couverture étroite au niveau du coffre (marché inconnu, timeframe 30, plafonds, `1e999`), tenue au niveau des assainisseurs ; huitième coquille Dexie en ligne dans les tests ; une ligne gardée assainie en `[]` écrase la liste locale sans être comptée.
+- **CRY3.2.** Pas de `catch` autour de `onEvent` du consommateur (comme nt8) ; `instruments` annonce les deux séries Binance du CVD (cotation acceptée par le port puis refusée par le main) ; détails du port en français seulement ; immutabilité d'une bougie finale non tenue par le port (le main la garantit) ; une réponse d'historique dont `bars` n'est pas un tableau rejette par `TypeError`.
+- **CRY3.3.** Tolérance du pas `1e-12 × pas` : 20.00000000001 passe pour un pas entier et s'enregistre tel quel. `sanitizeCryptoChart` et `readIndicator` (`src/engine/crypto/persist.ts`) n'imposent pas le pas : une ligne `crypto.chart` restaurée et éditée à la main garde une période 20.5. Une écriture qui croise `restoreVault` arrive après la restauration ; `addToWatchlist` sur un marché déjà présent réécrit la ligne et journalise « ajouté » ; repli mort `sanitize…(x) ?? x` (`src/store/crypto.ts:381-396`) ; `settingsPending` et `settingsEpoch`, de module, survivent aux remises à zéro des tests.
+- **CRY3.4.** Aucun test ne résout un historique ou une température après l'arrêt (gardes `!stopped` de `src/store/cryptoLive.ts`) ; le test d'historique périmé passe sur `leg.closed` seul ; une exception dans `startLight` ou `startChart` laisse `stop*` nul et relance à chaque écriture ; import circulaire `crypto.ts` ↔ `cryptoLive.ts` ; câblage d'`App` figé par lecture du source ; rejet de la première `temperature()` avalé ; assertions `onStatus` dépendantes de l'état du module.
+- **CRY4.1.** `precision` et `minMove` non validés dans `Chart.tsx` (une précision hors de 0–100 lève dans `Intl` pendant le dessin ; l'onglet ne passe que les valeurs du registre) ; marqueurs de trades à 2 décimales ; deux `priceLines` de même identifiant : la dernière l'emporte, sans test ; démarrage différé non testé ; `cssToken`, troisième variante d'une même lecture.
+- **CRY4.2.** `indicatorCopy.ts` écrit « (BTCUSDT, ONDOUSDT) » en dur, sans test qui le lie au registre ; balisage `IconPlus` et `Toggle` recopié dans le test d'équivalence de Visual ; assertions par lecture du source ; `indicatorCopy.ts` importe tout le composant pour deux tables de textes.
+- **CRY4.3.** Titre du test de cache des lignes trop affirmatif ; l'aide « à N décimales au plus » d'`AlertModal` promet un contrôle absent ; non testés : « × » d'alerte, branche `catch` d'`AlertModal`, légende au survol, péremption de la largeur et des liquidations, puce bloquée, titres de colonnes en et es ; `fmtUsdCompact(999 999)` donne « 1 000,0 k$ », `fmtSigned(0.00001, 4)` « 0,0000 % » ; identifiants `cvd` et `cvd-binance` et règle `cvdProxy` dupliqués ; `v` masqué ; `CryptoSide.tsx` long (389 lignes).
+- **CRY4.4.** `tests/crypto-switch.test.ts` laisse des dossiers `canto-crypto-switch-*` dans `%TEMP%` (2 050 relevés), comme une trentaine de fichiers de test hors du module. Variation 24 h des lignes de marché non alignée à droite (`CryptoSide.tsx`, `crypto.module.css`) : « -0.21 % » finit environ 14 px trop tôt sur `docs/design/crypto/09-cry.png`. Codes du faux desk du banc différents de ceux du main ; un échec de montage du banc ne se voit que dans la console du navigateur (la capture sort à 0 sur une page blanche) ; `capture-crypto.mjs` efface le PNG suivi avant la prise ; pas de test de `waitForServer`, du délai ni de l'arrêt ; le banc efface alertes et tracés crypto de l'origine `127.0.0.1:5173` (dit).
+- **CRY5.1.** `setAlertState` sort sans rien dire sur `not_ready` ou un identifiant inconnu (une alerte `once` signalée reste armée, sans toast) ; une exception dans le toast ou `recordDeskEvent` saute `setAlertState` (`src/store/cryptoAlerts.ts`). Pas de test du réarmement au prix minuscule de ONE au niveau de l'évaluateur, ni de `reloadSettings` qui laisse un croisement `rearm` en place ; un franchissement pendant un trou de péremption est signalé à la première lecture fraîche ; l'évaluateur ne suit pas l'admission du desk (écran de verrouillage, mis de côté ci-dessus).
+- **CRY6.1.** La valeur de `crypto_alert`, arrondie à la précision affichée, peut égaler le niveau (`breadth_below 40` franchi à 39,96 rend 40) : garder une décimale de plus pour la largeur et le funding. Le contrôle de `crypto_indicator_set` avant la confirmation ne lit que min et max, pas la grille du pas (`ema` 20.5 : dialogue, puis `bad_params`) ; `docs/PROTOCOLE-AGENT.md:64` (« une écriture invalide est refusée sans dialogue ») en dit trop ; `onStepGrid` est à déplacer dans le moteur.
+- **CRY6.2.** `desk.describe` est gardé 5 s par le relais MCP (`electron/desk-relay.ts:66`) : jusqu'à 5 s après l'allumage, `tools/list` n'a pas les `crypto_*` et `tools/call` répond -32602 « Outil inconnu » ; `listChanged` faux et consignes MCP muettes sur la crypto (un client voit les outils en se reconnectant). `setChart` enregistre le marché puis le timeframe : un rejet du second rend `persist_failed` alors que le marché a changé (`src/store/crypto.ts:733-742`). Le `chart()` du port recalcule les lignes d'indicateurs à chaque appel.

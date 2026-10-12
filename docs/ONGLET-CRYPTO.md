@@ -20,7 +20,7 @@ Base : CΛNTO 3.5.0 (`main`, 0796a9d). Usage : **personnel**, rien ne part en Re
 
 **Hypothèses retenues sans question.** Bybit pour ZIG (absent de Coinbase et de Binance) ; une seule watchlist ; registre de marchés fixé dans le code en v1 ; aucune exécution d'ordre.
 
-**Succès.** Desk lancé, interrupteur allumé : l'onglet 09 montre les quatre marchés en direct avec leurs voyants, la température, le CVD ; l'agent du desk et Claude Code (passerelle MCP) lisent le chart et, après confirmation, le modifient ; une alerte prix et une alerte température se déclenchent en toast ; les bougies BTC-USD 1h du desk égalent celles d'OpenMarket (§ 11) ; l'onglet ne se distingue pas des autres onglets du desk. Interrupteur éteint : le desk est celui de la 3.5.0, plus l'onglet 09 en état vide, sans flux ni outil.
+**Succès.** Desk lancé, interrupteur allumé : l'onglet 09 montre les quatre marchés en direct avec leurs voyants, la température, le CVD ; l'agent du desk et les clients de la passerelle MCP lisent le chart ; l'agent du desk le modifie après la confirmation de l'opérateur, un client de la passerelle ou de l'orchestrateur derrière `orchestratorAllowWrite` (éteint par défaut), sans dialogue (`CLAUDE.md` § 5) ; une alerte prix et une alerte température se déclenchent en toast ; les bougies BTC-USD 1h du desk égalent celles d'OpenMarket (§ 11) ; l'onglet ne se distingue pas des autres onglets du desk. Interrupteur éteint : le desk est celui de la 3.5.0, plus l'onglet 09 en état vide, sans flux ni outil.
 
 ## 2. Décisions de l'ADMIN à consigner
 
@@ -54,7 +54,7 @@ src/engine/crypto/  (pur)                       electron/crypto/*.d.ts          
 - **Interrupteur** : état tenu par le main dans `userData/crypto.json` (`{ "enabled": false }` par défaut). `crypto:enable` ouvre un dialogue du main (Annuler par défaut) ; `crypto:disable` éteint sans dialogue, ferme tous les flux et vide les caches. Le renderer lit l'état, il ne l'écrit pas.
 - **IPC** : méthodes nommées dans `electron/preload.ts` sous `window.canto.crypto`, chaque `ipcMain` derrière `trusted(e)` et une validation de forme ; tout refusé interrupteur éteint.
 - **Flux** : comme pour NinjaTrader (`src/engine/marketdata/adapters/nt8.ts`), un adaptateur du moteur, `src/engine/crypto/port.ts`, implémente `MarketDataPort` (`src/engine/marketdata/port.ts:56-64`, `sourceId: 'crypto'`) avec un transport injecté qui appelle `window.canto.crypto` ; le réseau reste dans le main. Seul `src/store/crypto.ts` le consomme : `store/bars.ts`, `applyNtBar`, `QuoteBook` et `createPort` n'en voient rien.
-- **Identifiants de marché** : `venue:symbole` (`coinbase:BTC-USD`, `coinbase:ONDO-USD`, `binance:ONEUSDT`, `bybit:ZIGUSDT`), propres aux tables crypto ; `isInstrumentId` (`src/store/db.ts:338`) n'est ni utilisé ni élargi.
+- **Identifiants de marché** : `venue:symbole` (`coinbase:BTC-USD`, `coinbase:ONDO-USD`, `binance:ONEUSDT`, `bybit:ZIGUSDT`), propres aux tables crypto ; `isInstrumentId` (`src/store/db.ts:340`) n'est ni utilisé ni élargi.
 - **Onglet** : `'crypto'` dans `TabId` (`src/store/ui.ts:5`), entrée `09 · CRY` dans `src/app/tabs.ts`, `lazy` dans `src/app/App.tsx`, raccourci `Digit([1-9])` (`src/app/Shell.tsx:92`). Interrupteur éteint : l'onglet reste sur le rail et Ctrl+9 l'ouvre, en état vide (§ 7), sans flux ni outil.
 - **Intouchés** : `src/engine/instruments.ts`, `src/engine/portfolio/*`, `discipline`, `copier`, `execution`, `electron/nt-bridge/*`, `allowedHosts()`.
 
@@ -120,20 +120,20 @@ Décision de l'ADMIN (9 octobre 2026) : l'onglet reprend le **design final de la
 *Colonne* (`sideSection`, `sideTitle`, `desc` de Visual), dans cet ordre :
 1. **Marchés · 4** — une ligne par marché au format `tradeRow` : `Led` et symbole, `Etiquette` de la venue, dernier prix, variation 24 h en `signClass`. Un clic change le marché du chart.
 2. **Indicateurs · n** — les cartes de Visual à l'identique (`Toggle`, nom, ×, paramètres, description) et le bouton `+ Ajouter` ; catalogue crypto : CVD, CVD Binance, VWAP 00:00 UTC, EMA, SMA, volume relatif, ATR, niveaux du jour UTC précédent. Le VWAP 00:00 UTC et les niveaux du jour UTC précédent ne se calculent que pour une journée dont la fenêtre chargée couvre le début (`bars[0].time <= début du jour`) : sinon la ligne s'interrompt, plutôt que d'afficher une valeur fausse.
-3. **Température · Binance** — une `Regle` par lecture (`Funding médian ···· +0,0030 %`, `Largeur 24 h ···· 38 %`, `Liquidations 1 h ···· L 4,1 M$ · S 1,2 M$`, `Open interest 24 h ···· BTC +2,4 %`), puis une `desc` avec l'heure de chaque lecture et « liquidations : minorant ».
+3. **Température · Binance** — une `Regle` par lecture, six en tout (`Funding médian ···· +0,0030 %`, `Largeur 24 h ···· 38 %`, `Liq. 1 h · long ···· 4,1 M$`, `Liq. 1 h · short ···· 1,2 M$`, `OI 24 h · BTC ···· +2,4 %`, `OI 24 h · ETH ···· +1,1 %` ; libellés courts, les longs ne tiennent pas dans la colonne : CRY4.4), puis une `desc` avec l'heure de chaque lecture et « liquidations : minorant ».
 4. **Alertes · n** — une ligne par alerte : cible, condition, niveau, état, `Etiquette` `[ AGENT ]` si l'agent l'a posée. `+ Ajouter` ouvre une `Modal` du desk (`Field`, `<select>`, `input`, boutons `ghost` et `gold`), sur le modèle de l'import de barres (`Visual.tsx:517-599`).
 5. **Source** — `desc` à la manière de Visual : venue, nombre de bougies, période ; un voyant par venue (`connecting` … `blocked`) ; « Données publiques des exchanges, usage personnel. » ; bouton `ghost` « Éteindre le module ».
 6. **Agent** — dernières écritures de l'agent sur l'onglet (heure, outil, effet) au format `tradeRow`. La confirmation passe par le `ConfirmDialog` du desk (`Shell.tsx:332`), comme toute écriture de l'agent.
 
 **Interrupteur éteint.** L'onglet garde sa place sur le rail. `ModuleContent` montre `Empty` : titre, texte, et `Button variant="chamfer"` « Activer le module crypto », seule action principale de l'écran, qui demande le dialogue du process principal.
 
-**Styles.** `src/modules/crypto/Crypto.tsx` importe `src/modules/visual/visual.module.css` pour tout ce qu'il partage avec Visual : rendu identique, aucune copie. `crypto.module.css` ne porte que les lignes de marché et d'alerte, en jetons de `tokens.css`. `--gold` ne marque que le vivant ; tracés et séries d'indicateurs en couleurs catégorielles (`--violet`, `--ice`, `--amber`) ; aucun `--lab`. Chaînes par `tr(fr, en, es)`. `tests/design-guard.test.ts` reste vert.
+**Styles.** `src/modules/crypto/Crypto.tsx` importe `src/modules/visual/visual.module.css` pour tout ce qu'il partage avec Visual : rendu identique, aucune copie. `crypto.module.css` ne porte que les lignes de marché et d'alerte, en jetons de `tokens.css`, et la marge droite de la colonne (`.side`), qui laisse libre la plaque verticale du châssis (CRY4.4). `--gold` ne marque que le vivant ; tracés et séries d'indicateurs en couleurs catégorielles (`--violet`, `--ice`, `--amber`) ; aucun `--lab`. Chaînes par `tr(fr, en, es)`. `tests/design-guard.test.ts` reste vert.
 
 **Preuve visuelle.** Au lot CRY4, capture de l'onglet par le chemin des planches du README, à poser à côté de `docs/media/visual.png`.
 
 ## 8. Alertes
 
-**Persistance.** Comme les indicateurs de Visual (`chart.indicators`, `src/store/bars.ts:179`), l'état crypto vit dans quatre lignes de la table `settings` : `crypto.chart` (marché, timeframe, indicateurs), `crypto.watchlist`, `crypto.alerts` (50 au plus), `crypto.drawings` (100 au plus). Chaque clé a son assainisseur dans `SETTING_ROW_SANITIZERS` (`src/store/db.ts:599`), le même que celui qu'applique le store à la lecture. Pas de nouvelle version Dexie : rien à migrer.
+**Persistance.** Comme les indicateurs de Visual (`chart.indicators`, `src/store/bars.ts:179`), l'état crypto vit dans quatre lignes de la table `settings` : `crypto.chart` (marché, timeframe, indicateurs), `crypto.watchlist`, `crypto.alerts` (50 au plus), `crypto.drawings` (100 au plus). Chaque clé a son assainisseur dans `SETTING_ROW_SANITIZERS` (`src/store/db.ts:601`), le même que celui qu'applique le store à la lecture. Pas de nouvelle version Dexie : rien à migrer.
 
 **Modèle.** `{ id, target, kind, level, mode, author, state, createdAt, lastTriggeredAt? }`, plus un état d'évaluation calculé, jamais enregistré : `evaluable` et sa raison.
 - `target` : un marché **de la watchlist**, ou `temperature`.
