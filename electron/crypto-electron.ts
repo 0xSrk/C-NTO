@@ -80,13 +80,14 @@ export function cryptoWebSocket(url: string): WsLike {
 }
 
 /**
- * La porte de `crypto-net.ts`, qui prévient en plus quand une venue passe bloquée (418) : `crypto:status` suit aussitôt,
- * même quand le 418 vient d'un relevé de température, dont la socket ne remonte pas d'état.
+ * La porte de `crypto-net.ts`, qui prévient en plus quand une venue passe bloquée (418), en la nommant : le runtime coupe
+ * alors la socket de flux de cette venue et `crypto:status` suit aussitôt, même quand le 418 vient d'un relevé de
+ * température, dont la socket ne remonte pas d'état.
  */
 class WatchedGate extends VenueGate {
   constructor(
     now: () => number,
-    private readonly onBlocked: () => void,
+    private readonly onBlocked: (venue: CryptoVenue) => void,
   ) {
     super(now);
   }
@@ -94,7 +95,7 @@ class WatchedGate extends VenueGate {
   override onHttpError(venue: CryptoVenue, err: VenueHttpError): void {
     const before = this.blocked(venue);
     super.onHttpError(venue, err);
-    if (!before && this.blocked(venue)) this.onBlocked();
+    if (!before && this.blocked(venue)) this.onBlocked(venue);
   }
 }
 
@@ -207,10 +208,14 @@ export function createCryptoRuntime(deps: CryptoRuntimeDeps): CryptoRuntime {
   let lastStatus: string | null = null;
   const switchHost = new CryptoSwitchHost({ userDataDir: deps.userDataDir, locale: deps.locale, window: deps.window, showMessageBox: deps.showMessageBox, log });
   // Une seule porte, avec le runtime : jamais recréée, un 418 survit à l'extinction. Horloge monotone : un saut de
-  // l'horloge du poste ne raccourcit ni n'allonge une pause.
+  // l'horloge du poste ne raccourcit ni n'allonge une pause. Un 418, d'où qu'il vienne (historique ou relevé de
+  // température), coupe aussi la socket de flux de la venue : le bannissement vaut pour l'IP du poste.
   const gate = new WatchedGate(
     () => performance.now(),
-    () => publishStatus(),
+    (venue) => {
+      feeds.cut(venue);
+      publishStatus();
+    },
   );
   const cadence = new EventCadence(timers, (event) => {
     if (switchHost.enabled) transmit('crypto:event', event);

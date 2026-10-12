@@ -338,7 +338,7 @@ describe('createCryptoRuntime', () => {
       expect(h.statuses().slice(6)).toEqual([OFF]);
     });
 
-    it('une venue est blocked dès que la porte la coupe, même quand sa socket de flux est encore ouverte', async () => {
+    it('un 418 du relevé de température : Binance blocked aussitôt, et sa socket de flux déjà ouverte se ferme sans reconnexion', async () => {
       let answer: (res: Response) => void = () => undefined;
       const h = harness({
         enabled: true,
@@ -350,12 +350,19 @@ describe('createCryptoRuntime', () => {
             : jsonResponse([]),
       });
       h.runtime.subscribe({ series: 'binance:ONEUSDT', kind: 'ticker' });
-      h.socket(BINANCE_WS).open();
+      const feed = h.socket(BINANCE_WS);
+      feed.open();
       expect(h.runtime.status().venues.binance).toBe('live');
       answer(new Response(null, { status: 418 })); // le relevé de funding revient en 418
       await settle();
       expect(h.runtime.status()).toEqual({ enabled: true, venues: BINANCE_BLOCKED });
       expect(nth(h.statuses(), -1)).toEqual({ enabled: true, venues: BINANCE_BLOCKED });
+      // Même IP, même bannissement : la socket du flux ne tourne plus jusqu'à sa prochaine reconnexion.
+      expect(feed.closed).toBe(true);
+      const opened = h.sockets.filter((s) => s.url === BINANCE_WS).length;
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(h.sockets.filter((s) => s.url === BINANCE_WS)).toHaveLength(opened);
+      expect(h.runtime.status().venues.binance).toBe('blocked');
     });
   });
 

@@ -540,8 +540,11 @@ export class CryptoFeedHost {
     return errorText(error);
   }
 
-  /** 418 : la venue est coupée jusqu'au redémarrage, sa socket comprise. */
-  private cut(venue: CryptoVenue): void {
+  /**
+   * 418 : la venue est coupée jusqu'au redémarrage, sa socket comprise. Public : le runtime l'appelle aussi quand le 418 vient
+   * d'un autre client de la même porte (relevé de température), puisque le bannissement vaut pour l'IP du poste.
+   */
+  cut(venue: CryptoVenue): void {
     const line = this.line(venue);
     if (line.socket !== null) this.shut(venue, line, false);
     else this.publish(venue);
