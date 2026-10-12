@@ -51,6 +51,19 @@ export function mcpInstructions(locale: AppLocale, allowWrites: boolean): string
         'Access: read only. Writes (notes, session annotations, order proposals) are hidden and refused until the trader turns on “write allowed” in AI Agent › External agents · MCP. After that change, reconnect the client: the tool list does not refresh by itself.',
         'Acceso: solo lectura. Las escrituras (notas, anotaciones de sesión, propuestas de orden) están ocultas y se rechazan mientras el trader no active « escritura autorizada » en Agente IA › Agentes externos · MCP. Tras ese cambio, reconecte el cliente: la lista de herramientas no se actualiza sola.',
       );
+  // Module crypto : listé selon l'interrupteur lu à chaque requête (`cryptoEnabled`), sans `listChanged` ; ses écritures passent
+  // derrière la même autorisation, sans dialogue du desk (`executeDeskTool`, source `orch`).
+  const crypto = allowWrites
+    ? t(
+        'Module crypto (onglet 09 · CRY) : les outils crypto_* ne sont listés que tant que le trader l’a allumé. Ses écritures (crypto_chart_set, crypto_indicator_set, crypto_drawing_set, crypto_alert_set, crypto_watchlist_set) s’appliquent aussitôt, sans dialogue dans le desk : « écriture autorisée » est le seul accord du trader. Après l’allumage ou l’extinction du module, reconnectez le client.',
+        'Crypto module (tab 09 · CRY): the crypto_* tools are listed only while the trader has it on. Its writes (crypto_chart_set, crypto_indicator_set, crypto_drawing_set, crypto_alert_set, crypto_watchlist_set) apply at once, with no dialog in the desk: “write allowed” is the trader’s only consent. After the module is turned on or off, reconnect the client.',
+        'Módulo cripto (pestaña 09 · CRY): las herramientas crypto_* solo se listan mientras el trader lo tiene encendido. Sus escrituras (crypto_chart_set, crypto_indicator_set, crypto_drawing_set, crypto_alert_set, crypto_watchlist_set) se aplican de inmediato, sin diálogo en el desk: « escritura autorizada » es el único consentimiento del trader. Tras encender o apagar el módulo, reconecte el cliente.',
+      )
+    : t(
+        'Module crypto (onglet 09 · CRY) : les outils crypto_* ne sont listés que tant que le trader l’a allumé ; ses écritures (chart, indicateurs, tracés, alertes, watchlist) sont masquées et refusées comme les autres. Après l’allumage ou l’extinction du module, reconnectez le client.',
+        'Crypto module (tab 09 · CRY): the crypto_* tools are listed only while the trader has it on; its writes (chart, indicators, drawings, alerts, watchlist) are hidden and refused like the others. After the module is turned on or off, reconnect the client.',
+        'Módulo cripto (pestaña 09 · CRY): las herramientas crypto_* solo se listan mientras el trader lo tiene encendido; sus escrituras (gráfico, indicadores, trazados, alertas, watchlist) están ocultas y se rechazan como las demás. Tras encender o apagar el módulo, reconecte el cliente.',
+      );
   return [
     t(
       'CΛNTO est le desk de trading local d’un trader de futures CME (prop firm). Les outils lisent son journal, ses métriques, son plan prop firm, ses notes, le calendrier officiel, le pont NinjaTrader et les événements du desk.',
@@ -58,6 +71,7 @@ export function mcpInstructions(locale: AppLocale, allowWrites: boolean): string
       'CΛNTO es el desk de trading local de un trader de futuros CME (prop firm). Las herramientas leen su diario, sus métricas, su plan prop firm, sus notas, el calendario oficial, el puente NinjaTrader y los eventos del desk.',
     ),
     access,
+    crypto,
     t(
       'Événements : appelez desk_events, puis repassez le cursor rendu pour ne lire que les suivants.',
       'Events: call desk_events, then pass back the returned cursor to read only the next ones.',

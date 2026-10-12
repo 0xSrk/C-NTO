@@ -163,6 +163,29 @@ describe('passerelle MCP · protocole', () => {
     expect(es).toMatch(/hora de Nueva York/);
   });
 
+  it('initialize : les consignes parlent du module crypto, outils selon l’interrupteur, écritures sans dialogue, reconnexion', async () => {
+    const instructions = async (over: Partial<McpContext> = {}) =>
+      (await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-11-25' })), ctx(over)))).result?.instructions as string;
+    const cases = [
+      ['fr', /crypto_\* ne sont listés que tant que le trader l’a allumé/, /Après l’allumage ou l’extinction du module, reconnectez le client/, /masquées et refusées comme les autres/, /s’appliquent aussitôt, sans dialogue dans le desk : « écriture autorisée »/],
+      ['en', /crypto_\* tools are listed only while the trader has it on/, /After the module is turned on or off, reconnect the client/, /hidden and refused like the others/, /apply at once, with no dialog in the desk: “write allowed”/],
+      ['es', /crypto_\* solo se listan mientras el trader lo tiene encendido/, /Tras encender o apagar el módulo, reconecte el cliente/, /ocultas y se rechazan como las demás/, /se aplican de inmediato, sin diálogo en el desk: « escritura autorizada »/],
+    ] as const;
+    for (const [locale, listed, reconnect, closedWrites, openWrites] of cases) {
+      const closed = await instructions({ locale });
+      expect(closed, locale).toMatch(listed);
+      expect(closed, locale).toMatch(reconnect);
+      expect(closed, locale).toMatch(closedWrites);
+      // Lecture seule : aucun nom d'outil d'écriture, crypto compris.
+      expect(closed, locale).not.toMatch(/crypto_\w+_set|create_note|annotate_session|propose_order/);
+      const open = await instructions({ locale, allowWrites: true });
+      expect(open, locale).toMatch(listed);
+      expect(open, locale).toMatch(reconnect);
+      expect(open, locale).toMatch(openWrites);
+      for (const name of ['crypto_chart_set', 'crypto_indicator_set', 'crypto_drawing_set', 'crypto_alert_set', 'crypto_watchlist_set']) expect(open, `${locale} ${name}`).toContain(name);
+    }
+  });
+
   it('tools/list : les écritures sont masquées tant qu’elles ne sont pas autorisées', async () => {
     const off = await result(await handleMcpHttp(post(rpc('tools/list')), ctx()));
     const names = (off.result?.tools as { name: string }[]).map((t) => t.name);
