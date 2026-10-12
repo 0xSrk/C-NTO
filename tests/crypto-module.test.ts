@@ -687,7 +687,7 @@ describe('CRY4.3 › alertes', () => {
     expect((section(node, 'Alertes').textContent ?? '').match(/non évaluée/g)).toHaveLength(1);
   });
 
-  it('la fenêtre d’alerte : erreur en clair, indication de l’unité du funding, création', async () => {
+  it('la fenêtre d’alerte : pas du prix, erreur en clair, indication de l’unité du funding, création', async () => {
     const node = await mount();
     await click(button(section(node, 'Alertes'), 'Ajouter'));
     const modal = dialog();
@@ -695,6 +695,17 @@ describe('CRY4.3 › alertes', () => {
     const [target, kind] = [...(modal?.querySelectorAll('select') ?? [])] as HTMLSelectElement[];
     expect(target?.value).toBe(BTC);
     expect([...(kind?.querySelectorAll('option') ?? [])].map((o) => o.value)).toEqual(['price_above', 'price_below']);
+
+    // L'aide d'un prix dit le pas de cotation du marché, pour repère : aucun nombre de décimales n'est promis (ni contrôlé).
+    for (const [locale, text] of [
+      ['en', 'Price in USD; the market quotes in steps of 0.01.'],
+      ['es', 'Precio en USD; el mercado cotiza en pasos de 0,01.'],
+      ['fr', 'Prix en USD ; le marché cote au pas de 0,01.'],
+    ] as const) {
+      await act(async () => useI18n.setState({ locale }));
+      expect(dialog()?.textContent, locale).toContain(text);
+      expect(dialog()?.textContent, locale).not.toMatch(/décimales au plus|decimals at most|decimales como máximo/);
+    }
 
     // Niveau vide : refus du store, affiché en clair.
     await click(button(modal as HTMLElement, 'Créer l’alerte'));

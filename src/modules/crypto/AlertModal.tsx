@@ -13,6 +13,7 @@ import { cryptoMarket, isChartableMarket, type CryptoMarketId } from '@/engine/c
 import { DRAWINGS_MAX, INDICATORS_MAX, LABEL_MAX } from '@/engine/crypto/persist';
 import { tr, useI18n } from '@/i18n';
 import { alertKindText, alertTargetText } from '@/lib/cryptoAlertText';
+import { fmtPrice } from '@/lib/format';
 import type { CryptoRefusal, WriteResult } from '@/store/crypto';
 import { useUi } from '@/store/ui';
 import v from '../visual/visual.module.css';
@@ -68,8 +69,10 @@ function levelHint(target: CryptoAlert['target'], kind: CryptoAlertKind): string
   let unit: string;
   if (isPriceKind(kind)) {
     const spec = cryptoMarket(target);
+    // Le pas de cotation du marché, dit pour repère : le niveau n'y est pas ramené (aucun contrôle ne le promet).
+    const step = spec ? fmtPrice(spec.tickSize, spec.precision) : '';
     unit = spec
-      ? tr(`Prix en ${spec.quote}, à ${spec.precision} décimales au plus.`, `Price in ${spec.quote}, ${spec.precision} decimals at most.`, `Precio en ${spec.quote}, con ${spec.precision} decimales como máximo.`)
+      ? tr(`Prix en ${spec.quote} ; le marché cote au pas de ${step}.`, `Price in ${spec.quote}; the market quotes in steps of ${step}.`, `Precio en ${spec.quote}; el mercado cotiza en pasos de ${step}.`)
       : tr('Prix dans la devise de cotation du marché.', 'Price in the market’s quote currency.', 'Precio en la divisa de cotización del mercado.');
   } else if (kind === 'funding_median_above' || kind === 'funding_median_below') {
     unit = tr('Pourcentage par intervalle de financement : 0.01 = 0,01 %.', 'Percent per funding interval: 0.01 = 0.01 %.', 'Porcentaje por intervalo de financiación: 0.01 = 0,01 %.');
