@@ -285,11 +285,28 @@ describe('schémas des outils crypto', () => {
     }
   });
 
-  it('chaque écriture crypto dit qu’un argument invalide est refusé avant la confirmation, en trois langues', () => {
-    const before = { fr: 'avant la confirmation', en: 'before the confirmation', es: 'antes de la confirmación' } as const;
+  it('chaque écriture crypto dit qu’un argument invalide est refusé avant tout dialogue, en trois langues', () => {
+    const before = { fr: 'avant tout dialogue', en: 'before any dialog', es: 'antes de cualquier diálogo' } as const;
     for (const locale of ['fr', 'en', 'es'] as const) {
       useI18n.setState({ locale });
       for (const name of WRITES) expect(toolSchemas({ crypto: true }).find((t) => t.name === name)!.description, `${locale} ${name}`).toContain(before[locale]);
+    }
+  });
+
+  it('ce que desk.describe sert aux clients externes ne leur promet aucun dialogue : écriture autorisée, appliquée aussitôt', () => {
+    const expected = {
+      fr: [/Agent du desk : le trader confirme chaque écriture dans un dialogue/, /Passerelle MCP ou orchestrateur : aucun dialogue/, /« écriture autorisée »/, /s’applique aussitôt/],
+      en: [/Desk agent: the trader confirms every write in a dialog/, /MCP gateway or orchestrator: no dialog/, /“write allowed”/, /applies at once/],
+      es: [/Agente del desk: el trader confirma cada escritura en un diálogo/, /Pasarela MCP u orquestador: ningún diálogo/, /« escritura autorizada »/, /se aplica de inmediato/],
+    } as const;
+    const unconditional = { fr: /(^|\. )Le trader confirme chaque écriture/, en: /(^|\. )The trader confirms every write/, es: /(^|\. )El trader confirma cada escritura/ } as const;
+    for (const locale of ['fr', 'en', 'es'] as const) {
+      useI18n.setState({ locale });
+      for (const name of WRITES) {
+        const text = describedDeskTools({ crypto: true }).find((t) => t.name === name)!.description;
+        for (const pattern of expected[locale]) expect(text, `${locale} ${name}`).toMatch(pattern);
+        expect(text, `${locale} ${name}`).not.toMatch(unconditional[locale]);
+      }
     }
   });
 

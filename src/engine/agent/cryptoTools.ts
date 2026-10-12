@@ -8,10 +8,10 @@
  * - Lectures : ce que le trader a ouvert, jamais un flux de plus. Onglet fermé, `crypto_chart_read` le dit (`tab_closed`).
  * - Écritures : chaque argument est contrôlé avant le port (marché du registre, énumérations, paramètres d'indicateur dans leurs
  *   bornes et sur leur pas, label ≤ 40, id ≤ 64, prix finis et strictement positifs, zone dans l'ordre) et refusé en code
- *   stable sans l'appeler. Ce contrôle est pur (`precheck`) :
- *   `executeDeskTool` le passe avant la confirmation de l'opérateur, `run` le refait. Le port écrit avec `by: 'agent'` et rend
- *   le refus du store tel quel ; un port qui rejette (la base refuse d'enregistrer) rend `persist_failed`. Aucune exception ne
- *   sort d'un `run`.
+ *   stable sans l'appeler. Ce contrôle est pur (`precheck`) : `executeDeskTool` le passe avant la confirmation de l'opérateur,
+ *   `run` le refait. Seul l'agent du desk (source `llm`) ouvre ce dialogue ; la passerelle MCP et l'orchestrateur (source
+ *   `orch`) écrivent derrière `allowWrite`, sans dialogue. Le port écrit avec `by: 'agent'` et rend le refus du store tel quel ;
+ *   un port qui rejette (la base refuse d'enregistrer) rend `persist_failed`. Aucune exception ne sort d'un `run`.
  * - Nombres : une bougie sans prix fini est écartée ; toute autre valeur non finie devient `null`. Les prix sont arrondis à la
  *   précision du marché, les pourcentages à 2 à 4 décimales, les volumes à 6.
  */
@@ -462,9 +462,14 @@ const ADD_REMOVE = { type: 'string', enum: ['add', 'remove'] };
 const OFF_FR = ' Module crypto éteint : `crypto_disabled`.';
 const OFF_EN = ' Crypto module off: `crypto_disabled`.';
 const OFF_ES = ' Módulo cripto apagado: `crypto_disabled`.';
-const CONFIRM_FR = ' Le trader confirme chaque écriture. Un argument hors registre ou hors bornes est refusé avant la confirmation, sans rien écrire (code stable) ; un enregistrement refusé par la base rend `persist_failed`.';
-const CONFIRM_EN = ' The trader confirms every write. An argument outside the registry or bounds is refused before the confirmation, with nothing written (stable code); a save refused by the database returns `persist_failed`.';
-const CONFIRM_ES = ' El trader confirma cada escritura. Un argumento fuera del registro o de los límites se rechaza antes de la confirmación, sin escribir nada (código estable); un guardado rechazado por la base devuelve `persist_failed`.';
+// La même description sert à l'agent du desk (`toolSchemas`) et aux clients externes (`desk.describe`) : elle dit les deux
+// portes, dont une seule ouvre un dialogue (`executeDeskTool` : `confirmFn` pour la source `llm`, `allowWrite` pour `orch`).
+const CONFIRM_FR =
+  ' Agent du desk : le trader confirme chaque écriture dans un dialogue. Passerelle MCP ou orchestrateur : aucun dialogue ; l’écriture n’est servie que si le trader a coché « écriture autorisée », et elle s’applique aussitôt. Un argument hors registre ou hors bornes est refusé avant tout dialogue, sans rien écrire (code stable) ; un enregistrement refusé par la base rend `persist_failed`.';
+const CONFIRM_EN =
+  ' Desk agent: the trader confirms every write in a dialog. MCP gateway or orchestrator: no dialog; the write is served only if the trader has turned on “write allowed”, and it applies at once. An argument outside the registry or bounds is refused before any dialog, with nothing written (stable code); a save refused by the database returns `persist_failed`.';
+const CONFIRM_ES =
+  ' Agente del desk: el trader confirma cada escritura en un diálogo. Pasarela MCP u orquestador: ningún diálogo; la escritura solo se sirve si el trader activó « escritura autorizada », y se aplica de inmediato. Un argumento fuera del registro o de los límites se rechaza antes de cualquier diálogo, sin escribir nada (código estable); un guardado rechazado por la base devuelve `persist_failed`.';
 
 /** Les dix définitions, toujours : sans port crypto, leur `run` refuse (`crypto_disabled`), et `DESK_TOOLS` égale le catalogue. */
 export function createCryptoTools(ports: DeskPorts): DeskTool[] {
