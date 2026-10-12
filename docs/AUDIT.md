@@ -1068,6 +1068,12 @@ Revue de `e98d047..56f75c1`, puis une vague de correctifs, chacun sous le ticket
 
 Restent à l'ADMIN : l'oracle par `points` à juger, et les points mis de côté (orchestrateur sans relecture de l'interrupteur crypto dans le process principal, abonnements orphelins après un rechargement du renderer, écran de verrouillage et alertes, `setAlertState` muet).
 
+Relecture de la vague (27 points sur 27 traités, aucune casse critique ou importante), deux arbitrages :
+- `2b37d4a` vit dans `Chart.tsx`, partagé avec Visual : le suivi NinjaTrader de 02 · VIS garde lui aussi sa vue pendant le direct (plus de retour aux 160 dernières bougies), et une bougie remplacée plus loin que l'avant-dernière, avec les mêmes objets, n'atteindrait le chart qu'au recadrage suivant. Écart à « Visual inchangé », laissé à l'ADMIN. Coût : une prop d'activation réservée à l'onglet crypto si Visual doit rester exactement comme avant.
+- `aa3fb7c` est gardé, bien que le point eût été mis de côté : la porte ne connaissait déjà qu'une venue `binance`, et le voyant et le flux disent désormais la même chose. Coût : le prix de ONE figé jusqu'au redémarrage après un bannissement qui ne viserait que l'API futures.
+
+Deux mineurs de tests en plus : le contrôle de nettoyage de `tests/crypto-switch.test.ts:394-407` dépend de l'ordre (rouge seul ou mélangé) ; le commentaire de `T0` dans `tests/crypto-chart-live.test.ts:63` donne une mauvaise date.
+
 ### Mineurs différés encore ouverts
 
 Relus sur `cbad7fc`, base de CRY7.1, puis après la revue finale ; ceux qu'un ticket suivant ou la revue finale a corrigés n'y sont plus.
