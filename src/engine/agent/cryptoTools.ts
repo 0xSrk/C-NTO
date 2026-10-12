@@ -45,7 +45,7 @@ export function isCryptoTool(name: string): boolean {
   return CRYPTO_TOOL_NAMES.includes(name);
 }
 
-/** La fenêtre que le chart montre à l'ouverture (`src/modules/visual/Chart.tsx:281`) : les bougies « visibles ». */
+/** La fenêtre que le chart montre à l'ouverture d'une série (`OPENING_BARS`, `src/modules/visual/Chart.tsx`) : les bougies « visibles ». */
 const VISIBLE_BARS = 160;
 /** Lignes de bougies qu'une lecture rend au plus. */
 const BARS_MAX = 300;

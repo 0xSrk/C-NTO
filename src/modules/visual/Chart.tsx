@@ -93,6 +93,37 @@ function splitSegments(data: IndicatorLine['data'], maxSegments = 80): { time: n
   return segments.length > maxSegments ? segments.slice(-maxSegments) : segments;
 }
 
+/** Ce que le graphique fait d'une nouvelle série : rien, pousser la dernière bougie, tout renvoyer sans toucher la vue, ou repartir. */
+type BarsStep = 'same' | 'tail' | 'shift' | 'reset';
+
+/**
+ * Le direct (`mergeLiveBar`, `src/engine/crypto/tradeBars.ts`) rend un nouveau tableau qui garde les bougies d'avant telles
+ * quelles (mêmes objets) et ne change que la dernière ou en ajoute une : `tail`, seule la dernière bougie part (`update`), et
+ * la vue que le trader a déplacée ou zoomée reste où elle est. Au plafond, la plus ancienne tombe en même temps : `shift`,
+ * tout est renvoyé, la vue gardée. Toute autre suite (premier historique, autre marché ou timeframe, série vidée ou
+ * remplacée) est une série neuve : `reset`, la vue revient à la fenêtre d'ouverture.
+ */
+function barsStep(prev: readonly Bar[], next: readonly Bar[]): BarsStep {
+  if (prev === next) return 'same';
+  const p = prev.length;
+  const n = next.length;
+  const before = prev[p - 1];
+  const last = next[n - 1];
+  if (!before || !last) return 'reset';
+  if (n === p && next[0] === prev[0] && last.time === before.time && (n < 2 || next[n - 2] === prev[p - 2])) return 'tail';
+  if (n === p + 1 && next[0] === prev[0] && next[n - 2] === before && last.time > before.time) return 'tail';
+  if (n === p && n >= 2 && next[n - 2] === before && last.time > before.time) return 'shift';
+  return 'reset';
+}
+
+const NO_BARS: readonly Bar[] = [];
+
+const candleOf = (b: Bar) => ({ time: toTs(b.time), open: b.open, high: b.high, low: b.low, close: b.close });
+const volumeOf = (b: Bar) => ({ time: toTs(b.time), value: b.volume, color: b.close >= b.open ? 'rgba(127,207,154,0.28)' : 'rgba(224,119,108,0.28)' });
+
+/** La fenêtre que le graphique montre à l'ouverture d'une série : les 160 dernières bougies. */
+const OPENING_BARS = 160;
+
 /**
  * Aligne les tracés dessinés sur ceux demandés, par `id` : un id nouveau crée sa ligne, un id disparu
  * la retire, un prix, un titre ou une couleur changés la modifient en place. Un prix non fini, nul
@@ -143,6 +174,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
   linesRef.current = lines;
   const barsRef = useRef(bars);
   barsRef.current = bars;
+  /** La série que le graphique porte : la prochaine se compare à elle (`barsStep`). */
+  const pushedRef = useRef<readonly Bar[]>(NO_BARS);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -265,6 +298,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
       volumeRef.current = null;
       lineRefs.current.clear();
       segmentDataRef.current.clear();
+      pushedRef.current = NO_BARS;
       markersRef.current = null;
       appliedFormatRef.current = null;
       drawnLinesRef.current.clear();
@@ -273,12 +307,24 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
   }, [onHover]);
 
   useEffect(() => {
-    if (!ready || !candleRef.current || !volumeRef.current) return;
-    candleRef.current.setData(bars.map((b) => ({ time: toTs(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
-    volumeRef.current.setData(bars.map((b) => ({ time: toTs(b.time), value: b.volume, color: b.close >= b.open ? 'rgba(127,207,154,0.28)' : 'rgba(224,119,108,0.28)' })));
+    const candles = candleRef.current;
+    const volume = volumeRef.current;
+    if (!ready || !candles || !volume) return;
+    const step = barsStep(pushedRef.current, bars);
+    pushedRef.current = bars;
+    if (step === 'same') return;
+    const last = bars[bars.length - 1];
+    if (step === 'tail' && last) {
+      candles.update(candleOf(last));
+      volume.update(volumeOf(last));
+      return;
+    }
+    candles.setData(bars.map(candleOf));
+    volume.setData(bars.map(volumeOf));
+    if (step === 'shift') return;
     chartRef.current?.timeScale().fitContent();
     const n = bars.length;
-    if (n > 160) chartRef.current?.timeScale().setVisibleLogicalRange({ from: n - 160, to: n + 6 });
+    if (n > OPENING_BARS) chartRef.current?.timeScale().setVisibleLogicalRange({ from: n - OPENING_BARS, to: n + 6 });
   }, [bars, ready]);
 
   useEffect(() => {
