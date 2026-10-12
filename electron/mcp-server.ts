@@ -111,12 +111,20 @@ function catalogKind(name: string): 'read' | 'write' | undefined {
   return Object.hasOwn(DESK_TOOL_KINDS, name) ? DESK_TOOL_KINDS[name] : undefined;
 }
 
-/** Outils relayés par le desk, gardés s'ils sont au catalogue, typés par lui. */
+/** Un outil du module crypto (onglet 09 · CRY) : un nom `crypto_*` du catalogue. */
+function isCryptoTool(name: string): boolean {
+  return name.startsWith('crypto_') && catalogKind(name) !== undefined;
+}
+
+/**
+ * Outils relayés par le desk, gardés s'ils sont au catalogue, typés par lui. Les `crypto_*` n'y sont que si l'interrupteur du
+ * module, lu dans le process principal, est allumé : la description du renderer ne suffit pas.
+ */
 async function deskTools(ctx: McpContext): Promise<McpToolInfo[]> {
   const out: McpToolInfo[] = [];
   for (const t of await ctx.relay.tools()) {
     const kind = catalogKind(t.name);
-    if (kind) out.push({ ...t, kind });
+    if (kind && (ctx.cryptoEnabled === true || !isCryptoTool(t.name))) out.push({ ...t, kind });
   }
   return out;
 }
@@ -137,6 +145,8 @@ export interface McpContext {
   locale?: AppLocale;
   /** Horloge des prompts (date par défaut : ce jour à New York). */
   now?: () => number;
+  /** Interrupteur du module crypto, tenu par le process principal ; absent ou faux : les outils `crypto_*` sont masqués et refusés. */
+  cryptoEnabled?: boolean;
 }
 
 export interface McpHttpRequest {
@@ -326,6 +336,19 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
       const catalog = await deskTools(ctx);
       // Catalogue vide : le desk est fermé ou muet, pas l'outil inconnu.
       if (!catalog.length) return { result: toolError(deskSilent(locale, 'call')) };
+      // Module crypto éteint : refusé ici, sans relayer, lecture comme écriture (le même double verrou que l'écriture).
+      if (isCryptoTool(name) && ctx.cryptoEnabled !== true) {
+        return {
+          result: toolError(
+            uiText(
+              locale,
+              'Module crypto éteint dans CΛNTO : le trader l’allume dans l’onglet 09 · CRY.',
+              'Crypto module off in CΛNTO: the trader turns it on in tab 09 · CRY.',
+              'Módulo cripto apagado en CΛNTO: el trader lo enciende en la pestaña 09 · CRY.',
+            ),
+          ),
+        };
+      }
       const tool = catalog.find((t) => t.name === name);
       if (!tool) {
         return {
@@ -557,6 +580,8 @@ export class McpGateway {
     private readonly onStatus: (status: McpStatus) => void = () => undefined,
     /** Langue du desk, relue à chaque requête. */
     private readonly locale: () => AppLocale = () => 'fr',
+    /** Interrupteur du module crypto, relu à chaque requête ; éteint par défaut. */
+    private readonly cryptoEnabled: () => boolean = () => false,
   ) {}
 
   status(): McpStatus {
@@ -641,7 +666,7 @@ export class McpGateway {
       if (body === null) return refuse(req, res, httpError(413, say(locale, 'Requête trop grande (1 Mo au plus).', 'Request too large (1 MB at most).', 'Solicitud demasiado grande (1 MB como máximo).')));
       const reply = await handleMcpHttp(
         { ...head, body },
-        { token: this.token, port: this.port, allowWrites: this.allowWrites, serverVersion: this.serverVersion, relay: this.relay, locale },
+        { token: this.token, port: this.port, allowWrites: this.allowWrites, serverVersion: this.serverVersion, relay: this.relay, locale, cryptoEnabled: this.cryptoEnabled() === true },
       );
       if (reply.status === 200) {
         this.calls++;

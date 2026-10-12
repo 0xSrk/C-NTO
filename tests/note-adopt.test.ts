@@ -73,11 +73,25 @@ function memTable<T extends { id: string }>() {
 const notes = memTable<Note>();
 const links = memTable<{ id: string; predicate: string; by: string }>();
 const sessions = memTable<{ id: string }>();
-Object.assign(db as unknown as Record<string, unknown>, { notes, links, sessions, trades: memTable(), calendarEvents: memTable() });
+/** La table `settings`, rangée par clé : celle des réglages du module crypto. */
+const settingRows = (() => {
+  const rows = new Map<string, { key: string; value: unknown }>();
+  return {
+    rows,
+    async get(key: string) {
+      return rows.get(key);
+    },
+    async put(row: { key: string; value: unknown }) {
+      rows.set(row.key, row);
+    },
+  };
+})();
+Object.assign(db as unknown as Record<string, unknown>, { notes, links, sessions, settings: settingRows, trades: memTable(), calendarEvents: memTable() });
 
 const { canAdopt, useNotes } = await import('@/store/notes');
 const { useLinks } = await import('@/store/links');
 const { livePorts } = await import('@/store/agent');
+const { useCrypto } = await import('@/store/crypto');
 const { useI18n } = await import('@/i18n');
 const { default: NoteModule } = await import('@/modules/note/Note');
 
@@ -99,6 +113,10 @@ function seed(list: Note[]) {
 beforeEach(() => {
   useI18n.setState({ locale: 'fr' });
   seed([adopted(), proposed(), mine()]);
+  // Module crypto allumé, réglages à neuf : ses écritures atteignent le store (jamais prêt ici, aucun flux ne s'ouvre).
+  settingRows.rows.clear();
+  useCrypto.setState(useCrypto.getInitialState(), true);
+  useCrypto.setState({ enabled: true });
 });
 
 describe('A15.2 bouton Adopter', () => {
@@ -135,13 +153,25 @@ const AIMED: Record<string, { args: Record<string, unknown>; done: (result: Reco
     args: { account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, reason: 'Deux pertes : la leçon le permet' },
     done: (r) => expect(r).toMatchObject({ ok: false, status: 'refused', reason: 'disabled' }),
   },
-  // Les écritures crypto, l'id de la note glissé partout où un id passe : `livePorts()` n'a pas encore de port crypto (CRY6.2),
-  // elles sont refusées avant toute écriture.
-  crypto_chart_set: { args: { market: 'coinbase:BTC-USD' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
-  crypto_indicator_set: { args: { action: 'remove', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
-  crypto_drawing_set: { args: { action: 'remove', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
-  crypto_alert_set: { args: { action: 'delete', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
-  crypto_watchlist_set: { args: { action: 'add', market: 'binance:ONEUSDT' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'crypto_disabled' }) },
+  // Les écritures crypto, module allumé, par le port du store que `livePorts()` branche (CRY6.2) : l'id de la note glissé
+  // partout où un id passe n'y désigne rien (le refus vient du store crypto), les autres écrivent dans les réglages crypto.
+  crypto_chart_set: {
+    args: { market: 'coinbase:ONDO-USD', timeframe: 15 },
+    done: (r) => {
+      expect(r).toEqual({ ok: true, changed: { market: 'coinbase:ONDO-USD', timeframe: 15 } });
+      expect(settingRows.rows.get('crypto.chart')).toMatchObject({ value: { market: 'coinbase:ONDO-USD', timeframe: 15 } });
+    },
+  },
+  crypto_indicator_set: { args: { action: 'remove', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'unknown_indicator' }) },
+  crypto_drawing_set: { args: { action: 'remove', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'unknown_drawing' }) },
+  crypto_alert_set: { args: { action: 'delete', id: 'n_adopt' }, done: (r) => expect(r).toEqual({ ok: false, reason: 'unknown_alert' }) },
+  crypto_watchlist_set: {
+    args: { action: 'remove', market: 'binance:ONEUSDT' },
+    done: (r) => {
+      expect(r).toEqual({ ok: true, removed: 'binance:ONEUSDT' });
+      expect(settingRows.rows.get('crypto.watchlist')).toEqual({ key: 'crypto.watchlist', value: ['coinbase:BTC-USD', 'coinbase:ONDO-USD', 'bybit:ZIGUSDT'] });
+    },
+  },
 };
 
 const kept = (n: Note | undefined) => n && { body: n.body, tags: n.tags, by: n.by, adoptedAt: n.adoptedAt };

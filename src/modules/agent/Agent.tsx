@@ -4,7 +4,7 @@ import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { llmKeyBound } from '@/engine/agent/llm';
 import { coerceRoutineSeen, ROUTINE_OF, routineDue, type RoutineCue, type RoutineSeen } from '@/engine/agent/routineDue';
-import { DESK_TOOLS, toolBlurb } from '@/engine/agent/tools';
+import { toolSchemas } from '@/engine/agent/tools';
 import { tradingDayNow } from '@/engine/discipline';
 import { tr, useI18n } from '@/i18n';
 import { desk, isDesk } from '@/lib/desk';
@@ -12,6 +12,7 @@ import { fmtNum } from '@/lib/format';
 import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
 import { db, type AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
+import { useCrypto } from '@/store/crypto';
 import { dailyLossReached, useDeskEvents } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
@@ -66,7 +67,7 @@ function StreamBubble({ text }: { text: string }) {
 const NEAR_BOTTOM_PX = 40;
 
 export default function Agent() {
-  useI18n((s) => s.locale);
+  const locale = useI18n((s) => s.locale);
   // Sélecteurs champ par champ : chaque jeton reçu ne réaffiche que ce qui dépend de streamText.
   const messages = useAgent((a) => a.messages);
   const streaming = useAgent((a) => a.streaming);
@@ -96,6 +97,8 @@ export default function Agent() {
   const port = useSettings((st) => st.settings.orchestratorPort);
   const allowWrite = useSettings((st) => st.settings.orchestratorAllowWrite);
   const keyEncrypted = useSettings((st) => st.keyEncrypted);
+  // Les dix outils `crypto_*` ne sont listés (et donnés au modèle) que module crypto allumé.
+  const cryptoOn = useCrypto((c) => c.enabled);
   const updateAgent = useSettings((st) => st.updateAgent);
   const update = useSettings((st) => st.update);
   const toast = useUi((u) => u.toast);
@@ -155,6 +158,8 @@ export default function Agent() {
   // Perte du jour recalculée du journal, des réglages et du pont (l'anneau d'événements, lui, repart vide au
   // redémarrage) : à l'horloge, quand le journal change ou qu'un événement du desk arrive, pas à chaque jeton du flux.
   const dailyLossFull = useMemo(() => dailyLossReached(now), [now, sessions, lastEvent]);
+  // Le catalogue que reçoit le modèle (`toolSchemas`, description dans la langue active) : à la langue et à l'interrupteur, pas à chaque jeton.
+  const nativeTools = useMemo(() => toolSchemas({ crypto: cryptoOn }), [cryptoOn, locale]);
   const due = routineDue(now, { tradesToday, dailyLossFull, seen });
   const launch = async (which: RoutineCue) => {
     if (streaming) return;
@@ -629,13 +634,13 @@ export default function Agent() {
             <div className={s.section}>
               <div className={s.sectionTitle}>
                 <span>
-                  {tr('Outils natifs', 'Native tools', 'Herramientas nativas')} · {DESK_TOOLS.length}
+                  {tr('Outils natifs', 'Native tools', 'Herramientas nativas')} · {nativeTools.length}
                 </span>
               </div>
-              {DESK_TOOLS.map((t) => (
+              {nativeTools.map((t) => (
                 <div key={t.name} className={s.toolItem}>
                   <b>{t.name}</b>
-                  <span>{toolBlurb(t.name, t.description)}</span>
+                  <span>{t.description}</span>
                 </div>
               ))}
               <div className={s.hint}>

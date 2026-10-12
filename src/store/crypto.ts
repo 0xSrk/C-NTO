@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import type { CryptoDeskPort } from '@/engine/agent/ports';
 import { ALERTS_MAX, sanitizeAlerts, validateAlert, type CryptoAlert, type CryptoAlertKind } from '@/engine/crypto/alerts';
-import { cryptoIndicatorById, DEFAULT_CRYPTO_INDICATORS } from '@/engine/crypto/indicators';
+import { cryptoIndicatorById, DEFAULT_CRYPTO_INDICATORS, inputBarsFor, offeredCatalog } from '@/engine/crypto/indicators';
 import {
   CHARTABLE_MARKETS,
   DEFAULT_CRYPTO_MARKET,
@@ -15,6 +16,7 @@ import {
 } from '@/engine/crypto/markets';
 import { DRAWINGS_MAX, INDICATORS_MAX, LABEL_MAX, sanitizeCryptoChart, sanitizeDrawings, sanitizeWatchlist, type CryptoChartSetting, type CryptoDrawing } from '@/engine/crypto/persist';
 import type { TemperatureReading } from '@/engine/crypto/temperature';
+import { cryptoAlertViews, type CryptoChartView, type CryptoLineView, type CryptoWatchRow, type CryptoWriteResult } from '@/engine/crypto/views';
 import { defaultParams, type IndicatorDefinition, type IndicatorInstance, type IndicatorParam } from '@/engine/indicators';
 import { tr } from '@/i18n';
 import { desk, type CryptoMainStatus } from '@/lib/desk';
@@ -668,6 +670,90 @@ export const useCrypto = create<CryptoState>((set, get) => {
     },
   };
 });
+
+// --- Port de l'agent (`CryptoDeskPort`) ----------------------------------------------------------------------------------
+
+/**
+ * Les lignes des indicateurs du chart, comme l'onglet les trace (`useCryptoLines`, `src/modules/crypto/Crypto.tsx`) : les
+ * instances visibles du catalogue offert au marché et à l'unité de temps, chacune sur les bougies que `inputBarsFor` lui donne
+ * (une copie : les tableaux du store sont en lecture seule). `unit` suit la règle de la légende (`lineValue`) : une ligne du
+ * prix et l'ATR sont dans la devise de cotation, le reste (volume, CVD, volume relatif) non.
+ */
+function chartLines(state: CryptoState): CryptoLineView[] {
+  const catalog = offeredCatalog(state.market, state.timeframe);
+  const out: CryptoLineView[] = [];
+  for (const inst of state.indicators) {
+    if (!inst.visible) continue;
+    const def = catalog.find((d) => d.id === inst.definitionId);
+    if (!def) continue;
+    const input = inputBarsFor(def.id, state.bars, state.proxyBars);
+    for (const line of def.compute([...input], inst.params).lines) {
+      out.push({ id: `${inst.id}:${line.key}`, label: line.label, unit: line.pane === 'price' || def.id === 'atr' ? 'price' : 'other', data: line.data });
+    }
+  }
+  return out;
+}
+
+/**
+ * Le module crypto tel que les outils `crypto_*` de l'agent le voient (`src/engine/agent/cryptoTools.ts`), branché par
+ * `livePorts().crypto` (`./agent`). Chaque appel relit le store. Les lectures rendent ce que le trader a ouvert et n'ouvrent
+ * aucun flux : sans chart à l'écran ou sans bougie, `chart()` est `null`. Les écritures sont les actions du store, toujours
+ * avec `by: 'agent'` ; leur refus passe tel quel, et le rejet de la base (`setSetting`) remonte : l'outil le rend
+ * `persist_failed`.
+ */
+export function cryptoDeskPort(): CryptoDeskPort {
+  const state = () => useCrypto.getState();
+  return {
+    enabled: () => state().enabled,
+    tabOpen: () => state().chartOpen,
+    status: () => {
+      const { market, timeframe, venues, indicators, drawings, chartError } = state();
+      return { market, timeframe, venues, indicators, drawings, chartError };
+    },
+    chart: (): CryptoChartView | null => {
+      const cur = state();
+      const spec = cryptoMarket(cur.market);
+      if (!cur.chartOpen || cur.bars.length === 0 || !spec) return null;
+      return { market: cur.market, venue: spec.venue, timeframe: cur.timeframe, precision: spec.precision, bars: cur.bars, indicators: chartLines(cur), cvdAnchoredAt: cur.cvdAnchoredAt };
+    },
+    watchlist: () => {
+      const { watchlist, venues, tickers } = state();
+      return watchlist.flatMap((market): CryptoWatchRow[] => {
+        const spec = cryptoMarket(market);
+        if (!spec) return [];
+        const ticker = tickers[market];
+        return [{ market, venue: spec.venue, venueState: venues[spec.venue], last: ticker?.last ?? null, change24hPct: ticker?.change24hPct ?? null, at: ticker?.time ?? null }];
+      });
+    },
+    temperature: () => state().temperature,
+    alerts: () => {
+      const { alerts, venues, tickers, temperature } = state();
+      return cryptoAlertViews(alerts, { venues, tickers, temperature, now: Date.now() });
+    },
+    async setChart(p): Promise<CryptoWriteResult> {
+      // Le code de l'outil (`crypto_chart_set` le refuse avant le port) : rien à changer, rien n'est écrit.
+      if (p.market === undefined && p.timeframe === undefined) return { ok: false, reason: 'nothing_to_change' };
+      // Le marché d'abord, puis l'unité de temps : le premier refus (ou rejet) arrête.
+      if (p.market !== undefined) {
+        const done = await state().setMarket(p.market, 'agent');
+        if (!done.ok || p.timeframe === undefined) return done;
+      }
+      return state().setTimeframe(p.timeframe as number, 'agent');
+    },
+    setIndicator: (p) => (p.action === 'add' ? state().addIndicator(p.indicator ?? '', p.params, 'agent') : state().removeIndicator(p.id ?? '', 'agent')),
+    setDrawing: (p) => {
+      if (p.action === 'remove') return state().removeDrawing(p.id ?? '', 'agent');
+      const shape = p.kind === 'zone' ? { from: p.from, to: p.to } : { price: p.price };
+      const drawing = { market: p.market as CryptoMarketId, kind: p.kind as CryptoDrawing['kind'], ...shape, ...(p.label !== undefined ? { label: p.label } : {}) };
+      return state().addDrawing(drawing, 'agent');
+    },
+    setAlert: (p) =>
+      p.action === 'delete'
+        ? state().deleteAlert(p.id ?? '', 'agent')
+        : state().createAlert({ target: p.target as CryptoAlert['target'], kind: p.kind as CryptoAlertKind, level: p.level as number, mode: p.mode as CryptoAlert['mode'] }, 'agent'),
+    setWatchlist: (p) => (p.action === 'add' ? state().addToWatchlist(p.market, 'agent') : state().removeFromWatchlist(p.market, 'agent')),
+  };
+}
 
 // --- Flux en direct (`./cryptoLive`) -----------------------------------------------------------------------------------
 

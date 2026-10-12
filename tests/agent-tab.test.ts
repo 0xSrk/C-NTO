@@ -77,12 +77,16 @@ vi.mock('@/engine/agent/llm', async (importOriginal) => ({
 }));
 
 import Agent from '@/modules/agent/Agent';
+import { CRYPTO_TOOL_NAMES } from '@/engine/agent/cryptoTools';
+import { streamChat } from '@/engine/agent/llm';
 import { renderRoutine } from '@/engine/agent/routines';
+import { DESK_TOOLS } from '@/engine/agent/tools';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import type { Session } from '@/engine/types';
 import { useI18n } from '@/i18n';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { useAgent } from '@/store/agent';
+import { useCrypto } from '@/store/crypto';
 import { db } from '@/store/db';
 import { deskEventLog } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
@@ -405,5 +409,44 @@ describe('onglet Agent · envoi', () => {
     expect(useAgent.getState().streaming).toBe(false);
     expect(useAgent.getState().error).toBe('coffre plein');
     expect(fake.provider).toBe(0);
+  });
+});
+
+describe('onglet Agent · outils crypto (CRY6.2)', () => {
+  afterEach(() => {
+    useCrypto.setState({ enabled: false });
+  });
+
+  const isCrypto = (name: string) => name.startsWith('crypto_');
+  /** Les noms d'outils de la section « Outils natifs » (titre avec leur nombre). */
+  const listedTools = (node: HTMLElement, count: number) => [...section(node, `Outils natifs · ${count}`).querySelectorAll('b')].map((b) => b.textContent ?? '');
+  /** Les outils donnés au fournisseur au dernier tour. */
+  const sentTools = () => (vi.mocked(streamChat).mock.calls.at(-1)?.[0].tools ?? []).map((tool) => tool.name);
+
+  it('la liste des outils natifs ne montre les dix crypto_* que module allumé', async () => {
+    const native = DESK_TOOLS.length - CRYPTO_TOOL_NAMES.length;
+    const node = await mount();
+    expect(listedTools(node, native)).toHaveLength(native);
+    expect(listedTools(node, native).filter(isCrypto)).toEqual([]);
+    await act(async () => {
+      useCrypto.setState({ enabled: true });
+    });
+    expect(listedTools(node, DESK_TOOLS.length)).toEqual(DESK_TOOLS.map((tool) => tool.name));
+    expect(listedTools(node, DESK_TOOLS.length).filter(isCrypto)).toEqual([...CRYPTO_TOOL_NAMES]);
+    await act(async () => {
+      useCrypto.setState({ enabled: false });
+    });
+    expect(listedTools(node, native).filter(isCrypto)).toEqual([]);
+  });
+
+  it('l’agent embarqué ne reçoit les outils crypto qu’avec le module allumé', async () => {
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, agent: { ...DEFAULT_SETTINGS.agent, toolsEnabled: true } } });
+    await useAgent.getState().send('module éteint');
+    expect(sentTools().length).toBe(DESK_TOOLS.length - CRYPTO_TOOL_NAMES.length);
+    expect(sentTools().filter(isCrypto)).toEqual([]);
+    useCrypto.setState({ enabled: true });
+    await useAgent.getState().send('module allumé');
+    expect(sentTools().filter(isCrypto)).toEqual([...CRYPTO_TOOL_NAMES]);
+    expect(sentTools()).toHaveLength(DESK_TOOLS.length);
   });
 });

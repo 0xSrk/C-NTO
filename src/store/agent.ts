@@ -18,6 +18,7 @@ import { useAgentOrders } from './agentOrders';
 import { useBars } from './bars';
 import { bridgeQuotes, useBridge } from './bridge';
 import { useCalendar } from './calendar';
+import { cryptoDeskPort, useCrypto } from './crypto';
 import { deskEventLog } from './deskEvents';
 import { db, type AgentMessage } from './db';
 import { useJournal } from './journal';
@@ -126,8 +127,13 @@ export function livePorts(origin: AgentOrderOrigin = 'llm'): DeskPorts {
       const outcome = await useAgentOrders.getState().propose(args, origin);
       return { ok: outcome.status === 'sent', ...outcome };
     },
+    // Module crypto : ce que le trader a ouvert, écrit avec `by: 'agent'` ; éteint, les outils `crypto_*` refusent.
+    crypto: () => cryptoDeskPort(),
   };
 }
+
+/** Le catalogue des outils suit l'interrupteur crypto du process principal, tel que le store l'a lu : les dix `crypto_*` seulement allumé. */
+const toolCatalog = () => ({ crypto: useCrypto.getState().enabled });
 
 /** Mémoire du trader telle que la consigne la résume : réglages et notes du trader, et les notes d'agent qu'il a adoptées. */
 export function currentTraderMemory(settings: Settings): TraderMemory {
@@ -188,7 +194,7 @@ export const useAgent = create<AgentState>((set, get) => ({
         const via = req.clientId === MCP_CLIENT_ID ? `mcp · ${req.method}` : req.method;
         const log = (ok: boolean, detail?: string) => pushLog(set, get, { direction: 'in', method: via, ok, detail });
         if (req.method === 'desk.describe') {
-          const tools = describedDeskTools();
+          const tools = describedDeskTools(toolCatalog());
           api.orchestrator.respond(req.id, req.clientId, { artefact: 'CΛNTO', version: APP_VERSION, tools });
           log(true);
           return;
@@ -247,7 +253,7 @@ export const useAgent = create<AgentState>((set, get) => ({
 
     abortController = new AbortController();
     const signal = abortController.signal;
-    const tools = settings.agent.toolsEnabled ? toolSchemas() : [];
+    const tools = settings.agent.toolsEnabled ? toolSchemas(toolCatalog()) : [];
     const budget = contextBudget(settings.agent.baseUrl);
 
     try {

@@ -185,6 +185,8 @@ function mcpGateway(): McpGateway {
       if (win && !win.isDestroyed()) win.webContents.send('mcp:status', status);
     },
     () => readLocaleFile(app.getPath('userData')),
+    // Les outils `crypto_*` ne passent la passerelle qu'avec l'interrupteur du module allumé, lu ici à chaque requête.
+    () => cryptoRuntime?.enabled() ?? false,
   );
   return mcp;
 }

@@ -553,9 +553,10 @@ describe('A14.4 schéma de sortie', () => {
       marketQuotes: () => quotes.all(),
       barSeries: async () => [series],
     };
-    // Le relais du desk : catalogue de desk.describe, appels par executeDeskTool (source orch), comme le renderer.
+    // Le relais du desk : catalogue de desk.describe, appels par executeDeskTool (source orch), comme le renderer. Le desk y
+    // décrit aussi les outils `crypto_*` (module allumé côté renderer) : la passerelle les retire, `cryptoEnabled` étant absent.
     const demoRelay: McpRelay = {
-      tools: async () => describedDeskTools(),
+      tools: async () => describedDeskTools({ crypto: true }),
       call: async (name, args) => ({ result: await executeDeskTool(ports, name, args, { source: 'orch' }) }),
     };
     const args: Record<string, Record<string, unknown>> = {
@@ -566,7 +567,7 @@ describe('A14.4 schéma de sortie', () => {
       market_quote: { instrument: 'MNQ' },
     };
     const listed = (await result(await handleMcpHttp(post(rpc('tools/list')), ctx({ relay: demoRelay })))).result?.tools as { name: string; outputSchema?: { properties: Record<string, unknown> } }[];
-    // Les lectures `crypto_*` n'entrent pas dans ce catalogue tant que la garde de l'interrupteur côté main n'existe pas (CRY6.2).
+    // Sans `cryptoEnabled`, les lectures `crypto_*` n'entrent pas dans ce catalogue (CRY6.2 ; allumées : `tests/crypto-mcp.test.ts`).
     expect(listed.map((t) => t.name).sort()).toEqual(
       Object.keys(DESK_TOOL_KINDS)
         .filter((name) => DESK_TOOL_KINDS[name as keyof typeof DESK_TOOL_KINDS] === 'read' && !name.startsWith('crypto_'))

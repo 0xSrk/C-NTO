@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Empty, Segmented, Tag } from '@/design/primitives';
 import type { Bar } from '@/engine/bars';
-import { CRYPTO_INDICATORS, inputBarsFor } from '@/engine/crypto/indicators';
-import { CHARTABLE_MARKETS, CRYPTO_TIMEFRAMES, cryptoMarket, type CryptoBar, type CryptoMarketId, type CryptoTimeframe, type VenueState } from '@/engine/crypto/markets';
+import { inputBarsFor, offeredCatalog } from '@/engine/crypto/indicators';
+import { CHARTABLE_MARKETS, CRYPTO_TIMEFRAMES, cryptoMarket, type CryptoBar, type CryptoMarketId, type VenueState } from '@/engine/crypto/markets';
 import type { CryptoDrawing } from '@/engine/crypto/persist';
 import type { IndicatorDefinition, IndicatorInstance, IndicatorLine } from '@/engine/indicators';
 import type { Trade } from '@/engine/types';
@@ -28,19 +28,10 @@ import { CryptoSide, VENUE_NAME, timeframeLabel, useCryptoAction } from './Crypt
 const DRAWING_COLOR_FALLBACK = 'rgb(169, 150, 224)';
 /** Le chart crypto ne projette aucun trade. */
 const NO_TRADES: Trade[] = [];
-const DAY: CryptoTimeframe = 1440;
-/** Ancrés sur le jour UTC : en 1j, un point par jour, invisible ou dégénéré. Ni proposés ni calculés à cette unité. */
-const DAY_ANCHORED = new Set(['vwap-utc', 'levels-utc']);
 const CVD = 'cvd';
 const CVD_BINANCE = 'cvd-binance';
 /** Une venue qui a vu le direct mais n'en reçoit plus : son prix est figé. */
 const FROZEN: ReadonlySet<VenueState> = new Set(['stale', 'reconnecting', 'blocked']);
-
-/** Le catalogue du marché et de l'unité de temps : le CVD Binance pour un marché qui a sa série Binance, rien d'ancré au jour UTC en 1j. */
-function offeredCatalog(market: CryptoMarketId, timeframe: CryptoTimeframe): IndicatorDefinition[] {
-  const hasProxy = cryptoMarket(market)?.cvdProxy !== undefined;
-  return CRYPTO_INDICATORS.filter((def) => (def.id !== CVD_BINANCE || hasProxy) && !(timeframe === DAY && DAY_ANCHORED.has(def.id)));
-}
 
 /** Un volume crypto : fractionnaire sous 1 000 (0,42 BTC), entier au-delà (1 250 000 ONE). */
 function fmtVolume(v: number | null | undefined): string {

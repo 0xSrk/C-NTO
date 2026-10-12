@@ -70,30 +70,35 @@ describe('A14.1 titres dans desk.describe', () => {
       agentMessages: { where: () => ({ equals: () => ({ sortBy: async () => [] }) }) },
     });
     const { useAgent } = await import('@/store/agent');
+    const { useCrypto } = await import('@/store/crypto');
     const i18n = await import('@/i18n');
     const catalog = await import('@/engine/agent/catalog');
     await useAgent.getState().load();
     expect(handler).not.toBeNull();
 
-    // Le desk ne branche pas encore de port crypto (CRY6.2) : ses outils `crypto_*` ne sont pas décrits.
-    const names = Object.keys(catalog.DESK_TOOL_KINDS)
-      .filter((name) => !name.startsWith('crypto_'))
-      .sort();
-    for (const [index, locale] of (['fr', 'en', 'es'] as const).entries()) {
-      i18n.useI18n.setState({ locale });
-      for (const clientId of ['mcp', 'c1']) {
-        const id = `${clientId}-${locale}`;
-        await handler!({ id, clientId, method: 'desk.describe', params: {} });
-        const answer = answers.find((a) => a.id === id);
-        expect(answer?.clientId).toBe(clientId);
-        expect(answer?.error).toBeUndefined();
-        const tools = (answer?.result as { tools: Described[] }).tools;
-        expect(tools.map((t) => t.name).sort()).toEqual(names);
-        for (const tool of tools) {
-          const name = tool.name as keyof typeof catalog.DESK_TOOL_TITLES;
-          expect(tool.kind, tool.name).toBe(catalog.DESK_TOOL_KINDS[name]);
-          expect(tool.title, `${locale} · ${tool.name}`).toBe(catalog.DESK_TOOL_TITLES[name][index]);
-          expect(tool.description.length, tool.name).toBeGreaterThan(0);
+    // Les outils `crypto_*` ne sont décrits que module crypto allumé (CRY6.2) : éteint, les 23 autres ; allumé, les 33.
+    const all = Object.keys(catalog.DESK_TOOL_KINDS).sort();
+    const native = all.filter((name) => !name.startsWith('crypto_'));
+    expect(all.length - native.length).toBe(10);
+    for (const enabled of [false, true, false]) {
+      useCrypto.setState({ enabled });
+      const names = enabled ? all : native;
+      for (const [index, locale] of (['fr', 'en', 'es'] as const).entries()) {
+        i18n.useI18n.setState({ locale });
+        for (const clientId of ['mcp', 'c1']) {
+          const id = `${clientId}-${locale}-${answers.length}`;
+          await handler!({ id, clientId, method: 'desk.describe', params: {} });
+          const answer = answers.find((a) => a.id === id);
+          expect(answer?.clientId).toBe(clientId);
+          expect(answer?.error).toBeUndefined();
+          const tools = (answer?.result as { tools: Described[] }).tools;
+          expect(tools.map((t) => t.name).sort(), `${enabled} · ${locale} · ${clientId}`).toEqual(names);
+          for (const tool of tools) {
+            const name = tool.name as keyof typeof catalog.DESK_TOOL_TITLES;
+            expect(tool.kind, tool.name).toBe(catalog.DESK_TOOL_KINDS[name]);
+            expect(tool.title, `${locale} · ${tool.name}`).toBe(catalog.DESK_TOOL_TITLES[name][index]);
+            expect(tool.description.length, tool.name).toBeGreaterThan(0);
+          }
         }
       }
     }

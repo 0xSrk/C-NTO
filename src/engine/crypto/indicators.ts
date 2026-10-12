@@ -13,7 +13,7 @@
 import type { Bar } from '@/engine/bars';
 import { indicatorById, type IndicatorDefinition, type IndicatorInstance, type IndicatorLine } from '@/engine/indicators';
 import { cvdPoints } from './cvd';
-import type { CryptoBar } from './markets';
+import { cryptoMarket, type CryptoBar, type CryptoMarketId, type CryptoTimeframe } from './markets';
 
 type LinePoint = IndicatorLine['data'][number];
 
@@ -228,6 +228,19 @@ export const CRYPTO_INDICATORS: IndicatorDefinition[] = [
     'CVD Binance',
   ),
 ];
+
+/** Ancrés sur le jour UTC : en 1j, un point par jour, invisible ou dégénéré. Ni proposés ni calculés à cette unité. */
+const DAY_ANCHORED: ReadonlySet<string> = new Set(['vwap-utc', 'levels-utc']);
+const DAY: CryptoTimeframe = 1440;
+
+/**
+ * Le catalogue du marché et de l'unité de temps, dans l'ordre de `CRYPTO_INDICATORS` : le CVD Binance pour un marché qui a sa
+ * série Binance, rien d'ancré au jour UTC en 1j. Ce que l'onglet propose et trace, et ce que l'agent lit (`cryptoDeskPort`).
+ */
+export function offeredCatalog(market: CryptoMarketId, timeframe: CryptoTimeframe): IndicatorDefinition[] {
+  const hasProxy = cryptoMarket(market)?.cvdProxy !== undefined;
+  return CRYPTO_INDICATORS.filter((def) => (def.id !== 'cvd-binance' || hasProxy) && !(timeframe === DAY && DAY_ANCHORED.has(def.id)));
+}
 
 /** La définition du catalogue crypto qui porte cet identifiant. Le VWAP et les niveaux de séance du desk n'y sont pas. */
 export function cryptoIndicatorById(id: string): IndicatorDefinition | undefined {
