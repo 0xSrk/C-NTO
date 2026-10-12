@@ -342,7 +342,9 @@ function chartRead(port: CryptoDeskPort, args: Record<string, unknown>): Record<
       anchoredAt: isNum(view.cvdAnchoredAt) ? iso(view.cvdAnchoredAt * 1000) : null,
       binanceProxy: spec?.cvdProxy ?? null,
     },
-    ...(wanted > 0 ? { bars: barRows(bars.slice(-wanted), view.indicators, precision) } : {}),
+    // De la plus récente à la plus ancienne : un résultat coupé pour tenir la fenêtre du modèle (`fitHistory` en garde le
+    // début) perd les plus anciennes, jamais les plus récentes.
+    ...(wanted > 0 ? { bars: barRows(bars.slice(-wanted), view.indicators, precision).reverse() } : {}),
   };
 }
 
@@ -477,11 +479,11 @@ export function createCryptoTools(ports: DeskPorts): DeskTool[] {
       name: 'crypto_chart_read',
       kind: 'read',
       description:
-        'Lit le chart crypto que le trader a ouvert, comme `chart_read` d’OpenMarket. N’ouvre aucun flux : onglet fermé, `available: false` et `tab_closed` ; aucune bougie, `no_bars`. Sur les 160 dernières bougies, la fenêtre que le chart montre à l’ouverture (`visibleBars`, `from`, `to`) : dernier prix, plus haut, plus bas, variation en % de la première ouverture à la dernière clôture (`changePct`), prix à la précision du marché. `indicators` : dernière valeur de chaque ligne affichée (`id` = `<indicateur>:<ligne>`). `cvd` : `source` (`history` : Binance, volume acheteur dans chaque bougie, historique compris ; `live_trades` : Coinbase et Bybit, depuis les trades reçus à partir de `anchoredAt`) et `binanceProxy`, la série Binance du CVD Binance. `bars` (0 à 300) : les n dernières bougies, `{ t (ouverture, secondes UTC), o, h, l, c, v, buy (volume acheteur, s’il est connu), valeur de chaque ligne }`.' +
+        'Lit le chart crypto que le trader a ouvert, comme `chart_read` d’OpenMarket. N’ouvre aucun flux : onglet fermé, `available: false` et `tab_closed` ; aucune bougie, `no_bars`. Sur les 160 dernières bougies, la fenêtre que le chart montre à l’ouverture (`visibleBars`, `from`, `to`) : dernier prix, plus haut, plus bas, variation en % de la première ouverture à la dernière clôture (`changePct`), prix à la précision du marché. `indicators` : dernière valeur de chaque ligne affichée (`id` = `<indicateur>:<ligne>`). `cvd` : `source` (`history` : Binance, volume acheteur dans chaque bougie, historique compris ; `live_trades` : Coinbase et Bybit, depuis les trades reçus à partir de `anchoredAt`) et `binanceProxy`, la série Binance du CVD Binance. `bars` (0 à 300) : les n dernières bougies, de la plus récente à la plus ancienne (un résultat coupé perd les plus anciennes), `{ t (ouverture, secondes UTC), o, h, l, c, v, buy (volume acheteur, s’il est connu), valeur de chaque ligne }`.' +
         OFF_FR,
       parameters: {
         type: 'object',
-        properties: { bars: { type: 'integer', minimum: 0, maximum: BARS_MAX, description: 'Nombre de dernières bougies rendues en lignes (0 à 300, défaut 0)' } },
+        properties: { bars: { type: 'integer', minimum: 0, maximum: BARS_MAX, description: 'Nombre de dernières bougies rendues en lignes, la plus récente d’abord (0 à 300, défaut 0)' } },
         additionalProperties: false,
       },
       run: (args) => read(ports, (port) => chartRead(port, args)),
@@ -656,9 +658,9 @@ export function cryptoToolBlurb(name: string, fallback: string): string | null {
     case 'crypto_chart_read':
       return tr(
         fallback,
-        'Reads the crypto chart the trader has open, like OpenMarket’s `chart_read`. Opens no feed: tab closed, `available: false` and `tab_closed`; no bar, `no_bars`. Over the last 160 bars, the window the chart shows when it opens (`visibleBars`, `from`, `to`): last price, high, low, change in % from the first open to the last close (`changePct`), prices at the market’s precision. `indicators`: last value of each line shown (`id` = `<indicator>:<line>`). `cvd`: `source` (`history`: Binance, buy volume in every bar, history included; `live_trades`: Coinbase and Bybit, from the trades received since `anchoredAt`) and `binanceProxy`, the Binance series of the Binance CVD. `bars` (0 to 300): the last n bars, `{ t (open, UTC seconds), o, h, l, c, v, buy (buy volume, when known), value of each line }`.' +
+        'Reads the crypto chart the trader has open, like OpenMarket’s `chart_read`. Opens no feed: tab closed, `available: false` and `tab_closed`; no bar, `no_bars`. Over the last 160 bars, the window the chart shows when it opens (`visibleBars`, `from`, `to`): last price, high, low, change in % from the first open to the last close (`changePct`), prices at the market’s precision. `indicators`: last value of each line shown (`id` = `<indicator>:<line>`). `cvd`: `source` (`history`: Binance, buy volume in every bar, history included; `live_trades`: Coinbase and Bybit, from the trades received since `anchoredAt`) and `binanceProxy`, the Binance series of the Binance CVD. `bars` (0 to 300): the last n bars, newest first (a cut result loses the oldest), `{ t (open, UTC seconds), o, h, l, c, v, buy (buy volume, when known), value of each line }`.' +
           OFF_EN,
-        'Lee el gráfico cripto que el trader tiene abierto, como `chart_read` de OpenMarket. No abre ningún flujo: pestaña cerrada, `available: false` y `tab_closed`; sin velas, `no_bars`. Sobre las 160 últimas velas, la ventana que el gráfico muestra al abrirse (`visibleBars`, `from`, `to`): último precio, máximo, mínimo, variación en % de la primera apertura al último cierre (`changePct`), precios a la precisión del mercado. `indicators`: último valor de cada línea mostrada (`id` = `<indicador>:<línea>`). `cvd`: `source` (`history`: Binance, volumen comprador en cada vela, historial incluido; `live_trades`: Coinbase y Bybit, desde los trades recibidos a partir de `anchoredAt`) y `binanceProxy`, la serie Binance del CVD Binance. `bars` (0 a 300): las n últimas velas, `{ t (apertura, segundos UTC), o, h, l, c, v, buy (volumen comprador, si se conoce), valor de cada línea }`.' +
+        'Lee el gráfico cripto que el trader tiene abierto, como `chart_read` de OpenMarket. No abre ningún flujo: pestaña cerrada, `available: false` y `tab_closed`; sin velas, `no_bars`. Sobre las 160 últimas velas, la ventana que el gráfico muestra al abrirse (`visibleBars`, `from`, `to`): último precio, máximo, mínimo, variación en % de la primera apertura al último cierre (`changePct`), precios a la precisión del mercado. `indicators`: último valor de cada línea mostrada (`id` = `<indicador>:<línea>`). `cvd`: `source` (`history`: Binance, volumen comprador en cada vela, historial incluido; `live_trades`: Coinbase y Bybit, desde los trades recibidos a partir de `anchoredAt`) y `binanceProxy`, la serie Binance del CVD Binance. `bars` (0 a 300): las n últimas velas, de la más reciente a la más antigua (un resultado cortado pierde las más antiguas), `{ t (apertura, segundos UTC), o, h, l, c, v, buy (volumen comprador, si se conoce), valor de cada línea }`.' +
           OFF_ES,
       );
     case 'crypto_watchlist_get':

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { outputSchemaFor } from '../electron/mcp-server';
-import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES } from '@/engine/agent/catalog';
+import { DESK_TOOL_HINTS, DESK_TOOL_KINDS, DESK_TOOL_TITLES, TOOL_PREAMBLE } from '@/engine/agent/catalog';
+import { contextBudget, fitHistory } from '@/engine/agent/context';
 import { CRYPTO_TOOL_NAMES, createCryptoTools, cryptoToolBlurb, isCryptoTool } from '@/engine/agent/cryptoTools';
 import { clampToolArgs, type CryptoDeskPort, type DeskPorts } from '@/engine/agent/ports';
 import { DESK_TOOLS, describedDeskTools, executeDeskTool, toolBlurb, toolSchemas, type ExecuteCtx } from '@/engine/agent/tools';
@@ -381,7 +382,7 @@ describe('lectures sur un faux port', () => {
     expect(out.low).not.toBe(70_000);
   });
 
-  it('crypto_chart_read bars: 3 : les trois dernières bougies, avec la valeur de chaque ligne', async () => {
+  it('crypto_chart_read bars: 3 : les trois dernières bougies, la plus récente d’abord, avec la valeur de chaque ligne', async () => {
     const out = await call<{ bars: Record<string, unknown>[] }>(ports(fakeCrypto().port), 'crypto_chart_read', { bars: 3 });
     expect(out.bars).toHaveLength(3);
     expect(out.bars).toEqual(
@@ -397,12 +398,25 @@ describe('lectures sur un faux port', () => {
         'i_cvd:cvd': r(valueAt(CVD, b.time)!, 6),
         // Bougie 197 : une valeur ; 198 : NaN ; 199 : un blanc.
         'i_vwap:vwap': k === 0 ? r(b.close + 0.123, 2) : null,
-      })),
+      })).reverse(),
     );
     expect((await call(ports(fakeCrypto().port), 'crypto_chart_read', { bars: 0 })).bars).toBeUndefined();
     // Au-delà de 160 : les n dernières bougies du chart, pas seulement la fenêtre visible.
     expect((await call<{ bars: unknown[] }>(ports(fakeCrypto().port), 'crypto_chart_read', { bars: 300 })).bars).toHaveLength(200);
     expect((await call<{ bars: unknown[] }>(ports(fakeCrypto().port), 'crypto_chart_read', { bars: 900 })).bars).toHaveLength(200);
+  });
+
+  it('crypto_chart_read bars: 200 coupé à la fenêtre d’un modèle local : le modèle garde les bougies les plus récentes', async () => {
+    const out = await call<{ bars: { t: number }[] }>(ports(fakeCrypto().port), 'crypto_chart_read', { bars: 200 });
+    expect(out.bars.map((row) => row.t)).toEqual(BARS.map((b) => b.time).reverse());
+    // Le résultat tel que la boucle le range, puis tel que `fitHistory` l'envoie à un modèle en boucle locale.
+    const content = TOOL_PREAMBLE + JSON.stringify(out);
+    const budget = contextBudget('http://127.0.0.1:11434/v1');
+    expect(content.length).toBeGreaterThan(budget.toolResultChars);
+    const [sent] = fitHistory([{ role: 'tool', content, toolCallId: 'c1', name: 'crypto_chart_read' }], budget);
+    expect(sent?.content).toContain(`"t":${BARS.at(-1)!.time},`);
+    expect(sent?.content).toContain(`"t":${BARS.at(-2)!.time},`);
+    expect(sent?.content).not.toContain(`"t":${BARS[0]!.time},`);
   });
 
   it('crypto_chart_read, onglet fermé : tab_closed, sans lire le chart ; sans bougie : no_bars', async () => {
