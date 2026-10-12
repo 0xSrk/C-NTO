@@ -235,6 +235,21 @@ describe('onglet Agent · passerelle MCP', () => {
       expect(fake.copied).toEqual([fake.mcpToken]);
     }
   });
+
+  it('l’interrupteur d’écriture des agents externes nomme le module crypto, qu’il ouvre aussi, en trois langues', async () => {
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, orchestratorAllowWrite: true } });
+    const node = await mount();
+    for (const [locale, title, label] of [
+      ['fr', 'Agents externes · MCP', 'écriture autorisée (notes, annotations, module crypto) · MCP et orchestrateur'],
+      ['en', 'External agents · MCP', 'write allowed (notes, annotations, crypto module) · MCP and orchestrator'],
+      ['es', 'Agentes externos · MCP', 'escritura autorizada (notas, anotaciones, módulo cripto) · MCP y orquestador'],
+    ] as const) {
+      await act(async () => {
+        useI18n.setState({ locale });
+      });
+      expect(section(node, title).textContent, locale).toContain(label);
+    }
+  });
 });
 
 describe('onglet Agent · routines', () => {

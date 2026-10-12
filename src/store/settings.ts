@@ -102,7 +102,7 @@ export interface Settings {
   lastBackupAt: number | null;
   agent: AgentConfig;
   orchestratorPort: number;
-  /** Autoriser les agents externes (orchestrateur, passerelle MCP) à écrire (notes, annotations) */
+  /** Autoriser les agents externes (orchestrateur, passerelle MCP) à écrire (notes, annotations, module crypto) */
   orchestratorAllowWrite: boolean;
   /** Passerelle MCP ouverte au démarrage du desk. Jamais restaurée depuis un coffre. */
   mcpEnabled: boolean;

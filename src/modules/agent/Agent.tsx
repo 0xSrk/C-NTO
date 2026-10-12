@@ -457,7 +457,7 @@ export default function Agent() {
                     onChange={(v) => update({ orchestratorAllowWrite: v })}
                     label={
                       allowWrite
-                        ? tr('écriture autorisée (notes, annotations) · MCP et orchestrateur', 'write allowed (notes, annotations) · MCP and orchestrator', 'escritura autorizada (notas, anotaciones) · MCP y orquestador')
+                        ? tr('écriture autorisée (notes, annotations, module crypto) · MCP et orchestrateur', 'write allowed (notes, annotations, crypto module) · MCP and orchestrator', 'escritura autorizada (notas, anotaciones, módulo cripto) · MCP y orquestador')
                         : tr('lecture seule · MCP et orchestrateur', 'read only · MCP and orchestrator', 'solo lectura · MCP y orquestador')
                     }
                   />
