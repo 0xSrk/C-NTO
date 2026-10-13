@@ -451,6 +451,34 @@
           "Una orden propuesta por el agente se rechaza si incumple sus reglas (pérdida del día, catalizador, instrumento) o si el margen fechado del plan prop es demasiado bajo. El Copiador lee el mismo margen para cada seguidor, pérdida latente incluida, con su pestaña abierta o no."
         ]
       }
+    },
+    {
+      "version": "3.6.0",
+      "date": "2026-10-13",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Nouvel onglet 09 · CRY, facultatif : éteint par défaut, il ne s’allume qu’avec votre accord, dans un dialogue du process principal. Les marchés crypto y entrent un par un, au fil des versions : l’onglet commence petit et grandit.",
+          "Marchés crypto en direct, avec leur CVD et les indicateurs du desk, et la température du marché lue chez Binance : funding médian, largeur sur 24 h, liquidations de la dernière heure (un minorant), variation de l’open interest sur 24 h. Le chart garde votre vue pendant le direct, dans Visual aussi.",
+          "Alertes locales de prix et de température, déclenchées au franchissement : un message du desk et un événement que l’agent lit.",
+          "L’agent et les clients MCP lisent et pilotent l’onglet avec dix outils crypto_* : écritures confirmées dans le desk ou, pour les agents externes, seulement une fois l’écriture autorisée ; rien n’est listé tant que le module est éteint.",
+          "Réseau dans le process principal seulement, vers les hôtes épinglés de Coinbase, Binance et Bybit, sans identifiant ni redirection : données publiques, usage personnel."
+        ],
+        "en": [
+          "New optional tab 09 · CRY: off by default, it turns on only with your consent, in a main-process dialog. Crypto markets join it one by one, release after release: the tab starts small and grows.",
+          "Live crypto markets with their CVD and the desk’s indicators, and the market temperature read from Binance: median funding, 24 h breadth, the last hour’s liquidations (a lower bound), the 24 h change in open interest. The chart keeps your view during live updates, in Visual too.",
+          "Local price and temperature alerts, raised on a crossing: a desk message and an event the agent reads.",
+          "The agent and MCP clients read and drive the tab through ten crypto_* tools: writes are confirmed in the desk or, for external agents, go through only once writing is allowed; nothing is listed while the module is off.",
+          "Network in the main process only, to the pinned hosts of Coinbase, Binance and Bybit, with no credentials and no redirects: public data, personal use."
+        ],
+        "es": [
+          "Nueva pestaña 09 · CRY, opcional: apagada por defecto, solo se enciende con su consentimiento, en un diálogo del proceso principal. Los mercados cripto entran en ella uno a uno, versión tras versión: la pestaña empieza pequeña y crece.",
+          "Mercados cripto en directo, con su CVD y los indicadores del desk, y la temperatura del mercado leída en Binance: funding mediano, amplitud en 24 h, liquidaciones de la última hora (un mínimo), variación del open interest en 24 h. El gráfico conserva su vista durante el directo, también en Visual.",
+          "Alertas locales de precio y de temperatura, que saltan al cruzar el nivel: un aviso del desk y un evento que el agente lee.",
+          "El agente y los clientes MCP leen y manejan la pestaña con diez herramientas crypto_*: escrituras confirmadas en el desk o, para los agentes externos, solo con la escritura autorizada; nada se lista con el módulo apagado.",
+          "Red solo en el proceso principal, hacia los hosts fijados de Coinbase, Binance y Bybit, sin credenciales ni redirecciones: datos públicos, uso personal."
+        ]
+      }
     }
   ]
 }

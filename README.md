@@ -2,7 +2,7 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.5.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. V3.6.0 · DESK OUTPUT`**
 
 # CΛNTO
 
@@ -20,7 +20,7 @@ One window on your machine. Your data stays there.
 <br/><br/>
 
 [![Version](https://img.shields.io/github/package-json/v/0xSrk/C-NTO?style=flat-square&color=e5263d&label=version)](package.json)
-[![Tests](https://img.shields.io/badge/tests-976%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-2264%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
 [![MCP](https://img.shields.io/badge/MCP-local%20gateway-000000?style=flat-square)](docs/PROTOCOLE-AGENT.md)
@@ -36,11 +36,11 @@ One window on your machine. Your data stays there.
 
 <br/><br/>
 
-**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 PTF` · `06 AGT` · `07 BOT` · `08 CPY`**
+**`01 MET` · `02 VIS` · `03 CAL` · `04 NTE` · `05 PTF` · `06 AGT` · `07 BOT` · `08 CPY` · `09 CRY`**
 
 <br/>
 
-**[Overview](#overview) · [What's new](#whats-new-in-350) · [Install](#install) · [First run](#first-run) · [The desk](#the-desk) · [The agent](#the-agent) · [Safety](#safety-by-design) · [NinjaTrader](#ninjatrader-8-bridge) · [Architecture](#architecture) · [Develop](#develop) · [Versions](#versions) · [License](#license)**
+**[Overview](#overview) · [What's new](#whats-new-in-360) · [Install](#install) · [First run](#first-run) · [The desk](#the-desk) · [The agent](#the-agent) · [Safety](#safety-by-design) · [NinjaTrader](#ninjatrader-8-bridge) · [Architecture](#architecture) · [Develop](#develop) · [Versions](#versions) · [License](#license)**
 
 <br/>
 
@@ -53,7 +53,7 @@ One window on your machine. Your data stays there.
 
 ## Overview
 
-CΛNTO is the desk of **SIΞRRΛSKΛ Lab** for traders who run prop-firm accounts on **CME Group futures** — Nasdaq, S&P, Russell, Dow, crude, gold, euro FX, and their micros — next to NinjaTrader 8. Eight modules share one window and one vault on your disk. The desk measures what you did, watches what you are doing against your plan and your own rules, and gives an AI agent the same view, while the main process, not the model, keeps the keys.
+CΛNTO is the desk of **SIΞRRΛSKΛ Lab** for traders who run prop-firm accounts on **CME Group futures** — Nasdaq, S&P, Russell, Dow, crude, gold, euro FX, and their micros — next to NinjaTrader 8. Nine modules share one window and one vault on your disk. The desk measures what you did, watches what you are doing against your plan and your own rules, and gives an AI agent the same view, while the main process, not the model, keeps the keys. Beside the futures desk, an optional crypto tab, off until you turn it on, follows crypto markets from public exchange data.
 
 <table>
 <tr>
@@ -88,20 +88,20 @@ It reads the whole desk and your rules, prepares the brief and the debrief, and 
 
 ---
 
-<a id="whats-new-in-350"></a>
+<a id="whats-new-in-360"></a>
 
-## What's new in 3.5.0
+## What's new in 3.6.0
 
 > [!NOTE]
-> **v3.5.0 · 2026-10-06.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
+> **v3.6.0 · 2026-10-13.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
 
-- **Metrics, reworked.** An interactive equity curve, corrected figures (CME trading day, ratios over trading days, profit factor before and after fees), and markers kept only when they pass a statistical test.
-- **Risk, R and context.** The risk and R of every trade, the daily context of each session (volatility regime and band), and your results read by context.
-- **The session, live.** Day loss against its limit and working orders at the top of Metrics, your numeric rules in *Settings › Discipline*, and Visual following the NinjaTrader bridge when you ask.
-- **The agent at work.** It reads your rules, your day loss, your orders and the daily context, and prepares the morning brief and the evening debrief, sent only when you click. The MCP gateway also serves Codex and Claude Desktop.
-- **Guards that read everything.** An order proposed by the agent is refused when it breaks your rules (day loss, catalyst window, instrument) or when the prop plan's dated buffer is too low. The Copier reads the same buffer for each follower, unrealized loss included, Copier tab open or not.
+- **A crypto tab, built over time.** New optional tab `09 · CRY`: off by default, it turns on only with your consent, in a main-process dialog. Crypto markets join it one by one, release after release: the tab starts small and grows.
+- **Live markets and their temperature.** Live crypto markets with their CVD and the desk's indicators, and the market temperature read from Binance: median funding, 24 h breadth, the last hour's liquidations (a lower bound), the 24 h change in open interest. The chart keeps your view during live updates, in Visual too.
+- **Alerts in the desk.** Local price and temperature alerts, raised on a crossing: a desk message and an event the agent reads.
+- **Read and driven by agents.** The agent and MCP clients read and drive the tab through ten `crypto_*` tools: writes are confirmed in the desk or, for external agents, go through only once writing is allowed; nothing is listed while the module is off.
+- **Public data, pinned hosts.** Network in the main process only, to the pinned hosts of Coinbase, Binance and Bybit, with no credentials and no redirects: public data, personal use.
 
-NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.5.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.5.0).
+NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.6.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.6.0).
 
 ---
 
@@ -113,11 +113,11 @@ NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.5.0](https://g
 
 | Platform | Download | Runs on |
 |---|---|---|
-| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
-| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-win-x64-portable.exe) | Windows 10 and 11 |
-| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.5.0/CANTO-3.5.0-linux-arm64.deb) | x64 and ARM64 |
+| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
+| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-win-x64-portable.exe) | Windows 10 and 11 |
+| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-arm64.deb) | x64 and ARM64 |
 
-Files are named `CANTO-3.5.0-<system>-<architecture>`, for example `CANTO-3.5.0-win-x64-setup.exe`.
+Files are named `CANTO-3.6.0-<system>-<architecture>`, for example `CANTO-3.6.0-win-x64-setup.exe`.
 
 The installers need neither Node.js nor a clone of the repository. Each Release lists every file in `SHA256SUMS.txt`, signed with the Lab's Ed25519 key: the desk's built-in update refuses an installer whose signature is missing, foreign, or bound to another version ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
 
@@ -142,7 +142,7 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-1. Run `CANTO-3.5.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.5.0-win-x64-portable.exe`.
+1. Run `CANTO-3.6.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.6.0-win-x64-portable.exe`.
 2. Metrics › NinjaTrader bridge › default folder `Documents\NinjaTrader 8\export\CANTO`.
 3. Real time: copy `CantoBridge.cs` into `Documents\NinjaTrader 8\bin\Custom\AddOns\`, compile it in the NinjaScript Editor (F5), then **Write the NinjaTrader configuration** in the desk.
 
@@ -155,8 +155,8 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-- **AppImage** (no system install): `chmod +x CANTO-3.5.0-linux-x86_64.AppImage && ./CANTO-3.5.0-linux-x86_64.AppImage`
-- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.5.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
+- **AppImage** (no system install): `chmod +x CANTO-3.6.0-linux-x86_64.AppImage && ./CANTO-3.6.0-linux-x86_64.AppImage`
+- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.6.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
 - The bridge creates `~/Documents/NinjaTrader 8/export/CANTO`; as on macOS, the Linux desk imports the CSV files the AddOn writes on Windows.
 
 Without a GPU (remote session, no `/dev/dri`), Chromium can leave the window black and quit. The desk then switches to software rendering on its own, including at the next launch. Force it with `CANTO_DISABLE_GPU=1`.
@@ -240,6 +240,7 @@ Every install opens on the **launcher** — desk language, version check, then t
 | <code>06&nbsp;·&nbsp;AGT</code> | [AI agent](#ai-agent) | Reads the desk, briefs and debriefs, proposes Sim orders you confirm; local MCP gateway | Prototype |
 | <code>07&nbsp;·&nbsp;BOT</code> | [Bot](#bot) | Automaton workshop under imposed guardrails | Design · no orders |
 | <code>08&nbsp;·&nbsp;CPY</code> | [Copier](#copier) | Position-based replication from a master to Sim followers | Sim only · disarmed on launch |
+| <code>09&nbsp;·&nbsp;CRY</code> | [Crypto](#crypto) | Live crypto chart with its CVD, market temperature and local alerts; read and driven by the agent | Optional · off by default |
 
 <a id="metrics"></a>
 <a id="métrique"></a>
@@ -426,6 +427,29 @@ Replication runs in the main process on the execution port: each fill of the mas
 
 Followers are `Sim*` accounts only, never the master and never twice. No real follower account in this version. Protocol and replication details: [docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md).
 
+<a id="crypto"></a>
+<a id="09-cry"></a>
+
+<div align="center">
+
+**`09 · CRY · CRYPTO · CHART · TEMPERATURE · ALERTS`**
+
+</div>
+
+### Crypto
+
+**Optional, off by default.** The tab sits on the rail from the first launch, empty, with one action: **Turn on the crypto module**, confirmed in a main-process dialog (Cancel by default). Until then the desk opens no connection to an exchange and lists no crypto tool. Once on, the module stays on across launches until you click **Turn off the module** in the tab, which closes every feed at once.
+
+- **A live chart.** The market you pick, in six timeframes from 1 minute to 1 day, with prices to the exchange's own tick size. The CVD is complete from history where the exchange gives the buyer volume (Binance), and built from live trades elsewhere (Coinbase, Bybit), marked *since HH:MM*; for a Coinbase market that Binance also lists, a *CVD Binance* option adds a CVD with its full history. Indicator cards as in Visual — EMA, SMA, VWAP and previous-day levels anchored at 00:00 UTC, ATR, relative volume — and the levels or zones an agent draws, marked AGENT.
+- **Market temperature, from Binance.** The median funding of perpetual futures, the share of spot pairs up over 24 h, long and short liquidations over the rolling hour — a lower bound, and the screen says so — and the 24 h change in open interest. Every reading carries its time.
+- **Local alerts.** On the price of a watched market or on the temperature (median funding, breadth, the last hour's liquidations), once or re-armed past a hysteresis band. The first reading sets the side; a crossing shows a desk message and raises a `crypto_alert` event the agent reads with `desk_events`. Nothing is evaluated on stale data, and there is no system notification: alerts run while the desk is open.
+- **Read and driven by agents.** Ten `crypto_*` tools ([the list](#mcp-gateway)): the agent reads what you opened — a read never opens a feed — and can change the market, the timeframe, the indicators, the drawings, the alerts and the watchlist; a write that changes the market or the timeframe, the watchlist or the Binance CVD opens the matching feed. The embedded agent's writes wait for your confirmation; an MCP client's writes need *write allowed*, off by default.
+- **Status lights.** One per exchange — connecting, live, reconnecting, stale, blocked — judged on the connection's activity, with the age of the last price shown separately: a quiet market can go minutes without a trade and still be live.
+
+**What it never does.** No order, no account, no key, no position: the tab reads public exchange data, for personal use, through the main process only. Crypto stays out of Portfolio, discipline, the Copier, order execution and the NinjaTrader bridge. Bars stay in memory; the chart, the watchlist, the alerts and the drawings are kept in the local vault.
+
+**Where it goes.** Crypto markets are listed one by one, release after release. The tab starts small on purpose and grows with each market added.
+
 ---
 
 <a id="the-agent"></a>
@@ -436,7 +460,7 @@ Followers are `Sim*` accounts only, never the master and never twice. No real fo
 
 | Reads | Watches | Prepares | Proposes |
 |---|---|---|---|
-| The whole desk through typed tools: journal, metrics, prop replay, calendar, notes, portfolio, bridge, market levels, your rules and your memory. | Desk events from the moment the desk opens: fills, order changes, prop-buffer and day-loss thresholds, rule breaches, a major catalyst 15 minutes ahead. | The **morning brief** (8:30–9:30 New York) and the **evening debrief**, from the same texts as the MCP prompts — sent to the provider only when you click. | An order on a **Sim** account with `propose_order`. The main process guards it; you confirm it in a system window. |
+| The whole desk through typed tools: journal, metrics, prop replay, calendar, notes, portfolio, bridge, market levels, your rules and your memory — and the crypto tab while it is on. | Desk events from the moment the desk opens: fills, order changes, prop-buffer and day-loss thresholds, rule breaches, a major catalyst 15 minutes ahead, crypto alerts. | The **morning brief** (8:30–9:30 New York) and the **evening debrief**, from the same texts as the MCP prompts — sent to the provider only when you click. | An order on a **Sim** account with `propose_order`. The main process guards it; you confirm it in a system window. |
 
 ### An order, from proposal to market
 
@@ -462,7 +486,7 @@ sequenceDiagram
 
 - **Guards before any dialog.** Sim accounts only; the agent's own limits (contracts per order, resulting position, proposals per minute); the tracked prop plan's dated buffer (the K.04 gauge, unrealized loss included) above 25 % of max drawdown; your rules — day loss reached, catalyst window, instrument not allowed. An order that reduces the position always passes.
 - **You decide.** Each order waits for you in a main-process window: 45 seconds, **Decline** by default. Order submission by the agent is off each time the desk opens and is allowed again only through a main-process dialog.
-- **The agent never submits.** `copy.order` is not an agent tool; other writes — notes, links, annotations — are confirmed by you, or allowed for an orchestrator by a flag that is off by default.
+- **The agent never submits.** `copy.order` is not an agent tool; other writes — notes, links, annotations, crypto tab edits (chart, indicators, drawings, alerts, watchlist) — are confirmed by you, or allowed for external agents (MCP and orchestrator) by a flag that is off by default.
 
 <a id="mcp-gateway"></a>
 
@@ -472,6 +496,7 @@ External agents — **Claude Code, Claude Desktop, Codex, Cursor**, any MCP clie
 
 - A bearer token kept in the desk's data folder, renewable; browser origins and non-loopback hosts refused; 1 MB per request, 40 requests per second.
 - Write tools stay hidden and refused until you allow writing.
+- The ten `crypto_*` tools are listed only while the crypto module is on, and refused otherwise; reconnect the client after turning the module on or off. Once a client is allowed to write, its crypto edits apply without a dialog in the desk.
 - Tools titled and typed by the desk, with output schemas; `canto://` resources; three prompts — pre-session brief, session debrief, prop plan review; messages and refusals in the desk language.
 - The gateway stays on the machine: no tunnel, no cloud connector. ChatGPT on the web calls MCP servers from OpenAI's cloud and cannot reach `127.0.0.1`.
 
@@ -528,7 +553,7 @@ bearer_token_env_var = "CANTO_MCP_TOKEN"
 </details>
 
 <details>
-<summary><b>Tools</b> — 23 desk tools, 18 to read and 5 to write</summary>
+<summary><b>Tools</b> — 33 desk tools, 23 to read and 10 to write, including 10 for the crypto tab</summary>
 
 <br/>
 
@@ -550,9 +575,17 @@ bearer_token_env_var = "CANTO_MCP_TOKEN"
 | `trader_memory` | read | Your rules, tracked plan, trading-plan note, adopted lessons and playbook |
 | `discipline_status` | read | Today's CME day loss against its limit, trades against the maximum, drifts and breaches, next major catalyst |
 | `desk_events` | read | Desk events since a cursor |
+| `crypto_status` | read | The crypto tab: open or not, market, timeframe, a light per exchange, indicators and drawings |
+| `crypto_chart_read` | read | The crypto chart on screen: last price, range, indicator values, the CVD and its source, up to 300 bars; it never opens a feed |
+| `crypto_watchlist_get` · `crypto_alert_list` | read | Watched crypto markets with their last price; crypto alerts, and why one is not evaluated |
+| `crypto_temperature` | read | Binance market temperature, each reading timed, liquidations marked as a lower bound |
 | `create_note` · `branch_note` · `link_notes` | write | Notes and typed links, confirmed |
 | `annotate_session` | write | A session annotation, confirmed |
 | `propose_order` | write | An order proposed on a Sim account, confirmed in a system window |
+| `crypto_chart_set` · `crypto_indicator_set` · `crypto_drawing_set` | write | Market and timeframe, indicators, levels and zones of the crypto chart |
+| `crypto_alert_set` · `crypto_watchlist_set` | write | Crypto alerts and the crypto watchlist |
+
+The `crypto_*` tools are listed only while the crypto module is on, and refused otherwise. Their writes are confirmed in the desk for the embedded agent, and apply without a dialog for an external agent allowed to write.
 
 Limits: 6 turns, 8 calls per turn, 2 writes per turn, `body` / `note` ≤ 20,000 characters. Tool results carry an *untrusted data* preamble. Protocol: [docs/PROTOCOLE-AGENT.md](docs/PROTOCOLE-AGENT.md) · design rationale: [docs/THESE-AGENTIQUE.md](docs/THESE-AGENTIQUE.md).
 
@@ -581,10 +614,11 @@ A trading desk that can send orders earns trust by what it refuses to do. These 
 |---|---|
 | **Orders** | Accounts whose name starts with `Sim` by default; a live account only after an explicit main-process dialog. Contract ceiling from 1 to 1,000 (default 20); raising it takes a dialog. Mandatory tag. Kill switch <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd> on macOS); after it, submission stays closed until the desk restarts. |
 | **NinjaTrader AddOn** | Its own guard, read from `bridge.json`: allowed accounts, ceiling, tag. The token never travels — desk and AddOn prove they hold it by HMAC challenge–response — and the AddOn sends nothing and executes nothing before the desk has proven itself. |
-| **Agent** | Never submits. `propose_order` passes the main-process guards, then waits for your confirmation (Decline by default, 45 s). Off at every launch. It subscribes to no market data: it reads what you opened. |
+| **Agent** | Never submits. `propose_order` passes the main-process guards, then waits for your confirmation (Decline by default, 45 s). Off at every launch. It subscribes to no market data on its own: it reads what you opened, and a read never opens a feed. In the crypto tab, a write that changes the market or the timeframe, the watchlist or the Binance CVD has the desk open the matching feed — after your confirmation, or without a dialog for an external agent allowed to write. |
 | **Copier** | Disarmed at every launch; Sim followers only, never the master or a duplicate; arming through a main-process dialog. A risk reduction is never blocked and never exceeds the follower's real position; an opening passes the follower's dated floor. |
+| **Crypto** | Off at the first launch, and until you consent in a main-process dialog (Cancel by default); turning it off closes every feed. Network only in the main process, to pinned exchange hosts over `https:` and `wss:` only, with no redirects and no credentials. Public data only — no order, no account. The agent reads what you opened, and a read never opens a feed; a write that changes the market or the timeframe, the watchlist or the Binance CVD opens the matching feed. The embedded agent's writes are confirmed in the desk, an external agent's need *write allowed*, off by default. |
 | **Keys and providers** | The API key stays in the main process, encrypted at rest; provider hosts are pinned and cannot be widened from the interface. |
-| **Network** | The interface runs under a strict Content Security Policy — connections to the app itself and to the loopback only — and calls no outside host; providers go through the main process. The MCP gateway and the orchestrator listen on `127.0.0.1` only: no tunnel, no cloud connector. |
+| **Network** | The interface runs under a strict Content Security Policy — connections to the app itself and to the loopback only — and calls no outside host; providers and crypto exchanges go through the main process. The MCP gateway and the orchestrator listen on `127.0.0.1` only: no tunnel, no cloud connector. |
 | **Updates** | An installer is installed only if `SHA256SUMS.txt` carries a signature from a Lab key embedded in the desk, bound to that version. The private key never touches the repository or GitHub. |
 | **Data** | The journal lives in a local vault. No token, secret or key in a log, a vault export, or a commit. |
 
@@ -615,14 +649,15 @@ Defaults: `Sim*` accounts, 20 contracts per order, mandatory tag, circuit breake
 flowchart LR
     X["MCP clients<br/>Claude · Codex · Cursor"] -->|"HTTP 127.0.0.1:47118 · bearer"| M
     subgraph DESK["CΛNTO desk · Electron · on your machine"]
-        R["Interface<br/>React 19 · 8 modules · strict CSP"] <-->|"IPC · named methods"| M["Main process<br/>guards · dialogs · LLM proxy · signed updates"]
+        R["Interface<br/>React 19 · 9 modules · strict CSP"] <-->|"IPC · named methods"| M["Main process<br/>guards · dialogs · LLM proxy · signed updates"]
         R --- V[("Vault<br/>IndexedDB")]
     end
     M <-->|"WebSocket 127.0.0.1:48231 · HMAC"| NT["NinjaTrader 8<br/>CantoBridge AddOn"]
     M -->|"HTTPS · pinned hosts · key held in main"| P["LLM provider"]
+    M -.->|"HTTPS · WSS · pinned hosts · crypto module on"| CX["Crypto exchanges<br/>public data"]
 ```
 
-The engine (`src/engine`) is pure TypeScript and never imports the interface: metrics, prop firm, Monte Carlo, imports, portfolio, the instrument registry, the execution port, the copier router, indicators and agent tools. Indicators, agent tools and prop plans are registries; agent tools receive injected **ports** rather than writing into the stores. The modules the main process runs are compiled from the same sources and guarded by the same tests.
+The engine (`src/engine`) is pure TypeScript and never imports the interface: metrics, prop firm, Monte Carlo, imports, portfolio, the instrument registry, the execution port, the copier router, indicators and agent tools, and, for crypto, the market registry, its indicators, the temperature and the alerts. Indicators, agent tools and prop plans are registries; agent tools receive injected **ports** rather than writing into the stores. The modules the main process runs are compiled from the same sources and guarded by the same tests.
 
 <details>
 <summary><b>Source tree</b></summary>
@@ -631,16 +666,16 @@ The engine (`src/engine`) is pure TypeScript and never imports the interface: me
 
 ```
 electron/            shell: window, launcher, updates, dialogs, folder bridge, secrets,
-                     LLM proxy, MCP gateway, orchestrator
+                     LLM proxy, MCP gateway, orchestrator, crypto switch and feeds
 electron/nt-bridge/  dedicated JSON-RPC server on 127.0.0.1:48231 (protocol, guards, copier host)
 ninjatrader/         CantoBridge AddOn (atomic CSV and .seen file, WebSocket client)
 src/app/             boot, gate, shell (title bar 44 · rail 220 · status 28), tabs
 src/design/          tokens, primitives, CΛNTO wordmark, SVG charts
 src/engine/          metrics, Monte Carlo, imports, prop firm, portfolio, instruments,
-                     official calendar, execution port, copier, indicators, agent tools
+                     official calendar, execution port, copier, indicators, agent tools, crypto
 src/store/           Dexie (IndexedDB) and Zustand stores
-src/modules/         one folder per tab, 01 to 08
-tests/               Vitest — engine, import, vault, calendar, bridge, agent, copier, portfolio, shell
+src/modules/         one folder per tab, 01 to 09
+tests/               Vitest — engine, import, vault, calendar, bridge, agent, copier, portfolio, crypto, shell
 vectors/             shared JSON vectors (metrics, prop firm, portfolio)
 docs/                DESIGN · PONT-NINJATRADER · PROTOCOLE-AGENT · THESE-AGENTIQUE · PUBLICATION · AUDIT
 ```
@@ -683,6 +718,8 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)**. Carbon `#0A0B0D`, floor `#0
 
 ## Roadmap
 
+**Shipped in 3.6.0** — the optional crypto tab, off until you turn it on: live markets with their CVD, the Binance market temperature, local alerts, and ten agent tools to read and drive it.
+
 **Shipped in 3.5.0** — the Metrics rework, the session in progress, discipline rules, Visual following the bridge, the agent's brief, debrief, memory and rule guards, and the Copier's follower floor on the dated buffer.
 
 **Still ahead of the desk**
@@ -691,6 +728,7 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)**. Carbon `#0A0B0D`, floor `#0
 - The Copier does not follow a real account in this version.
 - NinjaTrader AddOn 2.3.0 (order fills and average price, a full bridge snapshot) ships only once it has been compiled and tried on Sim.
 - The Lab's model joins the agent presets when its host opens.
+- Crypto markets are added to the crypto tab one by one, release after release; the tab grows with them.
 
 ---
 
@@ -700,15 +738,16 @@ System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)**. Carbon `#0A0B0D`, floor `#0
 
 The journal inside the desk lists every release in French, English and Spanish.
 
+- **3.6.0** — Optional crypto tab `09 · CRY`, off until you consent in a main-process dialog: live markets with their CVD and the desk's indicators, the Binance market temperature, local alerts, ten `crypto_*` tools for the agent and MCP clients. Network in the main process only, to pinned exchange hosts. Crypto markets join it one by one, release after release. (2026-10-13)
 - **3.5.0** — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. The session in progress, discipline rules, Visual following the bridge. The agent reads your rules and day loss, prepares the brief and the debrief, and the desk refuses its proposed orders when they break your rules; the Copier's follower floor reads the same dated buffer. (2026-10-06)
 - **3.4.0** — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
-- **3.3.4** — Update over 3.3.3. Desk Unlocked in the desk type; the loading bar writes the Lab name in characters. (2026-10-05)
 
 <details>
 <summary><b>Earlier versions</b></summary>
 
 <br/>
 
+- 3.3.4 — Update over 3.3.3. Desk Unlocked in the desk type; the loading bar writes the Lab name in characters. (2026-10-05)
 - 3.3.3 — Desk Unlocked in the desk type. Red tip on the Λ. Compact module plate. (2026-10-05)
 - 3.3.2 — PolyForm Noncommercial 1.0.0. Personal noncommercial use is free. Commercial use goes through the Lab. (2026-10-04)
 - 3.3.1 — Lighter title bar, session clocks, account plate, and the Desk Unlocked opening. (2026-10-04)
@@ -743,7 +782,7 @@ Personal noncommercial use of the desk is free. A model reached through an API a
 > [!WARNING]
 > CΛNTO gives no investment advice. The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. Whether an order proposed by an AI and confirmed by you is allowed depends on each prop firm's rules: CΛNTO makes no claim of compliance with any firm. Check with yours.
 
-Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The agent can only propose an order on a Sim account, and each one waits for your confirmation in a desk window. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (adjustable from 1 to 1,000 through a dialog) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository.
+Data stays on the machine; no third-party server is required for the journal. Bot cannot send an order. The agent can only propose an order on a Sim account, and each one waits for your confirmation in a desk window. The Copier replicates only onto Sim followers, and only after you arm it; it starts disarmed. The crypto tab sends no order and holds no account: it reads public exchange data, for personal use, once you turn it on. The NinjaTrader bridge can submit on a Sim account — a live account only after an explicit confirmation in the panel — with a default 20-contract ceiling (adjustable from 1 to 1,000 through a dialog) and a global kill switch. The AddOn C# is compiled by you on Windows, not by this repository.
 
 <a id="license"></a>
 
@@ -770,6 +809,6 @@ Copied next to the launcher at build time, with the license file beside each fam
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.5.0`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · REV. A · DESK OUTPUT · v3.6.0`**
 
 </div>

@@ -2,6 +2,7 @@
 
 Statut : validée en conception par l'ADMIN le 9 octobre 2026, à relire avant le plan d'implémentation.
 Base : CΛNTO 3.5.0 (`main`, 0796a9d). Usage : **personnel**, rien ne part en Release.
+2026-10-13 : l'ADMIN fait entrer l'onglet dans la Release 3.6.0, éteint par défaut (`docs/AUDIT.md` › « Publication de la 3.6.0 ») ; la revue des conditions des exchanges (décision 9) reste ouverte.
 
 ## 1. Intention
 
