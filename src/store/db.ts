@@ -877,7 +877,7 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
           delete agentRest.apiKeyHost;
           let agent: Record<string, unknown> = { ...agentRest, apiKey: v.pendingApiKey };
           if (desk?.secrets) {
-            const payload = await desk.secrets.encrypt(v.pendingApiKey);
+            const payload = await desk.secrets.encrypt(v.pendingApiKey, typeof prevAgent.baseUrl === 'string' ? prevAgent.baseUrl : undefined);
             if (payload) {
               agent = { ...agentRest, apiKey: '', apiKeyEncrypted: payload };
               apiKeyReencrypted = true;

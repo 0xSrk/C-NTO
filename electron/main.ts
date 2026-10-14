@@ -7,6 +7,7 @@ import { confirmCopierArm } from './nt-bridge/copier-host';
 import { AgentOrderHost } from './agent-orders';
 import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from './llm-host';
+import { LlmKeySeals } from './llm-key-seals';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
 import { onPageLeft } from './page-left';
@@ -868,10 +869,20 @@ ipcMain.handle('mcp:rotate-token', (e) => (trusted(e) ? mcpGateway().rotateToken
 ipcMain.handle('mcp:connection', (e) => (trusted(e) ? mcpGateway().connection() : null));
 
 /* ─── Secrets (clé API chiffrée par le trousseau du système) ─── */
-ipcMain.handle('secrets:encrypt', (e, text: unknown) => {
+/** Hôte scellé de chaque clé API chiffrée (A11), lu dans `userData` au premier besoin. */
+let llmKeySeals: LlmKeySeals | null = null;
+function keySeals(): LlmKeySeals {
+  llmKeySeals ??= new LlmKeySeals(app.getPath('userData'));
+  return llmKeySeals;
+}
+ipcMain.handle('secrets:encrypt', (e, text: unknown, baseUrl?: unknown) => {
   if (!trusted(e) || !isString(text, 4096)) return null;
   if (!safeStorage.isEncryptionAvailable()) return null;
-  return safeStorage.encryptString(text).toString('base64');
+  const blob = safeStorage.encryptString(text).toString('base64');
+  // La clé est liée ici à l'hôte de l'URL de base où elle est saisie : à l'usage, le renderer ne peut plus le changer.
+  const host = isString(baseUrl, 2048) ? llmKeyHost(baseUrl) : '';
+  if (host && !keySeals().bind(blob, host)) mainLog('warn', 'sceau d’hôte de la clé API non écrit : il vaut pour ce lancement');
+  return blob;
 });
 
 /* ─── LLM (process main : la clé ne transite pas par le renderer) ─── */
@@ -893,8 +904,10 @@ function joinLlmUrl(base: string, p: string): string {
 /**
  * Clé à joindre à l'appel : seulement vers l'hôte pour lequel elle a été saisie. Ailleurs, rien n'est
  * joint ; vers un fournisseur distant, l'appel n'a pas lieu (`refused`) : il faut ressaisir la clé.
+ * L'hôte scellé au chiffrement fait foi ; un secret ancien, sans lien, suit l'hôte que donne le renderer, comme avant.
  */
-function llmKeyForCall(baseUrl: string, blob: unknown, keyHost: unknown): { key: string; refused?: string } {
+function llmKeyForCall(baseUrl: string, blob: unknown, rendererHost: unknown): { key: string; refused?: string } {
+  const keyHost = keySeals().hostFor(blob, rendererHost);
   if (keyFor(baseUrl, keyHost)) return { key: decryptLlmKey(blob) };
   if (typeof blob !== 'string' || !blob || llmLoopback(baseUrl)) return { key: '' };
   const from = isString(keyHost, 300) && keyHost ? keyHost : '?';
