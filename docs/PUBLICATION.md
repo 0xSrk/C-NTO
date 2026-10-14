@@ -19,7 +19,9 @@ Rotation : générer une nouvelle clé avec `--write` (les deux clés sont accep
 ## À chaque version
 
 1. Monter la version dans `package.json`, préparer l'entrée de `src/engine/changelog/changelog.json`, pousser le tag `vX.Y.Z` (ou lancer le workflow `release`).
-2. La CI construit les installeurs et crée la Release **en brouillon** : invisible des desks. Le job `publish` affiche `SHA256SUMS.txt` dans son journal (étape SHA-256).
+2. La CI crée la Release **en brouillon**, invisible des desks : le job `prepare` y dépose les notes et `changelog.json`, chaque construction (Linux, Windows, macOS) y téléverse ses installeurs, puis le job `publish` les reprend, calcule `SHA256SUMS.txt`, l'affiche dans son journal (étape SHA-256) et l'ajoute. Rien ne passe par le stockage des artefacts d'Actions : un quota plein ne bloque pas la Release. Le brouillon n'est complet, et signable, qu'une fois `publish` vert.
+   - Une construction a échoué : `gh run rerun <id> --failed` relance ses jobs, qui remplacent leurs propres fichiers ; `publish` suit.
+   - Repartir de zéro : supprimer le brouillon, puis relancer le workflow. Tant qu'il existe, le job `prepare` refuse tout nouveau run pour la même version, « Re-run all jobs » compris.
 3. Sur le poste de l'ADMIN (`gh` connecté au dépôt) :
 
 ```bash
@@ -27,6 +29,8 @@ node scripts/sign-release.mjs --tag vX.Y.Z --key ~/.canto/release-signing-key.pe
 ```
 
 Le script télécharge `SHA256SUMS.txt`, l'affiche, demande de taper la version après comparaison avec le journal de la CI, signe, vérifie que la clé est bien dans `electron/release-keys.ts`, téléverse `SHA256SUMS.txt.sig`, puis publie la Release.
+
+Publier crée le tag `vX.Y.Z`, qui relance le workflow `release` : ce run voit la Release publiée et s'arrête sans rien écrire (« ce run […] ne fait rien »). Les jobs `build` et `publish` n'écrivent d'ailleurs que dans le brouillon que leur run a créé, épinglé par son identifiant : une Release publiée n'est jamais modifiée par la CI.
 
 Sans `gh` : `node scripts/sign-release.mjs --sums SHA256SUMS.txt --version X.Y.Z --key <clé>` écrit la signature ; la téléverser à la main sur la Release, puis la publier.
 

@@ -3,6 +3,8 @@ name: release
 # - pousser un tag `v*` ;
 # - « Run workflow » dans l'onglet Actions (ou l'API) : le tag `v<version de package.json>`
 #   est créé sur le commit construit, au moment de publier la release.
+# Publier un brouillon crée son tag, qui relance ce workflow : ce run-là voit la release publiée
+# et ne fait rien (étape « Release existante »).
 on:
   push:
     tags:
@@ -10,17 +12,21 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# Une Release à la fois : un run lancé pendant un autre attend la fin du premier.
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      skip: ${{ steps.state.outputs.skip }}
+      release_id: ${{ steps.draft.outputs.release_id }}
     steps:
       - uses: actions/checkout@v4
       - name: Tag de la release
         id: tag
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           version="v$(node -p "require('./package.json').version")"
           if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
@@ -31,22 +37,77 @@ jobs:
             fi
           else
             tag="$version"
-            if gh release view "$tag" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-              echo "::error::La release $tag existe déjà. Montez la version dans package.json avant de relancer."
-              exit 1
-            fi
-            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-              echo "::error::Le tag $tag existe déjà sur un autre commit : supprimez-le ou montez la version."
-              exit 1
-            fi
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Release : $tag sur ${GITHUB_SHA}"
+      - name: Release existante
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        # Pour les deux déclencheurs, avant toute écriture : sur une release publiée, --clobber
+        # remplacerait les installeurs signés et SHA256SUMS.txt, et les desks refuseraient la mise à jour.
+        # Lu dans la liste de l'API (brouillons compris) : une erreur arrête le run, elle ne passe jamais pour « aucune release ».
+        run: |
+          set -euo pipefail
+          rels=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
+          printf 'Releases %s : %s\n' "$TAG" "${rels:-aucune}"
+          if [[ "$rels" == *" false"* ]]; then
+            if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+              echo "::notice::La release $TAG est publiée : ce run, lancé par le tag que sa publication a créé, ne fait rien."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::La release $TAG est déjà publiée. Montez la version dans package.json avant de relancer."
+            exit 1
+          fi
+          if [ -n "$rels" ]; then
+            echo "::error::Un brouillon $TAG existe déjà : relancez les jobs en échec de son run (gh run rerun <id> --failed), ou supprimez le brouillon pour repartir de zéro."
+            exit 1
+          fi
+          if [ "${GITHUB_EVENT_NAME}" != "push" ] && git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Le tag $TAG existe déjà, sans release : supprimez-le ou montez la version."
+            exit 1
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
       - name: Journal de la version
+        if: steps.state.outputs.skip != 'true'
         run: node scripts/release-notes.mjs --check
+      - name: Journal et notes
+        if: steps.state.outputs.skip != 'true'
+        run: node scripts/release-notes.mjs
+      - name: Release en brouillon
+        id: draft
+        if: steps.state.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        # Créée avant les constructions, qui y téléversent leurs installeurs : la Release ne passe pas
+        # par le stockage des artefacts d'Actions, dont le quota plein a bloqué la 3.6.0.
+        # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit à la publication.
+        # --draft : invisible des desks tant que l'ADMIN ne l'a pas signée puis publiée
+        # (node scripts/sign-release.mjs --tag "$TAG" --key <clé> --publish). La clé reste hors de GitHub.
+        # release_id épingle ce brouillon : build et publish n'écrivent que dans lui.
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" publish/changelog.json \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "CΛNTO $TAG" \
+            --notes-file release-notes.md \
+            --draft
+          rels=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
+          if ! [[ "$rels" =~ ^[0-9]+\ true$ ]]; then
+            echo "::error::$TAG doit désigner ce seul brouillon (vu : ${rels:-aucune})."
+            exit 1
+          fi
+          id="${rels% true}"
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+          echo "Brouillon $TAG : release $id"
 
   build:
     needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
     name: ${{ matrix.artifact }}
     strategy:
       fail-fast: false
@@ -69,35 +130,83 @@ jobs:
           node-version: "22"
       - run: npm ci
       - name: Installeur natif
-        run: npm run ${{ matrix.script }}
+        shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.artifact }}
-          path: |
-            release/*.AppImage
-            release/*.deb
-            release/*.exe
-            release/*.dmg
-            release/*.zip
-          if-no-files-found: error
+        run: |
+          set -uo pipefail
+          # Le zip Electron (GitHub) répond parfois 500 une fois le téléchargement annoncé.
+          # On ne réessaie que cette coupure réseau ; une erreur de build reste fatale.
+          for attempt in 1 2 3; do
+            set +e
+            log=$(npm run "${{ matrix.script }}" 2>&1)
+            code=$?
+            set -e
+            printf '%s\n' "$log"
+            if [ "$code" -eq 0 ]; then
+              exit 0
+            fi
+            if printf '%s\n' "$log" | grep -Eq "Response code 500|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up"; then
+              echo "Téléchargement Electron interrompu (tentative ${attempt}/3)."
+              if [ "$attempt" -lt 3 ]; then
+                sleep $((attempt * 15))
+              fi
+              continue
+            fi
+            exit "$code"
+          done
+          exit 1
+      - name: Installeurs dans le brouillon
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+        # --clobber : une construction relancée (gh run rerun --failed) remplace ses propres fichiers,
+        # dans le brouillon de ce run seulement : le tag doit encore le désigner.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(release/*.AppImage release/*.deb release/*.exe release/*.dmg release/*.zip)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::Aucun installeur dans release/."
+            exit 1
+          fi
+          printf '%s\n' "${files[@]}"
+          seen=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
+          if [ "$seen" != "$RELEASE_ID true" ]; then
+            echo "::error::$TAG doit désigner le seul brouillon $RELEASE_ID (vu : ${seen:-aucune}) : rien n'est téléversé."
+            exit 1
+          fi
+          gh release upload "$TAG" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
 
   publish:
     needs: [prepare, build]
+    if: needs.prepare.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          merge-multiple: true
-          path: publish
-      - name: Journal et notes
-        run: node scripts/release-notes.mjs
+      - name: Installeurs du brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          seen=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
+          if [ "$seen" != "$RELEASE_ID true" ]; then
+            echo "::error::$TAG doit désigner le seul brouillon $RELEASE_ID (vu : ${seen:-aucune})."
+            exit 1
+          fi
+          gh release download "$TAG" --repo "${GITHUB_REPOSITORY}" --dir publish
+          # Une relance ne compte pas les empreintes d'un passage précédent.
+          rm -f publish/SHA256SUMS.txt publish/SHA256SUMS.txt.sig
+          for pattern in '*.dmg' '*.exe' '*.AppImage' '*.deb' 'changelog.json'; do
+            if ! compgen -G "publish/$pattern" >/dev/null; then
+              echo "::error::Le brouillon $TAG n'a aucun fichier $pattern."
+              exit 1
+            fi
+          done
+          ls -l publish
       - name: SHA-256
         run: |
           cd publish
@@ -112,17 +221,17 @@ jobs:
             echo "::error::SHA256SUMS.txt se liste lui-même."
             exit 1
           fi
-      - name: Release en brouillon
+      - name: Empreintes dans le brouillon
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
-        # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit.
-        # --draft : invisible des desks tant que l'ADMIN ne l'a pas signée puis publiée
-        # (node scripts/sign-release.mjs --tag "$TAG" --key <clé> --publish). La clé reste hors de GitHub.
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+        # Le brouillon n'est complet qu'ici : sign-release.mjs télécharge ce SHA256SUMS.txt.
         run: |
-          gh release create "$TAG" publish/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --target "${GITHUB_SHA}" \
-            --title "CΛNTO $TAG" \
-            --notes-file release-notes.md \
-            --draft
+          set -euo pipefail
+          seen=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
+          if [ "$seen" != "$RELEASE_ID true" ]; then
+            echo "::error::$TAG doit désigner le seul brouillon $RELEASE_ID (vu : ${seen:-aucune}) : rien n'est téléversé."
+            exit 1
+          fi
+          gh release upload "$TAG" publish/SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --clobber

@@ -86,4 +86,44 @@ describe('outils de signature de l’ADMIN', () => {
     expect(wf).toContain('cat SHA256SUMS.txt');
     expect(wf).not.toMatch(/SIGNING|PRIVATE KEY|release-signing-key/i);
   });
+
+  it('la Release ne passe pas par le stockage des artefacts : un quota plein ne la bloque pas', () => {
+    const wf = readFileSync('.github/workflows/release.yml', 'utf8');
+    expect(wf).not.toMatch(/upload-artifact|download-artifact/);
+    // Chaque construction téléverse ses installeurs dans le brouillon ; publish les reprend pour les empreintes.
+    expect(wf).toMatch(/gh release upload[\s\S]*--clobber/);
+    expect(wf).toMatch(/gh release download[\s\S]*cat SHA256SUMS\.txt/);
+  });
+
+  it('publier crée le tag, qui relance la Release : ce run ne touche jamais une Release publiée', () => {
+    const wf = readFileSync('.github/workflows/release.yml', 'utf8').replace(/\r\n/g, '\n');
+    const steps = wf.split(/\n {6}- /);
+    // L'état de la release se lit pour les deux déclencheurs, avant toute écriture.
+    const state = steps.find((s) => s.startsWith('name: Release existante')) ?? '';
+    expect(state).not.toMatch(/^ {8}if:/m);
+    expect(state).toMatch(/GITHUB_EVENT_NAME[\s\S]*push[\s\S]*skip=true/);
+    // Lu dans la liste de l'API, qui échoue net : une erreur passagère n'est jamais prise pour « aucune release ».
+    expect(state).toMatch(/gh api --paginate "repos\/\$\{GITHUB_REPOSITORY\}\/releases\?per_page=100"/);
+    expect(state).not.toMatch(/release not found/);
+    for (const job of ['build', 'publish']) {
+      const head = new RegExp(`\\n {2}${job}:\\n([\\s\\S]*?)\\n {4}steps:`).exec(wf)?.[1] ?? '';
+      expect(head, job).toMatch(/if: needs\.prepare\.outputs\.skip != 'true'/);
+    }
+    // --clobber n'atteint que le brouillon de ce run, épinglé par son identifiant.
+    const uploads = steps.filter((s) => s.includes('gh release upload'));
+    expect(uploads.length).toBeGreaterThanOrEqual(2);
+    for (const step of uploads) {
+      // Le tag ne doit désigner qu'une release, ce brouillon : gh n'a qu'elle à trouver.
+      expect(step).toMatch(/gh api --paginate[\s\S]*"\$RELEASE_ID true"[\s\S]*gh release upload/);
+    }
+    expect(wf).toMatch(/^concurrency:\n {2}group: release\n {2}cancel-in-progress: false$/m);
+  });
+
+  it('la CI ne garde ses installeurs que sur demande, un jour', () => {
+    const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+    expect(ci).toMatch(/^ {2}workflow_dispatch:/m);
+    const upload = /- uses: actions\/upload-artifact@v4[\s\S]*?(?=\n {6}- |\n*$)/.exec(ci.replace(/\r\n/g, '\n'))?.[0] ?? '';
+    expect(upload).toMatch(/if: github\.event_name == 'workflow_dispatch'/);
+    expect(upload).toMatch(/retention-days: 1\b/);
+  });
 });
