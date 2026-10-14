@@ -25,6 +25,8 @@ const HOST_MAX = 300;
 interface SealState {
   evicted: boolean;
   keys: Map<string, string>;
+  /** Lecture en échec (fichier verrouillé, droits) : ni gardé en mémoire, ni réécrit ; relu au prochain besoin. */
+  unread?: true;
 }
 
 /** Empreinte des octets du blob : deux écritures base64 du même blob (blancs, remplissage) ont la même. */
@@ -39,7 +41,8 @@ function readState(file: string): SealState {
   } catch (err) {
     // Aucun lien encore : les secrets existants suivent le renderer, comme avant.
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { evicted: false, keys: new Map() };
-    return { evicted: true, keys: new Map() };
+    // Fichier là mais illisible pour l'instant (EBUSY, EPERM d'un antivirus…) : refus, sans effacer les liens qu'il porte.
+    return { evicted: true, keys: new Map(), unread: true };
   }
   try {
     const raw = JSON.parse(text) as { v?: unknown; evicted?: unknown; keys?: unknown };
@@ -67,14 +70,20 @@ export class LlmKeySeals {
   }
 
   private load(): SealState {
-    this.state ??= readState(this.file);
-    return this.state;
+    if (this.state) return this.state;
+    const state = readState(this.file);
+    if (!state.unread) this.state = state;
+    return state;
   }
 
-  /** Lie le blob à l'hôte où la clé a été saisie ; faux si le lien n'a pas pu être écrit (il vaut pour ce lancement). */
+  /**
+   * Lie le blob à l'hôte où la clé a été saisie. Faux si le lien n'a pas pu être écrit : il vaut alors pour ce lancement,
+   * sauf registre illisible, où rien n'est gardé (la clé suit le renderer comme avant, ou reste refusée tant qu'il l'est).
+   */
   bind(blob: string, host: string): boolean {
     if (!blob || !host || host.length > HOST_MAX) return false;
     const state = this.load();
+    if (state.unread) return false; // réécrire maintenant effacerait les liens du fichier qu'on n'a pas pu lire
     const digest = digestOf(blob);
     state.keys.delete(digest);
     state.keys.set(digest, host);

@@ -881,7 +881,7 @@ ipcMain.handle('secrets:encrypt', (e, text: unknown, baseUrl?: unknown) => {
   const blob = safeStorage.encryptString(text).toString('base64');
   // La clé est liée ici à l'hôte de l'URL de base où elle est saisie : à l'usage, le renderer ne peut plus le changer.
   const host = isString(baseUrl, 2048) ? llmKeyHost(baseUrl) : '';
-  if (host && !keySeals().bind(blob, host)) mainLog('warn', 'sceau d’hôte de la clé API non écrit : il vaut pour ce lancement');
+  if (host && !keySeals().bind(blob, host)) mainLog('warn', 'sceau d’hôte de la clé API non écrit (registre illisible ou écriture impossible)');
   return blob;
 });
 

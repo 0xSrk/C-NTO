@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -94,6 +94,27 @@ describe('sceau d’hôte des clés API, tenu par le process principal', () => {
     writeFileSync(path.join(dir, LLM_KEY_SEALS_FILE), JSON.stringify({ v: 1, evicted: false, keys: [['zz', 'api.openai.com']] }));
     expect(new LlmKeySeals(dir).hostFor(blob(1), 'api.openai.com')).toBe('');
     expect(new LlmKeySeals(userData()).hostFor(blob(1), 'api.openai.com')).toBe('api.openai.com');
+  });
+
+  it('erreur de lecture passagère (fichier verrouillé) : refus le temps qu’elle dure, rien d’écrit ni de gardé, les liens reviennent ensuite', () => {
+    const dir = userData();
+    const file = path.join(dir, LLM_KEY_SEALS_FILE);
+    const key = blob(1);
+    expect(new LlmKeySeals(dir).bind(key, 'api.anthropic.com')).toBe(true);
+    const before = readFileSync(file, 'utf8');
+    // Un dossier à la place du fichier : la lecture échoue autrement que par ENOENT (EISDIR), comme un fichier verrouillé.
+    const aside = `${file}.aside`;
+    writeFileSync(aside, before);
+    rmSync(file);
+    mkdirSync(file);
+    const seals = new LlmKeySeals(dir);
+    expect(seals.hostFor(key, 'api.openai.com')).toBe('');
+    expect(seals.bind(blob(2), 'api.openai.com')).toBe(false);
+    // Le verrou levé : le registre se relit, la clé scellée part de nouveau vers son hôte.
+    rmSync(file, { recursive: true });
+    writeFileSync(file, readFileSync(aside, 'utf8'));
+    expect(seals.hostFor(key, 'api.openai.com')).toBe('api.anthropic.com');
+    expect(readFileSync(file, 'utf8')).toBe(before);
   });
 
   it('électron : secrets:encrypt scelle l’hôte de l’URL de base ; l’appel LLM lit l’hôte scellé ; le renderer donne l’URL de base', () => {
