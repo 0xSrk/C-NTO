@@ -10,7 +10,7 @@ import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from './llm-host
 import { LlmKeySeals } from './llm-key-seals';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
-import { onPageLeft } from './page-left';
+import { deskUrlAllowed, onPageLeft } from './page-left';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
 import { McpGateway } from './mcp-server';
 import { syncOfficialCalendar } from './calendar';
@@ -387,9 +387,14 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     win?.webContents.setBackgroundThrottling(true);
     win?.webContents.send('zoom:changed', zoomSnapshot(win));
   });
-  // La page s'en va (rechargement, navigation, rendu perdu) : les abonnements crypto et NinjaTrader qu'elle tenait sont
-  // fermés, sans éteindre l'interrupteur crypto ; la page suivante se réabonne d'elle-même.
-  onPageLeft(win.webContents, () => {
+  const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
+  const indexUrl = pathToFileURL(indexFile).href;
+  /** Seule règle de navigation de la fenêtre du desk : `will-navigate` et le départ de la page la lisent tous deux. */
+  const deskUrl = (url: string): boolean => deskUrlAllowed(url, DEV_URL, indexUrl);
+  // La page s'en va (rechargement, navigation vers le desk, rendu perdu) : les abonnements crypto et NinjaTrader qu'elle
+  // tenait sont fermés, sans éteindre l'interrupteur crypto ; la page suivante se réabonne d'elle-même. Une navigation que
+  // le desk refuse (lien https cliqué dans une note) laisse la page et ses flux en place.
+  onPageLeft(win.webContents, deskUrl, () => {
     void ntBridge?.releaseSubscriptions(); // asynchrone, ne lève pas : passe avant le crypto
     cryptoRuntime?.releaseSubscriptions();
   });
@@ -421,13 +426,8 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   win.on('closed', () => {
     win = null;
   });
-  const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
-  const indexUrl = pathToFileURL(indexFile).href;
   win.webContents.on('will-navigate', (event, url) => {
-    const allowed = DEV_URL
-      ? url.startsWith(DEV_URL)
-      : url === indexUrl || url.startsWith(`${indexUrl}#`) || url.startsWith(`${indexUrl}?`);
-    if (!allowed) event.preventDefault();
+    if (!deskUrl(url)) event.preventDefault();
   });
 
   const lang = readLocaleFile(app.getPath('userData'));

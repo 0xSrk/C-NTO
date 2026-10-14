@@ -1,7 +1,7 @@
 /**
- * Départ de la page du desk : rechargement, navigation du cadre principal vers un autre document, processus de rendu
- * perdu. Ce que le process principal tenait pour elle (abonnements de flux) n'a plus de lecteur ; la page suivante se
- * réabonne d'elle-même. Une ancre dans le même document ou un cadre secondaire ne comptent pas.
+ * Départ de la page du desk : rechargement, navigation du cadre principal vers le desk, processus de rendu perdu. Ce que le
+ * process principal tenait pour elle (abonnements de flux) n'a plus de lecteur ; la page suivante se réabonne d'elle-même.
+ * Une ancre dans le même document, un cadre secondaire ou une navigation que le desk refuse ne comptent pas.
  */
 
 /** Ce que `onPageLeft` lit d'un `webContents` : deux de ses événements. */
@@ -10,11 +10,21 @@ export interface PageEvents {
 }
 
 /**
- * Appelle `release` au début de chaque navigation du cadre principal vers un autre document (le rechargement compris) et à
- * `render-process-gone`. Lu au début de la navigation : la page suivante n'a encore rien demandé, aucun de ses abonnements
- * ne peut être fermé. Un `release` qui lève est ignoré : il n'arrête ni la navigation ni les autres écouteurs.
+ * La règle de `will-navigate` de la fenêtre du desk : en développement, l'URL du serveur Vite ; sinon `index.html`, avec sa
+ * requête ou son ancre. Toute autre URL (lien https d'une note ou d'une réponse de l'agent, autre fichier) est refusée.
  */
-export function onPageLeft(contents: PageEvents, release: () => void): void {
+export function deskUrlAllowed(url: string, devUrl: string | undefined, indexUrl: string): boolean {
+  return devUrl ? url.startsWith(devUrl) : url === indexUrl || url.startsWith(`${indexUrl}#`) || url.startsWith(`${indexUrl}?`);
+}
+
+/**
+ * Appelle `release` au début de chaque navigation du cadre principal vers un autre document que `allowed` laisse passer (le
+ * rechargement compris), et à `render-process-gone`. Electron émet `did-start-navigation` avant `will-navigate` : une
+ * navigation que le desk refuse ensuite (`allowed` faux) laisse la page en place, ses abonnements avec elle. Lu au début de
+ * la navigation : la page suivante n'a encore rien demandé, aucun de ses abonnements ne peut être fermé. Un `release` qui
+ * lève est ignoré : il n'arrête ni la navigation ni les autres écouteurs.
+ */
+export function onPageLeft(contents: PageEvents, allowed: (url: string) => boolean, release: () => void): void {
   const safeRelease = (): void => {
     try {
       release();
@@ -23,8 +33,10 @@ export function onPageLeft(contents: PageEvents, release: () => void): void {
     }
   };
   contents.on('did-start-navigation', (details: unknown) => {
-    const nav = typeof details === 'object' && details !== null ? (details as { isMainFrame?: unknown; isSameDocument?: unknown }) : null;
-    if (nav?.isMainFrame === true && nav.isSameDocument !== true) safeRelease();
+    const nav =
+      typeof details === 'object' && details !== null ? (details as { isMainFrame?: unknown; isSameDocument?: unknown; url?: unknown }) : null;
+    if (nav?.isMainFrame !== true || nav.isSameDocument === true || typeof nav.url !== 'string') return;
+    if (allowed(nav.url)) safeRelease();
   });
   contents.on('render-process-gone', safeRelease);
 }
