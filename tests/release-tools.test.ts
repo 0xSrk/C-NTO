@@ -101,8 +101,10 @@ describe('outils de signature de l’ADMIN', () => {
     // L'état de la release se lit pour les deux déclencheurs, avant toute écriture.
     const state = steps.find((s) => s.startsWith('name: Release existante')) ?? '';
     expect(state).not.toMatch(/^ {8}if:/m);
-    expect(state).toMatch(/--json isDraft/);
     expect(state).toMatch(/GITHUB_EVENT_NAME[\s\S]*push[\s\S]*skip=true/);
+    // Lu dans la liste de l'API, qui échoue net : une erreur passagère n'est jamais prise pour « aucune release ».
+    expect(state).toMatch(/gh api --paginate "repos\/\$\{GITHUB_REPOSITORY\}\/releases\?per_page=100"/);
+    expect(state).not.toMatch(/release not found/);
     for (const job of ['build', 'publish']) {
       const head = new RegExp(`\\n {2}${job}:\\n([\\s\\S]*?)\\n {4}steps:`).exec(wf)?.[1] ?? '';
       expect(head, job).toMatch(/if: needs\.prepare\.outputs\.skip != 'true'/);
@@ -110,7 +112,10 @@ describe('outils de signature de l’ADMIN', () => {
     // --clobber n'atteint que le brouillon de ce run, épinglé par son identifiant.
     const uploads = steps.filter((s) => s.includes('gh release upload'));
     expect(uploads.length).toBeGreaterThanOrEqual(2);
-    for (const step of uploads) expect(step).toContain('"$RELEASE_ID true"');
+    for (const step of uploads) {
+      // Le tag ne doit désigner qu'une release, ce brouillon : gh n'a qu'elle à trouver.
+      expect(step).toMatch(/gh api --paginate[\s\S]*"\$RELEASE_ID true"[\s\S]*gh release upload/);
+    }
     expect(wf).toMatch(/^concurrency:\n {2}group: release\n {2}cancel-in-progress: false$/m);
   });
 

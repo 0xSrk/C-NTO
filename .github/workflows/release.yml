@@ -47,32 +47,24 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         # Pour les deux déclencheurs, avant toute écriture : sur une release publiée, --clobber
         # remplacerait les installeurs signés et SHA256SUMS.txt, et les desks refuseraient la mise à jour.
+        # Lu dans la liste de l'API (brouillons compris) : une erreur arrête le run, elle ne passe jamais pour « aucune release ».
         run: |
           set -euo pipefail
-          if state=$(gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json isDraft -q .isDraft 2>gh-error.txt); then
-            :
-          elif grep -q 'release not found' gh-error.txt; then
-            state=absent
-          else
-            cat gh-error.txt >&2
-            echo "::error::État de la release $TAG illisible : rien n'est écrit."
+          rels=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
+          printf 'Releases %s : %s\n' "$TAG" "${rels:-aucune}"
+          if [[ "$rels" == *" false"* ]]; then
+            if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+              echo "::notice::La release $TAG est publiée : ce run, lancé par le tag que sa publication a créé, ne fait rien."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::La release $TAG est déjà publiée. Montez la version dans package.json avant de relancer."
             exit 1
           fi
-          case "$state" in
-            false)
-              if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
-                echo "::notice::La release $TAG est publiée : ce run, lancé par le tag que sa publication a créé, ne fait rien."
-                echo "skip=true" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
-              echo "::error::La release $TAG est déjà publiée. Montez la version dans package.json avant de relancer."
-              exit 1
-              ;;
-            true)
-              echo "::error::Un brouillon $TAG existe déjà : relancez les jobs en échec de son run (gh run rerun <id> --failed), ou supprimez le brouillon pour repartir de zéro."
-              exit 1
-              ;;
-          esac
+          if [ -n "$rels" ]; then
+            echo "::error::Un brouillon $TAG existe déjà : relancez les jobs en échec de son run (gh run rerun <id> --failed), ou supprimez le brouillon pour repartir de zéro."
+            exit 1
+          fi
           if [ "${GITHUB_EVENT_NAME}" != "push" ] && git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
             echo "::error::Le tag $TAG existe déjà, sans release : supprimez-le ou montez la version."
             exit 1
@@ -104,11 +96,12 @@ jobs:
             --title "CΛNTO $TAG" \
             --notes-file release-notes.md \
             --draft
-          id=$(gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json databaseId,isDraft -q 'select(.isDraft) | .databaseId')
-          if [ -z "$id" ]; then
-            echo "::error::Brouillon $TAG introuvable après sa création."
+          rels=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
+          if ! [[ "$rels" =~ ^[0-9]+\ true$ ]]; then
+            echo "::error::$TAG doit désigner ce seul brouillon (vu : ${rels:-aucune})."
             exit 1
           fi
+          id="${rels% true}"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
           echo "Brouillon $TAG : release $id"
 
@@ -180,9 +173,9 @@ jobs:
             exit 1
           fi
           printf '%s\n' "${files[@]}"
-          seen=$(gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json databaseId,isDraft -q '"\(.databaseId) \(.isDraft)"')
+          seen=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
           if [ "$seen" != "$RELEASE_ID true" ]; then
-            echo "::error::$TAG ne désigne plus le brouillon $RELEASE_ID (vu : $seen) : rien n'est téléversé."
+            echo "::error::$TAG doit désigner le seul brouillon $RELEASE_ID (vu : ${seen:-aucune}) : rien n'est téléversé."
             exit 1
           fi
           gh release upload "$TAG" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
@@ -199,9 +192,9 @@ jobs:
           RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
         run: |
           set -euo pipefail
-          seen=$(gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json databaseId,isDraft -q '"\(.databaseId) \(.isDraft)"')
+          seen=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
           if [ "$seen" != "$RELEASE_ID true" ]; then
-            echo "::error::$TAG ne désigne plus le brouillon $RELEASE_ID (vu : $seen)."
+            echo "::error::$TAG doit désigner le seul brouillon $RELEASE_ID (vu : ${seen:-aucune})."
             exit 1
           fi
           gh release download "$TAG" --repo "${GITHUB_REPOSITORY}" --dir publish
@@ -236,9 +229,9 @@ jobs:
         # Le brouillon n'est complet qu'ici : sign-release.mjs télécharge ce SHA256SUMS.txt.
         run: |
           set -euo pipefail
-          seen=$(gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json databaseId,isDraft -q '"\(.databaseId) \(.isDraft)"')
+          seen=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | \"\\(.id) \\(.draft)\"")
           if [ "$seen" != "$RELEASE_ID true" ]; then
-            echo "::error::$TAG ne désigne plus le brouillon $RELEASE_ID (vu : $seen) : rien n'est téléversé."
+            echo "::error::$TAG doit désigner le seul brouillon $RELEASE_ID (vu : ${seen:-aucune}) : rien n'est téléversé."
             exit 1
           fi
           gh release upload "$TAG" publish/SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --clobber
