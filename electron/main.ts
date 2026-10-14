@@ -9,6 +9,7 @@ import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridg
 import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from './llm-host';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { Orchestrator } from './orchestrator';
+import { onPageLeft } from './page-left';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
 import { McpGateway } from './mcp-server';
 import { syncOfficialCalendar } from './calendar';
@@ -384,6 +385,11 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     applyZoom(win);
     win?.webContents.setBackgroundThrottling(true);
     win?.webContents.send('zoom:changed', zoomSnapshot(win));
+  });
+  // La page s'en va (rechargement, navigation, rendu perdu) : les abonnements crypto qu'elle tenait sont fermés, sans
+  // éteindre l'interrupteur ; la page suivante se réabonne d'elle-même.
+  onPageLeft(win.webContents, () => {
+    cryptoRuntime?.releaseSubscriptions();
   });
   let rendererReloads = 0;
   win.webContents.on('render-process-gone', (_event, details) => {

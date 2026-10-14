@@ -307,6 +307,46 @@ describe('createCryptoRuntime', () => {
       expect(h.dialogs).not.toHaveBeenCalled();
     });
 
+    it('releaseSubscriptions() : la page partie, ses flux et envois en attente se ferment ; interrupteur et température restent ; la page suivante se réabonne', () => {
+      const h = harness({ enabled: true });
+      h.runtime.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' });
+      const feed = h.socket(COINBASE_WS);
+      feed.open();
+      feed.message(cbTicker('82600.00', Date.now()));
+      feed.message(cbTicker('82601.00', Date.now())); // attend son intervalle
+      const reading = h.runtime.temperature();
+      const liquidations = h.socket(FORCE_ORDER_URL);
+      const events = h.events().length;
+      const fetches = h.fetch.fetchImpl.mock.calls.length;
+
+      h.runtime.releaseSubscriptions();
+      expect(feed.gone).toBe(true);
+      expect(h.runtime.enabled()).toBe(true);
+      expect(switchFile(h.file)).toEqual({ enabled: true });
+      expect(h.runtime.status()).toEqual(ON);
+      expect(nth(h.statuses(), -1)).toEqual(ON);
+      // La température tourne toujours : même socket des liquidations, même lecture, aucun relevé relancé.
+      expect(liquidations.gone).toBe(false);
+      expect(h.runtime.temperature()).toEqual(reading);
+      expect(h.fetch.fetchImpl.mock.calls.length).toBe(fetches);
+      vi.advanceTimersByTime(1_000);
+      expect(h.events()).toHaveLength(events); // le ticker qui attendait ne part pas vers la nouvelle page
+
+      // La nouvelle page se réabonne d'elle-même, sans dialogue.
+      expect(h.runtime.subscribe({ series: 'coinbase:BTC-USD', kind: 'ticker' }).ok).toBe(true);
+      expect(h.sockets.filter((s) => s.url === COINBASE_WS)).toHaveLength(2);
+      expect(h.dialogs).not.toHaveBeenCalled();
+    });
+
+    it('releaseSubscriptions() module éteint : rien à fermer, rien ne s’allume', () => {
+      const h = harness();
+      h.runtime.releaseSubscriptions();
+      expect(h.runtime.enabled()).toBe(false);
+      expect(h.sockets).toHaveLength(0);
+      expect(h.fetch.fetchImpl).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
     it('shutdown() : un abonnement suivant relance aussi les relevés, une seule fois', () => {
       const h = harness({ enabled: true });
       h.runtime.shutdown();
