@@ -44,6 +44,24 @@ jobs:
           echo "Release : $tag sur ${GITHUB_SHA}"
       - name: Journal de la version
         run: node scripts/release-notes.mjs --check
+      - name: Journal et notes
+        run: node scripts/release-notes.mjs
+      - name: Release en brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        # Créée avant les constructions, qui y téléversent leurs installeurs : la Release ne passe pas
+        # par le stockage des artefacts d'Actions, dont le quota plein a bloqué la 3.6.0.
+        # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit à la publication.
+        # --draft : invisible des desks tant que l'ADMIN ne l'a pas signée puis publiée
+        # (node scripts/sign-release.mjs --tag "$TAG" --key <clé> --publish). La clé reste hors de GitHub.
+        run: |
+          gh release create "$TAG" publish/changelog.json \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "CΛNTO $TAG" \
+            --notes-file release-notes.md \
+            --draft
 
   build:
     needs: prepare
@@ -72,32 +90,43 @@ jobs:
         run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.artifact }}
-          path: |
-            release/*.AppImage
-            release/*.deb
-            release/*.exe
-            release/*.dmg
-            release/*.zip
-          if-no-files-found: error
+      - name: Installeurs dans le brouillon
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        # --clobber : une construction relancée (gh run rerun --failed) remplace ses propres fichiers.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(release/*.AppImage release/*.deb release/*.exe release/*.dmg release/*.zip)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::Aucun installeur dans release/."
+            exit 1
+          fi
+          printf '%s\n' "${files[@]}"
+          gh release upload "$TAG" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
 
   publish:
     needs: [prepare, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          merge-multiple: true
-          path: publish
-      - name: Journal et notes
-        run: node scripts/release-notes.mjs
+      - name: Installeurs du brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "${GITHUB_REPOSITORY}" --dir publish
+          # Une relance ne compte pas les empreintes d'un passage précédent.
+          rm -f publish/SHA256SUMS.txt publish/SHA256SUMS.txt.sig
+          for pattern in '*.dmg' '*.exe' '*.AppImage' '*.deb' 'changelog.json'; do
+            if ! compgen -G "publish/$pattern" >/dev/null; then
+              echo "::error::Le brouillon $TAG n'a aucun fichier $pattern."
+              exit 1
+            fi
+          done
+          ls -l publish
       - name: SHA-256
         run: |
           cd publish
@@ -112,17 +141,9 @@ jobs:
             echo "::error::SHA256SUMS.txt se liste lui-même."
             exit 1
           fi
-      - name: Release en brouillon
+      - name: Empreintes dans le brouillon
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
-        # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit.
-        # --draft : invisible des desks tant que l'ADMIN ne l'a pas signée puis publiée
-        # (node scripts/sign-release.mjs --tag "$TAG" --key <clé> --publish). La clé reste hors de GitHub.
-        run: |
-          gh release create "$TAG" publish/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --target "${GITHUB_SHA}" \
-            --title "CΛNTO $TAG" \
-            --notes-file release-notes.md \
-            --draft
+        # Le brouillon n'est complet qu'ici : sign-release.mjs télécharge ce SHA256SUMS.txt.
+        run: gh release upload "$TAG" publish/SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --clobber

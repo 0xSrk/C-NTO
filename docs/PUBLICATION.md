@@ -19,7 +19,9 @@ Rotation : générer une nouvelle clé avec `--write` (les deux clés sont accep
 ## À chaque version
 
 1. Monter la version dans `package.json`, préparer l'entrée de `src/engine/changelog/changelog.json`, pousser le tag `vX.Y.Z` (ou lancer le workflow `release`).
-2. La CI construit les installeurs et crée la Release **en brouillon** : invisible des desks. Le job `publish` affiche `SHA256SUMS.txt` dans son journal (étape SHA-256).
+2. La CI crée la Release **en brouillon**, invisible des desks : le job `prepare` y dépose les notes et `changelog.json`, chaque construction (Linux, Windows, macOS) y téléverse ses installeurs, puis le job `publish` les reprend, calcule `SHA256SUMS.txt`, l'affiche dans son journal (étape SHA-256) et l'ajoute. Rien ne passe par le stockage des artefacts d'Actions : un quota plein ne bloque pas la Release. Le brouillon n'est complet, et signable, qu'une fois `publish` vert.
+   - Une construction a échoué : `gh run rerun <id> --failed` relance ses jobs, qui remplacent leurs propres fichiers ; `publish` suit.
+   - Repartir de zéro : supprimer le brouillon, puis relancer le workflow. Tant qu'il existe, le job `prepare` refuse un nouveau déclenchement manuel pour la même version.
 3. Sur le poste de l'ADMIN (`gh` connecté au dépôt) :
 
 ```bash

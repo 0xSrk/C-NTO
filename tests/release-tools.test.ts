@@ -86,4 +86,20 @@ describe('outils de signature de l’ADMIN', () => {
     expect(wf).toContain('cat SHA256SUMS.txt');
     expect(wf).not.toMatch(/SIGNING|PRIVATE KEY|release-signing-key/i);
   });
+
+  it('la Release ne passe pas par le stockage des artefacts : un quota plein ne la bloque pas', () => {
+    const wf = readFileSync('.github/workflows/release.yml', 'utf8');
+    expect(wf).not.toMatch(/upload-artifact|download-artifact/);
+    // Chaque construction téléverse ses installeurs dans le brouillon ; publish les reprend pour les empreintes.
+    expect(wf).toMatch(/gh release upload[\s\S]*--clobber/);
+    expect(wf).toMatch(/gh release download[\s\S]*cat SHA256SUMS\.txt/);
+  });
+
+  it('la CI ne garde ses installeurs que sur demande, un jour', () => {
+    const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+    expect(ci).toMatch(/^ {2}workflow_dispatch:/m);
+    const upload = /- uses: actions\/upload-artifact@v4[\s\S]*?(?=\n {6}- |\n*$)/.exec(ci.replace(/\r\n/g, '\n'))?.[0] ?? '';
+    expect(upload).toMatch(/if: github\.event_name == 'workflow_dispatch'/);
+    expect(upload).toMatch(/retention-days: 1\b/);
+  });
 });

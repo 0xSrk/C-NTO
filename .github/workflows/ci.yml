@@ -2,6 +2,8 @@ name: check
 on:
   push:
   pull_request:
+  # « Run workflow » : la même vérification, et les installeurs gardés un jour pour les essayer.
+  workflow_dispatch:
 jobs:
   check:
     strategy:
@@ -96,9 +98,13 @@ jobs:
             exit "$code"
           done
           exit 1
+      # Un push prouve que l'installeur se construit ; il ne le garde pas. Gardés 90 jours à chaque push,
+      # les installeurs ont rempli le quota de stockage des artefacts du compte (2026-10-13).
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: ${{ matrix.artifact }}
+          retention-days: 1
           path: |
             release/*.AppImage
             release/*.deb
