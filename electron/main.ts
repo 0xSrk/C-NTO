@@ -164,7 +164,11 @@ function fallBackToSoftware(reason: string): void {
 }
 let win: BrowserWindow | null = null;
 let launcherWin: BrowserWindow | null = null;
-const orchestrator = new Orchestrator(() => readLocaleFile(app.getPath('userData')));
+// Les outils `crypto_*` ne passent l'orchestrateur qu'avec l'interrupteur du module allumé, lu ici à chaque requête.
+const orchestrator = new Orchestrator(
+  () => readLocaleFile(app.getPath('userData')),
+  () => cryptoRuntime?.enabled() ?? false,
+);
 /** Requêtes MCP relayées au renderer sur le canal de l'orchestrateur (`clientId` = `mcp`). */
 const deskRelay = new DeskRelay(
   (req) => {
