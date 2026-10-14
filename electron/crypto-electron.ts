@@ -45,6 +45,11 @@ export interface CryptoRuntime {
   temperature(): TemperatureReading | null;
   /** Fenêtre fermée : ferme tout sans changer l'interrupteur. */
   shutdown(): void;
+  /**
+   * La page du renderer s'en va (rechargement, navigation, processus de rendu perdu) : ses abonnements et les envois qui
+   * les attendaient sont fermés ; l'interrupteur et la température restent. La page suivante se réabonne d'elle-même.
+   */
+  releaseSubscriptions(): void;
 }
 
 export interface CryptoRuntimeDeps {
@@ -171,6 +176,8 @@ class EventCadence {
  * - `disable()` éteint l'interrupteur puis, directement et quoi qu'il arrive, ferme flux, relevés et envois en attente ;
  * - `shutdown()` (dernière fenêtre fermée) ferme la même chose sans toucher l'interrupteur ; tant qu'il reste allumé, le
  *   prochain `temperature()` ou `subscribe()` relance la température (macOS garde le process et recrée la fenêtre) ;
+ * - `releaseSubscriptions()` (page rechargée, partie ailleurs ou perdue) ne ferme que les flux et les envois en attente : la
+ *   température garde son heure de liquidations, et la page suivante se réabonne ;
  * - `history`, `subscribe`, `unsubscribe` et `temperature` sont refusés sans aucun appel tant que l'interrupteur est éteint
  *   (`crypto_disabled`, `{ ok: false }`, `null`), puis sans effet si la forme est mauvaise (`invalid_request`).
  * Une venue est `blocked` dès que la porte la bloque (418), sinon dans l'état de sa socket de flux. Le journal fourni est
@@ -310,6 +317,12 @@ export function createCryptoRuntime(deps: CryptoRuntimeDeps): CryptoRuntime {
 
     shutdown() {
       stopAll();
+    },
+
+    releaseSubscriptions() {
+      feeds.closeAll();
+      cadence.clear();
+      publishStatus();
     },
   };
 }

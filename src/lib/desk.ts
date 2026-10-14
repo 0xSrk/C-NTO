@@ -250,8 +250,11 @@ export interface DeskApi {
   /** Module crypto personnel, éteint par défaut ; absent hors du desk. */
   crypto?: CryptoApi;
   secrets: {
-    /** Chiffre avec le trousseau du système ; null si indisponible */
-    encrypt: (text: string) => Promise<string | null>;
+    /**
+     * Chiffre avec le trousseau du système ; null si indisponible. `baseUrl` : l'URL de base où la clé API est saisie ;
+     * le process principal lie la clé à son hôte, et ne l'envoie nulle part ailleurs.
+     */
+    encrypt: (text: string, baseUrl?: string) => Promise<string | null>;
   };
   llm?: {
     start: (payload: {

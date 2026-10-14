@@ -348,7 +348,7 @@ async function persist(settings: Settings): Promise<{ encrypted: boolean; blob?:
   let keyHost = apiKeyHost;
   let agent: StoredSettings['agent'] = { ...agentRest, apiKey, apiKeyEncrypted, apiKeyHost };
   if (desk?.secrets && apiKey) {
-    const payload = await desk.secrets.encrypt(apiKey);
+    const payload = await desk.secrets.encrypt(apiKey, settings.agent.baseUrl);
     if (payload) {
       // L'hôte est enregistré avec le blob : la clé ne partira que vers l'URL de base où elle a été saisie.
       keyHost = llmKeyHost(settings.agent.baseUrl) || undefined;

@@ -3,7 +3,7 @@ import { app } from 'electron';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { WebSocket, WebSocketServer } from 'ws';
-import { isDeskEventKind, orchMethodAllowed } from './agent/catalog';
+import { DESK_TOOL_KINDS, isDeskEventKind, orchMethodAllowed } from './agent/catalog';
 import { uiText, type AppLocale } from './locale';
 import { tokensMatch } from './secure-token';
 
@@ -36,6 +36,33 @@ const OPEN = 1;
 /** Taille maximale d'une trame `desk.event`. */
 export const BROADCAST_MAX_BYTES = 16_384;
 
+/**
+ * Préfixe de l'identifiant interne d'un `desk.describe` : sa réponse passe par le filtre crypto du process principal.
+ * Un appel d'outil ne le porte jamais (`number:…`, `string:…` ou `n<seq>`), même s'il reprend l'`id` JSON-RPC de la description.
+ */
+const DESCRIBE_ID = 'd/';
+
+/**
+ * Borne de l'identifiant interne qu'`orch:respond` accepte du renderer (`electron/main.ts`) : les 64 signes d'avant, plus le
+ * préfixe d'une description. Un `desk.describe` sert ainsi tout identifiant qu'un appel d'outil servait avant (texte de
+ * 57 signes au plus) ; un appel d'outil en sert deux de plus.
+ */
+export const ORCH_RESPONSE_ID_MAX = 64 + DESCRIBE_ID.length;
+
+/** Un outil du module crypto (onglet 09 · CRY) : un nom `crypto_*` du catalogue. */
+function isCryptoTool(name: string): boolean {
+  return name.startsWith('crypto_') && Object.hasOwn(DESK_TOOL_KINDS, name);
+}
+
+/** La description du desk sans aucun outil `crypto_*` : le module est éteint, quoi qu'en dise le renderer. */
+function withoutCryptoTools(result: unknown): unknown {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return result;
+  const tools = (result as { tools?: unknown }).tools;
+  if (!Array.isArray(tools)) return result;
+  const kept = tools.filter((t) => !(typeof t === 'object' && t !== null && typeof (t as { name?: unknown }).name === 'string' && (t as { name: string }).name.startsWith('crypto_')));
+  return { ...result, tools: kept };
+}
+
 function safeSend(socket: WebSocket, payload: unknown): void {
   if (socket.readyState !== OPEN) return;
   try {
@@ -65,8 +92,15 @@ export class Orchestrator {
   /** Réservations entre verifyClient et l'ajout dans `clients` — ferme la course TOCTOU. */
   private pending = 0;
 
-  /** `locale` : langue du desk (`userData/locale.json`), relue à chaque message ; français par défaut. */
-  constructor(private readonly locale: () => AppLocale = () => 'fr') {}
+  /**
+   * `locale` : langue du desk (`userData/locale.json`), relue à chaque message ; français par défaut.
+   * `cryptoEnabled` : interrupteur du module crypto tenu par le process principal, relu à chaque requête et à chaque
+   * description ; éteint par défaut. Éteint, les outils `crypto_*` sont refusés ici et retirés de `desk.describe`.
+   */
+  constructor(
+    private readonly locale: () => AppLocale = () => 'fr',
+    private readonly cryptoEnabled: () => boolean = () => false,
+  ) {}
 
   /** Refus et motifs de fermeture dans la langue du desk. */
   private say(fr: string, en: string, es: string): string {
@@ -195,7 +229,9 @@ export class Orchestrator {
     if (!client) return;
     client.inflight = Math.max(0, client.inflight - 1);
     const rpcId = this.parseId(id);
-    safeSend(client.socket, error ? { jsonrpc: '2.0', id: rpcId, error: { code: -32000, message: error, data: result } } : { jsonrpc: '2.0', id: rpcId, result });
+    // Double verrou : la liste d'outils servie suit l'interrupteur du process principal, pas la description du renderer.
+    const served = id.startsWith(DESCRIBE_ID) && this.cryptoEnabled() !== true ? withoutCryptoTools(result) : result;
+    safeSend(client.socket, error ? { jsonrpc: '2.0', id: rpcId, error: { code: -32000, message: error, data: served } } : { jsonrpc: '2.0', id: rpcId, result: served });
   }
 
   /** Pousse un événement du desk aux clients authentifiés. Types du catalogue seulement, 16 Ko au plus. */
@@ -272,6 +308,23 @@ export class Orchestrator {
       this.reply(client, rpcId, { code: -32601, message: this.say('Méthode introuvable', 'Method not found', 'Método no encontrado') });
       return;
     }
+    // Module crypto éteint : refusé ici, sans relayer, lecture comme écriture (le double verrou de la passerelle MCP).
+    if (isCryptoTool(msg.method.replace(/^tool\./, '')) && this.cryptoEnabled() !== true) {
+      safeSend(client.socket, {
+        jsonrpc: '2.0',
+        id: rpcId,
+        error: {
+          code: -32000,
+          message: this.say(
+            'Module crypto éteint dans CΛNTO : le trader l’allume dans l’onglet 09 · CRY.',
+            'Crypto module off in CΛNTO: the trader turns it on in tab 09 · CRY.',
+            'Módulo cripto apagado en CΛNTO: el trader lo enciende en la pestaña 09 · CRY.',
+          ),
+          data: { ok: false, reason: 'crypto_disabled' },
+        },
+      });
+      return;
+    }
     if (!this.win || this.win.isDestroyed()) {
       this.reply(client, rpcId, { code: -32002, message: this.say('Desk indisponible', 'Desk unavailable', 'Desk no disponible') });
       return;
@@ -281,11 +334,13 @@ export class Orchestrator {
       return;
     }
     client.inflight++;
-    const id = msg.id === undefined ? `n${++this.seq}` : `${typeof msg.id}:${msg.id}`;
+    const base = msg.id === undefined ? `n${++this.seq}` : `${typeof msg.id}:${msg.id}`;
+    const id = msg.method === 'desk.describe' ? `${DESCRIBE_ID}${base}` : base;
     this.win.webContents.send('orch:request', { id, clientId, method: msg.method, params: msg.params ?? {} });
   }
 
-  private parseId(id: string): string | number | null {
+  private parseId(raw: string): string | number | null {
+    const id = raw.startsWith(DESCRIBE_ID) ? raw.slice(DESCRIBE_ID.length) : raw;
     if (id.startsWith('number:')) return Number(id.slice(7));
     if (id.startsWith('string:')) return id.slice(7);
     return null;

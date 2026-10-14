@@ -119,7 +119,7 @@ contextBridge.exposeInMainWorld('canto', {
     onStatus: (cb: (status: unknown) => void) => subscribe('mcp:status', cb),
   },
   secrets: {
-    encrypt: (text: string) => ipcRenderer.invoke('secrets:encrypt', text),
+    encrypt: (text: string, baseUrl?: string) => ipcRenderer.invoke('secrets:encrypt', text, baseUrl),
   },
   llm: {
     start: (payload: unknown) => ipcRenderer.invoke('llm:start', payload),
