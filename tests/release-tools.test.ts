@@ -95,6 +95,25 @@ describe('outils de signature de l’ADMIN', () => {
     expect(wf).toMatch(/gh release download[\s\S]*cat SHA256SUMS\.txt/);
   });
 
+  it('publier crée le tag, qui relance la Release : ce run ne touche jamais une Release publiée', () => {
+    const wf = readFileSync('.github/workflows/release.yml', 'utf8').replace(/\r\n/g, '\n');
+    const steps = wf.split(/\n {6}- /);
+    // L'état de la release se lit pour les deux déclencheurs, avant toute écriture.
+    const state = steps.find((s) => s.startsWith('name: Release existante')) ?? '';
+    expect(state).not.toMatch(/^ {8}if:/m);
+    expect(state).toMatch(/--json isDraft/);
+    expect(state).toMatch(/GITHUB_EVENT_NAME[\s\S]*push[\s\S]*skip=true/);
+    for (const job of ['build', 'publish']) {
+      const head = new RegExp(`\\n {2}${job}:\\n([\\s\\S]*?)\\n {4}steps:`).exec(wf)?.[1] ?? '';
+      expect(head, job).toMatch(/if: needs\.prepare\.outputs\.skip != 'true'/);
+    }
+    // --clobber n'atteint que le brouillon de ce run, épinglé par son identifiant.
+    const uploads = steps.filter((s) => s.includes('gh release upload'));
+    expect(uploads.length).toBeGreaterThanOrEqual(2);
+    for (const step of uploads) expect(step).toContain('"$RELEASE_ID true"');
+    expect(wf).toMatch(/^concurrency:\n {2}group: release\n {2}cancel-in-progress: false$/m);
+  });
+
   it('la CI ne garde ses installeurs que sur demande, un jour', () => {
     const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
     expect(ci).toMatch(/^ {2}workflow_dispatch:/m);
