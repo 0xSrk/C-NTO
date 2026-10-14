@@ -1126,3 +1126,16 @@ L'ADMIN confie la sortie de la 3.6.0 : l'onglet 09 · CRY, livré et revu dans l
 - Les autres points que la revue finale laisse à l'ADMIN (ci-dessus) restent ouverts.
 
 **Reste à l'ADMIN.** Le tag `v3.6.0`, la Release et la signature de `SHA256SUMS.txt` par la clé du Lab, hors de toute session d'agent (`docs/PUBLICATION.md`). Le passage de la CI sur `caf7b91` est rouge par ses seuls jobs `dist` : quota de stockage des artefacts GitHub atteint au téléversement, tests verts. `.github/workflows/release.yml` passe aussi ses installeurs par `upload-artifact` : libérer le quota (anciens artefacts) ou attendre son recalcul avant de lancer la Release.
+
+
+## Suite de la 3.6.0 (2026-10-14)
+
+L'ADMIN délègue la suite de la 3.6.0 : débloquer la Release, trancher les points qui lui étaient laissés, corriger ce qui peut l'être depuis le dépôt. Restent à l'ADMIN, quoi qu'il arrive : la signature de `SHA256SUMS.txt` (la clé privée ne passe pas par une session d'agent), la compilation de l'AddOn dans NinjaTrader 8 et les essais desk lancé.
+
+### Release bloquée par le quota d'artefacts
+
+**Constat.** Le workflow `release` lancé à la main sur `52ec119` (run 38523188532, 2026-10-14 06:36 UTC) construit les trois installeurs, puis échoue aux trois `actions/upload-artifact` : « Artifact storage quota has been hit ». Le job `publish` est sauté : ni brouillon, ni tag. Les jobs `dist` de `.github/workflows/ci.yml` échouent de la même façon depuis `caf7b91`.
+
+**Cause.** Un jeu d'installeurs pèse près de 2 Go (1 860 Mo pour les assets de la v3.5.0). `ci.yml` se lance à chaque push et à chaque PR, et son job `dist` envoyait tous les installeurs en artefacts, gardés 90 jours par défaut. `release.yml` passait aussi par les artefacts pour les remettre au job `publish`.
+
+**E1.** `release.yml` crée le brouillon dans `prepare`, chaque build y dépose ses installeurs (`gh release upload --clobber`), `publish` les télécharge du brouillon, calcule et vérifie les empreintes, puis y dépose `changelog.json` et `SHA256SUMS.txt`. Les assets d'une Release ne comptent pas dans le quota des artefacts. Une relance supprime le brouillon d'un passage précédent et le reconstruit ; une Release publiée l'arrête toujours. `ci.yml` construit toujours les installeurs à chaque passage, mais ne les envoie qu'à la demande (`workflow_dispatch`), pour 3 jours. Test : `tests/release-tools.test.ts` (rouge sur `52ec119`, vert avec E1). `docs/PUBLICATION.md`, étape 2, à jour.

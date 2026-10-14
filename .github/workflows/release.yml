@@ -3,6 +3,10 @@ name: release
 # - pousser un tag `v*` ;
 # - « Run workflow » dans l'onglet Actions (ou l'API) : le tag `v<version de package.json>`
 #   est créé sur le commit construit, au moment de publier la release.
+#
+# Les installeurs vont droit dans la Release en brouillon (`gh release upload`), sans artefact
+# Actions : un jeu complet pèse près de 2 Go, et le quota de stockage des artefacts a bloqué
+# la 3.6.0 (docs/AUDIT.md › « Suite de la 3.6.0 »). Les assets d'une Release n'y comptent pas.
 on:
   push:
     tags:
@@ -31,7 +35,10 @@ jobs:
             fi
           else
             tag="$version"
-            if gh release view "$tag" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            # Un brouillon d'un passage précédent n'arrête pas la relance (il est reconstruit plus bas) ;
+            # une Release publiée, si.
+            draft=$(gh release view "$tag" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft 2>/dev/null || true)
+            if [ "$draft" = "false" ]; then
               echo "::error::La release $tag existe déjà. Montez la version dans package.json avant de relancer."
               exit 1
             fi
@@ -44,6 +51,28 @@ jobs:
           echo "Release : $tag sur ${GITHUB_SHA}"
       - name: Journal de la version
         run: node scripts/release-notes.mjs --check
+      - name: Release en brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        # Un brouillon laissé par un passage précédent porte les installeurs d'un autre build :
+        # il est supprimé (le tag git, s'il existe, reste), puis recréé vide.
+        # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit à la publication.
+        # --draft : invisible des desks tant que l'ADMIN ne l'a pas signée puis publiée
+        # (node scripts/sign-release.mjs --tag "$TAG" --key <clé> --publish). La clé reste hors de GitHub.
+        run: |
+          draft=$(gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [ "$draft" = "true" ]; then
+            echo "Brouillon $TAG d'un passage précédent : supprimé, il est reconstruit."
+            gh release delete "$TAG" --repo "${GITHUB_REPOSITORY}" --yes
+          fi
+          node scripts/release-notes.mjs
+          gh release create "$TAG" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "CΛNTO $TAG" \
+            --notes-file release-notes.md \
+            --draft
 
   build:
     needs: prepare
@@ -72,16 +101,19 @@ jobs:
         run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.artifact }}
-          path: |
-            release/*.AppImage
-            release/*.deb
-            release/*.exe
-            release/*.dmg
-            release/*.zip
-          if-no-files-found: error
+      - name: Installeurs dans le brouillon
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          shopt -s nullglob
+          files=(release/*.AppImage release/*.deb release/*.exe release/*.dmg release/*.zip)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::Aucun installeur dans release/."
+            exit 1
+          fi
+          gh release upload "$TAG" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
 
   publish:
     needs: [prepare, build]
@@ -91,11 +123,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          merge-multiple: true
-          path: publish
+      - name: Installeurs du brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          gh release download "$TAG" --repo "${GITHUB_REPOSITORY}" --dir publish
+          # Relance de ce seul job : les empreintes et leur signature d'avant ne comptent pas.
+          rm -f publish/SHA256SUMS.txt publish/SHA256SUMS.txt.sig
       - name: Journal et notes
         run: node scripts/release-notes.mjs
       - name: SHA-256
@@ -112,17 +147,12 @@ jobs:
             echo "::error::SHA256SUMS.txt se liste lui-même."
             exit 1
           fi
-      - name: Release en brouillon
+      - name: Empreintes et journal dans le brouillon
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
-        # --target : sans tag préexistant (déclenchement manuel), gh le crée sur ce commit.
-        # --draft : invisible des desks tant que l'ADMIN ne l'a pas signée puis publiée
-        # (node scripts/sign-release.mjs --tag "$TAG" --key <clé> --publish). La clé reste hors de GitHub.
+        # La Release reste en brouillon : c'est la signature de l'ADMIN qui la publie.
         run: |
-          gh release create "$TAG" publish/* \
+          gh release upload "$TAG" publish/changelog.json publish/SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" \
-            --target "${GITHUB_SHA}" \
-            --title "CΛNTO $TAG" \
-            --notes-file release-notes.md \
-            --draft
+            --clobber

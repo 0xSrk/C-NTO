@@ -2,6 +2,8 @@ name: check
 on:
   push:
   pull_request:
+  # Lancé à la main : la CI dépose aussi les installeurs (artefacts de 3 jours).
+  workflow_dispatch:
 jobs:
   check:
     strategy:
@@ -96,9 +98,14 @@ jobs:
             exit "$code"
           done
           exit 1
-      - uses: actions/upload-artifact@v4
+      # Un jeu d'installeurs pèse près de 2 Go : envoyé à chaque push et à chaque PR, gardé 90 jours,
+      # il a rempli le quota de stockage des artefacts et bloqué la 3.6.0. Construits à chaque passage,
+      # ils ne sont envoyés que sur demande (« Run workflow »), et pour 3 jours.
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
+          retention-days: 3
           path: |
             release/*.AppImage
             release/*.deb

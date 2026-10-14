@@ -86,4 +86,34 @@ describe('outils de signature de l’ADMIN', () => {
     expect(wf).toContain('cat SHA256SUMS.txt');
     expect(wf).not.toMatch(/SIGNING|PRIVATE KEY|release-signing-key/i);
   });
+
+  it('la Release dépose ses installeurs dans le brouillon, sans artefact Actions soumis au quota', () => {
+    const wf = readFileSync('.github/workflows/release.yml', 'utf8');
+    expect(wf).not.toMatch(/upload-artifact|download-artifact/);
+    // Le brouillon existe avant les builds : chacun y dépose ses installeurs.
+    const create = wf.indexOf('gh release create "$TAG"');
+    expect(create).toBeGreaterThan(-1);
+    expect(create).toBeLessThan(wf.indexOf('\n  build:'));
+    expect(wf).toMatch(/gh release upload "\$TAG" "\$\{files\[@\]\}"[^\n]*--clobber/);
+    expect(wf).toContain('if [ "${#files[@]}" -eq 0 ]; then');
+    expect(wf).toMatch(/gh release download "\$TAG"/);
+    expect(wf).toMatch(/gh release upload "\$TAG" publish\/changelog\.json publish\/SHA256SUMS\.txt/);
+    // Une relance reconstruit un brouillon laissé par un passage précédent ; une Release publiée l'arrête.
+    expect(wf).toMatch(/if \[ "\$draft" = "false" \]; then\s+echo "::error::La release \$tag existe déjà/);
+    expect(wf).toMatch(/if \[ "\$draft" = "true" \]; then[\s\S]*?gh release delete "\$TAG"/);
+    expect(wf).not.toMatch(/gh release edit[^\n]*--draft=false/);
+  });
+
+  it('la CI n’envoie ses installeurs qu’à la demande, pour quelques jours', () => {
+    const wf = readFileSync('.github/workflows/ci.yml', 'utf8');
+    expect(wf).toMatch(/^on:[\s\S]*?^\s+workflow_dispatch:/m);
+    const steps = wf.split(/\n(?=\s+- )/).filter((step) => step.includes('actions/upload-artifact'));
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      expect(step).toContain("if: github.event_name == 'workflow_dispatch'");
+      const days = Number(/retention-days:\s*(\d+)/.exec(step)?.[1]);
+      expect(days).toBeGreaterThan(0);
+      expect(days).toBeLessThanOrEqual(7);
+    }
+  });
 });

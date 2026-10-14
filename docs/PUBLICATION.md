@@ -19,7 +19,7 @@ Rotation : générer une nouvelle clé avec `--write` (les deux clés sont accep
 ## À chaque version
 
 1. Monter la version dans `package.json`, préparer l'entrée de `src/engine/changelog/changelog.json`, pousser le tag `vX.Y.Z` (ou lancer le workflow `release`).
-2. La CI construit les installeurs et crée la Release **en brouillon** : invisible des desks. Le job `publish` affiche `SHA256SUMS.txt` dans son journal (étape SHA-256).
+2. La CI crée la Release **en brouillon** (invisible des desks), y dépose les installeurs des trois systèmes, puis `changelog.json` et `SHA256SUMS.txt`. Le job `publish` affiche `SHA256SUMS.txt` dans son journal (étape SHA-256). Aucun artefact Actions : le quota de stockage des artefacts n'arrête plus une Release. Relancer le workflow reconstruit un brouillon laissé par un passage précédent ; une Release publiée l'arrête.
 3. Sur le poste de l'ADMIN (`gh` connecté au dépôt) :
 
 ```bash
