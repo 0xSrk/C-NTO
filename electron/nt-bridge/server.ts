@@ -167,6 +167,11 @@ export class NtBridgeServer {
   private ordersClosed = false;
   private nextId = 0;
   private pending = new Map<string, Pending>();
+  /**
+   * Abonnements de marché que l'AddOn tient pour la page du desk : il les garde à travers une reconnexion, jusqu'à leur
+   * `marketdata.unsubscribe`. Fermés au départ de la page (`releaseSubscriptions`).
+   */
+  private readonly marketSubs = new Set<string>();
   private cancelStale: (() => void) | null = null;
   private cancelLost: (() => void) | null = null;
   private beatSamples: number[] = [];
@@ -333,6 +338,7 @@ export class NtBridgeServer {
       const result = asRecord(await this.rpc('marketdata.subscribe', parsed.req));
       const subscriptionId = result && typeof result.subscriptionId === 'string' ? result.subscriptionId : '';
       if (!subscriptionId) return { ok: false, detail: 'abonnement refusé' };
+      this.marketSubs.add(subscriptionId);
       return { ok: true, subscriptionId };
     } catch (err) {
       return { ok: false, detail: err instanceof Error ? err.message : 'abonnement impossible' };
@@ -343,10 +349,21 @@ export class NtBridgeServer {
     if (this.link !== 'live') return { ok: false };
     try {
       await this.rpc('marketdata.unsubscribe', { subscriptionId });
+      this.marketSubs.delete(subscriptionId);
       return { ok: true };
     } catch {
       return { ok: false };
     }
+  }
+
+  /**
+   * La page du desk s'en va (rechargement, navigation, rendu perdu) : chaque abonnement de marché qu'elle avait ouvert est
+   * fermé chez l'AddOn ; la page suivante se réabonne. Pont hors ligne, ou désabonnement sans réponse : l'identifiant reste
+   * noté et part au départ suivant. Rend le nombre d'abonnements fermés.
+   */
+  async releaseSubscriptions(): Promise<number> {
+    const results = await Promise.all([...this.marketSubs].map((id) => this.unsubscribe(id)));
+    return results.filter((r) => r.ok).length;
   }
 
   /** Fenêtre validée avant tout envoi : l'AddOn ne reçoit qu'une borne qu'il sait convertir. */

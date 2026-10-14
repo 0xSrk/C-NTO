@@ -350,6 +350,12 @@ export class NtBridgeHost {
     return this.server.unsubscribe(id);
   }
 
+  /** La page du desk s'en va : ses abonnements de marché sont fermés chez l'AddOn. Rend le nombre fermé. */
+  releaseSubscriptions(): Promise<number> {
+    if (!this.server) return Promise.resolve(0);
+    return this.server.releaseSubscriptions();
+  }
+
   history(raw: unknown): Promise<{ ok: true; bars: unknown[] } | { ok: false; detail: string }> {
     if (!this.server || !isRecord(raw)) return Promise.resolve({ ok: false, detail: 'aucune source live' });
     return this.server.history(raw);

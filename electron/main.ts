@@ -386,9 +386,10 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     win?.webContents.setBackgroundThrottling(true);
     win?.webContents.send('zoom:changed', zoomSnapshot(win));
   });
-  // La page s'en va (rechargement, navigation, rendu perdu) : les abonnements crypto qu'elle tenait sont fermés, sans
-  // éteindre l'interrupteur ; la page suivante se réabonne d'elle-même.
+  // La page s'en va (rechargement, navigation, rendu perdu) : les abonnements crypto et NinjaTrader qu'elle tenait sont
+  // fermés, sans éteindre l'interrupteur crypto ; la page suivante se réabonne d'elle-même.
   onPageLeft(win.webContents, () => {
+    void ntBridge?.releaseSubscriptions(); // asynchrone, ne lève pas : passe avant le crypto
     cryptoRuntime?.releaseSubscriptions();
   });
   let rendererReloads = 0;
