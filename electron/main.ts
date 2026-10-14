@@ -9,7 +9,7 @@ import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridg
 import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from './llm-host';
 import { LlmKeySeals } from './llm-key-seals';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
-import { Orchestrator } from './orchestrator';
+import { ORCH_RESPONSE_ID_MAX, Orchestrator } from './orchestrator';
 import { deskUrlAllowed, onPageLeft } from './page-left';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
 import { McpGateway } from './mcp-server';
@@ -828,7 +828,7 @@ ipcMain.handle('orch:status', (e) => (trusted(e) ? orchestrator.status() : { run
 ipcMain.handle('orch:rotate-token', (e) => (trusted(e) ? orchestrator.rotateToken() : orchestrator.status()));
 ipcMain.handle('orch:copy-token', (e) => (trusted(e) ? orchestrator.copyToken() : null));
 ipcMain.on('orch:respond', (e, id: unknown, clientId: unknown, result: unknown, error?: unknown) => {
-  if (!trusted(e) || !isString(id, 64) || !isString(clientId, 32)) return;
+  if (!trusted(e) || !isString(id, ORCH_RESPONSE_ID_MAX) || !isString(clientId, 32)) return;
   const message = isString(error, 2000) ? error : undefined;
   if (clientId === MCP_CLIENT_ID) {
     deskRelay.settle(id, result, message);

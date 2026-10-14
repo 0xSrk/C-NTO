@@ -182,4 +182,20 @@ describe('orchestrateur · interrupteur crypto relu dans le process principal', 
     const construction = main.slice(start, main.indexOf(';\n', start));
     expect(construction).toContain('() => cryptoRuntime?.enabled() ?? false');
   });
+
+  it('un desk.describe sert les mêmes identifiants JSON-RPC qu’un appel d’outil : le préfixe interne tient dans la borne d’orch:respond', async () => {
+    const { ORCH_RESPONSE_ID_MAX } = await import('../electron/orchestrator');
+    const { client, forwarded } = await open(() => false);
+    // 57 signes : le plus long identifiant texte qu'un appel d'outil fait déjà revenir (« string: » + 57 = 64).
+    const id = 'x'.repeat(57);
+    client.ws.send(JSON.stringify({ jsonrpc: '2.0', id, method: 'desk.describe' }));
+    client.ws.send(JSON.stringify({ jsonrpc: '2.0', id, method: 'tool.desk_overview' }));
+    await tick();
+    expect(forwarded).toHaveLength(2);
+    for (const req of forwarded) expect(req.id.length, req.method).toBeLessThanOrEqual(ORCH_RESPONSE_ID_MAX);
+    const main = readFileSync('electron/main.ts', 'utf8');
+    const respond = main.slice(main.indexOf("ipcMain.on('orch:respond'"), main.indexOf("ipcMain.on('orch:broadcast'"));
+    expect(respond).toContain('isString(id, ORCH_RESPONSE_ID_MAX)');
+    client.ws.close();
+  });
 });

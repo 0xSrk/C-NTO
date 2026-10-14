@@ -42,6 +42,12 @@ export const BROADCAST_MAX_BYTES = 16_384;
  */
 const DESCRIBE_ID = 'd/';
 
+/**
+ * Borne de l'identifiant interne qu'`orch:respond` accepte du renderer (`electron/main.ts`) : les 64 signes d'avant, plus le
+ * préfixe d'une description. Un `desk.describe` sert ainsi les mêmes identifiants JSON-RPC qu'un appel d'outil.
+ */
+export const ORCH_RESPONSE_ID_MAX = 64 + DESCRIBE_ID.length;
+
 /** Un outil du module crypto (onglet 09 · CRY) : un nom `crypto_*` du catalogue. */
 function isCryptoTool(name: string): boolean {
   return name.startsWith('crypto_') && Object.hasOwn(DESK_TOOL_KINDS, name);
