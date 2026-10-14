@@ -15,7 +15,7 @@ export const LLM_KEY_SEALS_FILE = 'llm-key-hosts.json';
  * Liens gardés. Les réglages ne portent qu'une clé : seule la dernière saisie compte, et une saisie touche par touche en
  * ajoute une par frappe ; 64 couvrent largement l'usage. Au-delà, les plus anciens partent et le registre le note
  * (`evicted`) : un blob inconnu est alors refusé au lieu de suivre le renderer, si bien qu'une rafale de chiffrements ne
- * délie pas la clé en usage. Un fichier illisible vaut des liens perdus, de même.
+ * délie pas la clé en usage. Un fichier corrompu vaut des liens perdus, de même.
  */
 export const LLM_KEY_SEALS_MAX = 64;
 
@@ -25,7 +25,7 @@ const HOST_MAX = 300;
 interface SealState {
   evicted: boolean;
   keys: Map<string, string>;
-  /** Lecture en échec (fichier verrouillé, droits) : ni gardé en mémoire, ni réécrit ; relu au prochain besoin. */
+  /** Lecture en échec (fichier verrouillé, droits) : pas gardé en mémoire, relu au prochain besoin ; seul `bind` le réécrit. */
   unread?: true;
 }
 
@@ -41,7 +41,7 @@ function readState(file: string): SealState {
   } catch (err) {
     // Aucun lien encore : les secrets existants suivent le renderer, comme avant.
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { evicted: false, keys: new Map() };
-    // Fichier là mais illisible pour l'instant (EBUSY, EPERM d'un antivirus…) : refus, sans effacer les liens qu'il porte.
+    // Fichier là mais illisible (EBUSY, EPERM d'un antivirus, droits…) : refus tant qu'il l'est ; une simple lecture n'efface rien.
     return { evicted: true, keys: new Map(), unread: true };
   }
   try {
@@ -77,13 +77,14 @@ export class LlmKeySeals {
   }
 
   /**
-   * Lie le blob à l'hôte où la clé a été saisie. Faux si le lien n'a pas pu être écrit : il vaut alors pour ce lancement,
-   * sauf registre illisible, où rien n'est gardé (la clé suit le renderer comme avant, ou reste refusée tant qu'il l'est).
+   * Lie le blob à l'hôte où la clé a été saisie. Faux si le lien n'a pas pu être écrit : il vaut alors pour ce lancement.
+   * Registre illisible : la clé qu'on vient de saisir repart d'un registre neuf, où les liens d'avant sont perdus (leurs
+   * blobs sont refusés, il faut les ressaisir) ; c'est ce qui sort d'un fichier illisible pour de bon. Si l'écriture
+   * échoue aussi, rien n'est gardé et le registre se relit au besoin suivant.
    */
   bind(blob: string, host: string): boolean {
     if (!blob || !host || host.length > HOST_MAX) return false;
     const state = this.load();
-    if (state.unread) return false; // réécrire maintenant effacerait les liens du fichier qu'on n'a pas pu lire
     const digest = digestOf(blob);
     state.keys.delete(digest);
     state.keys.set(digest, host);
@@ -97,6 +98,11 @@ export class LlmKeySeals {
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify({ v: 1, evicted: state.evicted, keys: [...state.keys] }), { encoding: 'utf8', mode: 0o600 });
       renameSync(tmp, this.file);
+      if (state.unread) {
+        // Le registre écrit est lisible de nouveau : il fait foi pour la suite du lancement.
+        delete state.unread;
+        this.state = state;
+      }
       return true;
     } catch {
       return false;

@@ -1,12 +1,26 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+/** Lecture du registre en échec, comme un fichier verrouillé ou laissé illisible par un autre compte. */
+const unreadable = vi.hoisted(() => ({ code: '' }));
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...fs,
+    readFileSync: ((...args: Parameters<typeof fs.readFileSync>) => {
+      if (unreadable.code && String(args[0]).endsWith('llm-key-hosts.json')) throw Object.assign(new Error(unreadable.code), { code: unreadable.code });
+      return fs.readFileSync(...args);
+    }) as typeof fs.readFileSync,
+  };
+});
 import { keyFor } from '../electron/llm-host';
 import { LLM_KEY_SEALS_FILE, LLM_KEY_SEALS_MAX, LlmKeySeals } from '../electron/llm-key-seals';
 
 const dirs: string[] = [];
 afterEach(() => {
+  unreadable.code = '';
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -115,6 +129,25 @@ describe('sceau d’hôte des clés API, tenu par le process principal', () => {
     writeFileSync(file, readFileSync(aside, 'utf8'));
     expect(seals.hostFor(key, 'api.openai.com')).toBe('api.anthropic.com');
     expect(readFileSync(file, 'utf8')).toBe(before);
+  });
+
+  it('registre illisible pour de bon, dossier inscriptible : la clé saisie ensuite est scellée, le registre repart sans les liens d’avant', () => {
+    const dir = userData();
+    const old = blob(1);
+    expect(new LlmKeySeals(dir).bind(old, 'api.anthropic.com')).toBe(true);
+    unreadable.code = 'EACCES';
+    const seals = new LlmKeySeals(dir);
+    expect(seals.hostFor(old, 'api.anthropic.com')).toBe('');
+    const fresh = blob(2);
+    expect(seals.bind(fresh, 'api.openai.com')).toBe(true);
+    // Toujours illisible au disque : le registre écrit fait foi pour la suite du lancement.
+    expect(seals.hostFor(fresh, 'openrouter.ai')).toBe('api.openai.com');
+    expect(seals.hostFor(old, 'api.anthropic.com')).toBe('');
+    unreadable.code = '';
+    const next = new LlmKeySeals(dir);
+    expect(next.hostFor(fresh, 'openrouter.ai')).toBe('api.openai.com');
+    expect(next.hostFor(old, 'api.anthropic.com')).toBe('');
+    expect(next.hostFor(blob(3), 'api.openai.com')).toBe('');
   });
 
   it('électron : secrets:encrypt scelle l’hôte de l’URL de base ; l’appel LLM lit l’hôte scellé ; le renderer donne l’URL de base', () => {
