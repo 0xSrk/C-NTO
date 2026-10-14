@@ -105,7 +105,7 @@ L'ADMIN a confirmé les sept propositions le 6 octobre 2026. `CLAUDE.md` § 5 en
 Le 9 octobre 2026, l'ADMIN a ajouté trois décisions pour l'onglet 09 · CRY (`docs/ONGLET-CRYPTO.md`). Elles lèvent, pour ce seul module, « Hors périmètre définitif. Crypto » (`docs/AUDIT.md:13`) et la consigne « aucun nouveau module UI » de `docs/AGENT-HARDENING.md` § 0.
 
 8. **Module crypto personnel : oui, éteint par défaut.** La crypto entre dans le desk par l'onglet 09 · CRY, derrière un interrupteur que seul un dialogue du process principal allume. Portefeuille, discipline, Copieur, exécution, pont NinjaTrader et registre `instruments.ts` restent sans crypto.
-9. **Hôtes des exchanges : liste à part.** Les hôtes Coinbase, Binance et Bybit forment `CRYPTO_HOSTS`, consultée seulement interrupteur allumé. Ils n'entrent pas dans `allowedHosts()` : leurs conditions n'ont pas été revues pour un logiciel distribué (`sources.ts` › `redistributable`).
+9. **Hôtes des exchanges : liste à part.** Les hôtes Coinbase, Binance et Bybit forment `CRYPTO_HOSTS`, consultée seulement interrupteur allumé. Ils n'entrent pas dans `allowedHosts()` : leurs conditions n'ont pas été revues pour un logiciel distribué (`sources.ts` › `redistributable`). Le 14 octobre 2026, l'ADMIN renonce à cette revue pour la Release 3.6.0 ; la liste reste à part.
 10. **Geste du trader.** Une écriture de chart crypto que l'opérateur confirme vaut geste du trader : elle peut ouvrir un flux dans l'onglet Crypto. L'agent n'ouvre jamais de flux par une lecture. La décision 3 reste entière pour tout le reste du desk.
 
 ## 8. Sources de la veille

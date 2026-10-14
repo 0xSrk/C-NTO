@@ -3,6 +3,7 @@
 Statut : validée en conception par l'ADMIN le 9 octobre 2026, à relire avant le plan d'implémentation.
 Base : CΛNTO 3.5.0 (`main`, 0796a9d). Usage : **personnel**, rien ne part en Release.
 2026-10-13 : l'ADMIN fait entrer l'onglet dans la Release 3.6.0, éteint par défaut (`docs/AUDIT.md` › « Publication de la 3.6.0 ») ; la revue des conditions des exchanges (décision 9) reste ouverte.
+2026-10-14 : l'ADMIN renonce à cette revue ; l'onglet part tel quel, données publiques, usage personnel. La décision 9 garde sa règle technique : `CRYPTO_HOSTS` reste hors de `allowedHosts()`.
 
 ## 1. Intention
 
@@ -205,7 +206,7 @@ Processus calqué sur OpenMarket : lire ce qui est ouvert, proposer **une** modi
 
 ## 13. Risques et points ouverts
 
-- **Conditions des exchanges.** Usage personnel de données publiques : admis en pratique, non revu juridiquement. Toute distribution du module exige une revue des conditions et une nouvelle décision (D9).
+- **Conditions des exchanges.** Usage personnel de données publiques : admis en pratique, non revu juridiquement. Toute distribution du module exige une revue des conditions et une nouvelle décision (D9). Le 14 octobre 2026, l'ADMIN renonce à cette revue : le module part dans la Release 3.6.0 sans elle.
 - **Interrupteur allumé dans une Release.** L'état vit dans `userData` du poste, jamais dans le dépôt ; un test vérifie le défaut `false`.
 - **Onglet visible à la réouverture du dépôt.** Éteint, l'onglet 09 reste sur le rail, en état vide. Avant toute Release, l'ADMIN tranche : le garder, le retirer du rail, ou le réserver à un build personnel.
 - **ONE** : écart de 10 à 18 % entre Binance, Gate et KuCoin relevé le 9 octobre 2026. La venue de référence est Binance, et elle est affichée.
