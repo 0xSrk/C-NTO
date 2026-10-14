@@ -183,7 +183,7 @@ describe('orchestrateur · interrupteur crypto relu dans le process principal', 
     expect(construction).toContain('() => cryptoRuntime?.enabled() ?? false');
   });
 
-  it('un desk.describe sert les mêmes identifiants JSON-RPC qu’un appel d’outil : le préfixe interne tient dans la borne d’orch:respond', async () => {
+  it('un desk.describe sert tout identifiant qu’un appel d’outil servait avant (57 signes de texte) : le préfixe interne tient dans la borne d’orch:respond', async () => {
     const { ORCH_RESPONSE_ID_MAX } = await import('../electron/orchestrator');
     const { client, forwarded } = await open(() => false);
     // 57 signes : le plus long identifiant texte qu'un appel d'outil fait déjà revenir (« string: » + 57 = 64).

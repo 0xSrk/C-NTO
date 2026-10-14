@@ -44,7 +44,8 @@ const DESCRIBE_ID = 'd/';
 
 /**
  * Borne de l'identifiant interne qu'`orch:respond` accepte du renderer (`electron/main.ts`) : les 64 signes d'avant, plus le
- * préfixe d'une description. Un `desk.describe` sert ainsi les mêmes identifiants JSON-RPC qu'un appel d'outil.
+ * préfixe d'une description. Un `desk.describe` sert ainsi tout identifiant qu'un appel d'outil servait avant (texte de
+ * 57 signes au plus) ; un appel d'outil en sert deux de plus.
  */
 export const ORCH_RESPONSE_ID_MAX = 64 + DESCRIBE_ID.length;
 
