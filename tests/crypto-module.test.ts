@@ -141,8 +141,15 @@ async function mount(state: Partial<CryptoState> = {}): Promise<HTMLDivElement> 
 
 const set = (state: Partial<CryptoState>) => act(async () => useCrypto.setState(state));
 
+/** Le texte lu d'un nœud, sans les feuilles de style que portent les composants de la planche (`<style>` de leurs SVG). */
+function readText(el: Element): string {
+  const copy = el.cloneNode(true) as Element;
+  for (const style of copy.querySelectorAll('style')) style.remove();
+  return copy.textContent ?? '';
+}
+
 function buttons(node: ParentNode, text: string): HTMLButtonElement[] {
-  return [...node.querySelectorAll('button')].filter((b) => (b.textContent ?? '').trim() === text);
+  return [...node.querySelectorAll('button')].filter((b) => readText(b).trim() === text);
 }
 
 function button(node: ParentNode, text: string): HTMLButtonElement {
@@ -215,20 +222,22 @@ describe('CRY4.3 › en-tête', () => {
     expect(node.textContent).toContain('4 MARKETS · 3 VENUES');
   });
 
-  it('Tag du flux : « direct » sur une venue live, « données périmées » si stale ou reconnecting, rien sinon', async () => {
+  it('flux : la plaque LINK dit « direct » sur une venue live (OROS3.5c), « données périmées » si stale ou reconnecting, rien sinon', async () => {
     const node = await mount();
     const tags = () => [...headerActions(node).querySelectorAll('span')].map((el) => el.textContent);
-    expect(tags()).toContain('direct');
+    // Le direct se lit sur la plaque LINK de la barre, nommée pour les lecteurs d'écran.
+    const link = () => headerActions(node).querySelector('[role="img"]')?.getAttribute('aria-label') ?? '';
+    expect(link()).toMatch(/· direct ·/);
     expect(tags()).not.toContain('données périmées');
     for (const state of ['stale', 'reconnecting'] as const) {
       await set({ venues: { coinbase: state, binance: 'live', bybit: 'live' } });
       expect(tags()).toContain('données périmées');
-      expect(tags()).not.toContain('direct');
+      expect(link()).not.toMatch(/direct/);
     }
     for (const state of ['connecting', 'blocked', 'off'] as const) {
       await set({ venues: { coinbase: state, binance: 'live', bybit: 'live' } });
       expect(tags()).not.toContain('données périmées');
-      expect(tags()).not.toContain('direct');
+      expect(link()).not.toMatch(/direct/);
     }
   });
 

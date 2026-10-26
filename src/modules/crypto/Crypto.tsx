@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { Plate } from '@/design/Micro';
 import { Button, Empty, Segmented, Tag } from '@/design/primitives';
 import type { Bar } from '@/engine/bars';
 import { inputBarsFor, offeredCatalog } from '@/engine/crypto/indicators';
@@ -16,7 +17,9 @@ import { useCrypto } from '@/store/crypto';
 import { useUi } from '@/store/ui';
 import v from '../visual/visual.module.css';
 import { cryptoCodeText } from './AlertModal';
-import { CryptoSide, VENUE_NAME, timeframeLabel, useCryptoAction } from './CryptoSide';
+import c from './crypto.module.css';
+import { CryptoSide, VENUE_NAME, timeframeLabel, useCryptoAction, venueStateText } from './CryptoSide';
+import { chartFeed, linkPlateLabel, linkPlateValues } from './cryptoSignals';
 
 /**
  * Onglet 09 · CRY (`docs/ONGLET-CRYPTO.md` § 7). Éteint par défaut : seul le process principal allume le module, après son
@@ -30,8 +33,6 @@ const DRAWING_COLOR_FALLBACK = 'rgb(169, 150, 224)';
 const NO_TRADES: Trade[] = [];
 const CVD = 'cvd';
 const CVD_BINANCE = 'cvd-binance';
-/** Une venue qui a vu le direct mais n'en reçoit plus : son prix est figé. */
-const FROZEN: ReadonlySet<VenueState> = new Set(['stale', 'reconnecting', 'blocked']);
 
 /** Un volume crypto : fractionnaire sous 1 000 (0,42 BTC), entier au-delà (1 250 000 ONE). */
 function fmtVolume(v: number | null | undefined): string {
@@ -204,6 +205,9 @@ function CryptoDesk({ meta }: { meta: string }) {
   // La langue en dépendance : le titre `AGENT` passe par `tr`.
   const priceLines = useMemo(() => drawingLines(drawings, market), [drawings, market, locale]);
   const liveSeen = useLiveSeen(bars);
+  // Le flux du chart, que lisent la puce du chart et la plaque LINK de la barre (OROS3.5c).
+  const feed = chartFeed({ venueState, liveSeen, barCount: bars.length });
+  const link = { venueName, venueState, feed };
 
   // Une identité stable : un `onHover` neuf recréerait le graphique (Chart.tsx), sans rejouer ses données.
   const onHover = useCallback((info: HoverInfo | null) => setHover(info), []);
@@ -227,8 +231,8 @@ function CryptoDesk({ meta }: { meta: string }) {
         meta={meta}
         actions={
           <>
+            <Plate id="link" values={linkPlateValues(link)} label={linkPlateLabel(link, venueStateText(venueState))} className={c.linkPlate} />
             {(venueState === 'stale' || venueState === 'reconnecting') && <Tag tone="ember">{tr('données périmées', 'stale data', 'datos caducados')}</Tag>}
-            {venueState === 'live' && <Tag tone="mint">{tr('direct', 'live', 'directo')}</Tag>}
             <select value={market} onChange={(e) => run(setMarket(e.target.value))} style={{ minWidth: 260 }}>
               {CHARTABLE_MARKETS.map((id) => (
                 <option key={id} value={id}>
@@ -299,11 +303,11 @@ function CryptoDesk({ meta }: { meta: string }) {
               )}
             </div>
             <div className={v.stamp}>
-              {FROZEN.has(venueState) ? (
+              {feed === 'FROZEN' ? (
                 <Tag tone="ember">
                   {venueName} · {tr('figé', 'frozen', 'congelado')}
                 </Tag>
-              ) : venueState === 'live' && liveSeen ? (
+              ) : feed === 'ACTIVE' ? (
                 <Tag tone="mint">
                   {venueName} · {tr('direct', 'live', 'directo')}
                 </Tag>

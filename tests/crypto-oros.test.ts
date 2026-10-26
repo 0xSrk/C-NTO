@@ -6,7 +6,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CryptoAlert } from '@/engine/crypto/alerts';
-import type { CryptoMarketId } from '@/engine/crypto/markets';
+import type { CryptoBar, CryptoMarketId } from '@/engine/crypto/markets';
 import type { CryptoMainStatus } from '@/lib/desk';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -238,5 +238,74 @@ describe('OROS3.5b la plaque SIGNAL ouvre la section des alertes, liée au march
     await act(async () => useI18n.setState({ locale: 'en' }));
     expect([...(section(node, 'Alerts').querySelectorAll(`.${c.alertLegend} [data-level]`) ?? [])].map((el) => visible(el))).toEqual(['Marker', 'Attention', 'Limit crossed']);
     expect(signalPlate(node, 'Alerts')?.getAttribute('aria-label')).toMatch(/^Signal: BTC-USD · /);
+  });
+});
+
+describe('OROS3.5c la plaque LINK dit le flux dans la barre du module ; globe des marchés, glyphe d’ajout', () => {
+  const T0 = Date.UTC(2026, 9, 26, 9, 0) / 1000;
+  const bars: CryptoBar[] = [
+    { time: T0, open: 82_400, high: 82_610.5, low: 82_390.25, close: 82_500, volume: 12.5, buyVolume: 7 },
+    { time: T0 + 3600, open: 82_500, high: 82_700, low: 82_450, close: 82_528.75, volume: 9.25, buyVolume: 4 },
+  ];
+  /** La barre du module : le parent du sélecteur de marché. */
+  const bar = (node: HTMLElement): HTMLElement => node.querySelector('select')!.parentElement!;
+  const linkPlate = (node: HTMLElement): HTMLElement | null => bar(node).querySelector(`.${c.linkPlate}`);
+  /** Les lignes du master : `mglink-1` (LOCAL, venue, websocket) et `mglink-2` (flux, latence). */
+  const lines = (node: HTMLElement): string[] => [...(linkPlate(node)?.querySelectorAll('text') ?? [])].map((el) => visible(el));
+
+  it('la plaque LINK prend la place de l’étiquette du direct : venue du marché, websocket, flux du chart ; la latence non mesurée reste un tiret', async () => {
+    const node = await mount({ bars });
+    const plate = linkPlate(node);
+    expect(plate).not.toBeNull();
+    expect(plate!.querySelector('svg.mg-link')).not.toBeNull();
+    // Avant le sélecteur de marché, comme sur la planche.
+    expect(plate && plate.compareDocumentPosition(node.querySelector('select')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(lines(node)).toEqual(['LOCAL', 'COINBASE', 'WS.LIVE', 'MARKET FEED — HISTORYPUBLIC DATA | LATENCY: —']);
+    // L'étiquette menthe « direct » a quitté la barre : le direct se lit sur la plaque.
+    expect([...bar(node).querySelectorAll(`.${p.tag}`)].map((el) => el.textContent)).not.toContain('direct');
+    expect(plate?.getAttribute('aria-label')).toBe('Lien de marché : Coinbase · direct · historique seul');
+
+    // Une bougie du direct change le chart : le flux est actif.
+    await act(async () => useCrypto.setState({ bars: [bars[0]!, { ...bars[1]!, close: 82_530 }] }));
+    expect(lines(node)[3]).toBe('MARKET FEED — ACTIVEPUBLIC DATA | LATENCY: —');
+    expect(plate?.getAttribute('aria-label')).toBe('Lien de marché : Coinbase · direct · flux en direct');
+
+    // La venue perd le direct : websocket périmé, flux figé ; l'avertissement « données périmées » reste à côté.
+    await act(async () => useCrypto.setState({ venues: { coinbase: 'stale', binance: 'live', bybit: 'live' } }));
+    expect(lines(node).slice(1, 3)).toEqual(['COINBASE', 'WS.STALE']);
+    expect(lines(node)[3]).toBe('MARKET FEED — FROZENPUBLIC DATA | LATENCY: —');
+    expect([...bar(node).querySelectorAll(`.${p.tag}`)].map((el) => el.textContent)).toContain('données périmées');
+  });
+
+  it('chaque état de venue a son code de websocket, sept signes au plus après WS. ; un autre marché lit sa venue', async () => {
+    const node = await mount();
+    for (const [state, code] of [
+      ['off', 'WS.OFF'],
+      ['connecting', 'WS.CONN'],
+      ['reconnecting', 'WS.RECON'],
+      ['blocked', 'WS.BLOCK'],
+    ] as const) {
+      await act(async () => useCrypto.setState({ venues: { coinbase: state, binance: 'live', bybit: 'live' } }));
+      expect(lines(node)[2], state).toBe(code);
+    }
+    await act(async () => useCrypto.setState({ market: 'bybit:ZIGUSDT' }));
+    expect(lines(node).slice(1, 3)).toEqual(['BYBIT', 'WS.LIVE']);
+    expect(lines(node)[3]).toBe('MARKET FEED — —PUBLIC DATA | LATENCY: —');
+    expect(rule('linkPlate')).toMatch(/height:\s*19px/);
+    expect(rule('linkPlate')).toMatch(/--k:\s*var\(--text-1\)/);
+  });
+
+  it('les marchés s’ouvrent sur le globe ; « Ajouter » (nouvelle alerte) porte le glyphe d’ajout de la planche', async () => {
+    const node = await mount();
+    const markets = section(node, 'Marchés');
+    const title = markets.querySelector(`.${v.sideTitle}`)!.firstElementChild!;
+    expect(title.querySelector(`.${c.titleGlyph} svg.skg-44`)).not.toBeNull();
+    expect(visible(title)).toBe('Marchés · 4');
+    const add = [...section(node, 'Alertes').querySelectorAll('button')].find((b) => visible(b).trim() === 'Ajouter');
+    expect(add?.querySelector(`.${c.addGlyph} svg.skg-69`)).not.toBeNull();
+    await act(async () => add!.click());
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    // Le glyphe de la planche remplace l'icône « + » de l'application.
+    expect(readFileSync('src/modules/crypto/CryptoSide.tsx', 'utf8')).not.toMatch(/IconPlus/);
   });
 });

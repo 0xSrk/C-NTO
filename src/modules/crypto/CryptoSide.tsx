@@ -6,7 +6,6 @@
  * l'écriture aussi, et rien ne s'échappe en rejet non géré.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { IconPlus } from '@/app/icons';
 import { Glyph, Plate, Signal } from '@/design/Micro';
 import { Button, Etiquette, Led, Regle, Tag, cx } from '@/design/primitives';
 import { alertDirection, alertEvaluability, type AlertIdleReason, type AlertReading, type EvaluabilityData } from '@/engine/crypto/alerts';
@@ -232,6 +231,7 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
     <aside className={cx(v.side, c.side)}>
       <div className={v.sideSection}>
         <SideTitle>
+          <Glyph name="globe" className={c.titleGlyph} />
           {tr('Marchés', 'Markets', 'Mercados')} · {CHARTABLE_MARKETS.length}
         </SideTitle>
         {CHARTABLE_MARKETS.map((id) => {
@@ -294,7 +294,7 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
         <SideTitle
           action={
             <Button size="sm" variant="ghost" onClick={() => setAlertOpen(true)}>
-              <IconPlus size={12} /> {tr('Ajouter', 'Add', 'Añadir')}
+              <Glyph name="addSession" className={c.addGlyph} /> {tr('Ajouter', 'Add', 'Añadir')}
             </Button>
           }
         >

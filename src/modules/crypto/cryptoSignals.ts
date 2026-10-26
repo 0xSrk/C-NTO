@@ -1,7 +1,7 @@
 /**
  * Ce que lisent les signaux de l'onglet 09 · CRY (Système 4.0 « ΟΡΟΣ », `docs/DESIGN.md` § 02) : le niveau du signal d'une
- * alerte, le mot de son état, son seuil (sujet, sens, niveau), la plaque SIGNAL. Pur : l'écran passe l'état du store, rien ici
- * ne le lit.
+ * alerte, le mot de son état, son seuil (sujet, sens, niveau), les plaques SIGNAL et LINK. Pur : l'écran passe l'état du store,
+ * rien ici ne le lit.
  */
 import type { SlotValues } from '@/design/Micro';
 import { alertDirection, type CryptoAlert } from '@/engine/crypto/alerts';
@@ -115,4 +115,51 @@ export function signalPlateLabel(values: SlotValues): string {
           : tr('aucune alerte', 'no alert', 'ninguna alerta');
   const live = values.live === 'LIVE' ? tr('prix en direct', 'live price', 'precio en directo') : tr('prix pas en direct', 'price not live', 'precio no en directo');
   return tr(`Signal : ${target} · ${state} · ${live}`, `Signal: ${target} · ${state} · ${live}`, `Señal: ${target} · ${state} · ${live}`);
+}
+
+/** Une venue qui a vu le direct mais n'en reçoit plus : le prix du chart est figé. */
+const FROZEN: ReadonlySet<VenueState> = new Set(['stale', 'reconnecting', 'blocked']);
+
+/** L'état du flux du chart : figé, actif (le direct l'a changé), historique seul (des bougies, pas encore de direct). */
+export type ChartFeed = 'FROZEN' | 'ACTIVE' | 'HISTORY';
+
+/**
+ * L'état du flux du chart, que lisent la puce du chart et la plaque LINK : figé quand la venue a perdu le direct, actif dès
+ * qu'une bougie du direct a changé le chart, historique tant que seules les bougies d'historique sont là, `null` sans bougie.
+ */
+export function chartFeed({ venueState, liveSeen, barCount }: { venueState: VenueState; liveSeen: boolean; barCount: number }): ChartFeed | null {
+  if (FROZEN.has(venueState)) return 'FROZEN';
+  if (venueState === 'live' && liveSeen) return 'ACTIVE';
+  return barCount > 0 ? 'HISTORY' : null;
+}
+
+/** Le code du websocket d'une venue sur la plaque LINK : sept signes au plus avec `WS.`, la place que le master lui laisse. */
+const WS_CODE: Record<VenueState, string> = { off: 'OFF', connecting: 'CONN', live: 'LIVE', reconnecting: 'RECON', stale: 'STALE', blocked: 'BLOCK' };
+
+export interface LinkPlateInput {
+  /** Le nom de la venue du marché du chart (`Coinbase`). */
+  venueName: string;
+  venueState: VenueState;
+  feed: ChartFeed | null;
+}
+
+/**
+ * Ce que lit la plaque LINK de la barre du module : la venue du marché du chart, l'état de son websocket, le flux du chart.
+ * La latence n'est pas mesurée par le store : sa ligne garde « — », jamais un chiffre d'exemple.
+ */
+export function linkPlateValues({ venueName, venueState, feed }: LinkPlateInput): SlotValues {
+  return { venue: venueName.toUpperCase(), ws: `WS.${WS_CODE[venueState]}`, feed, latency: null };
+}
+
+/** La même lecture, en phrase, pour les lecteurs d'écran ; `stateWord` : l'état de la venue en clair (`venueStateText`). */
+export function linkPlateLabel({ venueName, feed }: LinkPlateInput, stateWord: string): string {
+  const flow =
+    feed === 'ACTIVE'
+      ? tr('flux en direct', 'live feed', 'flujo en directo')
+      : feed === 'FROZEN'
+        ? tr('flux figé', 'frozen feed', 'flujo congelado')
+        : feed === 'HISTORY'
+          ? tr('historique seul', 'history only', 'solo histórico')
+          : tr('aucune bougie', 'no candles', 'ninguna vela');
+  return tr(`Lien de marché : ${venueName} · ${stateWord} · ${flow}`, `Market link: ${venueName} · ${stateWord} · ${flow}`, `Enlace de mercado: ${venueName} · ${stateWord} · ${flow}`);
 }

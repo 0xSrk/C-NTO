@@ -13,6 +13,40 @@
   padding-right: 12px;
 }
 
+/*
+ * La plaque LINK (Ligne V2) dans la barre du module, à la place de l'étiquette du direct : la venue du marché du chart, son
+ * websocket, le flux du chart. Encre acier, papier du fond de travail ; 19 px de haut, sa largeur suit le master.
+ */
+.linkPlate {
+  height: 19px;
+  aspect-ratio: 303.52 / 42.37;
+  margin-right: 6px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+
+/* Le globe ouvre les marchés ; encre des titres de la colonne. */
+.titleGlyph {
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+
+/* Le glyphe d'ajout de la planche (pastille et croix) devant « Ajouter » ; son trait de 0,75 est relevé à cette taille. */
+.addGlyph {
+  width: 20px;
+  height: 6px;
+  --k: currentColor;
+  --p: var(--bg-1);
+}
+.addGlyph :global(.g69-1),
+.addGlyph :global(.g69-2) {
+  stroke-width: 2px;
+}
+
 /* Une ligne par marché, sur deux rangs : voyant, symbole et venue | dernier prix ; âge de la mise à jour | variation 24 h. */
 .marketRow {
   display: grid;
