@@ -106,7 +106,7 @@ export function CloudOptions() {
           <Button
             size="sm"
             variant="ghost"
-            disabled={!key.trim()}
+            disabled={!key.trim() || busy !== null}
             onClick={async () => {
               await setKey(key.trim());
               setKeyDraft('');
@@ -115,7 +115,7 @@ export function CloudOptions() {
             {tr('Enregistrer', 'Save', 'Guardar')}
           </Button>
           {status?.keyStored ? (
-            <Button size="sm" variant="ghost" onClick={() => void setKey('')}>
+            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void setKey('')}>
               {tr('Effacer', 'Erase', 'Borrar')}
             </Button>
           ) : null}

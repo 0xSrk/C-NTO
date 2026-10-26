@@ -168,6 +168,9 @@ describe('agent cloud · Options › Agent cloud', () => {
     // Le déploiement du desk se « quitte » (dialogue de suspension dans le process principal) ; rien ne bouge pendant une action.
     await act(async () => useAgentCloud.setState({ status: status({ keyStored: true, deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai', managed: true, busy: 'run' }) }));
     expect(button(node, 'Quitter')?.disabled).toBe(true);
+    expect(button(node, 'Effacer')?.disabled).toBe(true);
+    await type(node.querySelector<HTMLInputElement>('input[type="password"]')!, 'sk-ant-api03-cle-de-test-0123456789');
+    expect(button(node, 'Enregistrer')?.disabled).toBe(true);
     expect(button(node, 'Relever celui-ci')?.disabled).toBe(true);
   });
 });

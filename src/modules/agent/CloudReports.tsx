@@ -109,6 +109,8 @@ function openLink(event: MouseEvent<HTMLElement>): void {
   const anchor = (event.target as HTMLElement | null)?.closest?.('a');
   if (!anchor) return;
   event.preventDefault();
+  // `auxclick` part pour tout bouton secondaire : seul le clic du milieu ouvre ; le clic droit sert à regarder le lien.
+  if (event.type === 'auxclick' && event.button !== 1) return;
   const href = anchor.getAttribute('href') ?? '';
   if (/^https:\/\//i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
 }

@@ -179,6 +179,9 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
     const node = await mount(true);
     await act(async () => undefined);
     const bls = [...(node.querySelector('article')?.querySelectorAll('a') ?? [])].find((a) => a.textContent === 'BLS' && a.closest('footer') === null);
+    // Clic droit, boutons précédent et suivant : rien ne s'ouvre.
+    for (const button of [2, 3, 4]) await act(async () => bls?.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button })));
+    expect(open).not.toHaveBeenCalled();
     await act(async () => bls?.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 })));
     expect(open.mock.calls).toEqual([['https://www.bls.gov/cpi/', '_blank', 'noopener,noreferrer']]);
     open.mockRestore();
