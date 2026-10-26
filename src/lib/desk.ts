@@ -173,7 +173,7 @@ export interface CloudSchedule {
 
 export interface CloudFailure {
   at: number;
-  kind: 'run' | 'no_report' | 'invalid' | 'too_large' | 'archived';
+  kind: 'run' | 'no_report' | 'budget' | 'invalid' | 'too_large' | 'archived';
   detail: string;
 }
 
