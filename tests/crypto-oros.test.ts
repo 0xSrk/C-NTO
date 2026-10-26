@@ -372,3 +372,21 @@ describe('OROS3.5d le chart trace les seuils du marché ; le direct du chart s�
     expect(stampTag()?.classList.contains(p.gold as string)).toBe(false);
   });
 });
+
+describe('OROS3.5e le seuil reste lisible au rendu réel', () => {
+  it('le sujet n’est jamais tronqué : à l’étroit, le seuil passe à la ligne entre le sujet et son sens, glyphe et niveau ensemble', async () => {
+    const node = await mount({ alerts: ALERTS });
+    const [up, , funding] = alertRows(node);
+    for (const row of [up!, funding!]) {
+      const glyph = row.querySelector(`.${c.dirGlyph}`);
+      // Le glyphe du sens et le niveau forment un bloc insécable, frère du sujet.
+      expect(glyph?.parentElement?.classList.contains(c.alertLevel as string)).toBe(true);
+      expect(glyph?.parentElement?.parentElement?.classList.contains(c.alertValue as string)).toBe(true);
+    }
+    expect(visible(funding!.querySelector(`.${c.alertSubject}`))).toBe('Funding médian');
+    expect(rule('alertValue')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('alertSubject')).not.toMatch(/ellipsis|overflow:\s*hidden/);
+    expect(rule('alertSubject')).toMatch(/white-space:\s*nowrap/);
+    expect(rule('alertLevel')).toMatch(/white-space:\s*nowrap/);
+  });
+});

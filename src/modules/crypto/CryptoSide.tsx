@@ -329,8 +329,10 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
               <span className={c.alertSignal}>{level !== null && <Signal level={level} />}</span>
               <span className={c.alertValue}>
                 <span className={c.alertSubject}>{alertSubject(alert)}</span>
-                <Glyph name={directionGlyph(alert)} className={c.dirGlyph} label={directionText(alertDirection(alert.kind))} />
-                <span>{alertThreshold(alert)}</span>
+                <span className={c.alertLevel}>
+                  <Glyph name={directionGlyph(alert)} className={c.dirGlyph} label={directionText(alertDirection(alert.kind))} />
+                  <span>{alertThreshold(alert)}</span>
+                </span>
               </span>
               <Tag className={cx(alert.state === 'armed' && c.planTag, alert.state === 'paused' && c.pauseTag)}>{alertStateWord(alert.state)}</Tag>
               <button type="button" className={c.alertRemove} onClick={() => run(deleteAlert(alert.id))} aria-label={tr('Supprimer l’alerte', 'Delete the alert', 'Eliminar la alerta')}>
