@@ -80,7 +80,11 @@ export function cloudSystemPrompt(locale: AppLocale): string {
   ].join('\n');
 }
 
-export const OUTCOME_RUBRIC = [
+/** La langue du rapport, dite au correcteur : il ne lit pas la consigne de l'agent. */
+const REPORT_LANGUAGE: Record<AppLocale, string> = { fr: 'en français', en: 'en anglais', es: 'en espagnol' };
+
+export function outcomeRubric(locale: AppLocale): string {
+  return [
   `Rapport quotidien CΛNTO, contrat ${REPORT_FORMAT}. Critères, chacun vérifiable :`,
   '1. `/mnt/session/outputs/rapport.json` existe, est du JSON valide en UTF-8, et c’est le seul fichier de ce dossier.',
   `2. \`format\` vaut exactement \`${REPORT_FORMAT}\`.`,
@@ -90,8 +94,9 @@ export const OUTCOME_RUBRIC = [
   '6. Chaque fait daté ou chiffré renvoie à une entrée de `sources`, toutes en https.',
   '7. Aucune heure, aucun chiffre, aucun consensus inventé : l’introuvable est écrit « non trouvé ».',
   '8. Aucun ordre, aucune recommandation d’achat ou de vente, aucune taille de position.',
-  '9. Le rapport est rédigé dans la langue demandée par la consigne.',
-].join('\n');
+  `9. Le rapport (titre, résumé, sections) est rédigé ${REPORT_LANGUAGE[locale]}.`,
+  ].join('\n');
+}
 
 export function cloudEnvironmentBody(): Record<string, unknown> {
   return {
@@ -131,7 +136,7 @@ export function cloudAgentBody(locale: AppLocale): Record<string, unknown> {
   };
 }
 
-export function cloudDeploymentBody(input: { agentId: string; environmentId: string; cron: string; timezone: string }): Record<string, unknown> {
+export function cloudDeploymentBody(input: { agentId: string; environmentId: string; cron: string; timezone: string; locale: AppLocale }): Record<string, unknown> {
   return {
     name: DEPLOYMENT_NAME,
     description: `Dépose chaque jour un rapport ${REPORT_FORMAT} que le desk CΛNTO relève.`,
@@ -141,8 +146,8 @@ export function cloudDeploymentBody(input: { agentId: string; environmentId: str
     initial_events: [
       {
         type: 'user.define_outcome',
-        description: `Écrire le rapport quotidien CΛNTO dans /mnt/session/outputs/rapport.json, au contrat ${REPORT_FORMAT}.`,
-        rubric: { type: 'text', content: OUTCOME_RUBRIC },
+        description: `Écrire le rapport quotidien CΛNTO ${REPORT_LANGUAGE[input.locale]} dans /mnt/session/outputs/rapport.json, au contrat ${REPORT_FORMAT}.`,
+        rubric: { type: 'text', content: outcomeRubric(input.locale) },
         max_iterations: OUTCOME_MAX_ITERATIONS,
       },
     ],

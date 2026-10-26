@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
 import { CloudApiError, type CloudApi, type DeploymentView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, PULL_PENDING_MS } from '../electron/agent-cloud';
-import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, OFFICIAL_DOMAINS, OUTCOME_RUBRIC } from '../electron/agent-cloud-definition';
+import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
 import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, KEY, NOW, sid, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
@@ -19,18 +19,23 @@ const harness = (opts: HarnessOptions = {}) => {
   return h;
 };
 
-const installer = (over: Partial<DeploymentView> = {}, extra: Partial<CloudApi> = {}) =>
-  fakeApi({
+/** Faux installateur : le déploiement garde son état d'un appel à l'autre, comme chez Anthropic. */
+const installer = (over: Partial<DeploymentView> = {}, extra: Partial<CloudApi> = {}) => {
+  let current: DeploymentView = { ...DEPLOYMENT, ...over };
+  const set = (next: Partial<DeploymentView>) => (current = { ...current, ...next });
+  return fakeApi({
+    getDeployment: async () => current,
     createEnvironment: async () => ({ id: ENV }),
     updateEnvironment: async () => ({ id: ENV }),
     createAgent: async () => ({ id: AGENT, version: 1 }),
     updateAgent: async () => ({ id: AGENT, version: 2 }),
-    createDeployment: async () => ({ ...DEPLOYMENT, ...over }),
-    updateDeployment: async () => ({ ...DEPLOYMENT, ...over }),
-    pauseDeployment: async () => ({ ...DEPLOYMENT, status: 'paused', pausedReason: 'manual', nextRunAt: null }),
-    unpauseDeployment: async () => ({ ...DEPLOYMENT, status: 'active' }),
+    createDeployment: async () => set({ ...DEPLOYMENT, ...over }),
+    updateDeployment: async () => set(over),
+    pauseDeployment: async () => set({ status: 'paused', pausedReason: 'manual', nextRunAt: null }),
+    unpauseDeployment: async () => set({ status: 'active', pausedReason: null }),
     ...extra,
   });
+};
 
 const saved = (dir: string) => JSON.parse(readFileSync(path.join(dir, AGENT_CLOUD_FILE), 'utf8'));
 
@@ -66,15 +71,25 @@ describe('agent cloud · définition installée par le desk', () => {
   });
 
   it('le déploiement : résultat attendu au contrat, planification, plafond par exécution', () => {
-    const plan = cloudDeploymentBody({ agentId: AGENT, environmentId: ENV, cron: '0 7 * * 1-5', timezone: 'Europe/Paris' });
+    const plan = cloudDeploymentBody({ agentId: AGENT, environmentId: ENV, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', locale: 'fr' });
     expect(plan).toMatchObject({
       agent: AGENT,
       environment_id: ENV,
       schedule: { type: 'cron', expression: '0 7 * * 1-5', timezone: 'Europe/Paris' },
       budget: { type: 'limit', max_list_cost: { amount: String(BUDGET_CENTS_PER_RUN), currency: 'USD' } },
     });
-    expect(plan.initial_events).toEqual([expect.objectContaining({ type: 'user.define_outcome', rubric: { type: 'text', content: OUTCOME_RUBRIC }, max_iterations: 2 })]);
-    expect(OUTCOME_RUBRIC).toContain(REPORT_FORMAT);
+    expect(plan.initial_events).toEqual([expect.objectContaining({ type: 'user.define_outcome', rubric: { type: 'text', content: outcomeRubric('fr') }, max_iterations: 2 })]);
+    expect(outcomeRubric('fr')).toContain(REPORT_FORMAT);
+  });
+
+  it('CLD14 le correcteur connaît la langue du rapport : elle est écrite dans la grille et dans la description', () => {
+    expect(outcomeRubric('fr')).toContain('est rédigé en français.');
+    expect(outcomeRubric('en')).toContain('est rédigé en anglais.');
+    expect(outcomeRubric('es')).toContain('est rédigé en espagnol.');
+    const plan = cloudDeploymentBody({ agentId: AGENT, environmentId: ENV, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', locale: 'en' });
+    const [outcome] = plan.initial_events as { description: string; rubric: { content: string } }[];
+    expect(outcome?.description).toContain('en anglais');
+    expect(outcome?.rubric.content).toBe(outcomeRubric('en'));
     expect(BUDGET_CENTS_PER_RUN).toBe(300);
   });
 
@@ -108,7 +123,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     const status = await h.host.provision();
     expect(h.dialogs[0]).toMatchObject({ type: 'warning', defaultId: 2, cancelId: 2, noLink: true, buttons: ['Installer et planifier', 'Installer en pause', 'Annuler'] });
     expect(h.dialogs[0]?.detail).toContain('0 7 * * 1-5 · Europe/Paris');
-    expect(h.dialogs[0]?.detail).toContain('3.00 $ par exécution');
+    expect(h.dialogs[0]?.detail).toContain('Plafond appliqué : 3,00 $ par exécution');
     expect(h.dialogs[0]?.detail).toContain('Aucune donnée du desk n’est envoyée');
     expect(h.api.calls).toEqual([]);
     expect(status).toMatchObject({ busy: null, deploymentId: null });
@@ -167,13 +182,30 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     const h = harness({ api, answers: [1, 0] });
     await h.host.setDeployment(DEPL);
     await h.host.runNow();
-    expect(api.calls).toEqual([]);
+    expect(api.calls).toEqual(['getDeployment']);
     expect(h.dialogs[0]).toMatchObject({ defaultId: 1, cancelId: 1, buttons: ['Lancer', 'Annuler'] });
     h.host.start();
     const status = await h.host.runNow();
-    expect(api.calls).toEqual(['runDeployment']);
+    expect(api.calls).toEqual(['getDeployment', 'getDeployment', 'runDeployment']);
     expect(status).toMatchObject({ pending: 1, nextPullAt: NOW + PULL_PENDING_MS, error: null });
     h.host.shutdown();
+  });
+
+  it('CLD14 lancer : le dialogue dit le plafond relu du déploiement, son absence, ou qu’il est inconnu', async () => {
+    const run = async () => ({ id: 'drun_01abc12345', createdAt: NOW, trigger: 'manual' as const, sessionId: sid(9), errorType: null, errorMessage: '' });
+    const capped = harness({ api: fakeApi({ runDeployment: run, getDeployment: async () => ({ ...DEPLOYMENT, budgetCents: 2000 }) }), answers: [1] });
+    await capped.host.setDeployment(DEPL);
+    await capped.host.runNow();
+    expect(capped.dialogs[0]?.detail).toContain('plafond 20,00 $ par exécution');
+    const uncapped = harness({ api: fakeApi({ runDeployment: run, getDeployment: async () => ({ ...DEPLOYMENT, budgetCents: null }) }), answers: [1] });
+    await uncapped.host.setDeployment(DEPL);
+    await uncapped.host.runNow();
+    expect(uncapped.dialogs[0]?.detail).toContain('aucun plafond : la session n’est pas plafonnée');
+    expect(uncapped.dialogs[0]?.detail).not.toContain('3,00');
+    const unread = harness({ api: fakeApi({ runDeployment: run, getDeployment: async () => Promise.reject(new CloudApiError(0, 'network', 'Réseau indisponible')) }), answers: [1] });
+    await unread.host.setDeployment(DEPL);
+    await unread.host.runNow();
+    expect(unread.dialogs[0]?.detail).toContain('plafond inconnu');
   });
 
   it('exécution refusée par Anthropic : la cause est dite', async () => {
@@ -193,7 +225,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect(h.dialogs).toEqual([]);
     expect((await h.host.unpause()).deployment?.state).toBe('paused');
     expect((await h.host.unpause()).deployment?.state).toBe('active');
-    expect(api.calls).toEqual(['pauseDeployment', 'unpauseDeployment']);
+    expect(api.calls).toEqual(['pauseDeployment', 'getDeployment', 'getDeployment', 'unpauseDeployment']);
   });
 
   it('CLD13 déploiement externe : relevé et lancé, jamais suspendu ni repris par le desk', async () => {

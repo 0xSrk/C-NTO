@@ -542,9 +542,31 @@ export class AgentCloudHost {
     }
   }
 
-  private budgetText(): string {
-    const cents = this.deployment?.budgetCents ?? BUDGET_CENTS_PER_RUN;
-    return `${(cents / 100).toFixed(2)} $`;
+  /** Un montant en dollars, à la manière de la langue du desk : `3,00 $`, `$3.00`. */
+  private money(cents: number): string {
+    const amount = (cents / 100).toFixed(2);
+    return this.deps.locale() === 'en' ? `$${amount}` : `${amount.replace('.', ',')} $`;
+  }
+
+  /**
+   * Le plafond que le déploiement déclare, relu juste avant un dialogue qui dépense : jamais celui de la définition
+   * du desk par défaut. Sans plafond, le dialogue le dit ; déploiement illisible, plafond inconnu.
+   */
+  private async capText(id: string): Promise<string> {
+    try {
+      this.deployment = deploymentState(await this.api.getDeployment(id));
+    } catch {
+      /* le dernier relevé fait foi, s'il y en a un */
+    }
+    if (!this.deployment) return this.t('plafond inconnu (déploiement non relu)', 'cap unknown (deployment not read)', 'límite desconocido (despliegue no leído)');
+    const cents = this.deployment.budgetCents;
+    if (cents === null) return this.t('aucun plafond : la session n’est pas plafonnée', 'no cap: the session is uncapped', 'sin límite: la sesión no tiene tope');
+    const amount = this.money(cents);
+    return this.t(
+      `plafond ${amount} par exécution (la dernière requête en cours peut le dépasser de peu)`,
+      `cap ${amount} per run (the request in progress may overshoot it slightly)`,
+      `límite ${amount} por ejecución (la petición en curso puede superarlo un poco)`,
+    );
   }
 
   /**
@@ -570,7 +592,11 @@ export class AgentCloudHost {
         detail: [
           this.t('Modèle : Claude Opus 5.5, effort élevé', 'Model: Claude Opus 5.5, high effort', 'Modelo: Claude Opus 5.5, esfuerzo alto'),
           `${this.t('Planification', 'Schedule', 'Planificación')} : ${cron} · ${timezone}`,
-          this.t(`Plafond : ${this.budgetText()} par exécution, aux tarifs publics`, `Cap: ${this.budgetText()} per run, at list prices`, `Límite: ${this.budgetText()} por ejecución, a precios públicos`),
+          this.t(
+            `Plafond appliqué : ${this.money(BUDGET_CENTS_PER_RUN)} par exécution, aux tarifs publics`,
+            `Cap applied: ${this.money(BUDGET_CENTS_PER_RUN)} per run, at list prices`,
+            `Límite aplicado: ${this.money(BUDGET_CENTS_PER_RUN)} por ejecución, a precios públicos`,
+          ),
           this.t(`Sources : ${OFFICIAL_DOMAINS.length} domaines officiels (Fed, BLS, BEA, Trésor, EIA, CME…)`, `Sources: ${OFFICIAL_DOMAINS.length} official domains (Fed, BLS, BEA, Treasury, EIA, CME…)`, `Fuentes: ${OFFICIAL_DOMAINS.length} dominios oficiales (Fed, BLS, BEA, Tesoro, EIA, CME…)`),
           '',
           this.t(
@@ -598,7 +624,7 @@ export class AgentCloudHost {
         this.config.agentVersion = agent.version;
         this.persist();
         step = 'deployment';
-        const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone });
+        const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone, locale });
         // Un déploiement du desk déjà là (réponse perdue en route, déploiement quitté puis suspendu) est repris, jamais doublé.
         const known = existing ? this.config.deploymentId : ((await this.api.listDeployments(agent.id)).find((d) => d.tagged && !d.archived && d.name === DEPLOYMENT_NAME)?.id ?? null);
         let view = await this.upsert(known, (id) => this.api.updateDeployment(id, plan), () => this.api.createDeployment(plan), 'déploiement');
@@ -633,14 +659,15 @@ export class AgentCloudHost {
     const id = this.config.deploymentId;
     if (!this.config.key || !id) return this.refuse('Installez ou indiquez d’abord un déploiement.', 'Install or enter a deployment first.', 'Instale o indique primero un despliegue.');
     return this.control('run', async () => {
+      const cap = await this.capText(id);
       const choice = await this.ask({
         type: 'question',
         title: 'CΛNTO',
         message: this.t('Lancer une analyse maintenant ?', 'Run an analysis now?', '¿Lanzar un análisis ahora?'),
         detail: this.t(
-          `Une session démarre tout de suite dans le bac à sable d’Anthropic, facturée sur les crédits API (plafond ${this.budgetText()}). Le rapport arrive dans le dossier quand elle finit.`,
-          `A session starts right away in Anthropic’s sandbox, billed to API credits (cap ${this.budgetText()}). The report lands in the folder when it finishes.`,
-          `Una sesión empieza enseguida en el entorno aislado de Anthropic, facturada a los créditos API (límite ${this.budgetText()}). El informe llega a la carpeta al terminar.`,
+          `Une session démarre tout de suite dans le bac à sable d’Anthropic, facturée sur les crédits API ; ${cap}. Le rapport arrive dans le dossier quand elle finit.`,
+          `A session starts right away in Anthropic’s sandbox, billed to API credits; ${cap}. The report lands in the folder when it finishes.`,
+          `Una sesión empieza enseguida en el entorno aislado de Anthropic, facturada a los créditos API; ${cap}. El informe llega a la carpeta al terminar.`,
         ),
         buttons: [this.t('Lancer', 'Run', 'Lanzar'), this.t('Annuler', 'Cancel', 'Cancelar')],
         defaultId: 1,
@@ -680,14 +707,15 @@ export class AgentCloudHost {
     if (!this.config.key || !id) return this.status();
     if (!this.config.managed) return this.refuseExternal();
     return this.control('unpause', async () => {
+      const cap = await this.capText(id);
       const choice = await this.ask({
         type: 'question',
         title: 'CΛNTO',
         message: this.t('Reprendre la planification ?', 'Resume the schedule?', '¿Reanudar la planificación?'),
         detail: this.t(
-          `Le déploiement repart à la prochaine échéance (aucun rattrapage), facturé sur les crédits API, ${this.budgetText()} au plus par exécution.`,
-          `The deployment resumes at the next occurrence (no backfill), billed to API credits, ${this.budgetText()} at most per run.`,
-          `El despliegue se reanuda en el próximo vencimiento (sin recuperación), facturado a los créditos API, ${this.budgetText()} como máximo por ejecución.`,
+          `Le déploiement repart à la prochaine échéance (aucun rattrapage), facturé sur les crédits API ; ${cap}.`,
+          `The deployment resumes at the next occurrence (no backfill), billed to API credits; ${cap}.`,
+          `El despliegue se reanuda en el próximo vencimiento (sin recuperación), facturado a los créditos API; ${cap}.`,
         ),
         buttons: [this.t('Reprendre', 'Resume', 'Reanudar'), this.t('Annuler', 'Cancel', 'Cancelar')],
         defaultId: 1,
