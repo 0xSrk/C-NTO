@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, type ComponentProps } from 'react';
+import { Signal } from '@/design/Micro';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, ratioIntervals, rollingBands, sessionWinRateSeries } from '@/engine/inference';
@@ -11,10 +12,13 @@ import { dateTimeFormatter, parseDateKey } from '@/lib/time';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './dashboard.module.css';
-import { drawdownGauge, metricDrawdownLimit } from './drawdownLimit';
+import { borneSignal, drawdownGauge, metricDrawdownLimit } from './drawdownLimit';
 import { EquityCard } from './EquityChart';
 import type { MetricRange } from './range';
 import type { Session, Trade } from '@/engine/types';
+
+/** La borne de K.04 se pose aux cinq sixièmes de la piste : la zone au-delà reste visible, hachurée. */
+const BORNE_SPAN = 1.2;
 
 function shortDay(date: string): string {
   if (date.length < 10) return '';
@@ -23,6 +27,16 @@ function shortDay(date: string): string {
 
 function weekday(date: string): string {
   return dateTimeFormatter({ weekday: 'short' }).format(parseDateKey(date)).replace('.', '').toUpperCase();
+}
+
+/** Jauge K avec la règle graduée de la planche sous sa piste : un appui tous les 25 %, un trait tous les 5 %. */
+function Gauge(props: ComponentProps<typeof Jauge>) {
+  return (
+    <div className={s.gauge}>
+      <Jauge {...props} />
+      <i className={s.ruler} data-ruler="" aria-hidden />
+    </div>
+  );
 }
 
 function rangeTitle(range: MetricRange): string {
@@ -81,6 +95,11 @@ export function Dashboard({
     () => drawdownGauge({ plan: limit != null ? (findPlan(planId) ?? null) : null, account: metricAccount, history, maxDrawdown: daily.maxDrawdown, startingBalance }),
     [limit, planId, metricAccount, history, daily.maxDrawdown, startingBalance],
   );
+  // K.04 : la borne est le drawdown maximal du plan suivi ; la jauge mesure ce qui en est consommé, la zone au-delà est hachurée.
+  const borne = gauge.limit != null && gauge.limit > 0 ? gauge.limit : null;
+  const consumed = gauge.kind === 'plan' ? Math.max(0, gauge.limit - gauge.margin) : gauge.maxDrawdown;
+  const borneUsed = borne != null ? consumed / borne : 0;
+  const borneLevel = borneSignal(gauge);
   const breakeven = breakevenWinRate(stats.payoffRatio);
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
   const last = ordered.slice(-5).reverse();
@@ -195,7 +214,7 @@ export function Dashboard({
       </PlaqueVissee>
 
       <section className={`${s.card} ${s.kpis} ${s.span5}`}>
-        <div className={s.tile}>
+        <div className={s.tile} data-k="K.01">
           <div className={s.kHead}>
             <span>
               <span className={s.code}>K.01 </span>
@@ -218,7 +237,7 @@ export function Dashboard({
             </div>
           </div>
         </div>
-        <div className={s.tile}>
+        <div className={s.tile} data-k="K.02">
           <div className={s.kHead}>
             <span>
               <span className={s.code}>K.02 </span>
@@ -229,7 +248,7 @@ export function Dashboard({
             </span>
           </div>
           <span className={s.kValue}>{fmtPct(stats.winRate, 1)}</span>
-          <Jauge
+          <Gauge
             min={0}
             max={100}
             value={stats.winRate * 100}
@@ -242,7 +261,7 @@ export function Dashboard({
             ]}
           />
         </div>
-        <div className={s.tile}>
+        <div className={s.tile} data-k="K.03">
           <div className={s.kHead}>
             <span>
               <span className={s.code}>K.03 </span>
@@ -254,7 +273,7 @@ export function Dashboard({
           <span className={s.hint}>
             {tr('AVANT FRAIS', 'BEFORE FEES', 'ANTES DE COMISIONES')} {Number.isFinite(stats.profitFactorBeforeFees) ? stats.profitFactorBeforeFees.toFixed(2).replace('.', ',') : '∞'}
           </span>
-          <Jauge
+          <Gauge
             min={0}
             max={3}
             value={pf}
@@ -267,7 +286,7 @@ export function Dashboard({
             ]}
           />
         </div>
-        <div className={s.tile}>
+        <div className={s.tile} data-k="K.04">
           <div className={s.kHead}>
             <span>
               <span className={s.code}>K.04 </span>
@@ -281,9 +300,22 @@ export function Dashboard({
           </div>
           {gauge.kind === 'plan' ? <Montant className={`${s.kValue} ${gauge.margin < gauge.limit * 0.25 ? s.neg : ''}`} value={gauge.margin} /> : <Montant className={`${s.kValue} ${s.neg}`} value={-gauge.maxDrawdown} />}
           <div>
-            <div className={s.hatch} aria-hidden>
-              <i style={{ width: `${gauge.used * 100}%` }} />
-            </div>
+            {borne != null ? (
+              <Gauge
+                min={0}
+                max={borne * BORNE_SPAN}
+                value={consumed}
+                marker={borne}
+                markerColor="var(--text-0)"
+                hatchFrom={borne}
+                ticks={[
+                  { value: 0, label: '0' },
+                  { value: borne, label: `${tr('PLANCHER', 'FLOOR', 'SUELO')} −${fmtInt(borne)}` },
+                ]}
+              />
+            ) : (
+              <Gauge min={0} max={100} value={gauge.used * 100} ticks={[{ value: 0, label: '0' }, { value: 100, label: '100 %' }]} />
+            )}
             {gauge.kind === 'plan' ? (
               <div className={s.pair}>
                 <span className={s.hint}>
@@ -307,6 +339,16 @@ export function Dashboard({
                 <span className={s.hint}>{plural(daily.maxDrawdownDays, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
               </div>
             )}
+            {borneLevel === 3 ? (
+              <Signal level={3} className={s.kSignal}>
+                {tr('Borne franchie', 'Limit crossed', 'Límite superado')}
+                {gauge.kind === 'plan' && gauge.status === 'echec' ? ` · ${shortDay(gauge.date)}` : ''}
+              </Signal>
+            ) : borneLevel === 2 ? (
+              <Signal level={2} className={s.kSignal}>
+                <b>{fmtPct(borneUsed, 0)}</b> {tr('de la borne consommée', 'of the limit used', 'del límite consumido')}
+              </Signal>
+            ) : null}
           </div>
         </div>
       </section>

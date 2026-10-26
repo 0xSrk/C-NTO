@@ -146,6 +146,36 @@
   margin-top: 6px;
 }
 
+/* Jauge K : la règle graduée de la planche, posée dans l'intervalle entre la piste et l'échelle (piste 8 px + arête). */
+.gauge {
+  position: relative;
+}
+.ruler {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 4px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--text-2) 1px, transparent 1px) 0 0 / 25% 4px repeat-x,
+    linear-gradient(90deg, var(--line-3) 1px, transparent 1px) 0 0 / 5% 2px repeat-x;
+  border-right: 1px solid var(--text-2);
+}
+/* K.04 : le signal de la borne (niveau 2 : attention ; niveau 3 : borne franchie, seul le glyphe rougit) */
+.kSignal {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.kSignal b {
+  color: var(--text-0);
+  font-weight: 600;
+}
+
 .split,
 .hatch {
   height: 8px;

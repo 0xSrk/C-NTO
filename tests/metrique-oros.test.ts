@@ -102,3 +102,64 @@ describe('OROS3.2b le tableau de bord lie la carte A.02 à l’état réel', () 
     expect(all.textContent).not.toContain('Plancher · borne');
   });
 });
+
+/** La tuile K.n du tableau de bord. */
+function tile(node: HTMLElement, code: string): HTMLElement {
+  const label = [...node.querySelectorAll('span')].find((el) => el.textContent?.trim() === code);
+  const found = label?.closest('[data-k]');
+  if (!found) throw new Error(`tuile introuvable : ${code}`);
+  return found as HTMLElement;
+}
+
+/** Même compte, une séance de plus en perte : la dernière descend sous le plancher. */
+function crossing(): { sessions: Session[]; trades: Trade[] } {
+  const days = businessDays('2026-07-01', 38);
+  const trades: Trade[] = days.map((date, i) => {
+    const pnl = i < 10 ? 100 : -100;
+    const entryTime = Date.parse(`${date}T10:00:00-04:00`);
+    return { id: `x${i}`, sessionId: '', instrument: 'NQ', account: 'A', direction: 'long', qty: 1, entryTime, exitTime: entryTime + 3_600_000, entryPrice: 20_000, exitPrice: 20_000 + pnl / 20, pnl, commission: 0, mae: Math.max(0, -pnl) };
+  });
+  return { sessions: groupIntoSessions(trades, 18, 'csv'), trades };
+}
+
+describe('OROS3.2c jauges K graduées, borne du plan sur K.04 et son signal', () => {
+  it('chaque jauge K porte la règle graduée de la planche : appui tous les 25 %, trait tous les 5 %', async () => {
+    const node = await dashboard();
+    for (const code of ['K.02', 'K.03', 'K.04']) expect(tile(node, code).querySelectorAll('[data-ruler]'), code).toHaveLength(1);
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/modules/metrique/dashboard.module.css', 'utf8');
+    const rule = /\.ruler\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toMatch(/25%/);
+    expect(rule).toMatch(/5%/);
+  });
+
+  it('K.04 : la borne est le drawdown maximal du plan suivi ; à 84 % consommés, signal d’attention', async () => {
+    const days = TRADES.slice();
+    // Dernière séance : un plus-bas de −200 dans la journée (MAE), clôture à −100 : 2 100 des 2 500 consommés.
+    days[days.length - 1] = { ...days[days.length - 1]!, mae: 200 };
+    const node = await dashboard(groupIntoSessions(days, 18, 'csv'), days);
+    const k4 = tile(node, 'K.04');
+    expect(k4.textContent).toContain('PLANCHER −2');
+    const signal = k4.querySelector('[data-level]');
+    expect(signal?.getAttribute('data-level')).toBe('2');
+    expect(signal?.textContent).toMatch(/84\s%\s?de la borne consommée/u);
+    expect(signal?.classList.contains('sig-l3')).toBe(false);
+  });
+
+  it('K.04 : borne franchie, signal critique (niveau 3) ; le texte reste à l’encre, seul le glyphe est rouge', async () => {
+    const { sessions, trades } = crossing();
+    const node = await dashboard(sessions, trades);
+    const signal = tile(node, 'K.04').querySelector('[data-level]');
+    expect(signal?.getAttribute('data-level')).toBe('3');
+    expect(signal?.classList.contains('sig-l3')).toBe(true);
+    expect(signal?.textContent).toMatch(/Borne franchie/);
+  });
+
+  it('K.04 sans plan suivi (tous les comptes) : ni borne ni signal', async () => {
+    useUi.setState({ metricAccount: null });
+    const node = await dashboard();
+    const k4 = tile(node, 'K.04');
+    expect(k4.querySelector('[data-level]')).toBeNull();
+    expect(k4.textContent).not.toContain('PLANCHER −');
+  });
+});
