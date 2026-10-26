@@ -62,13 +62,16 @@ Chaque identifiant obtenu est écrit aussitôt : une installation coupée en rou
 
 ## 5. L'onglet Agent IA
 
-- **A · Rapports**, la vue d'ouverture. À gauche, la plaque de l'agent : son trait dit l'état (plein : en service ; tireté : en construction ou en pause ; pointillé : en défaut ou archivé), avec la LED or quand l'agent est en service, le déploiement, la prochaine exécution, le dernier relevé et le plafond. Les erreurs sont des signaux de niveau 2, les échecs de niveau 1, jamais de niveau 3. Viennent ensuite le bordereau `RAPPORTS ···· N FICHES`, la fiche du prochain rapport au trait tireté (prévue), puis les fiches `AGT-RPT-AAAAMMJJ`, codes en clair et sans code-barres, une LED par fiche non lue. À droite, le lecteur. Le dernier rapport s'ouvre de lui-même quand la vue est à l'écran, et une fiche ouverte est marquée lue.
+Le Lab produit les rapports ; un desk les lit. L'onglet montre donc à tous le dossier, et le pilotage au seul siège du Lab (`LAB_SEATS`, vérifié par le process principal ; décision de l'ADMIN, 2026-10-26).
+
+- **A · Rapports**, la vue d'ouverture, la même pour tous. À gauche, le bordereau `RAPPORTS ···· N FICHES`, la fiche du prochain rapport au trait tireté (prévue, quand une exécution est planifiée), puis les fiches `AGT-RPT-AAAAMMJJ`, codes en clair et sans code-barres, une LED par fiche non lue. À droite, le lecteur. Le dernier rapport s'ouvre de lui-même quand la vue est à l'écran, et une fiche ouverte est marquée lue. Ni plaque, ni réglage, ni commande.
 - **B · Conversation** : le modèle conversationnel et les routines Brief / Débrief, inchangés.
-- **C · Options** : une bande d'état (agent cloud, modèle, passerelle MCP, orchestrateur, écriture des agents, ordres de l'agent), puis Agent cloud, Fournisseur, Agents externes · MCP, Orchestrateur externe, Ordres proposés par l'agent, Outils natifs.
-- **En-tête.** Le bloc-titre montre le dernier relevé, la prochaine exécution (valeur prévue) et le nombre de rapports. Sur la vue Rapports, l'action principale est *Relever maintenant* (chanfrein).
+- **C · Options** : les réglages de l'IA du desk. Une bande d'état (modèle, passerelle MCP, orchestrateur, écriture des agents, ordres de l'agent), puis Fournisseur, Agents externes · MCP, Orchestrateur externe, Ordres proposés par l'agent, Outils natifs.
+- **D · Lab**, au seul siège du Lab : la plaque de l'agent cloud (son trait dit l'état : plein en service, tireté en construction ou en pause, pointillé en défaut ou archivé ; LED or en service ; déploiement, prochaine exécution, dernier relevé, plafond ; erreurs en signaux de niveau 2, échecs de niveau 1, jamais de niveau 3), puis le pilotage : clé API, espace de travail, planification, installation, lancement, suspension, reprise, déploiement de la Console.
+- **En-tête.** Pour tous, le bloc-titre dit le nombre de rapports et de non-lus, et la vue Rapports offre *Ouvrir le dossier*. Au siège du Lab, il dit aussi le dernier relevé et la prochaine exécution (valeur prévue), et la vue Rapports ajoute *Relever maintenant* (chanfrein).
 - **Rail.** Sous Agent IA, « N rapport(s) non lu(s) » passe devant l'état de l'orchestrateur.
 
-Les trois vues restent montées (`hidden`) : un brouillon ou un réglage en cours survit au changement de vue, et la conversation s'ouvre à son dernier message. Le dossier montre les 400 fiches les plus récentes ; les non-lus se comptent sur celles-là.
+Les vues restent montées (`hidden`) ; la vue Lab, seulement au siège du Lab, et un siège perdu ramène aux rapports : un brouillon ou un réglage en cours survit au changement de vue, et la conversation s'ouvre à son dernier message. Le dossier montre les 400 fiches les plus récentes ; les non-lus se comptent sur celles-là.
 
 ## 6. Garde-fous
 

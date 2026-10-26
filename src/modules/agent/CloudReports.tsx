@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type MouseEvent } from 'react';
 import { count } from '@/app/railQuantity';
 import { reportCodes, type CloudReport } from '@/engine/agent/cloudReport';
 import { Signal } from '@/design/Micro';
-import { Button, Empty, Led, Regle, cx } from '@/design/primitives';
+import { Empty, Led, Regle, cx } from '@/design/primitives';
 import { tr, useI18n } from '@/i18n';
 import { desk, isDesk, type AgentCloudStatus } from '@/lib/desk';
 import { fmtInt, fmtNum } from '@/lib/format';
@@ -64,8 +64,11 @@ function failureText(kind: string, detail: string): string {
   return detail ? `${what} · ${detail}` : what;
 }
 
-/** Plaque de l'agent cloud : un état réel du pont, jamais décorative. */
-function CloudPlate({ status, onOptions }: { status: AgentCloudStatus | null; onOptions: () => void }) {
+/**
+ * Plaque de l'agent cloud : un état réel du pont, jamais décorative. Elle ne s'affiche qu'au siège du Lab, dans la vue
+ * « D · Lab », au-dessus du pilotage ; un desk qui lit ne voit que le dossier.
+ */
+export function LabPlate({ status }: { status: AgentCloudStatus | null }) {
   const state = cloudState(status);
   const deployment = status?.deployment ?? null;
   const failures = status?.failures.slice(0, 2) ?? [];
@@ -93,10 +96,7 @@ function CloudPlate({ status, onOptions }: { status: AgentCloudStatus | null; on
       ))}
       {state === 'construction' ? (
         <div className={r.plateHint}>
-          <span>{tr('Clé API et déploiement se règlent dans Options › Agent cloud.', 'API key and deployment are set in Options › Cloud agent.', 'La clave API y el despliegue se ajustan en Opciones › Agente en la nube.')}</span>
-          <Button size="sm" variant="ghost" onClick={onOptions}>
-            {tr('Ouvrir les options', 'Open options', 'Abrir las opciones')}
-          </Button>
+          <span>{tr('Clé API, espace de travail et déploiement se règlent ci-dessous.', 'API key, workspace and deployment are set below.', 'La clave API, el espacio de trabajo y el despliegue se ajustan abajo.')}</span>
         </div>
       ) : null}
     </section>
@@ -189,7 +189,8 @@ function Reader({ report, code }: { report: CloudReport; code: string }) {
   );
 }
 
-export function CloudReports({ active, onOptions }: { active: boolean; onOptions: () => void }) {
+/** Le dossier des rapports, le même pour tous : les fiches et le lecteur. Le Lab produit, le desk lit. */
+export function CloudReports({ active }: { active: boolean }) {
   useI18n((s) => s.locale);
   const status = useAgentCloud((c) => c.status);
   const reports = useAgentCloud((c) => c.reports);
@@ -220,11 +221,11 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
     return (
       <div className={r.offDesk}>
         <Empty
-          title={tr('Rapports de l’agent cloud', 'Cloud agent reports', 'Informes del agente en la nube')}
+          title={tr('Rapports du Lab', 'Lab reports', 'Informes del Lab')}
           text={tr(
-            'Disponible dans le shell local (Electron) : le process principal relève chaque jour les rapports de l’agent qui tourne chez Anthropic.',
-            'Available in the local shell (Electron): the main process pulls, every day, the reports of the agent running at Anthropic.',
-            'Disponible en el shell local (Electron): el proceso principal recoge cada día los informes del agente que se ejecuta en Anthropic.',
+            'Disponible dans le shell local (Electron) : le desk y range les rapports d’analyse que produit le Lab.',
+            'Available in the local shell (Electron): the desk files there the analysis reports the Lab produces.',
+            'Disponible en el shell local (Electron): el desk guarda allí los informes de análisis que produce el Lab.',
           )}
         />
       </div>
@@ -238,7 +239,6 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
   return (
     <div className={r.layout}>
       <aside className={r.folder}>
-        <CloudPlate status={status} onOptions={onOptions} />
         <div className={r.folderHead}>
           <span>{tr('Rapports', 'Reports', 'Informes')}</span>
           <i aria-hidden />
@@ -275,11 +275,7 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
         {reports.length === 0 ? (
           <Empty
             title={tr('Dossier en construction', 'Folder under construction', 'Carpeta en construcción')}
-            text={tr(
-              'Le premier rapport arrive ici après la première exécution de l’agent cloud.',
-              'The first report lands here after the cloud agent’s first run.',
-              'El primer informe llega aquí tras la primera ejecución del agente en la nube.',
-            )}
+            text={tr('Les rapports d’analyse du Lab arrivent ici, au fil de leur publication.', 'The Lab’s analysis reports land here as they are published.', 'Los informes de análisis del Lab llegan aquí a medida que se publican.')}
           />
         ) : null}
       </aside>
@@ -290,9 +286,9 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
           <Empty
             title={reports.length ? tr('Choisissez une fiche', 'Pick a sheet', 'Elija una ficha') : tr('Aucun rapport pour l’instant', 'No report yet', 'Ningún informe por ahora')}
             text={tr(
-              'Chaque rapport est déposé par l’agent dans son bac à sable chez Anthropic, puis relevé par le desk : rien du desk ne part vers le cloud.',
-              'Each report is written by the agent in its sandbox at Anthropic, then pulled by the desk: nothing from the desk goes to the cloud.',
-              'Cada informe lo escribe el agente en su entorno aislado de Anthropic y luego el desk lo recoge: nada del desk sale hacia la nube.',
+              'Chaque rapport est produit par le Lab, puis relevé par le desk : rien du desk ne part vers le cloud.',
+              'Each report is produced by the Lab, then pulled by the desk: nothing from the desk goes to the cloud.',
+              'Cada informe lo produce el Lab y luego el desk lo recoge: nada del desk sale hacia la nube.',
             )}
           />
         )}
