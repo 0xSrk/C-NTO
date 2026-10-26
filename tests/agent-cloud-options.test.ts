@@ -124,7 +124,9 @@ describe('agent cloud · Options › Agent cloud', () => {
     expect(button(bare, 'Mettre à jour l’agent')).toBeDefined();
     await act(async () => useAgentCloud.setState({ status: status({ keyStored: true, deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai', managed: false, deployment: DEPLOYMENT }) }));
     expect(button(bare, 'Installer l’agent cloud')?.disabled).toBe(true);
-    expect(bare.textContent).toContain('déploiement externe : relevé, jamais modifié par le desk');
+    expect(bare.textContent).toContain('déploiement externe : relevé et lancé sur demande, jamais modifié, suspendu ni repris par le desk');
+    expect(button(bare, 'Suspendre')?.disabled).toBe(true);
+    expect(button(bare, 'Lancer maintenant')?.disabled).toBe(false);
   });
 
   it('commandes : lancer, suspendre ou reprendre selon l’état ; une commande en cours fige les autres', async () => {
@@ -163,5 +165,9 @@ describe('agent cloud · Options › Agent cloud', () => {
     await act(async () => useAgentCloud.setState({ status: status({ keyStored: true, deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai' }) }));
     await press(button(node, 'Oublier'));
     expect(fake.calls.at(-1)).toEqual(['setDeployment', null]);
+    // Le déploiement du desk se « quitte » (dialogue de suspension dans le process principal) ; rien ne bouge pendant une action.
+    await act(async () => useAgentCloud.setState({ status: status({ keyStored: true, deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai', managed: true, busy: 'run' }) }));
+    expect(button(node, 'Quitter')?.disabled).toBe(true);
+    expect(button(node, 'Relever celui-ci')?.disabled).toBe(true);
   });
 });

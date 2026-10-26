@@ -52,6 +52,8 @@ export interface DeploymentView {
   nextRunAt: number | null;
   lastRunAt: number | null;
   budgetCents: number | null;
+  /** Posé par le desk (`metadata.canto` = `agent-cloud`) : un déploiement qu'il peut reprendre plutôt que doubler. */
+  tagged: boolean;
 }
 
 export type SessionStatus = 'idle' | 'running' | 'rescheduling' | 'terminated';
@@ -88,6 +90,8 @@ export interface FileView {
 
 export interface CloudApi {
   getDeployment(id: string): Promise<DeploymentView>;
+  /** Déploiements non archivés d'un agent (100 au plus). */
+  listDeployments(agentId: string): Promise<DeploymentView[]>;
   /** Sessions nées du déploiement, la plus récente d'abord. */
   listSessions(deploymentId: string, limit?: number): Promise<SessionView[]>;
   /** Déclenchements en échec (aucune session créée) depuis `sinceIso`. */
@@ -152,6 +156,7 @@ export function parseDeployment(raw: unknown): DeploymentView {
     nextRunAt: upcoming.length ? Math.min(...upcoming) : null,
     lastRunAt: schedule ? instant(schedule.last_run_at) : null,
     budgetCents: budget ? cents(budget.max_list_cost) : null,
+    tagged: isRecord(raw.metadata) && raw.metadata.canto === 'agent-cloud',
   };
 }
 
@@ -367,6 +372,16 @@ export function createCloudApi(deps: { key: () => string; fetchImpl: FetchLike; 
   return {
     async getDeployment(id) {
       return parseDeployment(await json({ method: 'GET', path: `/v1/deployments/${checked(id, 'depl')}` }));
+    },
+    async listDeployments(agentId) {
+      const raw = await json({ method: 'GET', path: '/v1/deployments', query: { agent_id: checked(agentId, 'agent'), limit: '100' } });
+      return listOf(raw, (item) => {
+        try {
+          return parseDeployment(item);
+        } catch {
+          return null;
+        }
+      });
     },
     async listSessions(deploymentId, limit) {
       const query = { deployment_id: checked(deploymentId, 'depl'), order: 'desc', limit: clampLimit(limit, 100, 20) };

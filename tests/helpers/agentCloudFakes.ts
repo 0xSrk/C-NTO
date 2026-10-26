@@ -28,6 +28,7 @@ export const DEPLOYMENT: DeploymentView = {
   nextRunAt: NOW + 86_400_000,
   lastRunAt: NOW - 3_600_000,
   budgetCents: 300,
+  tagged: true,
 };
 
 export const session = (n: number, over: Partial<SessionView> = {}): SessionView => ({
@@ -62,6 +63,7 @@ export function fakeApi(over: Partial<CloudApi> = {}): FakeCloudApi {
   };
   const api: CloudApi = {
     getDeployment: vi.fn(async () => note('getDeployment', DEPLOYMENT)),
+    listDeployments: vi.fn(async () => note('listDeployments', [] as DeploymentView[])),
     listSessions: vi.fn(async () => note('listSessions', [] as SessionView[])),
     listFailedRuns: vi.fn(async () => note('listFailedRuns', [])),
     listOutputFiles: vi.fn(async () => note('listOutputFiles', [] as FileView[])),

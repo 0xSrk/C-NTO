@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 
 import path from 'node:path';
 import { coerceStoredReport, isApiId, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
 import { CloudApiError, createCloudApi, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
-import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, OFFICIAL_DOMAINS } from './agent-cloud-definition';
+import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, DEPLOYMENT_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
 import { uiText, type AppLocale } from './locale';
 
 /**
@@ -57,6 +57,7 @@ export interface CloudDeploymentState {
 }
 
 export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | null;
+type ProvisionStep = 'environment' | 'agent' | 'deployment' | 'pause' | 'resume';
 
 export interface AgentCloudStatus {
   /** Le trousseau du système chiffre : sans lui, aucune clé n'est gardée. */
@@ -357,6 +358,7 @@ export class AgentCloudHost {
 
   /** Clé saisie par l'opérateur : chiffrée ici, jamais rendue. Une chaîne vide efface la clé. */
   setKey(text: unknown): AgentCloudStatus {
+    if (this.busy) return this.refuseBusy();
     if (text === '') {
       if (this.config.key) this.deps.log('agent cloud · clé effacée');
       this.config.key = null;
@@ -395,30 +397,63 @@ export class AgentCloudHost {
     return this.status();
   }
 
-  /** Déploiement créé ailleurs (Console) : le desk le relève, mais ne le modifie pas. `null` l'oublie. */
-  setDeployment(id: unknown): AgentCloudStatus {
-    if (id === null) {
-      if (this.config.deploymentId) this.deps.log('agent cloud · déploiement oublié');
-      this.config.deploymentId = null;
-      this.config.managed = false;
-      this.deployment = null;
-      this.error = null;
-    } else if (isApiId(id, 'depl')) {
-      if (id !== this.config.deploymentId) {
-        this.config.deploymentId = id;
-        this.config.managed = false;
-        this.deployment = null;
-        this.deps.log('agent cloud · déploiement externe enregistré');
-      }
-    } else {
-      this.error = this.t('Identifiant de déploiement invalide (depl_…).', 'Invalid deployment ID (depl_…).', 'Identificador de despliegue no válido (depl_…).');
-      this.publish();
+  /**
+   * Déploiement créé ailleurs (Console) : le desk le relève et peut le lancer, sans le modifier ni le suspendre.
+   * `null` l'oublie. Le déploiement que le desk a installé n'est oublié ou remplacé qu'après un dialogue qui le suspend :
+   * oublié tel quel, il continuerait de tourner chaque jour, sur les crédits, sans que personne ne le relève.
+   */
+  async setDeployment(id: unknown): Promise<AgentCloudStatus> {
+    if (this.busy) return this.refuseBusy();
+    if (id !== null && !isApiId(id, 'depl'))
+      return this.refuse('Identifiant de déploiement invalide (depl_…).', 'Invalid deployment ID (depl_…).', 'Identificador de despliegue no válido (depl_…).');
+    const current = this.config.deploymentId;
+    if (id === current) return this.status();
+    if (!current || !this.config.managed) {
+      this.adopt(id);
       return this.status();
     }
+    return this.control('pause', async () => {
+      const choice = await this.ask({
+        type: 'warning',
+        title: 'CΛNTO',
+        message: this.t('Suspendre le déploiement du desk avant de le quitter ?', 'Pause the desk’s deployment before leaving it?', '¿Suspender el despliegue del desk antes de dejarlo?'),
+        detail: this.t(
+          'Quitté sans être suspendu, il continuerait de tourner chaque jour chez Anthropic, sur les crédits API, sans que le desk le relève. Suspendu, il ne coûte rien ; une nouvelle installation le reprendra.',
+          'Left without a pause, it would keep running every day at Anthropic, on API credits, with nothing pulling it. Paused, it costs nothing; a new install picks it up again.',
+          'Dejado sin suspender, seguiría ejecutándose cada día en Anthropic, con los créditos API, sin que el desk lo recoja. Suspendido, no cuesta nada; una nueva instalación lo retoma.',
+        ),
+        buttons: [this.t('Suspendre et quitter', 'Pause and leave', 'Suspender y dejar'), this.t('Annuler', 'Cancel', 'Cancelar')],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice !== 0) return;
+      if (this.deployment?.state !== 'paused' && this.deployment?.state !== 'archived') {
+        try {
+          await this.api.pauseDeployment(current);
+        } catch (error) {
+          // Disparu côté Anthropic : il n'y a plus rien à suspendre. Toute autre erreur garde le déploiement.
+          if (!(error instanceof CloudApiError && error.status === 404)) throw error;
+        }
+      }
+      this.deps.log('agent cloud · déploiement du desk suspendu');
+      this.adopt(id);
+    });
+  }
+
+  /** Relève désormais `id` (externe), ou plus rien. */
+  private adopt(id: string | null): void {
+    this.deps.log(id === null ? 'agent cloud · déploiement oublié' : 'agent cloud · déploiement externe enregistré');
+    this.config.deploymentId = id;
+    this.config.managed = false;
+    this.deployment = null;
+    this.error = null;
+    this.authBlocked = false;
+    this.pending = 0;
+    this.runFailures = [];
     this.persist();
     this.reschedule(1_000);
     this.publish();
-    return this.status();
   }
 
   setSchedule(raw: unknown): AgentCloudStatus {
@@ -482,6 +517,31 @@ export class AgentCloudHost {
     return this.status();
   }
 
+  private refuseBusy(): AgentCloudStatus {
+    return this.refuse('Une action sur l’agent cloud est en cours.', 'A cloud agent action is in progress.', 'Una acción sobre el agente en la nube está en curso.');
+  }
+
+  private refuseExternal(): AgentCloudStatus {
+    return this.refuse(
+      'Déploiement externe : le desk ne le suspend ni ne le reprend ; faites-le dans la Console.',
+      'External deployment: the desk neither pauses nor resumes it; do it in the Console.',
+      'Despliegue externo: el desk no lo suspende ni lo reanuda; hágalo en la Consola.',
+    );
+  }
+
+  /** Met à jour l'objet gardé ; disparu (404) ou archivé (refusé), il est recréé. Sans identifiant, il est créé. */
+  private async upsert<T>(id: string | null, update: (id: string) => Promise<T>, create: () => Promise<T>, what: string): Promise<T> {
+    if (!id) return create();
+    try {
+      return await update(id);
+    } catch (error) {
+      const gone = error instanceof CloudApiError && (error.status === 404 || error.status === 409 || (error.status === 400 && /archiv/i.test(error.message)));
+      if (!gone) throw error;
+      this.deps.log(`agent cloud · ${what} introuvable ou archivé : recréé`);
+      return create();
+    }
+  }
+
   private budgetText(): string {
     const cents = this.deployment?.budgetCents ?? BUDGET_CENTS_PER_RUN;
     return `${(cents / 100).toFixed(2)} $`;
@@ -525,25 +585,46 @@ export class AgentCloudHost {
         noLink: true,
       });
       if (choice !== 0 && choice !== 1) return;
-      const env = this.config.environmentId ? await this.api.updateEnvironment(this.config.environmentId, cloudEnvironmentBody()) : await this.api.createEnvironment(cloudEnvironmentBody());
-      this.config.environmentId = env.id;
-      this.persist();
-      const body = cloudAgentBody(this.deps.locale());
-      const agent = this.config.agentId ? await this.api.updateAgent(this.config.agentId, body) : await this.api.createAgent(body);
-      this.config.agentId = agent.id;
-      this.config.agentVersion = agent.version;
-      this.persist();
-      const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone });
-      let view = this.config.deploymentId ? await this.api.updateDeployment(this.config.deploymentId, plan) : await this.api.createDeployment(plan);
-      this.config.deploymentId = view.id;
-      this.config.managed = true;
-      this.persist();
-      if (choice === 1 && view.status === 'active') view = await this.api.pauseDeployment(view.id);
-      if (choice === 0 && view.status === 'paused') view = await this.api.unpauseDeployment(view.id);
-      this.deployment = deploymentState(view);
-      this.error = null;
-      this.deps.log(`agent cloud · ${existing ? 'mis à jour' : 'installé'} (agent v${agent.version}, ${view.status === 'paused' ? 'en pause' : 'planifié'})`);
-      this.reschedule(1_000);
+      let step: ProvisionStep = 'environment';
+      try {
+        const env = await this.upsert(this.config.environmentId, (id) => this.api.updateEnvironment(id, cloudEnvironmentBody()), () => this.api.createEnvironment(cloudEnvironmentBody()), 'environnement');
+        this.config.environmentId = env.id;
+        this.persist();
+        step = 'agent';
+        const locale = this.deps.locale();
+        const body = cloudAgentBody(locale);
+        const agent = await this.upsert(this.config.agentId, (id) => this.api.updateAgent(id, body), () => this.api.createAgent(body), 'agent');
+        this.config.agentId = agent.id;
+        this.config.agentVersion = agent.version;
+        this.persist();
+        step = 'deployment';
+        const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone });
+        // Un déploiement du desk déjà là (réponse perdue en route, déploiement quitté puis suspendu) est repris, jamais doublé.
+        const known = existing ? this.config.deploymentId : ((await this.api.listDeployments(agent.id)).find((d) => d.tagged && !d.archived && d.name === DEPLOYMENT_NAME)?.id ?? null);
+        let view = await this.upsert(known, (id) => this.api.updateDeployment(id, plan), () => this.api.createDeployment(plan), 'déploiement');
+        this.config.deploymentId = view.id;
+        this.config.managed = true;
+        this.deployment = deploymentState(view);
+        this.persist();
+        step = choice === 1 ? 'pause' : 'resume';
+        if (choice === 1 && view.status === 'active') view = await this.api.pauseDeployment(view.id);
+        if (choice === 0 && view.status === 'paused') view = await this.api.unpauseDeployment(view.id);
+        this.deployment = deploymentState(view);
+        this.error = null;
+        this.deps.log(`agent cloud · ${existing || known ? 'mis à jour' : 'installé'} (agent v${agent.version}, ${view.status === 'paused' ? 'en pause' : 'planifié'})`);
+        this.reschedule(1_000);
+      } catch (error) {
+        this.error =
+          step === 'pause' && this.deployment?.state === 'active'
+            ? this.t(
+                'Installé, mais la suspension a échoué : le déploiement est actif et planifié. Suspendez-le.',
+                'Installed, but the pause failed: the deployment is active and scheduled. Pause it.',
+                'Instalado, pero la suspensión falló: el despliegue está activo y planificado. Suspéndalo.',
+              )
+            : `${this.stepLabel(step)} · ${this.explain(error)}`;
+        this.deps.log(`agent cloud · installation en échec (${step}) : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
+        this.reschedule(1_000);
+      }
     });
   }
 
@@ -585,6 +666,7 @@ export class AgentCloudHost {
   async pause(): Promise<AgentCloudStatus> {
     const id = this.config.deploymentId;
     if (!this.config.key || !id) return this.status();
+    if (!this.config.managed) return this.refuseExternal();
     return this.control('pause', async () => {
       this.deployment = deploymentState(await this.api.pauseDeployment(id));
       this.error = null;
@@ -596,6 +678,7 @@ export class AgentCloudHost {
   async unpause(): Promise<AgentCloudStatus> {
     const id = this.config.deploymentId;
     if (!this.config.key || !id) return this.status();
+    if (!this.config.managed) return this.refuseExternal();
     return this.control('unpause', async () => {
       const choice = await this.ask({
         type: 'question',
@@ -659,6 +742,21 @@ export class AgentCloudHost {
     this.inFlight = run;
     this.publish();
     return run;
+  }
+
+  private stepLabel(step: ProvisionStep): string {
+    switch (step) {
+      case 'environment':
+        return this.t('Environnement', 'Environment', 'Entorno');
+      case 'agent':
+        return this.t('Agent', 'Agent', 'Agente');
+      case 'deployment':
+        return this.t('Déploiement', 'Deployment', 'Despliegue');
+      case 'pause':
+        return this.t('Suspension', 'Pause', 'Suspensión');
+      case 'resume':
+        return this.t('Reprise', 'Resume', 'Reanudación');
+    }
   }
 
   private explain(error: unknown): string {

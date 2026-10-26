@@ -220,7 +220,7 @@ export interface AgentCloudApi {
   markRead: (id: string) => Promise<AgentCloudStatus | null>;
   /** La clé part une fois vers le process principal, qui la chiffre ; `''` l'efface. */
   setKey: (text: string) => Promise<AgentCloudStatus | null>;
-  /** Déploiement créé ailleurs (`depl_…`), relevé sans être modifié ; `null` l'oublie. */
+  /** Déploiement créé ailleurs (`depl_…`), relevé et lancé, jamais modifié ; `null` l'oublie. Quitter celui du desk passe par un dialogue qui le suspend. */
   setDeployment: (id: string | null) => Promise<AgentCloudStatus | null>;
   setSchedule: (schedule: CloudSchedule) => Promise<AgentCloudStatus | null>;
   pull: () => Promise<AgentCloudStatus | null>;

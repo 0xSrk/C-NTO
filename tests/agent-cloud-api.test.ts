@@ -53,6 +53,7 @@ describe('agent cloud · client Managed Agents', () => {
       nextRunAt: Date.parse('2026-10-27T06:00:00Z'),
       lastRunAt: Date.parse('2026-10-26T06:00:04Z'),
       budgetCents: 300,
+      tagged: false,
     });
   });
 

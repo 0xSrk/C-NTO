@@ -153,11 +153,11 @@ export function CloudOptions() {
           {busy === 'run' ? tr('Lancement…', 'Starting…', 'Lanzando…') : tr('Lancer maintenant', 'Run now', 'Lanzar ahora')}
         </Button>
         {deployment?.state === 'paused' ? (
-          <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void unpause()}>
+          <Button size="sm" variant="ghost" disabled={isExternal || busy !== null} onClick={() => void unpause()}>
             {tr('Reprendre', 'Resume', 'Reanudar')}
           </Button>
         ) : (
-          <Button size="sm" variant="ghost" disabled={!deployment || deployment.state !== 'active' || busy !== null} onClick={() => void pause()}>
+          <Button size="sm" variant="ghost" disabled={isExternal || !deployment || deployment.state !== 'active' || busy !== null} onClick={() => void pause()}>
             {tr('Suspendre', 'Pause', 'Suspender')}
           </Button>
         )}
@@ -179,7 +179,11 @@ export function CloudOptions() {
         label={tr('Déploiement créé dans la Console', 'Deployment created in the Console', 'Despliegue creado en la Consola')}
         hint={
           isExternal
-            ? tr('déploiement externe : relevé, jamais modifié par le desk', 'external deployment: pulled, never changed by the desk', 'despliegue externo: leído, nunca modificado por el desk')
+            ? tr(
+                'déploiement externe : relevé et lancé sur demande, jamais modifié, suspendu ni repris par le desk',
+                'external deployment: pulled and run on request, never changed, paused or resumed by the desk',
+                'despliegue externo: leído y lanzado a petición, nunca modificado, suspendido ni reanudado por el desk',
+              )
             : tr('facultatif : le desk installe le sien', 'optional: the desk installs its own', 'opcional: el desk instala el suyo')
         }
       >
@@ -188,7 +192,7 @@ export function CloudOptions() {
           <Button
             size="sm"
             variant="ghost"
-            disabled={!external.trim()}
+            disabled={!external.trim() || busy !== null}
             onClick={async () => {
               await setDeployment(external.trim());
               setExternal('');
@@ -197,8 +201,8 @@ export function CloudOptions() {
             {tr('Relever celui-ci', 'Pull this one', 'Leer este')}
           </Button>
           {status?.deploymentId ? (
-            <Button size="sm" variant="ghost" onClick={() => void setDeployment(null)}>
-              {tr('Oublier', 'Forget', 'Olvidar')}
+            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void setDeployment(null)}>
+              {status.managed ? tr('Quitter', 'Leave', 'Dejar') : tr('Oublier', 'Forget', 'Olvidar')}
             </Button>
           ) : null}
         </div>

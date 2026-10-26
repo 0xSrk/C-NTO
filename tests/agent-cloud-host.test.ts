@@ -16,7 +16,7 @@ const harness = (opts: HarnessOptions = {}) => cloudHarness(dirs, opts);
 async function configured(api: FakeCloudApi, opts: { dir?: string; clock?: { now: number } } = {}) {
   const h = harness({ api, ...opts });
   h.host.setKey(KEY);
-  h.host.setDeployment(DEPL);
+  await h.host.setDeployment(DEPL);
   return h;
 }
 
@@ -52,13 +52,13 @@ describe('agent cloud · hôte du process principal', () => {
     expect(existsSync(path.join(locked.dir, AGENT_CLOUD_FILE))).toBe(false);
   });
 
-  it('identifiant de déploiement et planification : forme vérifiée, sinon rien ne change', () => {
+  it('identifiant de déploiement et planification : forme vérifiée, sinon rien ne change', async () => {
     const { host } = harness();
-    expect(host.setDeployment('depl_../x')).toMatchObject({ deploymentId: null, error: expect.stringContaining('depl_') });
-    expect(host.setDeployment(DEPL)).toMatchObject({ deploymentId: DEPL, managed: false });
+    expect(await host.setDeployment('depl_../x')).toMatchObject({ deploymentId: null, error: expect.stringContaining('depl_') });
+    expect(await host.setDeployment(DEPL)).toMatchObject({ deploymentId: DEPL, managed: false });
     expect(host.setSchedule({ cron: '0 7 * * 1-5; rm -rf /', timezone: 'Europe/Paris' }).schedule).toEqual({ cron: '0 7 * * 1-5', timezone: 'Europe/Paris' });
     expect(host.setSchedule({ cron: '30 13 * * 1-5', timezone: 'America/New_York' }).schedule).toEqual({ cron: '30 13 * * 1-5', timezone: 'America/New_York' });
-    expect(host.setDeployment(null)).toMatchObject({ deploymentId: null, managed: false });
+    expect(await host.setDeployment(null)).toMatchObject({ deploymentId: null, managed: false });
   });
 
   it('relève : le rapport d’une session finie est rangé ; en cours ou pas encore indexé, attendu ; fini sans rapport, noté', async () => {
