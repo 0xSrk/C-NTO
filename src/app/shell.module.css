@@ -109,10 +109,6 @@
   text-transform: uppercase;
   -webkit-app-region: no-drag;
 }
-.updateBtn:hover:not(:disabled) {
-  color: var(--text-0);
-  background: var(--bg-3);
-}
 .updateAvail {
   color: var(--text-0);
 }
@@ -140,14 +136,6 @@
   justify-content: center;
   color: var(--text-2);
   -webkit-app-region: no-drag;
-}
-.winControls button:hover {
-  background: var(--bg-3);
-  color: var(--text-0);
-}
-.winControls button.close:hover {
-  background: var(--gold);
-  color: var(--text-0);
 }
 
 .rail {
@@ -206,9 +194,6 @@
   font-size: 14px;
   font-weight: 500;
   text-align: left;
-}
-.navItem:hover {
-  background: var(--bg-3);
 }
 /* Onglet choisi : amorce LED, arête haute éclairée, lumière rasante qui s'éteint vers la droite. */
 .navItem.on {
@@ -597,9 +582,6 @@
   letter-spacing: inherit;
   text-transform: inherit;
 }
-.versionBtn:hover {
-  color: var(--text-0);
-}
 .versionDot {
   width: 5px;
   height: 5px;
@@ -630,10 +612,6 @@
   padding: 0 3px;
   font: inherit;
   letter-spacing: inherit;
-}
-.zoomBtn:hover:not(:disabled),
-.zoomPct:hover {
-  color: var(--text-0);
 }
 .zoomBtn:disabled {
   opacity: 0.35;

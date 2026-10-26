@@ -165,10 +165,6 @@
   color: var(--text-2);
   transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
-.planItem:hover {
-  border-color: var(--line-2);
-  color: var(--text-0);
-}
 .planItem.on {
   border-color: var(--gold-line);
   background: var(--gold-soft);

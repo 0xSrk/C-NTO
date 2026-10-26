@@ -76,10 +76,6 @@
   cursor: pointer;
   line-height: 1;
 }
-.helpDot:hover {
-  color: var(--gold);
-  background: rgba(196, 30, 58, 0.08);
-}
 
 /* ─── Grille ─────────────────────────────────── */
 .grid {
@@ -117,9 +113,6 @@
   position: relative;
   transition: background var(--t-fast) var(--ease);
   border: 1px solid transparent;
-}
-.day:hover {
-  background: var(--bg-3);
 }
 .day.selected {
   border-color: var(--gold-line);
@@ -324,9 +317,6 @@
 .fluxEv.evPublished {
   background: rgba(255, 255, 255, 0.02);
 }
-.fluxEv:hover {
-  background: rgba(255, 255, 255, 0.025);
-}
 .fluxEv:last-child {
   border-bottom: none;
 }
@@ -459,9 +449,6 @@
 .catHelp span {
   color: var(--gold);
   opacity: 0.85;
-}
-.catHelp:hover {
-  color: var(--text-1);
 }
 .evDesc {
   font-size: 12px;
@@ -607,9 +594,6 @@
   border-right: 0;
   border-top: 0;
   cursor: pointer;
-}
-.histRow:hover {
-  color: var(--text-0);
 }
 .histRow time {
   font-family: var(--font-mono);

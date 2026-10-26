@@ -117,9 +117,6 @@
   font-size: 11px;
   padding: 2px 4px;
 }
-.indicatorHead button:hover {
-  color: var(--text-0);
-}
 .params {
   display: flex;
   gap: 8px;
@@ -172,10 +169,6 @@
   grid-template-columns: 44px 1fr;
   gap: 8px;
   align-items: center;
-}
-.catalogItem:hover {
-  border-color: var(--gold-line);
-  color: var(--text-0);
 }
 .catalogItem small {
   font-family: var(--font-mono);

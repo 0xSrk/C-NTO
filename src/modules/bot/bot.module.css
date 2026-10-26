@@ -22,10 +22,6 @@
   gap: 4px;
   color: var(--text-2);
 }
-.botItem:hover {
-  border-color: var(--line-2);
-  color: var(--text-0);
-}
 .botItem.on {
   border-color: var(--gold-line);
   background: var(--gold-soft);
@@ -107,9 +103,6 @@
 .rule button {
   color: var(--text-3);
 }
-.rule button:hover {
-  color: var(--ember);
-}
 .ruleForm {
   display: grid;
   grid-template-columns: 120px 1fr auto;
@@ -178,10 +171,6 @@
   border: 1px dashed var(--line-1);
   border-radius: var(--radius);
   color: var(--text-2);
-}
-.template:hover {
-  border-color: var(--gold-line);
-  color: var(--text-0);
 }
 .template b {
   display: block;

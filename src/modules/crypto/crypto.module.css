@@ -28,7 +28,6 @@
   color: var(--text-2);
   text-align: left;
 }
-.marketRow:hover,
 .marketRow.active {
   color: var(--text-0);
 }
@@ -75,9 +74,6 @@
   padding: 0 4px;
   font-size: 11px;
   color: var(--text-3);
-}
-.alertRemove:hover {
-  color: var(--text-0);
 }
 
 /* Le refus de la fenêtre d'alerte, en clair. */

@@ -63,8 +63,3 @@
 .cell {
   transition: opacity var(--t-fast) var(--ease);
 }
-.cell:hover {
-  opacity: 0.75;
-  stroke: var(--text-0);
-  stroke-width: 1;
-}

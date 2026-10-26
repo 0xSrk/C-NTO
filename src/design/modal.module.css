@@ -87,10 +87,6 @@
   place-items: center;
   border-radius: var(--radius);
 }
-.close:hover {
-  color: var(--text-0);
-  background: rgba(255, 255, 255, 0.06);
-}
 .body {
   padding: 16px 20px;
   overflow: auto;

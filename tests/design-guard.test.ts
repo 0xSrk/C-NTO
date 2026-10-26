@@ -136,4 +136,9 @@ describe('garde du système visuel', () => {
     const stale = walk('src').filter((path) => /(?:JetBrains Mono|Archivo) Variable/.test(readFileSync(path, 'utf8')));
     expect(stale.map((path) => posix('src', path))).toEqual([]);
   });
+
+  it('ne réagit pas au passage du pointeur : aucune règle :hover dans src/', () => {
+    const offenders = walk('src').filter((path) => path.endsWith('.css') && /:hover\b/.test(readFileSync(path, 'utf8')));
+    expect(offenders.map((path) => posix('src', path))).toEqual([]);
+  });
 });

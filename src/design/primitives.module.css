@@ -13,9 +13,6 @@
   animation-delay: calc(var(--i, 0) * 35ms);
   transform: translateZ(0);
 }
-.panel:hover {
-  border-color: var(--line-2);
-}
 .panel:nth-child(2) {
   --i: 1;
 }
@@ -126,9 +123,6 @@
   transition: border-color 120ms linear, background-color 120ms linear, color 120ms linear, transform 80ms linear;
   user-select: none;
 }
-.btn:hover {
-  border-color: var(--text-0);
-}
 .btn:active {
   transform: scale(0.985);
 }
@@ -143,17 +137,9 @@
   border-color: transparent;
   color: var(--text-2);
 }
-.btn.ghost:hover {
-  border-color: var(--line-2);
-  color: var(--text-0);
-  background: var(--bg-3);
-}
 .btn.gold {
   border-color: var(--gold-line);
   color: var(--gold);
-}
-.btn.gold:hover {
-  border-color: var(--gold);
 }
 .btn.solid {
   border-color: var(--text-0);
@@ -173,16 +159,9 @@
   text-transform: none;
   clip-path: var(--chamfer);
 }
-.btn.solid:hover {
-  background: var(--text-1);
-  border-color: var(--text-1);
-}
 .btn.danger {
   border-color: var(--ember-line);
   color: var(--ember);
-}
-.btn.danger:hover {
-  border-color: var(--ember);
 }
 .btn.active {
   background: var(--text-0);
@@ -249,9 +228,6 @@
   white-space: nowrap;
   transition: transform 120ms var(--ease-out), background 120ms linear;
 }
-.invertedTab:hover {
-  transform: translateY(-1px);
-}
 
 /* ─── Statistique : libellé → valeur → sous-texte ─── */
 .stat {
@@ -266,9 +242,6 @@
   position: relative;
   overflow: hidden;
   transition: border-color 160ms linear;
-}
-.stat:hover {
-  border-color: var(--line-2);
 }
 .statLabel {
   font-family: var(--font-mono);
@@ -409,10 +382,6 @@
   transition: background-size 160ms var(--ease-out), color 120ms linear, border-color 120ms linear;
   white-space: nowrap;
 }
-.segmented button:hover {
-  color: var(--text-0);
-  border-color: var(--line-2);
-}
 .segmented button.on {
   background-size: 100% 100%;
   color: var(--bg-0);
@@ -531,9 +500,6 @@
 }
 .table tbody tr {
   transition: background 120ms linear;
-}
-.table tbody tr:hover {
-  background: var(--bg-3);
 }
 .table tbody tr:global(.selected) {
   background: var(--bg-3);

@@ -57,10 +57,6 @@
   color: var(--text-2);
   border: 1px solid transparent;
 }
-.item:hover {
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--text-0);
-}
 .item.on {
   background: var(--gold-soft);
   border-color: var(--gold-line);
@@ -96,7 +92,6 @@
   border: 1px solid var(--line-0);
   border-radius: var(--radius);
 }
-.tagBtn:hover,
 .tagBtn.on {
   color: var(--gold);
   border-color: var(--gold-line);
@@ -297,9 +292,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.linkItem:hover {
-  text-decoration: underline;
 }
 .linkItem.missing {
   color: var(--text-3);
