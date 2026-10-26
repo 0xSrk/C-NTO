@@ -1,0 +1,119 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act, createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CalendarEventRow } from '@/engine/calendarEvents';
+import { ET_ZONE, zonedToUtc } from '@/lib/time';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+/** Mercredi 28 octobre 2026, 11:05 à New York (séance RTH). */
+const NOW = zonedToUtc('2026-10-28', '11:05', ET_ZONE);
+
+function row(id: string, date: string, timeET: string, title: string, impact: 1 | 2 | 3, actual?: string): CalendarEventRow {
+  return { id: `bls:${id}`, sourceId: 'bls', date, timeET, title, category: 'emploi', impact, instruments: [], actual, estimated: false, syncedAt: NOW - 3_600_000 };
+}
+
+/** Publications officielles de la semaine : deux passées (une publiée), une à venir aujourd'hui, une dans la fenêtre, une au-delà de l'horizon. */
+const ROWS: CalendarEventRow[] = [
+  row('pub', '2026-10-28', '08:30', 'Indice témoin publié', 1, '1,2'),
+  row('past', '2026-10-28', '10:30', 'Activité témoin passée', 1),
+  row('fomc', '2026-10-28', '14:00', 'Décision témoin FOMC', 3),
+  row('next', '2026-11-02', '10:00', 'Confiance témoin', 2),
+  row('far', '2026-11-05', '08:30', 'Chômage témoin', 2),
+];
+
+let root: Root | null = null;
+let host: HTMLDivElement | null = null;
+
+beforeEach(async () => {
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
+  const { useMacro } = await import('@/store/macro');
+  const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+  const { useI18n } = await import('@/i18n');
+  useI18n.setState({ locale: 'fr' });
+  // Ni base ni réseau : le cache et la synchro sont posés à la main.
+  useMacro.setState({ events: ROWS, sources: [{ sourceId: 'bls', state: 'ok', syncedAt: NOW - 3_600_000 }], syncing: false, lastError: undefined, load: async () => undefined, sync: async () => undefined });
+  useSettings.setState({ settings: { ...DEFAULT_SETTINGS, calendarView: 'flux' } });
+});
+
+afterEach(() => {
+  act(() => root?.unmount());
+  host?.remove();
+  root = null;
+  host = null;
+  vi.useRealTimers();
+});
+
+async function calendrier(): Promise<HTMLDivElement> {
+  const { default: Calendrier } = await import('@/modules/calendrier/Calendrier');
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  await act(async () => root?.render(createElement(Calendrier)));
+  return host;
+}
+
+/** Ligne du flux dont le titre est `title`. */
+function fluxRow(node: HTMLElement, title: string): HTMLElement {
+  const found = [...node.querySelectorAll<HTMLElement>('[data-stroke]')].find((el) => el.textContent?.includes(title));
+  if (!found) throw new Error(`ligne introuvable : ${title}`);
+  return found;
+}
+
+describe('OROS3.4a le trait dit l’état, la forme dit l’impact', () => {
+  it('publié ou passé : plein ; prévu dans la fenêtre : tireté ; au-delà de l’horizon : pointillé', async () => {
+    const { CATALYST_HORIZON_DAYS } = await import('@/engine/agent/tools');
+    const { horizonEnd, strokeOf } = await import('@/modules/calendrier/calState');
+    expect(horizonEnd(NOW)).toBe('2026-11-04');
+    expect(CATALYST_HORIZON_DAYS).toBe(7);
+    const at = (date: string, timeET: string, actual?: string) => strokeOf({ date, timeET, actual }, NOW);
+    expect(at('2026-10-28', '08:30', '1,2')).toBe('publie');
+    expect(at('2026-10-28', '10:30')).toBe('publie');
+    expect(at('2026-10-27', '14:00')).toBe('publie');
+    expect(at('2026-10-28', '14:00')).toBe('prevu');
+    expect(at('2026-11-04', '10:00')).toBe('prevu');
+    expect(at('2026-11-05', '08:30')).toBe('horizon');
+    // Un résultat publié reste plein, même daté au-delà (source en avance).
+    expect(at('2026-11-05', '08:30', '3,1')).toBe('publie');
+  });
+
+  it('l’impact est une forme : trois barres de hauteur croissante, allumées jusqu’au niveau', async () => {
+    const { impactBars } = await import('@/modules/calendrier/calState');
+    expect(impactBars(1)).toEqual([
+      { height: 6.5, on: true },
+      { height: 9, on: false },
+      { height: 11.5, on: false },
+    ]);
+    expect(impactBars(3).map((bar) => bar.on)).toEqual([true, true, true]);
+  });
+
+  it('chaque ligne du flux porte son trait ; l’impact se lit en barres, sans couleur de catégorie', async () => {
+    const node = await calendrier();
+    expect(fluxRow(node, 'Indice témoin publié').dataset.stroke).toBe('publie');
+    expect(fluxRow(node, 'Activité témoin passée').dataset.stroke).toBe('publie');
+    expect(fluxRow(node, 'Décision témoin FOMC').dataset.stroke).toBe('prevu');
+    expect(fluxRow(node, 'Confiance témoin').dataset.stroke).toBe('prevu');
+    expect(fluxRow(node, 'Chômage témoin').dataset.stroke).toBe('horizon');
+    const impact = fluxRow(node, 'Décision témoin FOMC').querySelector('[data-impact]')!;
+    expect(impact.getAttribute('data-impact')).toBe('3');
+    expect(impact.getAttribute('aria-label')).toBe('impact 3 sur 3');
+    expect(impact.querySelectorAll('i')).toHaveLength(3);
+    // Aucune couleur dépensée : ni variable de catégorie, ni teinte en dur, nulle part dans le module.
+    expect(node.querySelectorAll('[style*="--cat"]')).toHaveLength(0);
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/modules/calendrier/Calendrier.tsx', 'utf8')).not.toMatch(/#[0-9a-f]{6}\b/i);
+    expect(readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8')).not.toMatch(/var\(--cat\)/);
+  });
+
+  it('la légende dit le trait (plein, tireté, pointillé) et montre les barres de l’impact', async () => {
+    const node = await calendrier();
+    const legend = node.querySelector('[data-legend="trait"]')!;
+    expect([...legend.querySelectorAll('[data-stroke]')].map((el) => (el as HTMLElement).dataset.stroke)).toEqual(['publie', 'prevu', 'horizon']);
+    expect(legend.textContent).toMatch(/Plein.*publié.*Tireté.*prévu.*Pointillé.*horizon/s);
+    const impact = node.querySelector('[data-legend="impact"]')!;
+    expect([...impact.querySelectorAll('[data-impact]')].map((el) => el.getAttribute('data-impact'))).toEqual(['1', '2', '3']);
+  });
+});
