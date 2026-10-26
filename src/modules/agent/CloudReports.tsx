@@ -100,7 +100,10 @@ function CloudPlate({ status, onOptions }: { status: AgentCloudStatus | null; on
   );
 }
 
-/** Ouvre un lien https du rapport dans le navigateur du système (le desk ne navigue jamais) ; tout autre lien ne fait rien. */
+/**
+ * Ouvre un lien https du rapport dans le navigateur du système (le desk ne navigue jamais), au clic comme au clic du
+ * milieu ; tout autre lien ne fait rien.
+ */
 function openLink(event: MouseEvent<HTMLElement>): void {
   const anchor = (event.target as HTMLElement | null)?.closest?.('a');
   if (!anchor) return;
@@ -109,11 +112,41 @@ function openLink(event: MouseEvent<HTMLElement>): void {
   if (/^https:\/\//i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
 }
 
+/**
+ * Le texte d'un lien vient du modèle : l'hôte réel s'affiche à côté (« [Communiqué FOMC] fomc.example »). Un lien qui
+ * n'est pas en https perd son adresse et reste du texte.
+ */
+export function decorateLinks(html: string): string {
+  if (typeof DOMParser === 'undefined' || !html.includes('<a')) return html;
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const root = doc.body.firstElementChild;
+  if (!root) return html;
+  for (const anchor of [...root.querySelectorAll('a')]) {
+    const href = anchor.getAttribute('href') ?? '';
+    let host = '';
+    try {
+      const url = new URL(href);
+      host = url.protocol === 'https:' ? url.host : '';
+    } catch {
+      /* adresse illisible */
+    }
+    if (!host) {
+      anchor.removeAttribute('href');
+      continue;
+    }
+    const mark = doc.createElement('span');
+    mark.className = r.linkHost ?? '';
+    mark.textContent = host;
+    anchor.after(mark);
+  }
+  return root.innerHTML;
+}
+
 function Reader({ report, code }: { report: CloudReport; code: string }) {
   useI18n((s) => s.locale);
-  const html = useMemo(() => report.sections.map((s) => renderMarkdown(s.body)), [report]);
+  const html = useMemo(() => report.sections.map((s) => decorateLinks(renderMarkdown(s.body))), [report]);
   return (
-    <article className={r.sheet} onClick={openLink}>
+    <article className={r.sheet} onClick={openLink} onAuxClick={openLink}>
       <header className={r.sheetHead}>
         <span className={r.code}>{code}</span>
         <h2 className={r.sheetTitle}>{report.title}</h2>
@@ -136,8 +169,8 @@ function Reader({ report, code }: { report: CloudReport; code: string }) {
         <footer className={r.sources}>
           <h3>{tr('Sources', 'Sources', 'Fuentes')}</h3>
           <ol>
-            {report.sources.map((source) => (
-              <li key={source.url}>
+            {report.sources.map((source, index) => (
+              <li key={`${index}-${source.url}`}>
                 <a href={source.url} target="_blank" rel="noreferrer">
                   {source.title}
                 </a>

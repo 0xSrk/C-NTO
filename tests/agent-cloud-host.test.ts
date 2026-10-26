@@ -194,6 +194,18 @@ describe('agent cloud · hôte du process principal', () => {
     expect(existsSync(path.join(h.dir, AGENT_REPORTS_DIR))).toBe(false);
   });
 
+  it('CLD16 un rapport qui se date loin de sa session (2100) est refusé : il ne peut pas rester en tête du dossier', async () => {
+    const api = fakeApi({
+      listSessions: vi.fn(async () => [session(1)]),
+      listOutputFiles: vi.fn(async () => [{ id: fid(1), filename: 'rapport.json', sizeBytes: 100, createdAt: NOW }]),
+      downloadText: vi.fn(async () => report('2100-12-31')),
+    });
+    const h = await configured(api);
+    const status = await h.host.pull();
+    expect(status.reports).toBe(0);
+    expect(status.failures.map((f) => [f.kind, f.detail])).toEqual([['invalid', 'date 2100-12-31']]);
+  });
+
   it('panne du serveur au téléchargement : le relevé échoue, la session sera reprise', async () => {
     let down = true;
     const api = fakeApi({

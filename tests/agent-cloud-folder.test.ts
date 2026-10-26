@@ -27,7 +27,7 @@ const fake = vi.hoisted(() => {
   return state;
 });
 
-import { CloudReports, cloudState } from '@/modules/agent/CloudReports';
+import { CloudReports, cloudState, decorateLinks } from '@/modules/agent/CloudReports';
 import { useI18n } from '@/i18n';
 import { resetAgentCloudForTests, useAgentCloud } from '@/store/agentCloud';
 
@@ -158,6 +158,28 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
     const trap = links.find((a) => a.textContent === 'piège');
     await act(async () => bls?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
     await act(async () => trap?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+    expect(open.mock.calls).toEqual([['https://www.bls.gov/cpi/', '_blank', 'noopener,noreferrer']]);
+    open.mockRestore();
+  });
+
+  it('CLD16 chaque lien du corps montre l’hôte où il mène ; un lien hors https perd son adresse', () => {
+    const html = decorateLinks('<p><a href="https://fomc-statement.example/login">Communiqué FOMC officiel</a> <a href="http://127.0.0.1:47118/mcp">local</a> <a>sans adresse</a></p>');
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    const [phish, local] = [...box.querySelectorAll('a')];
+    expect(phish?.getAttribute('href')).toBe('https://fomc-statement.example/login');
+    expect(phish?.nextElementSibling?.textContent).toBe('fomc-statement.example');
+    expect(local?.hasAttribute('href')).toBe(false);
+    expect(box.textContent).toContain('local');
+  });
+
+  it('CLD16 le clic du milieu passe par la même règle : https dans le navigateur du système, rien d’autre', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    useAgentCloud.setState({ ready: true, status: status(), reports: [NEW] });
+    const node = await mount(true);
+    await act(async () => undefined);
+    const bls = [...(node.querySelector('article')?.querySelectorAll('a') ?? [])].find((a) => a.textContent === 'BLS' && a.closest('footer') === null);
+    await act(async () => bls?.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 })));
     expect(open.mock.calls).toEqual([['https://www.bls.gov/cpi/', '_blank', 'noopener,noreferrer']]);
     open.mockRestore();
   });

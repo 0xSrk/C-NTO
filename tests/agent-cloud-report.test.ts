@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   coerceStoredReport,
   isApiId,
+  isDateNear,
   parseReport,
   REPORT_BOUNDS,
   REPORT_FORMAT,
@@ -97,6 +98,16 @@ describe('agent cloud · contrat canto.rapport/1', () => {
     expect(coerceStoredReport({ ...stored, receivedAt: 'hier' })).toBeNull();
     expect(coerceStoredReport({ ...stored, generatedAt: 1e20 })?.generatedAt).toBeNull();
     expect(coerceStoredReport({ ...stored, session: null })?.session).toEqual({ id: stored.id, createdAt: null, costCents: null, agentVersion: null });
+  });
+
+  it('CLD16 la journée d’un rapport doit tomber à sept jours au plus de sa session', () => {
+    const at = Date.parse('2026-10-27T05:00:00Z');
+    expect(isDateNear('2026-10-27', at)).toBe(true);
+    expect(isDateNear('2026-10-26', at)).toBe(true);
+    expect(isDateNear('2026-11-03', at)).toBe(true);
+    expect(isDateNear('2026-11-06', at)).toBe(false);
+    expect(isDateNear('2100-12-31', at)).toBe(false);
+    expect(isDateNear('2026-10-27', Number.NaN)).toBe(false);
   });
 
   it('identifiants d’objets de l’API : préfixe et alphabet fermés', () => {

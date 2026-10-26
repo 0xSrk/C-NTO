@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { coerceStoredReport, isApiId, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
+import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
 import { CloudApiError, createCloudApi, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
 import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, DEPLOYMENT_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
 import { uiText, type AppLocale } from './locale';
@@ -913,6 +913,10 @@ export class AgentCloudHost {
       const parsed = parseReport(raw);
       if (!parsed.ok) {
         this.mark(session.id, false, 'invalid', parsed.reason);
+        continue;
+      }
+      if (!isDateNear(parsed.report.date, session.createdAt ?? this.now())) {
+        this.mark(session.id, false, 'invalid', `date ${parsed.report.date}`);
         continue;
       }
       const report: CloudReport = {

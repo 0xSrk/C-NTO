@@ -276,6 +276,12 @@
 .prose img {
   display: none;
 }
+.linkHost {
+  margin-left: var(--s-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  color: var(--text-2);
+}
 .sources ol {
   display: flex;
   flex-direction: column;

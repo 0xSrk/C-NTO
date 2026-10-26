@@ -107,6 +107,19 @@ export function isCivilDate(v: unknown): v is string {
   return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d && y >= 2000 && y <= 2100;
 }
 
+/** Écart toléré entre la journée d'un rapport et la création de sa session : au-delà, la date ne dit pas vrai. */
+export const REPORT_DATE_WINDOW_DAYS = 7;
+
+/**
+ * La journée du rapport tombe-t-elle à `days` jours au plus de l'instant `at` (création de la session) ? Le dossier se
+ * trie sur cette date : un rapport détourné ne doit pas pouvoir se dater de 2100 et rester en tête.
+ */
+export function isDateNear(date: string, at: number, days = REPORT_DATE_WINDOW_DAYS): boolean {
+  if (!isCivilDate(date) || !Number.isFinite(at)) return false;
+  const day = Date.parse(`${date}T12:00:00Z`);
+  return Math.abs(day - at) <= (days + 1) * 86_400_000;
+}
+
 function httpsUrl(v: unknown): string | null {
   if (typeof v !== 'string' || v.length > REPORT_BOUNDS.url) return null;
   try {

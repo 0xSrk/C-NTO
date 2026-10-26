@@ -57,6 +57,8 @@ export type ReportParse = { ok: true; report: CloudReportBody } | { ok: false; r
 export function isApiId(v: unknown, prefix?: string): v is string;
 export function cleanText(v: unknown, max: number, multiline?: boolean): string;
 export function isCivilDate(v: unknown): v is string;
+export const REPORT_DATE_WINDOW_DAYS: number;
+export function isDateNear(date: string, at: number, days?: number): boolean;
 export function parseReport(raw: unknown): ReportParse;
 export function coerceStoredReport(raw: unknown): CloudReport | null;
 export function reportSummary(report: CloudReport, read: boolean): CloudReportSummary;
