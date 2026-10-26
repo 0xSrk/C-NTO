@@ -1249,7 +1249,7 @@ L'ADMIN confie la préparation de la 3.7.0 : le Système 4.0 « ΟΡΟΣ » (fus
 **Points ouverts.**
 - README : les captures et le badge (ancien rouge) datent du Système 3.4 ; à recapturer après publication.
 - Entre la fusion de ce commit et la publication, les liens de téléchargement du README mènent à des fichiers que seule la Release en brouillon porte.
-- Le Code 128 de la bande d'état n'a pas encore été lu au téléphone.
+- Le Code 128 du lanceur et du bilan du Portefeuille n'a pas encore été lu au téléphone (la barre d'état porte désormais le code d'accolades d'OROS3.14, qui ne se lit pas).
 - Crypto : la cible ⊕ au bout de chaque ligne d'alerte du chart n'est pas posée (les lignes sont tiretées et titrées ALERTE).
 - #119 (agent cloud) touche aussi `src/modules/agent/Agent.tsx` : une résolution de conflit pour la branche qui arrive en second.
 

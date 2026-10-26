@@ -127,4 +127,11 @@ describe('OROS3.14 le code d’accolades du pied', () => {
     expect(BRACE_WIDTH).toBe(42);
     expect(readFileSync('src/app/seatMark.module.css', 'utf8')).toMatch(/width: calc\(42px \+ 2 \* \(1ch \+ 0\.08em\) \+ 6px\);/);
   });
+
+  it('OROS3.15 le README et le journal 3.7.0 décrivent le pied livré : plus de bande ivoire', () => {
+    const readme = readFileSync('README.md', 'utf8');
+    expect(readme).not.toMatch(/ivory (?:status|label) strip/i);
+    expect(readme.match(/eleven-bar code between braces/g)).toHaveLength(2);
+    expect(readFileSync('src/engine/changelog/changelog.json', 'utf8')).not.toMatch(/bande d’étiquette ivoire|ivory label strip|banda de etiqueta marfil/);
+  });
 });
