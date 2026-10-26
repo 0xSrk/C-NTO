@@ -43,6 +43,24 @@
 .panel:nth-child(n + 11) {
   --i: 10;
 }
+/* Repères de calage aux quatre coins de chaque panneau (Ligne V2) : une croix de 7 px, encre fantôme, hors du filet. */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  background: var(--line-3);
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 0 0 / 7px 7px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 100% 0 / 7px 7px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 0 100% / 7px 7px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 100% 100% / 7px 7px no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 0 0 / 7px 7px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 100% 0 / 7px 7px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 0 100% / 7px 7px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7'%3E%3Cpath d='M3.5 0v7M0 3.5h7' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 100% 100% / 7px 7px no-repeat;
+}
 .panel.raised {
   background: var(--bg-2);
 }
@@ -72,6 +90,35 @@
   text-transform: uppercase;
   white-space: nowrap;
   line-height: 1.3;
+}
+/* Code du panneau entre repères d'angle (Ligne V2) : coin haut-gauche, coin bas-droit. */
+.panelCode {
+  position: relative;
+  padding: 2px 5px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.panelCode::before, .panelCode::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border: 0 solid var(--text-2);
+}
+.panelCode::before {
+  left: 0;
+  top: 0;
+  border-width: 1px 0 0 1px;
+}
+.panelCode::after {
+  right: 0;
+  bottom: 0;
+  border-width: 0 1px 1px 0;
 }
 .panelSub {
   font-family: var(--font-mono);

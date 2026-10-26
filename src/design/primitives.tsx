@@ -9,6 +9,8 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 }
 
 interface PanelProps {
+  /** Code du panneau (K.01, A.02…), posé entre repères d'angle devant le titre. */
+  code?: ReactNode;
   title?: ReactNode;
   sub?: ReactNode;
   actions?: ReactNode;
@@ -23,11 +25,16 @@ interface PanelProps {
   style?: CSSProperties;
 }
 
-export function Panel({ title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, style }: PanelProps) {
+export function Panel({ code, title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, style }: PanelProps) {
   return (
     <section className={cx(s.panel, raised && s.raised, flush && s.flush, accent && s.accent, className)} style={style}>
-      {(title || actions || sub) && (
+      {(code || title || actions || sub) && (
         <header className={s.panelHead}>
+          {code && (
+            <span className={s.panelCode} data-part="panel-code">
+              {code}
+            </span>
+          )}
           {title && <h3 className={s.panelTitle}>{title}</h3>}
           {sub && <span className={s.panelSub}>{sub}</span>}
           {actions && <div className={s.panelActions}>{actions}</div>}

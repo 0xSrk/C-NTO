@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Glyph } from '@/design/Micro';
 import { tr, useI18n } from '@/i18n';
 import { computeAutoZoom, formatZoomPercent, UI_ZOOM_MAX, UI_ZOOM_MIN } from '@/engine/uiScale';
 import { desk, isDesk, type ZoomSnapshot } from '@/lib/desk';
@@ -138,16 +139,23 @@ export function ZoomControls() {
 
   return (
     <div className={s.zoom} title={tip}>
-      <button type="button" className={s.zoomBtn} onClick={() => void step(-1)} aria-label={tr('Réduire le zoom', 'Zoom out', 'Reducir el zoom')} disabled={factor <= UI_ZOOM_MIN + 0.001}>
-        −
-      </button>
       <button type="button" className={s.zoomPct} onClick={() => void toggleAuto()} onDoubleClick={() => void reset()} aria-label={tr('Basculer auto / manuel', 'Toggle auto / manual', 'Alternar auto / manual')}>
         <span className={s.zoomMode}>{mode === 'auto' ? 'AUTO' : tr('FIXE', 'FIXED', 'FIJO')}</span>
         {label}
       </button>
-      <button type="button" className={s.zoomBtn} onClick={() => void step(1)} aria-label={tr('Augmenter le zoom', 'Zoom in', 'Aumentar el zoom')} disabled={factor >= UI_ZOOM_MAX - 0.001}>
-        +
-      </button>
+      {/* Le bouton « + — » de la planche : le plus et la barre sont deux vrais boutons, chacun sa moitié du dessin. */}
+      <span className={s.zoomPad} role="group" aria-label={tr('Zoom de l’interface', 'Interface zoom', 'Zoom de la interfaz')}>
+        <button type="button" className={s.zoomBtn} onClick={() => void step(1)} aria-label={tr('Augmenter le zoom', 'Zoom in', 'Aumentar el zoom')} disabled={factor >= UI_ZOOM_MAX - 0.001}>
+          <span className={s.zoomPlus}>
+            <Glyph name="zoom" />
+          </span>
+        </button>
+        <button type="button" className={s.zoomBtn} onClick={() => void step(-1)} aria-label={tr('Réduire le zoom', 'Zoom out', 'Reducir el zoom')} disabled={factor <= UI_ZOOM_MIN + 0.001}>
+          <span className={s.zoomMinus}>
+            <Glyph name="zoom" />
+          </span>
+        </button>
+      </span>
       {!isDesk && <span className={s.zoomHint}>nav</span>}
     </div>
   );

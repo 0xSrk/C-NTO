@@ -348,7 +348,10 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             <SeatMark>
               <Barcode />
             </SeatMark>
-            <span>[ SIΞRRΛSKΛ ]</span>
+            <span className={s.stripName}>
+              <Glyph name="lozenge" className={s.lozenge} />
+              [ SIΞRRΛSKΛ ]
+            </span>
           </span>
         </div>
       </footer>
@@ -360,8 +363,12 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 
 function RailButton({ itemId, index, label, qty, on, dashed, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; dashed?: boolean; link?: boolean; onClick: () => void }) {
   return (
-    <button type="button" className={cx(s.navItem, on && s.on, dashed && s.dashed)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined}>
-      <span className={s.navIndex}>{index}</span>
+    <button type="button" className={cx(s.navItem, on && s.on, dashed && s.dashed)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
+      {/* Le numéro, et sous lui l'emblème du module (composant de la planche). */}
+      <span className={s.navCol} data-part="rail-index">
+        <span className={s.navIndex}>{index}</span>
+        <Glyph name={itemId} className={s.navEmblem} />
+      </span>
       <span className={s.navText}>
         <span className={s.navLabel}>{label}</span>
         {qty ? <span className={s.navQty}>{qty}</span> : null}
