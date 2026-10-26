@@ -1,6 +1,7 @@
 /** API exposée par le shell Electron (preload). Absente lorsque CΛNTO tourne dans un navigateur. */
 import type { CalendarEventRow, CalendarSourceStatus } from '@/engine/calendarEvents';
 import type { ChangelogFile } from '@/engine/changelog';
+import type { CloudReport, CloudReportSummary } from '@/engine/agent/cloudReport';
 import type { AgentOrderRefusal } from '@/engine/agent/orders';
 import type { CryptoBar, CryptoFeedEvent, CryptoSeriesId, CryptoTimeframe, CryptoVenue, VenueState } from '@/engine/crypto/markets';
 import type { TemperatureReading } from '@/engine/crypto/temperature';
@@ -164,6 +165,74 @@ export interface CryptoApi {
   onStatus: (cb: (s: CryptoMainStatus) => void) => () => void;
 }
 
+/** Planification voulue de l'agent cloud : cron POSIX à cinq champs et fuseau IANA. */
+export interface CloudSchedule {
+  cron: string;
+  timezone: string;
+}
+
+export interface CloudFailure {
+  at: number;
+  kind: 'run' | 'no_report' | 'invalid' | 'too_large' | 'archived';
+  detail: string;
+}
+
+export interface CloudDeploymentState {
+  name: string;
+  state: 'active' | 'paused' | 'archived';
+  pausedReason: string | null;
+  cron: string | null;
+  timezone: string | null;
+  nextRunAt: number | null;
+  lastRunAt: number | null;
+  budgetCents: number | null;
+  agentVersion: number | null;
+}
+
+/** Miroir de `AgentCloudStatus` (`electron/agent-cloud.ts`) ; un test de types tient les deux égaux. La clé n'y figure jamais. */
+export interface AgentCloudStatus {
+  available: boolean;
+  keyStored: boolean;
+  deploymentId: string | null;
+  managed: boolean;
+  schedule: CloudSchedule;
+  deployment: CloudDeploymentState | null;
+  pulling: boolean;
+  busy: 'provision' | 'run' | 'pause' | 'unpause' | null;
+  lastPullAt: number | null;
+  nextPullAt: number | null;
+  error: string | null;
+  pending: number;
+  failures: CloudFailure[];
+  reports: number;
+  unread: number;
+}
+
+/**
+ * Agent cloud (Managed Agents d'Anthropic) vu du renderer : le process principal garde la clé, relève les rapports et
+ * les range ; le renderer lit le statut et le dossier. Installer, lancer et reprendre passent par un dialogue du process
+ * principal. `null` : appel refusé (page non fiable) ou hôte absent.
+ */
+export interface AgentCloudApi {
+  status: () => Promise<AgentCloudStatus | null>;
+  list: () => Promise<CloudReportSummary[]>;
+  read: (id: string) => Promise<CloudReport | null>;
+  markRead: (id: string) => Promise<AgentCloudStatus | null>;
+  /** La clé part une fois vers le process principal, qui la chiffre ; `''` l'efface. */
+  setKey: (text: string) => Promise<AgentCloudStatus | null>;
+  /** Déploiement créé ailleurs (`depl_…`), relevé sans être modifié ; `null` l'oublie. */
+  setDeployment: (id: string | null) => Promise<AgentCloudStatus | null>;
+  setSchedule: (schedule: CloudSchedule) => Promise<AgentCloudStatus | null>;
+  pull: () => Promise<AgentCloudStatus | null>;
+  provision: () => Promise<AgentCloudStatus | null>;
+  run: () => Promise<AgentCloudStatus | null>;
+  pause: () => Promise<AgentCloudStatus | null>;
+  unpause: () => Promise<AgentCloudStatus | null>;
+  openFolder: () => Promise<boolean>;
+  onStatus: (cb: (status: AgentCloudStatus) => void) => () => void;
+  onReports: (cb: (list: CloudReportSummary[]) => void) => () => void;
+}
+
 export interface NtBridgeApi {
   status: () => Promise<NtBridgeStatus | null>;
   rotateToken: () => Promise<{ hasToken: boolean }>;
@@ -251,6 +320,8 @@ export interface DeskApi {
   seat?: SeatApi;
   /** Module crypto personnel, éteint par défaut ; absent hors du desk. */
   crypto?: CryptoApi;
+  /** Agent cloud : rapports déposés par un déploiement Managed Agents ; absent hors du desk. */
+  agentCloud?: AgentCloudApi;
   secrets: {
     /**
      * Chiffre avec le trousseau du système ; null si indisponible. `baseUrl` : l'URL de base où la clé API est saisie ;
