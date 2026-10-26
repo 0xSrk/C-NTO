@@ -1,5 +1,5 @@
 import { useMemo, type ComponentProps } from 'react';
-import { Signal } from '@/design/Micro';
+import { Glyph, Signal } from '@/design/Micro';
 import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, ratioIntervals, rollingBands, sessionWinRateSeries } from '@/engine/inference';
@@ -391,7 +391,8 @@ export function Dashboard({
             <span className={s.kName}>{tr('Dernières séances', 'Latest sessions', 'Últimas sesiones')}</span>
           </span>
           <button type="button" className={s.more} onClick={onSessions}>
-            {tr('VOIR LES', 'SEE THE', 'VER LAS')} {fmtInt(ordered.length)} {tr('SÉANCES', 'SESSIONS', 'SESIONES')} →
+            {tr(`Les ${fmtInt(ordered.length)} séances`, `All ${fmtInt(ordered.length)} sessions`, `Las ${fmtInt(ordered.length)} sesiones`)}
+            <Glyph name="arrowNext" className={s.btnGlyph} />
           </button>
         </div>
         <table className={s.table}>

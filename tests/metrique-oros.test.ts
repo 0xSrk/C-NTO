@@ -103,6 +103,13 @@ describe('OROS3.2b le tableau de bord lie la carte A.02 à l’état réel', () 
   });
 });
 
+/** Texte lisible d'un élément : sans les styles embarqués des composants de la planche. */
+const textOf = (el: Element) => {
+  const copy = el.cloneNode(true) as Element;
+  copy.querySelectorAll('svg').forEach((svg) => svg.remove());
+  return copy.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+};
+
 /** La tuile K.n du tableau de bord. */
 function tile(node: HTMLElement, code: string): HTMLElement {
   const label = [...node.querySelectorAll('span')].find((el) => el.textContent?.trim() === code);
@@ -161,5 +168,16 @@ describe('OROS3.2c jauges K graduées, borne du plan sur K.04 et son signal', ()
     const k4 = tile(node, 'K.04');
     expect(k4.querySelector('[data-level]')).toBeNull();
     expect(k4.textContent).not.toContain('PLANCHER −');
+  });
+});
+
+describe('OROS3.2d la carte A.04 renvoie aux séances par la flèche de la planche', () => {
+  it('« Les N séances » compte le journal filtré et porte la flèche « suivant »', async () => {
+    const { GLYPH_ID } = await import('@/design/micro/assets');
+    const node = await dashboard();
+    const button = [...node.querySelectorAll('button')].find((el) => /séances/i.test(textOf(el)) && el.closest('section'))!;
+    expect(textOf(button)).toBe('Les 30 séances');
+    const svg = button.querySelector('svg[class*="skg-"]');
+    expect(svg?.classList.contains(`skg-${GLYPH_ID.arrowNext}`)).toBe(true);
   });
 });

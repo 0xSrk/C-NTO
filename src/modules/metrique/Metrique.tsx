@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useState } from 'react';
-import { IconExport, IconLink, IconPlus, IconSettings } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { Glyph } from '@/design/Micro';
 import { Button, Segmented, Tag } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
 import { findPlan } from '@/engine/propfirm';
@@ -224,6 +224,7 @@ export default function Metrique() {
             </select>
             <Button variant="chamfer" onClick={() => setModal('import')}>
               {tr('Importer un CSV', 'Import a CSV', 'Importar un CSV')}
+              <Glyph name="arrowImport" className={d.btnGlyph} />
             </Button>
           </>
         }
@@ -294,27 +295,34 @@ export default function Metrique() {
             )}
           </div>
         )}
-        <div className={d.tools}>
+        {/* Rangée d'outils : chaque outil porte son composant de la planche ; l'étoile sépare le pont, le journal et les réglages. */}
+        <div className={d.tools} data-tools="">
           <Button variant="ghost" onClick={() => setModal('pont')}>
-            <IconLink size={14} /> {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
+            <Glyph name="bridge" className={d.toolWide} /> {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
             <Tag tone={bridgeLive ? 'mint' : undefined} dot live={bridgeLive}>
               {bridgeLive ? tr('actif', 'active', 'activo') : tr('inactif', 'inactive', 'inactivo')}
             </Tag>
           </Button>
+          <i className={d.toolSep} aria-hidden>
+            <Glyph name="star" />
+          </i>
           <Button variant="ghost" onClick={() => setModal('manuel')}>
-            <IconPlus size={14} /> {tr('Séance manuelle', 'Manual session', 'Sesión manual')}
+            <Glyph name="addSession" className={d.toolGlyph} /> {tr('Séance manuelle', 'Manual session', 'Sesión manual')}
           </Button>
           <Button variant="ghost" onClick={onExportCsv} title={tr('Exporter les trades en CSV', 'Export trades as CSV', 'Exportar los trades en CSV')}>
-            <IconExport size={14} /> CSV
+            <Glyph name="csv" className={d.toolGlyph} /> CSV
           </Button>
           <Button variant="ghost" onClick={onExportVault} title={tr('Sauvegarde complète du coffre (JSON)', 'Full vault backup (JSON)', 'Copia completa de la caja (JSON)')}>
-            <IconExport size={14} /> {tr('Coffre', 'Vault', 'Caja')}
+            <Glyph name="vault" className={d.toolGlyph} /> {tr('Coffre', 'Vault', 'Caja')}
           </Button>
           <Button variant="ghost" onClick={onRestore} title={tr('Restaurer une sauvegarde JSON', 'Restore a JSON backup', 'Restaurar una copia JSON')}>
-            {tr('Restaurer', 'Restore', 'Restaurar')}
+            <Glyph name="restore" className={d.toolGlyph} /> {tr('Restaurer', 'Restore', 'Restaurar')}
           </Button>
-          <Button variant="ghost" onClick={() => setModal('reglages')} aria-label={tr('Réglages', 'Settings', 'Ajustes')} title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}>
-            <IconSettings size={14} />
+          <i className={d.toolSep} aria-hidden>
+            <Glyph name="star" />
+          </i>
+          <Button variant="ghost" onClick={() => setModal('reglages')} title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}>
+            <Glyph name="settings" className={d.toolGlyph} /> {tr('Réglages', 'Settings', 'Ajustes')}
           </Button>
           {sessions.length === 0 && (
             <Button size="sm" variant="ghost" onClick={onDemo}>
