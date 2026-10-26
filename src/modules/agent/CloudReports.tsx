@@ -54,7 +54,9 @@ function failureText(kind: string, detail: string): string {
       ? tr('Déclenchement refusé', 'Trigger refused', 'Disparo rechazado')
       : kind === 'no_report'
         ? tr('Session finie sans rapport', 'Session ended without a report', 'Sesión terminada sin informe')
-        : kind === 'too_large'
+        : kind === 'budget'
+          ? tr('Plafond atteint avant le rapport', 'Cap reached before the report', 'Límite alcanzado antes del informe')
+          : kind === 'too_large'
           ? tr('Rapport trop lourd', 'Report too large', 'Informe demasiado pesado')
           : kind === 'archived'
             ? tr('Session archivée', 'Session archived', 'Sesión archivada')

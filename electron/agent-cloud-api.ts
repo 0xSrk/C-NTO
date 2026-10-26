@@ -77,6 +77,8 @@ export interface SessionView {
   outcomePending: boolean;
   /** Dernier verdict terminal du correcteur (`satisfied`, `max_iterations_reached`, `failed`, `interrupted`). */
   outcomeResult: string | null;
+  /** Plafond de la session (`budget.max_list_cost`), en cents ; `null` sans plafond. */
+  budgetCents: number | null;
 }
 
 export interface SessionPage {
@@ -189,6 +191,7 @@ export function parseSession(raw: unknown): SessionView | null {
   const terminal = results.filter((r) => !OUTCOME_OPEN.has(r));
   const usage = isRecord(raw.usage) ? raw.usage : null;
   const agent = isRecord(raw.agent) ? raw.agent : null;
+  const budget = isRecord(raw.budget) ? raw.budget : null;
   return {
     id,
     status,
@@ -199,6 +202,7 @@ export function parseSession(raw: unknown): SessionView | null {
     agentVersion: agent ? int(agent.version) : null,
     outcomePending: results.some((r) => OUTCOME_OPEN.has(r)),
     outcomeResult: terminal.length ? (terminal[terminal.length - 1] ?? null) : null,
+    budgetCents: budget ? cents(budget.max_list_cost) : null,
   };
 }
 

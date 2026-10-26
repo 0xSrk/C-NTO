@@ -40,8 +40,19 @@ export interface CloudSchedule {
   timezone: string;
 }
 
-export type CloudFailureKind = 'run' | 'no_report' | 'invalid' | 'too_large' | 'archived';
-const FAILURE_KINDS: readonly CloudFailureKind[] = ['run', 'no_report', 'invalid', 'too_large', 'archived'];
+export type CloudFailureKind = 'run' | 'no_report' | 'budget' | 'invalid' | 'too_large' | 'archived';
+const FAILURE_KINDS: readonly CloudFailureKind[] = ['run', 'no_report', 'budget', 'invalid', 'too_large', 'archived'];
+
+/**
+ * Session en pause à son plafond (`budget_reached`) : pas une fin, mais rien ne la relancera sans relever le plafond.
+ * Le motif n'est porté que par l'événement de mise au repos, pas par l'objet session : le desk le déduit du coût.
+ * La pause ne tombe qu'une fois le coût exact au plafond, et le coût rendu en est l'arrondi au centime : une session
+ * en pause déclare donc toujours au moins son plafond. L'inverse peut tromper d'un demi-centime (une session au repos
+ * pour une autre raison, juste sous le plafond) : elle reste de toute façon un échec, seul son libellé diffère.
+ */
+export function atCap(session: SessionView): boolean {
+  return session.status === 'idle' && session.budgetCents !== null && session.costCents !== null && session.costCents >= session.budgetCents;
+}
 
 export interface CloudFailure {
   at: number;
@@ -1039,10 +1050,11 @@ export class AgentCloudHost {
         pending += 1;
         continue;
       }
-      // Finie (idle ou terminated). Une évaluation restée ouverte (plafond atteint, erreurs) n'est attendue que 30 min ;
-      // sinon, 60 s suffisent à l'index des fichiers.
+      // Finie (idle ou terminated). Une évaluation restée ouverte (erreurs) n'est attendue que 30 min ; au plafond, la
+      // session ne repartira pas d'elle-même : comme une session finie, 60 s suffisent à l'index des fichiers.
+      const capped = atCap(session);
       const age = this.now() - (session.updatedAt ?? session.createdAt ?? 0);
-      if (age < (session.outcomePending ? NO_REPORT_AFTER_MS : SETTLE_MS)) {
+      if (age < (session.outcomePending && !capped ? NO_REPORT_AFTER_MS : SETTLE_MS)) {
         pending += 1;
         continue;
       }
@@ -1054,8 +1066,14 @@ export class AgentCloudHost {
       const files = await this.api.listOutputFiles(session.id);
       const file = files.find((f) => f.filename === REPORT_FILE);
       if (!file) {
+        const cost = session.costCents !== null ? this.money(session.costCents) : null;
+        if (capped) {
+          // Le plafond a coupé l'agent avant qu'il n'écrive : dit tel, avec la dépense et le plafond.
+          this.mark(session.id, false, 'budget', [cost, session.budgetCents !== null ? this.money(session.budgetCents) : null].filter(Boolean).join(' / '));
+          continue;
+        }
         const why = session.outcomePending ? `${session.status} · outcome ouvert` : session.outcomeResult ? `outcome ${session.outcomeResult}` : session.status;
-        this.mark(session.id, false, 'no_report', why);
+        this.mark(session.id, false, 'no_report', cost ? `${why} · ${cost}` : why);
         continue;
       }
       if (file.sizeBytes > REPORT_MAX_BYTES) {

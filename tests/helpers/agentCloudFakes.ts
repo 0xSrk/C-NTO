@@ -41,6 +41,7 @@ export const session = (n: number, over: Partial<SessionView> = {}): SessionView
   agentVersion: 2,
   outcomePending: false,
   outcomeResult: 'satisfied',
+  budgetCents: 300,
   ...over,
 });
 
