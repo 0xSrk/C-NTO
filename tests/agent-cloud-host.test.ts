@@ -280,5 +280,14 @@ describe('agent cloud · hôte du process principal', () => {
     expect(again.host.read(sid(1))?.sections).toEqual([{ heading: 'Calendrier', body: '- 14:30 CPI' }]);
     expect(again.host.read('../agent-cloud')).toBeNull();
     expect(again.host.status()).toMatchObject({ keyStored: true, deploymentId: DEPL, reports: 1, unread: 0 });
+    // Fiches altérées : un JSON coupé, et une vraie fiche recopiée sous le nom d'une autre session.
+    const folder = path.join(h.dir, AGENT_REPORTS_DIR);
+    writeFileSync(path.join(folder, `${sid(2)}.json`), '{"v":1,"id":');
+    writeFileSync(path.join(folder, `${sid(3)}.json`), readFileSync(path.join(folder, `${sid(1)}.json`), 'utf8'));
+    writeFileSync(path.join(folder, 'notes.json'), '{}');
+    const tampered = harness({ dir: h.dir, api: fakeApi() });
+    expect(() => tampered.host.status()).not.toThrow();
+    expect(tampered.host.list().map((r) => r.id)).toEqual([sid(1)]);
+    expect(tampered.host.read(sid(3))).toBeNull();
   });
 });
