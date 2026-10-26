@@ -170,7 +170,7 @@ describe('Métrique › A.02 courbe d’équité', () => {
     // Règle de séances : chaque pas porte l'ordinal de la séance qu'il ouvre (−1 au départ).
     const rows = curve.steps.map((step, i) => ({ time: step.time, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl, session: i === 0 ? -1 : i }));
     for (const row of chart.series) expect(row.data).toEqual(rows);
-    expect(marks(chart)).toEqual({ high: 2, highLabel: 'PLUS HAUT +400', trough: 3, troughLabel: 'CREUX −450' });
+    expect(marks(chart)).toEqual({ high: 2, highLabel: 'PLUS-HAUT +400', trough: 3, troughLabel: 'CREUX −450' });
     const ink = trait(chart, 'EquityTrait').options.ink as Record<string, string>;
     expect([ink.line, ink.pos, ink.neg, ink.red]).toEqual(['#edebe4', '#74c69d', '#e0735f', '#e5263d']);
     expect(chart.fits).toBe(1);
@@ -279,8 +279,8 @@ describe('OROS3.2b la carte A.02 : composants de la planche, borne du plan, plaq
       expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="\d+" height="\d+" /);
       expect(svg).not.toContain('var(--k)');
       expect(svg).toContain('#edebe4');
-      // Le dessin du master, intact : seule l'encre change.
-      expect(svg.replaceAll('#edebe4', 'var(--k)')).toContain(COMPONENTS[n]!.replace(/^<svg /, ''));
+      // Le dessin du master, intact : seule l'encre change (et la graisse, réglée à part).
+      expect(svg.replaceAll('#edebe4', 'var(--k)')).toContain(COMPONENTS[n]!.replace(/^<svg /, '').replace(/<\/svg>$/, ''));
     }
     expect(glyphOf(chart, 'EquityTrait')('target')).toBeNull();
     await act(async () => made.forEach((img) => img.load()));
@@ -324,5 +324,19 @@ describe('OROS3.2b la carte A.02 : composants de la planche, borne du plan, plaq
     const text = host!.querySelector('svg.mg-equity')!.textContent ?? '';
     expect(text).toContain('– 4 – — – — – —');
     expect(text).not.toMatch(/\{\{/);
+  });
+});
+
+describe('OROS3.2e graisse des composants peints (revue au rendu réel)', () => {
+  it('un composant réduit à 12 px garde un trait d’environ un pixel : la graisse du master ne tomberait qu’au quart', async () => {
+    const { COMPONENTS, GLYPH_ID } = await import('@/design/micro/assets');
+    const { glyphSvg } = await import('@/modules/metrique/glyphSprite');
+    const master = COMPONENTS[GLYPH_ID.target]!;
+    // viewBox de 68,43 rendu sur 24 px : un pixel vaut 2,85 unités.
+    const svg = glyphSvg(master, '#edebe4', '#14151a', 24, 1);
+    expect(svg).toMatch(/<style>[^<]*stroke-width:\s*2\.85[^<]*<\/style><\/svg>$/);
+    expect(svg).toContain(master.replace(/^<svg /, '').replace(/<\/svg>$/, '').replaceAll('var(--k)', '#edebe4'));
+    // Sans graisse demandée, le master tel quel.
+    expect(glyphSvg(master, '#edebe4', '#14151a', 24)).not.toContain('stroke-width:2.85');
   });
 });

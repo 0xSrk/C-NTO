@@ -139,7 +139,7 @@ function marksOf(curve: EquityCurveData): Marks {
   const top = curve.steps[high];
   return {
     high,
-    highLabel: top ? `${tr('PLUS HAUT', 'HIGH', 'MÁXIMO')} ${signed(top.equity)}` : '',
+    highLabel: top ? `${tr('PLUS-HAUT', 'HIGH', 'MÁXIMO')} ${signed(top.equity)}` : '',
     trough: curve.maxDrawdown?.trough ?? NONE,
     troughLabel: curve.maxDrawdown ? `${tr('CREUX', 'TROUGH', 'VALLE')} −${fmtInt(curve.maxDrawdown.depth)}` : '',
   };
@@ -274,7 +274,7 @@ export function EquityCard({
           const glyph = (key: GlyphKey) => lookup(key);
           for (const trait of refs.current?.traits ?? []) trait.applyOptions({ glyph });
         };
-        for (const [key, px] of GLYPHS) sprites[key] = glyphImage(key, colors.line, colors.paper, Math.ceil(px * dpr), repaint);
+        for (const [key, px] of GLYPHS) sprites[key] = glyphImage(key, colors.line, colors.paper, Math.ceil(px * dpr), repaint, Math.max(1, 0.6 * dpr));
         for (const trait of refs.current.traits) trait.applyOptions({ glyph: lookup });
         draw(refs.current, curveRef.current);
       } catch {

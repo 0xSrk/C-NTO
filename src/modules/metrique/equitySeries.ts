@@ -203,6 +203,12 @@ function glyphMark(ctx: CanvasRenderingContext2D, scope: Scope, at: Pt, side: 'u
     ctx.drawImage(image, at.x - size / 2, at.y - size / 2, size, size);
   }
   const left = l.align === 'center' ? Math.min(Math.max(2 * k, l.text.x - textWidth / 2), width - textWidth - 2 * k) : l.align === 'left' ? l.text.x : l.text.x - textWidth;
+  // Un fond de papier sous l'étiquette : la courbe et sa trame peuvent passer derrière sans la rendre illisible.
+  const v = scope.verticalPixelRatio;
+  const top = way === 'up' ? l.text.y - 8 * v : l.text.y - 6 * v;
+  ctx.fillStyle = ink.paper;
+  ctx.globalAlpha = 0.85;
+  ctx.fillRect(Math.round(left - 3 * k), Math.round(top), Math.round(textWidth + 6 * k), Math.round(way === 'up' ? 11 * v : 12 * v));
   ctx.textBaseline = way === 'up' ? 'alphabetic' : 'middle';
   ctx.fillStyle = color;
   ctx.globalAlpha = 0.9;
@@ -408,7 +414,7 @@ export class EquityTrait extends TraitView {
     const high = at(marks.high);
     if (high && marks.high !== last) glyphMark(ctx, scope, high, 'up', marks.highLabel, ink.label, ink, glyph('target'));
     const trough = at(marks.trough);
-    if (trough) glyphMark(ctx, scope, trough, 'right', marks.troughLabel, ink.neg, ink, glyph('mire'));
+    if (trough) glyphMark(ctx, scope, trough, 'right', marks.troughLabel, ink.label, ink, glyph('mire'));
     const hovered = at(focus);
     if (hovered && focus !== last) focusMark(ctx, scope, hovered, ink.line);
     const end = last === undefined ? undefined : at(last);

@@ -362,3 +362,38 @@ describe('barres visibles', () => {
     expect(visible(null)).toEqual([]);
   });
 });
+
+describe('OROS3.2e lisibilité des repères (revue au rendu réel)', () => {
+  const MARKS = { high: 1, highLabel: 'PLUS-HAUT +300', trough: 2, troughLabel: 'CREUX −400' };
+  const glyph = () => ({}) as CanvasImageSource;
+
+  it('l’étiquette du creux est à l’encre des axes, comme celle du plus-haut : la perte se lit au volet sous l’eau', () => {
+    vi.stubGlobal(
+      'Path2D',
+      class {
+        moveTo() {}
+        lineTo() {}
+      },
+    );
+    try {
+      const calls = paint(new EquityTrait(), { marks: MARKS, glyph });
+      const texts = calls.filter((call) => call.op === 'fillText');
+      expect(texts.map((call) => [call.args[0], call.fill])).toEqual([
+        ['PLUS-HAUT +300', INK.label],
+        ['CREUX −400', INK.label],
+      ]);
+      // Chaque étiquette posée sur un fond de papier qui la contient : la courbe passe derrière sans la brouiller.
+      for (const text of texts) {
+        const at = calls.indexOf(text);
+        const backing = calls.slice(0, at).reverse().find((call) => call.op === 'fillRect' && call.fill === INK.paper);
+        expect(backing, String(text.args[0])).toBeDefined();
+        const [x, , w] = backing!.args as number[];
+        const [, tx] = text.args as [string, number];
+        expect(tx).toBeGreaterThanOrEqual(x!);
+        expect(tx + String(text.args[0]).length * 6).toBeLessThanOrEqual(x! + w!);
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
