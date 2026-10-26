@@ -171,3 +171,53 @@ describe('OROS3.4b′ la grille mensuelle marque aussi l’horizon', () => {
     expect(marked).toEqual(['2026-11-05']);
   });
 });
+
+describe('OROS3.4c la plaque TIME ENGINE lit la séance, les catalyseurs du jour et la synchro', () => {
+  const ev = (date: string, timeET: string, title: string, impact: 1 | 2 | 3) => ({ id: title, date, timeET, title, impact, category: 'fed' as const, description: '', estimated: false });
+
+  it('séance CME Globex du moment, prochains catalyseurs majeurs du jour, état de la synchro', async () => {
+    const { timeEngineValues } = await import('@/modules/calendrier/calState');
+    const events = [
+      ev('2026-10-28', '08:30', 'Inflation CPI', 3),
+      ev('2026-10-28', '10:00', 'Confiance', 1),
+      ev('2026-10-28', '14:00', 'Décision FOMC', 3),
+      ev('2026-10-28', '14:30', 'Conférence FOMC (Powell)', 3),
+      ev('2026-10-29', '08:30', 'PIB US (première estimation)', 3),
+    ];
+    const values = timeEngineValues({ now: NOW, events, syncing: false, sources: [{ sourceId: 'bls', state: 'ok' }], cached: events.length });
+    // Le CPI est passé, la confiance est mineure, le PIB est demain : restent les deux rendez-vous FOMC.
+    expect(values).toEqual({ session: 'CME GLOBEX · RTH', catalysts: 'DÉCISION FOMC 14:00 • CONFÉRENCE FOMC 14:30', sync: 'SYNCED' });
+    const after = zonedToUtc('2026-10-28', '15:00', ET_ZONE);
+    expect(timeEngineValues({ now: after, events, syncing: false, sources: [], cached: 0 }).catalysts).toBe('AUCUN CATALYSEUR');
+    const night = zonedToUtc('2026-10-28', '17:30', ET_ZONE);
+    expect(timeEngineValues({ now: night, events: [], syncing: false, sources: [], cached: 0 }).session).toBe('CME GLOBEX · FERMÉ');
+  });
+
+  it('la synchro se dit telle qu’elle est : en cours, à jour, partielle, périmée, en échec, en cache, hors ligne', async () => {
+    const { syncLabel } = await import('@/modules/calendrier/calState');
+    const ok = { sourceId: 'bls', state: 'ok' as const };
+    const stale = { sourceId: 'bea', state: 'stale' as const };
+    const err = { sourceId: 'fed', state: 'error' as const };
+    expect(syncLabel({ syncing: true, sources: [ok], cached: 3 })).toBe('SYNCING');
+    expect(syncLabel({ syncing: false, sources: [ok], cached: 3 })).toBe('SYNCED');
+    expect(syncLabel({ syncing: false, sources: [ok, err], cached: 3 })).toBe('PARTIAL');
+    expect(syncLabel({ syncing: false, sources: [stale], cached: 3 })).toBe('STALE');
+    expect(syncLabel({ syncing: false, sources: [err], cached: 3 })).toBe('ERROR');
+    expect(syncLabel({ syncing: false, sources: [], cached: 3 })).toBe('CACHED');
+    expect(syncLabel({ syncing: false, sources: [], cached: 0 })).toBe('OFFLINE');
+  });
+
+  it('la colonne s’ouvre sur la plaque, liée à l’état réel ; « Synchroniser » porte le glyphe de la synchro', async () => {
+    const { GLYPH_ID } = await import('@/design/micro/assets');
+    const node = await calendrier();
+    const plate = node.querySelector('svg.mg-timeEngine')!;
+    expect(plate).not.toBeNull();
+    const text = plate.textContent ?? '';
+    expect(text).toContain('SESSION — CME GLOBEX · RTH');
+    expect(text).toMatch(/DÉCISION TÉMOIN.* 14:00/);
+    expect(text).toContain('TIME ENGINE — (SYNCED)');
+    expect(plate.parentElement?.getAttribute('aria-label')).toMatch(/CME Globex/);
+    const sync = [...node.querySelectorAll('button')].find((el) => /Synchroniser/.test(el.textContent ?? ''))!;
+    expect(sync.querySelector(`svg.skg-${GLYPH_ID.sync}`)).not.toBeNull();
+  });
+});

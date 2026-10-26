@@ -775,3 +775,26 @@
   --k: var(--text-2);
   --p: var(--bg-1);
 }
+
+/* Plaque TIME ENGINE (Ligne V2) en tête de colonne : encre secondaire, papier du panneau */
+.timeHud {
+  flex: none;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-1);
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.timePlate {
+  display: block;
+  width: 100%;
+  aspect-ratio: 368 / 82;
+}
+
+/* glyphe de la planche au bout d'un bouton */
+.btnGlyph {
+  width: 11px;
+  height: 11px;
+  margin-left: 8px;
+  --k: currentColor;
+}

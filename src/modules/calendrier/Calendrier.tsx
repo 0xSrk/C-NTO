@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
-import { Glyph } from '@/design/Micro';
+import { Glyph, Plate } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
 import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
 import { CATEGORY_HELP, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
@@ -14,7 +14,7 @@ import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
-import { horizonDay, impactBars, LENS_PATH, nowIndex, strokeOf, STROKES, type Stroke } from './calState';
+import { horizonDay, impactBars, LENS_PATH, nowIndex, strokeOf, STROKES, timeEngineLabel, timeEngineValues, type Stroke } from './calState';
 import s from './calendrier.module.css';
 
 /**
@@ -439,6 +439,8 @@ export default function Calendrier() {
   // Le jour de « maintenant » (date de New York, celle des publications) et le premier jour au-delà de l'horizon.
   const etToday = etDateKey(nowAt);
   const hzDay = horizonDay(view === 'grille' ? gridDays : fluxDays, nowAt);
+  // La plaque TIME ENGINE : séance de l'instant, catalyseurs majeurs du jour (tous filtres confondus), synchro.
+  const timePlate = timeEngineValues({ now: nowAt, events, syncing, sources, cached: eventsMacro.length }, trEventTitle);
 
   const monthLabel = parseDateKey(`${cursor}-01`).toLocaleDateString(intlTag(), { month: 'long', year: 'numeric' });
   const shift = (n: number) => {
@@ -480,6 +482,7 @@ export default function Calendrier() {
               }}
             >
               {syncing ? tr('Sync…', 'Sync…', 'Sync…') : tr('Synchroniser', 'Sync', 'Sincronizar')}
+              <Glyph name="sync" className={s.btnGlyph} />
             </Button>
           </>
         }
@@ -646,7 +649,19 @@ export default function Calendrier() {
             )}
           </div>
 
-          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} onHelp={setHelpCat} />
+          <DaySide
+            key={selected}
+            date={selected}
+            events={byDate.get(selected) ?? []}
+            history={history}
+            onSelectDate={setSelected}
+            onHelp={setHelpCat}
+            lead={
+              <div className={s.timeHud}>
+                <Plate id="timeEngine" values={timePlate} label={timeEngineLabel(timePlate)} className={s.timePlate} />
+              </div>
+            }
+          />
         </div>
       </ModuleContent>
 
@@ -790,12 +805,15 @@ function DaySide({
   history,
   onSelectDate,
   onHelp,
+  lead,
 }: {
   date: string;
   events: CalEvent[];
   history: ReturnType<typeof useMacro.getState>['events'];
   onSelectDate: (d: string) => void;
   onHelp: (c: EventCategory) => void;
+  /** En tête de colonne : la plaque TIME ENGINE. */
+  lead?: ReactNode;
 }) {
   useI18n((s) => s.locale);
   const sessions = useJournal((j) => j.sessions);
@@ -868,6 +886,7 @@ function DaySide({
 
   return (
     <aside className={s.side}>
+      {lead}
       <CalLegend />
       <Panel title={formatDateFr(date, { weekday: true })} sub={plural(events.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos'))} accent tight>
         <div className={s.sideStack}>
