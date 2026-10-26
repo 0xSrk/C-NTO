@@ -315,3 +315,11 @@ pre.proto {
   overflow: auto;
   line-height: 1.5;
 }
+
+/* Plaque AGENT_GUARD (Ligne V2) en tête du panneau des ordres : encre secondaire, papier du panneau. */
+.guardPlate {
+  width: min(100%, 286px);
+  margin-bottom: 4px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
