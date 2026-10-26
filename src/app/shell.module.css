@@ -686,7 +686,7 @@
 }
 .toast.ok { border-left: 2px solid var(--mint); }
 .toast.warn { border-left: 2px solid var(--ember); }
-.toast.error { border-left: 2px solid var(--gold); }
+.toast.error { border-left: 2px solid var(--signal); }
 
 .pending .main { visibility: hidden; }
 

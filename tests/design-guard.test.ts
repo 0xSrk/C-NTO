@@ -141,4 +141,14 @@ describe('garde du système visuel', () => {
     const offenders = walk('src').filter((path) => path.endsWith('.css') && /:hover\b/.test(readFileSync(path, 'utf8')));
     expect(offenders.map((path) => posix('src', path))).toEqual([]);
   });
+
+  it('réserve le rouge au niveau 3 : le toast d’erreur le porte, et le rouge marque sans jamais écrire', () => {
+    expect(readFileSync('src/app/shell.module.css', 'utf8')).toMatch(/\.toast\.error\s*\{\s*border-left:\s*2px solid var\(--signal\);/);
+    // Le signal vit dans le châssis (toast, bande du kill switch) et dans la primitive Signal, nulle part ailleurs.
+    const allowed = new Set(['app/shell.module.css', 'design/primitives.module.css']);
+    const users = walk('src').filter((path) => /var\(--signal/.test(readFileSync(path, 'utf8'))).map((path) => posix('src', path));
+    expect(users.filter((rel) => !allowed.has(rel))).toEqual([]);
+    const writes = walk('src').filter((path) => /(?:^|[\s;{])color:\s*var\(--signal\)/m.test(readFileSync(path, 'utf8')));
+    expect(writes.map((path) => posix('src', path))).toEqual([]);
+  });
 });
