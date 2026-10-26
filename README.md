@@ -2,7 +2,7 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.6.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.7.0 · DESK OUTPUT`**
 
 # CΛNTO
 
@@ -19,7 +19,7 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 <br/><br/>
 
-[![Version](https://img.shields.io/badge/version-3.6.0-e5263d?style=flat-square)](#versions)
+[![Version](https://img.shields.io/badge/version-3.7.0-e5263d?style=flat-square)](#versions)
 [![Tests](https://img.shields.io/badge/tests-2270%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
@@ -89,20 +89,20 @@ It reads the whole desk and your rules, prepares the brief and the debrief, and 
 ---
 
 <a id="whats-new"></a>
-<a id="whats-new-in-360"></a>
+<a id="whats-new-in-370"></a>
 
-## What's new in 3.6.0
+## What's new in 3.7.0
 
 > [!NOTE]
-> **v3.6.0 · 2026-10-13.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
+> **v3.7.0 · 2026-10-26.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
 
-- **A crypto tab, built over time.** New optional tab `09 · CRY`: off by default, it turns on only with your consent, in a main-process dialog. Crypto markets join it one by one, release after release: the tab starts small and grows.
-- **Live markets and their temperature.** Live crypto markets with their CVD and the desk’s indicators, and the market temperature read from Binance: median funding, 24 h breadth, the last hour’s liquidations (a lower bound), the 24 h change in open interest. The chart keeps your view during live updates, in Visual too.
-- **Alerts in the desk.** Local price and temperature alerts, raised on a crossing: a desk message and an event the agent reads.
-- **Read and driven by agents.** The agent and MCP clients read and drive the tab through ten `crypto_*` tools: writes are confirmed in the desk or, for external agents, go through only once writing is allowed; nothing is listed while the module is off.
-- **Public data, pinned hosts.** Network in the main process only, to the pinned hosts of Coinbase, Binance and Bybit, with no credentials and no redirects: public data, personal use.
+- **Visual system 4.0 « ΟΡΟΣ ».** Visual system 4.0 « ΟΡΟΣ »: the Lab’s night, ivory and gold. Gold marks what is alive (the LED, the last price, “now”); red now marks level 3 only, and nothing reacts to hover any more.
+- **The Lab’s signature in every detail.** The Lab’s signature in every detail: HUD plates bound to the desk’s real state, cartouches, module emblems and Ligne V2 components on curves, gauges and tools.
+- **Seal, lock and a single barcode.** The Horizon seal strikes at start-up and closes the lock; the status bar becomes an ivory label strip with a single barcode at the bottom right.
+- **The AUBE launcher, rebuilt.** AUBE launcher rebuilt: the horizon draws itself, the gold LED settles on the tip of the Λ, version readings print; on launch, everything folds back onto the horizon. A key press skips it; reduced motion is respected.
+- **Kill switch and DOMPurify.** Kill switch: the level-3 band shows even when the NinjaTrader AddOn is not connected. DOMPurify moves to 3.4.17, past the critical advisories.
 
-NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.6.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.6.0).
+NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.7.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.7.0).
 
 ---
 
@@ -114,9 +114,9 @@ NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.6.0](https://g
 
 | Platform | Download | Runs on |
 |---|---|---|
-| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
-| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-win-arm64-portable.exe) | Windows 10 and 11 |
-| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.6.0/CANTO-3.6.0-linux-arm64.deb) | x64 and ARM64 |
+| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
+| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-arm64-portable.exe) | Windows 10 and 11 |
+| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-arm64.deb) | x64 and ARM64 |
 
 The installers need neither Node.js nor a clone of the repository. Each Release lists every file in `SHA256SUMS.txt`, signed with the Lab's Ed25519 key: the desk's built-in update refuses an installer whose signature is missing, foreign, or bound to another version ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
 
@@ -141,7 +141,7 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-1. Run `CANTO-3.6.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.6.0-win-x64-portable.exe`.
+1. Run `CANTO-3.7.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.7.0-win-x64-portable.exe`.
 2. NinjaTrader 8 — real time, AddOn, CSV folder: [the bridge](#ninjatrader-8-bridge).
 
 **Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log`, and a start-up error is shown in a dialog rather than closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it. Check *Windows Security › App & browser control*, or use the source install below.
@@ -153,8 +153,8 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-- **AppImage** (no system install): `chmod +x CANTO-3.6.0-linux-x86_64.AppImage && ./CANTO-3.6.0-linux-x86_64.AppImage`
-- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.6.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
+- **AppImage** (no system install): `chmod +x CANTO-3.7.0-linux-x86_64.AppImage && ./CANTO-3.7.0-linux-x86_64.AppImage`
+- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.7.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
 - **NinjaTrader**: as on macOS, the Linux desk imports the CSV files the AddOn writes on Windows ([the bridge](#ninjatrader-8-bridge)); real time, orders and the Copier need the desk on the NinjaTrader machine.
 
 Without a GPU (remote session, no `/dev/dri`), Chromium can leave the window black and quit. The desk then switches to software rendering on its own, including at the next launch. Force it with `CANTO_DISABLE_GPU=1`.
@@ -739,7 +739,8 @@ Installers land in `release/`, each built on its own OS.
 
 The journal inside the desk lists every release in French, English and Spanish.
 
-- **3.6.0** — Optional crypto tab `09 · CRY`, off until you consent in a main-process dialog: live markets with their CVD and the desk's indicators, the Binance market temperature, local alerts, ten `crypto_*` tools for the agent and MCP clients. Network in the main process only, to pinned exchange hosts. (2026-10-13)
+- **3.7.0** — Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; an ivory status strip with a single barcode; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected. (2026-10-26)
+- <a id="whats-new-in-360"></a>**3.6.0** — Optional crypto tab `09 · CRY`, off until you consent in a main-process dialog: live markets with their CVD and the desk's indicators, the Binance market temperature, local alerts, ten `crypto_*` tools for the agent and MCP clients. Network in the main process only, to pinned exchange hosts. (2026-10-13)
 - <a id="whats-new-in-350"></a>**3.5.0** — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. The session in progress, discipline rules, Visual following the bridge. The agent reads your rules and day loss, prepares the brief and the debrief, and the desk refuses its proposed orders when they break your rules; the Copier's follower floor reads the same dated buffer. (2026-10-06)
 - **3.4.0** — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
 
@@ -812,6 +813,6 @@ A model reached through an API and run as a service, a desk fitted to one trader
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.6.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.7.0 · DESK OUTPUT`**
 
 </div>

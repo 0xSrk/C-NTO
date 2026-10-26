@@ -1165,3 +1165,22 @@ Quatre points ouverts du relevé du 14 octobre, sur `main` après la publication
 **Seconde relecture (E3.3, E2.1, E4.1).** Trois vérificateurs, aucun bloquant. E3.3 a été rejoué sous Electron 43.7.1 : lien https, `location.href` externe, autre fichier ou ancre ne libèrent rien ; rechargement, retour arrière et plantage du rendu libèrent, en production comme avec le serveur Vite. L'URL de `will-navigate` est toujours la même chaîne que celle de `did-start-navigation`. Elle en a tiré E4.3 (registre illisible pour de bon) et E2.2 (commentaire de la borne). Constat antérieur à la PR, à instruire à part : quand le chemin d'installation contient `[`, `]`, `~` ou `%` (nom court Windows comme `JEROME~1`, sous `%TEMP%` pour l'exécutable portable), `pathToFileURL` encode ces signes alors que Chromium les garde après `loadFile`. `will-navigate` refuse alors `location.reload()`, que `src/store/db.ts` appelle après `db.close()`, et un rechargement lancé par le process principal ne libère rien (le plantage du rendu reste couvert). Piste : comparer les chemins (`fileURLToPath`) plutôt que les URL dans `deskUrlAllowed`.
 
 **Vérifications.** `npm run typecheck`, `npm test`, `npm run build`, `npm run electron:compile` ; nouveaux tests verts sous `TZ=America/New_York` et rouges sans leur correctif. Reste à faire desk lancé : rechargement avec un chart crypto ouvert, puis avec Visual abonné au flux NinjaTrader (flux de l'ancienne page fermés, nouvelle page réabonnée) — `Cmd+R` sous macOS ou en développement ; sous Windows et Linux, le menu est retiré (`Menu.setApplicationMenu(null)`), `Ctrl+R` ne recharge pas le desk empaqueté ; clic sur un lien https d'une note (flux intacts).
+
+## Publication de la 3.7.0 (2026-10-26)
+
+L'ADMIN confie la préparation de la 3.7.0 : le Système 4.0 « ΟΡΟΣ » (fusion de la Ligne V2 « Poinçon » et du Système 3.4, décrit dans `docs/DESIGN.md`), appliqué au desk et au lanceur AUBE par les tickets OROS1.1 à OROS3.12 (#120), entre dans la Release. Il valide la Release avant sa publication et la signe lui-même.
+
+| Piste | Ce qui change |
+|---|---|
+| **Version** | `package.json` et les deux entrées racine de `package-lock.json` à 3.7.0. |
+| **Journal** | Entrée 3.7.0 de `src/engine/changelog/changelog.json` : cinq points en français, anglais et espagnol, qui ouvrent aussi les notes de Release. `tests/changelog.test.ts` et `tests/release-notes.test.ts` épinglent 3.7.0. |
+| **README** | Badge de version et les deux cartouches à 3.7.0 ; « What's new in 3.7.0 » (les cinq points anglais du journal, mot pour mot sous leurs titres en gras) ; liens de téléchargement et commandes d'installation vers les fichiers de la v3.7.0 ; ligne 3.7.0 en tête de « Versions », l'ancre `whats-new-in-360` passe sur la ligne 3.6.0. Les captures datent encore du Système 3.4. |
+
+**Vérifications.** `npm run typecheck`, `npm run build` et `npm run electron:compile` verts ; `npx vitest run` : un seul rouge, `tests/bridge-symlink.test.ts` (`EPERM` : ce poste n'a pas le droit de créer un lien symbolique, préexistant). `tests/dompurify-floor.test.ts` lit `node_modules` et passe après `npm ci`.
+
+**Points ouverts.**
+- README : les captures et le badge (ancien rouge) datent du Système 3.4 ; à recapturer après publication.
+- Entre la fusion de ce commit et la publication, les liens de téléchargement du README mènent à des fichiers que seule la Release en brouillon porte.
+- Le Code 128 de la bande d'état n'a pas encore été lu au téléphone.
+- Crypto : la cible ⊕ au bout de chaque ligne d'alerte du chart n'est pas posée (les lignes sont tiretées et titrées ALERTE).
+- #119 (agent cloud) touche aussi `src/modules/agent/Agent.tsx` : une résolution de conflit pour la branche qui arrive en second.
