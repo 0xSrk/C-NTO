@@ -6,16 +6,22 @@ import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
 import { cmeSession } from '@/lib/cmeClosed';
-import { ET_ZONE, etDateKey, globexState, type GlobexState } from '@/lib/time';
+import { dateKeyLocal, ET_ZONE, etDateKey, globexState, type GlobexState } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
+import { useCalendar } from '@/store/calendar';
+import { useCopier } from '@/store/copier';
+import { useCrypto } from '@/store/crypto';
+import { useLinks } from '@/store/links';
+import { useNotes } from '@/store/notes';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
 import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
+import { railQuantity, type RailSnapshot } from './railQuantity';
 import { isConception, tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -71,6 +77,12 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const bridgeStatus = useBridge((b) => b.status);
   const nt = useBridge((b) => b.nt);
   const now = useClock();
+  const noteCount = useNotes((n) => n.notes.length);
+  const linkCount = useLinks((l) => l.links.length);
+  const calendarEntries = useCalendar((c) => c.entries);
+  const copierReady = useCopier((c) => c.ready);
+  const copierAccounts = useCopier((c) => c.accounts.length);
+  const cryptoMarkets = useCrypto((c) => c.watchlist.length);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
@@ -136,6 +148,17 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const moduleName = (activeCopy?.label ?? '').toLocaleUpperCase(localeTag);
   const third = crumb && crumb.tab === tab ? crumb.label : '';
   const reported = nt?.accountNames?.filter(Boolean) ?? [];
+  const todayKey = dateKeyLocal(new Date(now));
+  /** Bordereau du rail : ce que chaque module contient, lu dans les stores du démarrage. */
+  const snapshot: RailSnapshot = {
+    sessions: sessions.length,
+    todayEntries: calendarEntries.filter((entry) => entry.date === todayKey).length,
+    notes: noteCount,
+    links: linkCount,
+    agentRunning: orchestrator.running,
+    copierAccounts: copierReady ? copierAccounts : null,
+    cryptoMarkets,
+  };
   const chooseFace = (next: ClockFace) => {
     setFace(next);
     try {
@@ -201,7 +224,13 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 
       <aside className={s.rail}>
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
-          <span className={s.navLabelHead}>{tr('MODULES', 'MODULES', 'MÓDULOS')}</span>
+          <div className={s.navLabelHead}>
+            <span>{tr('BORDEREAU', 'MANIFEST', 'ALBARÁN')}</span>
+            <i aria-hidden />
+            <span>
+              {TABS.length} {tr('MODULES', 'MODULES', 'MÓDULOS')}
+            </span>
+          </div>
           {TABS.map((item, index) => {
             const conception = isConception(item.id);
             const prev = index > 0 ? TABS[index - 1] : undefined;
@@ -214,7 +243,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
                     <i />
                   </div>
                 )}
-                <RailButton itemId={item.id} index={item.index} label={tabCopy(item).label} on={tab === item.id} dashed={conception} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
+                <RailButton itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} dashed={conception} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
               </Fragment>
             );
           })}
@@ -317,11 +346,14 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   );
 }
 
-function RailButton({ itemId, index, label, on, dashed, link, onClick }: { itemId: TabId; index: string; label: string; on: boolean; dashed?: boolean; link?: boolean; onClick: () => void }) {
+function RailButton({ itemId, index, label, qty, on, dashed, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; dashed?: boolean; link?: boolean; onClick: () => void }) {
   return (
     <button type="button" className={cx(s.navItem, on && s.on, dashed && s.dashed)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined}>
       <span className={s.navIndex}>{index}</span>
-      <span className={s.navLabel}>{label}</span>
+      <span className={s.navText}>
+        <span className={s.navLabel}>{label}</span>
+        {qty ? <span className={s.navQty}>{qty}</span> : null}
+      </span>
       {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
       <span className={s.navMark} aria-hidden />
       <span className={s.srOnly}>{itemId}</span>
