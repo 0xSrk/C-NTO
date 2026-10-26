@@ -95,7 +95,7 @@ Châssis : titre 44, rail 220, état 28, zone de travail `24px 40px 22px`, inter
 
 ## 07. Signature
 
-Bas du rail : la cartouche `SK-ART-002` de la Ligne V2 (§ 09) — nom, secteur, couches, `BUILD: v{APP_VERSION} · DESK`, plateformes ; ses emplacements de code portent le glyphe S.01 et une règle. Sous elle, la version (ouvre le journal) et les langues. « 4.0 » est la révision de ce système, pas le numéro de l’application. La barre d’état est la bande d’étiquette ivoire ; elle se termine par le seul code-barres du desk, un vrai Code 128 `SK-ART-002-{version}`, puis le losange strié et `[ SIΞRRΛSKΛ ]`. Le sceau Horizon frappe au démarrage et ferme le verrou, nulle part ailleurs ; son horizon (48,27 % de sa hauteur) est l’axe du logotype.
+Bas du rail : la cartouche `SK-ART-002` de la Ligne V2 (§ 09) — nom, secteur, couches, `BUILD: v{APP_VERSION} · DESK`, plateformes ; ses emplacements de code portent le glyphe S.01 et une règle. Sous elle, la version (ouvre le journal) et les langues. « 4.0 » est la révision de ce système, pas le numéro de l’application. La barre d’état est du noir du châssis, comme la barre de titre (décision de l’ADMIN, 2026-10-26 : la bande d’étiquette ivoire est retirée) ; elle se termine par le seul code-barres du desk, un vrai Code 128 `SK-ART-002-{version}`, puis le losange strié et `[ SIΞRRΛSKΛ ]`. Le sceau Horizon frappe au démarrage et ferme le verrou, nulle part ailleurs ; son horizon (48,27 % de sa hauteur) est l’axe du logotype.
 
 ## 08. Marque et logotype
 

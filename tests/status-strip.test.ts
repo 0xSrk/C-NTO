@@ -61,11 +61,15 @@ describe('OROS2.2 bande d’étiquette', () => {
     expect(widthsOf(d).join('')).toBe(code128Widths('SK-SIG-3').join(''));
   });
 
-  it('la barre d’état est imprimée : ivoire et encre, l’or y devient or d’encre', () => {
+});
+
+describe('OROS3.13 la barre d’état au noir du châssis', () => {
+  it('le noir de la barre de titre, les jetons du desk : ni ivoire, ni encre, l’or reste l’or', () => {
     const status = rule('.status');
-    expect(status).toMatch(/background:\s*var\(--ivory\)/);
-    expect(status).toMatch(/color:\s*var\(--ink-soft\)/);
-    expect(status).toMatch(/--gold:\s*var\(--gold-ink\)/);
-    expect(status).toMatch(/--text-0:\s*var\(--ink\)/);
+    expect(status).toMatch(/background:\s*var\(--bg-0\)/);
+    expect(status).toMatch(/color:\s*var\(--text-2\)/);
+    expect(status).not.toMatch(/--ivory|--ink|--gold-ink|color-scheme/);
+    expect(status).not.toMatch(/^\s*--[a-z0-9-]+:/m);
+    expect(rule('.title')).toMatch(/background:\s*var\(--bg-0\)/);
   });
 });
