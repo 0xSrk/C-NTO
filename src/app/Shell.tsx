@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Barcode, Button, Led, cx } from '@/design/primitives';
+import { BraceCode, Button, Led, cx } from '@/design/primitives';
 import { Cartouche, Glyph } from '@/design/Micro';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
@@ -355,7 +355,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         <div className={s.statusRight}>
           <span className={s.sigEnd}>
             <SeatMark>
-              <Barcode />
+              <BraceCode />
             </SeatMark>
             <span className={s.stripName}>
               <Glyph name="lozenge" className={s.lozenge} />

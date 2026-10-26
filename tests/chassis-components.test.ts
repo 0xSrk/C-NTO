@@ -102,7 +102,7 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     const name = [...footer.querySelectorAll('span')].find((span) => [...span.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.includes('[ SIΞRRΛSKΛ ]')));
     expect(name).toBeDefined();
     expect(name!.firstElementChild?.querySelector(`svg.skg-${GLYPH_ID.lozenge}`)).not.toBeNull();
-    // le Code 128 (crispEdges) est le seul : ni la plaque, ni la barre de titre, ni l'en-tête n'en portent
+    // le code d'accolades du pied (crispEdges) est le seul : ni la plaque, ni la barre de titre, ni l'en-tête n'en portent
     expect(el.querySelectorAll('svg[shape-rendering="crispEdges"]')).toHaveLength(1);
     expect(footer.querySelectorAll('svg[shape-rendering="crispEdges"]')).toHaveLength(1);
     expect(rule(shellCss, '.lozenge')).toMatch(/--k: currentColor/);
