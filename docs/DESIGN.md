@@ -91,11 +91,11 @@ Les polices sont embarquées : `src/design/fonts.css` et ses fichiers woff2, cha
 
 ## 06. Détails
 
-Châssis : titre 44, rail 220, état 28, zone de travail `24px 40px 22px`, intervalle 18. Actif du rail : fond Usiné, filet intérieur haut, carré 5 px. Compte actif à même le rail, sans carte : libellé `COMPTE ACTIF ····`, voyant de 6 px devant le nom (allumé : exécutions en direct ; atténué : pont connecté, en veille ; anneau : hors ligne), source dessous. Version sous le compte : `VERSION ···· v{APP_VERSION}`, point LED après le numéro tant que la version n’est pas lue. Chanfrein `--chamfer` : une action principale par écran, fond Ivoire, texte Nuit. Étiquette `[ ORB ]` sur une ligne, tronquée au-delà de 14 caractères. Jauge : piste 8 px, remplissage 3 px, curseur, repère issu d’une donnée ou d’une constante nommée.
+Châssis : titre 44, rail 220, état 28, zone de travail `24px 40px 22px`, intervalle 18. Actif du rail : onglet poinçonné — fond Ivoire, texte Encre, carré 5 px ; sous chaque numéro, l’emblème du module (§ 09). Compte actif à même le rail, sans carte : libellé `COMPTE ACTIF ····`, voyant de 6 px devant le nom (allumé : exécutions en direct ; atténué : pont connecté, en veille ; anneau : hors ligne), source dessous. Version sous le compte : `VERSION ···· v{APP_VERSION}`, point LED après le numéro tant que la version n’est pas lue. Chanfrein `--chamfer` : une action principale par écran, fond Ivoire, texte Nuit. Étiquette `[ ORB ]` sur une ligne, tronquée au-delà de 14 caractères. Jauge : piste 8 px, remplissage 3 px, curseur, repère issu d’une donnée ou d’une constante nommée.
 
 ## 07. Signature
 
-Bas du rail : plaque signature gravée à même le rail, 40 px de haut : cuvette d’un pixel (arête sombre en haut, reflet en bas), fond nuit, sans vis ni languette. Celles-ci restent réservées au lecteur principal (D.01). Gravure `SIΞRRΛSKΛ` au burin, `ARTEFACT` en ivoire, numéro gravé, repères de calage aux coins, micro-texte sur l’arête basse. Les ors de la plaque restent locaux à la plaque. La version `v{APP_VERSION}` est dans le rail (§ 06) : « 4.0 » est la révision de ce système, pas le numéro de l’application. La barre d’état se termine par le code-barres et `[ SIΞRRΛSKΛ ]` ; `SRK—LAB / ART-002` reste dans la barre de titre.
+Bas du rail : la cartouche `SK-ART-002` de la Ligne V2 (§ 09) — nom, secteur, couches, `BUILD: v{APP_VERSION} · DESK`, plateformes ; ses emplacements de code portent le glyphe S.01 et une règle. Sous elle, la version (ouvre le journal) et les langues. « 4.0 » est la révision de ce système, pas le numéro de l’application. La barre d’état est la bande d’étiquette ivoire ; elle se termine par le seul code-barres du desk, un vrai Code 128 `SK-ART-002-{version}`, puis le losange strié et `[ SIΞRRΛSKΛ ]`. Le sceau Horizon frappe au démarrage et ferme le verrou, nulle part ailleurs ; son horizon (48,27 % de sa hauteur) est l’axe du logotype.
 
 ## 08. Marque et logotype
 
@@ -104,6 +104,19 @@ Logotype : grille 640 × 160 au pas de 8, capitale 96 (y 32 → 128), axe y 80, 
 Construction (démarrage) : guides, cote `640 × 160 · 8 PX`, tracé lettre par lettre avec une pointe lumineuse, ancres et relevés au passage, balayage, halo. La LED attend au centre du logotype, se pose sur la pointe du Λ, s’y embrase au passage du tracé ; la ligne `SIΞRRΛSKΛ LAB ● ARTEFACT 002` reprend le point. Le démarrage ne s’ouvre pas avant la fin ; une touche ou un clic l’abrège. Mouvement réduit : logotype affiché directement, sans grille ni LED.
 
 Marque : le Λ en construction sur une grille 256 — pieds sur la ligne de pied, pointe au-dessus de la capitale, LED carrée à la pointe, guides, cote et ancres aux pieds. Tailles optiques : à 32 px et moins, le Λ et la LED restent seuls. Sources et générateur : `docs/design/3.2.2/marque/`. Livrés : `build/logo.svg` (72, encart du lanceur), `build/icon.png` (1024), `build/icon.ico` (16, 24, 32, 48, 64, 128, 256, chaque taille dessinée pour elle-même).
+
+## 09. Micrographies du Lab
+
+Plaques HUD, cartouches et composants de la planche des 150 viennent des masters de la Ligne V2 (Rév. A, packs Fox Rockett Studio achetés ; diffusion dans ce dépôt confirmée par l’ADMIN le 2026-10-26), textes réécrits en place. Source générée : `src/design/micro/assets.ts` (ne pas éditer à la main) ; composants : `src/design/Micro.tsx` (`Glyph`, `Plate`, `Cartouche`, `Signal`). L’encre est `--k`, le papier `--p` : chaque zone les règle. Chaque micrographie nomme une fonction ou lit un état ; aucune ne décore.
+
+- **Plaques** (emplacements liés à l’état réel ; un emplacement sans valeur se lit « — ») : `seal` (démarrage, sur l’horizon : version), `artefact` (démarrage, bas de l’écran), `access` (verrou), `critical` (bande du kill switch), `agentGuard` (garde de l’agent : comptes, dialogue, raccourci), `equity` (courbe A.02, en filigrane), `timeEngine` (calendrier : séance, catalyseurs, synchro), `signal` (alertes crypto : cible, état), `link` (flux de marché : place, websocket, latence).
+- **Cartouches** : `artefact` (rail), `signal3` (bande du kill switch, le seul rouge), `layerL01`…`layerL05` (couche du module dans son en-tête), `sectorS01` (barre de titre).
+- **Composants** (numéro de la planche entre parenthèses) : signaux orbite (131), rayonnement (12), cercle barré (123) ; emblèmes du rail — Métrique (16), Visual (26), Calendrier (121), Note (91), Portefeuille (130), Agent (29), Bot (103), Copieur (148), Crypto (150) ; outils — pont (1), séance manuelle (69), CSV (88), coffre (124), restaurer (141), réglages (62) ; zoom « + — » (68), interrupteur (30), synchro (87), maintenant (27, or), horizon (96), borne du plancher (126), cible (85), mire du creux (142), seuils (106, 107), globe des places (44), flèches (45, 46, 108, 82), règle (31), étoile de séparation (135), losange strié (10).
+- **Un seul code-barres** : le Code 128 de la bande d’état, en bas à droite. Aucun DataMatrix ni QR ailleurs ; une cartouche reçoit une règle ou un glyphe à la place de ses codes.
+
+## 10. Lanceur AUBE
+
+L’aube sur l’horizon : l’horizon se trace en lentille du sceau, le sceau frappe puis se plie dans la ligne, la LED or se lève et se pose sur la pointe du Λ, le logotype se construit sur sa grille (axe y 80 = l’horizon), les plaques s’impriment comme des relevés liés à l’état réel (version, canal de publication, version disponible). Signal par glyphe ; rouge au seul échec. Au départ, chaque trait de la graduation est une étape comptée, le sceau se rouvre en filets puis se replie avec le logotype, la LED reste seule. Une touche ou un clic abrège ; mouvement réduit : état de repos d’emblée. Un seul Code 128, en bas à droite. Icône : le Λ et sa LED carrée, passée à l’or.
 
 ## Règles de cette révision
 

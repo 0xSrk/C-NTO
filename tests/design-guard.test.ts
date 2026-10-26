@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PLATES } from '@/design/micro/assets';
 
 const TEXT = new Set(['.ts', '.tsx', '.css', '.html', '.js', '.mjs', '.cjs', '.svg']);
 
@@ -163,5 +164,14 @@ describe('garde du système visuel', () => {
         expect(token(css, name!).toLowerCase(), name).toBe(value!.toLowerCase());
       }
     }
+  });
+
+  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE, et le bord du desk dit la révision 4.0', () => {
+    const doc = readFileSync('docs/DESIGN.md', 'utf8');
+    for (const id of Object.keys(PLATES)) expect(doc, id).toContain(`\`${id}\``);
+    expect(doc).toMatch(/Un seul code-barres/);
+    expect(doc).toMatch(/## 10\. Lanceur AUBE/);
+    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('RÉV. 4.0');
+    expect(readFileSync('CLAUDE.md', 'utf8')).toMatch(/Système 4\.0/);
   });
 });
