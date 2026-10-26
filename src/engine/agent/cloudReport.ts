@@ -214,7 +214,7 @@ export function sortReports<T extends { date: string; receivedAt: number }>(list
 
 /**
  * Code de la fiche, en clair : `AGT-RPT-AAAAMMJJ`, suffixé `-2`, `-3`… quand la journée compte plusieurs rapports
- * (rangés du plus ancien au plus récent). Le seul code-barres du desk reste celui de la bande d'état.
+ * (rangés du plus ancien au plus récent). Le seul code-barres du châssis reste celui de la barre d'état.
  */
 export function reportCodes(list: readonly { id: string; date: string; receivedAt: number }[]): Map<string, string> {
   const byDay = new Map<string, { id: string; receivedAt: number }[]>();

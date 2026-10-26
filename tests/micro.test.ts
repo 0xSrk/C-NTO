@@ -20,7 +20,7 @@ describe('OROS2.9 micrographies du Lab dans le desk', () => {
     for (const svg of [...Object.values(COMPONENTS), ...Object.values(PLATES).map((p) => p.svg), ...Object.values(CARTOUCHES)]) expect(svg).not.toMatch(HEX);
   });
 
-  it('aucune cartouche ne porte de code : le seul Code 128 du desk reste en bas à droite', () => {
+  it('aucune cartouche ne porte de code : le seul code-barres du desk reste en bas à droite', () => {
     for (const [id, svg] of Object.entries(CARTOUCHES)) expect(svg, id).not.toMatch(/real-code|data-code/);
   });
 

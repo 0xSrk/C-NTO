@@ -648,33 +648,23 @@
   margin-left: auto;
 }
 
-/* Bande d'étiquette (Système 4.0) : la barre d'état est imprimée, l'autre matière du desk.
-   Ses jetons s'y remappent : l'encre remplace l'ivoire, l'or devient or d'encre. */
+/* La barre d'état est du noir du châssis, comme la barre de titre : la bande d'étiquette ivoire de la 3.7.0 est
+   retirée (décision de l'ADMIN, 2026-10-26). Ses jetons sont ceux du desk ; l'or y redevient l'or. */
 .status {
-  --bg-0: var(--ivory);
-  --text-0: var(--ink);
-  --text-1: var(--ink);
-  --text-2: var(--ink-soft);
-  --text-3: var(--ink-soft);
-  --line-0: color-mix(in srgb, var(--ink) 18%, transparent);
-  --line-2: color-mix(in srgb, var(--ink) 24%, transparent);
-  --gold: var(--gold-ink);
-  --gold-line: color-mix(in srgb, var(--gold-ink) 45%, transparent);
   grid-area: status;
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: var(--ivory);
+  background: var(--bg-0);
   border-top: 1px solid var(--line-0);
   padding: 0 16px;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-soft);
-  color-scheme: light;
+  color: var(--text-2);
 }
 .statusLeft,
 .statusRight {
@@ -766,7 +756,7 @@
   align-items: center;
   gap: 10px;
 }
-/* Le nom du Lab, précédé du losange strié (composant 10), à l'encre de la bande. */
+/* Le nom du Lab, précédé du losange strié (composant 10), dans la couleur du texte de la barre. */
 .stripName {
   display: inline-flex;
   align-items: center;

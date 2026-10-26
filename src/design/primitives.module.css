@@ -766,6 +766,22 @@
   color: var(--text-1);
 }
 
+/* Code d'accolades du pied : les barres à la couleur du texte, les accolades en retrait, à l'échelle du texte de la barre. */
+.braceCode {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  line-height: 1;
+  color: var(--text-1);
+}
+.braceCode svg {
+  display: block;
+}
+.brace {
+  color: var(--text-2);
+}
+
 /* Micrographies : le rouge n'existe qu'au niveau 3 — le signal et la cartouche SK-SIG-3 */
 :global(.sig-l3) { --k: var(--signal); }
 :global(.skl.is-signal) { --k: var(--signal); }
