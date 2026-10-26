@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Barcode, Button, Led, cx } from '@/design/primitives';
+import { Cartouche, Glyph } from '@/design/Micro';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
@@ -22,6 +23,7 @@ import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
 import { railQuantity, type RailSnapshot } from './railQuantity';
+import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
 import { isConception, tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -190,6 +192,10 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
+          {/* Le losange du secteur S.01 (cartouche SK-SEC-S01) : le desk sert les marchés. */}
+          <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
+            <Cartouche id="sectorS01" />
+          </span>
           <UpdateButton />
           <div className={s.titleZoom}>
             <ZoomControls />
@@ -260,16 +266,13 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             </div>
             <span className={s.accountSource}>{source}</span>
           </div>
-          {/* Plaque d'artefact (Système 4.0) : le seul objet arrondi, celui de l'objet fini. */}
-          <div className={s.plate} role="group" aria-label={tr('Plaque d’artefact', 'Artefact plate', 'Placa del artefacto')}>
-            <span className={s.plateArt}>ART 002</span>
-            <span className={s.plateVer}>
-              <ChangelogJournal version={appVersion} />
-            </span>
-            <span className={s.plateName}>CΛNTO</span>
-            <span className={s.plateSector}>{tr('S.01 MARCHÉS', 'S.01 MARKETS', 'S.01 MERCADOS')}</span>
-            <div className={s.plateCode}>
-              <span className={s.plateId}>SK-ART-002</span>
+          {/* Plaque d'artefact (Système 4.0) : la cartouche SK-ART-002 du Lab, la version qui ouvre le journal, les langues. Le seul objet arrondi. */}
+          <div className={s.plate} role="group" aria-label={tr(`Plaque d’artefact : SK-ART-002, CΛNTO, version ${appVersion}`, `Artefact plate: SK-ART-002, CΛNTO, version ${appVersion}`, `Placa del artefacto: SK-ART-002, CΛNTO, versión ${appVersion}`)}>
+            <Cartouche id="artefact" values={{ build: `v${appVersion} · DESK`, runs: 'MACOS / WINDOWS / LINUX' }} className={s.plateLabel} />
+            <div className={s.plateRow}>
+              <span className={s.plateVer}>
+                <ChangelogJournal version={appVersion} />
+              </span>
               <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
                 {LOCALES.map((item) => (
                   <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
@@ -415,6 +418,7 @@ export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: T
   }, [crumb, def, setCrumb, tab]);
   if (!def) return null;
   const copy = tabCopy(def);
+  const layer = MODULE_LAYERS[tab];
   return (
     <div className={s.moduleHead}>
       <h1 className={s.modulePlate}>
@@ -430,6 +434,11 @@ export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: T
           </span>
         </span>
       </h1>
+      {/* La couche du Lab à laquelle le module appartient : son composant et sa bande (Ligne V2). */}
+      <span className={s.moduleLayer} role="img" aria-label={`${tr('Couche', 'Layer', 'Capa')} ${layerCode(layer)} · ${layerName(layer)}`} data-layer={layer}>
+        <Glyph name={LAYER_GLYPH[layer]} className={s.layerGlyph} />
+        <Cartouche id={LAYER_CARTOUCHE[layer]} className={s.layerBand} />
+      </span>
       {cells && cells.length > 0 ? (
         <dl className={s.titleBlock}>
           {cells.map((cell) => (

@@ -87,6 +87,21 @@
   -webkit-app-region: no-drag;
 }
 
+/* Le losange du secteur S.01 (cartouche SK-SEC-S01), encre acier sur la nuit. */
+.sector {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-left: 1px solid var(--line-0);
+  border-right: 1px solid var(--line-0);
+  --k: var(--text-1);
+  --p: var(--bg-0);
+}
+.sector > span {
+  width: 68px;
+  height: 31px;
+}
+
 .titleZoom {
   display: flex;
   align-items: center;
@@ -340,67 +355,41 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Plaque d'artefact : ART 002 · version (journal) / CΛNTO · secteur / code en clair · langues. */
+/* Plaque d'artefact : la vraie cartouche SK-ART-002 du Lab (sans code), puis la version (journal) et les langues. */
 .plate {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px 10px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
   margin-top: 8px;
-  padding: 8px;
+  padding: 9px 9px 6px;
   border: 1px solid var(--line-2);
   border-radius: 3px;
   background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--ivory) 6%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--bg-void) 50%, transparent);
+  --k: var(--text-0);
+  --p: var(--bg-1);
 }
-.plateArt {
-  padding: 3px 6px 2px;
-  background: var(--ivory);
-  color: var(--ink);
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 600;
-  font-stretch: var(--value-stretch);
-  line-height: 1;
-  letter-spacing: 0.02em;
+.plateLabel {
+  display: block;
+  width: 100%;
 }
-.plateVer {
-  justify-self: end;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
+.plate .plateLabel > svg {
+  height: auto;
 }
-.plateName {
-  font-family: var(--font-name);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  color: var(--text-0);
-}
-.plateSector {
-  justify-self: end;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  color: var(--text-2);
-}
-.plateCode {
-  grid-column: 1 / -1;
+.plateRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-top: 7px;
+  margin-top: 7px;
+  padding-top: 6px;
   border-top: 1px solid var(--line-1);
 }
-.plateId {
+.plateVer {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--text-1);
+  letter-spacing: 0.06em;
 }
 .accountSource {
   min-width: 0;
@@ -569,6 +558,24 @@
   content: '·';
   margin-right: 10px;
   color: var(--ghost);
+}
+/* La couche du Lab : son composant de la planche et sa bande mini (SK-LYR-L0x-M). */
+.moduleLayer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding-bottom: 2px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.layerGlyph {
+  width: 22px;
+  height: 22px;
+}
+.layerBand {
+  width: 102px;
+  height: 34px;
 }
 .titleBlock {
   display: flex;
@@ -822,6 +829,60 @@
 .toast.ok { border-left: 2px solid var(--mint); }
 .toast.warn { border-left: 2px solid var(--ember); }
 .toast.error { border-left: 2px solid var(--signal); }
+
+/* ─── Bande de niveau 3 (kill switch) : nuit, filets rouges, texte ivoire, jamais animée ─── */
+.band {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 66px;
+  padding: 0 20px;
+  background-color: var(--bg-0);
+  background-image: repeating-linear-gradient(-45deg, var(--signal-soft) 0 6px, transparent 6px 14px);
+  border-top: 2px solid var(--signal);
+  border-bottom: 1px solid var(--signal-line);
+  color: var(--text-0);
+  --k: var(--text-0);
+  --p: var(--bg-0);
+}
+/* La cartouche SK-SIG-3 : le seul rouge de la bande (.skl.is-signal). */
+.bandSignal {
+  width: 85px;
+  height: 46px;
+}
+.bandText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.bandText b {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-0);
+}
+.bandText span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* La plaque critique : ce qui est fermé, et jusqu'à quand. */
+.bandPlate {
+  width: 118px;
+  height: 54px;
+  margin-left: auto;
+}
 
 .pending .main { visibility: hidden; }
 
