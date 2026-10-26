@@ -8,6 +8,7 @@ import { fmtInt } from '@/lib/format';
 import { dateTimeFormatter } from '@/lib/time';
 import { chartHostReady, safePaneHeight } from '@/modules/visual/chartBox';
 import s from './dashboard.module.css';
+import { sessionMarks } from './equityPaint';
 import { EquityTrait, NONE, StemTrait, UnderwaterTrait, type EquityRow, type Ink, type Marks, type TraitOptions } from './equitySeries';
 
 /**
@@ -38,6 +39,7 @@ function palette(el: HTMLElement): Ink & { line1: string; bg3: string } {
     faint: v('--text-2'),
     label: v('--text-1'),
     zero: v('--line-2'),
+    paper: v('--bg-2'),
     line1: v('--line-1'),
     bg3: v('--bg-3'),
     mono: css.getPropertyValue('--font-mono').trim() || 'monospace',
@@ -86,7 +88,8 @@ function marksOf(curve: EquityCurveData): Marks {
 }
 
 function draw(refs: Refs, curve: EquityCurveData): void {
-  const rows: EquityRow[] = curve.steps.map((step) => ({ time: step.time as UTCTimestamp, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl }));
+  const sessions = sessionMarks(curve.steps);
+  const rows: EquityRow[] = curve.steps.map((step, i) => ({ time: step.time as UTCTimestamp, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl, session: sessions[i] ?? NONE }));
   const marks = marksOf(curve);
   for (const trait of refs.traits) {
     trait.applyOptions({ marks, focus: NONE });

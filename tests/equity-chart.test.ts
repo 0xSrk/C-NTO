@@ -35,6 +35,15 @@ vi.mock('lightweight-charts', () => {
     }
     return dst;
   };
+  /** Même copie que `clone` de la bibliothèque : les objets en profondeur, les fonctions par référence. */
+  const clone = (src: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(src)) {
+      const value = src[key];
+      out[key] = value && typeof value === 'object' && !Array.isArray(value) ? clone(value as Record<string, unknown>) : value;
+    }
+    return out;
+  };
   return {
     customSeriesDefaultOptions: { color: '#000' },
     ColorType: { Solid: 'solid' },
@@ -45,7 +54,7 @@ vi.mock('lightweight-charts', () => {
       state.charts.push(chart);
       return {
         addCustomSeries: (view: { constructor: { name: string }; defaultOptions: () => Record<string, unknown> }, options: Record<string, unknown>, pane = 0) => {
-          const series: FakeSeries = { kind: view.constructor.name, pane, options: merge(structuredClone(view.defaultOptions()), options), data: [] };
+          const series: FakeSeries = { kind: view.constructor.name, pane, options: merge(clone(view.defaultOptions()), options), data: [] };
           chart.series.push(series);
           return {
             setData: (data: FakeSeries['data']) => {
@@ -158,7 +167,8 @@ describe('Métrique › A.02 courbe d’équité', () => {
       ['StemTrait', 1],
       ['UnderwaterTrait', 2],
     ]);
-    const rows = curve.steps.map((step) => ({ time: step.time, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl }));
+    // Règle de séances : chaque pas porte l'ordinal de la séance qu'il ouvre (−1 au départ).
+    const rows = curve.steps.map((step, i) => ({ time: step.time, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl, session: i === 0 ? -1 : i }));
     for (const row of chart.series) expect(row.data).toEqual(rows);
     expect(marks(chart)).toEqual({ high: 2, highLabel: 'PLUS HAUT +400', trough: 3, troughLabel: 'CREUX −450' });
     const ink = trait(chart, 'EquityTrait').options.ink as Record<string, string>;

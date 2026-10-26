@@ -109,3 +109,104 @@ export function signaturePixel(cx: number, cy: number, cell: number, gap: number
 export function labelLeft(x: number, width: number, gap: number, right: number): number {
   return x + gap + width <= right ? x + gap : Math.max(0, x - gap - width);
 }
+
+/**
+ * Le zéro, tracé comme la lentille du sceau : deux cubiques de Bézier symétriques, épaisses au centre, effilées
+ * jusqu'à rien aux deux bouts. `bulge` : écart des points de contrôle ; l'épaisseur au centre vaut 1,5 × `bulge`.
+ */
+export interface Lens {
+  from: Pt;
+  to: Pt;
+  /** Points de contrôle de l'arc supérieur, de `from` vers `to`. */
+  top: [Pt, Pt];
+  /** Points de contrôle de l'arc inférieur, de `to` vers `from`. */
+  bottom: [Pt, Pt];
+}
+
+export function lens(x0: number, x1: number, y: number, bulge: number): Lens {
+  const w = x1 - x0;
+  return {
+    from: { x: x0, y },
+    to: { x: x1, y },
+    top: [
+      { x: x0 + w * 0.3, y: y - bulge },
+      { x: x0 + w * 0.7, y: y - bulge },
+    ],
+    bottom: [
+      { x: x0 + w * 0.7, y: y + bulge },
+      { x: x0 + w * 0.3, y: y + bulge },
+    ],
+  };
+}
+
+/** Pas sans trait sur la règle de séances. */
+const NO_SESSION = -1;
+/** Un appui toutes les `RULER_MAJOR` séances. */
+export const RULER_MAJOR = 10;
+
+/**
+ * Règle de séances : pour chaque pas de la courbe, l'ordinal (1, 2, …) de la séance qu'il ouvre ; `-1` pour un pas qui
+ * n'en ouvre pas (le départ, un trade de la même séance).
+ */
+export function sessionMarks(steps: readonly { date: string; origin?: true }[]): number[] {
+  let ordinal = 0;
+  let last: string | null = null;
+  return steps.map((step) => {
+    if (step.origin) return NO_SESSION;
+    if (step.date === last) return NO_SESSION;
+    last = step.date;
+    ordinal += 1;
+    return ordinal;
+  });
+}
+
+/** Hauteur du trait de la règle pour un pas : `minor` par séance, `major` toutes les dix, 0 sans séance. */
+export function rulerTick(mark: number, minor: number, major: number): number {
+  if (mark <= 0) return 0;
+  return mark % RULER_MAJOR === 0 ? major : minor;
+}
+
+/**
+ * Connecteur d'un repère de la planche (⊕ plus haut, ⊗ creux) : un trait qui part du glyphe, finit sur un petit
+ * cercle, puis l'étiquette. Mesures de la maquette (glyphe de 12, trait de 8 à 17, cercle à 19, texte à 26–27),
+ * multipliées par `k` (rapport de pixels).
+ */
+export interface Leader {
+  from: Pt;
+  to: Pt;
+  dot: Pt;
+  /** Ancre du texte : centre bas (`center`), début (`left`) ou fin (`right`) de la ligne de base. */
+  text: Pt;
+  align: 'center' | 'left' | 'right';
+}
+
+export function leader(at: Pt, side: 'up' | 'right' | 'left', k: number): Leader {
+  if (side === 'up') {
+    return { from: { x: at.x, y: at.y - 8 * k }, to: { x: at.x, y: at.y - 17 * k }, dot: { x: at.x, y: at.y - 19 * k }, text: { x: at.x, y: at.y - 26 * k }, align: 'center' };
+  }
+  const dir = side === 'right' ? 1 : -1;
+  return {
+    from: { x: at.x + dir * 8 * k, y: at.y },
+    to: { x: at.x + dir * 19 * k, y: at.y },
+    dot: { x: at.x + dir * 21 * k, y: at.y },
+    text: { x: at.x + dir * 27 * k, y: at.y },
+    align: side === 'right' ? 'left' : 'right',
+  };
+}
+
+/** Hachure à 45° d'un rectangle (la zone au-delà d'une borne) : segments déjà coupés au cadre, motif fixe à l'écran. */
+export function hatch(x0: number, y0: number, x1: number, y1: number, pitch: number): [Pt, Pt][] {
+  if (x1 - x0 <= 0 || y1 - y0 <= 0 || pitch <= 0) return [];
+  const out: [Pt, Pt][] = [];
+  // Droites x − y = c, sur une grille absolue : le motif ne glisse pas quand la borne monte ou descend.
+  for (let c = Math.ceil((x0 - y1) / pitch) * pitch; c < x1 - y0; c += pitch) {
+    const ax = Math.max(x0, c + y0);
+    const bx = Math.min(x1, c + y1);
+    if (bx - ax <= 0) continue;
+    out.push([
+      { x: ax, y: ax - c },
+      { x: bx, y: bx - c },
+    ]);
+  }
+  return out;
+}
