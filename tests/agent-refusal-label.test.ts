@@ -62,17 +62,17 @@ describe('refus d’écriture relayé à un agent externe', () => {
 
     await write('m1', 'mcp');
     await write('o1', 'c1');
-    expect(answers[0]?.error).toMatch(/Agent IA › Agents externes · MCP/);
-    expect(answers[1]?.error).toMatch(/Agent IA › Orchestrateur externe/);
+    expect(answers[0]?.error).toMatch(/Agent IA › Options › Agents externes · MCP/);
+    expect(answers[1]?.error).toMatch(/Agent IA › Options › Orchestrateur externe/);
 
     useI18n.setState({ locale: 'en' });
     await write('m2', 'mcp');
     await write('o2', 'c1');
-    expect(answers[2]?.error).toMatch(/AI Agent › External agents · MCP/);
-    expect(answers[3]?.error).toMatch(/AI Agent › External orchestrator/);
+    expect(answers[2]?.error).toMatch(/AI Agent › Options › External agents · MCP/);
+    expect(answers[3]?.error).toMatch(/AI Agent › Options › External orchestrator/);
 
     useI18n.setState({ locale: 'es' });
     await write('m3', 'mcp');
-    expect(answers[4]?.error).toMatch(/Agente IA › Agentes externos · MCP/);
+    expect(answers[4]?.error).toMatch(/Agente IA › Opciones › Agentes externos · MCP/);
   });
 });

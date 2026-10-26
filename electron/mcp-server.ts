@@ -47,9 +47,9 @@ export function mcpInstructions(locale: AppLocale, allowWrites: boolean): string
         'Acceso: escritura autorizada por el trader. create_note, branch_note y link_notes añaden a la caja de notas; annotate_session sustituye la nota y las etiquetas de una sesión (léalas antes con get_session); propose_order, si el trader activó las órdenes propuestas por el agente, propone una orden en una cuenta Sim, que el trader confirma o rechaza en una ventana del desk (45 s, Rechazar por defecto): nada sale sin él, y un rechazo es una respuesta, no un error que sortear. Si el trader retira la autorización, reconecte el cliente: la lista de herramientas cambia.',
       )
     : t(
-        'Accès : lecture seule. Les écritures (notes, annotations de séance, propositions d’ordre) sont masquées et refusées tant que le trader ne coche pas « écriture autorisée » dans Agent IA › Agents externes · MCP. Après ce changement, reconnectez le client : la liste des outils ne se met pas à jour d’elle-même.',
-        'Access: read only. Writes (notes, session annotations, order proposals) are hidden and refused until the trader turns on “write allowed” in AI Agent › External agents · MCP. After that change, reconnect the client: the tool list does not refresh by itself.',
-        'Acceso: solo lectura. Las escrituras (notas, anotaciones de sesión, propuestas de orden) están ocultas y se rechazan mientras el trader no active « escritura autorizada » en Agente IA › Agentes externos · MCP. Tras ese cambio, reconecte el cliente: la lista de herramientas no se actualiza sola.',
+        'Accès : lecture seule. Les écritures (notes, annotations de séance, propositions d’ordre) sont masquées et refusées tant que le trader ne coche pas « écriture autorisée » dans Agent IA › Options › Agents externes · MCP. Après ce changement, reconnectez le client : la liste des outils ne se met pas à jour d’elle-même.',
+        'Access: read only. Writes (notes, session annotations, order proposals) are hidden and refused until the trader turns on “write allowed” in AI Agent › Options › External agents · MCP. After that change, reconnect the client: the tool list does not refresh by itself.',
+        'Acceso: solo lectura. Las escrituras (notas, anotaciones de sesión, propuestas de orden) están ocultas y se rechazan mientras el trader no active « escritura autorizada » en Agente IA › Opciones › Agentes externos · MCP. Tras ese cambio, reconecte el cliente: la lista de herramientas no se actualiza sola.',
       );
   // Module crypto : listé selon l'interrupteur lu à chaque requête (`cryptoEnabled`), sans `listChanged` ; ses écritures passent
   // derrière la même autorisation, sans dialogue du desk (`executeDeskTool`, source `orch`).
@@ -374,9 +374,9 @@ async function dispatch(method: string, params: Record<string, unknown>, ctx: Mc
           result: toolError(
             uiText(
               locale,
-              'Écriture désactivée dans CΛNTO : le trader doit l’autoriser (Agent IA › Agents externes).',
-              'Writing is disabled in CΛNTO: the trader must allow it (AI Agent › External agents).',
-              'Escritura desactivada en CΛNTO: el trader debe autorizarla (Agente IA › Agentes externos).',
+              'Écriture désactivée dans CΛNTO : le trader doit l’autoriser (Agent IA › Options › Agents externes · MCP).',
+              'Writing is disabled in CΛNTO: the trader must allow it (AI Agent › Options › External agents · MCP).',
+              'Escritura desactivada en CΛNTO: el trader debe autorizarla (Agente IA › Opciones › Agentes externos · MCP).',
             ),
           ),
         };

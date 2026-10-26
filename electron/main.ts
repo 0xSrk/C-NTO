@@ -27,6 +27,7 @@ import { initMainLog, mainLog } from './main-log';
 import { SeatHost } from './seat';
 import { SEAT_PUBLIC_KEYS } from './seat-keys';
 import { createCryptoRuntime, type CryptoMainStatus, type CryptoRuntime } from './crypto-electron';
+import { AgentCloudHost } from './agent-cloud';
 
 const DEV_URL = process.env.CANTO_DEV_URL;
 /**
@@ -201,6 +202,8 @@ let ntBridge: NtBridgeHost | null = null;
 let agentOrders: AgentOrderHost | null = null;
 /** Module crypto (onglet 09 · CRY) : interrupteur, flux et température, créés dans `app.whenReady`. */
 let cryptoRuntime: CryptoRuntime | null = null;
+/** Agent cloud (onglet 06 · AGT, Managed Agents) : relève des rapports, créé dans `app.whenReady`. */
+let agentCloud: AgentCloudHost | null = null;
 let updateBusy = false;
 /** Dossiers accordés par un dialogue système : seuls ceux-là sont accessibles en écriture / surveillance. */
 const grants = new FolderGrants(gpuDir);
@@ -502,6 +505,31 @@ app.whenReady().then(() => {
     },
     log: (line) => mainLog('info', line),
   });
+  // Agent cloud : le process principal garde la clé et relève les rapports ; rien n'écoute, rien du desk ne part.
+  agentCloud = new AgentCloudHost({
+    userDataDir: app.getPath('userData'),
+    locale: () => readLocaleFile(app.getPath('userData')),
+    window: () => (win && !win.isDestroyed() ? win : null),
+    showMessageBox: (target, options) => dialog.showMessageBox(target as BrowserWindow, options),
+    send: (channel, payload) => {
+      if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+    },
+    log: (line) => mainLog('info', line),
+    seal: {
+      available: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (text) => {
+        try {
+          return safeStorage.encryptString(text).toString('base64');
+        } catch {
+          return null;
+        }
+      },
+      decrypt: (blob) => decryptLlmKey(blob),
+    },
+    fetchImpl: (url, init) => fetch(url, init),
+    openPath: async (dir) => (await shell.openPath(dir)) === '',
+  });
+  agentCloud.start();
   void ntBridge.start();
   const shortcut = globalShortcut.register(KILL_SWITCH_SHORTCUT, () => {
     // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont.
@@ -534,6 +562,7 @@ app.on('window-all-closed', () => {
   bridge?.dispose();
   // Flux et relevés fermés ; l'interrupteur reste tel quel (macOS rouvre une fenêtre sur `activate`).
   cryptoRuntime?.shutdown();
+  agentCloud?.shutdown();
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -867,6 +896,22 @@ ipcMain.handle('mcp:status', (e) => (trusted(e) ? mcpGateway().status() : MCP_ID
 ipcMain.handle('mcp:rotate-token', (e) => (trusted(e) ? mcpGateway().rotateToken() : (mcp?.status() ?? MCP_IDLE)));
 // Adresse et jeton, à la demande de l'opérateur (copie de la configuration d'un client). Jamais dans un statut.
 ipcMain.handle('mcp:connection', (e) => (trusted(e) ? mcpGateway().connection() : null));
+
+/* ─── Agent cloud (Managed Agents) : la clé reste ici, le renderer ne reçoit que le statut et les rapports ─── */
+ipcMain.handle('agent-cloud:status', (e) => (trusted(e) && agentCloud ? agentCloud.status() : null));
+ipcMain.handle('agent-cloud:list', (e) => (trusted(e) && agentCloud ? agentCloud.list() : []));
+ipcMain.handle('agent-cloud:read', (e, id: unknown) => (trusted(e) && agentCloud ? agentCloud.read(id) : null));
+ipcMain.handle('agent-cloud:mark-read', (e, id: unknown) => (trusted(e) && agentCloud ? agentCloud.markRead(id) : null));
+ipcMain.handle('agent-cloud:set-key', (e, text: unknown) => (trusted(e) && agentCloud && isString(text, 512) ? agentCloud.setKey(text) : (agentCloud?.status() ?? null)));
+ipcMain.handle('agent-cloud:set-deployment', (e, id: unknown) => (trusted(e) && agentCloud && (id === null || isString(id, 140)) ? agentCloud.setDeployment(id) : (agentCloud?.status() ?? null)));
+ipcMain.handle('agent-cloud:set-schedule', (e, raw: unknown) => (trusted(e) && agentCloud ? agentCloud.setSchedule(raw) : null));
+ipcMain.handle('agent-cloud:pull', (e) => (trusted(e) && agentCloud ? agentCloud.pull() : null));
+// Installer, lancer, reprendre : dialogue du process principal, Annuler par défaut (dépense de crédits API).
+ipcMain.handle('agent-cloud:provision', (e) => (trusted(e) && agentCloud ? agentCloud.provision() : null));
+ipcMain.handle('agent-cloud:run', (e) => (trusted(e) && agentCloud ? agentCloud.runNow() : null));
+ipcMain.handle('agent-cloud:pause', (e) => (trusted(e) && agentCloud ? agentCloud.pause() : null));
+ipcMain.handle('agent-cloud:unpause', (e) => (trusted(e) && agentCloud ? agentCloud.unpause() : null));
+ipcMain.handle('agent-cloud:open-folder', (e) => (trusted(e) && agentCloud ? agentCloud.openFolder() : false));
 
 /* ─── Secrets (clé API chiffrée par le trousseau du système) ─── */
 /** Hôte scellé de chaque clé API chiffrée (A11), lu dans `userData` au premier besoin. */
