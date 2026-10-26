@@ -1,4 +1,6 @@
-/* UI du lanceur — plain JS. Transition : le circuit converge sur le logotype, qui s'effondre en LED. */
+/* UI du lanceur AUBE — plain JS. Logique de version, de mise à jour, de nouveautés et de langue ; présentation
+   en Système 4.0 « ΟΡΟΣ » : plaques liées à l'état réel, signal par glyphe, jauge du téléchargement, bande
+   d'étiquette au vrai Code 128. Micrographies : window.cantoMicro (launcher-micro.js, généré). */
 (function () {
   const COPY = {
     fr: {
@@ -25,6 +27,9 @@
       installerOpened: 'Installeur ouvert — terminez l’installation puis relancez CΛNTO',
       updateFail: 'Échec de la mise à jour',
       notes: (v) => `Nouveautés de la v${v} ▾`,
+      sheet: 'Fiche · Nouveautés',
+      release: { upToDate: 'À JOUR', available: 'DISPO', failed: 'ÉCHEC', applying: 'MAJ…' },
+      artefact: { ready: 'PRÊT', updating: 'MAJ…', launching: 'LANCÉ' },
     },
     en: {
       close: 'Close',
@@ -50,6 +55,9 @@
       installerOpened: 'Installer opened — finish the install, then relaunch CΛNTO',
       updateFail: 'Update failed',
       notes: (v) => `What's new in v${v} ▾`,
+      sheet: 'Sheet · What’s new',
+      release: { upToDate: 'LATEST', available: 'UPDATE', failed: 'FAILED', applying: 'UPDATE…' },
+      artefact: { ready: 'READY', updating: 'UPDATE…', launching: 'OPENING' },
     },
     es: {
       close: 'Cerrar',
@@ -75,6 +83,9 @@
       installerOpened: 'Instalador abierto — termine la instalación y reinicie CΛNTO',
       updateFail: 'Error de la actualización',
       notes: (v) => `Novedades de la v${v} ▾`,
+      sheet: 'Ficha · Novedades',
+      release: { upToDate: 'AL DÍA', available: 'NUEVA', failed: 'FALLO', applying: 'ACT…' },
+      artefact: { ready: 'LISTO', updating: 'ACT…', launching: 'ABRIENDO' },
     },
   };
 
@@ -98,6 +109,18 @@
   const hudClock = $('hud-clock');
   const btnNotes = $('notes-toggle');
   const notesPanel = $('notes-panel');
+  // Présentation (absente de pages réduites : chaque usage est gardé).
+  const metaGlyph = $('meta-glyph');
+  const plateSeal = $('plate-seal');
+  const plateArtefact = $('plate-artefact');
+  const plateRelease = $('plate-release');
+  const gauge = $('gauge');
+  const gaugePct = $('gauge-pct');
+  const stripChannel = $('strip-channel');
+  const stripLatency = $('strip-latency');
+  const stripCode = $('strip-code');
+  const code = $('code');
+  const MICRO = window.cantoMicro || null;
 
   const LOCALES = ['fr', 'en', 'es'];
   const fromQuery = new URLSearchParams(location.search).get('lang');
@@ -109,11 +132,117 @@
   /** Modifications locales détectées : le prochain clic confirme le stash. */
   let stashArmed = false;
   let launching = false;
+  /** Relevés réels : version lue du shell, aller-retour du contrôle (ms), pourcentage reçu. */
+  let version = null;
+  let latencyMs = null;
+  let receivedPct = null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function L() {
     return COPY[locale];
   }
+
+  /* ─── Présentation : plaques, signal, bande ─────────────────────────────── */
+
+  /** Longueur maximale de chaque relevé de la plaque de publication (scripts/launcher-micro.mjs). */
+  const LIMIT = { next: 8, state: 7, channel: 6, latency: 7 };
+  const CHANNEL = { github: 'GITHUB', git: 'GIT' };
+  const clip = (value, n) => (value === null || value === undefined ? null : String(value).slice(0, n));
+
+  function fmtLatency(ms) {
+    if (ms === null || !Number.isFinite(ms)) return null;
+    return ms < 1000 ? `${Math.round(ms)} MS` : `${(ms / 1000).toFixed(1)} S`;
+  }
+
+  function currentVersion() {
+    return status?.current || version || null;
+  }
+
+  function bind(el, plate, values) {
+    if (!el || !MICRO || !MICRO.PLATES[plate]) return;
+    el.innerHTML = MICRO.bindSlots(MICRO.PLATES[plate].svg, values);
+  }
+
+  function releaseState() {
+    if (!status) return null;
+    if (receivedPct !== null) return `${receivedPct} %`;
+    if (applying) return L().release.applying;
+    if (status.error && !status.available) return L().release.failed;
+    return status.available ? L().release.available : L().release.upToDate;
+  }
+
+  function artefactState() {
+    if (!window.canto?.update) return null;
+    if (launching) return L().artefact.launching;
+    if (applying) return L().artefact.updating;
+    return L().artefact.ready;
+  }
+
+  function paintPlates() {
+    bind(plateSeal, 'seal', { version: currentVersion() });
+    bind(plateArtefact, 'artefact', { state: artefactState() });
+    bind(plateRelease, 'release', {
+      next: clip(status ? status.latest : null, LIMIT.next),
+      state: clip(releaseState(), LIMIT.state),
+      channel: clip(status ? CHANNEL[status.source] : null, LIMIT.channel),
+      latency: clip(status ? fmtLatency(latencyMs) : null, LIMIT.latency),
+    });
+  }
+
+  function paintStrip() {
+    if (stripChannel) {
+      const reached = !!status && !(status.error && !status.available);
+      stripChannel.textContent = `${reached ? '■' : '□'} ${(status && CHANNEL[status.source]) || '—'}`;
+    }
+    if (stripLatency) stripLatency.textContent = status && latencyMs !== null ? `· ${fmtLatency(latencyMs)}` : '';
+    const v = currentVersion();
+    const text = v ? `SK-ART-002-${v}` : 'SK-ART-002';
+    if (stripCode) stripCode.textContent = text;
+    if (!code || !MICRO) return;
+    if (!v) {
+      code.replaceChildren();
+      return;
+    }
+    // Le seul code-barres du lanceur : SK-ART-002-{version}, un module par pixel.
+    const { d, modules } = MICRO.code128Path(text, 12);
+    code.setAttribute('viewBox', `0 0 ${modules} 12`);
+    code.setAttribute('width', String(modules));
+    code.innerHTML = `<path d="${d}" />`;
+  }
+
+  const LEVEL = { ok: '1', warn: '2', err: '3', busy: 'busy' };
+  const GLYPH = { 1: 'signal1', 2: 'signal2', 3: 'signal3', busy: 'now' };
+
+  function paintSignal(kind) {
+    const level = LEVEL[kind] || '1';
+    if (meta.dataset.level === level && metaGlyph?.firstChild) return;
+    meta.dataset.level = level;
+    if (metaGlyph && MICRO) metaGlyph.innerHTML = MICRO.GLYPHS[GLYPH[level]];
+  }
+
+  function paintGauge() {
+    if (!gauge) return;
+    gauge.hidden = receivedPct === null;
+    if (receivedPct === null) return;
+    gauge.style.setProperty('--fill', String(Math.round(receivedPct * 10) / 1000));
+    if (gaugePct) gaugePct.textContent = `${receivedPct} %`;
+  }
+
+  /** Lentille de l'horizon : le premier tracé du groupe horizon du sceau (la lentille, sans le bord du disque), à l'échelle de la fenêtre. */
+  (function paintStatics() {
+    if (!MICRO) return;
+    const horizon = /<g data-part="horizon">(<path[^>]*\/>)/.exec(MICRO.SEAL.svg);
+    const lens = $('lens');
+    if (lens && horizon) lens.innerHTML = horizon[1];
+    for (const [id, name] of [
+      ['glyph-launch', 'arrowOpen'],
+      ['glyph-update', 'arrowImport'],
+      ['glyph-rule', 'rule'],
+    ]) {
+      const el = $(id);
+      if (el) el.innerHTML = MICRO.GLYPHS[name];
+    }
+  })();
 
   function paintLocale() {
     const c = L();
@@ -129,6 +258,8 @@
       button.setAttribute('aria-checked', on ? 'true' : 'false');
       if (on) langRow.style.setProperty('--at', String(index));
     });
+    paintPlates();
+    paintStrip();
     if (!status && !window.canto?.update) {
       setMeta(c.shell, 'err');
       return;
@@ -181,6 +312,15 @@
     notesPanel.hidden = !notesOpen;
     notesPanel.classList.toggle('open', notesOpen);
     notesPanel.replaceChildren();
+    // En-tête de fiche : le document, et l'écart qu'il couvre.
+    const head = document.createElement('div');
+    head.className = 'fh';
+    const label = document.createElement('span');
+    label.textContent = L().sheet;
+    const span = document.createElement('span');
+    span.textContent = 'v' + status.current + ' → v' + status.latest;
+    head.append(label, span);
+    notesPanel.appendChild(head);
     for (const entry of rows) {
       const highlights = entry.highlights || {};
       const points = highlights[locale] || highlights.fr || [];
@@ -201,9 +341,13 @@
   function setMeta(text, kind) {
     metaText.textContent = text;
     meta.className = 'meta' + (kind ? ' ' + kind : '');
+    paintSignal(kind);
   }
 
   function paint() {
+    paintPlates();
+    paintStrip();
+    paintGauge();
     if (!status) return;
     const { current, latest, available, error } = status;
     if (error && !available) {
@@ -234,7 +378,9 @@
       return;
     }
     setMeta(L().checking, 'busy');
+    const asked = performance.now();
     status = await window.canto.update.check();
+    latencyMs = performance.now() - asked;
     notesDoc = null;
     notesOpen = false;
     if (status?.available && window.canto.update.changelog) {
@@ -247,35 +393,17 @@
     paint();
   }
 
-  /* ─── Règles du réticule : graduation 8 px, majeure tous les 40 px ─── */
-  (function paintTicks() {
-    const g = $('ticks');
-    if (!g) return;
-    const NS = 'http://www.w3.org/2000/svg';
-    let d = '';
-    let dMajor = '';
-    for (let y = 40; y <= 580; y += 8) {
-      const major = (y - 40) % 40 === 0;
-      const len = major ? 6 : 3;
-      const seg = `M17 ${y + 0.5}h${len}M${403 - len} ${y + 0.5}h${len}`;
-      if (major) dMajor += seg;
-      else d += seg;
-    }
-    for (const [cls, path] of [
-      ['tick', d],
-      ['tick major', dMajor],
-    ]) {
-      const p = document.createElementNS(NS, 'path');
-      p.setAttribute('class', cls);
-      p.setAttribute('d', path);
-      g.appendChild(p);
-    }
-  })();
-
   /* ─── Circuit de transition ─────────────────────────────────────────────
      Traces à 45° façon PCB, tracées par des photons (tête lumineuse + traîne),
      nano-pixels 1×1 qui s'allument au passage, anneau autour du logotype puis
-     effondrement du logotype en une LED unique au centre. */
+     effondrement du logotype en une LED unique au centre. Couleurs : jetons du lanceur. */
+
+  /** Couleur d'un jeton de la feuille (#rrggbb) en « r,g,b » pour le canvas. */
+  function rgb(name, fallback) {
+    const hex = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    return m ? [m[1], m[2], m[3]].map((h) => parseInt(h, 16)).join(',') : fallback;
+  }
 
   const easeOut = (x) => 1 - Math.pow(1 - x, 3);
   const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -358,6 +486,8 @@
     const ctx = nano.getContext('2d');
     if (!ctx) return Promise.resolve();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const GOLD = rgb('--gold', '204,176,102');
+    const INK = rgb('--text-0', '245,242,234');
 
     const hair = 1 / dpr; // 1 pixel physique : la finesse maximale de l'écran
     const snap = (v) => (Math.round(v * dpr) + 0.5) / dpr;
@@ -446,11 +576,11 @@
     function photon(x, y, led, strength) {
       const rad = 10;
       const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-      g.addColorStop(0, led ? `rgba(255,70,96,${0.55 * strength})` : `rgba(255,255,255,${0.45 * strength})`);
+      g.addColorStop(0, `rgba(${led ? GOLD : INK},${(led ? 0.55 : 0.45) * strength})`);
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-      ctx.fillStyle = led ? `rgba(255,120,140,${strength})` : `rgba(255,255,255,${strength})`;
+      ctx.fillStyle = `rgba(${led ? GOLD : INK},${strength})`;
       ctx.fillRect(Math.round(x * dpr) / dpr - hair, Math.round(y * dpr) / dpr - hair, 2 * hair + 1 / dpr, 2 * hair + 1 / dpr);
     }
 
@@ -474,7 +604,7 @@
         for (const f of insets) {
           const p = easeInOut(clamp01((t - f.delay) / f.dur));
           if (p <= 0) continue;
-          ctx.strokeStyle = `rgba(255,255,255,${f.alpha + surge * 0.12})`;
+          ctx.strokeStyle = `rgba(${INK},${f.alpha + surge * 0.12})`;
           strokePoly(f.half, f.len * p, 0);
           strokePoly(f.half, f.len * p, W / 2);
         }
@@ -489,7 +619,7 @@
           if (done) linked++;
           const a = tr.alpha + surge * (tr.led ? 0.4 : 0.25);
           ctx.lineWidth = tr.led ? 1 / Math.min(dpr, 2) : hair;
-          ctx.strokeStyle = tr.led ? `rgba(196,30,58,${a})` : `rgba(255,255,255,${a})`;
+          ctx.strokeStyle = `rgba(${tr.led ? GOLD : INK},${a})`;
           strokePoly(tr.pts, drawn, 0);
           // Traîne : 40 px en dégradé derrière la tête
           if (!done) {
@@ -500,7 +630,7 @@
               const [x1, y1] = pointAt(tr.pts, s0);
               const [x2, y2] = pointAt(tr.pts, Math.max(0, s0 - 4));
               const fade = 1 - k / TAIL;
-              ctx.strokeStyle = tr.led ? `rgba(255,80,104,${0.8 * fade})` : `rgba(255,255,255,${0.7 * fade})`;
+              ctx.strokeStyle = `rgba(${tr.led ? GOLD : INK},${(tr.led ? 0.8 : 0.7) * fade})`;
               ctx.beginPath();
               ctx.moveTo(snap(x2), snap(y2));
               ctx.lineTo(snap(x1), snap(y1));
@@ -513,7 +643,7 @@
             const since = t - tr.end;
             const [vx, vy] = tr.pts[tr.pts.length - 1];
             const va = 0.35 + 0.65 * Math.exp(-since / 160) + surge * 0.4;
-            ctx.strokeStyle = tr.led ? `rgba(196,30,58,${va})` : `rgba(255,255,255,${va * 0.8})`;
+            ctx.strokeStyle = `rgba(${tr.led ? GOLD : INK},${tr.led ? va : va * 0.8})`;
             ctx.lineWidth = hair;
             ctx.strokeRect(snap(vx - 1.5), snap(vy - 1.5), 3, 3);
             if (since < 200) photon(vx, vy, tr.led, 1 - since / 200);
@@ -525,7 +655,7 @@
           if (t < p.at) continue;
           const k = Math.exp(-(t - p.at) / 200);
           const a = Math.min(1, p.base + 0.8 * k + surge * 0.3 + hold * 0.06 * p.base);
-          ctx.fillStyle = p.led ? `rgba(196,30,58,${a})` : `rgba(255,255,255,${a})`;
+          ctx.fillStyle = `rgba(${p.led ? GOLD : INK},${a})`;
           ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
         }
 
@@ -533,13 +663,13 @@
         const rp = easeOut(clamp01((t - T_RING) / 420));
         if (rp > 0) {
           ctx.lineWidth = hair;
-          ctx.strokeStyle = `rgba(255,255,255,${0.22 + surge * 0.3})`;
+          ctx.strokeStyle = `rgba(${INK},${0.22 + surge * 0.3})`;
           strokePoly(ringHalf, ringLen * rp, 0);
           strokePoly(ringHalf, ringLen * rp, cx);
           const ba = clamp01((t - T_RING - 260) / 160);
           if (ba > 0) {
             const off = 6 * (1 - easeOut(ba));
-            ctx.strokeStyle = `rgba(196,30,58,${0.9 * ba})`;
+            ctx.strokeStyle = `rgba(${GOLD},${0.9 * ba})`;
             ctx.lineWidth = 1 / Math.min(dpr, 2);
             const B = 8;
             const corners = [
@@ -568,9 +698,9 @@
           const halfW = (r.width / 2) * (1 - k);
           if (halfW > 0.5) {
             const g = ctx.createLinearGradient(cx - halfW, 0, cx + halfW, 0);
-            g.addColorStop(0, 'rgba(255,255,255,0)');
-            g.addColorStop(0.5, `rgba(255,255,255,${0.95})`);
-            g.addColorStop(1, 'rgba(255,255,255,0)');
+            g.addColorStop(0, `rgba(${INK},0)`);
+            g.addColorStop(0.5, `rgba(${INK},0.95)`);
+            g.addColorStop(1, `rgba(${INK},0)`);
             ctx.fillStyle = g;
             ctx.fillRect(cx - halfW, Math.round(cy * dpr) / dpr, halfW * 2, 1 / dpr);
           }
@@ -582,19 +712,19 @@
             const pt = (since - i * 90) / 700;
             if (pt <= 0 || pt >= 1) continue;
             const s = 4 + easeOut(pt) * 120;
-            ctx.strokeStyle = `rgba(196,30,58,${0.55 * (1 - pt)})`;
+            ctx.strokeStyle = `rgba(${GOLD},${0.55 * (1 - pt)})`;
             ctx.lineWidth = hair;
             ctx.strokeRect(snap(cx - s), snap(cy - s / 3), s * 2, (s * 2) / 3);
           }
           const breathe = t > T_DONE ? 0.75 + 0.25 * Math.sin((t - T_DONE) / 300) : 1;
           const glowR = 28 + surge * 40;
           const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
-          g.addColorStop(0, `rgba(196,30,58,${0.55 * breathe + surge * 0.3})`);
-          g.addColorStop(0.35, `rgba(196,30,58,${0.12 * breathe})`);
-          g.addColorStop(1, 'rgba(196,30,58,0)');
+          g.addColorStop(0, `rgba(${GOLD},${0.55 * breathe + surge * 0.3})`);
+          g.addColorStop(0.35, `rgba(${GOLD},${0.12 * breathe})`);
+          g.addColorStop(1, `rgba(${GOLD},0)`);
           ctx.fillStyle = g;
           ctx.fillRect(cx - glowR, cy - glowR, glowR * 2, glowR * 2);
-          ctx.fillStyle = `rgba(255,${Math.round(120 + surge * 100)},${Math.round(140 + surge * 90)},1)`;
+          ctx.fillStyle = `rgba(${GOLD},1)`;
           ctx.fillRect(cx - 1, cy - 1, 2, 2);
         }
 
@@ -622,8 +752,7 @@
       xfer.classList.add('on');
       return new Promise((resolve) => setTimeout(resolve, 160));
     }
-    // AUBE II : immersion dans le lever, le graticule terrestre se referme en cœur ;
-    // le circuit prend la main exactement quand le cœur est formé.
+    // L'aube rend la main : la LED revient sur l'horizon, puis le circuit prend la main.
     // Le filet de launch() et ce finally couvrent une fenêtre masquée : le desk s'ouvre quand même.
     try {
       if (window.cantoAube) await window.cantoAube.launch();
@@ -666,11 +795,15 @@
     const stopProgress = window.canto.update.onProgress?.((p) => {
       const mb = (n) => (n / 1048576).toFixed(0);
       const pct = p.total ? ' · ' + Math.floor((p.received / p.total) * 100) + ' %' : '';
+      receivedPct = p.total ? Math.min(100, Math.floor((p.received / p.total) * 100)) : null;
+      paintGauge();
+      paintPlates();
       setMeta(L().downloading + pct + ' · ' + mb(p.received) + (p.total ? ' / ' + mb(p.total) : '') + ' Mo', 'busy');
     });
     try {
       status = await window.canto.update.apply({ confirmStash: stashArmed });
       stopProgress?.();
+      receivedPct = null;
       if (status.error) {
         applying = false;
         stashArmed = status.error === 'dirty_needs_stash';
@@ -690,6 +823,7 @@
       await window.canto.update.relaunch();
     } catch (e) {
       stopProgress?.();
+      receivedPct = null;
       applying = false;
       paint();
       setMeta(e instanceof Error ? e.message : L().updateFail, 'err');
@@ -719,6 +853,19 @@
         paintLocale();
       }
     });
+  }
+  // La version qui tourne, lue tout de suite : la plaque du sceau et le code de la bande n'attendent pas le réseau.
+  if (window.canto?.version) {
+    void Promise.resolve()
+      .then(() => window.canto.version())
+      .then((v) => {
+        if (typeof v === 'string' && v) {
+          version = v;
+          paintPlates();
+          paintStrip();
+        }
+      })
+      .catch(() => undefined);
   }
   void refresh();
 })();

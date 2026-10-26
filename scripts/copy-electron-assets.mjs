@@ -1,27 +1,25 @@
-import { cpSync, mkdirSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const dest = path.join(root, 'dist-electron');
+// Destination : dist-electron/ par défaut ; un dossier en argument pour la vérifier (tests/launcher-page.test.ts).
+const dest = path.resolve(process.argv[2] ?? path.join(root, 'dist-electron'));
 mkdirSync(dest, { recursive: true });
-for (const f of ['launcher.html', 'launcher-ui.js', 'aube.js']) {
+for (const f of ['launcher.html', 'launcher-ui.js', 'launcher-micro.js', 'aube.js']) {
   cpSync(path.join(root, 'electron', f), path.join(dest, f));
 }
 cpSync(path.join(root, 'build', 'logo.svg'), path.join(dest, 'logo.svg'));
 mkdirSync(path.join(dest, 'changelog'), { recursive: true });
 cpSync(path.join(root, 'src', 'engine', 'changelog', 'changelog.json'), path.join(dest, 'changelog', 'changelog.json'));
-// Le lanceur garde Inter et JetBrains Mono (latin + grec pour Λ / Ξ).
-// Le desk embarque Archivo, Doto et JetBrains via le bundle Vite ; leurs licences OFL suivent le paquet.
+// Le lanceur parle avec les trois voix du Système 4.0 (Instrument Sans, Geist Mono, IBM Plex Sans), les mêmes
+// fichiers woff2 que le desk (src/design/fonts), avec leur licence SIL OFL 1.1. Le desk embarque Doto par le
+// bundle Vite : sa licence suit le paquet ici.
 const fonts = path.join(dest, 'fonts');
 mkdirSync(fonts, { recursive: true });
-for (const [pkg, files] of [
-  ['inter', ['inter-latin-wght-normal.woff2', 'inter-greek-wght-normal.woff2']],
-  ['jetbrains-mono', ['jetbrains-mono-latin-wght-normal.woff2', 'jetbrains-mono-greek-wght-normal.woff2']],
-]) {
-  for (const f of files) cpSync(path.join(root, 'node_modules', '@fontsource-variable', pkg, 'files', f), path.join(fonts, f));
+const voices = path.join(root, 'src', 'design', 'fonts');
+for (const name of readdirSync(voices)) {
+  if (name.endsWith('.woff2') || /^OFL-.*\.txt$/.test(name)) cpSync(path.join(voices, name), path.join(fonts, name));
 }
-for (const name of ['OFL-Inter.txt', 'OFL-JetBrainsMono.txt', 'OFL-Archivo.txt', 'OFL-Doto.txt']) {
-  cpSync(path.join(root, 'electron', 'fonts', name), path.join(fonts, name));
-}
-console.log('electron assets → dist-electron/');
+cpSync(path.join(root, 'electron', 'fonts', 'OFL-Doto.txt'), path.join(fonts, 'OFL-Doto.txt'));
+console.log(`electron assets → ${path.relative(root, dest) || dest}/`);
