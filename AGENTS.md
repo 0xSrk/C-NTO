@@ -16,3 +16,7 @@ Toute session d'agent sur ce dépôt, quel que soit l'outil, suit les règles de
   - Si `electron/` change : `npm run electron:compile`.
 - **Interdits.** Aucune dépendance npm nouvelle, aucun jeton de design nouveau, aucun invariant de `CLAUDE.md` § 5 affaibli.
 - **Réservé à l'ADMIN.** L'agent ne soumet jamais d'ordre. La version, la Release, la fusion dans `main`, les clés et la compilation de l'AddOn NinjaTrader appartiennent à l'ADMIN.
+
+## Centre de contrôle
+
+Plusieurs agents travaillent sur CΛNTO. Avant d'agir, lis le centre de contrôle (`node scripts/centre.mjs etat`, puis ta boîte), réserve une zone partagée avant d'y toucher et consigne ce que tu as fait : `docs/CENTRE-DE-CONTROLE.md`. Le centre est privé, hors du dépôt public ; aucun secret n'y entre, et rien n'en sort.
