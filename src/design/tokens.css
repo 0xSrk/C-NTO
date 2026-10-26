@@ -82,6 +82,15 @@
   --font-readout: 'Doto Variable', 'Geist Mono', monospace;
   --font-mono: 'Geist Mono', 'IBM Plex Sans', ui-monospace, monospace;
   --font-name: 'IBM Plex Sans', 'Instrument Sans', sans-serif;
+  /* Micrographies du Lab (Ligne V2 Rév. A) : voix des cartouches, encre et papier par zone */
+  --f-disp: var(--font-display);
+  --f-mono: var(--font-mono);
+  --f-name: var(--font-name);
+  --f-num: var(--font-display);
+  --num-stretch: 82%;
+  --num-weight: 600;
+  --k: var(--text-1);
+  --p: var(--bg-1);
   --value-stretch: 82%; /* l'afficheur : chiffres serrés de la Ligne V2 */
   --fs-display: 44px;
   --fs-h1: 28px;

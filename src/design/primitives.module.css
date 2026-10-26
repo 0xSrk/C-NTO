@@ -718,3 +718,7 @@
   flex: none;
   color: var(--text-1);
 }
+
+/* Micrographies : le rouge n'existe qu'au niveau 3 — le signal et la cartouche SK-SIG-3 */
+:global(.sig-l3) { --k: var(--signal); }
+:global(.skl.is-signal) { --k: var(--signal); }
