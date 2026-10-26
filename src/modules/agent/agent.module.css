@@ -73,6 +73,56 @@
   background: var(--bg-2);
   border: 1px solid var(--line-1);
 }
+.ops {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 0;
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+}
+.ops > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+  padding: var(--s-2) var(--s-3);
+  border-right: 1px solid var(--line-1);
+}
+.ops > div:last-child {
+  border-right: 0;
+}
+.ops dt {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.ops dd {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--text-0);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.inline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.inline input {
+  flex: 1;
+  min-width: 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
 .messages {
   flex: 1;
   overflow: auto;

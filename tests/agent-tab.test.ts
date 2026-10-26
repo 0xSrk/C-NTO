@@ -513,8 +513,17 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
 
   it('hors du desk (pas d’agent cloud) : pas de bloc-titre de relevé, et aucune écriture dans le coffre au montage', async () => {
     const node = await mount();
-    expect(node.querySelector('dl')).toBeNull();
+    expect(node.querySelector('[class*="titleBlock"]')).toBeNull();
     expect(fake.puts).toEqual([]);
+  });
+
+  it('la vue Options s’ouvre sur une bande d’état : agent cloud, modèle, passerelles, écriture, ordres', async () => {
+    const node = await mount();
+    const strip = node.querySelector('dl[aria-label="État des services de l’agent"]');
+    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Agent cloud', 'Modèle', 'Passerelle MCP', 'Orchestrateur', 'Écriture des agents', 'Ordres de l’agent']);
+    expect(strip?.textContent).toContain('lecture seule');
+    expect(strip?.textContent).toContain('désactivés');
+    expect(panel(node, 'options')?.contains(strip ?? null)).toBe(true);
   });
 
   it('les vues suivent la langue du desk', async () => {

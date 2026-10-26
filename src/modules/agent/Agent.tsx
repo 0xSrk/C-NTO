@@ -1,7 +1,7 @@
 import { memo, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
-import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
+import { Button, Field, Led, Tag, Toggle, cx } from '@/design/primitives';
 import { llmKeyBound } from '@/engine/agent/llm';
 import { coerceRoutineSeen, ROUTINE_OF, routineDue, type RoutineCue, type RoutineSeen } from '@/engine/agent/routineDue';
 import { toolSchemas } from '@/engine/agent/tools';
@@ -13,6 +13,7 @@ import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
 import { db, type AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
 import { useAgentCloud } from '@/store/agentCloud';
+import { useAgentOrders } from '@/store/agentOrders';
 import { useCrypto } from '@/store/crypto';
 import { dailyLossReached, useDeskEvents } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
@@ -20,7 +21,8 @@ import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvid
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
 import { AgentOrdersPanel } from './AgentOrdersPanel';
-import { CloudReports } from './CloudReports';
+import { CloudOptions, cloudStateLabel } from './CloudOptions';
+import { CloudReports, cloudState } from './CloudReports';
 import { claudeCodeCommand, claudeDesktopConfig, codexConfig, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
 import s from './agent.module.css';
@@ -112,6 +114,7 @@ export default function Agent() {
   const cloudCount = useAgentCloud((c) => c.reports.length);
   const pullCloud = useAgentCloud((c) => c.pull);
   const openCloudFolder = useAgentCloud((c) => c.openFolder);
+  const ordersStatus = useAgentOrders((a) => a.status);
   const [draft, setDraft] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [seen, setSeen] = useState<RoutineSeen>({});
@@ -377,6 +380,39 @@ export default function Agent() {
         </div>
         <div className={s.view} role="tabpanel" id="agent-panel-options" aria-labelledby="agent-tab-options" hidden={view !== 'options'}>
           <div className={s.options}>
+            {/* Bande d'état : ce qui tourne, d'un coup d'œil, avant les réglages de chaque bloc. */}
+            <dl className={s.ops} aria-label={tr('État des services de l’agent', 'Agent services status', 'Estado de los servicios del agente')}>
+              {(
+                [
+                  [tr('Agent cloud', 'Cloud agent', 'Agente en la nube'), cloudOn ? cloudStateLabel(cloudState(cloudStatus)) : '—', cloudOn && cloudState(cloudStatus) === 'service'],
+                  [tr('Modèle', 'Model', 'Modelo'), `${agent.provider === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'} · ${agent.model}`, false],
+                  [
+                    tr('Passerelle MCP', 'MCP gateway', 'Pasarela MCP'),
+                    mcp.running ? tr(`ouverte · port ${mcp.port}`, `open · port ${mcp.port}`, `abierta · puerto ${mcp.port}`) : tr('fermée', 'closed', 'cerrada'),
+                    mcp.running,
+                  ],
+                  [
+                    tr('Orchestrateur', 'Orchestrator', 'Orquestador'),
+                    orchestrator.running ? tr(`en service · ${orchestrator.clients} lien(s)`, `running · ${orchestrator.clients} link(s)`, `en servicio · ${orchestrator.clients} enlace(s)`) : tr('en veille', 'idle', 'en espera'),
+                    orchestrator.running,
+                  ],
+                  [tr('Écriture des agents', 'Agents writing', 'Escritura de los agentes'), allowWrite ? tr('autorisée', 'allowed', 'autorizada') : tr('lecture seule', 'read only', 'solo lectura'), false],
+                  [
+                    tr('Ordres de l’agent', 'Agent orders', 'Órdenes del agente'),
+                    ordersStatus.pending ? tr('en attente du trader', 'waiting for the trader', 'esperando al trader') : ordersStatus.enabled ? tr('autorisés · Sim', 'allowed · Sim', 'autorizadas · Sim') : tr('désactivés', 'off', 'desactivadas'),
+                    ordersStatus.enabled,
+                  ],
+                ] as const
+              ).map(([label, value, live]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>
+                    <Led on={live}>{value}</Led>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <CloudOptions />
             <div className={s.section}>
               <div className={s.sectionTitle}>
                 <span>{tr('Fournisseur', 'Provider', 'Proveedor')}</span>
