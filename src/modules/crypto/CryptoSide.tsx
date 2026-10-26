@@ -7,12 +7,13 @@
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { IconPlus } from '@/app/icons';
-import { Button, Etiquette, Led, Regle, cx } from '@/design/primitives';
-import { alertEvaluability, type AlertIdleReason, type AlertReading, type CryptoAlert, type EvaluabilityData } from '@/engine/crypto/alerts';
+import { Glyph, Signal } from '@/design/Micro';
+import { Button, Etiquette, Led, Regle, Tag, cx } from '@/design/primitives';
+import { alertDirection, alertEvaluability, type AlertIdleReason, type AlertReading, type EvaluabilityData } from '@/engine/crypto/alerts';
 import { CHARTABLE_MARKETS, cryptoMarket, type CryptoMarketId, type CryptoTimeframe, type CryptoVenue, type VenueState } from '@/engine/crypto/markets';
 import type { IndicatorDefinition, IndicatorInstance } from '@/engine/indicators';
 import { tr, useI18n } from '@/i18n';
-import { alertKindText, alertLevelText, alertTargetText, fmtSigned, fmtUsdCompact } from '@/lib/cryptoAlertText';
+import { fmtSigned, fmtUsdCompact } from '@/lib/cryptoAlertText';
 import { fmtInt, fmtNum, fmtPrice, signClass } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatDuration, formatTimeLocal } from '@/lib/time';
 import { useCrypto, type WriteResult } from '@/store/crypto';
@@ -21,6 +22,7 @@ import { IndicatorCards } from '../visual/IndicatorCards';
 import v from '../visual/visual.module.css';
 import { AlertModal, cryptoCodeText, saveFailedText } from './AlertModal';
 import c from './crypto.module.css';
+import { alertSignalLevel, alertStateWord, alertSubject, alertThreshold, directionGlyph, directionText } from './cryptoSignals';
 import { cryptoIndicatorDesc, cryptoIndicatorName } from './indicatorCopy';
 
 /** Les venues, dans l'ordre du registre, et leur nom. */
@@ -145,17 +147,10 @@ function idleText(reason: AlertIdleReason): string {
   }
 }
 
-function alertStateText(alert: CryptoAlert): string {
-  switch (alert.state) {
-    case 'armed':
-      return tr('armée', 'armed', 'armada');
-    case 'paused':
-      return tr('en pause', 'paused', 'en pausa');
-    case 'triggered':
-      return alert.lastTriggeredAt !== undefined
-        ? tr(`déclenchée ${formatTimeLocal(alert.lastTriggeredAt)}`, `triggered ${formatTimeLocal(alert.lastTriggeredAt)}`, `disparada ${formatTimeLocal(alert.lastTriggeredAt)}`)
-        : tr('déclenchée', 'triggered', 'disparada');
-  }
+/** L'heure du franchissement d'une alerte déclenchée, lue sous son seuil. */
+function triggeredAtText(at: number): string {
+  const time = formatTimeLocal(at);
+  return tr(`déclenchée à ${time}`, `triggered at ${time}`, `disparada a las ${time}`);
 }
 
 function SideTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
@@ -316,19 +311,27 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
         {alerts.map((alert) => {
           const verdict = alert.state === 'armed' ? alertEvaluability(alert, live) : null;
           const idle = verdict && !verdict.ok ? idleText(verdict.reason) : null;
+          // Un signal par alerte (OROS3.5a) : la forme dit le niveau, le glyphe le sens du seuil, le trait de l'étiquette l'état.
+          const level = alertSignalLevel(alert.state);
+          const triggeredAt = alert.state === 'triggered' && alert.lastTriggeredAt !== undefined ? alert.lastTriggeredAt : null;
           return (
             <div key={alert.id} className={c.alertRow}>
-              <span className={c.alertTarget}>{alertTargetText(alert.target)}</span>
-              <span>{alertStateText(alert)}</span>
+              <span className={c.alertSignal}>{level !== null && <Signal level={level} />}</span>
+              <span className={c.alertValue}>
+                <span className={c.alertSubject}>{alertSubject(alert)}</span>
+                <Glyph name={directionGlyph(alert)} className={c.dirGlyph} label={directionText(alertDirection(alert.kind))} />
+                <span>{alertThreshold(alert)}</span>
+              </span>
+              <Tag className={cx(alert.state === 'armed' && c.planTag, alert.state === 'paused' && c.pauseTag)}>{alertStateWord(alert.state)}</Tag>
               <button type="button" className={c.alertRemove} onClick={() => run(deleteAlert(alert.id))} aria-label={tr('Supprimer l’alerte', 'Delete the alert', 'Eliminar la alerta')}>
                 ×
               </button>
-              <span className={c.alertLine}>
-                <span>
-                  {alertKindText(alert.kind)} {alertLevelText(alert)}
+              {(triggeredAt !== null || alert.author === 'agent') && (
+                <span className={c.alertLine}>
+                  {triggeredAt !== null && <span>{triggeredAtText(triggeredAt)}</span>}
+                  {alert.author === 'agent' && <Etiquette>{tr('AGENT', 'AGENT', 'AGENTE')}</Etiquette>}
                 </span>
-                {alert.author === 'agent' && <Etiquette>{tr('AGENT', 'AGENT', 'AGENTE')}</Etiquette>}
-              </span>
+              )}
               {idle && (
                 <span className={c.alertIdle}>
                   {tr('non évaluée', 'not evaluated', 'no evaluada')} · {idle}

@@ -42,32 +42,74 @@
   color: var(--text-3);
 }
 
-/* Une ligne par alerte : cible | état | ×, puis la condition et son niveau, puis « non évaluée » et sa raison. */
+/*
+ * Une ligne par alerte, en signal (Système 4.0) : niveau | seuil (sujet, glyphe du sens, niveau) | étiquette d'état | ×, puis
+ * l'heure du franchissement et l'auteur, puis « non évaluée » et sa raison. Le filet est plein : dans cette section, le tireté
+ * dit une alerte armée (prévue), il ne sépare pas les lignes.
+ */
 .alertRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: 19px minmax(0, 1fr) auto auto;
   gap: 4px 8px;
-  align-items: baseline;
-  padding: 4px 0;
-  border-bottom: 1px dashed var(--line-0);
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-1);
   font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--text-2);
 }
-.alertTarget {
+.alertSignal {
+  display: inline-flex;
+  align-items: center;
+  min-height: 15px;
+}
+.alertValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  color: var(--text-1);
+  font-weight: 600;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.alertSubject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Le sens du seuil : flèche montante (≥) ou descendante (≤) de la planche ; son trait de 0,75 sur 68 unités est relevé à 12 px. */
+.dirGlyph {
+  width: 12px;
+  height: 12px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.dirGlyph :global(.g106-1),
+.dirGlyph :global(.g106-2),
+.dirGlyph :global(.g107-1),
+.dirGlyph :global(.g107-2) {
+  stroke-width: 5px;
+}
+/* Le trait de l'étiquette dit l'état : tireté, armée (prévu) ; plein, déclenchée ; pointillé, en pause. */
+.alertRow .planTag {
+  border-style: dashed;
+  border-color: var(--line-2);
+}
+.alertRow .pauseTag {
+  border-style: dotted;
+  border-color: var(--line-2);
+  color: var(--text-2);
 }
 .alertLine {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 8px;
 }
 .alertIdle {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   color: var(--ember);
 }
 .alertRemove {

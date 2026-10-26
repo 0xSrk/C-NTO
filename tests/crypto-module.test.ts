@@ -657,7 +657,9 @@ describe('CRY4.3 › alertes', () => {
     const alerts = section(node, 'Alertes');
     expect(sideTitles(node)[3]).toBe('Alertes · 2');
     const text = alerts.textContent ?? '';
-    expect(text).toContain('BTC-USD · Coinbase');
+    // Le seuil se lit d'un trait (OROS3.5a) : symbole du marché, glyphe du sens nommé pour les lecteurs d'écran, niveau.
+    expect(text).toContain('BTC-USD');
+    expect(alerts.querySelector('[aria-label="au-dessus de"]')).not.toBeNull();
     expect(text).toContain(fmtPrice(85_000, 2));
     expect(text.match(/\[ AGENT \]/g)).toHaveLength(1);
     expect(text.match(/non évaluée/g)).toHaveLength(2);
