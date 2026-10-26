@@ -1,6 +1,6 @@
 # Agent cloud — rapports quotidiens (Managed Agents d'Anthropic)
 
-Demandé par l'ADMIN le 26 octobre 2026 : un agent qui tourne chaque jour dans son bac à sable, sur les serveurs d'Anthropic, payé sur les crédits API mensuels de l'organisation, et dont les rapports apparaissent dans l'onglet 06 · AGT (Agent IA). Ce document décrit le pont livré (tickets CLD1 à CLD21, `docs/AUDIT.md` › « Agent cloud — rapports quotidiens »). L'analyse elle-même est provisoire : la consigne et le design des rapports viendront de l'ADMIN.
+Demandé par l'ADMIN le 26 octobre 2026 : un agent qui tourne chaque jour dans son bac à sable, sur les serveurs d'Anthropic, payé sur les crédits API mensuels de l'organisation, et dont les rapports apparaissent dans l'onglet 06 · AGT (Agent IA). Ce document décrit le pont livré (tickets CLD1 à CLD22, `docs/AUDIT.md` › « Agent cloud — rapports quotidiens »). L'analyse elle-même est provisoire : la consigne et le design des rapports viendront de l'ADMIN.
 
 ## 1. Le produit Anthropic retenu
 
