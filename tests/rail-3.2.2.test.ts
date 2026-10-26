@@ -37,10 +37,10 @@ describe('rail 3.2.2', () => {
     expect(shell).toContain("code: 'PAR'");
     expect(shell).toContain("code: 'NYC'");
     const right = between(status, 'statusRight', '</footer>');
-    expect(right).toContain('Barcode');
+    expect(right).toContain('BraceCode');
     expect(right).toContain('SIΞRRΛSKΛ');
     expect(right).not.toContain('SignatureGlyphs');
-    expect(right.indexOf('Barcode')).toBeLessThan(right.indexOf('SIΞRRΛSKΛ'));
+    expect(right.indexOf('BraceCode')).toBeLessThan(right.indexOf('SIΞRRΛSKΛ'));
     expect(right).not.toContain('CME GLOBEX');
     expect(between(shell, '<div className={s.railFoot}>', '</aside>')).not.toContain('PlaqueSignature');
     expect(between(shell, '<div className={s.railFoot}>', '</aside>')).not.toContain('ZoomControls');

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
+import { BRACE_HEIGHT, BRACE_WIDTH, braceBarsPath, sessionBraceBars } from '@/lib/braceCode';
 import { code128Path } from '@/lib/code128';
 import { montantAria, montantParts, type MontantParts } from '@/lib/format';
 import { APP_VERSION } from '@/lib/version';
@@ -343,5 +344,22 @@ export function Barcode({ className, value = `SK-ART-002-${APP_VERSION}`, height
     <svg className={cx(s.barcode, className)} width={modules} height={height} viewBox={`0 0 ${modules} ${height}`} shapeRendering="crispEdges" fill="currentColor" aria-hidden="true" focusable="false">
       <path d={d} />
     </svg>
+  );
+}
+
+/**
+ * Code d'accolades du pied (`src/lib/braceCode.ts`) : `{`, onze barres de largeurs tirées à l'ouverture du desk, `}`.
+ * `widths` fixe le dessin (tests) ; sans lui, celui de la session.
+ */
+export function BraceCode({ className, widths }: { className?: string; widths?: readonly number[] }) {
+  const bars = widths ?? sessionBraceBars();
+  return (
+    <span className={cx(s.braceCode, className)} aria-hidden="true">
+      <span className={s.brace}>{'{'}</span>
+      <svg width={BRACE_WIDTH} height={BRACE_HEIGHT} viewBox={`0 0 ${BRACE_WIDTH} ${BRACE_HEIGHT}`} shapeRendering="crispEdges" fill="currentColor" focusable="false">
+        <path d={braceBarsPath(bars)} />
+      </svg>
+      <span className={s.brace}>{'}'}</span>
+    </span>
   );
 }

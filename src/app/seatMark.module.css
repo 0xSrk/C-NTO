@@ -20,8 +20,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  /* Au repos, exactement les barres ; éveillé, la largeur du littéral, atteinte en douceur. */
-  width: 64px;
+  /* Au repos, exactement le code d'accolades (barres de 42 px, deux accolades, deux écarts de 3 px) ; éveillé, la
+     largeur du littéral, atteinte en douceur. */
+  width: calc(42px + 2 * (1ch + 0.08em) + 6px);
   transition: width 700ms var(--ease-out);
   padding: 0;
   margin: 0;

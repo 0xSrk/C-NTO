@@ -6,7 +6,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { Barcode } from '@/design/primitives';
+import { Barcode, BraceCode } from '@/design/primitives';
+import { BRACE_BAR_SUM, BRACE_BARS, BRACE_GAP, BRACE_WIDTH, braceBarsPath, braceBarWidths, sessionBraceBars } from '@/lib/braceCode';
 import { code128Widths } from '@/lib/code128';
 import { APP_VERSION } from '@/lib/version';
 
@@ -71,5 +72,59 @@ describe('OROS3.13 la barre d’état au noir du châssis', () => {
     expect(status).not.toMatch(/--ivory|--ink|--gold-ink|color-scheme/);
     expect(status).not.toMatch(/^\s*--[a-z0-9-]+:/m);
     expect(rule('.title')).toMatch(/background:\s*var\(--bg-0\)/);
+  });
+});
+
+describe('OROS3.14 le code d’accolades du pied', () => {
+  it('onze barres de 1 à 3 px, de somme fixe, jamais toutes égales, quel que soit le tirage', () => {
+    let seed = 7;
+    const lcg = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let run = 0; run < 300; run++) {
+      const widths = braceBarWidths(lcg);
+      expect(widths).toHaveLength(BRACE_BARS);
+      expect(widths.reduce((a, b) => a + b, 0)).toBe(BRACE_BAR_SUM);
+      for (const w of widths) expect(w >= 1 && w <= 3, String(widths)).toBe(true);
+      expect(new Set(widths).size).toBeGreaterThan(1);
+    }
+    // Tirages dégénérés : jamais onze barres égales, jamais une barre hors du rang.
+    for (const fixed of [0, 0.5, 0.9999999]) {
+      const widths = braceBarWidths(() => fixed);
+      expect(new Set(widths).size, String(fixed)).toBeGreaterThan(1);
+      expect(widths.reduce((a, b) => a + b, 0)).toBe(BRACE_BAR_SUM);
+    }
+  });
+
+  it('{ onze barres } : les accolades autour, un rectangle par barre, un dessin de largeur fixe, caché aux lecteurs d’écran', () => {
+    const widths = [1, 3, 2, 1, 2, 3, 2, 1, 3, 2, 2];
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(createElement(BraceCode, { widths })));
+    const code = host.firstElementChild!;
+    expect(code.getAttribute('aria-hidden')).toBe('true');
+    expect(code.textContent).toBe('{}');
+    expect(code.firstElementChild!.textContent).toBe('{');
+    expect(code.lastElementChild!.textContent).toBe('}');
+    const svg = code.querySelector('svg')!;
+    expect(Number(svg.getAttribute('width'))).toBe(BRACE_WIDTH);
+    expect(svg.getAttribute('shape-rendering')).toBe('crispEdges');
+    const d = svg.querySelector('path')!.getAttribute('d')!;
+    expect(d).toBe(braceBarsPath(widths));
+    const bars = [...d.matchAll(/M(\d+) 0h(\d+)/g)].map((m) => [Number(m[1]), Number(m[2])] as const);
+    expect(bars.map(([, w]) => w)).toEqual(widths);
+    bars.slice(1).forEach(([x], i) => expect(x - bars[i]![0] - bars[i]![1]).toBe(BRACE_GAP));
+    expect(bars.at(-1)![0] + bars.at(-1)![1]).toBe(BRACE_WIDTH);
+  });
+
+  it('un dessin par ouverture du desk : le même à chaque rendu, pour que le code ne saute pas sous le geste', () => {
+    expect(sessionBraceBars()).toBe(sessionBraceBars());
+  });
+
+  it('le pied porte le code d’accolades sous le geste du siège, plus le Code 128 ; le geste se règle sur sa largeur', () => {
+    const shell = readFileSync('src/app/Shell.tsx', 'utf8');
+    expect(shell).toMatch(/<SeatMark>\s*<BraceCode \/>\s*<\/SeatMark>/);
+    expect(shell).not.toMatch(/<Barcode\b/);
+    expect(BRACE_WIDTH).toBe(42);
+    expect(readFileSync('src/app/seatMark.module.css', 'utf8')).toMatch(/width: calc\(42px \+ 2 \* \(1ch \+ 0\.08em\) \+ 6px\);/);
   });
 });
