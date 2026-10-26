@@ -76,7 +76,7 @@ vi.mock('@/engine/agent/llm', async (importOriginal) => ({
   }),
 }));
 
-import Agent from '@/modules/agent/Agent';
+import Agent, { agentHeaderCells } from '@/modules/agent/Agent';
 import { CRYPTO_TOOL_NAMES } from '@/engine/agent/cryptoTools';
 import { streamChat } from '@/engine/agent/llm';
 import { renderRoutine } from '@/engine/agent/routines';
@@ -463,5 +463,108 @@ describe('onglet Agent · outils crypto (CRY6.2)', () => {
     await useAgent.getState().send('module allumé');
     expect(sentTools().filter(isCrypto)).toEqual([...CRYPTO_TOOL_NAMES]);
     expect(sentTools()).toHaveLength(DESK_TOOLS.length);
+  });
+});
+
+describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, options regroupées', () => {
+  const panel = (node: HTMLElement, view: string) => node.querySelector<HTMLElement>(`#agent-panel-${view}`);
+  const tab = (node: HTMLElement, label: string) => [...node.querySelectorAll<HTMLButtonElement>('button[role="tab"]')].find((b) => b.textContent?.includes(label));
+
+  it('le dossier des rapports est la vue d’ouverture ; les deux autres vues restent montées mais cachées', async () => {
+    const node = await mount();
+    expect(tab(node, 'Rapports')?.getAttribute('aria-selected')).toBe('true');
+    expect(panel(node, 'rapports')?.hidden).toBe(false);
+    expect(panel(node, 'conversation')?.hidden).toBe(true);
+    expect(panel(node, 'options')?.hidden).toBe(true);
+    expect(panel(node, 'rapports')?.textContent).toContain('Disponible dans le shell local');
+  });
+
+  it('les options (fournisseur, MCP, orchestrateur, ordres, outils) sont dans la vue C ; la conversation et ses routines dans la vue B', async () => {
+    const node = await mount();
+    const options = panel(node, 'options')!;
+    for (const title of ['Fournisseur', 'Agents externes · MCP', 'Orchestrateur externe', 'Ordres proposés par l’agent']) {
+      expect(options.contains(section(node, title)), title).toBe(true);
+    }
+    const conversation = panel(node, 'conversation')!;
+    expect(conversation.contains(routineButton(node, 'Brief'))).toBe(true);
+    expect(conversation.querySelector('textarea')).not.toBeNull();
+    await click(tab(node, 'Options')!);
+    expect(options.hidden).toBe(false);
+    expect(panel(node, 'rapports')?.hidden).toBe(true);
+    expect(tab(node, 'Options')?.getAttribute('aria-selected')).toBe('true');
+    await click(tab(node, 'Conversation')!);
+    expect(conversation.hidden).toBe(false);
+    expect(options.hidden).toBe(true);
+  });
+
+  it('changer de vue garde le brouillon de la conversation', async () => {
+    const node = await mount();
+    await click(tab(node, 'Conversation')!);
+    const textarea = node.querySelector('textarea')!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setter?.call(textarea, 'brouillon en cours');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await click(tab(node, 'Options')!);
+    await click(tab(node, 'Conversation')!);
+    expect(node.querySelector('textarea')?.value).toBe('brouillon en cours');
+  });
+
+  it('hors du desk (pas d’agent cloud) : pas de bloc-titre de relevé, et aucune écriture dans le coffre au montage', async () => {
+    const node = await mount();
+    expect(node.querySelector('[class*="titleBlock"]')).toBeNull();
+    expect(fake.puts).toEqual([]);
+  });
+
+  it('la vue Options s’ouvre sur une bande d’état : agent cloud, modèle, passerelles, écriture, ordres', async () => {
+    const node = await mount();
+    const strip = node.querySelector('dl[aria-label="État des services de l’agent"]');
+    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Agent cloud', 'Modèle', 'Passerelle MCP', 'Orchestrateur', 'Écriture des agents', 'Ordres de l’agent']);
+    expect(strip?.textContent).toContain('lecture seule');
+    expect(strip?.textContent).toContain('désactivés');
+    expect(panel(node, 'options')?.contains(strip ?? null)).toBe(true);
+  });
+
+  it('CLD17 la conversation descend au dernier message quand on l’ouvre (elle était cachée au montage)', async () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollTo');
+    const node = await mount();
+    scroll.mockClear();
+    await click(tab(node, 'Conversation')!);
+    expect(scroll).toHaveBeenCalled();
+    scroll.mockRestore();
+  });
+
+  it('CLD17 bloc-titre : dernier relevé, prochaine exécution prévue, rapports et non lus', () => {
+    const cells = agentHeaderCells({
+      available: true,
+      keyStored: true,
+      deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
+      managed: true,
+      schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
+      deployment: { name: 'd', state: 'active', pausedReason: null, cron: null, timezone: null, nextRunAt: Date.parse('2026-10-28T06:00:00Z'), lastRunAt: null, budgetCents: 300, agentVersion: 1 },
+      pulling: false,
+      busy: null,
+      lastPullAt: Date.parse('2026-10-27T08:15:00Z'),
+      nextPullAt: null,
+      error: null,
+      pending: 0,
+      failures: [],
+      reports: 12,
+      unread: 3,
+    });
+    expect(cells.map((c) => c.label)).toEqual(['Dernier relevé', 'Prochaine exécution', 'Rapports']);
+    expect(cells[1]?.plan).toBe(true);
+    expect(cells[0]?.value).toMatch(/27\/10.*08:15/);
+    expect(cells[2]?.value).toBe('12 · 3 non lus');
+    expect(agentHeaderCells(null).map((c) => c.value)).toEqual(['—', '—', '0']);
+  });
+
+  it('les vues suivent la langue du desk', async () => {
+    useI18n.setState({ locale: 'es' });
+    const node = await mount();
+    expect(tab(node, 'Informes')).toBeDefined();
+    expect(tab(node, 'Conversación')).toBeDefined();
+    expect(tab(node, 'Opciones')).toBeDefined();
   });
 });

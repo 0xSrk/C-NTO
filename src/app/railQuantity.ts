@@ -13,13 +13,15 @@ export interface RailSnapshot {
   notes: number;
   links: number;
   agentRunning: boolean;
+  /** Rapports de l'agent cloud non lus ; `null` hors du desk ou avant le premier statut. */
+  agentReportsUnread: number | null;
   /** `null` tant que le Copieur n'a pas chargé ses comptes. */
   copierAccounts: number | null;
   cryptoMarkets: number;
 }
 
 /** Accord du nombre selon la langue : « 0 lien » en français, « 0 links » et « 0 enlaces » ailleurs. */
-function count(n: number, one: string, many: string): string {
+export function count(n: number, one: string, many: string): string {
   const singular = useI18n.getState().locale === 'fr' ? Math.abs(n) < 2 : Math.abs(n) === 1;
   return `${fmtInt(n)} ${singular ? one : many}`;
 }
@@ -40,6 +42,9 @@ export function railQuantity(id: TabId, snap: RailSnapshot): string | null {
         ? `${count(snap.notes, tr('note', 'note', 'nota'), tr('notes', 'notes', 'notas'))} · ${count(snap.links, tr('lien', 'link', 'enlace'), tr('liens', 'links', 'enlaces'))}`
         : null;
     case 'agent':
+      // Un rapport non lu passe devant l'état de l'orchestrateur : c'est ce que le trader vient lire.
+      if (snap.agentReportsUnread !== null && snap.agentReportsUnread > 0)
+        return count(snap.agentReportsUnread, tr('rapport non lu', 'unread report', 'informe sin leer'), tr('rapports non lus', 'unread reports', 'informes sin leer'));
       return snap.agentRunning ? tr('Orchestrateur en service', 'Orchestrator running', 'Orquestador en servicio') : tr('En veille', 'Idle', 'En espera');
     case 'copieur':
       if (snap.copierAccounts === null) return null;

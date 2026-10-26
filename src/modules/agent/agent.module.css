@@ -1,14 +1,127 @@
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  height: 100%;
+/* Sous-onglets : A rapports, B conversation, C options (barre de Métrique, Système 4.0). */
+.subtabs {
+  display: flex;
+  gap: 28px;
+  flex-shrink: 0;
+  margin: 0 40px;
+  border-bottom: 1px solid var(--line-1);
+}
+.subtab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: 0 0 10px;
+  margin-bottom: -1px;
+  background: none;
+  border-bottom: 1px solid transparent;
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 500;
+}
+.subtab i {
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.subtab.on {
+  color: var(--text-0);
+  border-bottom-color: var(--text-0);
+}
+.subtabCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: var(--track-11);
+  color: var(--gold);
+}
+.scopeNote {
+  margin-left: auto;
+  align-self: center;
+  padding-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-13);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* Une vue occupe toute la zone de travail ; `hidden` la retire (aucune règle `display` ici). */
+.view {
+  flex: 1;
   min-height: 0;
 }
 .chat {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   min-width: 0;
+}
+
+/* Options : chaque bloc est une plaque, rangée en colonnes. */
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  align-items: start;
+  gap: var(--s-4);
+  height: 100%;
+  overflow: auto;
+  padding: var(--s-5) 40px var(--s-6);
+}
+.options .section {
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+}
+.ops {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 0;
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+}
+.ops > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+  padding: var(--s-2) var(--s-3);
+  border-right: 1px solid var(--line-1);
+}
+.ops > div:last-child {
+  border-right: 0;
+}
+.ops dt {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.ops dd {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--text-0);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.inline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.inline input {
+  flex: 1;
+  min-width: 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
 }
 .messages {
   flex: 1;
@@ -223,13 +336,6 @@
   line-height: 1.6;
 }
 
-.side {
-  border-left: 1px solid var(--line-1);
-  background: color-mix(in srgb, var(--bg-0) 70%, transparent);
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-}
 .section {
   padding: 16px;
   border-bottom: 1px solid var(--line-0);

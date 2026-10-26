@@ -108,6 +108,10 @@ Le 9 octobre 2026, l'ADMIN a ajouté trois décisions pour l'onglet 09 · CRY (`
 9. **Hôtes des exchanges : liste à part.** Les hôtes Coinbase, Binance et Bybit forment `CRYPTO_HOSTS`, consultée seulement interrupteur allumé. Ils n'entrent pas dans `allowedHosts()` : leurs conditions n'ont pas été revues pour un logiciel distribué (`sources.ts` › `redistributable`). Le 14 octobre 2026, l'ADMIN renonce à cette revue pour la Release 3.6.0 ; la liste reste à part.
 10. **Geste du trader.** Une écriture de chart crypto que l'opérateur confirme vaut geste du trader : elle peut ouvrir un flux dans l'onglet Crypto. L'agent n'ouvre jamais de flux par une lecture. La décision 3 reste entière pour tout le reste du desk.
 
+Le 26 octobre 2026, l'ADMIN a demandé un agent qui tourne chaque jour chez Anthropic et dépose ses rapports dans l'onglet Agent IA (`docs/AGENT-CLOUD.md`).
+
+11. **Agent cloud : oui, en relève seule.** Un déploiement planifié de Managed Agents tourne chaque jour dans son bac à sable chez Anthropic, sur les crédits API de l'organisation, et écrit un rapport au contrat `canto.rapport/1`. Le process principal le relève sur `api.anthropic.com`, sans rien ouvrir : la décision 7 reste entière, et aucune donnée du desk ne part vers le cloud. Installer, lancer et reprendre passent par un dialogue du process principal. L'agent ne lit que des domaines officiels et n'a ni outil du desk ni outil d'ordre. L'analyse reste provisoire jusqu'à la consigne de l'ADMIN. Livrée : CLD1 à CLD21.
+
 ## 8. Sources de la veille
 
 Relevées le 6 octobre 2026. Plusieurs pages n'ont été lues qu'en extrait. À revérifier avant toute communication.

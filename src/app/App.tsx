@@ -8,6 +8,7 @@ import { useDeskEvents } from '@/store/deskEvents';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { startCopierSync } from '@/store/copierSync';
+import { useAgentCloud } from '@/store/agentCloud';
 import { useCrypto } from '@/store/crypto';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
@@ -93,6 +94,8 @@ function boot(): Promise<void> {
     // en dépendent. Il part au chargement du store (réglages dans la base du renderer, d'où après le coffre). Sans attendre et
     // sans ligne de boot : `load()` ne rejette jamais, et l'onglet le rappelle à son montage sans rien ouvrir de plus.
     void useCrypto.getState().load();
+    // Rapports de l'agent cloud : le rail compte les non lus dès l'ouverture ; aucune étape de démarrage n'attend le réseau.
+    void useAgentCloud.getState().load();
     await Promise.all([
       step('engine', async () => ['ok', tr('ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm', 'ratios · Monte Carlo · prop firm')]),
       step('calendar', async () => ['ok', `${generateNasdaqEvents(year).length} ${tr('repères', 'markers', 'referencias')} ${year}`]),
