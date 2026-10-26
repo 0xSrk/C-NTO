@@ -877,6 +877,15 @@ export class AgentCloudHost {
         return this.t(`Clé refusée par Anthropic (${error.status}) : enregistrez une clé valide.`, `Key refused by Anthropic (${error.status}): store a valid key.`, `Clave rechazada por Anthropic (${error.status}): guarde una clave válida.`);
       if (error.status === 404) return this.t('Déploiement introuvable dans cette organisation.', 'Deployment not found in this organization.', 'Despliegue no encontrado en esta organización.');
       if (error.status === 402) return this.t('Crédits API épuisés (402).', 'API credits exhausted (402).', 'Créditos API agotados (402).');
+      // Une clé d'utilisateur vaut pour toute l'organisation : l'API demande l'espace de travail visé (CLD23).
+      if (error.status === 400 && /anthropic-workspace-id/i.test(error.message))
+        return this.config.workspaceId
+          ? `${this.t('Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces).', 'Workspace refused: check its ID (Console › Settings › Workspaces).', 'Espacio de trabajo rechazado: verifique su ID (Consola › Settings › Workspaces).')} ${error.message}`
+          : this.t(
+              'Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
+              'User key without a workspace: enter its ID (Console › Settings › Workspaces) in Options › Cloud agent › Workspace.',
+              'Clave de usuario sin espacio de trabajo: indique su ID (Consola › Settings › Workspaces) en Opciones › Agente en la nube › Espacio de trabajo.',
+            );
       return error.message;
     }
     return this.t('Relevé impossible.', 'Pull failed.', 'Lectura imposible.');
