@@ -24,6 +24,8 @@ import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
 import { railQuantity, type RailSnapshot } from './railQuantity';
 import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
+import { KillBand } from './KillBand';
+import { useKillSwitch } from './killState';
 import { isConception, tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -78,6 +80,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const orchestrator = useAgent((a) => a.orchestrator);
   const bridgeStatus = useBridge((b) => b.status);
   const nt = useBridge((b) => b.nt);
+  const kill = useKillSwitch();
   const now = useClock();
   const noteCount = useNotes((n) => n.notes.length);
   const linkCount = useLinks((l) => l.links.length);
@@ -227,6 +230,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           )}
         </div>
       </header>
+
+      {/* Niveau 3 : le kill switch est engagé ; la bande reste jusqu'au redémarrage du desk. */}
+      {kill.engaged && <KillBand shortcut={kill.shortcut} />}
 
       <aside className={s.rail}>
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>

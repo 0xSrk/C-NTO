@@ -3,10 +3,11 @@
   height: 100%;
   color: var(--text-1);
   display: grid;
-  grid-template-rows: var(--titlebar-h) 1fr var(--statusbar-h);
+  grid-template-rows: var(--titlebar-h) auto 1fr var(--statusbar-h);
   grid-template-columns: var(--rail-w) minmax(0, 1fr);
   grid-template-areas:
     'title title'
+    'band band'
     'rail main'
     'status status';
   background: transparent;
@@ -909,6 +910,9 @@
 
 /* ─── Bande de niveau 3 (kill switch) : nuit, filets rouges, texte ivoire, jamais animée ─── */
 .band {
+  grid-area: band;
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 18px;
