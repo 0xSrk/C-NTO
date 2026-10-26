@@ -326,10 +326,80 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     const deps = (h.host as unknown as { deps: { showMessageBox: unknown } }).deps;
     deps.showMessageBox = () => new Promise((resolve) => (release = resolve));
     const first = h.host.provision();
-    expect((await h.host.setDeployment('depl_011CZkZcDH3vPqd7xnEfwXYZ')).error).toBe('Une action sur l’agent cloud est en cours.');
+    expect(await h.host.setDeployment('depl_011CZkZcDH3vPqd7xnEfwXYZ')).toMatchObject({ deploymentId: null, error: null });
     expect(h.host.setKey('').keyStored).toBe(true);
     release({ response: 2 });
-    expect(await first).toMatchObject({ busy: null, deploymentId: null });
+    expect(await first).toMatchObject({ busy: null, deploymentId: null, error: null });
+  });
+
+  it('CLD19 l’échec d’une installation reste affiché : le relevé automatique qui suit ne l’efface pas', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const api = installer({}, { pauseDeployment: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529')) });
+    const h = harness({ api, answers: [1] });
+    h.host.start();
+    const status = await h.host.provision();
+    const warning = 'Installé, mais la suspension a échoué : le déploiement est actif et planifié. Suspendez-le.';
+    expect(status.error).toBe(warning);
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(api.calls).toContain('listSessions');
+    expect(h.host.status()).toMatchObject({ error: warning, deployment: { state: 'active' } });
+    h.host.shutdown();
+  });
+
+  it('CLD19 un 404 sur le déploiement du desk ne le recrée jamais : il facture peut-être sous une autre clé', async () => {
+    const api = installer({}, { updateDeployment: async () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404')) });
+    const h = harness({ api, answers: [0, 0] });
+    await h.host.provision();
+    api.calls.length = 0;
+    const status = await h.host.provision();
+    expect(api.calls).not.toContain('createDeployment');
+    expect(status).toMatchObject({ deploymentId: DEPL, managed: true });
+    expect(status.error).toBe('Déploiement · introuvable avec cette clé (autre organisation, autre espace de travail) : rien n’a été recréé. Quittez-le d’abord.');
+  });
+
+  it('CLD19 quitter un déploiement que la clé ne voit plus : rien n’est dit suspendu ; le quitter quand même se confirme à part', async () => {
+    const api = installer({}, { pauseDeployment: async () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404')) });
+    const h = harness({ api, answers: [0, 0, 1, 0, 0] });
+    await h.host.provision();
+    expect(await h.host.setDeployment(null)).toMatchObject({ deploymentId: DEPL, managed: true });
+    expect(h.dialogs[2]).toMatchObject({ message: 'Déploiement invisible avec cette clé', defaultId: 1, cancelId: 1, buttons: ['Quitter sans suspendre', 'Annuler'] });
+    expect(await h.host.setDeployment(null)).toMatchObject({ deploymentId: null, managed: false });
+    expect(h.logs).toContain('agent cloud · déploiement du desk quitté sans suspension (invisible avec cette clé)');
+    expect(h.logs).not.toContain('agent cloud · déploiement du desk suspendu');
+  });
+
+  it('CLD19 un déploiement qui ne répond pas avant le dialogue : « plafond inconnu », jamais le plafond du dernier relevé', async () => {
+    let answer = true;
+    const api = fakeApi({
+      getDeployment: async () => (answer ? DEPLOYMENT : Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529'))),
+      runDeployment: async () => ({ id: 'drun_01abc12345', createdAt: NOW, trigger: 'manual', sessionId: sid(9), errorType: null, errorMessage: '' }),
+    });
+    const h = harness({ api, answers: [1] });
+    await h.host.setDeployment(DEPL);
+    await h.host.pull();
+    expect(h.host.status().deployment?.budgetCents).toBe(300);
+    answer = false;
+    await h.host.runNow();
+    expect(h.dialogs[0]?.detail).toContain('plafond inconnu');
+    expect(h.dialogs[0]?.detail).not.toContain('3,00');
+  });
+
+  it('CLD19 un relevé en vol n’écrit rien sur le déploiement qui a remplacé le sien', async () => {
+    let release: () => void = () => undefined;
+    const api = fakeApi({
+      getDeployment: async () => {
+        await new Promise<void>((resolve) => (release = resolve));
+        return { ...DEPLOYMENT, name: 'ancien' };
+      },
+    });
+    const h = harness({ api });
+    await h.host.setDeployment(DEPL);
+    const pulling = h.host.pull();
+    await h.host.setDeployment('depl_011CZkZcDH3vPqd7xnEfwXYZ');
+    release();
+    await pulling;
+    expect(h.host.status()).toMatchObject({ deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwXYZ', deployment: null, lastPullAt: null });
   });
 
   it('une commande à la fois : une seconde demande pendant un dialogue ne fait rien', async () => {

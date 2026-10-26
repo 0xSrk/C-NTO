@@ -212,7 +212,10 @@ export class AgentCloudHost {
   protected busy: CloudBusy = null;
   private lastPullAt: number | null = null;
   private nextPullAt: number | null = null;
+  /** Erreur du dernier relevé : le relevé suivant la remplace. */
   protected error: string | null = null;
+  /** Erreur d'une action de l'opérateur (installer, lancer, quitter, saisie refusée) : seul un geste suivant l'efface. */
+  protected actionError: string | null = null;
   private pending = 0;
   private runFailures: CloudFailure[] = [];
   private lastStatus = '';
@@ -311,7 +314,7 @@ export class AgentCloudHost {
       busy: this.busy,
       lastPullAt: this.lastPullAt,
       nextPullAt: this.nextPullAt,
-      error: this.error,
+      error: this.actionError ?? this.error,
       pending: this.pending,
       failures: this.failures(),
       reports: this.reports().size,
@@ -370,31 +373,26 @@ export class AgentCloudHost {
       this.plainKey = null;
       this.authBlocked = false;
       this.error = null;
+      this.actionError = null;
       this.persist();
       this.reschedule();
       this.publish();
       return this.status();
     }
     const key = typeof text === 'string' ? text.trim() : '';
-    if (!isApiKeyText(key)) {
-      this.error = this.t('Clé API illisible : collez la clé entière (sk-ant-…).', 'Unreadable API key: paste the whole key (sk-ant-…).', 'Clave API ilegible: pegue la clave entera (sk-ant-…).');
-      this.publish();
-      return this.status();
-    }
+    if (!isApiKeyText(key)) return this.refuse('Clé API illisible : collez la clé entière (sk-ant-…).', 'Unreadable API key: paste the whole key (sk-ant-…).', 'Clave API ilegible: pegue la clave entera (sk-ant-…).');
     const blob = this.deps.seal.available() ? this.deps.seal.encrypt(key) : null;
-    if (!blob) {
-      this.error = this.t(
+    if (!blob)
+      return this.refuse(
         'Trousseau du système indisponible : la clé n’est pas gardée.',
         'System keychain unavailable: the key is not kept.',
         'Llavero del sistema no disponible: la clave no se guarda.',
       );
-      this.publish();
-      return this.status();
-    }
     this.config.key = blob;
     this.plainKey = key;
     this.authBlocked = false;
     this.error = null;
+    this.actionError = null;
     this.persist();
     this.deps.log('agent cloud · clé enregistrée (chiffrée par le trousseau)');
     this.reschedule(1_000);
@@ -437,8 +435,27 @@ export class AgentCloudHost {
         try {
           await this.api.pauseDeployment(current);
         } catch (error) {
-          // Disparu côté Anthropic : il n'y a plus rien à suspendre. Toute autre erreur garde le déploiement.
+          // Un déploiement ne se supprime pas, il s'archive : un 404 dit seulement que cette clé ne le voit pas (autre
+          // organisation, autre espace de travail). Rien n'a été suspendu ; le quitter quand même se décide à part.
           if (!(error instanceof CloudApiError && error.status === 404)) throw error;
+          const anyway = await this.ask({
+            type: 'warning',
+            title: 'CΛNTO',
+            message: this.t('Déploiement invisible avec cette clé', 'Deployment not visible with this key', 'Despliegue invisible con esta clave'),
+            detail: this.t(
+              'Il n’a pas été suspendu. S’il existe encore dans une autre organisation, il continuera de tourner et de facturer : suspendez-le dans sa Console, ou remettez la clé de son organisation. Le quitter quand même ?',
+              'It was not paused. If it still exists in another organization, it keeps running and billing: pause it in its Console, or restore its organization’s key. Leave it anyway?',
+              'No se ha suspendido. Si aún existe en otra organización, seguirá ejecutándose y facturando: suspéndalo en su Consola, o vuelva a poner la clave de su organización. ¿Dejarlo de todos modos?',
+            ),
+            buttons: [this.t('Quitter sans suspendre', 'Leave without pausing', 'Dejar sin suspender'), this.t('Annuler', 'Cancel', 'Cancelar')],
+            defaultId: 1,
+            cancelId: 1,
+            noLink: true,
+          });
+          if (anyway !== 0) return;
+          this.deps.log('agent cloud · déploiement du desk quitté sans suspension (invisible avec cette clé)');
+          this.adopt(id);
+          return;
         }
       }
       this.deps.log('agent cloud · déploiement du desk suspendu');
@@ -453,6 +470,7 @@ export class AgentCloudHost {
     this.config.managed = false;
     this.deployment = null;
     this.error = null;
+    this.actionError = null;
     this.authBlocked = false;
     this.pending = 0;
     this.runFailures = [];
@@ -463,17 +481,14 @@ export class AgentCloudHost {
 
   setSchedule(raw: unknown): AgentCloudStatus {
     const r = isRecord(raw) ? raw : {};
-    if (!isCron(r.cron) || !isTimezone(r.timezone)) {
-      this.error = this.t(
+    if (!isCron(r.cron) || !isTimezone(r.timezone))
+      return this.refuse(
         'Planification invalide : cinq champs cron et un fuseau IANA (Europe/Paris).',
         'Invalid schedule: five cron fields and an IANA time zone (Europe/Paris).',
         'Planificación no válida: cinco campos cron y una zona IANA (Europe/Paris).',
       );
-      this.publish();
-      return this.status();
-    }
     this.config.schedule = { cron: r.cron, timezone: r.timezone };
-    this.error = null;
+    this.actionError = null;
     this.persist();
     this.publish();
     return this.status();
@@ -503,11 +518,12 @@ export class AgentCloudHost {
   private async control(kind: Exclude<CloudBusy, null>, work: () => Promise<void>): Promise<AgentCloudStatus> {
     if (this.busy) return this.status();
     this.busy = kind;
+    this.actionError = null;
     this.publish();
     try {
       await work();
     } catch (error) {
-      this.error = this.explain(error);
+      this.actionError = this.explain(error);
       this.deps.log(`agent cloud · ${kind} en échec : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
     } finally {
       this.busy = null;
@@ -517,13 +533,14 @@ export class AgentCloudHost {
   }
 
   private refuse(fr: string, en: string, es: string): AgentCloudStatus {
-    this.error = this.t(fr, en, es);
+    this.actionError = this.t(fr, en, es);
     this.publish();
     return this.status();
   }
 
+  /** Une action attend sa réponse : la demande est ignorée (l'écran fige déjà ces commandes), sans laisser de message. */
   private refuseBusy(): AgentCloudStatus {
-    return this.refuse('Une action sur l’agent cloud est en cours.', 'A cloud agent action is in progress.', 'Una acción sobre el agente en la nube está en curso.');
+    return this.status();
   }
 
   private refuseExternal(): AgentCloudStatus {
@@ -534,14 +551,13 @@ export class AgentCloudHost {
     );
   }
 
-  /** Met à jour l'objet gardé ; disparu (404) ou archivé (refusé), il est recréé. Sans identifiant, il est créé. */
-  private async upsert<T>(id: string | null, update: (id: string) => Promise<T>, create: () => Promise<T>, what: string): Promise<T> {
+  /** Met à jour l'objet gardé ; s'il est perdu au sens de `gone`, il est recréé. Sans identifiant, il est créé. */
+  private async upsert<T>(id: string | null, update: (id: string) => Promise<T>, create: () => Promise<T>, what: string, gone: (error: CloudApiError) => boolean): Promise<T> {
     if (!id) return create();
     try {
       return await update(id);
     } catch (error) {
-      const gone = error instanceof CloudApiError && (error.status === 404 || error.status === 409 || (error.status === 400 && /archiv/i.test(error.message)));
-      if (!gone) throw error;
+      if (!(error instanceof CloudApiError && gone(error))) throw error;
       this.deps.log(`agent cloud · ${what} introuvable ou archivé : recréé`);
       return create();
     }
@@ -558,13 +574,14 @@ export class AgentCloudHost {
    * du desk par défaut. Sans plafond, le dialogue le dit ; déploiement illisible, plafond inconnu.
    */
   private async capText(id: string): Promise<string> {
+    let view: DeploymentView;
     try {
-      this.deployment = deploymentState(await this.api.getDeployment(id));
+      view = await this.api.getDeployment(id);
     } catch {
-      /* le dernier relevé fait foi, s'il y en a un */
+      return this.t('plafond inconnu (déploiement non relu)', 'cap unknown (deployment not read)', 'límite desconocido (despliegue no leído)');
     }
-    if (!this.deployment) return this.t('plafond inconnu (déploiement non relu)', 'cap unknown (deployment not read)', 'límite desconocido (despliegue no leído)');
-    const cents = this.deployment.budgetCents;
+    if (this.config.deploymentId === id) this.deployment = deploymentState(view);
+    const cents = view.budgetCents;
     if (cents === null) return this.t('aucun plafond : la session n’est pas plafonnée', 'no cap: the session is uncapped', 'sin límite: la sesión no tiene tope');
     const amount = this.money(cents);
     return this.t(
@@ -618,13 +635,15 @@ export class AgentCloudHost {
       if (choice !== 0 && choice !== 1) return;
       let step: ProvisionStep = 'environment';
       try {
-        const env = await this.upsert(this.config.environmentId, (id) => this.api.updateEnvironment(id, cloudEnvironmentBody()), () => this.api.createEnvironment(cloudEnvironmentBody()), 'environnement');
+        // Un environnement ou un agent ne facture rien : perdu (404, archivé), il est recréé sans risque.
+        const lost = (e: CloudApiError) => e.status === 404 || e.status === 409 || (e.status === 400 && /archiv/i.test(e.message));
+        const env = await this.upsert(this.config.environmentId, (id) => this.api.updateEnvironment(id, cloudEnvironmentBody()), () => this.api.createEnvironment(cloudEnvironmentBody()), 'environnement', lost);
         this.config.environmentId = env.id;
         this.persist();
         step = 'agent';
         const locale = this.deps.locale();
         const body = cloudAgentBody(locale);
-        const agent = await this.upsert(this.config.agentId, (id) => this.api.updateAgent(id, body), () => this.api.createAgent(body), 'agent');
+        const agent = await this.upsert(this.config.agentId, (id) => this.api.updateAgent(id, body), () => this.api.createAgent(body), 'agent', lost);
         this.config.agentId = agent.id;
         this.config.agentVersion = agent.version;
         this.persist();
@@ -632,7 +651,10 @@ export class AgentCloudHost {
         const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone, locale });
         // Un déploiement du desk déjà là (réponse perdue en route, déploiement quitté puis suspendu) est repris, jamais doublé.
         const known = existing ? this.config.deploymentId : ((await this.api.listDeployments(agent.id)).find((d) => d.tagged && !d.archived && d.name === DEPLOYMENT_NAME)?.id ?? null);
-        let view = await this.upsert(known, (id) => this.api.updateDeployment(id, plan), () => this.api.createDeployment(plan), 'déploiement');
+        // Un déploiement ne se supprime pas : un 404 dit qu'une autre clé le voit peut-être encore, et qu'il facture. Il n'est
+        // recréé que s'il est archivé (terminal), jamais sur un 404.
+        const archived = (e: CloudApiError) => /archiv/i.test(e.message) || (this.deployment?.state === 'archived' && e.status >= 400 && e.status < 500 && e.status !== 404);
+        let view = await this.upsert(known, (id) => this.api.updateDeployment(id, plan), () => this.api.createDeployment(plan), 'déploiement', archived);
         this.config.deploymentId = view.id;
         this.config.managed = true;
         this.deployment = deploymentState(view);
@@ -641,18 +663,18 @@ export class AgentCloudHost {
         if (choice === 1 && view.status === 'active') view = await this.api.pauseDeployment(view.id);
         if (choice === 0 && view.status === 'paused') view = await this.api.unpauseDeployment(view.id);
         this.deployment = deploymentState(view);
-        this.error = null;
+        this.actionError = null;
         this.deps.log(`agent cloud · ${existing || known ? 'mis à jour' : 'installé'} (agent v${agent.version}, ${view.status === 'paused' ? 'en pause' : 'planifié'})`);
         this.reschedule(1_000);
       } catch (error) {
-        this.error =
+        this.actionError =
           step === 'pause' && this.deployment?.state === 'active'
             ? this.t(
                 'Installé, mais la suspension a échoué : le déploiement est actif et planifié. Suspendez-le.',
                 'Installed, but the pause failed: the deployment is active and scheduled. Pause it.',
                 'Instalado, pero la suspensión falló: el despliegue está activo y planificado. Suspéndalo.',
               )
-            : `${this.stepLabel(step)} · ${this.explain(error)}`;
+            : `${this.stepLabel(step)} · ${this.explain(error, true)}`;
         this.deps.log(`agent cloud · installation en échec (${step}) : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
         this.reschedule(1_000);
       }
@@ -683,11 +705,10 @@ export class AgentCloudHost {
       const run = await this.api.runDeployment(id);
       if (run.errorType || !run.sessionId) {
         const cause = run.errorType ?? '?';
-        this.error = this.t(`Exécution refusée par Anthropic : ${cause}`, `Run refused by Anthropic: ${cause}`, `Ejecución rechazada por Anthropic: ${cause}`);
+        this.actionError = this.t(`Exécution refusée par Anthropic : ${cause}`, `Run refused by Anthropic: ${cause}`, `Ejecución rechazada por Anthropic: ${cause}`);
         this.deps.log(`agent cloud · exécution manuelle refusée : ${cause}`);
         return;
       }
-      this.error = null;
       this.pending = Math.max(this.pending, 1);
       this.deps.log('agent cloud · exécution manuelle lancée');
       this.reschedule(PULL_PENDING_MS);
@@ -701,7 +722,6 @@ export class AgentCloudHost {
     if (!this.config.managed) return this.refuseExternal();
     return this.control('pause', async () => {
       this.deployment = deploymentState(await this.api.pauseDeployment(id));
-      this.error = null;
       this.deps.log('agent cloud · planification suspendue');
     });
   }
@@ -729,7 +749,6 @@ export class AgentCloudHost {
       });
       if (choice !== 0) return;
       this.deployment = deploymentState(await this.api.unpauseDeployment(id));
-      this.error = null;
       this.deps.log('agent cloud · planification reprise');
     });
   }
@@ -792,8 +811,15 @@ export class AgentCloudHost {
     }
   }
 
-  private explain(error: unknown): string {
+  /** `scoped` : l'erreur vient d'une étape nommée (installation) ; un 404 n'y vise pas forcément le déploiement. */
+  private explain(error: unknown, scoped = false): string {
     if (error instanceof CloudApiError) {
+      if (scoped && error.status === 404)
+        return this.t(
+          'introuvable avec cette clé (autre organisation, autre espace de travail) : rien n’a été recréé. Quittez-le d’abord.',
+          'not found with this key (another organization or workspace): nothing was recreated. Leave it first.',
+          'no encontrado con esta clave (otra organización u otro espacio de trabajo): no se ha recreado nada. Déjelo primero.',
+        );
       if (error.type === 'no_key') return this.t('Aucune clé API enregistrée.', 'No API key stored.', 'Ninguna clave API guardada.');
       if (error.status === 401 || error.status === 403)
         return this.t(`Clé refusée par Anthropic (${error.status}) : enregistrez une clé valide.`, `Key refused by Anthropic (${error.status}): store a valid key.`, `Clave rechazada por Anthropic (${error.status}): guarde una clave válida.`);
@@ -812,10 +838,16 @@ export class AgentCloudHost {
     }
     let added = 0;
     let retryAfterMs: number | undefined;
+    // Le déploiement a changé pendant le relevé (quitté, remplacé) : ce relevé n'écrit plus rien, et ne replanifie rien.
+    const stale = () => this.config.deploymentId !== deploymentId;
     try {
       const view = await this.api.getDeployment(deploymentId);
+      if (stale()) return this.status();
       this.deployment = deploymentState(view);
-      added = await this.collect(await this.sessionsToSee(deploymentId));
+      const seen = await this.collect(await this.sessionsToSee(deploymentId));
+      if (stale()) return this.status();
+      added = seen.added;
+      this.pending = seen.pending;
       try {
         const since = new Date(this.now() - FAILED_RUNS_WINDOW_MS).toISOString();
         const runs = await this.api.listFailedRuns(deploymentId, since, FAILURES_SHOWN);
@@ -823,12 +855,14 @@ export class AgentCloudHost {
       } catch {
         /* les échecs de déclenchement sont un plus : le relevé tient sans eux */
       }
+      if (stale()) return this.status();
       this.error = null;
       // Le déploiement répond : une clé refusée un temps (403 d'un mauvais espace de travail) ne bloque plus le relevé.
       this.authBlocked = false;
       this.lastPullAt = this.now();
       if (added > 0) this.deps.log(`agent cloud · ${added} rapport(s) reçu(s)`);
     } catch (error) {
+      if (stale()) return this.status();
       this.error = this.explain(error);
       if (error instanceof CloudApiError && (error.status === 401 || error.status === 403)) this.authBlocked = true;
       if (error instanceof CloudApiError && error.retryAfterSec) retryAfterMs = error.retryAfterSec * 1000;
@@ -839,7 +873,7 @@ export class AgentCloudHost {
   }
 
   /** Range le rapport de chaque session finie qui n'a pas encore été relevée. Rend le nombre de rapports ajoutés. */
-  private async collect(sessions: SessionView[]): Promise<number> {
+  private async collect(sessions: SessionView[]): Promise<{ added: number; pending: number }> {
     try {
       return await this.collectEach(sessions);
     } finally {
@@ -861,7 +895,7 @@ export class AgentCloudHost {
     return seen;
   }
 
-  private async collectEach(sessions: SessionView[]): Promise<number> {
+  private async collectEach(sessions: SessionView[]): Promise<{ added: number; pending: number }> {
     let pending = 0;
     let downloads = 0;
     let added = 0;
@@ -930,8 +964,7 @@ export class AgentCloudHost {
       this.mark(session.id, true);
       added += 1;
     }
-    this.pending = pending;
-    return added;
+    return { added, pending };
   }
 
   /** Note la session comme relevée (rapport rangé, ou échec qui ne se rattrapera pas) ; écrit à la fin du relevé. */
