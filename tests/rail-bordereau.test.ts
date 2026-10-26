@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { railQuantity, type RailSnapshot } from '@/app/railQuantity';
 import { useI18n } from '@/i18n';
 
-const EMPTY: RailSnapshot = { sessions: 0, todayEntries: 0, notes: 0, links: 0, agentRunning: false, copierAccounts: null, cryptoMarkets: 0 };
+const EMPTY: RailSnapshot = { sessions: 0, todayEntries: 0, notes: 0, links: 0, agentRunning: false, agentReportsUnread: null, copierAccounts: null, cryptoMarkets: 0 };
 const shell = readFileSync('src/app/Shell.tsx', 'utf8');
 const css = readFileSync('src/app/shell.module.css', 'utf8');
 /** Corps de la règle dont le sélecteur ouvre la ligne (pas une règle descendante qui le contient). */
@@ -17,7 +17,7 @@ afterEach(() => useI18n.setState({ locale: 'fr' }));
 
 describe('OROS2.3 rail-bordereau', () => {
   it('chaque module dit sa quantité, lue dans les données du desk', () => {
-    const snap: RailSnapshot = { sessions: 140, todayEntries: 3, notes: 48, links: 112, agentRunning: false, copierAccounts: 2, cryptoMarkets: 4 };
+    const snap: RailSnapshot = { sessions: 140, todayEntries: 3, notes: 48, links: 112, agentRunning: false, agentReportsUnread: 0, copierAccounts: 2, cryptoMarkets: 4 };
     expect(railQuantity('metrique', snap)).toBe('140 séances');
     expect(railQuantity('calendrier', snap)).toBe('3 repères ce jour');
     expect(railQuantity('note', snap)).toBe('48 notes · 112 liens');
@@ -25,6 +25,16 @@ describe('OROS2.3 rail-bordereau', () => {
     expect(railQuantity('agent', { ...snap, agentRunning: true })).toBe('Orchestrateur en service');
     expect(railQuantity('copieur', snap)).toBe('2 comptes suiveurs');
     expect(railQuantity('crypto', snap)).toBe('4 marchés suivis');
+  });
+
+  it('CLD10 l’agent dit ses rapports non lus avant l’état de l’orchestrateur ; sans statut, rien ne change', () => {
+    expect(railQuantity('agent', { ...EMPTY, agentReportsUnread: 1 })).toBe('1 rapport non lu');
+    expect(railQuantity('agent', { ...EMPTY, agentReportsUnread: 3, agentRunning: true })).toBe('3 rapports non lus');
+    expect(railQuantity('agent', { ...EMPTY, agentReportsUnread: 0, agentRunning: true })).toBe('Orchestrateur en service');
+    expect(railQuantity('agent', { ...EMPTY, agentReportsUnread: null })).toBe('En veille');
+    useI18n.setState({ locale: 'en' });
+    expect(railQuantity('agent', { ...EMPTY, agentReportsUnread: 2 })).toBe('2 unread reports');
+    expect(shell).toContain('agentReportsUnread: reportsUnread,');
   });
 
   it('accorde le nombre et parle la langue du desk', () => {

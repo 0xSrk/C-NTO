@@ -23,6 +23,7 @@
     "../src/engine/agent/catalog.ts",
     "../src/engine/agent/orders.ts",
     "../src/engine/agent/routines.ts",
+    "../src/engine/agent/cloudReport.ts",
     "../src/engine/crypto/markets.ts",
     "../src/engine/crypto/venues.ts",
     "../src/engine/crypto/tradeBars.ts",

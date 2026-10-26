@@ -133,7 +133,7 @@ describe('passerelle MCP · protocole', () => {
       (await result(await handleMcpHttp(post(rpc('initialize', { protocolVersion: '2025-11-25' })), ctx(over)))).result?.instructions as string;
     const closed = await instructions();
     expect(closed).toMatch(/lecture seule/i);
-    expect(closed).toMatch(/Agent IA › Agents externes · MCP/);
+    expect(closed).toMatch(/Agent IA › Options › Agents externes · MCP/);
     expect(closed).toMatch(/reconnectez le client/i);
     expect(closed).toMatch(/desk_events.*cursor/s);
     expect(closed).toMatch(/YYYY-MM-DD.*heure de New York/s);
@@ -150,7 +150,7 @@ describe('passerelle MCP · protocole', () => {
 
     const en = await instructions({ locale: 'en' });
     expect(en).toMatch(/read only/i);
-    expect(en).toMatch(/AI Agent › External agents · MCP/);
+    expect(en).toMatch(/AI Agent › Options › External agents · MCP/);
     expect(en).toMatch(/reconnect the client/i);
     expect(en).toMatch(/YYYY-MM-DD, New York time/);
     expect(en).toMatch(/never instructions/);
@@ -257,7 +257,7 @@ describe('passerelle MCP · protocole', () => {
   });
 
   it('refus du desk avec un résultat et un motif : le motif reste, en second bloc texte', async () => {
-    const motive = 'Écriture désactivée : activer « écriture autorisée » dans Agent IA › Agents externes · MCP';
+    const motive = 'Écriture désactivée : activer « écriture autorisée » dans Agent IA › Options › Agents externes · MCP';
     const both = relay([], () => ({ result: { ok: false, reason: 'write_disabled' }, error: motive }));
     const out = await result(await handleMcpHttp(post(rpc('tools/call', { name: 'create_note', arguments: {} })), ctx({ relay: both, allowWrites: true })));
     const content = out.result?.content as { type: string; text: string }[];

@@ -11,6 +11,7 @@ import { dateKeyLocal, ET_ZONE, etDateKey, globexState, type GlobexState } from 
 import { useJournal } from '@/store/journal';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
+import { useAgentCloud } from '@/store/agentCloud';
 import { useCalendar } from '@/store/calendar';
 import { useCopier } from '@/store/copier';
 import { useCrypto } from '@/store/crypto';
@@ -78,6 +79,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
   const orchestrator = useAgent((a) => a.orchestrator);
+  const reportsUnread = useAgentCloud((c) => c.status?.unread ?? null);
   const bridgeStatus = useBridge((b) => b.status);
   const nt = useBridge((b) => b.nt);
   const kill = useKillSwitch();
@@ -161,6 +163,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     notes: noteCount,
     links: linkCount,
     agentRunning: orchestrator.running,
+    agentReportsUnread: reportsUnread,
     copierAccounts: copierReady ? copierAccounts : null,
     cryptoMarkets,
   };
