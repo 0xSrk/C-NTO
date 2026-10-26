@@ -2,6 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 
 import path from 'node:path';
 import { coerceStoredReport, isApiId, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
 import { CloudApiError, createCloudApi, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
+import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, OFFICIAL_DOMAINS } from './agent-cloud-definition';
 import { uiText, type AppLocale } from './locale';
 
 /**
@@ -445,6 +446,176 @@ export class AgentCloudHost {
     } catch {
       return false;
     }
+  }
+
+  /** Réponse du dialogue du process principal ; sans fenêtre, ou si le dialogue échoue, l'annulation. */
+  private async ask(options: CloudDialogOptions): Promise<number> {
+    const win = this.deps.window();
+    if (!win || win.isDestroyed()) return options.cancelId;
+    try {
+      return (await this.deps.showMessageBox(win, options)).response;
+    } catch {
+      return options.cancelId;
+    }
+  }
+
+  /** Une action sur le cloud à la fois ; une erreur de l'API devient le message du statut. */
+  private async control(kind: Exclude<CloudBusy, null>, work: () => Promise<void>): Promise<AgentCloudStatus> {
+    if (this.busy) return this.status();
+    this.busy = kind;
+    this.publish();
+    try {
+      await work();
+    } catch (error) {
+      this.error = this.explain(error);
+      this.deps.log(`agent cloud · ${kind} en échec : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
+    } finally {
+      this.busy = null;
+      this.publish();
+    }
+    return this.status();
+  }
+
+  private refuse(fr: string, en: string, es: string): AgentCloudStatus {
+    this.error = this.t(fr, en, es);
+    this.publish();
+    return this.status();
+  }
+
+  private budgetText(): string {
+    const cents = this.deployment?.budgetCents ?? BUDGET_CENTS_PER_RUN;
+    return `${(cents / 100).toFixed(2)} $`;
+  }
+
+  /**
+   * Installe (ou met à jour) l'environnement, l'agent et le déploiement planifié décrits par `agent-cloud-definition.ts`.
+   * Dialogue du process principal, Annuler par défaut : planifier, installer en pause, ou rien. Chaque identifiant
+   * obtenu est écrit tout de suite : une installation coupée en route reprend où elle s'est arrêtée.
+   */
+  async provision(): Promise<AgentCloudStatus> {
+    if (!this.config.key) return this.refuse('Aucune clé API enregistrée.', 'No API key stored.', 'Ninguna clave API guardada.');
+    if (this.config.deploymentId && !this.config.managed)
+      return this.refuse(
+        'Déploiement externe : le desk le relève sans le modifier. Oubliez-le pour que le desk installe le sien.',
+        'External deployment: the desk reads it without changing it. Forget it to let the desk install its own.',
+        'Despliegue externo: el desk lo lee sin modificarlo. Olvídelo para que el desk instale el suyo.',
+      );
+    return this.control('provision', async () => {
+      const existing = !!this.config.deploymentId;
+      const { cron, timezone } = this.config.schedule;
+      const choice = await this.ask({
+        type: 'warning',
+        title: 'CΛNTO',
+        message: existing ? this.t('Mettre à jour l’agent cloud ?', 'Update the cloud agent?', '¿Actualizar el agente en la nube?') : this.t('Installer l’agent cloud ?', 'Install the cloud agent?', '¿Instalar el agente en la nube?'),
+        detail: [
+          this.t('Modèle : Claude Opus 5.5, effort élevé', 'Model: Claude Opus 5.5, high effort', 'Modelo: Claude Opus 5.5, esfuerzo alto'),
+          `${this.t('Planification', 'Schedule', 'Planificación')} : ${cron} · ${timezone}`,
+          this.t(`Plafond : ${this.budgetText()} par exécution, aux tarifs publics`, `Cap: ${this.budgetText()} per run, at list prices`, `Límite: ${this.budgetText()} por ejecución, a precios públicos`),
+          this.t(`Sources : ${OFFICIAL_DOMAINS.length} domaines officiels (Fed, BLS, BEA, Trésor, EIA, CME…)`, `Sources: ${OFFICIAL_DOMAINS.length} official domains (Fed, BLS, BEA, Treasury, EIA, CME…)`, `Fuentes: ${OFFICIAL_DOMAINS.length} dominios oficiales (Fed, BLS, BEA, Tesoro, EIA, CME…)`),
+          '',
+          this.t(
+            'Facturé sur les crédits API de l’organisation de la clé. Aucune donnée du desk n’est envoyée : le desk relève seulement le rapport.',
+            'Billed to the API credits of the key’s organization. No desk data is sent: the desk only pulls the report.',
+            'Facturado a los créditos API de la organización de la clave. No se envía ningún dato del desk: el desk solo recoge el informe.',
+          ),
+        ].join('\n'),
+        buttons: [this.t('Installer et planifier', 'Install and schedule', 'Instalar y planificar'), this.t('Installer en pause', 'Install paused', 'Instalar en pausa'), this.t('Annuler', 'Cancel', 'Cancelar')],
+        defaultId: 2,
+        cancelId: 2,
+        noLink: true,
+      });
+      if (choice !== 0 && choice !== 1) return;
+      const env = this.config.environmentId ? await this.api.updateEnvironment(this.config.environmentId, cloudEnvironmentBody()) : await this.api.createEnvironment(cloudEnvironmentBody());
+      this.config.environmentId = env.id;
+      this.persist();
+      const body = cloudAgentBody(this.deps.locale());
+      const agent = this.config.agentId ? await this.api.updateAgent(this.config.agentId, body) : await this.api.createAgent(body);
+      this.config.agentId = agent.id;
+      this.config.agentVersion = agent.version;
+      this.persist();
+      const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone });
+      let view = this.config.deploymentId ? await this.api.updateDeployment(this.config.deploymentId, plan) : await this.api.createDeployment(plan);
+      this.config.deploymentId = view.id;
+      this.config.managed = true;
+      this.persist();
+      if (choice === 1 && view.status === 'active') view = await this.api.pauseDeployment(view.id);
+      if (choice === 0 && view.status === 'paused') view = await this.api.unpauseDeployment(view.id);
+      this.deployment = deploymentState(view);
+      this.error = null;
+      this.deps.log(`agent cloud · ${existing ? 'mis à jour' : 'installé'} (agent v${agent.version}, ${view.status === 'paused' ? 'en pause' : 'planifié'})`);
+      this.reschedule(1_000);
+    });
+  }
+
+  /** Exécution immédiate du déploiement (même en pause) : dialogue, Annuler par défaut. */
+  async runNow(): Promise<AgentCloudStatus> {
+    const id = this.config.deploymentId;
+    if (!this.config.key || !id) return this.refuse('Installez ou indiquez d’abord un déploiement.', 'Install or enter a deployment first.', 'Instale o indique primero un despliegue.');
+    return this.control('run', async () => {
+      const choice = await this.ask({
+        type: 'question',
+        title: 'CΛNTO',
+        message: this.t('Lancer une analyse maintenant ?', 'Run an analysis now?', '¿Lanzar un análisis ahora?'),
+        detail: this.t(
+          `Une session démarre tout de suite dans le bac à sable d’Anthropic, facturée sur les crédits API (plafond ${this.budgetText()}). Le rapport arrive dans le dossier quand elle finit.`,
+          `A session starts right away in Anthropic’s sandbox, billed to API credits (cap ${this.budgetText()}). The report lands in the folder when it finishes.`,
+          `Una sesión empieza enseguida en el entorno aislado de Anthropic, facturada a los créditos API (límite ${this.budgetText()}). El informe llega a la carpeta al terminar.`,
+        ),
+        buttons: [this.t('Lancer', 'Run', 'Lanzar'), this.t('Annuler', 'Cancel', 'Cancelar')],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice !== 0) return;
+      const run = await this.api.runDeployment(id);
+      if (run.errorType || !run.sessionId) {
+        const cause = run.errorType ?? '?';
+        this.error = this.t(`Exécution refusée par Anthropic : ${cause}`, `Run refused by Anthropic: ${cause}`, `Ejecución rechazada por Anthropic: ${cause}`);
+        this.deps.log(`agent cloud · exécution manuelle refusée : ${cause}`);
+        return;
+      }
+      this.error = null;
+      this.pending = Math.max(this.pending, 1);
+      this.deps.log('agent cloud · exécution manuelle lancée');
+      this.reschedule(PULL_PENDING_MS);
+    });
+  }
+
+  /** Suspendre la planification ne coûte rien : pas de dialogue. */
+  async pause(): Promise<AgentCloudStatus> {
+    const id = this.config.deploymentId;
+    if (!this.config.key || !id) return this.status();
+    return this.control('pause', async () => {
+      this.deployment = deploymentState(await this.api.pauseDeployment(id));
+      this.error = null;
+      this.deps.log('agent cloud · planification suspendue');
+    });
+  }
+
+  /** Reprendre la planification dépense chaque jour : dialogue, Annuler par défaut. */
+  async unpause(): Promise<AgentCloudStatus> {
+    const id = this.config.deploymentId;
+    if (!this.config.key || !id) return this.status();
+    return this.control('unpause', async () => {
+      const choice = await this.ask({
+        type: 'question',
+        title: 'CΛNTO',
+        message: this.t('Reprendre la planification ?', 'Resume the schedule?', '¿Reanudar la planificación?'),
+        detail: this.t(
+          `Le déploiement repart à la prochaine échéance (aucun rattrapage), facturé sur les crédits API, ${this.budgetText()} au plus par exécution.`,
+          `The deployment resumes at the next occurrence (no backfill), billed to API credits, ${this.budgetText()} at most per run.`,
+          `El despliegue se reanuda en el próximo vencimiento (sin recuperación), facturado a los créditos API, ${this.budgetText()} como máximo por ejecución.`,
+        ),
+        buttons: [this.t('Reprendre', 'Resume', 'Reanudar'), this.t('Annuler', 'Cancel', 'Cancelar')],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice !== 0) return;
+      this.deployment = deploymentState(await this.api.unpauseDeployment(id));
+      this.error = null;
+      this.deps.log('agent cloud · planification reprise');
+    });
   }
 
   start(): void {

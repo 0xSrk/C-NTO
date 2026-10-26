@@ -1,16 +1,9 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
-import { CloudApiError, type CloudApi, type DeploymentView, type FileView, type SessionView } from '../electron/agent-cloud-api';
-import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, AgentCloudHost, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS, type AgentCloudDeps } from '../electron/agent-cloud';
-
-const KEY = 'sk-ant-api03-cle-de-test-0123456789';
-const DEPL = 'depl_011CZkZcDH3vPqd7xnEfwTai';
-const NOW = Date.parse('2026-10-27T08:00:00Z');
-const sid = (n: number) => `sesn_011CZkZAtmR3yMPDzynEDx${String(n).padStart(2, '0')}`;
-const fid = (n: number) => `file_011CNha8iCJcU1wXNR6q4V${String(n).padStart(2, '0')}`;
+import { CloudApiError, type FileView } from '../electron/agent-cloud-api';
+import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS } from '../electron/agent-cloud';
+import { cloudHarness, DEPL, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -18,99 +11,9 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
 });
 
-const DEPLOYMENT: DeploymentView = {
-  id: DEPL,
-  name: 'canto-rapport-quotidien',
-  status: 'active',
-  archived: false,
-  pausedReason: null,
-  agentId: 'agent_011CZkYpogX7uDKUyvBTophP',
-  agentVersion: 2,
-  environmentId: 'env_011CZkZ9X2dpNyB7HsEFoRfW',
-  cron: '0 7 * * 1-5',
-  timezone: 'Europe/Paris',
-  nextRunAt: NOW + 86_400_000,
-  lastRunAt: NOW - 3_600_000,
-  budgetCents: 300,
-};
+const harness = (opts: HarnessOptions = {}) => cloudHarness(dirs, opts);
 
-const session = (n: number, over: Partial<SessionView> = {}): SessionView => ({
-  id: sid(n),
-  status: 'idle',
-  createdAt: NOW - 3_600_000,
-  updatedAt: NOW - 3_000_000,
-  archived: false,
-  costCents: 64,
-  agentVersion: 2,
-  outcomePending: false,
-  outcomeResult: 'satisfied',
-  ...over,
-});
-
-const report = (date: string, title = 'Brief pré-séance') => JSON.stringify({ format: REPORT_FORMAT, date, title, summary: 'Résumé.', sections: [{ heading: 'Calendrier', body: '- 14:30 CPI' }], sources: [], generatedAt: '2026-10-27T06:10:00Z' });
-
-function fakeApi(over: Partial<CloudApi> = {}): CloudApi & { calls: string[] } {
-  const calls: string[] = [];
-  const note = <T>(name: string, value: T) => {
-    calls.push(name);
-    return value;
-  };
-  const refuse = (name: string) => () => Promise.reject(new Error(`${name} non attendu`));
-  return {
-    calls,
-    getDeployment: vi.fn(async () => note('getDeployment', DEPLOYMENT)),
-    listSessions: vi.fn(async () => note('listSessions', [] as SessionView[])),
-    listFailedRuns: vi.fn(async () => note('listFailedRuns', [])),
-    listOutputFiles: vi.fn(async () => note('listOutputFiles', [] as FileView[])),
-    downloadText: vi.fn(async () => note('downloadText', '')),
-    createEnvironment: refuse('createEnvironment'),
-    updateEnvironment: refuse('updateEnvironment'),
-    createAgent: refuse('createAgent'),
-    updateAgent: refuse('updateAgent'),
-    createDeployment: refuse('createDeployment'),
-    updateDeployment: refuse('updateDeployment'),
-    runDeployment: refuse('runDeployment'),
-    pauseDeployment: refuse('pauseDeployment'),
-    unpauseDeployment: refuse('unpauseDeployment'),
-    ...over,
-  };
-}
-
-/** Faux trousseau : un blob opaque, réversible, qui ne contient pas la clé en clair. */
-const seal = (available = true) => ({
-  available: () => available,
-  encrypt: (text: string) => (available ? Buffer.from(`sealed:${[...text].reverse().join('')}`).toString('base64') : null),
-  decrypt: (blob: string) => {
-    const text = Buffer.from(blob, 'base64').toString('utf8');
-    return text.startsWith('sealed:') ? [...text.slice(7)].reverse().join('') : '';
-  },
-});
-
-function harness(opts: { api?: CloudApi; dir?: string; available?: boolean; clock?: { now: number } } = {}) {
-  const dir = opts.dir ?? mkdtempSync(path.join(tmpdir(), 'canto-agent-cloud-'));
-  if (!opts.dir) dirs.push(dir);
-  const sent: { channel: string; payload: unknown }[] = [];
-  const logs: string[] = [];
-  const clock = opts.clock ?? { now: NOW };
-  const api = opts.api ?? fakeApi();
-  const deps: AgentCloudDeps = {
-    userDataDir: dir,
-    locale: () => 'fr',
-    window: () => ({ isDestroyed: () => false }),
-    showMessageBox: async () => ({ response: 1 }),
-    send: (channel, payload) => sent.push({ channel, payload }),
-    log: (line) => logs.push(line),
-    seal: seal(opts.available ?? true),
-    fetchImpl: () => Promise.reject(new Error('réseau interdit dans ce test')),
-    openPath: async () => true,
-    timers: { setTimeout, clearTimeout },
-    now: () => clock.now,
-    api,
-  };
-  return { host: new AgentCloudHost(deps), dir, sent, logs, api, clock };
-}
-
-async function configured(api: CloudApi, opts: { dir?: string; clock?: { now: number } } = {}) {
+async function configured(api: FakeCloudApi, opts: { dir?: string; clock?: { now: number } } = {}) {
   const h = harness({ api, ...opts });
   h.host.setKey(KEY);
   h.host.setDeployment(DEPL);
