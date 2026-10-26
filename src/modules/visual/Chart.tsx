@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, CrosshairMode, HistogramSeries, LineSeries, LineStyle, type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type SeriesMarker, type Time, type UTCTimestamp } from 'lightweight-charts';
+import { cssToken } from '@/lib/cssToken';
 import type { Bar } from '@/engine/bars';
 import type { IndicatorLine } from '@/engine/indicators';
 import type { Trade } from '@/engine/types';
@@ -235,7 +236,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
       borderDownColor: '#e0776c',
       wickUpColor: 'rgba(127,207,154,0.8)',
       wickDownColor: 'rgba(224,119,108,0.8)',
-      priceLineColor: '#8a8a8a',
+      // le dernier prix est vivant : il prend l'or (jeton --gold), ligne et étiquette
+      priceLineColor: cssToken('--gold', '#ccb066'),
       priceLineStyle: LineStyle.Dotted,
       priceFormat: { type: 'price', precision: format.precision, minMove: format.minMove },
     });

@@ -421,3 +421,61 @@ pre.proto {
   overflow: auto;
   line-height: 1.5;
 }
+
+/* Plaque AGENT_GUARD (Ligne V2) en tête du panneau des ordres : encre secondaire, papier du panneau. */
+.guardPlate {
+  width: min(100%, 286px);
+  margin-bottom: 4px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+
+/* Emblème de l'agent sur la conversation vide (composant de la planche, viewBox 119 × 140). */
+.emblem {
+  width: 40px;
+  height: 47px;
+  margin: 0 auto 4px;
+  --k: var(--text-2);
+  --p: var(--bg-0);
+}
+
+/* Interrupteur des outils du desk : le composant de la bascule, à l'or quand il est allumé. */
+.deskTools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.deskTools:focus-visible {
+  outline: 1px solid var(--gold-line);
+  outline-offset: 2px;
+}
+.toggleGlyph {
+  width: 30px;
+  height: 8px;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+.deskTools[aria-checked='true'] {
+  color: var(--text-0);
+}
+.deskTools[aria-checked='true'] .toggleGlyph {
+  --k: var(--gold);
+}
+
+/* Flèche de la planche au bout d'un bouton. */
+.btnGlyph {
+  width: 10px;
+  height: 10px;
+  margin-left: 8px;
+  --k: currentColor;
+}

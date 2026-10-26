@@ -146,6 +146,36 @@
   margin-top: 6px;
 }
 
+/* Jauge K : la règle graduée de la planche, posée dans l'intervalle entre la piste et l'échelle (piste 8 px + arête). */
+.gauge {
+  position: relative;
+}
+.ruler {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 4px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--text-2) 1px, transparent 1px) 0 0 / 25% 4px repeat-x,
+    linear-gradient(90deg, var(--line-3) 1px, transparent 1px) 0 0 / 5% 2px repeat-x;
+  border-right: 1px solid var(--text-2);
+}
+/* K.04 : le signal de la borne (niveau 2 : attention ; niveau 3 : borne franchie, seul le glyphe rougit) */
+.kSignal {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.kSignal b {
+  color: var(--text-0);
+  font-weight: 600;
+}
+
 .split,
 .hatch {
   height: 8px;
@@ -205,8 +235,27 @@
 .eqRead .neg { color: var(--neg); }
 .eqChart {
   position: relative;
+  z-index: 1;
   width: 100%;
   min-width: 0;
+}
+/* La plaque de lecture A.02 (Ligne V2) en filigrane, en haut à gauche, sous la courbe (fond du graphique transparent) :
+   la courbe passe par-dessus, la plaque n'intercepte aucun geste. */
+.eqStage {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+}
+.eqPlate {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  z-index: 0;
+  width: 148px;
+  pointer-events: none;
+  opacity: 0.8;
+  --k: var(--text-2);
+  --p: var(--bg-2);
 }
 .eqFault {
   height: 300px;
@@ -265,6 +314,21 @@
   height: 8px;
   background: radial-gradient(circle, var(--neg) 0.7px, transparent 1.1px) 0 0 / 4px 4px;
   border-top: 1px solid var(--neg);
+}
+/* la borne : le plancher en trait plein, sa tête carrée */
+.eqLegend i.eqKeyFloor {
+  position: relative;
+  height: 1px;
+  background: var(--text-0);
+}
+.eqLegend i.eqKeyFloor::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: -2px;
+  width: 3px;
+  height: 3px;
+  background: var(--text-0);
 }
 .eqKeyPixel {
   width: 9px;
@@ -389,6 +453,8 @@
 .sq.loss { background: var(--neg); border-color: var(--neg); }
 
 .more {
+  display: inline-flex;
+  align-items: center;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -469,6 +535,36 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+/* composants de la planche dans les outils : encre des libellés, taille par l'enveloppe */
+.toolGlyph {
+  width: 12px;
+  height: 12px;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+.toolWide {
+  width: 30px;
+  height: 8px;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+/* l'étoile sépare les groupes d'outils */
+.toolSep {
+  display: inline-flex;
+  padding: 0 4px;
+  --k: var(--line-3);
+}
+.toolSep > span {
+  width: 8px;
+  height: 8px;
+}
+/* flèche de la planche au bout d'un bouton (import, séances) */
+.btnGlyph {
+  width: 10px;
+  height: 10px;
+  margin-left: 8px;
+  --k: currentColor;
 }
 .account {
   height: 34px;

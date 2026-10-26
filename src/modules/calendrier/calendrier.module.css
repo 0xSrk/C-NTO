@@ -63,7 +63,10 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--cat);
+  background: var(--line-2);
+}
+.filterChip.on .filterBtn i {
+  background: var(--text-1);
 }
 .helpDot {
   width: 22px;
@@ -176,16 +179,16 @@
   overflow: hidden;
   padding: 1px 4px;
   border-radius: 0;
-  border-left: 2px solid var(--cat);
+  border: 1px solid var(--line-2);
   background: rgba(255, 255, 255, 0.02);
   min-width: 0;
 }
 .ev.impact3 {
   color: var(--text-0);
-  background: color-mix(in srgb, var(--cat) 14%, transparent);
+  font-weight: 500;
 }
 .ev.evPublished {
-  background: color-mix(in srgb, var(--cat) 10%, transparent);
+  color: var(--text-1);
 }
 .evTitle {
   overflow: hidden;
@@ -310,15 +313,15 @@
   gap: 10px;
   align-items: center;
   padding: 7px 12px;
-  border-bottom: 1px dashed var(--line-0);
+  margin: 3px 8px 3px 0;
+  border: 1px solid var(--line-2);
   cursor: pointer;
-  border-left: 2px solid var(--cat);
 }
 .fluxEv.evPublished {
   background: rgba(255, 255, 255, 0.02);
 }
 .fluxEv:last-child {
-  border-bottom: none;
+  margin-bottom: 6px;
 }
 .fluxTime {
   font-family: var(--font-mono);
@@ -394,8 +397,7 @@
   color: var(--text-3);
 }
 .evCard {
-  border: 1px solid var(--line-0);
-  border-left: 2px solid var(--cat);
+  border: 1px solid var(--line-1);
   padding: 6px 8px;
   border-radius: var(--radius);
   display: flex;
@@ -472,17 +474,19 @@
   text-transform: uppercase;
   color: var(--gold);
 }
+/* L'impact par la forme : barres croissantes, à l'encre ; éteintes, au filet. */
 .impactBar {
   display: inline-flex;
+  align-items: flex-end;
   gap: 2px;
+  height: 12px;
 }
 .impactBar i {
   width: 4px;
-  height: 8px;
   background: var(--line-2);
 }
 .impactBar i.on {
-  background: var(--cat);
+  background: var(--text-0);
 }
 .markersCompact {
   display: flex;
@@ -678,4 +682,119 @@
 }
 .helpList li::marker {
   color: var(--gold);
+}
+
+/* ─── Système 4.0 : le trait dit l'état (plein : publié · tireté : prévu dans la fenêtre · pointillé : au-delà) ─── */
+.ev[data-stroke='prevu'],
+.fluxEv[data-stroke='prevu'],
+.evCard[data-stroke='prevu'] {
+  border-style: dashed;
+}
+.ev[data-stroke='horizon'],
+.fluxEv[data-stroke='horizon'],
+.evCard[data-stroke='horizon'] {
+  border-style: dotted;
+  border-color: var(--line-2);
+}
+.ev[data-stroke='publie'],
+.fluxEv[data-stroke='publie'] {
+  color: var(--text-1);
+}
+
+/* Légendes L.01 / L.02 */
+.legends {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.legendCode {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-2);
+}
+.legendRow {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-1);
+}
+.swatch {
+  height: 12px;
+  border: 1px solid var(--text-0);
+}
+.swatch[data-stroke='prevu'] {
+  border-style: dashed;
+}
+.swatch[data-stroke='horizon'] {
+  border-style: dotted;
+}
+
+/* « Maintenant » : la lentille du sceau ; le glyphe de l'instant et l'heure à l'or, le vivant */
+.nowMark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 24px;
+  margin: 2px 8px 2px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.nowGlyph {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  --k: var(--gold);
+  --p: var(--bg-1);
+}
+.nowLens {
+  flex: 1;
+  min-width: 24px;
+  height: 8px;
+  color: var(--text-0);
+}
+
+/* Le premier jour au-delà de l'horizon : le glyphe de l'horizon */
+.hzMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+}
+.hzGlyph {
+  width: 16px;
+  height: 9px;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+
+/* Plaque TIME ENGINE (Ligne V2) en tête de colonne : encre secondaire, papier du panneau */
+.timeHud {
+  flex: none;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-1);
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.timePlate {
+  display: block;
+  width: 100%;
+  aspect-ratio: 368 / 82;
+}
+
+/* glyphe de la planche au bout d'un bouton */
+.btnGlyph {
+  width: 11px;
+  height: 11px;
+  margin-left: 8px;
+  --k: currentColor;
 }

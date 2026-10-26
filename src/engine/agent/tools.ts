@@ -171,8 +171,8 @@ const MEMORY_NOTE_MAX = 2000;
 const MEMORY_NOTES_MAX = 30;
 /** Constats de discipline rendus par appel, les plus récents. */
 const FINDINGS_MAX = 50;
-/** Horizon de recherche du prochain catalyseur majeur. */
-const CATALYST_HORIZON_DAYS = 7;
+/** Horizon de recherche du prochain catalyseur majeur ; le calendrier trace au pointillé ce qui est au-delà. */
+export const CATALYST_HORIZON_DAYS = 7;
 
 /** Une note d'agent adoptée garde `by: 'agent'` et porte `adoptedAt` (instant de l'adoption par le trader). */
 function memoryNoteOut(n: MemoryNote) {

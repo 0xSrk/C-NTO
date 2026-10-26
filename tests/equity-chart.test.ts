@@ -35,6 +35,15 @@ vi.mock('lightweight-charts', () => {
     }
     return dst;
   };
+  /** Même copie que `clone` de la bibliothèque : les objets en profondeur, les fonctions par référence. */
+  const clone = (src: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(src)) {
+      const value = src[key];
+      out[key] = value && typeof value === 'object' && !Array.isArray(value) ? clone(value as Record<string, unknown>) : value;
+    }
+    return out;
+  };
   return {
     customSeriesDefaultOptions: { color: '#000' },
     ColorType: { Solid: 'solid' },
@@ -45,7 +54,7 @@ vi.mock('lightweight-charts', () => {
       state.charts.push(chart);
       return {
         addCustomSeries: (view: { constructor: { name: string }; defaultOptions: () => Record<string, unknown> }, options: Record<string, unknown>, pane = 0) => {
-          const series: FakeSeries = { kind: view.constructor.name, pane, options: merge(structuredClone(view.defaultOptions()), options), data: [] };
+          const series: FakeSeries = { kind: view.constructor.name, pane, options: merge(clone(view.defaultOptions()), options), data: [] };
           chart.series.push(series);
           return {
             setData: (data: FakeSeries['data']) => {
@@ -101,7 +110,7 @@ let root: Root | null = null;
 let host: HTMLElement | null = null;
 const size = { clientWidth: 800, clientHeight: 300 };
 
-async function mount() {
+async function mount(props: { floor?: number | null; stats?: { trades: number; winRate: number; profitFactor: number } } = {}) {
   const { EquityCard } = await import('@/modules/metrique/EquityChart');
   const { useI18n } = await import('@/i18n');
   useI18n.setState({ locale: 'fr' });
@@ -109,7 +118,7 @@ async function mount() {
   document.body.append(host);
   root = createRoot(host);
   await act(async () => {
-    root!.render(createElement(EquityCard, { sessions, trades }));
+    root!.render(createElement(EquityCard, { sessions, trades, ...props }));
   });
   const chart = state.charts.at(-1);
   if (!chart) throw new Error('graphique non créé');
@@ -158,9 +167,10 @@ describe('Métrique › A.02 courbe d’équité', () => {
       ['StemTrait', 1],
       ['UnderwaterTrait', 2],
     ]);
-    const rows = curve.steps.map((step) => ({ time: step.time, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl }));
+    // Règle de séances : chaque pas porte l'ordinal de la séance qu'il ouvre (−1 au départ).
+    const rows = curve.steps.map((step, i) => ({ time: step.time, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl, session: i === 0 ? -1 : i }));
     for (const row of chart.series) expect(row.data).toEqual(rows);
-    expect(marks(chart)).toEqual({ high: 2, highLabel: 'PLUS HAUT +400', trough: 3, troughLabel: 'CREUX −450' });
+    expect(marks(chart)).toEqual({ high: 2, highLabel: 'PLUS-HAUT +400', trough: 3, troughLabel: 'CREUX −450' });
     const ink = trait(chart, 'EquityTrait').options.ink as Record<string, string>;
     expect([ink.line, ink.pos, ink.neg, ink.red]).toEqual(['#edebe4', '#74c69d', '#e0735f', '#e5263d']);
     expect(chart.fits).toBe(1);
@@ -226,5 +236,107 @@ describe('Métrique › A.02 courbe d’équité', () => {
     act(() => root!.unmount());
     root = null;
     expect(chart.removed).toBe(true);
+  });
+});
+
+/** Image du navigateur, simulée : jsdom ne charge rien ; `load()` fait ce que ferait le navigateur. */
+class FakeImage {
+  static made: FakeImage[] = [];
+  onload: (() => void) | null = null;
+  complete = false;
+  naturalWidth = 0;
+  src = '';
+  constructor() {
+    FakeImage.made.push(this);
+  }
+  load() {
+    this.complete = true;
+    this.naturalWidth = 24;
+    this.onload?.();
+  }
+}
+
+const svgOf = (img: FakeImage) => decodeURIComponent(img.src.replace(/^data:image\/svg\+xml;charset=utf-8,/, ''));
+const glyphOf = (chart: FakeChart, kind: string) => trait(chart, kind).options.glyph as (key: string) => unknown;
+
+describe('OROS3.2b la carte A.02 : composants de la planche, borne du plan, plaque de lecture', () => {
+  beforeEach(() => {
+    FakeImage.made.length = 0;
+    vi.stubGlobal('Image', FakeImage);
+  });
+
+  it('⊕, ⊗ et la borne sont les composants de la planche, encrés en ivoire, donnés au trait une fois chargés', async () => {
+    const { COMPONENTS, GLYPH_ID } = await import('@/design/micro/assets');
+    const chart = await mount();
+    const made = FakeImage.made;
+    expect(made).toHaveLength(3);
+    const byGlyph = (n: number) => made.find((img) => svgOf(img).includes(`skg-${n}"`))!;
+    const target = byGlyph(GLYPH_ID.target);
+    const mire = byGlyph(GLYPH_ID.mire);
+    const borne = byGlyph(GLYPH_ID.borne);
+    for (const [img, n] of [[target, GLYPH_ID.target], [mire, GLYPH_ID.mire], [borne, GLYPH_ID.borne]] as const) {
+      const svg = svgOf(img);
+      expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="\d+" height="\d+" /);
+      expect(svg).not.toContain('var(--k)');
+      expect(svg).toContain('#edebe4');
+      // Le dessin du master, intact : seule l'encre change (et la graisse, réglée à part).
+      expect(svg.replaceAll('#edebe4', 'var(--k)')).toContain(COMPONENTS[n]!.replace(/^<svg /, '').replace(/<\/svg>$/, ''));
+    }
+    expect(glyphOf(chart, 'EquityTrait')('target')).toBeNull();
+    await act(async () => made.forEach((img) => img.load()));
+    expect(glyphOf(chart, 'EquityTrait')('target')).toBe(target);
+    expect(glyphOf(chart, 'EquityTrait')('mire')).toBe(mire);
+    expect(glyphOf(chart, 'UnderwaterTrait')('borne')).toBe(borne);
+  });
+
+  it('la borne du plan suivi passe au volet sous l’eau, et l’échelle du volet la contient', async () => {
+    const chart = await mount({ floor: 2500 });
+    const options = trait(chart, 'UnderwaterTrait').options;
+    expect(options.floor).toBe(2500);
+    expect(options.floorLabel).toMatch(/^PLANCHER −2\s?500$/u);
+    const provider = options.autoscaleInfoProvider as (base: () => unknown) => { priceRange: { minValue: number; maxValue: number } } | null;
+    expect(provider(() => ({ priceRange: { minValue: -450, maxValue: 0 } }))?.priceRange).toEqual({ minValue: -2500, maxValue: 0 });
+    expect(host!.textContent).toMatch(/Plancher · borne/);
+  });
+
+  it('sans plan suivi, pas de borne : l’échelle reste celle des données, la légende n’en parle pas', async () => {
+    const chart = await mount();
+    const options = trait(chart, 'UnderwaterTrait').options;
+    expect(options.floor).toBe(0);
+    const provider = options.autoscaleInfoProvider as (base: () => unknown) => unknown;
+    expect(provider(() => ({ priceRange: { minValue: -450, maxValue: 0 } }))).toEqual({ priceRange: { minValue: -450, maxValue: 0 } });
+    expect(host!.textContent).not.toMatch(/Plancher · borne/);
+  });
+
+  it('la plaque A.02 en filigrane lit la courbe et les statistiques réelles, et se tait pour les lecteurs d’écran', async () => {
+    await mount({ stats: { trades: 5, winRate: 0.8, profitFactor: 2.22 } });
+    const plate = host!.querySelector('svg.mg-equity')!;
+    expect(plate).not.toBeNull();
+    const text = plate.textContent ?? '';
+    expect(text).toContain('A.02 — EQUITY — NT8');
+    expect(text).toContain('CUMUL +150,00 // DD −250,00');
+    expect(text).toContain('– 4 – 5 – 80,0 – 2,22');
+    expect(plate.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('sans statistiques transmises, la plaque dit « — » plutôt qu’un chiffre inventé', async () => {
+    await mount();
+    const text = host!.querySelector('svg.mg-equity')!.textContent ?? '';
+    expect(text).toContain('– 4 – — – — – —');
+    expect(text).not.toMatch(/\{\{/);
+  });
+});
+
+describe('OROS3.2e graisse des composants peints (revue au rendu réel)', () => {
+  it('un composant réduit à 12 px garde un trait d’environ un pixel : la graisse du master ne tomberait qu’au quart', async () => {
+    const { COMPONENTS, GLYPH_ID } = await import('@/design/micro/assets');
+    const { glyphSvg } = await import('@/modules/metrique/glyphSprite');
+    const master = COMPONENTS[GLYPH_ID.target]!;
+    // viewBox de 68,43 rendu sur 24 px : un pixel vaut 2,85 unités.
+    const svg = glyphSvg(master, '#edebe4', '#14151a', 24, 1);
+    expect(svg).toMatch(/<style>[^<]*stroke-width:\s*2\.85[^<]*<\/style><\/svg>$/);
+    expect(svg).toContain(master.replace(/^<svg /, '').replace(/<\/svg>$/, '').replaceAll('var(--k)', '#edebe4'));
+    // Sans graisse demandée, le master tel quel.
+    expect(glyphSvg(master, '#edebe4', '#14151a', 24)).not.toContain('stroke-width:2.85');
   });
 });
