@@ -97,8 +97,11 @@ export interface CloudApi {
   getDeployment(id: string): Promise<DeploymentView>;
   /** Déploiements non archivés d'un agent (100 au plus). */
   listDeployments(agentId: string): Promise<DeploymentView[]>;
-  /** Sessions nées du déploiement, archivées comprises, la plus récente d'abord ; `nextPage` mène aux plus anciennes. */
-  listSessions(deploymentId: string, opts?: { limit?: number; page?: string }): Promise<SessionPage>;
+  /**
+   * Sessions nées du déploiement, archivées comprises. Par défaut la plus récente d'abord ; `order: 'asc'` et `createdFrom`
+   * (instant ISO, inclus) lisent à partir d'une marque, de la plus ancienne vers la plus récente. `nextPage` mène à la suite.
+   */
+  listSessions(deploymentId: string, opts?: { limit?: number; page?: string; order?: 'asc' | 'desc'; createdFrom?: string }): Promise<SessionPage>;
   /** Déclenchements en échec (aucune session créée) depuis `sinceIso`. */
   listFailedRuns(deploymentId: string, sinceIso: string, limit?: number): Promise<RunView[]>;
   /** Fichiers déposés par la session dans `/mnt/session/outputs/`. */
@@ -389,7 +392,8 @@ export function createCloudApi(deps: { key: () => string; fetchImpl: FetchLike; 
       });
     },
     async listSessions(deploymentId, opts) {
-      const query: Record<string, string> = { deployment_id: checked(deploymentId, 'depl'), order: 'desc', include_archived: 'true', limit: clampLimit(opts?.limit, 100, 20) };
+      const query: Record<string, string> = { deployment_id: checked(deploymentId, 'depl'), order: opts?.order === 'asc' ? 'asc' : 'desc', include_archived: 'true', limit: clampLimit(opts?.limit, 100, 20) };
+      if (opts?.createdFrom && Number.isFinite(Date.parse(opts.createdFrom))) query['created_at[gte]'] = new Date(opts.createdFrom).toISOString();
       // Le curseur est opaque : il ne fait que repasser, borné et sans caractère de contrôle.
       if (opts?.page && /^[\x21-\x7e]{1,512}$/.test(opts.page)) query.page = opts.page;
       const raw = await json({ method: 'GET', path: '/v1/sessions', query });

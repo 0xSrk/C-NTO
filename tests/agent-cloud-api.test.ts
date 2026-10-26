@@ -110,6 +110,8 @@ describe('agent cloud · client Managed Agents', () => {
     const { sessions: list, nextPage } = await h.api.listSessions(DEPL, { limit: 500, page: 'page_abc' });
     expect(Object.fromEntries(h.calls[0]?.url.searchParams ?? [])).toEqual({ deployment_id: DEPL, order: 'desc', include_archived: 'true', limit: '100', page: 'page_abc' });
     expect(nextPage).toBeNull();
+    await h.api.listSessions(DEPL, { order: 'asc', createdFrom: '2026-10-27T06:00:05.123Z' });
+    expect(Object.fromEntries(h.calls[1]?.url.searchParams ?? [])).toEqual({ deployment_id: DEPL, order: 'asc', include_archived: 'true', limit: '20', 'created_at[gte]': '2026-10-27T06:00:05.123Z' });
     expect(list.map((s) => [s.id, s.status, s.costCents, s.outcomePending, s.outcomeResult])).toEqual([
       [SESN, 'idle', 87, false, 'satisfied'],
       ['sesn_011CZkZAtmR3yMPDzynEDxu8', 'running', null, true, null],

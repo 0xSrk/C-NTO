@@ -22,11 +22,12 @@ const START_DELAY_MS = 10_000;
 /** Une session finie sans `rapport.json` 30 min après sa dernière mise à jour n'en livrera plus. */
 export const NO_REPORT_AFTER_MS = 30 * 60_000;
 const SESSIONS_PER_PULL = 20;
-/** Pages de sessions lues au plus par relevé (100 sessions), quand aucune de la page n'est déjà connue : un desk resté fermé rattrape. */
+/** Pages de sessions lues au plus par relevé (100 sessions), à partir de la marque basse. */
 const SESSION_PAGES = 5;
 /** Délai avant de lire les fichiers d'une session finie : le dernier fichier écrit met quelques secondes à être indexé. */
 export const SETTLE_MS = 60_000;
-const DOWNLOADS_PER_PULL = 5;
+/** Un rattrapage après une absence avance de dix rapports par relevé, toutes les 3 min tant qu'il en reste. */
+const DOWNLOADS_PER_PULL = 10;
 const COLLECTED_MAX = 500;
 const READ_MAX = 1000;
 const LIST_MAX = 400;
@@ -137,6 +138,11 @@ interface CloudConfig {
   schedule: CloudSchedule;
   read: string[];
   collected: Record<string, Collected>;
+  /**
+   * Marque basse : instant de création (ISO) de la plus ancienne session pas encore réglée, ou de la dernière réglée quand
+   * toutes le sont. Le relevé lit à partir d'elle, de la plus ancienne vers la plus récente : rien ne se perd après une absence.
+   */
+  floor: string | null;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -177,6 +183,7 @@ function coerceConfig(raw: unknown): CloudConfig {
     schedule,
     read: Array.isArray(r.read) ? r.read.filter((id): id is string => isApiId(id, 'sesn')).slice(-READ_MAX) : [],
     collected,
+    floor: typeof r.floor === 'string' && r.floor.length <= 40 && Number.isFinite(Date.parse(r.floor)) ? r.floor : null,
   };
 }
 
@@ -255,7 +262,7 @@ export class AgentCloudHost {
       const entries = Object.entries(c.collected)
         .sort(([, a], [, b]) => b.at - a.at)
         .slice(0, COLLECTED_MAX);
-      const body = { v: 1, key: c.key, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries) };
+      const body = { v: 1, key: c.key, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify(body), { encoding: 'utf8', mode: 0o600 });
       renameSync(tmp, this.file);
@@ -468,6 +475,7 @@ export class AgentCloudHost {
     this.deps.log(id === null ? 'agent cloud · déploiement oublié' : 'agent cloud · déploiement externe enregistré');
     this.config.deploymentId = id;
     this.config.managed = false;
+    this.config.floor = null;
     this.deployment = null;
     this.error = null;
     this.actionError = null;
@@ -655,6 +663,7 @@ export class AgentCloudHost {
         // recréé que s'il est archivé (terminal), jamais sur un 404.
         const archived = (e: CloudApiError) => /archiv/i.test(e.message) || (this.deployment?.state === 'archived' && e.status >= 400 && e.status < 500 && e.status !== 404);
         let view = await this.upsert(known, (id) => this.api.updateDeployment(id, plan), () => this.api.createDeployment(plan), 'déploiement', archived);
+        if (view.id !== this.config.deploymentId) this.config.floor = null;
         this.config.deploymentId = view.id;
         this.config.managed = true;
         this.deployment = deploymentState(view);
@@ -844,10 +853,12 @@ export class AgentCloudHost {
       const view = await this.api.getDeployment(deploymentId);
       if (stale()) return this.status();
       this.deployment = deploymentState(view);
-      const seen = await this.collect(await this.sessionsToSee(deploymentId));
+      const sessions = await this.sessionsToSee(deploymentId);
+      const seen = await this.collect(sessions);
       if (stale()) return this.status();
       added = seen.added;
       this.pending = seen.pending;
+      this.advanceFloor(sessions);
       try {
         const since = new Date(this.now() - FAILED_RUNS_WINDOW_MS).toISOString();
         const runs = await this.api.listFailedRuns(deploymentId, since, FAILURES_SHOWN);
@@ -881,18 +892,35 @@ export class AgentCloudHost {
     }
   }
 
-  /** Les sessions à examiner : la première page, puis les suivantes tant qu'aucune n'est déjà connue (5 pages au plus). */
+  private settled(id: string): boolean {
+    return !!this.config.collected[id] || this.reports().has(id);
+  }
+
+  /** Les sessions à examiner : à partir de la marque basse, de la plus ancienne vers la plus récente (5 pages au plus). */
   private async sessionsToSee(deploymentId: string): Promise<SessionView[]> {
     const seen: SessionView[] = [];
     let page: string | undefined;
     for (let i = 0; i < SESSION_PAGES; i += 1) {
-      const result = await this.api.listSessions(deploymentId, { limit: SESSIONS_PER_PULL, page });
+      const result = await this.api.listSessions(deploymentId, { limit: SESSIONS_PER_PULL, page, order: 'asc', createdFrom: this.config.floor ?? undefined });
       seen.push(...result.sessions);
-      const reached = result.sessions.some((s) => this.config.collected[s.id] || this.reports().has(s.id));
-      if (reached || !result.nextPage) break;
+      if (!result.nextPage) break;
       page = result.nextPage;
     }
-    return seen;
+    // L'ordre de l'API n'est pas une garantie écrite : le tri ici fait foi (plus ancienne d'abord, à égalité l'ordre reçu).
+    return seen.map((s, i) => [s, i] as const).sort(([a, i], [b, j]) => (a.createdAt ?? 0) - (b.createdAt ?? 0) || i - j).map(([s]) => s);
+  }
+
+  /** La marque avance sur le préfixe réglé : elle s'arrête à la première session qui attend encore. */
+  private advanceFloor(sessions: SessionView[]): void {
+    let floor = this.config.floor;
+    for (const session of sessions) {
+      if (!this.settled(session.id) || session.createdAt === null) break;
+      floor = new Date(session.createdAt).toISOString();
+    }
+    if (floor !== this.config.floor) {
+      this.config.floor = floor;
+      this.persist();
+    }
   }
 
   private async collectEach(sessions: SessionView[]): Promise<{ added: number; pending: number }> {
@@ -900,7 +928,7 @@ export class AgentCloudHost {
     let downloads = 0;
     let added = 0;
     for (const session of sessions) {
-      if (this.config.collected[session.id] || this.reports().has(session.id)) continue;
+      if (this.settled(session.id)) continue;
       if (session.archived) {
         this.mark(session.id, false, 'archived', '');
         continue;

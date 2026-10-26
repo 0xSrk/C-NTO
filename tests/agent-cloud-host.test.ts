@@ -124,24 +124,55 @@ describe('agent cloud · hôte du process principal', () => {
     expect(status.failures.map((f) => [f.kind, f.detail])).toEqual([['no_report', 'idle · outcome ouvert']]);
   });
 
-  it('CLD15 desk resté fermé : les pages suivantes sont lues tant qu’aucune session n’est connue (cinq au plus)', async () => {
-    const pages: Record<string, { sessions: ReturnType<typeof session>[]; nextPage: string | null }> = {
-      first: { sessions: [session(30), session(29)], nextPage: 'page_2' },
-      page_2: { sessions: [session(28), session(27)], nextPage: 'page_3' },
-      page_3: { sessions: [session(26), session(1)], nextPage: 'page_4' },
-    };
+  it('CLD20 desk resté fermé : tout le retard arrive, de la plus ancienne session à la plus récente, sans rien perdre', async () => {
+    // Fausse API fidèle : ordre, marque basse (created_at[gte] inclus) et pages de 20.
+    const all = Array.from({ length: 45 }, (_, i) => session(i + 1, { createdAt: NOW - (50 - i) * 3_600_000, updatedAt: NOW - (50 - i) * 3_600_000 + 600_000 }));
+    const listSessions = vi.fn(async (_id: string, opts?: { limit?: number; page?: string; order?: 'asc' | 'desc'; createdFrom?: string }) => {
+      const from = opts?.createdFrom ? Date.parse(opts.createdFrom) : -Infinity;
+      const ordered = all.filter((s) => (s.createdAt ?? 0) >= from).sort((a, b) => ((a.createdAt ?? 0) - (b.createdAt ?? 0)) * (opts?.order === 'asc' ? 1 : -1));
+      const offset = opts?.page ? Number(opts.page.slice(5)) : 0;
+      const limit = opts?.limit ?? 20;
+      return { sessions: ordered.slice(offset, offset + limit), nextPage: offset + limit < ordered.length ? `page_${offset + limit}` : null };
+    });
     const api = fakeApi({
-      listSessions: vi.fn(async (_id: string, opts?: { page?: string }) => pages[opts?.page ?? 'first']!),
+      listSessions,
       listOutputFiles: vi.fn(async (id: string) => [{ id: `file_011CNha8iCJcU1wXNR6q${id.slice(-4)}`, filename: 'rapport.json', sizeBytes: 100, createdAt: NOW }]),
       downloadText: vi.fn(async () => report('2026-10-27')),
     });
     const h = await configured(api);
-    const config = (h.host as unknown as { config: { collected: Record<string, unknown> } }).config;
-    config.collected[sid(1)] = { at: NOW - 86_400_000, ok: true };
-    await h.host.pull();
-    expect(vi.mocked(api.listSessions).mock.calls.map(([, opts]) => opts?.page)).toEqual([undefined, 'page_2', 'page_3']);
-    // Cinq téléchargements par relevé : le sixième attend le suivant.
-    expect(h.host.status()).toMatchObject({ reports: 5, pending: 0 });
+    const trail: [number, number][] = [];
+    for (let pull = 0; pull < 6; pull += 1) {
+      const status = await h.host.pull();
+      trail.push([status.reports, status.pending]);
+    }
+    expect(trail).toEqual([
+      [10, 35],
+      [20, 25],
+      [30, 15],
+      [40, 5],
+      [45, 0],
+      [45, 0],
+    ]);
+    expect(vi.mocked(listSessions).mock.calls.every(([, opts]) => opts?.order === 'asc')).toBe(true);
+    // La marque basse a suivi : le dernier relevé ne repart que de la dernière session réglée.
+    expect(vi.mocked(listSessions).mock.calls.at(-1)?.[1]?.createdFrom).toBe(new Date(all[44]!.createdAt!).toISOString());
+    expect(JSON.parse(readFileSync(path.join(h.dir, AGENT_CLOUD_FILE), 'utf8')).floor).toBe(new Date(all[44]!.createdAt!).toISOString());
+  });
+
+  it('CLD20 une session qui tourne retient la marque : les plus récentes finies sont relevées, elle est reprise ensuite', async () => {
+    let running = true;
+    const api = fakeApi({
+      listSessions: vi.fn(async () => [session(1, { createdAt: NOW - 7_200_000 }), session(2, { createdAt: NOW - 5_400_000, status: running ? 'running' : 'idle', updatedAt: NOW - 120_000 }), session(3, { createdAt: NOW - 3_600_000 })]),
+      listOutputFiles: vi.fn(async (id: string) => [{ id: `file_011CNha8iCJcU1wXNR6q${id.slice(-4)}`, filename: 'rapport.json', sizeBytes: 100, createdAt: NOW }]),
+      downloadText: vi.fn(async () => report('2026-10-27')),
+    });
+    const h = await configured(api);
+    expect(await h.host.pull()).toMatchObject({ reports: 2, pending: 1 });
+    const floor = () => JSON.parse(readFileSync(path.join(h.dir, AGENT_CLOUD_FILE), 'utf8')).floor;
+    expect(floor()).toBe(new Date(NOW - 7_200_000).toISOString());
+    running = false;
+    expect(await h.host.pull()).toMatchObject({ reports: 3, pending: 0 });
+    expect(floor()).toBe(new Date(NOW - 3_600_000).toISOString());
   });
 
   it('CLD15 un relevé réussi après une clé refusée relance le relevé automatique', async () => {
