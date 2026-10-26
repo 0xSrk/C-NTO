@@ -216,9 +216,9 @@ export const useAgent = create<AgentState>((set, get) => ({
         const denied =
           reason === 'write_disabled'
             ? tr(
-                `Écriture désactivée : activer « écriture autorisée » dans Agent IA › ${mcp ? 'Agents externes · MCP' : 'Orchestrateur externe'}`,
-                `Writing disabled: turn on “write allowed” in AI Agent › ${mcp ? 'External agents · MCP' : 'External orchestrator'}`,
-                `Escritura desactivada: active « escritura autorizada » en Agente IA › ${mcp ? 'Agentes externos · MCP' : 'Orquestador externo'}`,
+                `Écriture désactivée : activer « écriture autorisée » dans Agent IA › Options › ${mcp ? 'Agents externes · MCP' : 'Orchestrateur externe'}`,
+                `Writing disabled: turn on “write allowed” in AI Agent › Options › ${mcp ? 'External agents · MCP' : 'External orchestrator'}`,
+                `Escritura desactivada: active « escritura autorizada » en Agente IA › Opciones › ${mcp ? 'Agentes externos · MCP' : 'Orquestador externo'}`,
               )
             : reason === 'unknown_tool'
               ? tr('Outil inconnu', 'Unknown tool', 'Herramienta desconocida')

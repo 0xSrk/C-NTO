@@ -6,14 +6,14 @@ CΛNTO ouvre le desk aux agents IA par deux portes locales. Les deux servent les
 
 | Porte | Transport | Pour qui | Réglage |
 |---|---|---|---|
-| **Passerelle MCP** (recommandée) | Model Context Protocol, HTTP « streamable », `http://127.0.0.1:47118/mcp` | Claude Code, Claude Desktop, Codex, Cursor, tout client MCP | Agent IA › Agents externes · MCP |
-| Orchestrateur | JSON-RPC 2.0 sur WebSocket, `ws://127.0.0.1:47117` | Un orchestrateur écrit sur mesure | Agent IA › Orchestrateur externe |
+| **Passerelle MCP** (recommandée) | Model Context Protocol, HTTP « streamable », `http://127.0.0.1:47118/mcp` | Claude Code, Claude Desktop, Codex, Cursor, tout client MCP | Agent IA › Options › Agents externes · MCP |
+| Orchestrateur | JSON-RPC 2.0 sur WebSocket, `ws://127.0.0.1:47117` | Un orchestrateur écrit sur mesure | Agent IA › Options › Orchestrateur externe |
 
 ## 1. Passerelle MCP
 
 ### Ouvrir
 
-Agent IA › **Agents externes · MCP** › *Ouvrir la passerelle*. Elle se rouvre au démarrage suivant tant qu'elle n'est pas fermée. Le port se règle tant qu'elle est fermée (défaut `47118`).
+Agent IA › Options › **Agents externes · MCP** › *Ouvrir la passerelle*. Elle se rouvre au démarrage suivant tant qu'elle n'est pas fermée. Le port se règle tant qu'elle est fermée (défaut `47118`).
 
 ### Contrat
 
@@ -183,7 +183,7 @@ Le process principal ne pousse que les types de ce tableau, 16 Ko au plus par tr
 
 L'agent ne soumet rien. `propose_order` lui permet de **proposer** un ordre : le process principal le garde, le montre au trader dans une fenêtre du système et ne le soumet qu'après sa confirmation. Le code : `src/engine/agent/orders.ts` (gardes, partagées avec le process principal) et `electron/agent-orders.ts` (activation, limites, fenêtre, soumission).
 
-**Activer.** Agent IA › *Ordres proposés par l'agent* › *Autoriser…* : fenêtre du process principal, *Annuler* par défaut. Désactivé à chaque ouverture du desk ; *Couper* le désactive aussitôt. Pour un agent externe, il faut en plus *écriture autorisée* : sans elle, l'outil n'est ni listé ni accepté.
+**Activer.** Agent IA › Options › *Ordres proposés par l'agent* › *Autoriser…* : fenêtre du process principal, *Annuler* par défaut. Désactivé à chaque ouverture du desk ; *Couper* le désactive aussitôt. Pour un agent externe, il faut en plus *écriture autorisée* : sans elle, l'outil n'est ni listé ni accepté.
 
 **Arguments.** `account` (compte `Sim*`), `instrument` (nom NinjaTrader complet, ex. `MNQ 12-26`), `side` (`buy` ou `sell`), `qty` (entier ≥ 1), `type` (`market` par défaut, `limit` avec `limit`, `stop` avec `stop`), `reason` (obligatoire, 500 caractères au plus, montrée telle quelle au trader).
 
