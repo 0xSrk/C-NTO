@@ -151,4 +151,17 @@ describe('garde du système visuel', () => {
     const writes = walk('src').filter((path) => /(?:^|[\s;{])color:\s*var\(--signal\)/m.test(readFileSync(path, 'utf8')));
     expect(writes.map((path) => posix('src', path))).toEqual([]);
   });
+
+  it('DESIGN.md décrit le Système 4.0 avec les valeurs exactes de tokens.css', () => {
+    const doc = readFileSync('docs/DESIGN.md', 'utf8');
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    expect(doc).toMatch(/^# Système visuel — CΛNTO · révision 4\.0/m);
+    const rows = [...doc.matchAll(/^\|[^|\n]*\|\s*((?:`--[a-z0-9-]+`,?\s*)+)\|\s*`(#[0-9A-Fa-f]{6})`/gm)];
+    expect(rows.length).toBeGreaterThanOrEqual(15);
+    for (const [, names, value] of rows) {
+      for (const [, name] of names!.matchAll(/`(--[a-z0-9-]+)`/g)) {
+        expect(token(css, name!).toLowerCase(), name).toBe(value!.toLowerCase());
+      }
+    }
+  });
 });
