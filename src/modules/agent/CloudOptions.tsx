@@ -25,7 +25,7 @@ export function cloudStateLabel(state: CloudState): string {
 }
 
 /**
- * Options › Agent cloud : la clé (envoyée une fois au process principal, qui la chiffre), la planification voulue,
+ * Agent IA › D · Lab, au seul siège du Lab : la clé (envoyée une fois au process principal, qui la chiffre), la planification voulue,
  * l'installation et les commandes du déploiement. Installer, lancer et reprendre ouvrent un dialogue du process principal.
  */
 export function CloudOptions() {

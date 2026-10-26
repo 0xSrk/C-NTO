@@ -978,9 +978,9 @@ export class AgentCloudHost {
         return this.config.workspaceId
           ? `${this.t('Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces).', 'Workspace refused: check its ID (Console › Settings › Workspaces).', 'Espacio de trabajo rechazado: verifique su ID (Consola › Settings › Workspaces).')} ${error.message}`
           : this.t(
-              'Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
-              'User key without a workspace: enter its ID (Console › Settings › Workspaces) in Options › Cloud agent › Workspace.',
-              'Clave de usuario sin espacio de trabajo: indique su ID (Consola › Settings › Workspaces) en Opciones › Agente en la nube › Espacio de trabajo.',
+              'Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Agent IA › Lab › Espace de travail.',
+              'User key without a workspace: enter its ID (Console › Settings › Workspaces) in AI Agent › Lab › Workspace.',
+              'Clave de usuario sin espacio de trabajo: indique su ID (Consola › Settings › Workspaces) en Agente IA › Lab › Espacio de trabajo.',
             );
       return error.message;
     }

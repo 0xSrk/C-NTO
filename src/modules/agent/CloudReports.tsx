@@ -96,7 +96,7 @@ export function LabPlate({ status }: { status: AgentCloudStatus | null }) {
       ))}
       {state === 'construction' ? (
         <div className={r.plateHint}>
-          <span>{tr('Clé API, espace de travail et déploiement se règlent ci-dessous.', 'API key, workspace and deployment are set below.', 'La clave API, el espacio de trabajo y el despliegue se ajustan abajo.')}</span>
+          <span>{tr('Clé API, espace de travail et déploiement se règlent dans le panneau « Agent cloud · Anthropic ».', 'API key, workspace and deployment are set in the « Cloud agent · Anthropic » panel.', 'La clave API, el espacio de trabajo y el despliegue se ajustan en el panel « Agente en la nube · Anthropic ».')}</span>
         </div>
       ) : null}
     </section>

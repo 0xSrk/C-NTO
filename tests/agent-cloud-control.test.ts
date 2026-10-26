@@ -232,7 +232,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     });
     const h = harness({ api, answers: [1, 1, 1] });
     expect((await h.host.provision()).error).toBe(
-      'Environnement · Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
+      'Environnement · Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Agent IA › Lab › Espace de travail.',
     );
     await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ');
     expect((await h.host.provision()).error).toBe(`Environnement · Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces). ${unscoped}`);

@@ -131,7 +131,7 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
     const plate = (await mountPlate()).querySelector('section[aria-label="Agent cloud"]');
     expect(plate?.className).toMatch(/dashed/);
     expect(text(plate)).toContain('En construction');
-    expect(text(plate)).toContain('se règlent ci-dessous');
+    expect(text(plate)).toContain('se règlent dans le panneau « Agent cloud · Anthropic »');
   });
 
   it('en service : trait plein et LED, fiche prévue au trait tireté, fiches codées, la non lue porte la LED', async () => {
