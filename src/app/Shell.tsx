@@ -396,7 +396,18 @@ function ConfirmDialog() {
   );
 }
 
-export function ModuleHeader({ tab, actions, crumb = '', meta }: { tab: TabId; actions?: ReactNode; crumb?: string; meta?: ReactNode }) {
+/** Une cellule du bloc-titre : un libellé et une valeur lue par le module (`plan` : valeur prévue, pas encore réelle). */
+export interface TitleCell {
+  label: string;
+  value: ReactNode;
+  plan?: boolean;
+}
+
+/**
+ * En-tête de module (Système 4.0) : numéro d'afficheur, nom, code et baseline, puis le bloc-titre
+ * que le module remplit de ses propres données. Sans cellule passée, pas de bloc-titre.
+ */
+export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: TabId; actions?: ReactNode; crumb?: string; meta?: ReactNode; cells?: TitleCell[] }) {
   const setCrumb = useUi((u) => u.setCrumb);
   const def = TABS.find((item) => item.id === tab);
   useEffect(() => {
@@ -407,11 +418,28 @@ export function ModuleHeader({ tab, actions, crumb = '', meta }: { tab: TabId; a
   return (
     <div className={s.moduleHead}>
       <h1 className={s.modulePlate}>
-        <span className={s.moduleCode}>{def.code}</span>
-        <span className={s.moduleName}>{copy.label}</span>
-        <span className={s.moduleTagline}>{copy.tagline}</span>
-        {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
+        <span className={s.moduleNum} aria-hidden>
+          {def.index}
+        </span>
+        <span className={s.moduleTitle}>
+          <span className={s.moduleName}>{copy.label}</span>
+          <span className={s.moduleLine}>
+            <span className={s.moduleCode}>{def.code}</span>
+            <span className={s.moduleTagline}>{copy.tagline}</span>
+            {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
+          </span>
+        </span>
       </h1>
+      {cells && cells.length > 0 ? (
+        <dl className={s.titleBlock}>
+          {cells.map((cell) => (
+            <div key={cell.label}>
+              <dt>{cell.label}</dt>
+              <dd className={cell.plan ? s.plan : undefined}>{cell.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
       {actions && <div className={s.moduleActions}>{actions}</div>}
     </div>
   );

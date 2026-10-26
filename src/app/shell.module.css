@@ -504,55 +504,62 @@
   padding: 0;
 }
 
+/* En-tête de module (Système 4.0) : cartouche de dessin — numéro d'afficheur, nom, bloc-titre de données. */
 .moduleHead {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
+  align-items: flex-end;
+  gap: 20px;
   flex-shrink: 0;
-  padding: 12px 40px 0;
+  padding: 14px 40px 0;
 }
 .modulePlate {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
   min-width: 0;
-  min-height: 32px;
   margin: 0;
-  padding-right: 14px;
-  background: var(--bg-0);
-  border: 1px solid rgba(237, 235, 228, 0.62);
-  font-weight: 500;
+  font-weight: 600;
 }
-.moduleCode {
-  display: grid;
-  place-items: center;
-  align-self: stretch;
-  min-width: 52px;
-  padding: 0 10px;
-  border-right: 1px solid rgba(237, 235, 228, 0.62);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
+.moduleNum {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 600;
+  font-stretch: 78%;
+  line-height: 0.8;
+  letter-spacing: -0.04em;
   color: var(--text-0);
+}
+.moduleTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 .moduleName {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1;
+  font-stretch: 86%;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
   color: var(--text-0);
 }
-.moduleTagline,
-.moduleMeta {
+.moduleLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-2);
   white-space: nowrap;
+}
+.moduleCode {
+  color: var(--text-1);
 }
 .moduleMeta {
   color: var(--text-1);
@@ -560,8 +567,41 @@
 .moduleMeta::before,
 .moduleTagline::before {
   content: '·';
-  margin-right: 12px;
+  margin-right: 10px;
   color: var(--ghost);
+}
+.titleBlock {
+  display: flex;
+  flex: none;
+  margin: 0;
+  border: 1px solid var(--line-2);
+}
+.titleBlock > div {
+  min-width: 0;
+  padding: 5px 12px 6px;
+  border-left: 1px solid var(--line-1);
+}
+.titleBlock > div:first-child {
+  border-left: 0;
+}
+.titleBlock dt {
+  margin: 0 0 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.titleBlock dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.titleBlock dd.plan {
+  color: var(--text-1);
 }
 .moduleActions {
   display: flex;
@@ -569,6 +609,7 @@
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 /* Bande d'étiquette (Système 4.0) : la barre d'état est imprimée, l'autre matière du desk.

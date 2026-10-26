@@ -198,7 +198,10 @@ export default function Metrique() {
       <ModuleHeader
         tab="metrique"
         crumb={crumbs[view]}
-        meta={`${span} · ${fmtInt(ordered.length)} ${tr('SÉANCES', 'SESSIONS', 'SESIONES')}`}
+        cells={[
+          { label: tr('Période', 'Range', 'Período'), value: span },
+          { label: tr('Séances', 'Sessions', 'Sesiones'), value: fmtInt(ordered.length) },
+        ]}
         actions={
           <>
             <Segmented
