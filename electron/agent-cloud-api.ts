@@ -72,6 +72,11 @@ export interface SessionView {
   outcomeResult: string | null;
 }
 
+export interface SessionPage {
+  sessions: SessionView[];
+  nextPage: string | null;
+}
+
 export interface RunView {
   id: string;
   createdAt: number | null;
@@ -92,8 +97,8 @@ export interface CloudApi {
   getDeployment(id: string): Promise<DeploymentView>;
   /** Déploiements non archivés d'un agent (100 au plus). */
   listDeployments(agentId: string): Promise<DeploymentView[]>;
-  /** Sessions nées du déploiement, la plus récente d'abord. */
-  listSessions(deploymentId: string, limit?: number): Promise<SessionView[]>;
+  /** Sessions nées du déploiement, archivées comprises, la plus récente d'abord ; `nextPage` mène aux plus anciennes. */
+  listSessions(deploymentId: string, opts?: { limit?: number; page?: string }): Promise<SessionPage>;
   /** Déclenchements en échec (aucune session créée) depuis `sinceIso`. */
   listFailedRuns(deploymentId: string, sinceIso: string, limit?: number): Promise<RunView[]>;
   /** Fichiers déposés par la session dans `/mnt/session/outputs/`. */
@@ -383,9 +388,13 @@ export function createCloudApi(deps: { key: () => string; fetchImpl: FetchLike; 
         }
       });
     },
-    async listSessions(deploymentId, limit) {
-      const query = { deployment_id: checked(deploymentId, 'depl'), order: 'desc', limit: clampLimit(limit, 100, 20) };
-      return listOf(await json({ method: 'GET', path: '/v1/sessions', query }), parseSession);
+    async listSessions(deploymentId, opts) {
+      const query: Record<string, string> = { deployment_id: checked(deploymentId, 'depl'), order: 'desc', include_archived: 'true', limit: clampLimit(opts?.limit, 100, 20) };
+      // Le curseur est opaque : il ne fait que repasser, borné et sans caractère de contrôle.
+      if (opts?.page && /^[\x21-\x7e]{1,512}$/.test(opts.page)) query.page = opts.page;
+      const raw = await json({ method: 'GET', path: '/v1/sessions', query });
+      const next = isRecord(raw) && typeof raw.next_page === 'string' && raw.next_page.length <= 512 ? raw.next_page : null;
+      return { sessions: listOf(raw, parseSession), nextPage: next };
     },
     async listFailedRuns(deploymentId, sinceIso, limit) {
       const query: Record<string, string> = { deployment_id: checked(deploymentId, 'depl'), has_error: 'true', limit: clampLimit(limit, 100, 5) };

@@ -22,6 +22,10 @@ const START_DELAY_MS = 10_000;
 /** Une session finie sans `rapport.json` 30 min après sa dernière mise à jour n'en livrera plus. */
 export const NO_REPORT_AFTER_MS = 30 * 60_000;
 const SESSIONS_PER_PULL = 20;
+/** Pages de sessions lues au plus par relevé (100 sessions), quand aucune de la page n'est déjà connue : un desk resté fermé rattrape. */
+const SESSION_PAGES = 5;
+/** Délai avant de lire les fichiers d'une session finie : le dernier fichier écrit met quelques secondes à être indexé. */
+export const SETTLE_MS = 60_000;
 const DOWNLOADS_PER_PULL = 5;
 const COLLECTED_MAX = 500;
 const READ_MAX = 1000;
@@ -280,11 +284,12 @@ export class AgentCloudHost {
     return index;
   }
 
+  /** Non lus parmi les fiches que le dossier montre : une fiche au-delà ne pourrait jamais être lue. */
   private unreadCount(): number {
     const read = new Set(this.config.read);
-    let n = 0;
-    for (const id of this.reports().keys()) if (!read.has(id)) n += 1;
-    return n;
+    return sortReports([...this.reports().values()])
+      .slice(0, LIST_MAX)
+      .filter((r) => !read.has(r.id)).length;
   }
 
   private failures(): CloudFailure[] {
@@ -810,8 +815,7 @@ export class AgentCloudHost {
     try {
       const view = await this.api.getDeployment(deploymentId);
       this.deployment = deploymentState(view);
-      const sessions = await this.api.listSessions(deploymentId, SESSIONS_PER_PULL);
-      added = await this.collect(sessions);
+      added = await this.collect(await this.sessionsToSee(deploymentId));
       try {
         const since = new Date(this.now() - FAILED_RUNS_WINDOW_MS).toISOString();
         const runs = await this.api.listFailedRuns(deploymentId, since, FAILURES_SHOWN);
@@ -820,6 +824,8 @@ export class AgentCloudHost {
         /* les échecs de déclenchement sont un plus : le relevé tient sans eux */
       }
       this.error = null;
+      // Le déploiement répond : une clé refusée un temps (403 d'un mauvais espace de travail) ne bloque plus le relevé.
+      this.authBlocked = false;
       this.lastPullAt = this.now();
       if (added > 0) this.deps.log(`agent cloud · ${added} rapport(s) reçu(s)`);
     } catch (error) {
@@ -841,6 +847,20 @@ export class AgentCloudHost {
     }
   }
 
+  /** Les sessions à examiner : la première page, puis les suivantes tant qu'aucune n'est déjà connue (5 pages au plus). */
+  private async sessionsToSee(deploymentId: string): Promise<SessionView[]> {
+    const seen: SessionView[] = [];
+    let page: string | undefined;
+    for (let i = 0; i < SESSION_PAGES; i += 1) {
+      const result = await this.api.listSessions(deploymentId, { limit: SESSIONS_PER_PULL, page });
+      seen.push(...result.sessions);
+      const reached = result.sessions.some((s) => this.config.collected[s.id] || this.reports().has(s.id));
+      if (reached || !result.nextPage) break;
+      page = result.nextPage;
+    }
+    return seen;
+  }
+
   private async collectEach(sessions: SessionView[]): Promise<number> {
     let pending = 0;
     let downloads = 0;
@@ -851,7 +871,14 @@ export class AgentCloudHost {
         this.mark(session.id, false, 'archived', '');
         continue;
       }
-      if (session.status === 'running' || session.status === 'rescheduling' || session.outcomePending) {
+      if (session.status === 'running' || session.status === 'rescheduling') {
+        pending += 1;
+        continue;
+      }
+      // Finie (idle ou terminated). Une évaluation restée ouverte (plafond atteint, erreurs) n'est attendue que 30 min ;
+      // sinon, 60 s suffisent à l'index des fichiers.
+      const age = this.now() - (session.updatedAt ?? session.createdAt ?? 0);
+      if (age < (session.outcomePending ? NO_REPORT_AFTER_MS : SETTLE_MS)) {
         pending += 1;
         continue;
       }
@@ -863,11 +890,8 @@ export class AgentCloudHost {
       const files = await this.api.listOutputFiles(session.id);
       const file = files.find((f) => f.filename === REPORT_FILE);
       if (!file) {
-        const since = session.updatedAt ?? session.createdAt ?? 0;
-        if (session.status === 'terminated' || this.now() - since > NO_REPORT_AFTER_MS) {
-          const why = session.outcomeResult ? `outcome ${session.outcomeResult}` : session.status;
-          this.mark(session.id, false, 'no_report', why);
-        } else pending += 1;
+        const why = session.outcomePending ? `${session.status} · outcome ouvert` : session.outcomeResult ? `outcome ${session.outcomeResult}` : session.status;
+        this.mark(session.id, false, 'no_report', why);
         continue;
       }
       if (file.sizeBytes > REPORT_MAX_BYTES) {

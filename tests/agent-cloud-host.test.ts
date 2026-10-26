@@ -1,9 +1,9 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CloudApiError, type FileView } from '../electron/agent-cloud-api';
-import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS } from '../electron/agent-cloud';
-import { cloudHarness, DEPL, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
+import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS, SETTLE_MS } from '../electron/agent-cloud';
+import { cloudHarness, DEPL, DEPLOYMENT, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -66,7 +66,7 @@ describe('agent cloud · hôte du process principal', () => {
       listSessions: vi.fn(async () => [
         session(1),
         session(2, { status: 'running', outcomePending: true }),
-        session(3, { updatedAt: NOW - 60_000 }),
+        session(3, { updatedAt: NOW - 10_000 }),
         session(4, { status: 'terminated', outcomeResult: null }),
         session(5, { archived: true }),
       ]),
@@ -86,22 +86,90 @@ describe('agent cloud · hôte du process principal', () => {
     expect(h.logs).toContain('agent cloud · 1 rapport(s) reçu(s)');
   });
 
-  it('une session relevée ne l’est plus ; celle qui attendait son index est reprise ; au-delà de 30 min, notée sans rapport', async () => {
+  it('une session relevée ne l’est plus ; celle qui attendait son index est reprise ; au-delà de 60 s, notée sans rapport', async () => {
     const files = new Map<string, FileView[]>([[sid(1), [{ id: fid(1), filename: 'rapport.json', sizeBytes: 400, createdAt: NOW }]]]);
     const api = fakeApi({
-      listSessions: vi.fn(async () => [session(1), session(3, { updatedAt: NOW - 60_000 })]),
+      listSessions: vi.fn(async () => [session(1), session(3, { updatedAt: NOW - 10_000 })]),
       listOutputFiles: vi.fn(async (id: string) => files.get(id) ?? []),
       downloadText: vi.fn(async () => report('2026-10-27')),
     });
     const clock = { now: NOW };
     const h = await configured(api, { clock });
     expect((await h.host.pull()).pending).toBe(1);
-    clock.now += NO_REPORT_AFTER_MS;
+    clock.now += SETTLE_MS;
     const status = await h.host.pull();
     expect(status.pending).toBe(0);
     expect(status.failures.map((f) => f.kind)).toEqual(['no_report']);
     expect(api.downloadText).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(api.listOutputFiles).mock.calls.map(([id]) => id)).toEqual([sid(1), sid(3), sid(3)]);
+    expect(vi.mocked(api.listOutputFiles).mock.calls.map(([id]) => id)).toEqual([sid(1), sid(3)]);
+  });
+
+  it('CLD15 session finie avec une évaluation restée ouverte (plafond atteint) : attendue 30 min, puis relevée ou notée', async () => {
+    const clock = { now: NOW };
+    const api = fakeApi({
+      listSessions: vi.fn(async () => [
+        session(1, { status: 'idle', outcomePending: true, outcomeResult: null, updatedAt: NOW - 60_000 }),
+        session(2, { status: 'idle', outcomePending: true, outcomeResult: null, updatedAt: NOW - 60_000 }),
+      ]),
+      listOutputFiles: vi.fn(async (id: string) => (id === sid(1) ? [{ id: fid(1), filename: 'rapport.json', sizeBytes: 100, createdAt: NOW }] : [])),
+      downloadText: vi.fn(async () => report('2026-10-27')),
+    });
+    const h = await configured(api, { clock });
+    expect(await h.host.pull()).toMatchObject({ pending: 2, reports: 0 });
+    expect(api.listOutputFiles).not.toHaveBeenCalled();
+    expect(h.host.status().nextPullAt).toBeNull();
+    clock.now += NO_REPORT_AFTER_MS;
+    const status = await h.host.pull();
+    expect(status).toMatchObject({ pending: 0, reports: 1 });
+    expect(status.failures.map((f) => [f.kind, f.detail])).toEqual([['no_report', 'idle · outcome ouvert']]);
+  });
+
+  it('CLD15 desk resté fermé : les pages suivantes sont lues tant qu’aucune session n’est connue (cinq au plus)', async () => {
+    const pages: Record<string, { sessions: ReturnType<typeof session>[]; nextPage: string | null }> = {
+      first: { sessions: [session(30), session(29)], nextPage: 'page_2' },
+      page_2: { sessions: [session(28), session(27)], nextPage: 'page_3' },
+      page_3: { sessions: [session(26), session(1)], nextPage: 'page_4' },
+    };
+    const api = fakeApi({
+      listSessions: vi.fn(async (_id: string, opts?: { page?: string }) => pages[opts?.page ?? 'first']!),
+      listOutputFiles: vi.fn(async (id: string) => [{ id: `file_011CNha8iCJcU1wXNR6q${id.slice(-4)}`, filename: 'rapport.json', sizeBytes: 100, createdAt: NOW }]),
+      downloadText: vi.fn(async () => report('2026-10-27')),
+    });
+    const h = await configured(api);
+    const config = (h.host as unknown as { config: { collected: Record<string, unknown> } }).config;
+    config.collected[sid(1)] = { at: NOW - 86_400_000, ok: true };
+    await h.host.pull();
+    expect(vi.mocked(api.listSessions).mock.calls.map(([, opts]) => opts?.page)).toEqual([undefined, 'page_2', 'page_3']);
+    // Cinq téléchargements par relevé : le sixième attend le suivant.
+    expect(h.host.status()).toMatchObject({ reports: 5, pending: 0 });
+  });
+
+  it('CLD15 un relevé réussi après une clé refusée relance le relevé automatique', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    let refuse = true;
+    const api = fakeApi({ getDeployment: vi.fn(async () => (refuse ? Promise.reject(new CloudApiError(403, 'permission_error', 'HTTP 403')) : DEPLOYMENT)) });
+    const h = await configured(api);
+    h.host.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(h.host.status().nextPullAt).toBeNull();
+    refuse = false;
+    expect((await h.host.pull()).nextPullAt).toBe(NOW + PULL_EVERY_MS);
+    h.host.shutdown();
+  });
+
+  it('CLD15 les non-lus ne comptent que les fiches que le dossier montre (400)', () => {
+    const h = harness();
+    const dir = path.join(h.dir, AGENT_REPORTS_DIR);
+    mkdirSync(dir, { recursive: true });
+    for (let i = 0; i < 401; i += 1) {
+      const id = `sesn_${String(i).padStart(8, '0')}`;
+      const day = new Date(Date.UTC(2025, 0, 1) + i * 86_400_000).toISOString().slice(0, 10);
+      const body = { v: 1, id, date: day, title: `R${i}`, summary: '', sections: [{ heading: 'A', body: 'b' }], sources: [], generatedAt: null, receivedAt: i, session: { id, createdAt: null, costCents: null, agentVersion: null } };
+      writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(body));
+    }
+    const status = cloudHarness(dirs, { dir: h.dir }).host.status();
+    expect(status).toMatchObject({ reports: 401, unread: 400 });
   });
 
   it('rapport hors contrat ou non téléchargeable : noté une fois, jamais rangé', async () => {

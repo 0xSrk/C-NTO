@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { vi } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
-import type { CloudApi, DeploymentView, FileView, SessionView } from '../../electron/agent-cloud-api';
+import type { CloudApi, DeploymentView, FileView, SessionPage, SessionView } from '../../electron/agent-cloud-api';
 import { AgentCloudHost, type AgentCloudDeps, type CloudDialogOptions } from '../../electron/agent-cloud';
 
 export const KEY = 'sk-ant-api03-cle-de-test-0123456789';
@@ -51,7 +51,12 @@ export const reportText = (date: string, title = 'Brief pré-séance') =>
 export type FakeCloudApi = CloudApi & { calls: string[] };
 
 /** Faux client de l’API : chaque appel est noté par son nom ; une écriture non prévue par le test échoue. */
-export function fakeApi(over: Partial<CloudApi> = {}): FakeCloudApi {
+/** Les remplacements d'un test ; `listSessions` peut rendre une simple liste (une seule page). */
+export type FakeOverrides = Partial<Omit<CloudApi, 'listSessions'>> & {
+  listSessions?: (deploymentId: string, opts?: { limit?: number; page?: string }) => Promise<SessionView[] | SessionPage>;
+};
+
+export function fakeApi(over: FakeOverrides = {}): FakeCloudApi {
   const calls: string[] = [];
   const note = <T>(name: string, value: T) => {
     calls.push(name);
@@ -64,7 +69,7 @@ export function fakeApi(over: Partial<CloudApi> = {}): FakeCloudApi {
   const api: CloudApi = {
     getDeployment: vi.fn(async () => note('getDeployment', DEPLOYMENT)),
     listDeployments: vi.fn(async () => note('listDeployments', [] as DeploymentView[])),
-    listSessions: vi.fn(async () => note('listSessions', [] as SessionView[])),
+    listSessions: vi.fn(async () => note('listSessions', { sessions: [] as SessionView[], nextPage: null })),
     listFailedRuns: vi.fn(async () => note('listFailedRuns', [])),
     listOutputFiles: vi.fn(async () => note('listOutputFiles', [] as FileView[])),
     downloadText: vi.fn(async () => note('downloadText', '')),
@@ -83,7 +88,9 @@ export function fakeApi(over: Partial<CloudApi> = {}): FakeCloudApi {
       name,
       vi.fn(async (...args: unknown[]) => {
         calls.push(name);
-        return (fn as (...a: unknown[]) => unknown)(...args);
+        const result = await (fn as (...a: unknown[]) => unknown)(...args);
+        // Un test peut rendre une simple liste de sessions : une seule page.
+        return name === 'listSessions' && Array.isArray(result) ? { sessions: result, nextPage: null } : result;
       }),
     ]),
   );
