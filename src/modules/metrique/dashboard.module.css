@@ -208,6 +208,22 @@
   width: 100%;
   min-width: 0;
 }
+/* La plaque de lecture A.02 (Ligne V2) en filigrane, en haut à gauche de la courbe : elle n'intercepte aucun geste. */
+.eqStage {
+  position: relative;
+  min-width: 0;
+}
+.eqPlate {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  z-index: 1;
+  width: 148px;
+  pointer-events: none;
+  opacity: 0.8;
+  --k: var(--text-2);
+  --p: var(--bg-2);
+}
 .eqFault {
   height: 300px;
   display: grid;
@@ -265,6 +281,21 @@
   height: 8px;
   background: radial-gradient(circle, var(--neg) 0.7px, transparent 1.1px) 0 0 / 4px 4px;
   border-top: 1px solid var(--neg);
+}
+/* la borne : le plancher en trait plein, sa tête carrée */
+.eqLegend i.eqKeyFloor {
+  position: relative;
+  height: 1px;
+  background: var(--text-0);
+}
+.eqLegend i.eqKeyFloor::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: -2px;
+  width: 3px;
+  height: 3px;
+  background: var(--text-0);
 }
 .eqKeyPixel {
   width: 9px;

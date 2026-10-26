@@ -1,4 +1,4 @@
-import { customSeriesDefaultOptions, type CustomData, type CustomSeriesOptions, type ICustomSeriesPaneRenderer, type ICustomSeriesPaneView, type PaneRendererCustomData, type PriceToCoordinateConverter, type Time } from 'lightweight-charts';
+import { customSeriesDefaultOptions, type AutoscaleInfo, type CustomData, type CustomSeriesOptions, type ICustomSeriesPaneRenderer, type ICustomSeriesPaneView, type PaneRendererCustomData, type PriceToCoordinateConverter, type Time } from 'lightweight-charts';
 import { hatch, leader, lens, rulerTick, signaturePixel, trame, type Dot, type Pt } from './equityPaint';
 
 /**
@@ -70,6 +70,16 @@ type Bars = PaneRendererCustomData<Time, EquityRow>['bars'];
 const NO_MARKS: Marks = { high: NONE, highLabel: '', trough: NONE, troughLabel: '' };
 const NO_INK: Ink = { line: 'gray', pos: 'gray', neg: 'gray', red: 'gray', faint: 'gray', label: 'gray', zero: 'gray', paper: 'transparent', mono: 'monospace' };
 const NO_GLYPH: GlyphSource = () => null;
+
+/**
+ * Échelle du volet sous l'eau avec la borne du plan : la plage des données, étendue jusqu'au plancher (−`floor`) pour
+ * que la borne reste en vue. Sans plan (`floor` nul), la plage des données telle quelle.
+ */
+export function floorRange(info: AutoscaleInfo | null, floor: number): AutoscaleInfo | null {
+  if (!(floor > 0)) return info;
+  const range = info?.priceRange;
+  return { ...info, priceRange: { minValue: Math.min(range?.minValue ?? 0, -floor), maxValue: Math.max(range?.maxValue ?? 0, 0) } };
+}
 
 /** `#rrggbb` ou `rgb(a)(…)` → `rgba(r,g,b,a)` ; une autre couleur est rendue telle quelle. */
 export function alpha(color: string, a: number): string {
