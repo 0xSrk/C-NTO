@@ -72,6 +72,7 @@ Les trois vues restent montées (`hidden`) : un brouillon ou un réglage en cour
 
 ## 6. Garde-fous
 
+- **Le Lab produit, les desks lisent.** Seul un siège du Lab (`LAB_SEATS`, vérifié par `SeatHost` dans le process principal) pilote l'agent cloud : clé, espace de travail, planification, installation, lancement, suspension, reprise, déploiement. Sans lui, le process principal refuse chacune de ces commandes ; le desk lit le dossier (`list`, `read`, marque de lecture), et l'onglet n'affiche que les rapports (décision de l'ADMIN, 2026-10-26).
 - Ni écoute, ni tunnel : relève sortante seule, vers `api.anthropic.com` seul, sans redirection.
 - Clé chiffrée dans le process principal, jamais rendue, journalisée ni exportée.
 - Installer, lancer, reprendre, quitter le déploiement du desk : dialogue du process principal, Annuler par défaut. Une action à la fois ; ni clé, ni espace de travail, ni déploiement ne changent pendant une action.

@@ -11,6 +11,11 @@ import path from 'node:path';
 
 export const SEAT_PREFIX = 'SIEGE1';
 export const SEAT_ARTEFACT = '002';
+/**
+ * Sièges du Lab : leur nom signé ouvre, en plus, le pilotage de l'agent cloud (décision de l'ADMIN, 2026-10-26).
+ * Le Lab produit les rapports ; un desk sans ce siège ne fait que les lire.
+ */
+export const LAB_SEATS: readonly string[] = ['0xSrk'];
 export const SEAT_CLIENT_MAX = 24;
 export const SEAT_LINE_MAX = 1024;
 
@@ -144,6 +149,12 @@ export class SeatHost {
     }
     this.deps.log('warn', `siège retiré au lancement (${verdict.reason})`);
     return null;
+  }
+
+  /** Le siège vérifié de ce desk est-il un siège du Lab ? Sans siège, ou sous un autre nom, non. */
+  isLab(): boolean {
+    const client = this.status()?.client;
+    return client !== undefined && LAB_SEATS.includes(client);
   }
 
   submit(raw: unknown): { ok: true; client: string } | { ok: false } {

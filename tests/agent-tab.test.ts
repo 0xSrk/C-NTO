@@ -538,6 +538,7 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
   it('CLD17 bloc-titre : dernier relevé, prochaine exécution prévue, rapports et non lus', () => {
     const cells = agentHeaderCells({
       available: true,
+      lab: true,
       keyStored: true,
       workspaceId: null,
       deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',

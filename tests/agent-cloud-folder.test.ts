@@ -34,6 +34,7 @@ import { resetAgentCloudForTests, useAgentCloud } from '@/store/agentCloud';
 const NOW = Date.parse('2026-10-27T08:00:00Z');
 const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   available: true,
+  lab: true,
   keyStored: true,
   workspaceId: null,
   deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',

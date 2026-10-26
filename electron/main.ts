@@ -528,6 +528,8 @@ app.whenReady().then(() => {
     },
     fetchImpl: (url, init) => fetch(url, init),
     openPath: async (dir) => (await shell.openPath(dir)) === '',
+    // Le Lab produit les rapports : seul son siège, vérifié ici, pilote l'agent cloud ; les autres desks lisent le dossier.
+    lab: () => seat.isLab(),
   });
   agentCloud.start();
   void ntBridge.start();
@@ -886,7 +888,13 @@ ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propSh
 /* ─── Siège nominatif : le nom vient du code signé, vérifié ici (docs/SIEGE-NOMINATIF.md) ─── */
 const seat = new SeatHost({ userDataDir: app.getPath('userData'), keys: SEAT_PUBLIC_KEYS, log: mainLog });
 ipcMain.handle('seat:status', (e) => (trusted(e) ? seat.status() : null));
-ipcMain.handle('seat:submit', (e, line: unknown) => (trusted(e) && typeof line === 'string' && line.length <= 4096 ? seat.submit(line) : { ok: false }));
+ipcMain.handle('seat:submit', (e, line: unknown) => {
+  if (!trusted(e) || typeof line !== 'string' || line.length > 4096) return { ok: false };
+  const result = seat.submit(line);
+  // Un siège du Lab ouvre le pilotage de l'agent cloud : le renderer l'apprend par le statut, pas par le siège.
+  if (result.ok) agentCloud?.seatChanged();
+  return result;
+});
 
 /* ─── Passerelle MCP (agents externes) ─── */
 const MCP_IDLE = { running: false, port: 0, calls: 0 };
