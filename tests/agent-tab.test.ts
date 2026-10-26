@@ -539,6 +539,7 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     const cells = agentHeaderCells({
       available: true,
       keyStored: true,
+      workspaceId: null,
       deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
       managed: true,
       schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },

@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CloudApiError, type FileView } from '../electron/agent-cloud-api';
+import { CloudApiError, type FetchLike, type FileView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS, SETTLE_MS } from '../electron/agent-cloud';
-import { cloudHarness, DEPL, DEPLOYMENT, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
+import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -50,6 +50,54 @@ describe('agent cloud · hôte du process principal', () => {
     const locked = harness({ available: false });
     expect(locked.host.setKey(KEY)).toMatchObject({ available: false, keyStored: false, error: expect.stringContaining('Trousseau') });
     expect(existsSync(path.join(locked.dir, AGENT_CLOUD_FILE))).toBe(false);
+  });
+
+  it('CLD23 espace de travail : gardé à part du trousseau, rendu au statut, relu au redémarrage, nommé par le client à chaque appel', async () => {
+    const WRK = 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ';
+    const seen: Record<string, string>[] = [];
+    const realFetch = vi.fn<FetchLike>(async (_url, init) => {
+      seen.push({ ...(init.headers as Record<string, string>) });
+      return new Response(JSON.stringify({ type: 'error', error: { type: 'not_found_error', message: 'introuvable' } }), { status: 404 });
+    });
+    const h = harness({ realFetch });
+    h.host.setKey(KEY);
+    expect(h.host.setWorkspace(`  ${WRK}  `)).toMatchObject({ workspaceId: WRK, error: null });
+    expect(JSON.parse(readFileSync(path.join(h.dir, AGENT_CLOUD_FILE), 'utf8')).workspaceId).toBe(WRK);
+    await h.host.setDeployment(DEPL);
+    await h.host.pull();
+    h.host.shutdown();
+    expect(seen.length).toBeGreaterThan(0);
+    for (const headers of seen) expect(headers).toMatchObject({ 'anthropic-workspace-id': WRK, 'x-api-key': KEY });
+    expect(harness({ dir: h.dir, realFetch }).host.status().workspaceId).toBe(WRK);
+    expect(h.host.setWorkspace('').workspaceId).toBeNull();
+    expect(JSON.parse(readFileSync(path.join(h.dir, AGENT_CLOUD_FILE), 'utf8')).workspaceId).toBeNull();
+  });
+
+  it('CLD23 espace de travail : forme vérifiée ; figé sous le déploiement du desk ; changé, il oublie l’installation commencée ailleurs', async () => {
+    const WRK = 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ';
+    const OTHER = 'wrkspc_01KxRwas8sYMB6BHy4ILgGVK';
+    const first = harness();
+    expect(first.host.setWorkspace('wrkspc_x\nx')).toMatchObject({ workspaceId: null, error: expect.stringContaining('wrkspc_') });
+    expect(first.host.setWorkspace(42)).toMatchObject({ workspaceId: null });
+    const file = path.join(first.dir, AGENT_CLOUD_FILE);
+    const base = { v: 1, key: seal().encrypt(KEY), workspaceId: WRK, environmentId: ENV, agentId: AGENT, agentVersion: 2 };
+    writeFileSync(file, JSON.stringify({ ...base, deploymentId: DEPL, managed: true }));
+    const managed = harness({ dir: first.dir });
+    expect(managed.host.setWorkspace(OTHER)).toMatchObject({ workspaceId: WRK, error: expect.stringContaining('Quittez d’abord le déploiement du desk') });
+    expect(managed.host.setWorkspace('')).toMatchObject({ workspaceId: WRK });
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ workspaceId: WRK, environmentId: ENV, agentId: AGENT });
+    writeFileSync(file, JSON.stringify({ ...base, managed: false }));
+    const started = harness({ dir: first.dir });
+    expect(started.host.setWorkspace(OTHER)).toMatchObject({ workspaceId: OTHER, error: null });
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ workspaceId: OTHER, environmentId: null, agentId: null, agentVersion: null });
+    expect(started.logs).toContain('agent cloud · espace de travail enregistré');
+    expect(started.logs.join('\n')).not.toContain(OTHER);
+    await started.host.provision();
+    expect(started.dialogs[0]?.detail).toContain(`Espace de travail : ${OTHER}`);
+    expect(started.api.calls).toEqual([]);
+    started.host.setWorkspace('');
+    await started.host.provision();
+    expect(started.dialogs[1]?.detail).not.toContain('Espace de travail');
   });
 
   it('identifiant de déploiement et planification : forme vérifiée, sinon rien ne change', async () => {

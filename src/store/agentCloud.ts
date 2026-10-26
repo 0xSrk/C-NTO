@@ -25,6 +25,7 @@ export interface AgentCloudState {
   pause: () => Promise<void>;
   unpause: () => Promise<void>;
   setKey: (text: string) => Promise<void>;
+  setWorkspace: (id: string) => Promise<void>;
   setDeployment: (id: string | null) => Promise<void>;
   setSchedule: (schedule: CloudSchedule) => Promise<void>;
   openFolder: () => Promise<boolean>;
@@ -94,6 +95,7 @@ export const useAgentCloud = create<AgentCloudState>((set, get) => {
     pause: () => act((api) => api.pause()),
     unpause: () => act((api) => api.unpause()),
     setKey: (text) => act((api) => api.setKey(text)),
+    setWorkspace: (id) => act((api) => api.setWorkspace(id)),
     setDeployment: (id) => act((api) => api.setDeployment(id)),
     setSchedule: (schedule) => act((api) => api.setSchedule(schedule)),
     async openFolder() {

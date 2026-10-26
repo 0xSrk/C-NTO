@@ -1,7 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
-import { CloudApiError, createCloudApi, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
+import { CloudApiError, createCloudApi, isWorkspaceId, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
 import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, DEPLOYMENT_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
 import { uiText, type AppLocale } from './locale';
 
@@ -68,6 +68,8 @@ export interface AgentCloudStatus {
   /** Le trousseau du système chiffre : sans lui, aucune clé n'est gardée. */
   available: boolean;
   keyStored: boolean;
+  /** Espace de travail nommé à chaque appel (`anthropic-workspace-id`), pour une clé d'utilisateur ; ce n'est pas un secret. */
+  workspaceId: string | null;
   deploymentId: string | null;
   /** Le desk a installé ce déploiement (environnement, agent, déploiement) et peut le mettre à jour. */
   managed: boolean;
@@ -130,6 +132,7 @@ interface Collected {
 
 interface CloudConfig {
   key: string | null;
+  workspaceId: string | null;
   deploymentId: string | null;
   environmentId: string | null;
   agentId: string | null;
@@ -175,6 +178,7 @@ function coerceConfig(raw: unknown): CloudConfig {
   }
   return {
     key: typeof r.key === 'string' && r.key.length > 0 && r.key.length <= 8192 ? r.key : null,
+    workspaceId: isWorkspaceId(r.workspaceId) ? r.workspaceId : null,
     deploymentId: isApiId(r.deploymentId, 'depl') ? r.deploymentId : null,
     environmentId: isApiId(r.environmentId, 'env') ? r.environmentId : null,
     agentId: isApiId(r.agentId, 'agent') ? r.agentId : null,
@@ -240,7 +244,7 @@ export class AgentCloudHost {
       /* premier lancement : rien de configuré */
     }
     this.config = coerceConfig(raw);
-    this.api = deps.api ?? createCloudApi({ key: () => this.key(), fetchImpl: deps.fetchImpl });
+    this.api = deps.api ?? createCloudApi({ key: () => this.key(), workspace: () => this.config.workspaceId, fetchImpl: deps.fetchImpl });
   }
 
   protected t(fr: string, en: string, es: string): string {
@@ -262,7 +266,7 @@ export class AgentCloudHost {
       const entries = Object.entries(c.collected)
         .sort(([, a], [, b]) => b.at - a.at)
         .slice(0, COLLECTED_MAX);
-      const body = { v: 1, key: c.key, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
+      const body = { v: 1, key: c.key, workspaceId: c.workspaceId, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify(body), { encoding: 'utf8', mode: 0o600 });
       renameSync(tmp, this.file);
@@ -313,6 +317,7 @@ export class AgentCloudHost {
     return {
       available: this.deps.seal.available(),
       keyStored: !!this.config.key,
+      workspaceId: this.config.workspaceId,
       deploymentId: this.config.deploymentId,
       managed: this.config.managed,
       schedule: { ...this.config.schedule },
@@ -402,6 +407,43 @@ export class AgentCloudHost {
     this.actionError = null;
     this.persist();
     this.deps.log('agent cloud · clé enregistrée (chiffrée par le trousseau)');
+    this.reschedule(1_000);
+    this.publish();
+    return this.status();
+  }
+
+  /**
+   * Espace de travail d'une clé d'utilisateur (`sk-ant-usr-…`) : sans lui, l'API refuse chaque appel (400). Il part dans
+   * l'en-tête `anthropic-workspace-id` ; `''` l'efface. Il ne change pas tant que le déploiement du desk existe : celui-ci
+   * resterait planifié et facturé dans l'ancien espace, sans que le desk le voie encore.
+   */
+  setWorkspace(text: unknown): AgentCloudStatus {
+    if (this.busy) return this.refuseBusy();
+    const id = typeof text === 'string' ? text.trim() : null;
+    if (id === null || (id !== '' && !isWorkspaceId(id)))
+      return this.refuse(
+        'Espace de travail invalide : wrkspc_… (Console › Settings › Workspaces).',
+        'Invalid workspace: wrkspc_… (Console › Settings › Workspaces).',
+        'Espacio de trabajo no válido: wrkspc_… (Consola › Settings › Workspaces).',
+      );
+    const next = id === '' ? null : id;
+    if (next === this.config.workspaceId) return this.status();
+    if (this.config.managed && this.config.deploymentId)
+      return this.refuse(
+        'Quittez d’abord le déploiement du desk : il appartient à l’espace de travail actuel.',
+        'Leave the desk’s deployment first: it belongs to the current workspace.',
+        'Deje primero el despliegue del desk: pertenece al espacio de trabajo actual.',
+      );
+    this.config.workspaceId = next;
+    // L'environnement et l'agent d'une installation commencée restent dans l'ancien espace : la prochaine installation les recrée.
+    this.config.environmentId = null;
+    this.config.agentId = null;
+    this.config.agentVersion = null;
+    this.authBlocked = false;
+    this.error = null;
+    this.actionError = null;
+    this.persist();
+    this.deps.log(next ? 'agent cloud · espace de travail enregistré' : 'agent cloud · espace de travail effacé');
     this.reschedule(1_000);
     this.publish();
     return this.status();
@@ -622,6 +664,7 @@ export class AgentCloudHost {
         detail: [
           this.t('Modèle : Claude Opus 5.5, effort élevé', 'Model: Claude Opus 5.5, high effort', 'Modelo: Claude Opus 5.5, esfuerzo alto'),
           `${this.t('Planification', 'Schedule', 'Planificación')} : ${cron} · ${timezone}`,
+          ...(this.config.workspaceId ? [`${this.t('Espace de travail', 'Workspace', 'Espacio de trabajo')} : ${this.config.workspaceId}`] : []),
           this.t(
             `Plafond appliqué : ${this.money(BUDGET_CENTS_PER_RUN)} par exécution, aux tarifs publics`,
             `Cap applied: ${this.money(BUDGET_CENTS_PER_RUN)} per run, at list prices`,

@@ -20,6 +20,7 @@ déploiement (cron) ─► session ─► rapport.json  ◄── GET, clé chif
 - **Rien n'écoute, rien du desk ne part.** Le process principal interroge l'API ; aucun port n'est ouvert, aucun fichier ni donnée du journal n'est envoyé. La décision 7 (`docs/THESE-AGENTIQUE.md` § 7 : ni tunnel, ni connecteur cloud) reste entière ; la décision 11 ouvre ce seul sens.
 - **Un hôte, écrit dans le code.** `electron/agent-cloud-api.ts` n'appelle que `https://api.anthropic.com` (bêta `managed-agents-2026-04-01`, `anthropic-version: 2023-06-01`). Les redirections sont refusées, chaque appel a un délai de 20 s, un corps JSON est borné à 2 Mio et décodé en UTF-8 strict. Chaque chemin est bâti d'un identifiant vérifié (`depl_…`, `sesn_…`, `file_…`) ; le renderer ne fournit aucune URL.
 - **La clé.** Saisie dans Options › Agent cloud, elle part une fois vers le process principal (`agent-cloud:set-key`, 512 signes au plus), qui la chiffre par le trousseau du système (`safeStorage`) dans `userData/agent-cloud.json` (mode 0600). Elle n'est jamais rendue au renderer, jamais journalisée, jamais exportée (le coffre ne la connaît pas). Sans trousseau, rien n'est gardé. Elle est distincte de la clé du modèle conversationnel.
+- **Espace de travail.** Une clé d'espace de travail (`sk-ant-api03-…`) désigne le sien. Une clé d'utilisateur (`sk-ant-usr-…`) vaut pour toute l'organisation : l'API refuse alors chaque appel (400) tant qu'il ne nomme pas l'espace visé. Options › Agent cloud › Espace de travail garde cet identifiant (`wrkspc_…`, ou un UUID ; l'API dit s'il existe) dans `agent-cloud.json`, hors du trousseau puisqu'il n'est pas secret, et le client l'envoie dans l'en-tête `anthropic-workspace-id` de chaque appel (`agent-cloud:set-workspace`, 140 signes au plus, forme vérifiée avant tout envoi). Il ne change pas tant que le déploiement du desk existe : quitté sans être suivi, celui-ci resterait planifié et facturé dans l'ancien espace. Changé, il oublie l'environnement et l'agent d'une installation commencée ailleurs ; la prochaine installation les recrée dans le nouvel espace.
 - **Cadence.** Premier relevé 10 s après l'ouverture, puis toutes les 15 min, et toutes les 3 min tant qu'une session tourne. « Relever maintenant » relève à la demande. Une clé refusée (401, 403) arrête le relevé automatique, jusqu'à une nouvelle clé, un autre déploiement ou un relevé à la demande qui réussit ; un 429 attend son `Retry-After`.
 - **Relevé, pas à pas** (`electron/agent-cloud.ts`) :
   1. `GET /v1/deployments/{id}` : état, prochaine échéance, plafond, version de l'agent ;
@@ -73,14 +74,14 @@ Les trois vues restent montées (`hidden`) : un brouillon ou un réglage en cour
 
 - Ni écoute, ni tunnel : relève sortante seule, vers `api.anthropic.com` seul, sans redirection.
 - Clé chiffrée dans le process principal, jamais rendue, journalisée ni exportée.
-- Installer, lancer, reprendre, quitter le déploiement du desk : dialogue du process principal, Annuler par défaut. Une action à la fois ; ni clé ni déploiement ne changent pendant une action.
+- Installer, lancer, reprendre, quitter le déploiement du desk : dialogue du process principal, Annuler par défaut. Une action à la fois ; ni clé, ni espace de travail, ni déploiement ne changent pendant une action.
 - Le plafond dit dans un dialogue est celui que le déploiement déclare, jamais une valeur supposée.
 - L'agent cloud ne voit rien du desk et ne propose aucun ordre ; son rapport est une donnée affichée, jamais une consigne donnée au modèle conversationnel ni aux agents externes.
 - Chaque IPC passe par `trusted(e)` et une validation de forme (`tests/agent-cloud-wiring.test.ts`).
 
 ## 7. Ce qui reste à l'ADMIN
 
-- Créer la clé API dans l'organisation Console et y rattacher les crédits Max ; la coller dans Options › Agent cloud.
+- Créer la clé API dans l'organisation Console et y rattacher les crédits Max ; la coller dans Options › Agent cloud. Avec une clé d'utilisateur (`sk-ant-usr-…`), indiquer aussi l'espace de travail (Console › Settings › Workspaces).
 - Donner la consigne d'analyse et le design des rapports. Le contrat `canto.rapport/1` peut évoluer en `canto.rapport/2` sans casser les fiches déjà rangées.
 - Élargir les domaines autorisés, ou ouvrir le réseau, est une décision.
 - Envoyer une donnée du desk à l'agent (journal, séances) serait une nouvelle décision : le pont ne le fait pas.

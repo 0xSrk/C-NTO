@@ -32,6 +32,7 @@ export function CloudOptions() {
   useI18n((st) => st.locale);
   const status = useAgentCloud((c) => c.status);
   const setKey = useAgentCloud((c) => c.setKey);
+  const setWorkspace = useAgentCloud((c) => c.setWorkspace);
   const setSchedule = useAgentCloud((c) => c.setSchedule);
   const setDeployment = useAgentCloud((c) => c.setDeployment);
   const provision = useAgentCloud((c) => c.provision);
@@ -40,6 +41,7 @@ export function CloudOptions() {
   const unpause = useAgentCloud((c) => c.unpause);
   const pull = useAgentCloud((c) => c.pull);
   const [key, setKeyDraft] = useState('');
+  const [workspace, setWorkspaceDraft] = useState('');
   const [cron, setCron] = useState(status?.schedule.cron ?? '');
   const [timezone, setTimezone] = useState(status?.schedule.timezone ?? '');
   const [external, setExternal] = useState('');
@@ -116,6 +118,46 @@ export function CloudOptions() {
           </Button>
           {status?.keyStored ? (
             <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void setKey('')}>
+              {tr('Effacer', 'Erase', 'Borrar')}
+            </Button>
+          ) : null}
+        </div>
+      </Field>
+
+      <Field
+        label={tr('Espace de travail', 'Workspace', 'Espacio de trabajo')}
+        hint={
+          status?.workspaceId
+            ? tr('nommé à chaque appel (en-tête anthropic-workspace-id)', 'named in every call (anthropic-workspace-id header)', 'indicado en cada llamada (cabecera anthropic-workspace-id)')
+            : tr(
+                'facultatif : nécessaire avec une clé d’utilisateur (sk-ant-usr-…), qui ne désigne aucun espace',
+                'optional: required with a user key (sk-ant-usr-…), which names no workspace',
+                'opcional: necesario con una clave de usuario (sk-ant-usr-…), que no designa ningún espacio',
+              )
+        }
+      >
+        <div className={s.inline}>
+          <input
+            value={workspace}
+            onChange={(e) => setWorkspaceDraft(e.target.value)}
+            placeholder={status?.workspaceId ?? 'wrkspc_…'}
+            spellCheck={false}
+            className="mono"
+            aria-label={tr('Espace de travail de la clé', 'Key workspace', 'Espacio de trabajo de la clave')}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!workspace.trim() || busy !== null}
+            onClick={async () => {
+              await setWorkspace(workspace.trim());
+              setWorkspaceDraft('');
+            }}
+          >
+            {tr('Enregistrer', 'Save', 'Guardar')}
+          </Button>
+          {status?.workspaceId ? (
+            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void setWorkspace('')}>
               {tr('Effacer', 'Erase', 'Borrar')}
             </Button>
           ) : null}
