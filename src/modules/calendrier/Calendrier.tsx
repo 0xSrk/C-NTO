@@ -1,19 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { Glyph } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
 import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
 import { CATEGORY_HELP, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
 import { eventProvenance, mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
 import { intlTag, tr, useI18n } from '@/i18n';
 import { fmtUsd, plural, signClass } from '@/lib/format';
-import { addDays, dateKeyLocal, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
+import { addDays, dateKeyLocal, dateTimeFormatter, etDateKey, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
-import { impactBars, strokeOf, STROKES, type Stroke } from './calState';
+import { horizonDay, impactBars, LENS_PATH, nowIndex, strokeOf, STROKES, type Stroke } from './calState';
 import s from './calendrier.module.css';
 
 /**
@@ -310,6 +311,16 @@ function localTime(date: string, timeET?: string): string | null {
   return formatTimeLocal(zonedToUtc(date, timeET, ET_ZONE));
 }
 
+/** L'instant, rafraîchi toutes les 30 s : « maintenant » avance dans le flux, les traits passent au plein. */
+function useNow(period = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), period);
+    return () => clearInterval(id);
+  }, [period]);
+  return now;
+}
+
 /** Le trait d'une publication, maintenant. */
 function strokeNow(e: Pick<CalEvent, 'date' | 'timeET' | 'actual'>): Stroke {
   return strokeOf(e, Date.now());
@@ -348,6 +359,7 @@ export default function Calendrier() {
   const lastError = useMacro((m) => m.lastError);
   const loadMacro = useMacro((m) => m.load);
   const syncMacro = useMacro((m) => m.sync);
+  const nowAt = useNow();
 
   useEffect(() => {
     void loadMacro().then(() => syncMacro());
@@ -424,6 +436,9 @@ export default function Calendrier() {
     }
     return days;
   }, [cursor, today, view, year, month]);
+  // Le jour de « maintenant » (date de New York, celle des publications) et le premier jour au-delà de l'horizon.
+  const etToday = etDateKey(nowAt);
+  const hzDay = horizonDay(view === 'grille' ? gridDays : fluxDays, nowAt);
 
   const monthLabel = parseDateKey(`${cursor}-01`).toLocaleDateString(intlTag(), { month: 'long', year: 'numeric' });
   const shift = (n: number) => {
@@ -553,8 +568,9 @@ export default function Calendrier() {
                         onClick={() => setSelected(d)}
                         onKeyDown={onActivate(() => setSelected(d))}
                       >
-                        <div className={s.dayHead}>
+                        <div className={s.dayHead} data-day={d}>
                           <span className={s.dayNum}>{Number(d.slice(-2))}</span>
+                          {d === hzDay && <Glyph name="horizon" className={s.hzGlyph} label={tr('Horizon', 'Horizon', 'Horizonte')} />}
                           {sess && <span className={cx(s.dayPnl, signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>}
                         </div>
                         <div className={s.evs}>
@@ -581,18 +597,26 @@ export default function Calendrier() {
                   const evs = byDate.get(d) ?? [];
                   const sess = sessionByDate.get(d);
                   const perso = entriesByDate.get(d) ?? [];
+                  const ordered = [...evs].sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'));
+                  const split = d === etToday ? nowIndex(ordered, nowAt) : -1;
                   return (
                     <div key={d} className={cx(s.fluxDay, d === selected && s.selected)}>
-                      <div className={cx(s.fluxDayHead, d === today && s.today)} role="button" tabIndex={0} aria-pressed={d === selected} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
+                      <div className={cx(s.fluxDayHead, d === today && s.today)} data-day={d} role="button" tabIndex={0} aria-pressed={d === selected} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                         <b>{formatDateFr(d, { weekday: true, short: true })}</b>
                         {sess ? <span className={signClass(sess.pnl)}>{fmtUsd(sess.pnl, { sign: true })} · {plural(sess.tradeCount, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}</span> : <span>{evs.length ? plural(evs.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos')) : tr('calme', 'quiet', 'calma')}</span>}
+                        {d === hzDay && (
+                          <span className={s.hzMark}>
+                            <Glyph name="horizon" className={s.hzGlyph} />
+                            {tr('Horizon', 'Horizon', 'Horizonte')}
+                          </span>
+                        )}
                       </div>
                       <div className={s.fluxEvents}>
                         {evs.length === 0 && perso.length === 0 && <div className={s.fluxEmpty}>{tr('Aucun catalyseur programmé.', 'No catalyst scheduled.', 'Ningún catalizador programado.')}</div>}
-                        {[...evs]
-                          .sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'))
-                          .map((e) => (
-                            <div key={e.id} className={cx(s.fluxEv, e.actual && s.evPublished)} data-stroke={strokeNow(e)} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
+                        {ordered.map((e, i) => (
+                          <Fragment key={e.id}>
+                            {i === split && <NowMark at={nowAt} />}
+                            <div className={cx(s.fluxEv, e.actual && s.evPublished)} data-stroke={strokeNow(e)} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                               <div className={s.fluxTime}>
                                 {e.timeET ? localTime(d, e.timeET) : tr('journée', 'all day', 'jornada')}
                                 {e.timeET && <small>{e.timeET} ET</small>}
@@ -604,7 +628,9 @@ export default function Calendrier() {
                               <LinePrint e={e} detailed />
                               <Impact level={e.impact} />
                             </div>
-                          ))}
+                          </Fragment>
+                        ))}
+                        {split >= 0 && split === ordered.length && <NowMark at={nowAt} />}
                         {perso.map((p) => (
                           <div key={p.id} className={s.fluxEv} data-stroke={strokeNow({ date: d, timeET: p.time })} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                             <div className={s.fluxTime}>{p.time ?? (p.kind === 'note' ? tr('note', 'note', 'nota') : tr('journée', 'all day', 'jornada'))}</div>
@@ -637,6 +663,25 @@ export default function Calendrier() {
         </Modal>
       )}
     </>
+  );
+}
+
+/** « Maintenant » : le glyphe de l'instant à l'or, l'heure du poste et de New York, l'horizon en lentille du sceau. */
+function NowMark({ at }: { at: number }) {
+  useI18n((s) => s.locale);
+  const et = dateTimeFormatter({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: ET_ZONE }).format(at);
+  const local = formatTimeLocal(at);
+  return (
+    <div className={s.nowMark} data-now="">
+      <Glyph name="now" className={s.nowGlyph} />
+      <span>
+        {tr('Maintenant', 'Now', 'Ahora')} · {local === et ? '' : `${local} · `}
+        {et} ET
+      </span>
+      <svg className={s.nowLens} viewBox="0 0 400 8" preserveAspectRatio="none" aria-hidden="true" data-lens="">
+        <path d={LENS_PATH} fill="currentColor" />
+      </svg>
+    </div>
   );
 }
 

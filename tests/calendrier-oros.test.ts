@@ -117,3 +117,57 @@ describe('OROS3.4a le trait dit l’état, la forme dit l’impact', () => {
     expect([...impact.querySelectorAll('[data-impact]')].map((el) => el.getAttribute('data-impact'))).toEqual(['1', '2', '3']);
   });
 });
+
+describe('OROS3.4b « maintenant » en lentille du sceau, l’horizon marqué de son glyphe', () => {
+  it('« maintenant » se place après les publications passées du jour ; l’horizon est le premier jour au-delà de la fenêtre', async () => {
+    const { horizonDay, nowIndex } = await import('@/modules/calendrier/calState');
+    const today = [
+      { date: '2026-10-28', timeET: '08:30' },
+      { date: '2026-10-28', timeET: '10:30' },
+      { date: '2026-10-28', timeET: '14:00' },
+    ];
+    expect(nowIndex(today, NOW)).toBe(2);
+    expect(nowIndex([], NOW)).toBe(0);
+    expect(horizonDay(['2026-10-28', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06'], NOW)).toBe('2026-11-05');
+    expect(horizonDay(['2026-10-28', '2026-11-04'], NOW)).toBeNull();
+  });
+
+  it('le flux du jour porte « maintenant » : glyphe de l’instant, heure, lentille ; une seule fois, entre passé et à venir', async () => {
+    const { GLYPH_ID } = await import('@/design/micro/assets');
+    const node = await calendrier();
+    const marks = node.querySelectorAll('[data-now]');
+    expect(marks).toHaveLength(1);
+    const now = marks[0] as HTMLElement;
+    expect(now.textContent).toMatch(/Maintenant/);
+    expect(now.textContent).toMatch(/11:05 ET/);
+    expect(now.querySelector(`svg.skg-${GLYPH_ID.now}`)?.parentElement?.getAttribute('aria-hidden')).toBe('true');
+    expect(now.querySelector('svg[data-lens] path')?.getAttribute('d')).toMatch(/^M0 4 C120 1\.6 280 1\.6 400 4 C280 6\.4 120 6\.4 0 4 ?Z$/);
+    const past = fluxRow(node, 'Activité témoin passée');
+    const next = fluxRow(node, 'Décision témoin FOMC');
+    expect(past.compareDocumentPosition(now) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(now.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const { readFileSync } = await import('node:fs');
+    // L'instant est vivant : son glyphe est à l'or.
+    expect(readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8')).toMatch(/\.nowGlyph\s*\{[^}]*--k:\s*var\(--gold\)/);
+  });
+
+  it('le premier jour au-delà de l’horizon porte le glyphe de l’horizon, et lui seul', async () => {
+    const { GLYPH_ID } = await import('@/design/micro/assets');
+    const node = await calendrier();
+    const marked = [...node.querySelectorAll(`svg.skg-${GLYPH_ID.horizon}`)].map((svg) => svg.closest('[data-day]')?.getAttribute('data-day'));
+    expect(marked).toEqual(['2026-11-05']);
+    const head = node.querySelector('[data-day="2026-11-05"]')!;
+    expect(head.textContent).toMatch(/Horizon/);
+  });
+});
+
+describe('OROS3.4b′ la grille mensuelle marque aussi l’horizon', () => {
+  it('la case du premier jour au-delà de l’horizon porte son glyphe', async () => {
+    const { GLYPH_ID } = await import('@/design/micro/assets');
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, calendarView: 'grille' } });
+    const node = await calendrier();
+    const marked = [...node.querySelectorAll(`svg.skg-${GLYPH_ID.horizon}`)].map((svg) => svg.closest('[data-day]')?.getAttribute('data-day'));
+    expect(marked).toEqual(['2026-11-05']);
+  });
+});

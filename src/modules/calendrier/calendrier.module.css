@@ -733,3 +733,45 @@
 .swatch[data-stroke='horizon'] {
   border-style: dotted;
 }
+
+/* « Maintenant » : la lentille du sceau ; le glyphe de l'instant et l'heure à l'or, le vivant */
+.nowMark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 24px;
+  margin: 2px 8px 2px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.nowGlyph {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  --k: var(--gold);
+  --p: var(--bg-1);
+}
+.nowLens {
+  flex: 1;
+  min-width: 24px;
+  height: 8px;
+  color: var(--text-0);
+}
+
+/* Le premier jour au-delà de l'horizon : le glyphe de l'horizon */
+.hzMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+}
+.hzGlyph {
+  width: 16px;
+  height: 9px;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}

@@ -33,3 +33,19 @@ export function strokeOf(e: Pick<CalEvent, 'date' | 'timeET' | 'actual'>, now: n
 export function impactBars(level: number): { height: number; on: boolean }[] {
   return [1, 2, 3].map((k) => ({ height: 4 + k * 2.5, on: k <= level }));
 }
+
+/** Premier jour, parmi `days` (triés), au-delà de l'horizon : il porte le glyphe de l'horizon. */
+export function horizonDay(days: readonly string[], now: number, n = CATALYST_HORIZON_DAYS): string | null {
+  const end = horizonEnd(now, n);
+  return days.find((d) => d > end) ?? null;
+}
+
+/** Rang de « maintenant » parmi les publications du jour triées par heure : après celles déjà passées. */
+export function nowIndex(events: readonly Pick<CalEvent, 'date' | 'timeET'>[], now: number): number {
+  let i = 0;
+  while (i < events.length && instant(events[i]!) <= now) i++;
+  return i;
+}
+
+/** Tracé de « maintenant » : la lentille du sceau, épaisse au centre, effilée aux bouts (boîte 400 × 8). */
+export const LENS_PATH = 'M0 4 C120 1.6 280 1.6 400 4 C280 6.4 120 6.4 0 4 Z';
