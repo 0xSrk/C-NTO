@@ -355,3 +355,14 @@ describe('CRY4.1 › cssToken', () => {
     expect(cssToken('--violet', 'gray')).toBe('gray');
   });
 });
+
+describe('OROS3.5f › Chart › le dernier prix est or', () => {
+  it('la ligne et l’étiquette du dernier prix prennent l’or du jeton --gold : ce qui vit est or', async () => {
+    document.documentElement.style.setProperty('--gold', '#ccb066');
+    await render();
+    const { candles } = current();
+    expect(candles.options.priceLineColor).toBe('#ccb066');
+    expect(candles.options.priceLineVisible).not.toBe(false);
+    document.documentElement.style.removeProperty('--gold');
+  });
+});
