@@ -75,11 +75,14 @@
   --pos: var(--mint);
   --neg: var(--ember);
 
-  /* Typographie — Système 3.4. JetBrains en second fournit Λ et Ξ. */
-  --font-display: 'Archivo Variable', 'JetBrains Mono Variable', system-ui, sans-serif;
-  --font-ui: 'Archivo Variable', 'JetBrains Mono Variable', system-ui, sans-serif;
-  --font-readout: 'Doto Variable', 'JetBrains Mono Variable', monospace;
-  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+  /* Voix — Système 4.0 (src/design/fonts.css). Instrument Sans parle, Geist Mono étiquette,
+     IBM Plex Sans porte le nom et fournit Λ, Ξ et le grec aux deux autres. Doto reste le lecteur. */
+  --font-display: 'Instrument Sans', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-ui: 'Instrument Sans', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-readout: 'Doto Variable', 'Geist Mono', monospace;
+  --font-mono: 'Geist Mono', 'IBM Plex Sans', ui-monospace, monospace;
+  --font-name: 'IBM Plex Sans', 'Instrument Sans', sans-serif;
+  --value-stretch: 82%; /* l'afficheur : chiffres serrés de la Ligne V2 */
   --fs-display: 44px;
   --fs-h1: 28px;
   --fs-h2: 20px;

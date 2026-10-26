@@ -297,7 +297,7 @@ export function Graph({ notes, activeId, onOpen, links = [], events = [] }: { no
           ctx.stroke();
         }
         if (hot || active || n.degree >= 2 || nodes.length <= 30) {
-          ctx.font = `${11 / st.scale}px "JetBrains Mono Variable", monospace`;
+          ctx.font = `${11 / st.scale}px "Geist Mono", monospace`;
           ctx.fillStyle = hot || active ? '#ffffff' : 'rgba(138,138,138,0.9)';
           ctx.textAlign = 'center';
           ctx.fillText(n.title.length > 28 ? `${n.title.slice(0, 27)}…` : n.title, n.x, n.y + r + 13 / st.scale);

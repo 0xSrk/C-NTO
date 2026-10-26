@@ -115,4 +115,25 @@ describe('garde du système visuel', () => {
       expect(contrast(token(css, name), ivory), name).toBeGreaterThanOrEqual(4.5);
     }
   });
+
+  it('embarque les trois voix du Système 4.0 avec leur licence OFL, sans paquet nouveau', () => {
+    const css = readFileSync('src/design/fonts.css', 'utf8');
+    const families = new Set([...css.matchAll(/font-family:\s*'([^']+)'/g)].map((m) => m[1]));
+    expect(families).toEqual(new Set(['Instrument Sans', 'Geist Mono', 'IBM Plex Sans']));
+    const files = [...css.matchAll(/url\('\.\/fonts\/([^']+\.woff2)'\)/g)].map((m) => m[1]!);
+    expect(files.length).toBeGreaterThanOrEqual(4);
+    for (const file of files) expect(statSync(join('src/design/fonts', file)).size, file).toBeGreaterThan(1000);
+    for (const licence of ['OFL-InstrumentSans.txt', 'OFL-GeistMono.txt', 'OFL-IBMPlexSans.txt']) {
+      expect(readFileSync(join('src/design/fonts', licence), 'utf8'), licence).toMatch(/SIL Open Font License/);
+    }
+    const main = readFileSync('src/main.tsx', 'utf8');
+    expect(main).toContain("import '@/design/fonts.css';");
+    expect(main).not.toMatch(/@fontsource-variable\/(archivo|jetbrains-mono|inter)/);
+    const tokens = readFileSync('src/design/tokens.css', 'utf8');
+    expect(tokens).toMatch(/--font-ui:\s*'Instrument Sans'/);
+    expect(tokens).toMatch(/--font-mono:\s*'Geist Mono'/);
+    expect(tokens).toMatch(/--font-name:\s*'IBM Plex Sans'/);
+    const stale = walk('src').filter((path) => /(?:JetBrains Mono|Archivo) Variable/.test(readFileSync(path, 'utf8')));
+    expect(stale.map((path) => posix('src', path))).toEqual([]);
+  });
 });

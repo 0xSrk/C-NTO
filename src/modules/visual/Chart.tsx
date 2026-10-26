@@ -202,7 +202,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: '#8a8a8a',
-        fontFamily: "'JetBrains Mono Variable', ui-monospace, monospace",
+        fontFamily: "'Geist Mono', ui-monospace, monospace",
         fontSize: 11,
         panes: { separatorColor: '#232323', separatorHoverColor: 'rgba(196,30,58,0.28)', enableResize: true },
         attributionLogo: false,
