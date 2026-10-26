@@ -70,6 +70,7 @@ Une entrée de `src/engine/changelog/changelog.json` peut être préparée (troi
 - Pont NinjaTrader : `docs/PONT-NINJATRADER.md`.
 - Siège nominatif : `docs/SIEGE-NOMINATIF.md`.
 - Agent cloud et dossier des rapports de l'onglet Agent IA : `docs/AGENT-CLOUD.md`.
+- Coordination entre agents (Claude Code, Hermes) et l'ADMIN : `docs/CENTRE-DE-CONTROLE.md`. Le centre vivant est privé, hors du dépôt (`node scripts/centre.mjs etat`) : à lire en début de session, avant toute action dans une zone partagée.
 
 ## Commandes
 
