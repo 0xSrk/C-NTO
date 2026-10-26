@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ColorType, createChart, CrosshairMode, LineStyle, type IChartApi, type ISeriesApi, type SeriesPartialOptions, type Time, type UTCTimestamp, type WhitespaceData } from 'lightweight-charts';
+import { ColorType, createChart, CrosshairMode, LineStyle, type AutoscaleInfo, type IChartApi, type ISeriesApi, type SeriesPartialOptions, type Time, type UTCTimestamp, type WhitespaceData } from 'lightweight-charts';
+import { Plate, type SlotValues } from '@/design/Micro';
 import { Montant, Segmented } from '@/design/primitives';
 import { equityCurve, type EquityCurveData, type EquityGrain, type EquityStep } from '@/engine/equityCurve';
-import type { Session, Trade } from '@/engine/types';
+import type { Session, SessionSource, Trade } from '@/engine/types';
 import { intlTag, tr, useI18n } from '@/i18n';
-import { fmtInt } from '@/lib/format';
+import { fmtInt, fmtNum, montantParts } from '@/lib/format';
 import { dateTimeFormatter } from '@/lib/time';
 import { chartHostReady, safePaneHeight } from '@/modules/visual/chartBox';
 import s from './dashboard.module.css';
-import { EquityTrait, NONE, StemTrait, UnderwaterTrait, type EquityRow, type Ink, type Marks, type TraitOptions } from './equitySeries';
+import { sessionMarks } from './equityPaint';
+import { EquityTrait, floorRange, NONE, StemTrait, UnderwaterTrait, type EquityRow, type GlyphKey, type Ink, type Marks, type TraitOptions } from './equitySeries';
+import { glyphImage, readyImage } from './glyphSprite';
 
 /**
  * Métrique › A.02 : courbe d'équité, P&L par pas et drawdown sous l'eau, au trait du Lab
- * (fils d'un pixel légèrement lumineux, trame de points, pixel rouge signature au dernier pas).
+ * (fils d'un pixel légèrement lumineux, trame de points, pixel signature au dernier pas), avec les composants de
+ * la planche : ⊕ au plus haut, ⊗ au creux, la borne du plan suivi, la plaque de lecture A.02 en filigrane.
  * Glisser déplace, Ctrl (⌘) + molette zoome, double-clic recadre : la molette seule fait défiler la page.
  */
 
@@ -38,6 +42,7 @@ function palette(el: HTMLElement): Ink & { line1: string; bg3: string } {
     faint: v('--text-2'),
     label: v('--text-1'),
     zero: v('--line-2'),
+    paper: v('--bg-2'),
     line1: v('--line-1'),
     bg3: v('--bg-3'),
     mono: css.getPropertyValue('--font-mono').trim() || 'monospace',
@@ -68,7 +73,62 @@ interface Refs {
   traits: Trait[];
   /** Dernière courbe dessinée : un rendu sans changement ne redessine pas. */
   drawn: EquityCurveData | null;
+  /** Ses pas, tels que donnés aux traits : la borne qui change les redonne au volet sous l'eau, pour l'échelle. */
+  rows: EquityRow[];
+  /** Borne posée sur le volet sous l'eau (drawdown maximal du plan suivi, 0 sans plan). */
+  floor: number;
 }
+
+/** Statistiques de la période que lit la plaque A.02 : celles du tableau de bord, pas recalculées ici. */
+export interface EquityPlateStats {
+  trades: number;
+  winRate: number;
+  profitFactor: number;
+}
+
+/** Composants de la planche peints sur la courbe, et leur taille (px CSS) : ⊕ et ⊗ de 12, la borne de 10. */
+const GLYPHS: readonly [GlyphKey, number][] = [
+  ['target', 12],
+  ['mire', 12],
+  ['borne', 10],
+];
+
+/** Montant de plaque : signe, groupes de trois, virgule, deux décimales. */
+function plateAmount(value: number): string {
+  const parts = montantParts(value, 2);
+  return `${parts.sign}${parts.groups.join(' ')},${parts.decimals}`;
+}
+
+function sourceLabel(source: SessionSource): string {
+  switch (source) {
+    case 'demo':
+      return tr('DÉMO', 'DEMO', 'DEMO');
+    case 'ninjatrader':
+      return 'NT8';
+    case 'csv':
+      return 'CSV';
+    case 'manuel':
+      return tr('MANUEL', 'MANUAL', 'MANUAL');
+  }
+}
+
+/** Ce que lit la plaque A.02 : la source du journal, le cumul et l'écart au plus haut du dernier pas, les statistiques. */
+function plateValues(curve: EquityCurveData, sessions: readonly Session[], stats: EquityPlateStats | undefined): SlotValues {
+  const sources = new Set(sessions.map((row) => row.source));
+  const only = sources.size === 1 ? [...sources][0] : undefined;
+  const last = curve.steps[curve.steps.length - 1];
+  return {
+    state: only ? sourceLabel(only) : sources.size > 1 ? tr('JOURNAL', 'JOURNAL', 'DIARIO') : null,
+    cumul: last ? plateAmount(curve.net) : null,
+    dd: last ? plateAmount(last.drawdown) : null,
+    sessions: fmtInt(sessions.length),
+    trades: stats ? fmtInt(stats.trades) : null,
+    win: stats ? fmtNum(stats.winRate * 100, 1) : null,
+    pf: stats ? (Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2).replace('.', ',') : '∞') : null,
+  };
+}
+
+const floorLabel = (floor: number) => (floor > 0 ? `${tr('PLANCHER', 'FLOOR', 'SUELO')} −${fmtInt(floor)}` : '');
 
 /** Repères du volet principal : le plus haut et le creux du plus grand drawdown, au trait. */
 function marksOf(curve: EquityCurveData): Marks {
@@ -79,14 +139,15 @@ function marksOf(curve: EquityCurveData): Marks {
   const top = curve.steps[high];
   return {
     high,
-    highLabel: top ? `${tr('PLUS HAUT', 'HIGH', 'MÁXIMO')} ${signed(top.equity)}` : '',
+    highLabel: top ? `${tr('PLUS-HAUT', 'HIGH', 'MÁXIMO')} ${signed(top.equity)}` : '',
     trough: curve.maxDrawdown?.trough ?? NONE,
     troughLabel: curve.maxDrawdown ? `${tr('CREUX', 'TROUGH', 'VALLE')} −${fmtInt(curve.maxDrawdown.depth)}` : '',
   };
 }
 
 function draw(refs: Refs, curve: EquityCurveData): void {
-  const rows: EquityRow[] = curve.steps.map((step) => ({ time: step.time as UTCTimestamp, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl }));
+  const sessions = sessionMarks(curve.steps);
+  const rows: EquityRow[] = curve.steps.map((step, i) => ({ time: step.time as UTCTimestamp, equity: step.equity, peak: step.peak, drawdown: step.drawdown, pnl: step.pnl, session: sessions[i] ?? NONE }));
   const marks = marksOf(curve);
   for (const trait of refs.traits) {
     trait.applyOptions({ marks, focus: NONE });
@@ -94,12 +155,30 @@ function draw(refs: Refs, curve: EquityCurveData): void {
   }
   refs.chart.timeScale().fitContent();
   refs.drawn = curve;
+  refs.rows = rows;
 }
 
-export function EquityCard({ sessions, trades, className }: { sessions: Session[]; trades: Trade[]; className?: string }) {
+export function EquityCard({
+  sessions,
+  trades,
+  className,
+  floor,
+  stats,
+}: {
+  sessions: Session[];
+  trades: Trade[];
+  className?: string;
+  /** Drawdown maximal du plan suivi pour le compte filtré : la borne du volet sous l'eau. Absent : aucune borne inventée. */
+  floor?: number | null;
+  stats?: EquityPlateStats;
+}) {
   const locale = useI18n((st) => st.locale);
   const [grain, setGrain] = useState<EquityGrain>('session');
   const curve = useMemo(() => equityCurve(sessions, trades, grain), [sessions, trades, grain]);
+  const floorValue = floor != null && floor > 0 ? floor : 0;
+  const floorRef = useRef(floorValue);
+  floorRef.current = floorValue;
+  const plate = useMemo(() => plateValues(curve, sessions, stats), [curve, sessions, stats, locale]);
   const [hover, setHover] = useState<number | null>(null);
   const [fault, setFault] = useState(false);
   const host = useRef<HTMLDivElement>(null);
@@ -113,6 +192,7 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
     const el = host.current;
     if (!el) return;
     let disposed = false;
+    const sprites: Partial<Record<GlyphKey, HTMLImageElement>> = {};
     const boot = () => {
       if (disposed || refs.current) return;
       const width = Math.floor(el.clientWidth);
@@ -164,7 +244,13 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
         const scale = { priceLineVisible: false, priceFormat: { type: 'price' as const, precision: 0, minMove: 1 } };
         const equity = chart.addCustomSeries(new EquityTrait(), { ...scale, ink, color: ink.line, lastValueVisible: true });
         const pnl = chart.addCustomSeries(new StemTrait(), { ...scale, ink, color: ink.faint, lastValueVisible: false }, 1);
-        const drawdown = chart.addCustomSeries(new UnderwaterTrait(), { ...scale, ink, color: ink.neg, lastValueVisible: false }, 2);
+        // La borne du plan suivi : le volet sous l'eau l'expose, et son échelle la contient.
+        const floorNow = floorRef.current;
+        const drawdown = chart.addCustomSeries(
+          new UnderwaterTrait(),
+          { ...scale, ink, color: ink.neg, lastValueVisible: false, floor: floorNow, floorLabel: floorLabel(floorNow), autoscaleInfoProvider: (base: () => AutoscaleInfo | null) => floorRange(base(), floorRef.current) },
+          2,
+        );
         const panes = chart.panes();
         const pnlHeight = safePaneHeight(PNL_PANE, height, panes.length);
         const ddHeight = safePaneHeight(DD_PANE, height, panes.length);
@@ -178,7 +264,18 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
           const index = curveRef.current.steps.findIndex((step) => step.time === (param.time as number));
           setHover(index >= 0 ? index : null);
         });
-        refs.current = { chart, traits: [equity, pnl, drawdown], drawn: null };
+        refs.current = { chart, traits: [equity, pnl, drawdown], drawn: null, rows: [], floor: floorNow };
+        // Composants de la planche (⊕ ⊗ borne) : images du master, encrées en ivoire, à la densité de l'écran ; le trait
+        // ne les reçoit qu'une fois chargées, et chaque chargement redessine.
+        const dpr = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+        const lookup = (key: GlyphKey) => readyImage(sprites[key]);
+        const repaint = () => {
+          if (disposed) return;
+          const glyph = (key: GlyphKey) => lookup(key);
+          for (const trait of refs.current?.traits ?? []) trait.applyOptions({ glyph });
+        };
+        for (const [key, px] of GLYPHS) sprites[key] = glyphImage(key, colors.line, colors.paper, Math.ceil(px * dpr), repaint, Math.max(1, 0.6 * dpr));
+        for (const trait of refs.current.traits) trait.applyOptions({ glyph: lookup });
         draw(refs.current, curveRef.current);
       } catch {
         if (!disposed) setFault(true);
@@ -215,6 +312,7 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
     boot();
     return () => {
       disposed = true;
+      for (const img of Object.values(sprites)) img.onload = null;
       ro.disconnect();
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('dblclick', onDoubleClick);
@@ -227,6 +325,18 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
     setHover(null);
     if (refs.current && refs.current.drawn !== curve) draw(refs.current, curve);
   }, [curve]);
+
+  // La borne suit le plan suivi et la langue ; ses pas redonnés au volet sous l'eau recalculent son échelle.
+  useEffect(() => {
+    const current = refs.current;
+    const drawdown = current?.traits[2];
+    if (!current || !drawdown) return;
+    drawdown.applyOptions({ floor: floorValue, floorLabel: floorLabel(floorValue) });
+    if (current.floor !== floorValue) {
+      current.floor = floorValue;
+      if (current.rows.length) drawdown.setData(current.rows);
+    }
+  }, [floorValue, locale]);
 
   // Les étiquettes des repères suivent la langue du desk.
   useEffect(() => {
@@ -280,7 +390,11 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
       {fault ? (
         <div className={s.eqFault}>{tr('Graphique indisponible.', 'Chart unavailable.', 'Gráfico no disponible.')}</div>
       ) : (
-        <div ref={host} className={s.eqChart} style={{ height: CHART_HEIGHT }} role="img" aria-label={tr(`P&L cumulé ${signed(curve.net)} USD`, `Cumulative P&L ${signed(curve.net)} USD`, `P&L acumulado ${signed(curve.net)} USD`)} />
+        <div className={s.eqStage}>
+          <div ref={host} className={s.eqChart} style={{ height: CHART_HEIGHT }} role="img" aria-label={tr(`P&L cumulé ${signed(curve.net)} USD`, `Cumulative P&L ${signed(curve.net)} USD`, `P&L acumulado ${signed(curve.net)} USD`)} />
+          {/* La plaque de lecture A.02 en filigrane : elle lit la courbe et les statistiques réelles, la lecture au-dessus les dit déjà. */}
+          <Plate id="equity" values={plate} className={s.eqPlate} />
+        </div>
       )}
       <div className={s.eqLegend}>
         <span>
@@ -296,6 +410,11 @@ export function EquityCard({ sessions, trades, className }: { sessions: Session[
           <i className={s.eqKeyDd} /> {tr('Drawdown', 'Drawdown', 'Drawdown')}
           {curve.maxDrawdown ? ` max −${fmtInt(curve.maxDrawdown.depth)}` : ''}
         </span>
+        {floorValue > 0 ? (
+          <span>
+            <i className={s.eqKeyFloor} /> {tr('Plancher · borne', 'Floor · limit', 'Suelo · límite')}
+          </span>
+        ) : null}
         <span>
           <svg className={s.eqKeyPixel} viewBox="0 0 9 9" aria-hidden>
             {PIXEL_KEY.map(([x, y, core, a]) => (

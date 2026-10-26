@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
+import { code128Path } from '@/lib/code128';
 import { montantAria, montantParts, type MontantParts } from '@/lib/format';
+import { APP_VERSION } from '@/lib/version';
 import s from './primitives.module.css';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -7,6 +9,8 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 }
 
 interface PanelProps {
+  /** Code du panneau (K.01, A.02…), posé entre repères d'angle devant le titre. */
+  code?: ReactNode;
   title?: ReactNode;
   sub?: ReactNode;
   actions?: ReactNode;
@@ -21,11 +25,16 @@ interface PanelProps {
   style?: CSSProperties;
 }
 
-export function Panel({ title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, style }: PanelProps) {
+export function Panel({ code, title, sub, actions, children, className, bodyClassName, tight, raised, flush, accent, style }: PanelProps) {
   return (
     <section className={cx(s.panel, raised && s.raised, flush && s.flush, accent && s.accent, className)} style={style}>
-      {(title || actions || sub) && (
+      {(code || title || actions || sub) && (
         <header className={s.panelHead}>
+          {code && (
+            <span className={s.panelCode} data-part="panel-code">
+              {code}
+            </span>
+          )}
           {title && <h3 className={s.panelTitle}>{title}</h3>}
           {sub && <span className={s.panelSub}>{sub}</span>}
           {actions && <div className={s.panelActions}>{actions}</div>}
@@ -324,6 +333,15 @@ export function Regle({ label, value }: { label: ReactNode; value: ReactNode }) 
   );
 }
 
-export function Barcode({ className }: { className?: string }) {
-  return <span className={cx(s.barcode, className)} aria-hidden />;
+/**
+ * Code 128 réel (`src/lib/code128.ts`), un module par pixel pour qu'un téléphone le lise.
+ * Par défaut, l'identité de l'artefact et de sa version : `SK-ART-002-{version}`.
+ */
+export function Barcode({ className, value = `SK-ART-002-${APP_VERSION}`, height = 12 }: { className?: string; value?: string; height?: number }) {
+  const { d, modules } = code128Path(value, height);
+  return (
+    <svg className={cx(s.barcode, className)} width={modules} height={height} viewBox={`0 0 ${modules} ${height}`} shapeRendering="crispEdges" fill="currentColor" aria-hidden="true" focusable="false">
+      <path d={d} />
+    </svg>
+  );
 }

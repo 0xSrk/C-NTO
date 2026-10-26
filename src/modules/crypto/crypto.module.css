@@ -13,6 +13,40 @@
   padding-right: 12px;
 }
 
+/*
+ * La plaque LINK (Ligne V2) dans la barre du module, à la place de l'étiquette du direct : la venue du marché du chart, son
+ * websocket, le flux du chart. Encre acier, papier du fond de travail ; 19 px de haut, sa largeur suit le master.
+ */
+.linkPlate {
+  height: 19px;
+  aspect-ratio: 303.52 / 42.37;
+  margin-right: 6px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+
+/* Le globe ouvre les marchés ; encre des titres de la colonne. */
+.titleGlyph {
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+
+/* Le glyphe d'ajout de la planche (pastille et croix) devant « Ajouter » ; son trait de 0,75 est relevé à cette taille. */
+.addGlyph {
+  width: 20px;
+  height: 6px;
+  --k: currentColor;
+  --p: var(--bg-1);
+}
+.addGlyph :global(.g69-1),
+.addGlyph :global(.g69-2) {
+  stroke-width: 2px;
+}
+
 /* Une ligne par marché, sur deux rangs : voyant, symbole et venue | dernier prix ; âge de la mise à jour | variation 24 h. */
 .marketRow {
   display: grid;
@@ -28,7 +62,6 @@
   color: var(--text-2);
   text-align: left;
 }
-.marketRow:hover,
 .marketRow.active {
   color: var(--text-0);
 }
@@ -43,41 +76,115 @@
   color: var(--text-3);
 }
 
-/* Une ligne par alerte : cible | état | ×, puis la condition et son niveau, puis « non évaluée » et sa raison. */
+/*
+ * La plaque SIGNAL (Ligne V2) ouvre la section des alertes, la légende des trois niveaux à sa droite : encre acier, papier du
+ * panneau. Les signaux de la légende posent leur propre encre (le niveau 3 seul est rouge, sur son glyphe).
+ */
+.alertHead {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 14px;
+  align-items: end;
+  margin: 4px 0 6px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.signalPlate {
+  display: block;
+  width: 100%;
+  aspect-ratio: 133.12 / 136.84;
+}
+.alertLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+
+/*
+ * Une ligne par alerte, en signal (Système 4.0) : niveau | seuil (sujet, glyphe du sens, niveau) | étiquette d'état | ×, puis
+ * l'heure du franchissement et l'auteur, puis « non évaluée » et sa raison. Le filet est plein : dans cette section, le tireté
+ * dit une alerte armée (prévue), il ne sépare pas les lignes.
+ */
 .alertRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 4px 8px;
-  align-items: baseline;
-  padding: 4px 0;
-  border-bottom: 1px dashed var(--line-0);
+  grid-template-columns: 19px minmax(0, 1fr) auto auto;
+  gap: 4px 6px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-1);
   font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--text-2);
 }
-.alertTarget {
+.alertSignal {
+  display: inline-flex;
+  align-items: center;
+  min-height: 15px;
+}
+/* Le seuil ne tronque jamais son sujet : à l'étroit (un niveau long, « Déclenchée »), il passe à la ligne avant le sens. */
+.alertValue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
   min-width: 0;
-  color: var(--text-1);
+  font-weight: 600;
+  color: var(--text-0);
+}
+.alertSubject {
+  white-space: nowrap;
+}
+.alertLevel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+/* Le sens du seuil : flèche montante (≥) ou descendante (≤) de la planche ; son trait de 0,75 sur 68 unités est relevé à 12 px. */
+.dirGlyph {
+  width: 12px;
+  height: 12px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.dirGlyph :global(.g106-1),
+.dirGlyph :global(.g106-2),
+.dirGlyph :global(.g107-1),
+.dirGlyph :global(.g107-2) {
+  stroke-width: 5px;
+}
+/* Le trait de l'étiquette dit l'état : tireté, armée (prévu) ; plein, déclenchée ; pointillé, en pause. */
+.alertRow .planTag {
+  border-style: dashed;
+  border-color: var(--line-2);
+}
+.alertRow .pauseTag {
+  border-style: dotted;
+  border-color: var(--line-2);
+  color: var(--text-2);
 }
 .alertLine {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 8px;
 }
 .alertIdle {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   color: var(--ember);
 }
 .alertRemove {
   padding: 0 4px;
   font-size: 11px;
   color: var(--text-3);
-}
-.alertRemove:hover {
-  color: var(--text-0);
 }
 
 /* Le refus de la fenêtre d'alerte, en clair. */

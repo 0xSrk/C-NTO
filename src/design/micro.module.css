@@ -1,0 +1,23 @@
+/* Micrographies du Lab (Ligne V2 Rév. A) : encre --k, papier --p, réglés par zone. */
+.glyph, .plate, .cartouche { display: inline-flex; flex: none; line-height: 0; }
+.glyph > svg, .plate > svg, .cartouche > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.plate > svg, .cartouche > svg { font-family: var(--f-mono); font-weight: 450; letter-spacing: normal; text-transform: none; }
+.plate :global(text), .cartouche :global(text) { font-kerning: normal; }
+
+/* voix des cartouches (classes posées par les masters) */
+.cartouche :global(.lt-mono), .plate :global(.lt-mono) { font-family: var(--f-mono); font-weight: 450; }
+.cartouche :global(.lt-mono-b) { font-family: var(--f-mono); font-weight: 620; }
+.cartouche :global(.lt-disp) { font-family: var(--f-disp); font-weight: 640; font-stretch: 78%; }
+.cartouche :global(.lt-num) { font-family: var(--f-num); font-weight: var(--num-weight); font-stretch: var(--num-stretch); }
+.cartouche :global(.lt-name) { font-family: var(--f-name); font-weight: 500; }
+.cartouche :global(.lt-inv) { fill: var(--p); }
+
+/* signaux : la forme dit le niveau */
+.signal { display: inline-flex; align-items: center; gap: 8px; }
+.signalGlyph { width: 15px; height: 15px; }
+.signalGlyph > svg { overflow: hidden; }
+.signal[data-level='1'] .signalGlyph { width: 19px; }
+.signalGlyph :global(.g131-1), .signalGlyph :global(.g131-2) { stroke-width: 6px; }
+.signalText { min-width: 0; }
+.l1 { --k: var(--text-1); }
+.l2 { --k: var(--text-0); }

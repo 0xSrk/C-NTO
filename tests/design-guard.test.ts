@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PLATES } from '@/design/micro/assets';
 
 const TEXT = new Set(['.ts', '.tsx', '.css', '.html', '.js', '.mjs', '.cjs', '.svg']);
 
@@ -38,6 +39,16 @@ function contrast(fg: string, bg: string): number {
   const lighter = Math.max(a, b);
   const darker = Math.min(a, b);
   return (lighter + 0.05) / (darker + 0.05);
+}
+
+function hue(hex: string): number {
+  const n = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
 }
 
 function token(css: string, name: string): string {
@@ -78,5 +89,89 @@ describe('garde du système visuel', () => {
     expect(offenders).toEqual([]);
     const lab = walk('src/modules').filter((path) => readFileSync(path, 'utf8').includes('--lab'));
     expect(lab).toEqual([]);
+  });
+
+  it('garde un contraste d’au moins 4,5:1 pour le texte sur l’usiné', () => {
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    const bg = token(css, '--bg-3');
+    for (const name of ['--text-1', '--text-2', '--text-3', '--text-4']) {
+      expect(contrast(token(css, name), bg), name).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('allume la LED en or et garde le rouge au signal de niveau 3', () => {
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    const gold = hue(token(css, '--gold'));
+    expect(gold, `teinte de --gold : ${gold}`).toBeGreaterThanOrEqual(30);
+    expect(gold, `teinte de --gold : ${gold}`).toBeLessThanOrEqual(60);
+    const signal = hue(token(css, '--signal'));
+    expect(signal <= 10 || signal >= 350, `teinte de --signal : ${signal}`).toBe(true);
+  });
+
+  it('pose le papier de la Ligne V2 : encre, encre douce et or d’encre se lisent sur l’ivoire', () => {
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    const ivory = token(css, '--ivory');
+    token(css, '--stone');
+    for (const name of ['--ink', '--ink-soft', '--gold-ink']) {
+      expect(contrast(token(css, name), ivory), name).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('embarque les trois voix du Système 4.0 avec leur licence OFL, sans paquet nouveau', () => {
+    const css = readFileSync('src/design/fonts.css', 'utf8');
+    const families = new Set([...css.matchAll(/font-family:\s*'([^']+)'/g)].map((m) => m[1]));
+    expect(families).toEqual(new Set(['Instrument Sans', 'Geist Mono', 'IBM Plex Sans']));
+    const files = [...css.matchAll(/url\('\.\/fonts\/([^']+\.woff2)'\)/g)].map((m) => m[1]!);
+    expect(files.length).toBeGreaterThanOrEqual(4);
+    for (const file of files) expect(statSync(join('src/design/fonts', file)).size, file).toBeGreaterThan(1000);
+    for (const licence of ['OFL-InstrumentSans.txt', 'OFL-GeistMono.txt', 'OFL-IBMPlexSans.txt']) {
+      expect(readFileSync(join('src/design/fonts', licence), 'utf8'), licence).toMatch(/SIL Open Font License/);
+    }
+    const main = readFileSync('src/main.tsx', 'utf8');
+    expect(main).toContain("import '@/design/fonts.css';");
+    expect(main).not.toMatch(/@fontsource-variable\/(archivo|jetbrains-mono|inter)/);
+    const tokens = readFileSync('src/design/tokens.css', 'utf8');
+    expect(tokens).toMatch(/--font-ui:\s*'Instrument Sans'/);
+    expect(tokens).toMatch(/--font-mono:\s*'Geist Mono'/);
+    expect(tokens).toMatch(/--font-name:\s*'IBM Plex Sans'/);
+    const stale = walk('src').filter((path) => /(?:JetBrains Mono|Archivo) Variable/.test(readFileSync(path, 'utf8')));
+    expect(stale.map((path) => posix('src', path))).toEqual([]);
+  });
+
+  it('ne réagit pas au passage du pointeur : aucune règle :hover dans src/', () => {
+    const offenders = walk('src').filter((path) => path.endsWith('.css') && /:hover\b/.test(readFileSync(path, 'utf8')));
+    expect(offenders.map((path) => posix('src', path))).toEqual([]);
+  });
+
+  it('réserve le rouge au niveau 3 : le toast d’erreur le porte, et le rouge marque sans jamais écrire', () => {
+    expect(readFileSync('src/app/shell.module.css', 'utf8')).toMatch(/\.toast\.error\s*\{\s*border-left:\s*2px solid var\(--signal\);/);
+    // Le signal vit dans le châssis (toast, bande du kill switch) et dans la primitive Signal, nulle part ailleurs.
+    const allowed = new Set(['app/shell.module.css', 'design/primitives.module.css']);
+    const users = walk('src').filter((path) => /var\(--signal/.test(readFileSync(path, 'utf8'))).map((path) => posix('src', path));
+    expect(users.filter((rel) => !allowed.has(rel))).toEqual([]);
+    const writes = walk('src').filter((path) => /(?:^|[\s;{])color:\s*var\(--signal\)/m.test(readFileSync(path, 'utf8')));
+    expect(writes.map((path) => posix('src', path))).toEqual([]);
+  });
+
+  it('DESIGN.md décrit le Système 4.0 avec les valeurs exactes de tokens.css', () => {
+    const doc = readFileSync('docs/DESIGN.md', 'utf8');
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    expect(doc).toMatch(/^# Système visuel — CΛNTO · révision 4\.0/m);
+    const rows = [...doc.matchAll(/^\|[^|\n]*\|\s*((?:`--[a-z0-9-]+`,?\s*)+)\|\s*`(#[0-9A-Fa-f]{6})`/gm)];
+    expect(rows.length).toBeGreaterThanOrEqual(15);
+    for (const [, names, value] of rows) {
+      for (const [, name] of names!.matchAll(/`(--[a-z0-9-]+)`/g)) {
+        expect(token(css, name!).toLowerCase(), name).toBe(value!.toLowerCase());
+      }
+    }
+  });
+
+  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE, et le bord du desk dit la révision 4.0', () => {
+    const doc = readFileSync('docs/DESIGN.md', 'utf8');
+    for (const id of Object.keys(PLATES)) expect(doc, id).toContain(`\`${id}\``);
+    expect(doc).toMatch(/Un seul code-barres/);
+    expect(doc).toMatch(/## 10\. Lanceur AUBE/);
+    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('RÉV. 4.0');
+    expect(readFileSync('CLAUDE.md', 'utf8')).toMatch(/Système 4\.0/);
   });
 });

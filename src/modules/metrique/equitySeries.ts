@@ -1,9 +1,10 @@
-import { customSeriesDefaultOptions, type CustomData, type CustomSeriesOptions, type ICustomSeriesPaneRenderer, type ICustomSeriesPaneView, type PaneRendererCustomData, type PriceToCoordinateConverter, type Time } from 'lightweight-charts';
-import { labelLeft, signaturePixel, trame, type Dot, type Pt } from './equityPaint';
+import { customSeriesDefaultOptions, type AutoscaleInfo, type CustomData, type CustomSeriesOptions, type ICustomSeriesPaneRenderer, type ICustomSeriesPaneView, type PaneRendererCustomData, type PriceToCoordinateConverter, type Time } from 'lightweight-charts';
+import { hatch, leader, lens, rulerTick, signaturePixel, trame, type Dot, type Pt } from './equityPaint';
 
 /**
  * Séries de la courbe d'équité, peintes au trait du Lab : traits d'un pixel légèrement
- * lumineux, trame de points, repères fins, pixel rouge signature. Couleurs fournies par
+ * lumineux, trame de points, repères de la planche (⊕ plus haut, ⊗ creux, borne du plancher),
+ * zéro en lentille du sceau, règle de séances, pixel signature. Couleurs fournies par
  * l'appelant, lues dans les jetons.
  */
 
@@ -15,6 +16,8 @@ export interface Ink {
   faint: string;
   label: string;
   zero: string;
+  /** Papier de la carte : le disque sous un glyphe, le carré sous la borne. */
+  paper: string;
   mono: string;
 }
 
@@ -23,6 +26,8 @@ export interface EquityRow extends CustomData<Time> {
   peak: number;
   drawdown: number;
   pnl: number;
+  /** Ordinal de la séance qu'ouvre ce pas (règle de séances), ou `NONE`. */
+  session: number;
 }
 
 /**
@@ -40,18 +45,41 @@ export interface Marks {
   troughLabel: string;
 }
 
+/** Composants de la planche que la courbe dessine : ⊕ la cible (plus haut), ⊗ la mire (creux), la borne (plancher). */
+export type GlyphKey = 'target' | 'mire' | 'borne';
+/**
+ * Image prête d'un composant, ou `null` tant qu'elle ne l'est pas. Une fonction, pas un objet : `applyOptions`
+ * fusionne les objets en profondeur et recopierait une image dans l'autre.
+ */
+export type GlyphSource = (key: GlyphKey) => CanvasImageSource | null;
+
 export interface TraitOptions extends CustomSeriesOptions {
   ink: Ink;
   marks: Marks;
   /** Pas survolé, ou `NONE`. */
   focus: number;
+  glyph: GlyphSource;
+  /** Drawdown maximal du plan suivi (> 0) : la borne du volet sous l'eau ; 0 sans plan. */
+  floor: number;
+  floorLabel: string;
 }
 
 type Scope = Parameters<Parameters<Parameters<ICustomSeriesPaneRenderer['draw']>[0]['useBitmapCoordinateSpace']>[0]>[0];
 type Bars = PaneRendererCustomData<Time, EquityRow>['bars'];
 
 const NO_MARKS: Marks = { high: NONE, highLabel: '', trough: NONE, troughLabel: '' };
-const NO_INK: Ink = { line: 'gray', pos: 'gray', neg: 'gray', red: 'gray', faint: 'gray', label: 'gray', zero: 'gray', mono: 'monospace' };
+const NO_INK: Ink = { line: 'gray', pos: 'gray', neg: 'gray', red: 'gray', faint: 'gray', label: 'gray', zero: 'gray', paper: 'transparent', mono: 'monospace' };
+const NO_GLYPH: GlyphSource = () => null;
+
+/**
+ * Échelle du volet sous l'eau avec la borne du plan : la plage des données, étendue jusqu'au plancher (−`floor`) pour
+ * que la borne reste en vue. Sans plan (`floor` nul), la plage des données telle quelle.
+ */
+export function floorRange(info: AutoscaleInfo | null, floor: number): AutoscaleInfo | null {
+  if (!(floor > 0)) return info;
+  const range = info?.priceRange;
+  return { ...info, priceRange: { minValue: Math.min(range?.minValue ?? 0, -floor), maxValue: Math.max(range?.maxValue ?? 0, 0) } };
+}
 
 /** `#rrggbb` ou `rgb(a)(…)` → `rgba(r,g,b,a)` ; une autre couleur est rendue telle quelle. */
 export function alpha(color: string, a: number): string {
@@ -146,35 +174,117 @@ function hairDots(ctx: CanvasRenderingContext2D, x1: number, x2: number, y: numb
   ctx.globalAlpha = 1;
 }
 
-/** Repère au trait : point carré, fil vertical, étiquette en capitales espacées. */
-function mark(ctx: CanvasRenderingContext2D, scope: Scope, at: Pt, up: boolean, text: string, color: string, ink: Ink): void {
-  const h = scope.horizontalPixelRatio;
-  const v = scope.verticalPixelRatio;
-  const x = Math.round(at.x) + 0.5;
-  const length = 22 * v;
-  const end = up ? at.y - length : at.y + length;
-  const g = ctx.createLinearGradient(0, at.y, 0, end);
-  g.addColorStop(0, alpha(color, 0.85));
-  g.addColorStop(1, alpha(color, 0.15));
-  ctx.strokeStyle = g;
-  ctx.lineWidth = 1;
+/** Repère de la planche : disque de papier, glyphe du composant, connecteur fini par un petit cercle, étiquette. */
+function glyphMark(ctx: CanvasRenderingContext2D, scope: Scope, at: Pt, side: 'up' | 'right' | 'left', text: string, color: string, ink: Ink, image: CanvasImageSource | null): void {
+  const k = scope.horizontalPixelRatio;
+  const width = scope.bitmapSize.width;
+  const ctxLs = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+  ctx.font = `500 ${Math.round(9 * scope.verticalPixelRatio)}px ${ink.mono}`;
+  ctxLs.letterSpacing = `${(1.3 * k).toFixed(1)}px`;
+  const textWidth = ctx.measureText(text).width;
+  // Le creux contre le bord droit : connecteur et étiquette passent à gauche.
+  const way = side === 'up' ? 'up' : at.x + 27 * k + textWidth <= width - 4 * k ? 'right' : 'left';
+  const l = leader(at, way, k);
+  ctx.strokeStyle = ink.label;
+  ctx.lineWidth = Math.max(1, Math.round(k));
   ctx.beginPath();
-  ctx.moveTo(x, at.y + (up ? -3 * v : 3 * v));
-  ctx.lineTo(x, end);
+  ctx.moveTo(l.from.x, l.from.y);
+  ctx.lineTo(l.to.x, l.to.y);
   ctx.stroke();
-  const s = Math.max(3, Math.round(3 * h));
-  ctx.fillStyle = color;
-  ctx.fillRect(Math.round(at.x - s / 2), Math.round(at.y - s / 2), s, s);
-  ctx.font = `500 ${Math.round(9 * v)}px ${ink.mono}`;
-  (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${(1.3 * h).toFixed(1)}px`;
-  ctx.textBaseline = up ? 'bottom' : 'top';
-  const width = ctx.measureText(text).width;
-  const left = labelLeft(x, width, 5 * h, scope.bitmapSize.width - 4 * h);
+  ctx.beginPath();
+  ctx.arc(l.dot.x, l.dot.y, 1.9 * k, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = ink.paper;
+  ctx.beginPath();
+  ctx.arc(at.x, at.y, 6.6 * k, 0, Math.PI * 2);
+  ctx.fill();
+  if (image) {
+    const size = 12 * k;
+    ctx.drawImage(image, at.x - size / 2, at.y - size / 2, size, size);
+  }
+  const left = l.align === 'center' ? Math.min(Math.max(2 * k, l.text.x - textWidth / 2), width - textWidth - 2 * k) : l.align === 'left' ? l.text.x : l.text.x - textWidth;
+  // Un fond de papier sous l'étiquette : la courbe et sa trame peuvent passer derrière sans la rendre illisible.
+  const v = scope.verticalPixelRatio;
+  const top = way === 'up' ? l.text.y - 8 * v : l.text.y - 6 * v;
+  ctx.fillStyle = ink.paper;
+  ctx.globalAlpha = 0.85;
+  ctx.fillRect(Math.round(left - 3 * k), Math.round(top), Math.round(textWidth + 6 * k), Math.round(way === 'up' ? 11 * v : 12 * v));
+  ctx.textBaseline = way === 'up' ? 'alphabetic' : 'middle';
   ctx.fillStyle = color;
   ctx.globalAlpha = 0.9;
-  ctx.fillText(text, left, up ? end + 2 * v : end - 2 * v);
+  ctx.fillText(text, left, l.text.y);
   ctx.globalAlpha = 1;
-  (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = '0px';
+  ctxLs.letterSpacing = '0px';
+}
+
+/** Le zéro en lentille du sceau : plein, épais au centre, effilé aux deux bouts. */
+function paintLens(ctx: CanvasRenderingContext2D, width: number, y: number, bulge: number, color: string): void {
+  const l = lens(0, width, y, bulge);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(l.from.x, l.from.y);
+  ctx.bezierCurveTo(l.top[0].x, l.top[0].y, l.top[1].x, l.top[1].y, l.to.x, l.to.y);
+  ctx.bezierCurveTo(l.bottom[0].x, l.bottom[0].y, l.bottom[1].x, l.bottom[1].y, l.from.x, l.from.y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * La borne du plan suivi dans le volet sous l'eau : au-delà, la zone interdite hachurée ; le plancher en trait plein ;
+ * le glyphe de la borne posé à son départ, sur un carré de papier ; l'étiquette au bout.
+ */
+function paintFloor(ctx: CanvasRenderingContext2D, scope: Scope, y: number, label: string, ink: Ink, image: CanvasImageSource | null): void {
+  const h = scope.horizontalPixelRatio;
+  const v = scope.verticalPixelRatio;
+  const width = scope.bitmapSize.width;
+  const height = scope.bitmapSize.height;
+  const top = Math.round(y);
+  if (top < height) {
+    ctx.save();
+    ctx.strokeStyle = ink.neg;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const [a, b] of hatch(0, Math.max(0, top), width, height, Math.max(4, Math.round(5 * h)))) {
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = ink.line;
+  ctx.fillRect(0, top, width, Math.max(1, Math.round(v)));
+  const cx = 6 * h;
+  ctx.fillStyle = ink.paper;
+  ctx.fillRect(cx - 6 * h, top - 6 * h, 12 * h, 12 * h);
+  if (image) {
+    const size = 10 * h;
+    ctx.drawImage(image, cx - size / 2, top - size / 2, size, size);
+  }
+  if (label) {
+    const ctxLs = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+    ctx.font = `500 ${Math.round(9 * v)}px ${ink.mono}`;
+    ctxLs.letterSpacing = `${(1.3 * h).toFixed(1)}px`;
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = ink.line;
+    ctx.fillText(label, width - 4 * h - ctx.measureText(label).width, top - 3 * v);
+    ctxLs.letterSpacing = '0px';
+  }
+}
+
+/** Règle de séances au pied du volet : un trait par séance, un appui toutes les dix. */
+function paintRuler(ctx: CanvasRenderingContext2D, scope: Scope, bars: Bars, ink: Ink): void {
+  const h = scope.horizontalPixelRatio;
+  const v = scope.verticalPixelRatio;
+  const base = scope.bitmapSize.height - 1;
+  const minor = Math.round(2 * v);
+  const major = Math.round(4 * v);
+  for (const bar of bars) {
+    const tick = rulerTick(bar.originalData.session, minor, major);
+    if (!tick) continue;
+    ctx.fillStyle = tick === major ? ink.faint : ink.zero;
+    ctx.fillRect(Math.round(bar.x * h), base - tick, Math.max(1, Math.round(h)), tick);
+  }
 }
 
 /** Lueur douce (photon) autour d'un point. */
@@ -222,7 +332,7 @@ abstract class TraitView implements ICustomSeriesPaneView<Time, EquityRow, Trait
   }
 
   defaultOptions(): TraitOptions {
-    return { ...customSeriesDefaultOptions, ink: NO_INK, marks: NO_MARKS, focus: NONE };
+    return { ...customSeriesDefaultOptions, ink: NO_INK, marks: NO_MARKS, focus: NONE, glyph: NO_GLYPH, floor: 0, floorLabel: '' };
   }
 
   renderer(): ICustomSeriesPaneRenderer {
@@ -251,7 +361,7 @@ export class EquityTrait extends TraitView {
 
   protected paint(scope: Scope, bars: Bars, conv: PriceToCoordinateConverter): void {
     const ctx = scope.context;
-    const { ink, marks, focus } = this.options;
+    const { ink, marks, focus, glyph } = this.options;
     const h = scope.horizontalPixelRatio;
     const zero = conv(0);
     if (zero === null) return;
@@ -260,7 +370,8 @@ export class EquityTrait extends TraitView {
     const pts = points(bars, scope, conv, (row) => row.equity);
     const highs = points(bars, scope, conv, (row) => row.peak);
 
-    hairDots(ctx, 0, width, base, ink.zero, Math.round(3 * h), 0.9);
+    // L'horizon : le zéro tracé comme la lentille du sceau, épais au centre, effilé aux bords.
+    paintLens(ctx, width, base, 1.5 * scope.verticalPixelRatio, ink.label);
     // Plus haut en marches : un filet pointillé qui ne descend jamais.
     for (let i = 0; i < highs.length - 1; i++) {
       const a = highs[i]!;
@@ -299,10 +410,11 @@ export class EquityTrait extends TraitView {
 
     const last = this.data?.bars[this.data.bars.length - 1]?.time;
     const at = (index: number | undefined) => (index === undefined || index === NONE ? undefined : pts.find((p) => p.index === index));
+    // Repères de la planche : ⊕ la cible au plus haut, ⊗ la mire au creux du plus grand drawdown.
     const high = at(marks.high);
-    if (high && marks.high !== last) mark(ctx, scope, high, true, marks.highLabel, ink.label, ink);
+    if (high && marks.high !== last) glyphMark(ctx, scope, high, 'up', marks.highLabel, ink.label, ink, glyph('target'));
     const trough = at(marks.trough);
-    if (trough) mark(ctx, scope, trough, false, marks.troughLabel, ink.neg, ink);
+    if (trough) glyphMark(ctx, scope, trough, 'right', marks.troughLabel, ink.label, ink, glyph('mire'));
     const hovered = at(focus);
     if (hovered && focus !== last) focusMark(ctx, scope, hovered, ink.line);
     const end = last === undefined ? undefined : at(last);
@@ -353,17 +465,21 @@ export class UnderwaterTrait extends TraitView {
 
   protected paint(scope: Scope, bars: Bars, conv: PriceToCoordinateConverter): void {
     const ctx = scope.context;
-    const { ink, focus } = this.options;
+    const { ink, focus, floor, floorLabel, glyph } = this.options;
     const h = scope.horizontalPixelRatio;
     const zero = conv(0);
     if (zero === null) return;
     const base = zero * scope.verticalPixelRatio;
     const pts = points(bars, scope, conv, (row) => row.drawdown);
+    // La borne du plan suivi : derrière la trame, pour que le drawdown se lise par-dessus.
+    const floorY = floor > 0 ? conv(-floor) : null;
+    if (floorY !== null) paintFloor(ctx, scope, floorY * scope.verticalPixelRatio, floorLabel, ink, glyph('borne'));
     hairDots(ctx, 0, scope.bitmapSize.width, base, ink.zero, Math.round(3 * h), 0.9);
     const dots = trame(pts, base, { pitch: Math.max(3, Math.round(4 * h)), fade: 26 * scope.verticalPixelRatio, rMin: 0.3 * h, rMax: 1.05 * h }, { left: 0, right: scope.bitmapSize.width });
     paintDots(ctx, dots, ink.neg, 0.75);
     glowLine(ctx, pts, ink.neg, Math.max(1, h * 0.75), 4 * h);
     const hovered = focus === NONE ? undefined : pts.find((p) => p.index === focus);
     if (hovered && hovered.y > base + 1) photon(ctx, hovered.x, hovered.y, 8 * h, ink.neg, 0.8);
+    paintRuler(ctx, scope, bars, ink);
   }
 }

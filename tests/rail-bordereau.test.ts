@@ -1,0 +1,56 @@
+import { readFileSync } from 'node:fs';
+import { afterEach, describe, expect, it } from 'vitest';
+import { railQuantity, type RailSnapshot } from '@/app/railQuantity';
+import { useI18n } from '@/i18n';
+
+const EMPTY: RailSnapshot = { sessions: 0, todayEntries: 0, notes: 0, links: 0, agentRunning: false, copierAccounts: null, cryptoMarkets: 0 };
+const shell = readFileSync('src/app/Shell.tsx', 'utf8');
+const css = readFileSync('src/app/shell.module.css', 'utf8');
+/** Corps de la règle dont le sélecteur ouvre la ligne (pas une règle descendante qui le contient). */
+const rule = (selector: string) => {
+  const at = css.replace(/\r\n/g, '\n').search(new RegExp(`^${selector.replace(/[.]/g, '\\.')} \\{`, 'm'));
+  const text = css.replace(/\r\n/g, '\n');
+  return at < 0 ? '' : text.slice(at, text.indexOf('}', at));
+};
+
+afterEach(() => useI18n.setState({ locale: 'fr' }));
+
+describe('OROS2.3 rail-bordereau', () => {
+  it('chaque module dit sa quantité, lue dans les données du desk', () => {
+    const snap: RailSnapshot = { sessions: 140, todayEntries: 3, notes: 48, links: 112, agentRunning: false, copierAccounts: 2, cryptoMarkets: 4 };
+    expect(railQuantity('metrique', snap)).toBe('140 séances');
+    expect(railQuantity('calendrier', snap)).toBe('3 repères ce jour');
+    expect(railQuantity('note', snap)).toBe('48 notes · 112 liens');
+    expect(railQuantity('agent', snap)).toBe('En veille');
+    expect(railQuantity('agent', { ...snap, agentRunning: true })).toBe('Orchestrateur en service');
+    expect(railQuantity('copieur', snap)).toBe('2 comptes suiveurs');
+    expect(railQuantity('crypto', snap)).toBe('4 marchés suivis');
+  });
+
+  it('accorde le nombre et parle la langue du desk', () => {
+    expect(railQuantity('metrique', { ...EMPTY, sessions: 1 })).toBe('1 séance');
+    useI18n.setState({ locale: 'en' });
+    expect(railQuantity('metrique', { ...EMPTY, sessions: 140 })).toBe('140 sessions');
+    expect(railQuantity('note', { ...EMPTY, notes: 1, links: 0 })).toBe('1 note · 0 links');
+    useI18n.setState({ locale: 'es' });
+    expect(railQuantity('crypto', { ...EMPTY, cryptoMarkets: 4 })).toBe('4 mercados seguidos');
+  });
+
+  it('se tait plutôt que d’inventer : rien sans donnée lue', () => {
+    expect(railQuantity('metrique', EMPTY)).toBe('Journal vide');
+    for (const id of ['visual', 'portefeuille', 'bot'] as const) expect(railQuantity(id, { ...EMPTY, sessions: 9 })).toBeNull();
+    expect(railQuantity('calendrier', EMPTY)).toBeNull();
+    expect(railQuantity('copieur', EMPTY)).toBeNull();
+    expect(railQuantity('crypto', EMPTY)).toBeNull();
+  });
+
+  it('le rail porte le bordereau et un seul onglet poinçonné, encre sur ivoire', () => {
+    expect(shell).toContain("tr('BORDEREAU', 'MANIFEST', 'ALBARÁN')");
+    expect(shell).toMatch(/qty=\{railQuantity\(item\.id, snapshot\)\}/);
+    expect(shell).toMatch(/aria-current=\{on \? 'page' : undefined\}/);
+    const on = rule('.navItem.on');
+    expect(on).toMatch(/background:\s*var\(--ivory\)/);
+    expect(on).toMatch(/color:\s*var\(--ink\)/);
+    expect(rule('.navQty')).toMatch(/font-family:\s*var\(--font-mono\)/);
+  });
+});

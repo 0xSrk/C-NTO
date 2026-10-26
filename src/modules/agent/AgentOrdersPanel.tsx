@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Plate } from '@/design/Micro';
 import { Button, Field, Tag } from '@/design/primitives';
-import { AGENT_ORDER_BOUNDS, AGENT_ORDER_TAG } from '@/engine/agent/orders';
+import { AGENT_CONFIRM_TIMEOUT_MS, AGENT_ORDER_BOUNDS, AGENT_ORDER_TAG } from '@/engine/agent/orders';
 import { tr, useI18n } from '@/i18n';
 import { dateTimeFormatter } from '@/lib/time';
 import { useAgentOrders } from '@/store/agentOrders';
+import { useBridge } from '@/store/bridge';
+import { agentGuardLabel, agentGuardValues } from './agentGuard';
 import { originLabel, outcomeLabel } from './agentOrderLabels';
 import s from './agent.module.css';
 
@@ -18,6 +21,9 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
   const enable = useAgentOrders((a) => a.enable);
   const disable = useAgentOrders((a) => a.disable);
   const setLimits = useAgentOrders((a) => a.setLimits);
+  // Le raccourci du kill switch, tel que l'annonce le process principal ; inconnu hors du shell.
+  const killShortcut = useBridge((b) => b.nt?.killSwitchShortcut ?? null);
+  const confirmSeconds = AGENT_CONFIRM_TIMEOUT_MS / 1000;
   const [draft, setDraft] = useState<Record<LimitKey, number>>({ maxQty: status.maxQty, maxPosition: status.maxPosition, perMinute: status.perMinute });
 
   useEffect(() => {
@@ -38,6 +44,8 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
 
   return (
     <div className={s.section}>
+      {/* La plaque de la garde en tête : les invariants que le process principal applique, lus, pas recopiés. */}
+      <Plate id="agentGuard" values={agentGuardValues(killShortcut)} label={agentGuardLabel(killShortcut)} className={s.guardPlate} />
       <div className={s.sectionTitle}>
         <span>{tr('Ordres proposés par l’agent', 'Orders proposed by the agent', 'Órdenes propuestas por el agente')}</span>
         <Tag tone={status.pending ? 'gold' : status.enabled ? 'ember' : undefined} dot live={status.pending || status.enabled}>
@@ -52,9 +60,9 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
         <>
           <div className={s.hint}>
             {tr(
-              'L’agent ne soumet rien : avec propose_order, il propose un ordre sur un compte Sim. Le desk vérifie les limites ci-dessous, puis vous montre l’ordre et sa raison dans une fenêtre du système. Rien n’est envoyé sans votre confirmation (45 s, Refuser par défaut). Désactivé à chaque ouverture du desk.',
-              'The agent submits nothing: with propose_order, it proposes an order on a Sim account. The desk checks the limits below, then shows you the order and its reason in a system window. Nothing is sent without your confirmation (45 s, Decline by default). Turned off each time the desk opens.',
-              'El agente no envía nada: con propose_order, propone una orden en una cuenta Sim. El desk comprueba los límites de abajo y luego le muestra la orden y su razón en una ventana del sistema. Nada se envía sin su confirmación (45 s, Rechazar por defecto). Desactivado cada vez que se abre el desk.',
+              `L’agent ne soumet rien : avec propose_order, il propose un ordre sur un compte Sim. Le desk vérifie les limites ci-dessous, puis vous montre l’ordre et sa raison dans une fenêtre du système. Rien n’est envoyé sans votre confirmation (${confirmSeconds} s, Refuser par défaut). Désactivé à chaque ouverture du desk.`,
+              `The agent submits nothing: with propose_order, it proposes an order on a Sim account. The desk checks the limits below, then shows you the order and its reason in a system window. Nothing is sent without your confirmation (${confirmSeconds} s, Decline by default). Turned off each time the desk opens.`,
+              `El agente no envía nada: con propose_order, propone una orden en una cuenta Sim. El desk comprueba los límites de abajo y luego le muestra la orden y su razón en una ventana del sistema. Nada se envía sin su confirmación (${confirmSeconds} s, Rechazar por defecto). Desactivado cada vez que se abre el desk.`,
             )}
           </div>
           <div className={s.row2}>

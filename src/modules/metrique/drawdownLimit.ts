@@ -46,6 +46,23 @@ export function drawdownGauge(input: {
   return { kind: 'clotures', limit, maxDrawdown: dd, used };
 }
 
+/** Part de la borne consommée à partir de laquelle la jauge K.04 passe en attention (signal de niveau 2). */
+export const BORNE_WARN = 0.8;
+
+/**
+ * Signal de la jauge K.04, d'après la borne du plan suivi : 3 (critique) quand elle est franchie — marge épuisée,
+ * compte invalidé, repli au-delà de la limite —, 2 (attention) dès `BORNE_WARN` consommés, 0 en deçà ou sans borne.
+ */
+export function borneSignal(gauge: DrawdownGauge): 0 | 2 | 3 {
+  if (gauge.kind === 'plan') {
+    if (gauge.margin <= 0 || gauge.status === 'echec') return 3;
+    return gauge.used >= BORNE_WARN ? 2 : 0;
+  }
+  if (gauge.limit == null || !(gauge.limit > 0)) return 0;
+  if (gauge.maxDrawdown >= gauge.limit) return 3;
+  return gauge.maxDrawdown / gauge.limit >= BORNE_WARN ? 2 : 0;
+}
+
 
 /**
  * Lien entre le compte filtré et le plan suivi (Firme prop) : `suivre` propose de suivre le plan

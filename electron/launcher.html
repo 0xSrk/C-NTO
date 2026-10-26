@@ -6,62 +6,100 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'" />
     <title>CΛNTO</title>
     <style>
-      /* Polices du desk, embarquées à côté du lanceur (scripts/copy-electron-assets.mjs). */
-      @font-face {
-        font-family: 'Inter Variable';
-        font-style: normal;
-        font-display: block;
-        font-weight: 100 900;
-        src: url(./fonts/inter-latin-wght-normal.woff2) format('woff2-variations');
-        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-      }
-      @font-face {
-        font-family: 'Inter Variable';
-        font-style: normal;
-        font-display: block;
-        font-weight: 100 900;
-        src: url(./fonts/inter-greek-wght-normal.woff2) format('woff2-variations');
-        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
-      }
-      @font-face {
-        font-family: 'JetBrains Mono Variable';
-        font-style: normal;
-        font-display: block;
-        font-weight: 100 800;
-        src: url(./fonts/jetbrains-mono-latin-wght-normal.woff2) format('woff2-variations');
-        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-      }
-      @font-face {
-        font-family: 'JetBrains Mono Variable';
-        font-style: normal;
-        font-display: block;
-        font-weight: 100 800;
-        src: url(./fonts/jetbrains-mono-greek-wght-normal.woff2) format('woff2-variations');
-        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
-      }
-
       :root {
+        /* Jetons du Système 4.0 « ΟΡΟΣ » (src/design/tokens.css) : la seule place des couleurs du lanceur. */
         color-scheme: dark only;
-        --bg: #000000;
-        --bg-3: #0b0b0b;
-        --text-0: #ffffff;
-        --text-1: #c4c4c4;
-        --text-2: #8a8a8a;
-        --text-3: #6c6c6c;
-        --text-4: #4a4a4a;
-        --line-0: #141414;
-        --line-1: #1e1e1e;
-        --line-2: #2e2e2e;
-        --line-3: #424242;
-        --led: #c41e3a;
-        --led-line: rgba(196, 30, 58, 0.5);
-        --amber: #d8b45a;
-        --ember: #e0776c;
-        --font: 'Inter Variable', 'Segoe UI', 'Helvetica Neue', sans-serif;
-        --mono: 'JetBrains Mono Variable', 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+        --bg-0: #07080c;
+        --bg-1: #0d0e12;
+        --bg-2: #14151a;
+        --bg-3: #1c1d23;
+        --line-1: #25262c;
+        --line-2: #36373f;
+        --line-3: #4b4e57;
+        --text-0: #f5f2ea;
+        --text-1: #b9b4a9;
+        --text-2: #8f8a80;
+        --ivory: #f5f2ea;
+        --stone: #e6e2da;
+        --ink: #0b0b0b;
+        --ink-soft: #5e5b55;
+        --gold: #ccb066;
+        --signal: #e10600;
+        --gold-soft: rgba(204, 176, 102, 0.12);
+        --gold-line: rgba(204, 176, 102, 0.45);
+        --gold-glow: 0 0 0 1px rgba(204, 176, 102, 0.35), 0 0 6px rgba(204, 176, 102, 0.55), 0 0 18px rgba(204, 176, 102, 0.28);
+        --scan: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+        --dots: radial-gradient(circle, var(--line-3) 0.8px, transparent 1.1px) 0 50% / 5px 3px repeat-x;
+        --dots-ink: radial-gradient(circle, var(--ink-soft) 0.8px, transparent 1.1px) 0 50% / 5px 3px repeat-x;
+
+        /* Voix : Instrument Sans parle, Geist Mono étiquette, IBM Plex Sans porte le nom et le grec. */
+        --font-ui: 'Instrument Sans', 'IBM Plex Sans', system-ui, sans-serif;
+        --font-mono: 'Geist Mono', 'IBM Plex Sans', ui-monospace, monospace;
+        --font-name: 'IBM Plex Sans', 'Instrument Sans', sans-serif;
+        --f-mono: var(--font-mono);
+        --f-name: var(--font-name);
+        --f-disp: var(--font-ui);
+        /* Micrographies : encre et papier par zone. */
+        --k: var(--text-2);
+        --p: var(--bg-0);
+
+        /* Géométrie de la fenêtre 420 × 620 : l'horizon, le logotype (640 × 160 → 320 × 80, axe y 80 sur l'horizon). */
+        --H: 244px;
+        --word-w: 320px;
+        --seal-h: 400px;
+        --chamfer: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
         --ease: cubic-bezier(0.16, 1, 0.3, 1);
         --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+        /* Temps de l'aube (s) : posés une fois ici, lus par launcher-ui.js (le repos) et aube.js (la lumière).
+           L'horizon se trace, le sceau frappe puis se plie en lui, la LED se lève et se pose sur la pointe du Λ
+           pendant que le logotype se construit, les plaques s'impriment, les commandes montent, la bande sort. */
+        --t-horizon: 0.1s;
+        --t-strike: 0.3s;
+        --t-fold: 0.72s;
+        --t-rise: 0.96s;
+        --t-trace: 1.05s;
+        --t-land: 1.55s;
+        --t-plates: 1.65s;
+        --t-panel: 1.95s;
+        --t-strip: 2.1s;
+        --t-rest: 2.8s;
       }
+
+      @font-face {
+        font-family: 'Instrument Sans';
+        font-style: normal;
+        font-display: block;
+        font-weight: 400 700;
+        font-stretch: 75% 100%;
+        src: url(./fonts/instrument-sans-latin-wdth-normal.woff2) format('woff2-variations');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Geist Mono';
+        font-style: normal;
+        font-display: block;
+        font-weight: 100 900;
+        src: url(./fonts/geist-mono-latin-wght-normal.woff2) format('woff2-variations');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'IBM Plex Sans';
+        font-style: normal;
+        font-display: block;
+        font-weight: 500;
+        src: url(./fonts/ibm-plex-sans-greek-500-normal.woff2) format('woff2');
+        unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+      }
+      @font-face {
+        font-family: 'IBM Plex Sans';
+        font-style: normal;
+        font-display: block;
+        font-weight: 500;
+        src: url(./fonts/ibm-plex-sans-latin-500-normal.woff2) format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
       * {
         box-sizing: border-box;
         margin: 0;
@@ -70,24 +108,41 @@
       html,
       body {
         height: 100%;
-        background: var(--bg);
+        background: var(--bg-0);
         color: var(--text-1);
-        font-family: var(--font);
-        font-feature-settings: 'cv11', 'ss01', 'ss03', 'tnum';
+        font-family: var(--font-ui);
+        font-feature-settings: 'tnum';
+        font-kerning: normal;
         text-rendering: geometricPrecision;
         -webkit-font-smoothing: antialiased;
         overflow: hidden;
         user-select: none;
         -webkit-app-region: drag;
       }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        border-radius: 0;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+      }
+      button:focus-visible {
+        outline: 1px solid var(--gold);
+        outline-offset: 2px;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
 
-      /* ─── AUBE II : scène 3D (WebGL2) + calque vectoriel, sous toute l'interface ─── */
+      /* ─── Calque vectoriel de l'aube (aube.js) : graduation de l'horizon, lumière de la LED, couture du départ ─── */
       .aube {
         position: fixed;
         inset: 0;
         z-index: 0;
         pointer-events: none;
-        background: var(--bg);
       }
       .aube canvas {
         position: absolute;
@@ -96,55 +151,32 @@
         height: 100%;
       }
 
-      /* ─── Réticule fixe : cadre à encoches, règles, repères de coin ─── */
-      .reticle {
+      .frame {
         position: fixed;
         inset: 0;
-        z-index: 0;
-        pointer-events: none;
+        z-index: 1;
       }
-      .reticle svg {
+      /* Balayage du Système 4.0 : un calque fixe, sous les plaques. */
+      .frame::before {
+        content: '';
         position: absolute;
         inset: 0;
-        width: 100%;
-        height: 100%;
+        background: var(--scan);
+        opacity: 0.5;
+        pointer-events: none;
       }
-      .reticle .notch,
-      .reticle .tick {
-        shape-rendering: crispEdges;
+      .frame.leaving {
+        pointer-events: none;
       }
-      .reticle .rim {
-        fill: none;
-        stroke: var(--line-1);
-        stroke-width: 1;
-        stroke-dasharray: 1;
-        stroke-dashoffset: 1;
-        animation: draw 1.1s var(--ease-in-out) 0.05s both;
-      }
-      .reticle .notch {
-        stroke: var(--line-3);
-        stroke-width: 1;
-        animation: fade 0.4s linear 0.7s both;
-      }
-      .reticle .notch.led {
-        stroke: var(--led);
-      }
-      .reticle .tick {
-        stroke: var(--line-0);
-        stroke-width: 1;
-        animation: fade 0.5s linear 0.85s both;
-      }
-      .reticle .tick.major {
-        stroke: var(--line-2);
-      }
+
+      /* Repères de calage aux quatre coins du cadre. */
       .cross {
         position: absolute;
         width: 9px;
         height: 9px;
         background:
-          linear-gradient(var(--text-4), var(--text-4)) 4px 0 / 1px 9px no-repeat,
-          linear-gradient(var(--text-4), var(--text-4)) 0 4px / 9px 1px no-repeat;
-        animation: fade 0.3s linear 0.1s both;
+          linear-gradient(var(--line-3), var(--line-3)) 4px 0 / 1px 9px no-repeat,
+          linear-gradient(var(--line-3), var(--line-3)) 0 4px / 9px 1px no-repeat;
       }
       .cross.tl {
         top: 8px;
@@ -155,311 +187,296 @@
         right: 8px;
       }
       .cross.bl {
-        bottom: 8px;
+        bottom: 32px;
         left: 8px;
       }
       .cross.br {
-        bottom: 8px;
+        bottom: 32px;
         right: 8px;
       }
-      /* Lumière de salle : une source zénithale très faible au-dessus de la marque */
-      .light {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 0;
-        background:
-          radial-gradient(ellipse 60% 36% at 50% 30%, rgba(255, 255, 255, 0.035), transparent 70%),
-          radial-gradient(ellipse 24% 10% at 50% 47%, rgba(196, 30, 58, 0.03), transparent 80%);
-        animation: fade 1.6s var(--ease) 0.3s both;
-      }
 
-      .frame {
-        position: relative;
-        z-index: 1;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        padding: 24px 32px 28px;
-      }
-      .frame.leaving {
-        pointer-events: none;
-      }
-
-      /* ─── Bandeau haut ─── */
-      .top {
+      /* ─── Barre de titre ─── */
+      .title {
+        position: absolute;
+        left: 24px;
+        right: 16px;
+        top: 12px;
+        height: 24px;
         display: flex;
         align-items: center;
-        height: 32px;
-        margin: -4px -12px 0 0;
-        font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.12em;
+        gap: 8px;
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--text-4);
-        animation: rise 0.6s var(--ease) 0.5s both;
-      }
-      .top b {
         color: var(--text-2);
+        white-space: nowrap;
+      }
+      .title b {
+        font-family: var(--font-name);
         font-weight: 500;
+        letter-spacing: 0.12em;
+        color: var(--text-0);
       }
-      .top .dot {
-        width: 4px;
-        height: 4px;
-        margin-right: 8px;
-        background: var(--led);
-        box-shadow: 0 0 0 1px rgba(196, 30, 58, 0.25), 0 0 6px rgba(196, 30, 58, 0.55);
-        animation: breathe 2.4s var(--ease-in-out) infinite;
-      }
-      .top .sp {
+      .title .sp {
         flex: 1;
       }
       .close {
-        -webkit-app-region: no-drag;
-        width: 32px;
-        height: 32px;
+        width: 24px;
+        height: 24px;
         display: grid;
         place-items: center;
-        border: 0;
-        background: transparent;
-        color: var(--text-3);
-        cursor: pointer;
-        transition: color 120ms linear, background 120ms linear;
+        color: var(--text-2);
       }
-      .close:hover {
-        color: #000;
-        background: var(--ember);
+      .close:active {
+        color: var(--text-0);
       }
       .close svg {
         display: block;
         shape-rendering: crispEdges;
       }
 
-      /* ─── Marque ─── */
-      .brand {
-        position: relative;
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 24px;
-        padding-bottom: 8px;
-      }
-      .mark {
-        position: relative;
-        width: 72px;
-        height: 72px;
-        animation: mark-in 0.9s var(--ease) 0.15s both;
-      }
-      .mark img {
-        display: block;
-        width: 72px;
-        height: 72px;
-        outline: 1px solid var(--line-1);
-      }
-      /* Équerres LED + croisillons d'axe */
-      .mark i {
+      /* ─── Plaques : relevés réels, l'encre en graphite, la valeur liée en ivoire ─── */
+      .plate {
         position: absolute;
-        width: 8px;
-        height: 8px;
-        border: 0 solid var(--led-line);
-        animation: bracket-in 0.7s var(--ease) 0.45s both;
+        line-height: 0;
       }
-      .mark i:nth-of-type(1) {
-        top: -5px;
-        left: -5px;
-        border-width: 1px 0 0 1px;
-        --dx: -6px;
-        --dy: -6px;
-      }
-      .mark i:nth-of-type(2) {
-        top: -5px;
-        right: -5px;
-        border-width: 1px 1px 0 0;
-        --dx: 6px;
-        --dy: -6px;
-      }
-      .mark i:nth-of-type(3) {
-        bottom: -5px;
-        left: -5px;
-        border-width: 0 0 1px 1px;
-        --dx: -6px;
-        --dy: 6px;
-      }
-      .mark i:nth-of-type(4) {
-        bottom: -5px;
-        right: -5px;
-        border-width: 0 1px 1px 0;
-        --dx: 6px;
-        --dy: 6px;
-      }
-      .mark::before,
-      .mark::after {
-        content: '';
-        position: absolute;
-        background: var(--line-2);
-      }
-      .mark::before {
-        left: 50%;
-        top: -16px;
-        width: 1px;
-        height: calc(100% + 32px);
-        background: linear-gradient(var(--line-2) 0 8px, transparent 8px calc(100% - 8px), var(--line-2) calc(100% - 8px));
-      }
-      .mark::after {
-        top: 50%;
-        left: -16px;
-        height: 1px;
-        width: calc(100% + 32px);
-        background: linear-gradient(90deg, var(--line-2) 0 8px, transparent 8px calc(100% - 8px), var(--line-2) calc(100% - 8px));
-      }
-      .word {
+      .plate svg {
         display: block;
-        width: 216px;
-        height: 54px;
+        width: 100%;
+        height: auto;
         overflow: visible;
+        font-family: var(--f-mono);
+        font-weight: 450;
+      }
+      .plate text {
+        font-kerning: normal;
+      }
+      .plate .lm-v {
+        fill: var(--text-0);
+      }
+      /* Le ciel : les deux plaques se tiennent sur l'horizon, à 52 px au-dessus de lui. */
+      .p-seal {
+        left: 24px;
+        bottom: calc(100% - var(--H) + 52px);
+        width: 140px;
+      }
+      .p-artefact {
+        right: 24px;
+        bottom: calc(100% - var(--H) + 52px);
+        width: 168px;
+      }
+      .p-release {
+        left: 34px;
+        right: 34px;
+        top: calc(var(--H) + 68px);
+      }
+
+      /* ─── L'horizon : la lentille du sceau, à l'échelle de la fenêtre ─── */
+      .lens {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        top: calc(var(--H) - 1px);
+        height: 2.6px;
+        display: block;
+        overflow: visible;
+        color: var(--text-0);
+        opacity: 0.9;
+      }
+
+      /* ─── Logotype : grille 640 × 160, axe y 80 sur l'horizon ─── */
+      .word {
+        position: absolute;
+        left: calc(50% - var(--word-w) / 2);
+        top: calc(var(--H) - var(--word-w) / 8);
+        width: var(--word-w);
+        height: calc(var(--word-w) / 4);
+        display: block;
+        overflow: visible;
+        color: var(--text-0);
         transform-origin: 50% 50%;
-        transition: transform 0.28s var(--ease-in-out), opacity 0.2s linear 0.12s, filter 0.3s linear;
+        transition: transform 0.28s var(--ease-in-out), opacity 0.2s linear 0.12s;
       }
-      .word .core path {
-        stroke-dasharray: 1;
-        stroke-dashoffset: 1;
-        animation: draw 0.9s cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
-        animation-delay: calc(0.35s + var(--i) * 0.08s);
-      }
-      .word .bloom {
-        opacity: 0;
-        filter: blur(3px);
-        animation: bloom 1.6s ease-out 0.6s forwards;
+      .word .halo {
+        opacity: 0.16;
+        filter: blur(2.6px);
       }
       .word .glint path {
         stroke-dasharray: 0.05 0.95;
         stroke-dashoffset: 1.05;
         opacity: 0;
       }
-      .word .glint path {
-        animation: glint 0.9s cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
-        animation-delay: calc(0.35s + var(--i) * 0.08s);
-      }
       .frame.leaving .word .glint path {
         animation: glint 0.62s cubic-bezier(0.5, 0, 0.2, 1) forwards;
         animation-delay: calc(var(--i) * 0.05s);
-      }
-      .frame.leaving .word {
-        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
       }
       .frame.collapse .word {
         transform: scaleY(0.02);
         opacity: 0;
       }
-      .lab {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-family: var(--mono);
-        font-size: 11px;
-        font-weight: 500;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: var(--text-3);
-        animation: track-in 1.1s var(--ease) 0.8s both;
+
+      /* La LED de relais : posée sur la pointe du Λ (208, 30 sur la grille). Le porteur la mène en x, la LED en y :
+         deux courbes, une trajectoire — elle se lève de l'horizon au centre et vient se poser sur la pointe. */
+      .led-path {
+        position: absolute;
+        left: calc(50% + (208 - 320) * var(--word-w) / 640 - 2.5px);
+        top: calc(var(--H) + (30 - 80) * var(--word-w) / 640 - 2.5px);
+        width: 5px;
+        height: 5px;
       }
-      .lab::before,
-      .lab::after {
-        content: '';
-        width: 16px;
-        height: 1px;
-        background: var(--line-2);
-      }
-      .lab b {
-        color: var(--led);
-        font-weight: 600;
-        text-shadow: 0 0 8px rgba(196, 30, 58, 0.35);
+      .led {
+        position: absolute;
+        inset: 0;
+        background: var(--gold);
+        box-shadow: var(--gold-glow);
       }
 
-      /* ─── Commandes ─── */
-      .panel {
-        position: relative;
-        -webkit-app-region: no-drag;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      .panel::before {
-        content: '';
+      /* ─── Instruments de l'aube : présents seulement pendant l'aube, éteints au repos ─── */
+      /* Le sceau Horizon, son horizon (48,27 % de sa hauteur) posé sur celui de l'écran. */
+      .seal {
         position: absolute;
-        inset: -40px -32px -28px;
-        z-index: -1;
-        background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.5) 40px);
+        height: var(--seal-h);
+        width: calc(var(--seal-h) * 808 / 740);
+        left: calc(50% - var(--seal-h) * 404 / 740);
+        top: calc(var(--H) - 0.4827 * var(--seal-h));
+        transform-origin: 50% 48.27%;
+        color: var(--text-0);
+        line-height: 0;
+        opacity: 0;
         pointer-events: none;
       }
-      .panel > * {
-        animation: rise 0.6s var(--ease) both;
+      .seal svg {
+        display: block;
+        width: 100%;
+        height: 100%;
       }
-      .panel > :nth-child(1) {
-        animation-delay: 0.7s;
+      /* Les rayons de l'horizon (composant 96) : leur ligne sur l'horizon, leur point au centre. */
+      .rays {
+        position: absolute;
+        left: calc(50% - 48px);
+        top: calc(var(--H) - 48px);
+        width: 96px;
+        height: 49.4px;
+        line-height: 0;
+        transform-origin: 50% 97.3%;
+        opacity: 0;
+        --k: var(--gold);
       }
-      .panel > :nth-child(2) {
-        animation-delay: 0.78s;
+      .rays svg {
+        display: block;
+        width: 100%;
+        height: 100%;
       }
-      .panel > :nth-child(3) {
-        animation-delay: 0.86s;
+      /* Construction du logotype : guides, cote, ancres et relevés — en filets d'un pixel. */
+      .word .guides,
+      .word .anchors {
+        opacity: 0;
       }
-      .panel > :nth-child(4) {
-        animation-delay: 0.94s;
+      .word .guides path {
+        fill: none;
+        stroke: var(--line-3);
+        stroke-width: 0.5;
+        vector-effect: non-scaling-stroke;
+      }
+      .word .guides .cote path {
+        stroke: var(--text-2);
+      }
+      .word text {
+        font: 500 15px/1 var(--font-mono);
+        letter-spacing: 0.06em;
+        fill: var(--text-2);
+        stroke: none;
+      }
+      .word .guides text {
+        text-anchor: middle;
+      }
+      .word .anchors rect {
+        fill: var(--text-1);
+      }
+      .clock {
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        color: var(--text-2);
+        visibility: hidden;
+      }
+
+      .lab {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(var(--H) + 34px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--text-2);
+        white-space: nowrap;
+      }
+      .lab b {
+        font-family: var(--font-name);
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        color: var(--text-1);
+      }
+      .lab i {
+        width: 4px;
+        height: 4px;
+        background: var(--gold);
+      }
+
+      /* ─── Commandes : la langue, l'action principale, la mise à jour ─── */
+      .panel {
+        position: absolute;
+        left: 24px;
+        right: 24px;
+        top: 372px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        -webkit-app-region: no-drag;
       }
       .rule {
         display: flex;
         align-items: center;
         gap: 12px;
-        font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.12em;
+        height: 12px;
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--text-3);
+        color: var(--text-2);
       }
       .rule::after {
         content: '';
         flex: 1;
-        height: 1px;
-        background: linear-gradient(90deg, var(--line-1), transparent);
-      }
-      .rule b {
-        color: var(--text-4);
-        font-weight: 500;
+        height: 3px;
+        background: var(--dots);
       }
       .lang-row {
         position: relative;
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
-        border: 1px solid var(--line-1);
+        height: 32px;
+        border: 1px solid var(--line-2);
       }
       .lang-row button {
         position: relative;
         z-index: 1;
-        height: 32px;
-        border: 0;
-        background: transparent;
-        color: var(--text-2);
-        font-family: var(--mono);
-        font-size: 11px;
-        font-weight: 500;
-        letter-spacing: 0.12em;
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        cursor: pointer;
+        color: var(--text-1);
         transition: color 160ms linear;
       }
       .lang-row button + button {
-        box-shadow: inset 1px 0 0 var(--line-1);
-      }
-      .lang-row button:hover {
-        color: var(--text-0);
+        box-shadow: inset 1px 0 0 var(--line-2);
       }
       .lang-row button.on {
-        color: #000;
+        color: var(--ink);
       }
+      /* L'onglet poinçonné : l'ivoire glisse sous la langue choisie. */
       .lang-row .thumb {
         position: absolute;
         z-index: 0;
@@ -467,7 +484,7 @@
         bottom: 0;
         left: 0;
         width: calc(100% / 3);
-        background: var(--text-0);
+        background: var(--ivory);
         transform: translateX(calc(var(--at, 0) * 100%));
         transition: transform 0.32s var(--ease);
       }
@@ -475,256 +492,497 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
+        margin-top: 4px;
       }
       .btn {
         position: relative;
         display: flex;
         align-items: center;
         gap: 12px;
-        height: 48px;
+        height: 44px;
         padding: 0 16px;
-        border: 1px solid var(--line-2);
-        background: transparent;
-        color: var(--text-0);
-        font-family: var(--mono);
-        font-size: 11px;
-        font-weight: 500;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
+        font: 600 14px/1 var(--font-ui);
+        letter-spacing: -0.005em;
         text-align: left;
-        cursor: pointer;
         overflow: hidden;
-        transition: background 160ms linear, border-color 160ms linear, color 160ms linear;
-      }
-      .btn[hidden] {
-        display: none;
       }
       .btn .label {
         flex: 1;
       }
-      .btn .key {
-        display: grid;
-        place-items: center;
-        min-width: 20px;
-        height: 20px;
-        padding: 0 4px;
-        border: 1px solid currentColor;
-        opacity: 0.35;
+      .btn .g {
+        width: 14px;
+        height: 14px;
+        line-height: 0;
       }
-      .btn .key svg {
+      .btn .g svg {
         display: block;
+        width: 100%;
+        height: 100%;
       }
-      .btn .arrow {
-        width: 16px;
-        height: 8px;
-        transition: transform 0.32s var(--ease);
-      }
-      .btn:hover:not(:disabled) .arrow {
-        transform: translateX(4px);
-      }
-      .btn:disabled {
-        opacity: 0.45;
-        cursor: default;
-      }
+      /* L'action principale : chanfrein, fond ivoire, texte nuit, la flèche d'ouverture de la planche. */
       .btn.primary {
-        background: var(--text-0);
-        color: #000;
-        border-color: var(--text-0);
-        /* Encoche : coin haut-droit chanfreiné 8 px */
-        clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+        background: var(--ivory);
+        color: var(--ink);
+        clip-path: var(--chamfer);
+        --k: var(--ink);
       }
-      .btn.primary::after {
-        /* Fuite LED 1 px sur l'arête basse, glisse au survol */
+      .btn.primary:active:not(:disabled) {
+        background: var(--stone);
+      }
+      /* Désactivée (une mise à jour s'applique) : la plaque d'ivoire se retire en filet, sans bloc gris. */
+      .btn.primary:disabled {
+        opacity: 1;
+        background: transparent;
+        color: var(--text-2);
+        box-shadow: inset 0 0 0 1px var(--line-2);
+        --k: var(--text-2);
+      }
+      /* La mise à jour vit : filet or, flèche d'import en or. */
+      .btn.update {
+        height: 40px;
+        font-size: 13px;
+        color: var(--text-0);
+        box-shadow: inset 0 0 0 1px var(--gold);
+        --k: var(--gold);
+      }
+      .btn.update:active:not(:disabled) {
+        background: var(--gold-soft);
+      }
+      .btn.update.busy {
+        box-shadow: inset 0 0 0 1px var(--gold-line);
+      }
+
+      /* ─── Pied d'état : la jauge, le signal, les nouveautés — calés au-dessus de la bande ─── */
+      .status {
+        position: absolute;
+        left: 24px;
+        right: 24px;
+        bottom: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        -webkit-app-region: no-drag;
+      }
+      /* Jauge du téléchargement : la règle de la planche, une séquence de points qui se remplit d'or. */
+      .gauge {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 12px;
+        --fill: 0;
+      }
+      .gauge .g {
+        width: 30px;
+        height: 3px;
+        line-height: 0;
+        --k: var(--text-2);
+      }
+      .gauge .g svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .gauge .track {
+        position: relative;
+        flex: 1;
+        height: 12px;
+        box-shadow:
+          inset 1px 0 0 var(--text-2),
+          inset -1px 0 0 var(--text-2);
+      }
+      .gauge .track::before,
+      .gauge .track i {
+        content: '';
+        position: absolute;
+        left: 3px;
+        top: 4px;
+        height: 4px;
+      }
+      .gauge .track::before {
+        right: 3px;
+        background: radial-gradient(circle, var(--line-3) 1px, transparent 1.4px) 0 50% / 6px 4px repeat-x;
+      }
+      .gauge .track i {
+        width: calc((100% - 6px) * var(--fill));
+        background: radial-gradient(circle, var(--gold) 1.4px, transparent 1.8px) 0 50% / 6px 4px repeat-x;
+      }
+      .gauge .track::after {
         content: '';
         position: absolute;
         left: 0;
+        right: 0;
         bottom: 0;
-        height: 2px;
-        width: 96px;
-        background: linear-gradient(90deg, var(--led), transparent);
-        transform: translateX(-100%);
-        transition: transform 0.6s var(--ease);
+        height: 3px;
+        background: repeating-linear-gradient(90deg, var(--text-2) 0 1px, transparent 1px 10%);
       }
-      .btn.primary:hover:not(:disabled)::after {
-        transform: translateX(0);
+      .gauge b {
+        min-width: 36px;
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-align: right;
+        color: var(--text-0);
       }
-      .btn.primary:hover:not(:disabled) {
-        background: #ececec;
-      }
-      .btn.primary:active:not(:disabled) {
-        background: #d8d8d8;
-      }
-      .btn.update {
-        height: 40px;
-        border-color: rgba(216, 180, 90, 0.5);
-        color: var(--amber);
-      }
-      .btn.update:hover:not(:disabled) {
-        border-color: var(--amber);
-        background: rgba(216, 180, 90, 0.06);
-      }
-      .btn.update.busy {
-        opacity: 0.7;
-      }
-      .btn.update .key {
-        display: none;
-      }
+
+      /* Signal : la forme dit le niveau — 1 orbite, 2 rayonnement, 3 cercle barré (seul rouge) ; l'anneau tourne pendant un contrôle. */
       .meta {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 8px;
         min-height: 16px;
-        font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        color: var(--text-3);
-        line-height: 16px;
+        font: 500 11px/15px var(--font-mono);
+        letter-spacing: 0.02em;
+        color: var(--text-1);
+        user-select: text;
       }
-      .meta::before {
-        content: '';
+      .meta .sg {
+        position: relative;
         flex: none;
-        width: 4px;
-        height: 4px;
-        background: var(--text-4);
+        width: 15px;
+        height: 15px;
+        line-height: 0;
+        --k: var(--text-1);
+      }
+      .meta .sg svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      .meta[data-level='1'] .sg {
+        width: 19px;
+      }
+      .meta .sg .g131-1,
+      .meta .sg .g131-2 {
+        stroke-width: 6px;
+      }
+      .meta[data-level='2'] .sg {
+        --k: var(--text-0);
+      }
+      .meta[data-level='2'] .txt,
+      .meta[data-level='3'] .txt {
+        color: var(--text-0);
+      }
+      /* Le rouge marque, il n'écrit jamais : le glyphe seul prend le signal. */
+      .meta[data-level='3'] .sg {
+        --k: var(--signal);
+      }
+      .meta[data-level='busy'] .sg::after {
+        content: '';
+        position: absolute;
+        left: 6px;
+        top: 0.4px;
+        width: 3px;
+        height: 3px;
+        background: var(--gold);
+        transform-origin: 1.5px 7.1px;
+        animation: tick 1.2s steps(12, end) infinite;
       }
       .meta .txt {
-        flex: none;
-        max-width: 100%;
+        min-width: 0;
       }
       .meta::after {
         content: '';
         flex: 1;
         min-width: 16px;
-        border-bottom: 1px dotted var(--line-2);
+        height: 3px;
+        margin-top: 6px;
+        background: var(--dots);
       }
-      .meta.ok::before {
-        background: var(--text-1);
+      .notes-slot {
+        min-height: 16px;
       }
-      .meta.warn {
-        color: var(--amber);
+      .notes-toggle {
+        font: 500 11px/16px var(--font-mono);
+        letter-spacing: 0.02em;
+        color: var(--text-1);
+        text-align: left;
       }
-      .meta.warn::before {
-        background: var(--amber);
-        box-shadow: 0 0 6px rgba(216, 180, 90, 0.5);
-      }
-      .meta.err {
-        color: var(--ember);
-      }
-      .meta.err::before {
-        background: var(--ember);
-      }
-      .meta.busy::before {
-        animation: blink 0.9s steps(2, jump-none) infinite;
+      .notes-toggle:active,
+      .notes-toggle[aria-expanded='true'] {
+        color: var(--text-0);
       }
 
-      /* Nouveautés : bouton texte sous #meta. Le déroulé est hors flux pour ne pas déplacer Lancer / Mettre à jour. */
-      .notes-toggle {
-        align-self: flex-start;
-        margin: 0;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: var(--text-3);
-        font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.04em;
-        line-height: 16px;
-        text-align: left;
-        cursor: pointer;
-      }
-      .notes-toggle:hover,
-      .notes-toggle:focus-visible {
-        color: var(--text-1);
-      }
-      .notes-toggle[hidden] {
-        display: none;
-      }
+      /* ─── Nouveautés : une fiche, le papier du Lab sorti sur la nuit ─── */
       .notes {
         position: absolute;
         z-index: 4;
+        left: 24px;
+        right: 24px;
+        top: 48px;
+        height: 316px;
+        overflow: auto;
+        padding: 0 16px 14px;
+        background: var(--ivory);
+        color: var(--ink);
+        clip-path: var(--chamfer);
+        font: 400 12px/1.45 var(--font-ui);
+        user-select: text;
+        -webkit-app-region: no-drag;
+        scrollbar-width: thin;
+        scrollbar-color: var(--ink-soft) var(--ivory);
+      }
+      .notes .fh {
+        position: sticky;
+        top: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        height: 32px;
+        margin: 0 -16px 4px;
+        padding: 0 16px;
+        background: var(--ivory);
+        box-shadow: inset 0 -1px 0 var(--ink);
+        font: 600 10px/1 var(--font-mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .notes .fh span + span {
+        text-transform: none;
+        letter-spacing: 0.08em;
+      }
+      .notes .ver {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 12px 0 4px;
+        font: 600 10px/1 var(--font-mono);
+        letter-spacing: 0.12em;
+        color: var(--ink);
+      }
+      .notes .ver::after {
+        content: '';
+        flex: 1;
+        height: 3px;
+        background: var(--dots-ink);
+      }
+      .notes ul {
+        list-style: none;
+      }
+      .notes li {
+        position: relative;
+        padding-left: 14px;
+      }
+      .notes li::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 0.62em;
+        width: 4px;
+        height: 4px;
+        background: var(--ink-soft);
+      }
+      .notes li + li {
+        margin-top: 3px;
+      }
+
+      /* ─── Bande d'étiquette : le canal, et le seul code-barres, en bas à droite ─── */
+      .strip {
+        position: absolute;
         left: 0;
         right: 0;
         bottom: 0;
-        max-height: min(180px, 100%);
-        overflow: auto;
-        padding: 8px 10px;
-        background: #000;
-        border: 1px solid var(--line-1);
-        color: var(--text-2);
-        font-family: var(--font);
-        font-size: 12px;
-        line-height: 1.45;
-        letter-spacing: 0;
-        text-align: left;
-        text-transform: none;
-        user-select: text;
-        -webkit-app-region: no-drag;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+        background: var(--ivory);
+        color: var(--ink);
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        white-space: nowrap;
       }
-      .notes[hidden] {
+      .strip .sp {
+        flex: 1;
+      }
+      .strip .soft {
+        color: var(--ink-soft);
+      }
+      .code {
+        display: block;
+        height: 12px;
+      }
+      .btn[hidden],
+      .gauge[hidden],
+      .notes[hidden],
+      .notes-toggle[hidden] {
         display: none;
       }
-      .notes.open {
-        animation: notes-in 0.22s var(--ease);
-      }
-      .notes .ver {
-        margin: 8px 0 2px;
-        font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        color: var(--text-3);
-      }
-      .notes .ver:first-child {
-        margin-top: 0;
-      }
-      .notes ul {
-        margin: 0;
-        padding-left: 16px;
-      }
-      .notes li + li {
-        margin-top: 2px;
-      }
-      @keyframes notes-in {
-        from {
-          opacity: 0;
-          transform: translateY(4px);
-        }
-        to {
-          opacity: 1;
-          transform: none;
-        }
-      }
 
-      /* Sortie : tout se retire sauf le logotype, qui devient la source du circuit */
-      .frame.leaving .top,
-      .frame.leaving .mark,
+      /* Départ : tout se retire sauf le logotype et l'horizon. */
+      .frame.leaving .title,
+      .frame.leaving .plate,
       .frame.leaving .lab,
-      .frame.leaving .panel > * {
-        animation: none;
+      .frame.leaving .panel,
+      .frame.leaving .status,
+      .frame.leaving .notes,
+      .frame.leaving .strip {
         opacity: 0;
         transform: translateY(4px);
         transition: opacity 0.22s linear, transform 0.3s var(--ease);
       }
-      .frame.leaving .mark {
+      .frame.leaving .strip {
         transform: none;
       }
-      .frame.leaving .lab {
-        transition-delay: 0.04s;
-      }
-      .frame.leaving .panel > :nth-child(1) {
-        transition-delay: 0.02s;
-      }
-      .frame.leaving .panel > :nth-child(2) {
-        transition-delay: 0.05s;
-      }
-      .frame.leaving .panel > :nth-child(4) {
-        transition-delay: 0.1s;
+      /* La LED quitte la pointe dès le départ : la lumière de l'aube (aube.js) la ramène sur l'horizon. */
+      .frame.leaving .led-path {
+        opacity: 0;
+        transition: opacity 0.12s linear;
       }
 
-      /* ─── Transition : circuit canvas + télémétrie ─── */
+      /* ═══ L'AUBE — la séquence d'ouverture (≤ 2,8 s). Chaque pas dit un état réel du lanceur : le cadre se cale,
+         l'horizon se trace, le sceau signe, la LED (vivante) se lève et se pose, la marque se construit sur sa
+         grille, les relevés s'impriment, les commandes deviennent actives. Une touche ou un clic l'abrège ; le
+         mouvement réduit la tait. Seuls transform et opacity bougent (et la découpe des plaques imprimées). ═══ */
+      .frame[data-phase='intro'] {
+        -webkit-app-region: no-drag;
+      }
+      .frame[data-phase='intro'] .clock {
+        visibility: visible;
+      }
+      /* 1 · Le cadre se cale : les repères se posent, puis la frappe du sceau les fait vibrer. */
+      .frame[data-phase='intro'] .cross {
+        animation:
+          aube-in 0.3s var(--ease) var(--t-horizon) both,
+          aube-jolt 0.26s ease-out calc(var(--t-strike) + 0.1s) both;
+      }
+      .cross.tl {
+        --dx: -1;
+        --dy: -1;
+      }
+      .cross.tr {
+        --dx: 1;
+        --dy: -1;
+      }
+      .cross.bl {
+        --dx: -1;
+        --dy: 1;
+      }
+      .cross.br {
+        --dx: 1;
+        --dy: 1;
+      }
+      .frame[data-phase='intro'] .title {
+        animation: aube-in 0.4s linear calc(var(--t-horizon) + 0.1s) both;
+      }
+      /* 2 · L'horizon : la lentille du sceau se trace du centre vers les bords. */
+      .frame[data-phase='intro'] .lens {
+        animation: aube-horizon 0.46s var(--ease) var(--t-horizon) both;
+      }
+      /* 3 · Le sceau frappe sur l'horizon, ses reflets courent du centre vers le large, puis il se plie dans la ligne. */
+      .frame[data-phase='intro'] .seal {
+        animation:
+          aube-strike 0.26s cubic-bezier(0.2, 0.7, 0.1, 1) var(--t-strike) both,
+          aube-fold 0.26s cubic-bezier(0.6, 0, 0.9, 0.4) var(--t-fold) forwards;
+      }
+      .frame[data-phase='intro'] .seal [data-part='filaments'] path {
+        animation: aube-ripple 0.2s ease-out calc(var(--t-strike) + 0.12s + var(--i) * 0.025s) both;
+      }
+      /* 4 · Le lever : les rayons de l'horizon jaillissent du point où le sceau s'est plié ; la LED en sort. */
+      .frame[data-phase='intro'] .rays {
+        animation: aube-rays 0.42s cubic-bezier(0.2, 0.8, 0.3, 1) var(--t-rise) both;
+      }
+      .frame[data-phase='intro'] .led-path {
+        animation: aube-rise-x 0.59s var(--ease-in-out) var(--t-rise) both;
+      }
+      .frame[data-phase='intro'] .led {
+        animation: aube-rise-y 0.59s linear var(--t-rise) both;
+      }
+      /* La pose : l'éclat de la LED quand la pointe du Λ passe sous elle. */
+      .led::after {
+        content: '';
+        position: absolute;
+        left: -18px;
+        top: -18px;
+        width: 41px;
+        height: 41px;
+        background: radial-gradient(closest-side, var(--gold-line), transparent);
+        opacity: 0;
+      }
+      .frame[data-phase='intro'] .led::after {
+        animation: aube-flare 0.6s ease-out var(--t-land) both;
+      }
+      /* 5 · La marque se construit sur sa grille : guides et cote, tracés lettre à lettre, ancres au passage de la pointe. */
+      .frame[data-phase='intro'] .word .guides {
+        animation:
+          aube-show 0.2s linear var(--t-rise) both,
+          aube-out 0.35s linear calc(var(--t-trace) + 1.15s) forwards;
+      }
+      .frame[data-phase='intro'] .word .guides .gx {
+        transform-box: fill-box;
+        transform-origin: 50% 50%;
+        animation: aube-draw-x 0.34s var(--ease) var(--t-rise) both;
+      }
+      .frame[data-phase='intro'] .word .guides .gy {
+        transform-box: fill-box;
+        transform-origin: 50% 0;
+        animation: aube-draw-y 0.3s var(--ease) calc(var(--t-rise) + 0.06s + var(--i) * 0.02s) both;
+      }
+      .frame[data-phase='intro'] .word .guides .cote {
+        animation: aube-in 0.24s linear calc(var(--t-rise) + 0.3s) both;
+      }
+      .frame[data-phase='intro'] .word .core path {
+        stroke-dasharray: 1;
+        animation: aube-trace 0.78s var(--ease-in-out) calc(var(--t-trace) + var(--i) * 0.09s) both;
+      }
+      .frame[data-phase='intro'] .word .glint path {
+        animation: glint 0.78s var(--ease-in-out) calc(var(--t-trace) + var(--i) * 0.09s) both;
+      }
+      .frame[data-phase='intro'] .word .anchors {
+        animation:
+          aube-show 0.01s linear var(--t-trace) both,
+          aube-out 0.3s linear calc(var(--t-trace) + 1.2s) forwards;
+      }
+      .frame[data-phase='intro'] .word .anchors > * {
+        animation: aube-in 0.12s linear calc(var(--t-trace) + var(--a)) both;
+      }
+      .frame[data-phase='intro'] .word .halo {
+        animation: aube-halo 0.6s linear calc(var(--t-land) + 0.35s) both;
+      }
+      /* 6 · Les relevés s'impriment : plaques de haut en bas, la ligne du Lab se resserre. */
+      .frame[data-phase='intro'] .p-seal {
+        animation: aube-print 0.32s steps(8, end) var(--t-plates) both;
+      }
+      .frame[data-phase='intro'] .p-artefact {
+        animation: aube-print 0.32s steps(8, end) calc(var(--t-plates) + 0.1s) both;
+      }
+      .frame[data-phase='intro'] .lab {
+        animation: aube-track 0.5s var(--ease) calc(var(--t-plates) + 0.15s) both;
+      }
+      .frame[data-phase='intro'] .p-release {
+        animation: aube-print 0.32s steps(8, end) calc(var(--t-plates) + 0.25s) both;
+      }
+      /* 7 · Les commandes montent, l'état se pose, la bande d'étiquette sort de l'imprimante et son code avec elle. */
+      .frame[data-phase='intro'] .rule {
+        animation: aube-rise 0.4s var(--ease) var(--t-panel) both;
+      }
+      .frame[data-phase='intro'] .lang-row {
+        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.05s) both;
+      }
+      .frame[data-phase='intro'] .btn.primary {
+        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.1s) both;
+      }
+      .frame[data-phase='intro'] .btn.update {
+        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.15s) both;
+      }
+      .frame[data-phase='intro'] .status {
+        animation: aube-in 0.36s linear calc(var(--t-panel) + 0.22s) both;
+      }
+      .frame[data-phase='intro'] .strip {
+        animation: aube-strip 0.36s var(--ease-in-out) var(--t-strip) both;
+      }
+      .frame[data-phase='intro'] .code {
+        animation: aube-in 0.2s steps(4, end) calc(var(--t-strip) + 0.3s) both;
+      }
+
+      /* ─── Télémétrie du départ ─── */
       .xfer {
         position: fixed;
         inset: 0;
-        z-index: 0;
+        z-index: 2;
         pointer-events: none;
         visibility: hidden;
       }
@@ -739,16 +997,15 @@
       }
       .hud {
         position: absolute;
-        left: 32px;
-        right: 32px;
+        left: 24px;
+        right: 24px;
         display: flex;
         align-items: center;
         gap: 12px;
-        font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.12em;
+        font: 500 10px/1 var(--font-mono);
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--text-3);
+        color: var(--text-2);
         opacity: 0;
         transition: opacity 0.3s linear 0.2s;
       }
@@ -756,114 +1013,32 @@
         opacity: 1;
       }
       .hud.top-hud {
-        top: 36px;
+        top: 19px;
       }
       .hud.bottom-hud {
-        bottom: 36px;
+        bottom: 40px;
       }
       .hud .fill {
-        flex: 1;
-        height: 1px;
-        background: var(--line-1);
         position: relative;
+        flex: 1;
+        height: 3px;
+        background: var(--dots);
         overflow: hidden;
       }
       .hud .fill span {
         position: absolute;
         inset: 0 auto 0 0;
         width: 0;
-        background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), var(--text-0));
-      }
-      .hud .fill span::after {
-        content: '';
-        position: absolute;
-        right: 0;
-        top: -1px;
-        width: 2px;
-        height: 3px;
-        background: #fff;
-        box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+        background: radial-gradient(circle, var(--gold) 1px, transparent 1.3px) 0 50% / 5px 3px repeat-x;
       }
       .hud b {
         color: var(--text-0);
         font-weight: 500;
       }
-      .hud .led {
-        color: var(--led);
-      }
-      .hud .caret {
-        display: inline-block;
-        width: 6px;
-        height: 11px;
-        margin-left: 4px;
-        vertical-align: -1px;
-        background: var(--text-1);
-        animation: blink 0.9s steps(2, jump-none) infinite;
+      .hud .led-mark {
+        color: var(--gold);
       }
 
-      @keyframes draw {
-        to {
-          stroke-dashoffset: 0;
-        }
-      }
-      @keyframes fade {
-        from {
-          opacity: 0;
-        }
-      }
-      @keyframes rise {
-        from {
-          opacity: 0;
-          transform: translateY(6px);
-        }
-        to {
-          opacity: 1;
-          transform: none;
-        }
-      }
-      @keyframes mark-in {
-        from {
-          opacity: 0;
-          transform: scale(0.96);
-          filter: brightness(2.2);
-        }
-        to {
-          opacity: 1;
-          transform: none;
-          filter: none;
-        }
-      }
-      @keyframes bracket-in {
-        from {
-          opacity: 0;
-          transform: translate(var(--dx), var(--dy));
-        }
-        to {
-          opacity: 1;
-          transform: none;
-        }
-      }
-      @keyframes track-in {
-        from {
-          opacity: 0;
-          letter-spacing: 0.5em;
-        }
-        to {
-          opacity: 1;
-          letter-spacing: 0.22em;
-        }
-      }
-      @keyframes bloom {
-        0% {
-          opacity: 0;
-        }
-        30% {
-          opacity: 0.55;
-        }
-        100% {
-          opacity: 0.16;
-        }
-      }
       @keyframes glint {
         0% {
           stroke-dashoffset: 1.05;
@@ -880,110 +1055,298 @@
           opacity: 0;
         }
       }
-      @keyframes breathe {
-        0%,
-        100% {
-          opacity: 0.55;
+      @keyframes tick {
+        to {
+          transform: rotate(360deg);
         }
-        50% {
+      }
+
+      /* ─── Images clés de l'aube ─── */
+      @keyframes aube-in {
+        from {
+          opacity: 0;
+        }
+      }
+      @keyframes aube-show {
+        from {
+          opacity: 0;
+        }
+        to {
           opacity: 1;
         }
       }
-      @keyframes blink {
+      @keyframes aube-out {
+        from {
+          opacity: 1;
+        }
         to {
-          visibility: hidden;
+          opacity: 0;
+        }
+      }
+      @keyframes aube-jolt {
+        30% {
+          translate: calc(var(--dx) * 3px) calc(var(--dy) * 3px);
+        }
+      }
+      @keyframes aube-horizon {
+        from {
+          transform: scaleX(0);
+          opacity: 0.4;
+        }
+      }
+      @keyframes aube-strike {
+        from {
+          transform: scale(1.12);
+          opacity: 0;
+        }
+        to {
+          transform: none;
+          opacity: 0.92;
+        }
+      }
+      @keyframes aube-fold {
+        from {
+          transform: none;
+          opacity: 0.92;
+        }
+        to {
+          transform: scaleY(0);
+          opacity: 0.6;
+        }
+      }
+      @keyframes aube-ripple {
+        from {
+          opacity: 0;
+        }
+        45% {
+          opacity: 1;
+        }
+        to {
+          opacity: 0.75;
+        }
+      }
+      @keyframes aube-rays {
+        from {
+          transform: scale(0.3);
+          opacity: 0;
+        }
+        18% {
+          opacity: 1;
+        }
+        60% {
+          opacity: 0.35;
+        }
+        to {
+          transform: scale(1.12);
+          opacity: 0;
+        }
+      }
+      @keyframes aube-rise-x {
+        from {
+          transform: translateX(calc((320 - 208) * var(--word-w) / 640));
+        }
+      }
+      @keyframes aube-rise-y {
+        0% {
+          transform: translateY(calc((80 - 30) * var(--word-w) / 640)) scale(0.2);
+          opacity: 0;
+          animation-timing-function: cubic-bezier(0.2, 0.6, 0.35, 1);
+        }
+        10% {
+          opacity: 1;
+        }
+        52% {
+          transform: translateY(-12px) scale(1.2);
+          animation-timing-function: cubic-bezier(0.55, 0, 0.35, 1);
+        }
+        100% {
+          transform: none;
+          opacity: 1;
+        }
+      }
+      @keyframes aube-flare {
+        from {
+          transform: scale(0.3);
+          opacity: 1;
+        }
+        to {
+          transform: scale(1.7);
+          opacity: 0;
+        }
+      }
+      @keyframes aube-draw-x {
+        from {
+          transform: scaleX(0);
+        }
+      }
+      @keyframes aube-draw-y {
+        from {
+          transform: scaleY(0);
+        }
+      }
+      @keyframes aube-trace {
+        from {
+          stroke-dashoffset: 1;
+        }
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes aube-halo {
+        from {
+          opacity: 0;
+        }
+        40% {
+          opacity: 0.5;
+        }
+        to {
+          opacity: 0.16;
+        }
+      }
+      @keyframes aube-print {
+        from {
+          clip-path: inset(0 0 100% 0);
+        }
+        to {
+          clip-path: inset(-12px);
+        }
+      }
+      @keyframes aube-track {
+        from {
+          transform: scaleX(1.3);
+          opacity: 0;
+        }
+      }
+      @keyframes aube-rise {
+        from {
+          transform: translateY(8px);
+          opacity: 0;
+        }
+      }
+      @keyframes aube-strip {
+        from {
+          clip-path: inset(0 100% 0 0);
+        }
+        to {
+          clip-path: inset(0);
         }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        *,
-        *::before,
-        *::after {
-          animation-duration: 1ms !important;
-          animation-delay: 0ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 1ms !important;
-          transition-delay: 0ms !important;
+        .meta[data-level='busy'] .sg::after {
+          animation: none;
         }
-        .notes,
-        .notes.open {
+        .lang-row .thumb,
+        .word {
+          transition: none;
+        }
+        /* L'aube se tait : le repos d'emblée, rien ne se trace ni ne frappe. */
+        .frame[data-phase='intro'] *,
+        .frame[data-phase='intro'] *::before,
+        .frame[data-phase='intro'] *::after {
           animation: none !important;
         }
       }
     </style>
   </head>
   <body>
-    <div class="aube" id="aube" aria-hidden="true"><canvas id="aube-gl"></canvas><canvas id="aube-vec"></canvas></div>
-    <div class="light" aria-hidden="true"></div>
-    <div class="reticle" aria-hidden="true">
-      <!-- Cadre 420 × 620 : chanfreins 8 px aux angles, encoches d'axe, règle basse -->
-      <svg viewBox="0 0 420 620" id="reticle-svg">
-        <path class="rim" pathLength="1" d="M210 16.5 H395.5 L403.5 24.5 V595.5 L395.5 603.5 H210" />
-        <path class="rim" pathLength="1" d="M210 16.5 H24.5 L16.5 24.5 V595.5 L24.5 603.5 H210" />
-        <path class="notch" d="M206 16.5 H214 M206 603.5 H214 M16.5 306 V314 M403.5 306 V314" />
-        <path class="notch led" d="M210 17 V21 M210 599 V603" />
-        <g id="ticks"></g>
-      </svg>
-      <i class="cross tl"></i>
-      <i class="cross tr"></i>
-      <i class="cross bl"></i>
-      <i class="cross br"></i>
-    </div>
+    <div class="aube" id="aube" aria-hidden="true"><canvas id="aube-vec"></canvas></div>
 
-    <div class="xfer" id="xfer" aria-hidden="true">
-      <canvas id="nano"></canvas>
-      <div class="hud top-hud">
-        <span>CΛNTO <span class="led">/</span> 002 · LINK</span>
-        <span style="flex: 1"></span>
-        <b id="hud-clock">T+0.000</b>
-      </div>
-      <div class="hud bottom-hud">
-        <span id="hud-text">Liaison du circuit</span><i class="caret"></i>
-        <span class="fill"><span id="hud-fill"></span></span>
-        <b id="hud-count">000</b>
-      </div>
-    </div>
+    <div class="frame" id="frame" data-phase="intro">
+      <i class="cross tl" aria-hidden="true"></i>
+      <i class="cross tr" aria-hidden="true"></i>
+      <i class="cross bl" aria-hidden="true"></i>
+      <i class="cross br" aria-hidden="true"></i>
 
-    <div class="frame" id="frame">
-      <div class="top">
-        <i class="dot"></i>
-        <b>CΛNTO</b>&nbsp;/&nbsp;002
+      <!-- Le sceau Horizon : il frappe sur l'horizon de l'écran, puis se plie en lui (aube seulement). -->
+      <div class="seal" id="seal" aria-hidden="true"></div>
+
+      <header class="title">
+        <b>CΛNTO</b><span>/ 002 · AUBE</span>
         <span class="sp"></span>
+        <span class="clock" id="clock" aria-hidden="true">T+0.000</span>
         <button type="button" class="close" id="btn-close" aria-label="Fermer" title="Fermer">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" /></svg>
         </button>
-      </div>
-      <div class="brand">
-        <div class="mark">
-          <img src="./logo.svg" width="72" height="72" alt="" aria-hidden="true" />
-          <i></i><i></i><i></i><i></i>
-        </div>
-        <svg class="word" id="word" viewBox="0 0 640 160" fill="none" aria-label="CΛNTO">
-          <g class="bloom" stroke="#ffffff" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2">
-            <path d="M121.49 37.57 A49.5 49.5 0 1 0 121.49 122.43" />
-            <path d="M160 128 L208 30 L256 128" />
-            <path d="M288 128 L288 32 L368 128 L368 32" />
-            <path d="M400 32 L496 32 M448 32 L448 128" />
-            <path d="M544 30.5 A49.5 49.5 0 1 1 544 129.5 A49.5 49.5 0 1 1 544 30.5" />
+      </header>
+
+      <div class="plate p-seal" id="plate-seal" aria-hidden="true"></div>
+      <div class="plate p-artefact" id="plate-artefact" aria-hidden="true"></div>
+
+      <svg class="lens" id="lens" viewBox="-404 -23 808 27" preserveAspectRatio="none" fill="currentColor" aria-hidden="true"></svg>
+      <i class="rays" id="rays" aria-hidden="true"></i>
+
+      <svg class="word" id="word" viewBox="0 0 640 160" fill="none" role="img" aria-label="CΛNTO">
+        <!-- Construction (aube seulement) : guides de capitale et de pied, fûts et axes, cote de la grille. -->
+        <g class="guides" aria-hidden="true">
+          <path class="gx" d="M8 32 H632" />
+          <path class="gx" d="M8 128 H632" />
+          <path class="gy" style="--i: 0" d="M96 20 V140" />
+          <path class="gy" style="--i: 1" d="M160 20 V140" />
+          <path class="gy" style="--i: 2" d="M208 20 V140" />
+          <path class="gy" style="--i: 3" d="M256 20 V140" />
+          <path class="gy" style="--i: 4" d="M288 20 V140" />
+          <path class="gy" style="--i: 5" d="M368 20 V140" />
+          <path class="gy" style="--i: 6" d="M400 20 V140" />
+          <path class="gy" style="--i: 7" d="M448 20 V140" />
+          <path class="gy" style="--i: 8" d="M496 20 V140" />
+          <path class="gy" style="--i: 9" d="M544 20 V140" />
+          <g class="cote">
+            <path d="M46.5 -10 H238 M402 -10 H593.5 M46.5 -15 V-5 M593.5 -15 V-5" />
+            <text x="320" y="-5">640 × 160 · PAS 8</text>
           </g>
-          <g class="core" stroke="#ffffff" stroke-width="3.7" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="4">
-            <path pathLength="1" style="--i: 0" d="M121.49 37.57 A49.5 49.5 0 1 0 121.49 122.43" />
-            <path pathLength="1" style="--i: 1" d="M160 128 L208 30 L256 128" />
-            <path pathLength="1" style="--i: 2" d="M288 128 L288 32 L368 128 L368 32" />
-            <path pathLength="1" style="--i: 3" d="M400 32 L496 32 M448 32 L448 128" />
-            <path pathLength="1" style="--i: 4" d="M544 30.5 A49.5 49.5 0 1 1 544 129.5 A49.5 49.5 0 1 1 544 30.5" />
-          </g>
-          <g class="glint" stroke="#ffffff" stroke-width="5" stroke-linecap="square" stroke-linejoin="miter">
-            <path pathLength="1" style="--i: 0" d="M121.49 37.57 A49.5 49.5 0 1 0 121.49 122.43" />
-            <path pathLength="1" style="--i: 1" d="M160 128 L208 30 L256 128" />
-            <path pathLength="1" style="--i: 2" d="M288 128 L288 32 L368 128 L368 32" />
-            <path pathLength="1" style="--i: 3" d="M400 32 L496 32 M448 32 L448 128" />
-            <path pathLength="1" style="--i: 4" d="M544 30.5 A49.5 49.5 0 1 1 544 129.5 A49.5 49.5 0 1 1 544 30.5" />
-          </g>
-        </svg>
-        <div class="lab">SIΞRRΛSKΛ—LAB · <b>Artefact 002</b></div>
-        <div class="notes" id="notes-panel" hidden></div>
-      </div>
+        </g>
+        <g class="halo" stroke="currentColor" stroke-width="6.5" stroke-linecap="square">
+          <path d="M121.49 37.57 A49.5 49.5 0 1 0 121.49 122.43" />
+          <path d="M160 128 L208 30 L256 128" />
+          <path d="M288 128 L288 32 L368 128 L368 32" />
+          <path d="M400 32 L496 32 M448 32 L448 128" />
+          <path d="M544 30.5 A49.5 49.5 0 1 1 544 129.5 A49.5 49.5 0 1 1 544 30.5" />
+        </g>
+        <g class="core" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="4">
+          <path pathLength="1" style="--i: 0" d="M121.49 37.57 A49.5 49.5 0 1 0 121.49 122.43" />
+          <path pathLength="1" style="--i: 1" d="M160 128 L208 30 L256 128" />
+          <path pathLength="1" style="--i: 2" d="M288 128 L288 32 L368 128 L368 32" />
+          <path pathLength="1" style="--i: 3" d="M400 32 L496 32 M448 32 L448 128" />
+          <path pathLength="1" style="--i: 4" d="M544 30.5 A49.5 49.5 0 1 1 544 129.5 A49.5 49.5 0 1 1 544 30.5" />
+        </g>
+        <g class="glint" stroke="currentColor" stroke-width="5" stroke-linecap="round">
+          <path pathLength="1" style="--i: 0" d="M121.49 37.57 A49.5 49.5 0 1 0 121.49 122.43" />
+          <path pathLength="1" style="--i: 1" d="M160 128 L208 30 L256 128" />
+          <path pathLength="1" style="--i: 2" d="M288 128 L288 32 L368 128 L368 32" />
+          <path pathLength="1" style="--i: 3" d="M400 32 L496 32 M448 32 L448 128" />
+          <path pathLength="1" style="--i: 4" d="M544 30.5 A49.5 49.5 0 1 1 544 129.5 A49.5 49.5 0 1 1 544 30.5" />
+        </g>
+        <!-- Ancres : chacune s'allume quand la pointe passe dessus (--a, depuis --t-trace) ; la pointe du Λ est la LED. -->
+        <g class="anchors" aria-hidden="true">
+          <rect style="--a: 0s" x="118.99" y="35.07" width="5" height="5" />
+          <rect style="--a: 0.09s" x="157.5" y="125.5" width="5" height="5" />
+          <rect style="--a: 0.18s" x="285.5" y="125.5" width="5" height="5" />
+          <rect style="--a: 0.27s" x="397.5" y="29.5" width="5" height="5" />
+          <rect style="--a: 0.36s" x="541.5" y="28" width="5" height="5" />
+          <rect style="--a: 0.39s" x="44" y="77.5" width="5" height="5" />
+          <text style="--a: 0.48s" x="196" y="22" text-anchor="end">Λ 208 · 30</text>
+          <rect style="--a: 0.511s" x="285.5" y="29.5" width="5" height="5" />
+          <rect style="--a: 0.629s" x="365.5" y="125.5" width="5" height="5" />
+          <rect style="--a: 0.66s" x="493.5" y="29.5" width="5" height="5" />
+          <rect style="--a: 0.671s" x="591" y="77.5" width="5" height="5" />
+          <text style="--a: 0.671s" x="604" y="70">O 593,5 · 80</text>
+          <rect style="--a: 0.75s" x="541.5" y="127" width="5" height="5" />
+          <rect style="--a: 0.78s" x="118.99" y="119.93" width="5" height="5" />
+          <rect style="--a: 0.87s" x="253.5" y="125.5" width="5" height="5" />
+          <rect style="--a: 0.96s" x="365.5" y="29.5" width="5" height="5" />
+          <rect style="--a: 1.05s" x="445.5" y="125.5" width="5" height="5" />
+          <text style="--a: 1.05s" x="458" y="150">T 448 · 128</text>
+        </g>
+      </svg>
+      <i class="led-path" id="led-path" aria-hidden="true"><i class="led" id="led"></i></i>
+
+      <p class="lab"><b>SIΞRRΛSKΛ</b><span>LAB</span><i aria-hidden="true"></i><span>ARTEFACT 002</span></p>
+
+      <div class="plate p-release" id="plate-release" aria-hidden="true"></div>
+
+      <div class="notes" id="notes-panel" hidden></div>
+
       <div class="panel">
         <div class="rule" id="lang-label">Langue du desk</div>
         <div class="lang-row" role="radiogroup" id="lang-row">
@@ -995,19 +1358,51 @@
         <div class="actions">
           <button type="button" class="btn primary" id="btn-launch">
             <span class="label" id="btn-launch-label">Lancer le desk</span>
-            <span class="key" aria-hidden="true"><svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="currentColor" stroke-width="1"><path d="M9.5 0v4.5H1M3.5 2L1 4.5 3.5 7" /></svg></span>
-            <svg class="arrow" viewBox="0 0 16 8" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true"><path d="M0 4h15M11.5 0.5L15 4l-3.5 3.5" /></svg>
+            <span class="g" id="glyph-launch" aria-hidden="true"></span>
           </button>
-          <button type="button" class="btn" id="btn-update" hidden>
+          <button type="button" class="btn update" id="btn-update" hidden>
             <span class="label" id="btn-update-label">Mettre à jour</span>
+            <span class="g" id="glyph-update" aria-hidden="true"></span>
           </button>
         </div>
-        <p class="meta" id="meta"><span class="txt" id="meta-text">Contrôle de version…</span></p>
+      </div>
+
+      <div class="status">
+        <div class="gauge" id="gauge" hidden aria-hidden="true">
+          <span class="g" id="glyph-rule"></span>
+          <span class="track"><i></i></span>
+          <b id="gauge-pct">0 %</b>
+        </div>
+        <p class="meta" id="meta" data-level="busy"><span class="sg" id="meta-glyph" aria-hidden="true"></span><span class="txt" id="meta-text">Contrôle de version…</span></p>
         <div class="notes-slot" id="notes-slot">
           <button type="button" class="notes-toggle" id="notes-toggle" hidden aria-expanded="false" aria-controls="notes-panel"></button>
         </div>
       </div>
+
+      <footer class="strip">
+        <span id="strip-channel">□ —</span>
+        <span class="soft" id="strip-latency"></span>
+        <span class="sp"></span>
+        <span id="strip-code">SK-ART-002</span>
+        <svg class="code" id="code" height="12" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true" focusable="false"></svg>
+      </footer>
     </div>
+
+    <div class="xfer" id="xfer" aria-hidden="true">
+      <canvas id="nano"></canvas>
+      <div class="hud top-hud">
+        <span>CΛNTO <span class="led-mark">/</span> 002 · LINK</span>
+        <span style="flex: 1"></span>
+        <b id="hud-clock">T+0.000</b>
+      </div>
+      <div class="hud bottom-hud">
+        <span id="hud-text">Liaison du circuit</span>
+        <span class="fill"><span id="hud-fill"></span></span>
+        <b id="hud-count">000</b>
+      </div>
+    </div>
+
+    <script src="./launcher-micro.js"></script>
     <script src="./aube.js"></script>
     <script src="./launcher-ui.js"></script>
   </body>

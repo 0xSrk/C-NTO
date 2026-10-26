@@ -77,7 +77,10 @@ describe('Boot 3.2.2 — construction du logotype', () => {
     const el = mount();
     expect(el.textContent).toContain('SIΞRRΛSKΛ');
     expect(el.textContent).not.toMatch(/Accès accordé|Access granted|Acceso concedido/);
-    expect(el.querySelector('svg[aria-hidden]')).toBeNull();
+    // Système 4.0 : le sceau et ses plaques sont des dessins muets ; le coin, lui, reste en caractères.
+    const corner = [...el.querySelectorAll('span')].find((span) => span.textContent === 'SIΞRRΛSKΛ');
+    expect(corner).toBeDefined();
+    expect(corner!.querySelector('svg')).toBeNull();
     expect(readFileSync('src/app/Boot.tsx', 'utf8')).not.toContain('SignatureGlyphs');
   });
 });

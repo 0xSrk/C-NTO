@@ -13,6 +13,13 @@ export const AGENT_REASON_MAX = 500;
 export const AGENT_PROP_FLOOR = 0.25;
 /** Fenêtre de la cadence. */
 export const AGENT_RATE_WINDOW_MS = 60_000;
+/** L'agent ne propose que sur les comptes dont le nom commence ainsi (`Sim*`), jamais sur un compte réel. */
+export const AGENT_SIM_PREFIX = 'Sim';
+/**
+ * Le trader a 45 s pour répondre au dialogue du process principal ; au-delà, la proposition est refusée. Sous le
+ * délai des clients MCP (60 s). Le process principal applique la même valeur (`electron/agent-orders.ts`).
+ */
+export const AGENT_CONFIRM_TIMEOUT_MS = 45_000;
 
 export interface AgentOrderProposal {
   account: string;
@@ -189,7 +196,7 @@ export function guardProposal(
   snap: AgentOrderSnapshot,
 ): { ok: true; resulting: number; reducing: boolean } | { ok: false; reason: AgentOrderRefusal; detail: string } {
   if (!policy.enabled) return { ok: false, reason: 'disabled', detail: 'ordres de l’agent désactivés dans CΛNTO' };
-  if (!p.account.startsWith('Sim')) return { ok: false, reason: 'not_sim', detail: `compte ${p.account} : l’agent ne propose que sur les comptes Sim` };
+  if (!p.account.startsWith(AGENT_SIM_PREFIX)) return { ok: false, reason: 'not_sim', detail: `compte ${p.account} : l’agent ne propose que sur les comptes ${AGENT_SIM_PREFIX}` };
   if (snap.busy) return { ok: false, reason: 'busy', detail: 'une proposition attend déjà la réponse du trader' };
   if (snap.link !== 'live') return { ok: false, reason: 'link', detail: 'pont NinjaTrader indisponible' };
   if (!snap.ordersOpen) return { ok: false, reason: 'orders_closed', detail: 'canal d’ordres fermé (kill switch)' };

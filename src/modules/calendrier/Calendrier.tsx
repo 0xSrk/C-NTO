@@ -1,35 +1,27 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { Glyph, Plate } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
 import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
 import { CATEGORY_HELP, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
 import { eventProvenance, mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
 import { intlTag, tr, useI18n } from '@/i18n';
 import { fmtUsd, plural, signClass } from '@/lib/format';
-import { addDays, dateKeyLocal, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
+import { addDays, dateKeyLocal, dateTimeFormatter, etDateKey, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
+import { horizonDay, impactBars, LENS_PATH, nowIndex, strokeOf, STROKES, timeEngineLabel, timeEngineValues, type Stroke } from './calState';
 import s from './calendrier.module.css';
 
-const CAT_COLOR: Record<EventCategory, string> = {
-  fed: '#c41e3a',
-  'banque-centrale': '#c41e3a',
-  emploi: '#e0776c',
-  inflation: '#d8b45a',
-  croissance: '#8fc7e8',
-  sentiment: '#8a8a8a',
-  resultats: '#a996e0',
-  energie: '#e0a060',
-  adjudication: '#9bb0c9',
-  cme: '#7fcf9a',
-  horaire: '#6c6c6c',
-  perso: '#ffffff',
-};
-const CATS = Object.keys(CAT_COLOR) as EventCategory[];
+/**
+ * Catégories de publication, dans l'ordre des filtres. Système 4.0 : aucune couleur de catégorie — le trait dit l'état,
+ * la forme dit l'impact, le libellé dit la catégorie ; l'or et le rouge restent aux signaux du desk.
+ */
+const CATS: readonly EventCategory[] = ['fed', 'banque-centrale', 'emploi', 'inflation', 'croissance', 'sentiment', 'resultats', 'energie', 'adjudication', 'cme', 'horaire', 'perso'];
 const DOW = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'] as const;
 
 function trDow(d: (typeof DOW)[number]): string {
@@ -319,8 +311,19 @@ function localTime(date: string, timeET?: string): string | null {
   return formatTimeLocal(zonedToUtc(date, timeET, ET_ZONE));
 }
 
-function catStyle(c: EventCategory): CSSProperties {
-  return { '--cat': CAT_COLOR[c] } as CSSProperties;
+/** L'instant, rafraîchi toutes les 30 s : « maintenant » avance dans le flux, les traits passent au plein. */
+function useNow(period = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), period);
+    return () => clearInterval(id);
+  }, [period]);
+  return now;
+}
+
+/** Le trait d'une publication, maintenant. */
+function strokeNow(e: Pick<CalEvent, 'date' | 'timeET' | 'actual'>): Stroke {
+  return strokeOf(e, Date.now());
 }
 
 /** Entrée / Espace déclenchent l'action d'un élément non-bouton rendu focalisable (cellule, ligne de flux). */
@@ -356,6 +359,7 @@ export default function Calendrier() {
   const lastError = useMacro((m) => m.lastError);
   const loadMacro = useMacro((m) => m.load);
   const syncMacro = useMacro((m) => m.sync);
+  const nowAt = useNow();
 
   useEffect(() => {
     void loadMacro().then(() => syncMacro());
@@ -432,6 +436,11 @@ export default function Calendrier() {
     }
     return days;
   }, [cursor, today, view, year, month]);
+  // Le jour de « maintenant » (date de New York, celle des publications) et le premier jour au-delà de l'horizon.
+  const etToday = etDateKey(nowAt);
+  const hzDay = horizonDay(view === 'grille' ? gridDays : fluxDays, nowAt);
+  // La plaque TIME ENGINE : séance de l'instant, catalyseurs majeurs du jour (tous filtres confondus), synchro.
+  const timePlate = timeEngineValues({ now: nowAt, events, syncing, sources, cached: eventsMacro.length }, trEventTitle);
 
   const monthLabel = parseDateKey(`${cursor}-01`).toLocaleDateString(intlTag(), { month: 'long', year: 'numeric' });
   const shift = (n: number) => {
@@ -473,6 +482,7 @@ export default function Calendrier() {
               }}
             >
               {syncing ? tr('Sync…', 'Sync…', 'Sync…') : tr('Synchroniser', 'Sync', 'Sincronizar')}
+              <Glyph name="sync" className={s.btnGlyph} />
             </Button>
           </>
         }
@@ -504,7 +514,7 @@ export default function Calendrier() {
               </span>
               <div className={s.filters}>
                 {CATS.filter((c) => c !== 'perso').map((c) => (
-                  <span key={c} className={cx(s.filterChip, !hidden.has(c) && s.on)} style={catStyle(c)}>
+                  <span key={c} className={cx(s.filterChip, !hidden.has(c) && s.on)}>
                     <button
                       type="button"
                       className={s.filterBtn}
@@ -561,13 +571,14 @@ export default function Calendrier() {
                         onClick={() => setSelected(d)}
                         onKeyDown={onActivate(() => setSelected(d))}
                       >
-                        <div className={s.dayHead}>
+                        <div className={s.dayHead} data-day={d}>
                           <span className={s.dayNum}>{Number(d.slice(-2))}</span>
+                          {d === hzDay && <Glyph name="horizon" className={s.hzGlyph} label={tr('Horizon', 'Horizon', 'Horizonte')} />}
                           {sess && <span className={cx(s.dayPnl, signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>}
                         </div>
                         <div className={s.evs}>
                           {evs.slice(0, 3).map((e) => (
-                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3, e.actual && s.evPublished)} style={catStyle(e.category)} title={`${e.timeET ? `${localTime(d, e.timeET)} · ` : ''}${trEventTitle(e.title)}${e.actual ? ` · ${tr('publié', 'actual', 'publicado')} ${e.actual}` : e.forecast ? ` · ${tr('attendu', 'expected', 'esperado')} ${e.forecast}` : ''}`}>
+                            <div key={e.id} className={cx(s.ev, e.impact === 3 && s.impact3, e.actual && s.evPublished)} data-stroke={strokeNow(e)} title={`${e.timeET ? `${localTime(d, e.timeET)} · ` : ''}${trEventTitle(e.title)}${e.actual ? ` · ${tr('publié', 'actual', 'publicado')} ${e.actual}` : e.forecast ? ` · ${tr('attendu', 'expected', 'esperado')} ${e.forecast}` : ''}`}>
                               <span className={s.evTitle}>
                                 {e.actual ? '' : e.estimated ? '≈ ' : ''}
                                 {trEventTitle(e.title)}
@@ -589,18 +600,26 @@ export default function Calendrier() {
                   const evs = byDate.get(d) ?? [];
                   const sess = sessionByDate.get(d);
                   const perso = entriesByDate.get(d) ?? [];
+                  const ordered = [...evs].sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'));
+                  const split = d === etToday ? nowIndex(ordered, nowAt) : -1;
                   return (
                     <div key={d} className={cx(s.fluxDay, d === selected && s.selected)}>
-                      <div className={cx(s.fluxDayHead, d === today && s.today)} role="button" tabIndex={0} aria-pressed={d === selected} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
+                      <div className={cx(s.fluxDayHead, d === today && s.today)} data-day={d} role="button" tabIndex={0} aria-pressed={d === selected} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                         <b>{formatDateFr(d, { weekday: true, short: true })}</b>
                         {sess ? <span className={signClass(sess.pnl)}>{fmtUsd(sess.pnl, { sign: true })} · {plural(sess.tradeCount, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}</span> : <span>{evs.length ? plural(evs.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos')) : tr('calme', 'quiet', 'calma')}</span>}
+                        {d === hzDay && (
+                          <span className={s.hzMark}>
+                            <Glyph name="horizon" className={s.hzGlyph} />
+                            {tr('Horizon', 'Horizon', 'Horizonte')}
+                          </span>
+                        )}
                       </div>
                       <div className={s.fluxEvents}>
                         {evs.length === 0 && perso.length === 0 && <div className={s.fluxEmpty}>{tr('Aucun catalyseur programmé.', 'No catalyst scheduled.', 'Ningún catalizador programado.')}</div>}
-                        {[...evs]
-                          .sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'))
-                          .map((e) => (
-                            <div key={e.id} className={cx(s.fluxEv, e.actual && s.evPublished)} style={catStyle(e.category)} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
+                        {ordered.map((e, i) => (
+                          <Fragment key={e.id}>
+                            {i === split && <NowMark at={nowAt} />}
+                            <div className={cx(s.fluxEv, e.actual && s.evPublished)} data-stroke={strokeNow(e)} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                               <div className={s.fluxTime}>
                                 {e.timeET ? localTime(d, e.timeET) : tr('journée', 'all day', 'jornada')}
                                 {e.timeET && <small>{e.timeET} ET</small>}
@@ -610,11 +629,13 @@ export default function Calendrier() {
                                 {trEventTitle(e.title)}
                               </div>
                               <LinePrint e={e} detailed />
-                              <Impact level={e.impact} category={e.category} />
+                              <Impact level={e.impact} />
                             </div>
-                          ))}
+                          </Fragment>
+                        ))}
+                        {split >= 0 && split === ordered.length && <NowMark at={nowAt} />}
                         {perso.map((p) => (
-                          <div key={p.id} className={s.fluxEv} style={catStyle('perso')} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
+                          <div key={p.id} className={s.fluxEv} data-stroke={strokeNow({ date: d, timeET: p.time })} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                             <div className={s.fluxTime}>{p.time ?? (p.kind === 'note' ? tr('note', 'note', 'nota') : tr('journée', 'all day', 'jornada'))}</div>
                             <div className={s.fluxTitle}>{p.kind === 'note' ? p.body?.slice(0, 90) : p.title}</div>
                             <Tag>{tr('personnel', 'personal', 'personal')}</Tag>
@@ -628,7 +649,19 @@ export default function Calendrier() {
             )}
           </div>
 
-          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} onHelp={setHelpCat} />
+          <DaySide
+            key={selected}
+            date={selected}
+            events={byDate.get(selected) ?? []}
+            history={history}
+            onSelectDate={setSelected}
+            onHelp={setHelpCat}
+            lead={
+              <div className={s.timeHud}>
+                <Plate id="timeEngine" values={timePlate} label={timeEngineLabel(timePlate)} className={s.timePlate} />
+              </div>
+            }
+          />
         </div>
       </ModuleContent>
 
@@ -648,14 +681,79 @@ export default function Calendrier() {
   );
 }
 
-function Impact({ level, category }: { level: number; category: EventCategory }) {
+/** « Maintenant » : le glyphe de l'instant à l'or, l'heure du poste et de New York, l'horizon en lentille du sceau. */
+function NowMark({ at }: { at: number }) {
+  useI18n((s) => s.locale);
+  const et = dateTimeFormatter({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: ET_ZONE }).format(at);
+  const local = formatTimeLocal(at);
+  return (
+    <div className={s.nowMark} data-now="">
+      <Glyph name="now" className={s.nowGlyph} />
+      <span>
+        {tr('Maintenant', 'Now', 'Ahora')} · {local === et ? '' : `${local} · `}
+        {et} ET
+      </span>
+      <svg className={s.nowLens} viewBox="0 0 400 8" preserveAspectRatio="none" aria-hidden="true" data-lens="">
+        <path d={LENS_PATH} fill="currentColor" />
+      </svg>
+    </div>
+  );
+}
+
+/** L'impact par la forme : trois barres de hauteur croissante, allumées jusqu'au niveau, à l'encre seule. */
+function Impact({ level }: { level: number }) {
   useI18n((s) => s.locale);
   return (
-    <span className={s.impactBar} style={catStyle(category)} title={tr(`Impact ${level}/3`, `Impact ${level}/3`, `Impacto ${level}/3`)}>
-      {[1, 2, 3].map((i) => (
-        <i key={i} className={cx(i <= level && s.on)} />
+    <span className={s.impactBar} data-impact={level} role="img" aria-label={tr(`impact ${level} sur 3`, `impact ${level} of 3`, `impacto ${level} de 3`)}>
+      {impactBars(level).map((bar, i) => (
+        <i key={i} className={cx(bar.on && s.on)} style={{ height: bar.height }} />
       ))}
     </span>
+  );
+}
+
+/** Légendes du calendrier : le trait dit l'état (L.01), la forme dit l'impact (L.02). */
+function CalLegend() {
+  useI18n((s) => s.locale);
+  const strokes: Record<Stroke, string> = {
+    publie: tr('Plein · publié, passé', 'Solid · released, past', 'Continuo · publicado, pasado'),
+    prevu: tr('Tireté · prévu dans la fenêtre', 'Dashed · due in the window', 'Discontinuo · previsto en la ventana'),
+    horizon: tr('Pointillé · au-delà de l’horizon', 'Dotted · beyond the horizon', 'Punteado · más allá del horizonte'),
+  };
+  const levels: [1 | 2 | 3, string][] = [
+    [1, tr('Repère', 'Marker', 'Hito')],
+    [2, tr('Attention', 'Watch', 'Atención')],
+    [3, tr('Catalyseur majeur', 'Major catalyst', 'Catalizador mayor')],
+  ];
+  return (
+    <section className={cx(s.sideBlock, s.legends)}>
+      <div data-legend="trait">
+        <header className={s.sideBlockHead}>
+          <h4>
+            <span className={s.legendCode}>L.01</span> {tr('Le trait dit l’état', 'The stroke tells the state', 'El trazo dice el estado')}
+          </h4>
+        </header>
+        {STROKES.map((stroke) => (
+          <div key={stroke} className={s.legendRow}>
+            <i className={s.swatch} data-stroke={stroke} aria-hidden />
+            <span>{strokes[stroke]}</span>
+          </div>
+        ))}
+      </div>
+      <div data-legend="impact">
+        <header className={s.sideBlockHead}>
+          <h4>
+            <span className={s.legendCode}>L.02</span> {tr('Impact', 'Impact', 'Impacto')}
+          </h4>
+        </header>
+        {levels.map(([level, label]) => (
+          <div key={level} className={s.legendRow}>
+            <Impact level={level} />
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -707,12 +805,15 @@ function DaySide({
   history,
   onSelectDate,
   onHelp,
+  lead,
 }: {
   date: string;
   events: CalEvent[];
   history: ReturnType<typeof useMacro.getState>['events'];
   onSelectDate: (d: string) => void;
   onHelp: (c: EventCategory) => void;
+  /** En tête de colonne : la plaque TIME ENGINE. */
+  lead?: ReactNode;
 }) {
   useI18n((s) => s.locale);
   const sessions = useJournal((j) => j.sessions);
@@ -785,10 +886,12 @@ function DaySide({
 
   return (
     <aside className={s.side}>
+      {lead}
+      <CalLegend />
       <Panel title={formatDateFr(date, { weekday: true })} sub={plural(events.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos'))} accent tight>
         <div className={s.sideStack}>
           {sess && (
-            <div className={s.evCard} style={catStyle('cme')}>
+            <div className={s.evCard} data-stroke="publie">
               <div className={s.evCardHead}>
                 <b>{tr('Séance', 'Session', 'Sesión')}</b>
                 <span className={cx('mono', signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>
@@ -811,7 +914,7 @@ function DaySide({
           )}
           {sorted.length === 0 && !sess && <div className={s.evDesc}>{tr('Aucun catalyseur — conditions « normales ».', 'No catalyst — “normal” conditions.', 'Ningún catalizador — condiciones « normales ».')}</div>}
           {sorted.map((e) => (
-            <div key={e.id} className={cx(s.evCard, e.actual && s.evPublished)} style={catStyle(e.category)}>
+            <div key={e.id} className={cx(s.evCard, e.actual && s.evPublished)} data-stroke={strokeNow(e)}>
               <div className={s.evCardHead}>
                 <b title={trEventTitle(e.title)}>{trEventTitle(e.title)}</b>
                 {e.timeET && (
@@ -821,7 +924,7 @@ function DaySide({
                 )}
               </div>
               <div className={s.evMeta}>
-                <Impact level={e.impact} category={e.category} />
+                <Impact level={e.impact} />
                 <button type="button" className={s.catHelp} onClick={() => onHelp(e.category)} title={`${tr('Aide', 'Help', 'Ayuda')} : ${trCatLabel(e.category)}`}>
                   {trCatLabel(e.category)} <span>?</span>
                 </button>

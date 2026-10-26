@@ -58,9 +58,6 @@
 .accHead button {
   color: var(--text-3);
 }
-.accHead button:hover {
-  color: var(--ember);
-}
 .accGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

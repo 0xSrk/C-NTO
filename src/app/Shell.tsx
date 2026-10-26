@@ -1,21 +1,31 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Barcode, Button, Led, cx } from '@/design/primitives';
+import { Cartouche, Glyph } from '@/design/Micro';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
 import { cmeSession } from '@/lib/cmeClosed';
-import { ET_ZONE, etDateKey, globexState, type GlobexState } from '@/lib/time';
+import { dateKeyLocal, ET_ZONE, etDateKey, globexState, type GlobexState } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
+import { useCalendar } from '@/store/calendar';
+import { useCopier } from '@/store/copier';
+import { useCrypto } from '@/store/crypto';
+import { useLinks } from '@/store/links';
+import { useNotes } from '@/store/notes';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
 import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
+import { railQuantity, type RailSnapshot } from './railQuantity';
+import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
+import { KillBand } from './KillBand';
+import { useKillSwitch } from './killState';
 import { isConception, tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -70,7 +80,14 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const orchestrator = useAgent((a) => a.orchestrator);
   const bridgeStatus = useBridge((b) => b.status);
   const nt = useBridge((b) => b.nt);
+  const kill = useKillSwitch();
   const now = useClock();
+  const noteCount = useNotes((n) => n.notes.length);
+  const linkCount = useLinks((l) => l.links.length);
+  const calendarEntries = useCalendar((c) => c.entries);
+  const copierReady = useCopier((c) => c.ready);
+  const copierAccounts = useCopier((c) => c.accounts.length);
+  const cryptoMarkets = useCrypto((c) => c.watchlist.length);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
@@ -136,6 +153,17 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const moduleName = (activeCopy?.label ?? '').toLocaleUpperCase(localeTag);
   const third = crumb && crumb.tab === tab ? crumb.label : '';
   const reported = nt?.accountNames?.filter(Boolean) ?? [];
+  const todayKey = dateKeyLocal(new Date(now));
+  /** Bordereau du rail : ce que chaque module contient, lu dans les stores du démarrage. */
+  const snapshot: RailSnapshot = {
+    sessions: sessions.length,
+    todayEntries: calendarEntries.filter((entry) => entry.date === todayKey).length,
+    notes: noteCount,
+    links: linkCount,
+    agentRunning: orchestrator.running,
+    copierAccounts: copierReady ? copierAccounts : null,
+    cryptoMarkets,
+  };
   const chooseFace = (next: ClockFace) => {
     setFace(next);
     try {
@@ -167,6 +195,10 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
+          {/* Le losange du secteur S.01 (cartouche SK-SEC-S01) : le desk sert les marchés. */}
+          <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
+            <Cartouche id="sectorS01" />
+          </span>
           <UpdateButton />
           <div className={s.titleZoom}>
             <ZoomControls />
@@ -199,9 +231,18 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
       </header>
 
+      {/* Niveau 3 : le kill switch est engagé ; la bande reste jusqu'au redémarrage du desk. */}
+      {kill.engaged && <KillBand shortcut={kill.shortcut} />}
+
       <aside className={s.rail}>
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
-          <span className={s.navLabelHead}>{tr('MODULES', 'MODULES', 'MÓDULOS')}</span>
+          <div className={s.navLabelHead}>
+            <span>{tr('BORDEREAU', 'MANIFEST', 'ALBARÁN')}</span>
+            <i aria-hidden />
+            <span>
+              {TABS.length} {tr('MODULES', 'MODULES', 'MÓDULOS')}
+            </span>
+          </div>
           {TABS.map((item, index) => {
             const conception = isConception(item.id);
             const prev = index > 0 ? TABS[index - 1] : undefined;
@@ -214,7 +255,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
                     <i />
                   </div>
                 )}
-                <RailButton itemId={item.id} index={item.index} label={tabCopy(item).label} on={tab === item.id} dashed={conception} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
+                <RailButton itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} dashed={conception} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
               </Fragment>
             );
           })}
@@ -230,8 +271,14 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               <span className={s.accountName}>{accountLine}</span>
             </div>
             <span className={s.accountSource}>{source}</span>
-            <div className={s.accountMeta}>
-              <ChangelogJournal version={appVersion} />
+          </div>
+          {/* Plaque d'artefact (Système 4.0) : la cartouche SK-ART-002 du Lab, la version qui ouvre le journal, les langues. Le seul objet arrondi. */}
+          <div className={s.plate} role="group" aria-label={tr(`Plaque d’artefact : SK-ART-002, CΛNTO, version ${appVersion}`, `Artefact plate: SK-ART-002, CΛNTO, version ${appVersion}`, `Placa del artefacto: SK-ART-002, CΛNTO, versión ${appVersion}`)}>
+            <Cartouche id="artefact" values={{ build: `v${appVersion} · DESK`, runs: 'MACOS / WINDOWS / LINUX' }} className={s.plateLabel} />
+            <div className={s.plateRow}>
+              <span className={s.plateVer}>
+                <ChangelogJournal version={appVersion} />
+              </span>
               <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
                 {LOCALES.map((item) => (
                   <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
@@ -246,7 +293,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 
       <main className={s.main}>
         <span className={s.edge} aria-hidden>
-          SIΞRRΛSKΛ LAB · DEEP TECH · ARTEFACT 002 · RÉV. 3.4
+          SIΞRRΛSKΛ LAB · DEEP TECH · ARTEFACT 002 · RÉV. 4.0
         </span>
         {children}
         <div className={s.toasts} role="status" aria-live="polite">
@@ -307,7 +354,10 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             <SeatMark>
               <Barcode />
             </SeatMark>
-            <span>[ SIΞRRΛSKΛ ]</span>
+            <span className={s.stripName}>
+              <Glyph name="lozenge" className={s.lozenge} />
+              [ SIΞRRΛSKΛ ]
+            </span>
           </span>
         </div>
       </footer>
@@ -317,11 +367,18 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   );
 }
 
-function RailButton({ itemId, index, label, on, dashed, link, onClick }: { itemId: TabId; index: string; label: string; on: boolean; dashed?: boolean; link?: boolean; onClick: () => void }) {
+function RailButton({ itemId, index, label, qty, on, dashed, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; dashed?: boolean; link?: boolean; onClick: () => void }) {
   return (
-    <button type="button" className={cx(s.navItem, on && s.on, dashed && s.dashed)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined}>
-      <span className={s.navIndex}>{index}</span>
-      <span className={s.navLabel}>{label}</span>
+    <button type="button" className={cx(s.navItem, on && s.on, dashed && s.dashed)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
+      {/* Le numéro, et sous lui l'emblème du module (composant de la planche). */}
+      <span className={s.navCol} data-part="rail-index">
+        <span className={s.navIndex}>{index}</span>
+        <Glyph name={itemId} className={s.navEmblem} />
+      </span>
+      <span className={s.navText}>
+        <span className={s.navLabel}>{label}</span>
+        {qty ? <span className={s.navQty}>{qty}</span> : null}
+      </span>
       {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
       <span className={s.navMark} aria-hidden />
       <span className={s.srOnly}>{itemId}</span>
@@ -355,7 +412,18 @@ function ConfirmDialog() {
   );
 }
 
-export function ModuleHeader({ tab, actions, crumb = '', meta }: { tab: TabId; actions?: ReactNode; crumb?: string; meta?: ReactNode }) {
+/** Une cellule du bloc-titre : un libellé et une valeur lue par le module (`plan` : valeur prévue, pas encore réelle). */
+export interface TitleCell {
+  label: string;
+  value: ReactNode;
+  plan?: boolean;
+}
+
+/**
+ * En-tête de module (Système 4.0) : numéro d'afficheur, nom, code et baseline, puis le bloc-titre
+ * que le module remplit de ses propres données. Sans cellule passée, pas de bloc-titre.
+ */
+export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: TabId; actions?: ReactNode; crumb?: string; meta?: ReactNode; cells?: TitleCell[] }) {
   const setCrumb = useUi((u) => u.setCrumb);
   const def = TABS.find((item) => item.id === tab);
   useEffect(() => {
@@ -363,14 +431,37 @@ export function ModuleHeader({ tab, actions, crumb = '', meta }: { tab: TabId; a
   }, [crumb, def, setCrumb, tab]);
   if (!def) return null;
   const copy = tabCopy(def);
+  const layer = MODULE_LAYERS[tab];
   return (
     <div className={s.moduleHead}>
       <h1 className={s.modulePlate}>
-        <span className={s.moduleCode}>{def.code}</span>
-        <span className={s.moduleName}>{copy.label}</span>
-        <span className={s.moduleTagline}>{copy.tagline}</span>
-        {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
+        <span className={s.moduleNum} aria-hidden>
+          {def.index}
+        </span>
+        <span className={s.moduleTitle}>
+          <span className={s.moduleName}>{copy.label}</span>
+          <span className={s.moduleLine}>
+            <span className={s.moduleCode}>{def.code}</span>
+            <span className={s.moduleTagline}>{copy.tagline}</span>
+            {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
+          </span>
+        </span>
       </h1>
+      {/* La couche du Lab à laquelle le module appartient : son composant et sa bande (Ligne V2). */}
+      <span className={s.moduleLayer} role="img" aria-label={`${tr('Couche', 'Layer', 'Capa')} ${layerCode(layer)} · ${layerName(layer)}`} data-layer={layer}>
+        <Glyph name={LAYER_GLYPH[layer]} className={s.layerGlyph} />
+        <Cartouche id={LAYER_CARTOUCHE[layer]} className={s.layerBand} />
+      </span>
+      {cells && cells.length > 0 ? (
+        <dl className={s.titleBlock}>
+          {cells.map((cell) => (
+            <div key={cell.label}>
+              <dt>{cell.label}</dt>
+              <dd className={cell.plan ? s.plan : undefined}>{cell.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
       {actions && <div className={s.moduleActions}>{actions}</div>}
     </div>
   );

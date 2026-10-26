@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Button, Field } from '@/design/primitives';
+import { Glyph, Plate } from '@/design/Micro';
+import { Seal, SEAL_HORIZON } from '@/design/Seal';
 import { opens } from '@/engine/gate';
 import { tr, useI18n } from '@/i18n';
+import { APP_VERSION } from '@/lib/version';
 import { runBootCircuit } from './bootCircuit';
 import { SEAL_DRAW_S, sealFormMs } from './unlockMark';
 import s from './gate.module.css';
 
 /** Durée de l'ouverture sur l'axe, la même que le boot. */
 const LEAVE_MS = 760;
+/** L'horizon du sceau (48,27 % de sa hauteur) se pose sur la ligne de l'écran. */
+const SEAL_HZ = `${(SEAL_HORIZON * 100).toFixed(2)}%`;
 
 function prefersReducedMotion(): boolean {
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -116,6 +121,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
 
   const closed = tr('Fermé', 'Closed', 'Cerrado');
   const stateWord = refused ? tr('Refusé', 'Refused', 'Rechazado') : closed;
+  const lock = tr('VERROU', 'LOCK', 'CERROJO');
 
   return (
     <div
@@ -131,37 +137,54 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
 
       <div className={s.hud} aria-hidden>
         <span>
-          CΛNTO <i className={s.slash}>/</i> 002 · {live ? 'UNLOCK' : 'LOCK'}
+          CΛNTO <i className={s.slash}>/</i> 002 · {live ? 'UNLOCK' : lock}
         </span>
         <b ref={clockRef} className={live ? s.granted : undefined}>
           {live ? 'T+0.000' : closed}
         </b>
       </div>
 
+      {/* La ligne d'horizon de l'écran : le sceau y pose le sien, la couture s'y ouvre. */}
+      <span className={s.horizon} data-part="horizon-line" aria-hidden />
+      <div className={s.accessPlate} data-part="access-plate">
+        <Plate id="access" />
+      </div>
+
       <div className={s.stage}>
+        {/* Le sceau ferme le verrou. */}
+        <div className={s.sealbox}>
+          <div className={s.sealw} data-part="seal" style={{ '--hz': SEAL_HZ } as CSSProperties}>
+            <Seal kind="negative" className={s.sealSvg} />
+          </div>
+        </div>
         <div className={s.stack}>
-          <p className={s.sous}>
-            SIΞRRΛSKΛ LAB
-            <i aria-hidden />
-            <b>ARTEFACT 002</b>
-          </p>
-          <div className={s.slot}>
-            <form ref={plateRef} className={s.plate} inert={live} onSubmit={(event) => void submit(event)}>
-              <span className={s.corners} aria-hidden>
-                <i />
-                <i />
-                <i />
-                <i />
-              </span>
-              <div className={s.status}>
-                <span className={s.index}>01</span>
-                <span id="gate-title">{tr('Desk verrouillé', 'Desk locked', 'Desk bloqueado')}</span>
-                <span className={s.dots} />
-                <span className={s.state} role="status">
-                  <i className={s.led} />
-                  {stateWord}
-                </span>
+          <h2 className={s.heading}>
+            <span className={s.nm}>SIΞRRΛSKΛ LAB · ARTEFACT 002</span>
+            <span id="gate-title">{tr('Desk verrouillé', 'Desk locked', 'Desk bloqueado')}</span>
+          </h2>
+          <p className={s.sub}>{tr('La phrase ouvre le desk. Le coffre reste sur ce poste.', 'The phrase opens the desk. The vault stays on this machine.', 'La frase abre el desk. La caja se queda en este equipo.')}</p>
+          {/* Fiche d'accès (Ligne V2) : aucun code ici — le seul Code 128 du desk est au pied de la barre d'état. */}
+          <form ref={plateRef} className={s.fiche} data-part="fiche" inert={live} onSubmit={(event) => void submit(event)}>
+            <div className={s.fh}>
+              <span>{tr('FICHE D’ACCÈS', 'ACCESS SHEET', 'FICHA DE ACCESO')}</span>
+              <span>SK-ART-002 / {lock}</span>
+            </div>
+            <dl className={s.fr}>
+              <div>
+                <dt>{tr('ÉTAT', 'STATE', 'ESTADO')}</dt>
+                <dd>
+                  <i className={s.led} aria-hidden />
+                  <span className={s.state} role="status">
+                    {stateWord}
+                  </span>
+                </dd>
               </div>
+              <div>
+                <dt>{tr('COFFRE', 'VAULT', 'CAJA')}</dt>
+                <dd>LOCAL</dd>
+              </div>
+            </dl>
+            <div className={s.fin}>
               <Field label={tr('Phrase', 'Phrase', 'Frase')}>
                 <input
                   ref={inputRef}
@@ -182,16 +205,27 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
                 />
               </Field>
               <div className={s.row}>
-                <Button type="submit" variant="solid" disabled={busy || value.length === 0}>
+                <span className={s.hint}>{tr('ENTRÉE POUR OUVRIR', 'ENTER TO OPEN', 'INTRO PARA ABRIR')}</span>
+                <Button type="submit" variant="chamfer" disabled={busy || value.length === 0}>
                   {tr('Ouvrir', 'Open', 'Abrir')}
+                  <Glyph name="arrowOpen" className={s.bi} />
                 </Button>
               </div>
-            </form>
-            <div className={s.seal} ref={markRef} aria-hidden={!live}>
-              <UnlockMark active={live} />
             </div>
-          </div>
+            <div className={s.fc}>
+              <span className={s.fcr}>
+                <Glyph name="rule" />
+              </span>
+              <span className={s.k}>
+                SK-ART-002-{APP_VERSION} · {tr('CLASSE : LOCAL — NE QUITTE PAS LE POSTE', 'CLASS: LOCAL — NEVER LEAVES THE MACHINE', 'CLASE: LOCAL — NO SALE DEL EQUIPO')}
+              </span>
+            </div>
+          </form>
         </div>
+      </div>
+
+      <div className={s.unlock} ref={markRef} aria-hidden={!live}>
+        <UnlockMark active={live} />
       </div>
 
       <div className={s.seam} aria-hidden>

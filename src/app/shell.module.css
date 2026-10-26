@@ -3,10 +3,11 @@
   height: 100%;
   color: var(--text-1);
   display: grid;
-  grid-template-rows: var(--titlebar-h) 1fr var(--statusbar-h);
+  grid-template-rows: var(--titlebar-h) auto 1fr var(--statusbar-h);
   grid-template-columns: var(--rail-w) minmax(0, 1fr);
   grid-template-areas:
     'title title'
+    'band band'
     'rail main'
     'status status';
   background: transparent;
@@ -87,6 +88,21 @@
   -webkit-app-region: no-drag;
 }
 
+/* Le losange du secteur S.01 (cartouche SK-SEC-S01), encre acier sur la nuit. */
+.sector {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-left: 1px solid var(--line-0);
+  border-right: 1px solid var(--line-0);
+  --k: var(--text-1);
+  --p: var(--bg-0);
+}
+.sector > span {
+  width: 68px;
+  height: 31px;
+}
+
 .titleZoom {
   display: flex;
   align-items: center;
@@ -108,10 +124,6 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   -webkit-app-region: no-drag;
-}
-.updateBtn:hover:not(:disabled) {
-  color: var(--text-0);
-  background: var(--bg-3);
 }
 .updateAvail {
   color: var(--text-0);
@@ -140,14 +152,6 @@
   justify-content: center;
   color: var(--text-2);
   -webkit-app-region: no-drag;
-}
-.winControls button:hover {
-  background: var(--bg-3);
-  color: var(--text-0);
-}
-.winControls button.close:hover {
-  background: var(--gold);
-  color: var(--text-0);
 }
 
 .rail {
@@ -180,6 +184,17 @@
   color: var(--text-2);
   padding: 0 14px 10px;
 }
+/* Bordereau : BORDEREAU ········ 9 MODULES */
+.navLabelHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.navLabelHead i {
+  flex: 1;
+  height: 3px;
+  background: var(--rule-dots);
+}
 
 .conceptLabel {
   display: flex;
@@ -195,11 +210,12 @@
 
 .navItem {
   position: relative;
-  height: 36px;
+  min-height: 36px;
   display: flex;
-  align-items: center;
+  /* ligne de pied commune au numéro et au nom ; l'emblème et la quantité dessous (planche) */
+  align-items: baseline;
   gap: 12px;
-  padding: 0 12px;
+  padding: 6px 12px;
   border: 0;
   border-left: 2px solid transparent;
   color: var(--text-1);
@@ -207,18 +223,12 @@
   font-weight: 500;
   text-align: left;
 }
-.navItem:hover {
-  background: var(--bg-3);
-}
-/* Onglet choisi : amorce LED, arête haute éclairée, lumière rasante qui s'éteint vers la droite. */
+/* Onglet poinçonné (Système 4.0) : le module ouvert est imprimé, encre sur ivoire. Un seul par écran. */
 .navItem.on {
-  background: var(--bg-2);
-  border-left-color: var(--gold);
-  box-shadow:
-    inset 0 1px 0 rgba(237, 235, 228, 0.16),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
-    inset 22px 0 32px rgba(255, 255, 255, 0.045);
-  color: var(--text-0);
+  background: var(--ivory);
+  border-left-color: var(--ivory);
+  box-shadow: none;
+  color: var(--ink);
   font-weight: 600;
 }
 .navIndex {
@@ -227,8 +237,48 @@
   width: 18px;
   color: var(--text-2);
 }
-.navItem.on .navIndex {
-  color: var(--text-0);
+/* Le numéro, et sous lui l'emblème du module (composant de la planche), encre graphite ; poinçonné, encre. */
+.navCol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  flex: none;
+  width: 18px;
+}
+.navEmblem {
+  width: 13px;
+  height: 13px;
+  --k: var(--text-2);
+}
+.navItem.on .navEmblem {
+  --k: var(--ink);
+}
+.navItem.dashed .navEmblem {
+  opacity: 0.7;
+}
+.navItem.on .navIndex,
+.navItem.on .navQty {
+  color: var(--ink-soft);
+}
+.navText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.navQty {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .navLabel {
   flex: 1;
@@ -252,10 +302,12 @@
   color: var(--text-2);
 }
 .navItem.dashed.on {
-  border-color: transparent;
+  border-color: var(--ivory);
   border-left-style: solid;
-  border-left-color: var(--gold);
-  color: var(--text-0);
+  color: var(--ink);
+}
+.navItem.on .lienBadge {
+  color: var(--gold-ink);
 }
 .navItem.dashed:first-of-type {
   margin-top: 0;
@@ -325,15 +377,41 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.accountMeta {
+/* Plaque d'artefact : la vraie cartouche SK-ART-002 du Lab (sans code), puis la version (journal) et les langues. */
+.plate {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  padding: 9px 9px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ivory) 6%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--bg-void) 50%, transparent);
+  --k: var(--text-0);
+  --p: var(--bg-1);
+}
+.plateLabel {
+  display: block;
+  width: 100%;
+}
+.plate .plateLabel > svg {
+  height: auto;
+}
+.plateRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-width: 0;
-  margin-top: 6px;
-  padding: 8px 0 0 18px;
-  border-top: 1px solid var(--line-0);
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-1);
+}
+.plateVer {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
 }
 .accountSource {
   min-width: 0;
@@ -347,7 +425,7 @@
   text-transform: uppercase;
   color: var(--text-2);
 }
-.accountMeta .versionBtn {
+.plateVer .versionBtn {
   flex: none;
   color: var(--text-1);
 }
@@ -437,55 +515,63 @@
   padding: 0;
 }
 
+/* En-tête de module (Système 4.0) : cartouche de dessin — numéro d'afficheur, nom, bloc-titre de données. */
 .moduleHead {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
+  align-items: flex-end;
+  gap: 20px;
   flex-shrink: 0;
-  padding: 12px 40px 0;
+  padding: 14px 40px 0;
+  container: module-head / inline-size;
 }
 .modulePlate {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
   min-width: 0;
-  min-height: 32px;
   margin: 0;
-  padding-right: 14px;
-  background: var(--bg-0);
-  border: 1px solid rgba(237, 235, 228, 0.62);
-  font-weight: 500;
+  font-weight: 600;
 }
-.moduleCode {
-  display: grid;
-  place-items: center;
-  align-self: stretch;
-  min-width: 52px;
-  padding: 0 10px;
-  border-right: 1px solid rgba(237, 235, 228, 0.62);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
+.moduleNum {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 600;
+  font-stretch: 78%;
+  line-height: 0.8;
+  letter-spacing: -0.04em;
   color: var(--text-0);
+}
+.moduleTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 .moduleName {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1;
+  font-stretch: 86%;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
   color: var(--text-0);
 }
-.moduleTagline,
-.moduleMeta {
+.moduleLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-2);
   white-space: nowrap;
+}
+.moduleCode {
+  color: var(--text-1);
 }
 .moduleMeta {
   color: var(--text-1);
@@ -493,8 +579,65 @@
 .moduleMeta::before,
 .moduleTagline::before {
   content: '·';
-  margin-right: 12px;
+  margin-right: 10px;
   color: var(--ghost);
+}
+/* La couche du Lab : son composant de la planche et sa bande mini (SK-LYR-L0x-M). */
+.moduleLayer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding-bottom: 2px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.layerGlyph {
+  width: 22px;
+  height: 22px;
+}
+.layerBand {
+  width: 102px;
+  height: 34px;
+}
+/* En-tête étroit (fenêtre minimale) : la bande cède, le composant reste et la ligne du module se lit en entier. */
+@container module-head (max-width: 1240px) {
+  .layerBand {
+    display: none;
+  }
+}
+.titleBlock {
+  display: flex;
+  flex: none;
+  margin: 0;
+  border: 1px solid var(--line-2);
+}
+.titleBlock > div {
+  min-width: 0;
+  padding: 5px 12px 6px;
+  border-left: 1px solid var(--line-1);
+}
+.titleBlock > div:first-child {
+  border-left: 0;
+}
+.titleBlock dt {
+  margin: 0 0 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.titleBlock dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.titleBlock dd.plan {
+  color: var(--text-1);
 }
 .moduleActions {
   display: flex;
@@ -502,23 +645,36 @@
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
+/* Bande d'étiquette (Système 4.0) : la barre d'état est imprimée, l'autre matière du desk.
+   Ses jetons s'y remappent : l'encre remplace l'ivoire, l'or devient or d'encre. */
 .status {
+  --bg-0: var(--ivory);
+  --text-0: var(--ink);
+  --text-1: var(--ink);
+  --text-2: var(--ink-soft);
+  --text-3: var(--ink-soft);
+  --line-0: color-mix(in srgb, var(--ink) 18%, transparent);
+  --line-2: color-mix(in srgb, var(--ink) 24%, transparent);
+  --gold: var(--gold-ink);
+  --gold-line: color-mix(in srgb, var(--gold-ink) 45%, transparent);
   grid-area: status;
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: var(--bg-0);
+  background: var(--ivory);
   border-top: 1px solid var(--line-0);
   padding: 0 16px;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-2);
+  color: var(--ink-soft);
+  color-scheme: light;
 }
 .statusLeft,
 .statusRight {
@@ -597,9 +753,6 @@
   letter-spacing: inherit;
   text-transform: inherit;
 }
-.versionBtn:hover {
-  color: var(--text-0);
-}
 .versionDot {
   width: 5px;
   height: 5px;
@@ -612,6 +765,22 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+/* Le nom du Lab, précédé du losange strié (composant 10), à l'encre de la bande. */
+.stripName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-name);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.lozenge {
+  width: 7px;
+  height: 12px;
+  --k: currentColor;
 }
 
 .zoom {
@@ -631,12 +800,41 @@
   font: inherit;
   letter-spacing: inherit;
 }
-.zoomBtn:hover:not(:disabled),
-.zoomPct:hover {
-  color: var(--text-0);
-}
 .zoomBtn:disabled {
   opacity: 0.35;
+}
+/* Le bouton « + — » de la planche (composant 68) : chaque bouton montre sa moitié du dessin. */
+.zoomPad {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  --k: var(--text-1);
+}
+.zoomPad .zoomBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+}
+.zoomPlus,
+.zoomMinus {
+  display: block;
+  overflow: hidden;
+  height: 7px;
+}
+.zoomPlus {
+  width: 7px;
+}
+.zoomMinus {
+  width: 31px;
+}
+.zoomPlus > span,
+.zoomMinus > span {
+  display: block;
+  width: 40px;
+  height: 7px;
+}
+.zoomMinus > span {
+  margin-left: -9px;
 }
 .zoomMode {
   margin-right: 4px;
@@ -708,7 +906,64 @@
 }
 .toast.ok { border-left: 2px solid var(--mint); }
 .toast.warn { border-left: 2px solid var(--ember); }
-.toast.error { border-left: 2px solid var(--gold); }
+.toast.error { border-left: 2px solid var(--signal); }
+
+/* ─── Bande de niveau 3 (kill switch) : nuit, filets rouges, texte ivoire, jamais animée ─── */
+.band {
+  grid-area: band;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 66px;
+  padding: 0 20px;
+  background-color: var(--bg-0);
+  background-image: repeating-linear-gradient(-45deg, var(--signal-soft) 0 6px, transparent 6px 14px);
+  border-top: 2px solid var(--signal);
+  border-bottom: 1px solid var(--signal-line);
+  color: var(--text-0);
+  --k: var(--text-0);
+  --p: var(--bg-0);
+}
+/* La cartouche SK-SIG-3 : le seul rouge de la bande (.skl.is-signal). */
+.bandSignal {
+  width: 85px;
+  height: 46px;
+}
+.bandText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.bandText b {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-0);
+}
+.bandText span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* La plaque critique : ce qui est fermé, et jusqu'à quand. */
+.bandPlate {
+  width: 118px;
+  height: 54px;
+  margin-left: auto;
+}
 
 .pending .main { visibility: hidden; }
 

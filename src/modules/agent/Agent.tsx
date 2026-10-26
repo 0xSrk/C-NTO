@@ -1,6 +1,7 @@
 import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { Glyph } from '@/design/Micro';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
 import { llmKeyBound } from '@/engine/agent/llm';
 import { coerceRoutineSeen, ROUTINE_OF, routineDue, type RoutineCue, type RoutineSeen } from '@/engine/agent/routineDue';
@@ -202,6 +203,8 @@ export default function Agent() {
             <div className={s.messages} ref={listRef}>
               {visibleMessages.length === 0 && !streaming && (
                 <div className={s.welcome}>
+                  {/* L'emblème de l'agent, muet : le titre le nomme. */}
+                  <Glyph name="agent" className={s.emblem} />
                   <h2>{tr('Passerelle agent', 'Agent gateway', 'Pasarela del agente')}</h2>
                   <p>
                     {tr(
@@ -384,11 +387,11 @@ export default function Agent() {
                   <input type="range" min={0} max={1} step={0.1} value={agent.temperature} onChange={(e) => updateAgent({ temperature: Number(e.target.value) })} />
                 </Field>
                 <Field label={tr('Outils du desk', 'Desk tools', 'Herramientas del desk')}>
-                  <Toggle
-                    on={agent.toolsEnabled}
-                    onChange={(v) => updateAgent({ toolsEnabled: v })}
-                    label={agent.toolsEnabled ? tr('activés', 'enabled', 'activadas') : tr('désactivés', 'disabled', 'desactivadas')}
-                  />
+                  {/* Interrupteur au composant de la bascule : allumé, il passe à l'or ; le rôle et l'état restent ceux d'un switch. */}
+                  <button type="button" role="switch" aria-checked={agent.toolsEnabled} className={s.deskTools} onClick={() => updateAgent({ toolsEnabled: !agent.toolsEnabled })}>
+                    <Glyph name="toggle" className={s.toggleGlyph} />
+                    <span>{agent.toolsEnabled ? tr('activés', 'enabled', 'activadas') : tr('désactivés', 'disabled', 'desactivadas')}</span>
+                  </button>
                 </Field>
               </div>
               <div className={s.status}>
@@ -409,6 +412,7 @@ export default function Agent() {
                   }}
                 >
                   {probing ? tr('Test…', 'Testing…', 'Prueba…') : tr('Tester la connexion', 'Test connection', 'Probar la conexión')}
+                  <Glyph name="arrowTest" className={s.btnGlyph} />
                 </Button>
                 {probeState && <Tag tone={probeState.ok ? 'mint' : 'ember'}>{probeState.ok ? tr('joignable', 'reachable', 'alcanzable') : tr('échec', 'failed', 'fallo')}</Tag>}
               </div>

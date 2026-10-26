@@ -303,12 +303,12 @@
   }
 }
 
-/* ─── Repos (barre de titre) : la construction affleure au survol ─── */
+/* ─── Repos (barre de titre) : la construction affleure à l'appui, jamais au survol ─── */
 .survol {
   opacity: 0;
   transition: opacity 0.18s ease-out;
 }
-.interactif:hover .survol {
+.interactif:active .survol {
   opacity: 1;
 }
 .sg {

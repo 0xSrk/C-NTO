@@ -144,7 +144,7 @@ interface WordmarkProps {
   strokeWidth?: number;
   /** Au repos : amorces des lignes de capitale et de pied, hors du dessin. */
   ticks?: boolean;
-  /** Au survol : les trois guides et quatre ancres affleurent. */
+  /** À l'appui (jamais au survol) : les trois guides et quatre ancres affleurent. */
   survol?: boolean;
   style?: CSSProperties;
   className?: string;

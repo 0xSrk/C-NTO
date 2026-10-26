@@ -10,6 +10,7 @@
   inset: 0;
   z-index: 100;
   background: var(--bg-0);
+  color: var(--text-0);
   overflow: hidden;
   --gap: 0px;
   -webkit-app-region: drag;
@@ -34,7 +35,7 @@
   z-index: 1;
 }
 
-/* ─── Télémétrie : LOCK, puis UNLOCK le temps du sceau ─── */
+/* ─── Télémétrie : VERROU, puis UNLOCK le temps du mot ─── */
 .hud {
   position: absolute;
   z-index: 4;
@@ -61,71 +62,110 @@
 }
 .granted {
   color: var(--gold);
-  text-shadow: 0 0 6px rgba(229, 38, 61, 0.4);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--gold) 40%, transparent);
 }
 
-/* ─── Plaque : le label du Lab au-dessus, le sceau au centre de la plaque ─── */
+/* ─── L'horizon de l'écran : le sceau y pose le sien ─── */
+.horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  z-index: 2;
+  height: 1px;
+  background: color-mix(in srgb, var(--text-0) 14%, transparent);
+  pointer-events: none;
+}
+
+/* Plaque ACCESS (Ligne V2), en haut à droite : coffre local, clé phrase, desk verrouillé. */
+.accessPlate {
+  position: absolute;
+  z-index: 3;
+  top: 10%;
+  right: 5%;
+  width: 200px;
+  pointer-events: none;
+  --k: var(--text-1);
+  --p: var(--bg-0);
+  animation: fade-in 0.4s linear 0.12s both;
+}
+.accessPlate > span {
+  display: block;
+  width: 100%;
+}
+.accessPlate > span > svg {
+  height: auto;
+}
+
+/* ─── Scène : le sceau à gauche, la fiche d'accès à droite ─── */
 .stage {
   position: absolute;
   inset: 0;
   z-index: 3;
   display: grid;
-  place-items: center;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 4%;
+  padding: 0 7%;
 }
+.sealbox {
+  position: relative;
+  pointer-events: none;
+}
+/* Centré dans la scène, le sceau descend de (50 % − --hz) de sa hauteur : son horizon tombe sur la ligne. */
+.sealw {
+  max-width: 520px;
+  margin: 0 auto;
+  color: var(--text-0);
+  transform: translateY(calc(50% - var(--hz)));
+}
+.sealSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 28px;
+  align-items: flex-start;
+  min-width: 0;
 }
-.sous {
-  display: flex;
-  align-items: center;
-  margin: 0 -0.42em 0 0;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.42em;
-  color: var(--text-2);
-  white-space: nowrap;
-  animation: sous 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
-}
-.sous b {
+.heading {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 600;
+  font-stretch: 84%;
+  line-height: 0.92;
+  letter-spacing: -0.03em;
   color: var(--text-0);
+}
+.nm {
+  display: block;
+  margin-bottom: 14px;
+  font-family: var(--font-name);
+  font-size: 15px;
   font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.14em;
 }
-.sous i {
-  width: 5px;
-  height: 5px;
-  margin: 0 12px;
-  border-radius: 50%;
-  background: var(--gold);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent);
-}
-@keyframes sous {
-  from {
-    opacity: 0;
-    letter-spacing: 0.7em;
-  }
-  to {
-    opacity: 1;
-    letter-spacing: 0.42em;
-  }
+.sub {
+  margin: 0 0 22px;
+  max-width: 34ch;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-1);
+  text-wrap: balance;
 }
 
-.slot {
+/* La fiche d'accès : filet ivoire, en-tête imprimé (papier et encre), une règle au pied. */
+.fiche {
   position: relative;
-  width: min(440px, calc(100vw - 48px));
-}
-.plate {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  width: 100%;
-  padding: 28px 28px 24px;
-  background: var(--bg-2);
-  border: 1px solid var(--line-1);
+  width: min(440px, 100%);
+  border: 1.5px solid var(--text-0);
+  background: var(--bg-0);
+  font-family: var(--font-mono);
   -webkit-app-region: no-drag;
   animation: gate-in 0.42s var(--ease-out) both;
 }
@@ -137,74 +177,56 @@
     transform: none;
   }
 }
-
-.corners {
-  position: absolute;
-  inset: -1px;
-  pointer-events: none;
-}
-.corners i {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--gold);
-}
-.corners i:nth-child(1) {
-  top: 0;
-  left: 0;
-  border-right: 0;
-  border-bottom: 0;
-}
-.corners i:nth-child(2) {
-  top: 0;
-  right: 0;
-  border-left: 0;
-  border-bottom: 0;
-}
-.corners i:nth-child(3) {
-  bottom: 0;
-  left: 0;
-  border-right: 0;
-  border-top: 0;
-}
-.corners i:nth-child(4) {
-  bottom: 0;
-  right: 0;
-  border-left: 0;
-  border-top: 0;
-}
-
-.status {
+.fh {
   display: flex;
-  align-items: baseline;
+  justify-content: space-between;
   gap: 12px;
-  font-family: var(--font-mono);
+  padding: 8px 12px;
+  background: var(--ivory);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+}
+.fr {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-0) 40%, transparent);
+}
+.fr > div {
+  padding: 8px 12px;
+}
+.fr > div + div {
+  border-left: 1px solid color-mix(in srgb, var(--text-0) 40%, transparent);
+}
+.fr dt {
+  margin: 0 0 3px;
   font-size: var(--fs-label);
-  letter-spacing: var(--track-11);
-  text-transform: uppercase;
-  color: var(--text-3);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
 }
-.index {
-  width: 20px;
-  color: var(--text-4);
-}
-.dots {
-  flex: 1;
-  min-width: 16px;
-  height: 1px;
-  align-self: center;
-  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 4px);
-}
-.state {
-  display: inline-flex;
+.fr dd {
+  display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-1);
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--text-0);
+}
+.state {
   white-space: nowrap;
 }
 .led {
   width: 4px;
   height: 4px;
+  flex: none;
   background: var(--gold);
   box-shadow: var(--glow-accent);
 }
@@ -215,21 +237,69 @@
   background: var(--ember);
   box-shadow: none;
 }
-.denied .plate input {
+.denied .fiche input {
   border-color: var(--ember);
 }
 
-.plate input {
+.fin {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-0) 40%, transparent);
+}
+.fiche input {
   letter-spacing: 0.22em;
-  background: var(--bg-0);
+  background: var(--bg-3);
+  border-color: var(--text-0);
+  color: var(--text-0);
 }
 .row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hint {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+/* La flèche d'ouverture de la planche, à l'encre du bouton. */
+.bi {
+  width: 13px;
+  height: 13px;
+  --k: currentColor;
+}
+
+.fc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+}
+/* Une règle là où il n'y a plus de code. */
+.fcr {
+  display: block;
+  --k: var(--text-2);
+}
+.fcr > span {
+  display: block;
+  width: 100%;
+  height: 12px;
+}
+.k {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
 }
 
 /* Le mot, dans la police du desk : chasse régulière, les deux mots sur un axe. */
-.seal {
+.unlock {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -240,7 +310,7 @@
   opacity: 0;
   z-index: 2;
 }
-.seal p {
+.unlock p {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 500;
@@ -253,7 +323,7 @@
   color: var(--text-0);
   opacity: 0;
 }
-.seal .live {
+.unlock .live {
   animation: seal-settle var(--draw, 0.85s) cubic-bezier(0.65, 0, 0.35, 1) forwards;
 }
 @keyframes seal-settle {
@@ -263,21 +333,21 @@
   }
 }
 
-/* La plaque cède la place au sceau. */
-.forming .sous,
-.forming .plate,
-.opening .sous,
-.opening .plate {
+/* La scène cède la place au mot. */
+.forming .stage,
+.forming .accessPlate,
+.opening .stage,
+.opening .accessPlate {
   animation: none;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.16s linear;
 }
-.forming .seal {
+.forming .unlock {
   opacity: 1;
 }
 .opening .hud,
-.opening .seal {
+.opening .unlock {
   opacity: 0;
   transition: opacity 0.22s linear 0.1s;
 }
@@ -286,7 +356,7 @@
   transition: opacity 0.4s linear;
 }
 
-/* ─── Couture : le desk, déjà monté dessous, apparaît par l'axe du sceau ─── */
+/* ─── Couture : le desk, déjà monté dessous, apparaît par l'horizon ─── */
 .opening {
   pointer-events: none;
   --cut-a: calc(var(--axis, 50%) - var(--gap));
@@ -317,8 +387,15 @@
   height: 1px;
   top: var(--axis, 50%);
   opacity: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35) 18%, #ffffff 50%, rgba(255, 255, 255, 0.35) 82%, transparent);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.28);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text-0) 35%, transparent) 18%,
+    var(--text-0) 50%,
+    color-mix(in srgb, var(--text-0) 35%, transparent) 82%,
+    transparent
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--text-0) 28%, transparent);
   transform-origin: 50% 50%;
 }
 .seam i::after {
@@ -353,18 +430,18 @@
   }
 }
 
-.reduced .sous,
-.reduced .plate,
-.reduced .hud {
+.reduced .fiche,
+.reduced .hud,
+.reduced .accessPlate {
   animation: none;
 }
-.reduced .seal p {
+.reduced .unlock p {
   animation: none;
   opacity: 1;
   letter-spacing: 0.18em;
 }
-.reduced.forming .seal,
-.reduced.opening .seal {
+.reduced.forming .unlock,
+.reduced.opening .unlock {
   opacity: 1;
 }
 .reduced.opening {
@@ -378,14 +455,19 @@
   display: none;
 }
 
-@media (max-width: 720px) {
+/* Fenêtre étroite (navigateur) : la fiche seule, le sceau se retire. */
+@media (max-width: 960px) {
   .hud {
     top: 20px;
     left: 16px;
     right: 16px;
   }
-  .sous {
-    letter-spacing: 0.22em;
-    margin-right: -0.22em;
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 24px;
+  }
+  .sealbox,
+  .accessPlate {
+    display: none;
   }
 }

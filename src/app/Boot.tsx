@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { tr, useI18n } from '@/i18n';
 import { InvertedTab } from '@/design/primitives';
+import { Plate } from '@/design/Micro';
+import { Seal, SEAL_HORIZON } from '@/design/Seal';
 import { CONSTRUCTION_END, Wordmark } from '@/design/Wordmark';
-import { runBootCircuit } from './bootCircuit';
+import { APP_VERSION } from '@/lib/version';
 import s from './boot.module.css';
 
 export interface BootStep {
@@ -18,11 +20,13 @@ const MIN_FROM_LAUNCHER_MS = 2600;
 /** Décalage de la construction : la LED du lanceur attend au centre du logotype avant de monter au Λ. */
 const DELAY_S = 0.12;
 const DELAY_FROM_LAUNCHER_S = 0.22;
-/** La ligne du Lab reprend le point rouge quand la LED quitte la pointe du Λ. */
+/** La ligne du Lab reprend le point or quand la LED quitte la pointe du Λ. */
 const SOUS_AT_S = CONSTRUCTION_END - 0.3;
 /** Durée de l'ouverture sur l'axe (couture → écartement), alignée sur boot.module.css. */
 const LEAVE_MS = 760;
 const WORDMARK_W = 420;
+/** L'horizon du sceau (48,27 % de sa hauteur) se pose sur l'axe du logotype (y 80 de 160). */
+const SEAL_HZ = `${(SEAL_HORIZON * 100).toFixed(2)}%`;
 
 function fromLauncherHash(): boolean {
   if (typeof window === 'undefined') return false;
@@ -47,9 +51,7 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
   const [visibleCount, setVisibleCount] = useState(0);
   const [axis, setAxis] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const nanoRef = useRef<HTMLCanvasElement>(null);
   const markRef = useRef<HTMLDivElement>(null);
-  const consoleRef = useRef<HTMLDivElement>(null);
   const clockRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -57,20 +59,18 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
     return () => clearInterval(t);
   }, [steps.length]);
 
-  // Circuit canvas : déplie le trait d'axe au centre du logotype et rallume la fenêtre ; la LED, elle, est portée par le logotype.
+  // Télémétrie : le temps écoulé depuis la frappe, lu à chaque image.
   useEffect(() => {
-    const canvas = nanoRef.current;
-    if (!canvas) return;
-    return runBootCircuit(canvas, {
-      reduced,
-      anchor: () => markRef.current?.querySelector('svg')?.getBoundingClientRect() ?? null,
-      enclose: () => markRef.current?.getBoundingClientRect() ?? null,
-      floor: () => (consoleRef.current?.getBoundingClientRect().top ?? window.innerHeight - 240) - 32,
-      onTick: (t) => {
-        if (clockRef.current) clockRef.current.textContent = `T+${(t / 1000).toFixed(3)}`;
-      },
-    });
-  }, [reduced]);
+    if (typeof requestAnimationFrame !== 'function') return;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      if (clockRef.current) clockRef.current.textContent = `T+${(Math.max(0, now - t0) / 1000).toFixed(3)}`;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   const [skipped, setSkipped] = useState(false);
   useEffect(() => {
@@ -79,7 +79,7 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
     const remaining = skipped ? 0 : Math.max(0, min - (Date.now() - startedAt));
     const t1 = setTimeout(() => {
       // Axe du logotype en % de l'écran : indépendant de tout zoom CSS.
-      const box = markRef.current?.querySelector('svg')?.getBoundingClientRect();
+      const box = markRef.current?.querySelector('svg[aria-label="CΛNTO"]')?.getBoundingClientRect();
       const root = rootRef.current?.getBoundingClientRect();
       if (box && root && root.height > 0) setAxis(((box.top + box.height / 2 - root.top) / root.height) * 100);
       setLeaving(true);
@@ -112,8 +112,6 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
       className={`${s.boot} ${fromLauncher ? s.fromLauncher : ''} ${leaving ? s.leaving : ''} ${reduced ? s.reduced : ''}`}
       style={axis !== null ? ({ '--axis': `${axis.toFixed(3)}%` } as CSSProperties) : undefined}
     >
-      <canvas ref={nanoRef} className={s.nano} aria-hidden />
-
       <div className={s.hud} aria-hidden>
         <span>
           CΛNTO <i className={s.led}>/</i> 002 · BOOT
@@ -122,7 +120,17 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
       </div>
 
       <div className={s.center} ref={markRef}>
-        <Wordmark width={WORDMARK_W} animated delay={delay} />
+        {/* Une seule boîte pour le logotype, le sceau et sa plaque : l'axe du logotype (y 80) est la ligne d'horizon. */}
+        <div className={s.mark} data-part="mark">
+          <span className={s.horizon} aria-hidden />
+          <div className={s.sealw} data-part="seal" style={{ '--hz': SEAL_HZ } as CSSProperties}>
+            <Seal kind="negative" className={s.seal} />
+          </div>
+          <Wordmark width={WORDMARK_W} animated delay={delay} />
+          <div className={s.plateSeal} data-part="seal-plate">
+            <Plate id="seal" values={{ version: APP_VERSION }} />
+          </div>
+        </div>
         <p className={s.sous} style={{ '--sous-delay': `${(delay + SOUS_AT_S).toFixed(2)}s` } as CSSProperties}>
           SIΞRRΛSKΛ LAB
           <i aria-hidden />
@@ -130,7 +138,7 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
         </p>
       </div>
 
-      <div className={s.console} ref={consoleRef}>
+      <div className={s.console}>
         <div className={s.log}>
           {steps.slice(0, visibleCount).map((st, i) => (
             <div key={st.id} className={`${s.line} ${s[st.status]}`}>
@@ -153,6 +161,10 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
           <span>Design Unit · SIΞRRΛSKΛ Lab · Rev. B</span>
           <span className={s.markSlot}>SIΞRRΛSKΛ</span>
         </div>
+      </div>
+
+      <div className={s.plateArtefact} data-part="artefact-plate">
+        <Plate id="artefact" values={{ state: 'LIVE' }} />
       </div>
 
       <div className={s.seam} aria-hidden>
