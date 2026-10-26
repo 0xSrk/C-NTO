@@ -181,7 +181,8 @@
     const x = a.ax + (a.cx - a.ax) * back;
     const y = a.ay + (HZ - a.ay) * back;
     graduation(a, 1 - win(t, 0, 420));
-    const open = easeOut(win(t, CFG.back - 120, CFG.pre));
+    // La couture s'ouvre, puis s'efface quand les liaisons du départ (launcher-ui.js) allument la ligne.
+    const open = easeOut(win(t, CFG.back - 120, CFG.pre)) * (1 - win(t, CFG.pre, CFG.pre + 500));
     if (open > 0) {
       const half = (W / 2) * open;
       const g = ctx.createLinearGradient(a.cx - half, 0, a.cx + half, 0);

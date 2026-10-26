@@ -827,6 +827,11 @@
       .frame.leaving .strip {
         transform: none;
       }
+      /* La LED quitte la pointe dès le départ : la lumière de l'aube (aube.js) la ramène sur l'horizon. */
+      .frame.leaving .led-path {
+        opacity: 0;
+        transition: opacity 0.12s linear;
+      }
 
       /* ═══ L'AUBE — la séquence d'ouverture (≤ 2,8 s). Chaque pas dit un état réel du lanceur : le cadre se cale,
          l'horizon se trace, le sceau signe, la LED (vivante) se lève et se pose, la marque se construit sur sa
