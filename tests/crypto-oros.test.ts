@@ -118,6 +118,8 @@ function visible(el: Element | null | undefined): string {
 
 /** Les lignes d'alerte, dans l'ordre de la liste ; `title` : le titre de la section dans la langue active. */
 const alertRows = (node: HTMLElement, title = 'Alertes'): HTMLElement[] => [...section(node, title).querySelectorAll<HTMLElement>(`.${c.alertRow}`)];
+/** La plaque SIGNAL en tête de la section des alertes ; `title` : le titre de la section dans la langue active. */
+const signalPlate = (node: HTMLElement, title = 'Alertes'): HTMLElement | null => section(node, title).querySelector(`.${c.alertHead} [role="img"]`);
 const tagOf = (row: HTMLElement): HTMLElement | null => row.querySelector(`.${p.tag}`);
 const levelOf = (row: HTMLElement): string | null => row.querySelector('[data-level]')?.getAttribute('data-level') ?? null;
 const css = () => readFileSync('src/modules/crypto/crypto.module.css', 'utf8');
@@ -189,5 +191,52 @@ describe('OROS3.5a les alertes sont des signaux', () => {
       expect(tagOf(pause!)?.textContent, locale).toBe(paused);
       expect(up!.querySelector(`.${c.dirGlyph}`)?.getAttribute('aria-label'), locale).toBe(above);
     }
+  });
+});
+
+describe('OROS3.5b la plaque SIGNAL ouvre la section des alertes, liée au marché du chart', () => {
+  const ONE: CryptoMarketId = 'binance:ONEUSDT';
+  const ticker = { [BTC]: { market: BTC, last: 82_487.05, change24hPct: -0.21, time: NOW } };
+  /** Le texte d'une ligne de la plaque, par la classe de son master (`mgsignal-2` : WATCH / TARGET / STATE ; `mgsignal-6` : la pastille). */
+  const slot = (plate: HTMLElement | null, cls: string): string => visible(plate?.querySelector(`text.${cls}`));
+
+  it('cible le marché du chart, lit l’état de ses alertes (déclenchée avant armée) et le direct de son prix', async () => {
+    const node = await mount({ alerts: ALERTS, tickers: ticker });
+    const plate = signalPlate(node);
+    expect(plate).not.toBeNull();
+    expect(plate!.querySelector('svg.mg-signal')).not.toBeNull();
+    // La plaque ouvre la section : avant la première ligne d'alerte.
+    const head = section(node, 'Alertes').querySelector(`.${c.alertHead}`);
+    const first = alertRows(node)[0];
+    expect(head && first && head.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(slot(plate, 'mgsignal-2')).toBe('WATCHTARGET: BTC-USDSTATE: TRIGGERED');
+    expect(slot(plate, 'mgsignal-6')).toBe('LIVE');
+    expect(plate?.getAttribute('aria-label')).toBe('Signal : BTC-USD · alerte déclenchée · prix en direct');
+  });
+
+  it('armée seule : ARMED ; aucune alerte sur le marché : un tiret ; prix pas encore reçu ou venue périmée : pas de direct', async () => {
+    const node = await mount({ alerts: [ALERTS[0]!, ALERTS[2]!], tickers: ticker });
+    expect(slot(signalPlate(node), 'mgsignal-2')).toBe('WATCHTARGET: BTC-USDSTATE: ARMED');
+    await act(async () => useCrypto.setState({ venues: { coinbase: 'stale', binance: 'live', bybit: 'live' } }));
+    expect(slot(signalPlate(node), 'mgsignal-6')).toBe('—');
+    await act(async () => useCrypto.setState({ market: ONE }));
+    expect(slot(signalPlate(node), 'mgsignal-2')).toBe('WATCHTARGET: ONEUSDTSTATE: —');
+    expect(slot(signalPlate(node), 'mgsignal-6')).toBe('—');
+    expect(signalPlate(node)?.getAttribute('aria-label')).toBe('Signal : ONEUSDT · aucune alerte · prix pas en direct');
+  });
+
+  it('la légende dit les trois niveaux par leur forme ; seul le niveau 3 est rouge, et il n’écrit pas', async () => {
+    const node = await mount({ alerts: ALERTS });
+    const legend = section(node, 'Alertes').querySelector(`.${c.alertLegend}`);
+    const signals = [...(legend?.querySelectorAll<HTMLElement>('[data-level]') ?? [])];
+    expect(signals.map((el) => el.getAttribute('data-level'))).toEqual(['1', '2', '3']);
+    expect(signals.map((el) => visible(el))).toEqual(['Repère', 'Attention', 'Borne franchie']);
+    expect(signals.map((el) => el.classList.contains('sig-l3'))).toEqual([false, false, true]);
+    // Encre et papier de la plaque posés par la zone : l'acier sur le panneau, jamais le rouge.
+    expect(rule('alertHead')).toMatch(/--k:\s*var\(--text-1\)/);
+    expect(rule('alertHead')).toMatch(/--p:\s*var\(--bg-1\)/);
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect([...(section(node, 'Alerts').querySelectorAll(`.${c.alertLegend} [data-level]`) ?? [])].map((el) => visible(el))).toEqual(['Marker', 'Attention', 'Limit crossed']);
+    expect(signalPlate(node, 'Alerts')?.getAttribute('aria-label')).toMatch(/^Signal: BTC-USD · /);
   });
 });
