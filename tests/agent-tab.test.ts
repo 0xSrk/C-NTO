@@ -465,3 +465,63 @@ describe('onglet Agent · outils crypto (CRY6.2)', () => {
     expect(sentTools()).toHaveLength(DESK_TOOLS.length);
   });
 });
+
+describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, options regroupées', () => {
+  const panel = (node: HTMLElement, view: string) => node.querySelector<HTMLElement>(`#agent-panel-${view}`);
+  const tab = (node: HTMLElement, label: string) => [...node.querySelectorAll<HTMLButtonElement>('button[role="tab"]')].find((b) => b.textContent?.includes(label));
+
+  it('le dossier des rapports est la vue d’ouverture ; les deux autres vues restent montées mais cachées', async () => {
+    const node = await mount();
+    expect(tab(node, 'Rapports')?.getAttribute('aria-selected')).toBe('true');
+    expect(panel(node, 'rapports')?.hidden).toBe(false);
+    expect(panel(node, 'conversation')?.hidden).toBe(true);
+    expect(panel(node, 'options')?.hidden).toBe(true);
+    expect(panel(node, 'rapports')?.textContent).toContain('Disponible dans le shell local');
+  });
+
+  it('les options (fournisseur, MCP, orchestrateur, ordres, outils) sont dans la vue C ; la conversation et ses routines dans la vue B', async () => {
+    const node = await mount();
+    const options = panel(node, 'options')!;
+    for (const title of ['Fournisseur', 'Agents externes · MCP', 'Orchestrateur externe', 'Ordres proposés par l’agent']) {
+      expect(options.contains(section(node, title)), title).toBe(true);
+    }
+    const conversation = panel(node, 'conversation')!;
+    expect(conversation.contains(routineButton(node, 'Brief'))).toBe(true);
+    expect(conversation.querySelector('textarea')).not.toBeNull();
+    await click(tab(node, 'Options')!);
+    expect(options.hidden).toBe(false);
+    expect(panel(node, 'rapports')?.hidden).toBe(true);
+    expect(tab(node, 'Options')?.getAttribute('aria-selected')).toBe('true');
+    await click(tab(node, 'Conversation')!);
+    expect(conversation.hidden).toBe(false);
+    expect(options.hidden).toBe(true);
+  });
+
+  it('changer de vue garde le brouillon de la conversation', async () => {
+    const node = await mount();
+    await click(tab(node, 'Conversation')!);
+    const textarea = node.querySelector('textarea')!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setter?.call(textarea, 'brouillon en cours');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await click(tab(node, 'Options')!);
+    await click(tab(node, 'Conversation')!);
+    expect(node.querySelector('textarea')?.value).toBe('brouillon en cours');
+  });
+
+  it('hors du desk (pas d’agent cloud) : pas de bloc-titre de relevé, et aucune écriture dans le coffre au montage', async () => {
+    const node = await mount();
+    expect(node.querySelector('dl')).toBeNull();
+    expect(fake.puts).toEqual([]);
+  });
+
+  it('les vues suivent la langue du desk', async () => {
+    useI18n.setState({ locale: 'es' });
+    const node = await mount();
+    expect(tab(node, 'Informes')).toBeDefined();
+    expect(tab(node, 'Conversación')).toBeDefined();
+    expect(tab(node, 'Opciones')).toBeDefined();
+  });
+});

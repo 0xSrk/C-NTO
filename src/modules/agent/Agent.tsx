@@ -1,4 +1,4 @@
-import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Field, Tag, Toggle, cx } from '@/design/primitives';
@@ -8,10 +8,11 @@ import { toolSchemas } from '@/engine/agent/tools';
 import { tradingDayNow } from '@/engine/discipline';
 import { tr, useI18n } from '@/i18n';
 import { desk, isDesk } from '@/lib/desk';
-import { fmtNum } from '@/lib/format';
+import { fmtInt, fmtNum } from '@/lib/format';
 import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
 import { db, type AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
+import { useAgentCloud } from '@/store/agentCloud';
 import { useCrypto } from '@/store/crypto';
 import { dailyLossReached, useDeskEvents } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
@@ -19,6 +20,7 @@ import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvid
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
 import { AgentOrdersPanel } from './AgentOrdersPanel';
+import { CloudReports } from './CloudReports';
 import { claudeCodeCommand, claudeDesktopConfig, codexConfig, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
 import s from './agent.module.css';
@@ -66,6 +68,9 @@ function StreamBubble({ text }: { text: string }) {
 
 const NEAR_BOTTOM_PX = 40;
 
+/** Sous-onglets de l'agent : le dossier des rapports d'abord, la conversation, puis toutes les options. */
+export type AgentView = 'rapports' | 'conversation' | 'options';
+
 export default function Agent() {
   const locale = useI18n((s) => s.locale);
   // Sélecteurs champ par champ : chaque jeton reçu ne réaffiche que ce qui dépend de streamText.
@@ -102,6 +107,11 @@ export default function Agent() {
   const updateAgent = useSettings((st) => st.updateAgent);
   const update = useSettings((st) => st.update);
   const toast = useUi((u) => u.toast);
+  const [view, setView] = useState<AgentView>('rapports');
+  const cloudStatus = useAgentCloud((c) => c.status);
+  const cloudCount = useAgentCloud((c) => c.reports.length);
+  const pullCloud = useAgentCloud((c) => c.pull);
+  const openCloudFolder = useAgentCloud((c) => c.openFolder);
   const [draft, setDraft] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [seen, setSeen] = useState<RoutineSeen>({});
@@ -181,23 +191,92 @@ export default function Agent() {
 
   const visibleMessages = messages.filter((m) => m.role !== 'system');
 
+  const cloudOn = isDesk && !!desk?.agentCloud;
+  const unread = cloudStatus?.unread ?? 0;
+  const cloudReady = cloudOn && !!cloudStatus?.keyStored && !!cloudStatus.deploymentId;
+  const clock = (ms: number | null | undefined) => (ms ? dateTimeFormatter({ day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(ms) : '—');
+  const views: { value: AgentView; letter: string; label: string }[] = [
+    { value: 'rapports', letter: 'A', label: tr('Rapports', 'Reports', 'Informes') },
+    { value: 'conversation', letter: 'B', label: tr('Conversation', 'Conversation', 'Conversación') },
+    { value: 'options', letter: 'C', label: tr('Options', 'Options', 'Opciones') },
+  ];
+  const current = views.find((v) => v.value === view) ?? views[0]!;
+  const modelTag = (
+    <Tag tone={probeState?.ok ? 'mint' : 'gold'} dot live={streaming}>
+      {agent.provider === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'} · {agent.model}
+    </Tag>
+  );
+
   return (
     <>
       <ModuleHeader
         tab="agent"
+        crumb={current.label.toLocaleUpperCase()}
+        cells={
+          cloudOn
+            ? [
+                { label: tr('Dernier relevé', 'Last pull', 'Última lectura'), value: clock(cloudStatus?.lastPullAt) },
+                { label: tr('Prochaine exécution', 'Next run', 'Próxima ejecución'), value: clock(cloudStatus?.deployment?.nextRunAt), plan: true },
+                {
+                  label: tr('Rapports', 'Reports', 'Informes'),
+                  value: unread > 0 ? `${fmtInt(cloudCount)} · ${fmtInt(unread)} ${tr('non lu(s)', 'unread', 'sin leer')}` : fmtInt(cloudCount),
+                },
+              ]
+            : undefined
+        }
         actions={
-          <>
-            <Tag tone={probeState?.ok ? 'mint' : 'gold'} dot live={streaming}>
-              {agent.provider === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'} · {agent.model}
-            </Tag>
-            <Button variant="ghost" onClick={() => newConversation()}>
-              {tr('Nouvelle conversation', 'New conversation', 'Nueva conversación')}
-            </Button>
-          </>
+          view === 'rapports' ? (
+            <>
+              <Button variant="ghost" disabled={!cloudOn} onClick={() => void openCloudFolder()}>
+                {tr('Ouvrir le dossier', 'Open the folder', 'Abrir la carpeta')}
+              </Button>
+              <Button variant="chamfer" disabled={!cloudReady || !!cloudStatus?.pulling} onClick={() => void pullCloud()}>
+                {cloudStatus?.pulling ? tr('Relevé…', 'Pulling…', 'Leyendo…') : tr('Relever maintenant', 'Pull now', 'Leer ahora')}
+              </Button>
+            </>
+          ) : view === 'conversation' ? (
+            <>
+              {modelTag}
+              <Button variant="ghost" onClick={() => newConversation()}>
+                {tr('Nouvelle conversation', 'New conversation', 'Nueva conversación')}
+              </Button>
+            </>
+          ) : (
+            modelTag
+          )
         }
       />
+      <div className={s.subtabs} role="tablist" aria-label={tr('Vues de l’agent', 'Agent views', 'Vistas del agente')}>
+        {views.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            role="tab"
+            id={`agent-tab-${item.value}`}
+            aria-controls={`agent-panel-${item.value}`}
+            aria-selected={view === item.value}
+            className={cx(s.subtab, view === item.value && s.on)}
+            onClick={() => startTransition(() => setView(item.value))}
+          >
+            <i>{item.letter}</i>
+            {item.label}
+            {item.value === 'rapports' && unread > 0 ? <b className={s.subtabCount}>{fmtInt(unread)}</b> : null}
+          </button>
+        ))}
+        <span className={s.scopeNote}>
+          {view === 'rapports'
+            ? tr('Relevé par le desk · rien du desk ne part vers le cloud', 'Pulled by the desk · nothing from the desk goes to the cloud', 'Recogido por el desk · nada del desk sale hacia la nube')
+            : view === 'conversation'
+              ? tr('Modèle conversationnel · outils natifs du desk', 'Conversational model · native desk tools', 'Modelo conversacional · herramientas nativas del desk')
+              : tr('Agent cloud · modèle · passerelles · ordres · outils', 'Cloud agent · model · gateways · orders · tools', 'Agente en la nube · modelo · pasarelas · órdenes · herramientas')}
+        </span>
+      </div>
       <ModuleContent noPad>
-        <div className={s.layout}>
+        {/* Les trois vues restent montées : brouillon, défilement et réglages en cours survivent au changement de vue. */}
+        <div className={s.view} role="tabpanel" id="agent-panel-rapports" aria-labelledby="agent-tab-rapports" hidden={view !== 'rapports'}>
+          <CloudReports active={view === 'rapports'} onOptions={() => startTransition(() => setView('options'))} />
+        </div>
+        <div className={s.view} role="tabpanel" id="agent-panel-conversation" aria-labelledby="agent-tab-conversation" hidden={view !== 'conversation'}>
           <section className={s.chat}>
             <div className={s.messages} ref={listRef}>
               {visibleMessages.length === 0 && !streaming && (
@@ -205,9 +284,9 @@ export default function Agent() {
                   <h2>{tr('Passerelle agent', 'Agent gateway', 'Pasarela del agente')}</h2>
                   <p>
                     {tr(
-                      'L’agent lit le desk par des outils natifs — métriques, séances, notes, calendrier, plan prop firm — et peut écrire des notes ou annoter des séances. Connectez un modèle local (Ollama, LM Studio) ou distant dans le panneau de droite, puis posez une question.',
-                      'The agent reads the desk through native tools — metrics, sessions, notes, calendar, prop firm plan — and can write notes or annotate sessions. Connect a local model (Ollama, LM Studio) or a remote one in the right panel, then ask a question.',
-                      'El agente lee el desk con herramientas nativas — métricas, sesiones, notas, calendario, plan prop firm — y puede escribir notas o anotar sesiones. Conecte un modelo local (Ollama, LM Studio) o remoto en el panel derecho, luego formule una pregunta.',
+                      'L’agent lit le desk par des outils natifs — métriques, séances, notes, calendrier, plan prop firm — et peut écrire des notes ou annoter des séances. Connectez un modèle local (Ollama, LM Studio) ou distant dans Options, puis posez une question.',
+                      'The agent reads the desk through native tools — metrics, sessions, notes, calendar, prop firm plan — and can write notes or annotate sessions. Connect a local model (Ollama, LM Studio) or a remote one in Options, then ask a question.',
+                      'El agente lee el desk con herramientas nativas — métricas, sesiones, notas, calendario, plan prop firm — y puede escribir notas o anotar sesiones. Conecte un modelo local (Ollama, LM Studio) o remoto en Opciones, luego formule una pregunta.',
                     )}
                   </p>
                   <div className={s.suggestions} style={{ justifyContent: 'center' }}>
@@ -295,8 +374,9 @@ export default function Agent() {
               </div>
             </div>
           </section>
-
-          <aside className={s.side}>
+        </div>
+        <div className={s.view} role="tabpanel" id="agent-panel-options" aria-labelledby="agent-tab-options" hidden={view !== 'options'}>
+          <div className={s.options}>
             <div className={s.section}>
               <div className={s.sectionTitle}>
                 <span>{tr('Fournisseur', 'Provider', 'Proveedor')}</span>
@@ -651,7 +731,7 @@ export default function Agent() {
                 )}
               </div>
             </div>
-          </aside>
+          </div>
         </div>
       </ModuleContent>
     </>
