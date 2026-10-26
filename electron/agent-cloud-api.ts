@@ -79,8 +79,6 @@ export interface SessionView {
   outcomeResult: string | null;
   /** Plafond de la session (`budget.max_list_cost`), en cents ; `null` sans plafond. */
   budgetCents: number | null;
-  /** `stop_reason.type` d'une session au repos, quand l'API le donne (`end_turn`, `budget_reached`, `retries_exhausted`…). */
-  stopReason: string | null;
 }
 
 export interface SessionPage {
@@ -194,7 +192,6 @@ export function parseSession(raw: unknown): SessionView | null {
   const usage = isRecord(raw.usage) ? raw.usage : null;
   const agent = isRecord(raw.agent) ? raw.agent : null;
   const budget = isRecord(raw.budget) ? raw.budget : null;
-  const stop = isRecord(raw.stop_reason) ? raw.stop_reason : null;
   return {
     id,
     status,
@@ -206,7 +203,6 @@ export function parseSession(raw: unknown): SessionView | null {
     outcomePending: results.some((r) => OUTCOME_OPEN.has(r)),
     outcomeResult: terminal.length ? (terminal[terminal.length - 1] ?? null) : null,
     budgetCents: budget ? cents(budget.max_list_cost) : null,
-    stopReason: stop ? str(stop.type, 40) : null,
   };
 }
 

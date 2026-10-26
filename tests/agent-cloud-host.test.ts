@@ -210,13 +210,13 @@ describe('agent cloud · hôte du process principal', () => {
     expect(status.failures.map((f) => [f.kind, f.detail])).toEqual([['no_report', 'idle · outcome ouvert · 0,64 $']]);
   });
 
-  it('CLD26 session coupée à son plafond : dite « plafond atteint » avec la dépense, sans attendre 30 min ; un rapport déjà écrit est relevé', async () => {
+  it('CLD26 CLD28 session coupée à son plafond : dite « plafond atteint » avec la dépense, sans attendre 30 min ; un rapport déjà écrit est relevé', async () => {
     const api = fakeApi({
       listSessions: vi.fn(async () => [
-        // Coût relevé au plafond, évaluation ouverte : l'API n'a pas donné de stop_reason.
+        // Coût relevé au plafond, évaluation ouverte : en pause au plafond.
         session(1, { status: 'idle', outcomePending: true, outcomeResult: null, costCents: 300, budgetCents: 300, updatedAt: NOW - 2 * 60_000 }),
-        // stop_reason donné par l'API, coût arrondi un centime sous le plafond.
-        session(2, { status: 'idle', outcomePending: true, outcomeResult: null, costCents: 299, budgetCents: 300, stopReason: 'budget_reached', updatedAt: NOW - 2 * 60_000 }),
+        // Un centime sous le plafond, évaluation close : au repos pour une autre raison, « sans rapport », avec sa dépense.
+        session(2, { status: 'idle', outcomePending: false, outcomeResult: 'failed', costCents: 299, budgetCents: 300, updatedAt: NOW - 2 * 60_000 }),
         // Au plafond, mais le rapport était écrit avant la coupure : il est relevé.
         session(3, { status: 'idle', outcomePending: true, outcomeResult: null, costCents: 301, budgetCents: 300, updatedAt: NOW - 2 * 60_000 }),
         // Loin du plafond, évaluation ouverte : toujours attendue 30 min.
@@ -228,7 +228,7 @@ describe('agent cloud · hôte du process principal', () => {
     const h = await configured(api);
     const status = await h.host.pull();
     expect(status).toMatchObject({ reports: 1, pending: 1 });
-    expect(status.failures.map((f) => [f.kind, f.detail])).toEqual(expect.arrayContaining([['budget', '3,00 $ / 3,00 $'], ['budget', '2,99 $ / 3,00 $']]));
+    expect(status.failures.map((f) => [f.kind, f.detail])).toEqual(expect.arrayContaining([['budget', '3,00 $ / 3,00 $'], ['no_report', 'outcome failed · 2,99 $']]));
     expect(status.failures).toHaveLength(2);
     expect(vi.mocked(api.listOutputFiles).mock.calls.map(([id]) => id)).toEqual([sid(1), sid(2), sid(3)]);
   });

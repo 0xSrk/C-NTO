@@ -99,11 +99,12 @@ describe('agent cloud · client Managed Agents', () => {
     expect(plain.calls[0]?.init.headers).not.toHaveProperty(WORKSPACE_HEADER);
   });
 
-  it('CLD26 une session dit son plafond et, au repos, pourquoi elle s’est arrêtée', () => {
+  it('CLD26 CLD28 une session dit sa dépense et son plafond ; l’objet session ne porte pas de motif d’arrêt', () => {
     const base = { id: SESN, status: 'idle', created_at: '2026-10-26T20:43:04Z', updated_at: '2026-10-26T21:19:00Z', usage: { list_cost: { amount: '300', currency: 'USD' } } };
-    expect(parseSession({ ...base, budget: { type: 'limit', max_list_cost: { amount: '300', currency: 'USD' } }, stop_reason: { type: 'budget_reached' } })).toMatchObject({ costCents: 300, budgetCents: 300, stopReason: 'budget_reached' });
-    expect(parseSession(base)).toMatchObject({ budgetCents: null, stopReason: null });
-    expect(parseSession({ ...base, budget: { type: 'limit', max_list_cost: { amount: '3.00', currency: 'USD' } }, stop_reason: 'budget_reached' })).toMatchObject({ budgetCents: null, stopReason: null });
+    expect(parseSession({ ...base, budget: { type: 'limit', max_list_cost: { amount: '300', currency: 'USD' } } })).toMatchObject({ costCents: 300, budgetCents: 300 });
+    expect(parseSession(base)).toMatchObject({ budgetCents: null });
+    expect(parseSession({ ...base, budget: { type: 'limit', max_list_cost: { amount: '3.00', currency: 'USD' } } })).toMatchObject({ budgetCents: null });
+    expect(parseSession({ ...base, stop_reason: { type: 'budget_reached' } })).not.toHaveProperty('stopReason');
   });
 
   it('une redirection est refusée : la clé ne suit pas un 3xx', async () => {

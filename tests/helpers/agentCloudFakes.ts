@@ -42,7 +42,6 @@ export const session = (n: number, over: Partial<SessionView> = {}): SessionView
   outcomePending: false,
   outcomeResult: 'satisfied',
   budgetCents: 300,
-  stopReason: null,
   ...over,
 });
 

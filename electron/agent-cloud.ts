@@ -45,13 +45,13 @@ const FAILURE_KINDS: readonly CloudFailureKind[] = ['run', 'no_report', 'budget'
 
 /**
  * Session en pause à son plafond (`budget_reached`) : pas une fin, mais rien ne la relancera sans relever le plafond.
- * L'API le dit par `stop_reason` quand elle le donne ; sinon le coût relevé atteint le plafond, au centime près
- * (le coût rendu est arrondi au centime, le plafond est appliqué au montant exact).
+ * Le motif n'est porté que par l'événement de mise au repos, pas par l'objet session : le desk le déduit du coût.
+ * La pause ne tombe qu'une fois le coût exact au plafond, et le coût rendu en est l'arrondi au centime : une session
+ * en pause déclare donc toujours au moins son plafond. L'inverse peut tromper d'un demi-centime (une session au repos
+ * pour une autre raison, juste sous le plafond) : elle reste de toute façon un échec, seul son libellé diffère.
  */
 export function atCap(session: SessionView): boolean {
-  if (session.status !== 'idle') return false;
-  if (session.stopReason === 'budget_reached') return true;
-  return session.budgetCents !== null && session.costCents !== null && session.costCents >= session.budgetCents - 1;
+  return session.status === 'idle' && session.budgetCents !== null && session.costCents !== null && session.costCents >= session.budgetCents;
 }
 
 export interface CloudFailure {
