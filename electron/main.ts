@@ -903,6 +903,7 @@ ipcMain.handle('agent-cloud:list', (e) => (trusted(e) && agentCloud ? agentCloud
 ipcMain.handle('agent-cloud:read', (e, id: unknown) => (trusted(e) && agentCloud ? agentCloud.read(id) : null));
 ipcMain.handle('agent-cloud:mark-read', (e, id: unknown) => (trusted(e) && agentCloud ? agentCloud.markRead(id) : null));
 ipcMain.handle('agent-cloud:set-key', (e, text: unknown) => (trusted(e) && agentCloud && isString(text, 512) ? agentCloud.setKey(text) : (agentCloud?.status() ?? null)));
+ipcMain.handle('agent-cloud:set-workspace', (e, text: unknown) => (trusted(e) && agentCloud && isString(text, 140) ? agentCloud.setWorkspace(text) : (agentCloud?.status() ?? null)));
 ipcMain.handle('agent-cloud:set-deployment', (e, id: unknown) => (trusted(e) && agentCloud && (id === null || isString(id, 140)) ? agentCloud.setDeployment(id) : (agentCloud?.status() ?? null)));
 ipcMain.handle('agent-cloud:set-schedule', (e, raw: unknown) => (trusted(e) && agentCloud ? agentCloud.setSchedule(raw) : null));
 ipcMain.handle('agent-cloud:pull', (e) => (trusted(e) && agentCloud ? agentCloud.pull() : null));

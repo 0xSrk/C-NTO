@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CloudApiError, type FileView } from '../electron/agent-cloud-api';
+import { CloudApiError, type FetchLike, type FileView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS, SETTLE_MS } from '../electron/agent-cloud';
-import { cloudHarness, DEPL, DEPLOYMENT, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
+import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -50,6 +50,92 @@ describe('agent cloud · hôte du process principal', () => {
     const locked = harness({ available: false });
     expect(locked.host.setKey(KEY)).toMatchObject({ available: false, keyStored: false, error: expect.stringContaining('Trousseau') });
     expect(existsSync(path.join(locked.dir, AGENT_CLOUD_FILE))).toBe(false);
+  });
+
+  it('CLD23 espace de travail : gardé à part du trousseau, rendu au statut, relu au redémarrage, nommé par le client à chaque appel', async () => {
+    const WRK = 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ';
+    const seen: Record<string, string>[] = [];
+    const realFetch = vi.fn<FetchLike>(async (_url, init) => {
+      seen.push({ ...(init.headers as Record<string, string>) });
+      return new Response(JSON.stringify({ type: 'error', error: { type: 'not_found_error', message: 'introuvable' } }), { status: 404 });
+    });
+    const h = harness({ realFetch });
+    h.host.setKey(KEY);
+    expect(await h.host.setWorkspace(`  ${WRK}  `)).toMatchObject({ workspaceId: WRK, error: null });
+    expect(JSON.parse(readFileSync(path.join(h.dir, AGENT_CLOUD_FILE), 'utf8')).workspaceId).toBe(WRK);
+    await h.host.setDeployment(DEPL);
+    await h.host.pull();
+    h.host.shutdown();
+    expect(seen.length).toBeGreaterThan(0);
+    for (const headers of seen) expect(headers).toMatchObject({ 'anthropic-workspace-id': WRK, 'x-api-key': KEY });
+    expect(harness({ dir: h.dir, realFetch }).host.status().workspaceId).toBe(WRK);
+    expect((await h.host.setWorkspace('')).workspaceId).toBeNull();
+    expect(JSON.parse(readFileSync(path.join(h.dir, AGENT_CLOUD_FILE), 'utf8')).workspaceId).toBeNull();
+  });
+
+  it('CLD23 espace de travail : forme vérifiée ; changé sans installation en cours, il oublie l’environnement d’ailleurs ; nommé au dialogue', async () => {
+    const OTHER = 'wrkspc_01KxRwas8sYMB6BHy4ILgGVK';
+    const first = harness();
+    expect(await first.host.setWorkspace('wrkspc_x\nx')).toMatchObject({ workspaceId: null, error: expect.stringContaining('wrkspc_') });
+    expect(await first.host.setWorkspace(42)).toMatchObject({ workspaceId: null });
+    const file = path.join(first.dir, AGENT_CLOUD_FILE);
+    writeFileSync(file, JSON.stringify({ v: 1, key: seal().encrypt(KEY), environmentId: ENV, managed: false }));
+    const started = harness({ dir: first.dir });
+    expect(await started.host.setWorkspace(OTHER)).toMatchObject({ workspaceId: OTHER, error: null, busy: null });
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ workspaceId: OTHER, environmentId: null, agentId: null, agentVersion: null });
+    expect(started.logs).toContain('agent cloud · espace de travail enregistré');
+    expect(started.logs.join('\n')).not.toContain(OTHER);
+    await started.host.provision();
+    expect(started.dialogs[0]?.detail).toContain(`Espace de travail : ${OTHER}`);
+    expect(started.api.calls).toEqual([]);
+    await started.host.setWorkspace('');
+    await started.host.provision();
+    expect(started.dialogs[1]?.detail).not.toContain('Espace de travail');
+  });
+
+  it('CLD25 changer d’espace ne perd jamais de vue un déploiement qui facture', async () => {
+    const WRK = 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ';
+    const OTHER = 'wrkspc_01KxRwas8sYMB6BHy4ILgGVK';
+    const first = harness();
+    const file = path.join(first.dir, AGENT_CLOUD_FILE);
+    const base = { v: 1, key: seal().encrypt(KEY), environmentId: ENV, agentId: AGENT, agentVersion: 2 };
+    const saved = () => JSON.parse(readFileSync(file, 'utf8'));
+
+    // Déploiement du desk installé avec une clé d'espace (espace implicite), puis clé d'utilisateur : nommer son espace le garde en vue.
+    writeFileSync(file, JSON.stringify({ ...base, deploymentId: DEPL, managed: true }));
+    const visible = fakeApi({ getDeployment: async () => DEPLOYMENT });
+    const named = harness({ dir: first.dir, api: visible });
+    expect(await named.host.setWorkspace(WRK)).toMatchObject({ workspaceId: WRK, deploymentId: DEPL, managed: true, error: null });
+    expect(vi.mocked(visible.getDeployment).mock.calls).toEqual([[DEPL, { workspace: WRK }]]);
+    expect(saved()).toMatchObject({ workspaceId: WRK, environmentId: ENV, agentId: AGENT });
+
+    // Le nouvel espace ne voit pas le déploiement du desk : rien ne change.
+    const hidden = fakeApi({ getDeployment: async () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404 · not_found_error')) });
+    const moved = harness({ dir: first.dir, api: hidden });
+    expect(await moved.host.setWorkspace(OTHER)).toMatchObject({ workspaceId: WRK, error: expect.stringContaining('n’est pas visible dans cet espace') });
+    expect(await moved.host.setWorkspace('')).toMatchObject({ workspaceId: WRK });
+    expect(vi.mocked(hidden.getDeployment).mock.calls).toEqual([[DEPL, { workspace: OTHER }], [DEPL, { workspace: null }]]);
+    expect(saved()).toMatchObject({ workspaceId: WRK, deploymentId: DEPL, managed: true, agentId: AGENT });
+
+    // Installation coupée (réponse de création perdue) : le déploiement est cherché par son agent, retrouvé, et devient celui du desk.
+    writeFileSync(file, JSON.stringify({ ...base, workspaceId: WRK, managed: false }));
+    const lost = fakeApi({ listDeployments: async () => [DEPLOYMENT] });
+    const recovered = harness({ dir: first.dir, api: lost });
+    expect(await recovered.host.setWorkspace(OTHER)).toMatchObject({ workspaceId: WRK, deploymentId: DEPL, managed: true, error: expect.stringContaining('retrouvé dans l’espace actuel') });
+    expect(saved()).toMatchObject({ workspaceId: WRK, deploymentId: DEPL, managed: true, agentId: AGENT });
+
+    // Recherche impossible : rien n'est oublié.
+    writeFileSync(file, JSON.stringify({ ...base, workspaceId: WRK, managed: false }));
+    const down = harness({ dir: first.dir, api: fakeApi({ listDeployments: async () => Promise.reject(new CloudApiError(0, 'network', 'Réseau indisponible')) }) });
+    expect(await down.host.setWorkspace(OTHER)).toMatchObject({ workspaceId: WRK, error: expect.stringContaining('invérifiable') });
+    expect(saved()).toMatchObject({ agentId: AGENT, environmentId: ENV });
+
+    // Rien de trouvé : l'espace change, l'installation commencée ailleurs est oubliée.
+    const none = fakeApi({ listDeployments: async () => [{ ...DEPLOYMENT, tagged: false }] });
+    const clear = harness({ dir: first.dir, api: none });
+    expect(await clear.host.setWorkspace(OTHER)).toMatchObject({ workspaceId: OTHER, deploymentId: null, error: null });
+    expect(saved()).toMatchObject({ workspaceId: OTHER, agentId: null, environmentId: null });
+    expect(none.calls).toEqual(['listDeployments']);
   });
 
   it('identifiant de déploiement et planification : forme vérifiée, sinon rien ne change', async () => {

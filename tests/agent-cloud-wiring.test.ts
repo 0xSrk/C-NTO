@@ -19,7 +19,7 @@ describe('agent cloud · câblage IPC', () => {
     const handled = channels(main, /ipcMain\.handle\('(agent-cloud:[a-z-]+)'/g);
     expect(invoked).toEqual(handled);
     expect(handled).toEqual(
-      ['list', 'mark-read', 'open-folder', 'pause', 'provision', 'pull', 'read', 'run', 'set-deployment', 'set-key', 'set-schedule', 'status', 'unpause'].map((m) => `agent-cloud:${m}`),
+      ['list', 'mark-read', 'open-folder', 'pause', 'provision', 'pull', 'read', 'run', 'set-deployment', 'set-key', 'set-schedule', 'set-workspace', 'status', 'unpause'].map((m) => `agent-cloud:${m}`),
     );
     for (const line of main.split('\n').filter((l) => l.includes("ipcMain.handle('agent-cloud:"))) {
       expect(line, line).toMatch(/\(e(, [a-z]+: unknown)?\) => \(trusted\(e\) && agentCloud/);
@@ -27,9 +27,10 @@ describe('agent cloud · câblage IPC', () => {
     expect(main).not.toMatch(/ipcMain\.on\('agent-cloud:/);
   });
 
-  it('la clé et le déploiement sont bornés à l’entrée ; aucune URL ne vient du renderer', () => {
+  it('la clé, l’espace de travail et le déploiement sont bornés à l’entrée ; aucune URL ne vient du renderer', () => {
     expect(main).toContain("ipcMain.handle('agent-cloud:set-key', (e, text: unknown) => (trusted(e) && agentCloud && isString(text, 512) ? agentCloud.setKey(text)");
     expect(main).toContain("(id === null || isString(id, 140)) ? agentCloud.setDeployment(id)");
+    expect(main).toContain("ipcMain.handle('agent-cloud:set-workspace', (e, text: unknown) => (trusted(e) && agentCloud && isString(text, 140) ? agentCloud.setWorkspace(text)");
     expect(preload).not.toMatch(/agent-cloud:[a-z-]+', [^)]*url/i);
   });
 

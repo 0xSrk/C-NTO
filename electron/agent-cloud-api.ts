@@ -14,12 +14,19 @@ export const CLOUD_API_ORIGIN = 'https://api.anthropic.com';
 export const MANAGED_AGENTS_BETA = 'managed-agents-2026-04-01';
 /** Les points d'accès Managed Agents se comportent à l'identique en `2023-06-01` et `2026-10-21` ; le desk envoie déjà `2023-06-01`. */
 export const ANTHROPIC_VERSION = '2023-06-01';
+/** Une clé d'utilisateur (`sk-ant-usr-…`) vaut pour toute l'organisation : chaque appel nomme l'espace de travail visé. */
+export const WORKSPACE_HEADER = 'anthropic-workspace-id';
 const TIMEOUT_MS = 20_000;
 /** Une réponse JSON de l'API (liste de 20 sessions et leurs agents figés) reste sous 2 Mio. */
 const JSON_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_MAX_BYTES = 16 * 1024;
 const MESSAGE_MAX = 200;
 const RETRY_AFTER_MAX_SEC = 3600;
+
+/** Identifiant d'espace de travail : `wrkspc_…`, ou un UUID ; l'API dit s'il existe pour la clé. Jamais rien qui casse un en-tête. */
+export function isWorkspaceId(v: unknown): v is string {
+  return typeof v === 'string' && (/^wrkspc_[A-Za-z0-9]{6,128}$/.test(v) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+}
 
 /**
  * Échec d'un appel. `status` : statut HTTP, ou 0 hors HTTP. `type` : le `error.type` de l'API (`authentication_error`,
@@ -94,7 +101,8 @@ export interface FileView {
 }
 
 export interface CloudApi {
-  getDeployment(id: string): Promise<DeploymentView>;
+  /** `workspace` : lu dans cet espace-là plutôt que dans celui du desk (`null` : sans en-tête), avant d'en changer. */
+  getDeployment(id: string, opts?: { workspace?: string | null }): Promise<DeploymentView>;
   /** Déploiements non archivés d'un agent (100 au plus). */
   listDeployments(agentId: string): Promise<DeploymentView[]>;
   /**
@@ -311,14 +319,19 @@ interface Call {
   query?: Record<string, string>;
   body?: Record<string, unknown>;
   maxBytes?: number;
+  /** Espace de travail de cet appel seul ; absent, celui du desk. */
+  workspace?: string | null;
 }
 
-export function createCloudApi(deps: { key: () => string; fetchImpl: FetchLike; timeoutMs?: number }): CloudApi {
+/** `workspace` : l'espace de travail d'une clé d'utilisateur, envoyé dans `anthropic-workspace-id` ; vide ou absent, rien. */
+export function createCloudApi(deps: { key: () => string; workspace?: () => string | null; fetchImpl: FetchLike; timeoutMs?: number }): CloudApi {
   const timeoutMs = deps.timeoutMs && deps.timeoutMs > 0 && deps.timeoutMs < 2 ** 31 ? deps.timeoutMs : TIMEOUT_MS;
 
   async function send(call: Call): Promise<{ res: Response; signal: AbortSignal }> {
     const key = deps.key();
     if (!key) throw new CloudApiError(0, 'no_key', 'Clé API absente');
+    const workspace = (call.workspace !== undefined ? call.workspace : deps.workspace?.()) || null;
+    if (workspace !== null && !isWorkspaceId(workspace)) throw new CloudApiError(0, 'invalid_id', 'Espace de travail invalide (wrkspc_…)');
     const url = new URL(call.path, CLOUD_API_ORIGIN);
     for (const [name, value] of Object.entries(call.query ?? {})) url.searchParams.set(name, value);
     const signal = AbortSignal.timeout(timeoutMs);
@@ -328,6 +341,7 @@ export function createCloudApi(deps: { key: () => string; fetchImpl: FetchLike; 
       'anthropic-beta': MANAGED_AGENTS_BETA,
       accept: 'application/json',
     };
+    if (workspace) headers[WORKSPACE_HEADER] = workspace;
     if (call.body) headers['content-type'] = 'application/json';
     let res: Response;
     try {
@@ -378,8 +392,8 @@ export function createCloudApi(deps: { key: () => string; fetchImpl: FetchLike; 
   const clampLimit = (n: number | undefined, max: number, fallback: number) => String(Number.isInteger(n) && n !== undefined && n >= 1 ? Math.min(n, max) : fallback);
 
   return {
-    async getDeployment(id) {
-      return parseDeployment(await json({ method: 'GET', path: `/v1/deployments/${checked(id, 'depl')}` }));
+    async getDeployment(id, opts) {
+      return parseDeployment(await json({ method: 'GET', path: `/v1/deployments/${checked(id, 'depl')}`, workspace: opts?.workspace }));
     },
     async listDeployments(agentId) {
       const raw = await json({ method: 'GET', path: '/v1/deployments', query: { agent_id: checked(agentId, 'agent'), limit: '100' } });

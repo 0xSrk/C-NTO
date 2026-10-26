@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { vi } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
-import type { CloudApi, DeploymentView, FileView, SessionPage, SessionView } from '../../electron/agent-cloud-api';
+import type { CloudApi, DeploymentView, FetchLike, FileView, SessionPage, SessionView } from '../../electron/agent-cloud-api';
 import { AgentCloudHost, type AgentCloudDeps, type CloudDialogOptions } from '../../electron/agent-cloud';
 
 export const KEY = 'sk-ant-api03-cle-de-test-0123456789';
@@ -116,6 +116,8 @@ export interface HarnessOptions {
   answers?: number[];
   /** Sans fenêtre : aucun dialogue ne peut s'ouvrir. */
   noWindow?: boolean;
+  /** Le vrai client de l'API (`createCloudApi`) sur ce faux `fetch`, à la place du faux client. */
+  realFetch?: FetchLike;
 }
 
 /** Un hôte sur un `userData` temporaire (à effacer par l'appelant : `dirs`). */
@@ -139,11 +141,11 @@ export function cloudHarness(dirs: string[], opts: HarnessOptions = {}) {
     send: (channel, payload) => sent.push({ channel, payload }),
     log: (line) => logs.push(line),
     seal: seal(opts.available ?? true),
-    fetchImpl: () => Promise.reject(new Error('réseau interdit dans ce test')),
+    fetchImpl: opts.realFetch ?? (() => Promise.reject(new Error('réseau interdit dans ce test'))),
     openPath: async () => true,
     timers: { setTimeout, clearTimeout },
     now: () => clock.now,
-    api,
+    api: opts.realFetch ? undefined : api,
   };
   return { host: new AgentCloudHost(deps), dir, sent, logs, dialogs, api, clock };
 }

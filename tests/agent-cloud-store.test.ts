@@ -11,6 +11,7 @@ const fake = vi.hoisted(() => {
   const status = (over: Record<string, unknown> = {}) => ({
     available: true,
     keyStored: true,
+    workspaceId: null,
     deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
     managed: true,
     schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
@@ -51,6 +52,7 @@ const fake = vi.hoisted(() => {
       },
       markRead: note('markRead', () => status({ unread: 1 })),
       setKey: note('setKey', () => status()),
+      setWorkspace: note('setWorkspace', () => status({ workspaceId: 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ' })),
       setDeployment: note('setDeployment', () => null),
       setSchedule: note('setSchedule', () => status()),
       pull: note('pull', () => status({ lastPullAt: 1 })),
@@ -134,6 +136,8 @@ describe('agent cloud · store du renderer', () => {
     await s.run();
     expect(useAgentCloud.getState().status?.pending).toBe(1);
     await s.setKey('sk-ant-x');
+    await s.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ');
+    expect(useAgentCloud.getState().status?.workspaceId).toBe('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ');
     await s.setSchedule({ cron: '0 7 * * 1-5', timezone: 'Europe/Paris' });
     await s.provision();
     await s.pause();
@@ -142,7 +146,7 @@ describe('agent cloud · store du renderer', () => {
     await s.setDeployment(null);
     expect(useAgentCloud.getState().status).toBe(before);
     expect(await s.openFolder()).toBe(true);
-    expect(fake.calls.map((c) => c[0])).toEqual(['status', 'list', 'pull', 'run', 'setKey', 'setSchedule', 'provision', 'pause', 'unpause', 'setDeployment', 'openFolder']);
+    expect(fake.calls.map((c) => c[0])).toEqual(['status', 'list', 'pull', 'run', 'setKey', 'setWorkspace', 'setSchedule', 'provision', 'pause', 'unpause', 'setDeployment', 'openFolder']);
   });
 
   it('chargé au démarrage du desk, sans étape de démarrage qui attende le réseau', () => {
@@ -152,7 +156,7 @@ describe('agent cloud · store du renderer', () => {
   });
 
   it('le statut ne porte jamais de clé', () => {
-    const keys: (keyof AgentCloudStatus)[] = ['available', 'keyStored', 'deploymentId', 'managed', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread'];
+    const keys: (keyof AgentCloudStatus)[] = ['available', 'keyStored', 'workspaceId', 'deploymentId', 'managed', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread'];
     expect(Object.keys(fake.status()).sort()).toEqual([...keys].sort());
   });
 });

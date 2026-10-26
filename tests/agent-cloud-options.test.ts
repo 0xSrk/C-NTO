@@ -23,6 +23,7 @@ const fake = vi.hoisted(() => {
       read: async () => null,
       markRead: note('markRead'),
       setKey: note('setKey'),
+      setWorkspace: note('setWorkspace'),
       setDeployment: note('setDeployment'),
       setSchedule: note('setSchedule'),
       pull: note('pull'),
@@ -46,6 +47,7 @@ const DEPLOYMENT = { name: 'canto-rapport-quotidien', state: 'active' as const, 
 const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   available: true,
   keyStored: false,
+  workspaceId: null,
   deploymentId: null,
   managed: false,
   schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
@@ -113,6 +115,27 @@ describe('agent cloud · Options › Agent cloud', () => {
     expect(fake.calls.at(-1)).toEqual(['setKey', '']);
   });
 
+  it('CLD23 espace de travail : part nettoyé au clic sur Enregistrer ; gardé, il s’affiche ; Effacer l’oublie', async () => {
+    const WRK = 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ';
+    const node = await mount(status({ keyStored: true }));
+    const input = node.querySelector<HTMLInputElement>('input[aria-label="Espace de travail de la clé"]')!;
+    const own = (label: string) => [...input.parentElement!.querySelectorAll('button')].find((b) => b.textContent === label);
+    expect(node.textContent).toContain('nécessaire avec une clé d’utilisateur (sk-ant-usr-…)');
+    expect(own('Enregistrer')?.disabled).toBe(true);
+    expect(own('Effacer')).toBeUndefined();
+    await type(input, `  ${WRK}  `);
+    await press(own('Enregistrer'));
+    expect(fake.calls).toEqual([['setWorkspace', WRK]]);
+    expect(input.value).toBe('');
+    await act(async () => useAgentCloud.setState({ status: status({ keyStored: true, workspaceId: WRK }) }));
+    expect(input.placeholder).toBe(WRK);
+    expect(node.textContent).toContain('en-tête anthropic-workspace-id');
+    await press(own('Effacer'));
+    expect(fake.calls.at(-1)).toEqual(['setWorkspace', '']);
+    await act(async () => useAgentCloud.setState({ status: status({ keyStored: true, workspaceId: WRK, busy: 'provision' }) }));
+    expect(own('Effacer')?.disabled).toBe(true);
+  });
+
   it('installer : impossible sans clé ; « mettre à jour » une fois installé ; jamais sur un déploiement externe', async () => {
     const bare = await mount(status());
     expect(button(bare, 'Installer l’agent cloud')?.disabled).toBe(true);
@@ -146,7 +169,7 @@ describe('agent cloud · Options › Agent cloud', () => {
     const node = await mount(status({ keyStored: true, deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai', managed: true, deployment: DEPLOYMENT }));
     const keep = () => button(node, 'Retenir la planification');
     expect(keep()?.disabled).toBe(true);
-    const [cron, zone] = [...node.querySelectorAll<HTMLInputElement>('input.mono')];
+    const [cron, zone] = [...node.querySelectorAll<HTMLInputElement>('input.mono')].filter((i) => i.getAttribute('aria-label') !== 'Espace de travail de la clé');
     await type(cron!, ' 30 13 * * 1-5 ');
     await type(zone!, 'America/New_York');
     await press(keep());

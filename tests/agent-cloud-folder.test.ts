@@ -35,6 +35,7 @@ const NOW = Date.parse('2026-10-27T08:00:00Z');
 const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   available: true,
   keyStored: true,
+  workspaceId: null,
   deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
   managed: true,
   schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ANTHROPIC_VERSION, CloudApiError, createCloudApi, MANAGED_AGENTS_BETA, parseDeployment, parseSession, type FetchLike } from '../electron/agent-cloud-api';
+import { ANTHROPIC_VERSION, CloudApiError, createCloudApi, isWorkspaceId, MANAGED_AGENTS_BETA, parseDeployment, parseSession, WORKSPACE_HEADER, type FetchLike } from '../electron/agent-cloud-api';
 
 const KEY = 'sk-ant-api03-cle-de-test-0123456789';
 const DEPL = 'depl_011CZkZcDH3vPqd7xnEfwTai';
@@ -65,6 +65,38 @@ describe('agent cloud · client Managed Agents', () => {
     await expect(h.api.getDeployment(SESN)).rejects.toMatchObject({ type: 'invalid_id' });
     await expect(h.api.listOutputFiles(DEPL)).rejects.toMatchObject({ type: 'invalid_id' });
     expect(h.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('CLD23 espace de travail : nommé dans anthropic-workspace-id quand il est donné, jamais sinon ; hors forme, rien ne part', async () => {
+    const WRK = 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ';
+    const UUID = '6f1d2c3b-4a5e-4f60-9b7a-0c1d2e3f4a5b';
+    const sent: RequestInit[] = [];
+    const fetchImpl = vi.fn<FetchLike>(async (_url, init) => {
+      sent.push(init);
+      return json(DEPLOYMENT);
+    });
+    let workspace: string | null = WRK;
+    const api = createCloudApi({ key: () => KEY, workspace: () => workspace, fetchImpl });
+    await api.getDeployment(DEPL);
+    expect(sent[0]?.headers).toMatchObject({ [WORKSPACE_HEADER]: WRK, 'x-api-key': KEY, 'anthropic-beta': MANAGED_AGENTS_BETA });
+    workspace = UUID;
+    await api.getDeployment(DEPL);
+    expect(sent[1]?.headers).toMatchObject({ 'anthropic-workspace-id': UUID });
+    workspace = null;
+    await api.getDeployment(DEPL);
+    expect(sent[2]?.headers).not.toHaveProperty(WORKSPACE_HEADER);
+    workspace = '';
+    await api.getDeployment(DEPL);
+    expect(sent[3]?.headers).not.toHaveProperty(WORKSPACE_HEADER);
+    for (const bad of [`${WRK}\r\nx-api-key: autre`, 'wrkspc_court', 'org_01JwQvzr7rXLA5AGx3HKfFUJ', ` ${WRK}`, `${UUID}0`]) {
+      workspace = bad;
+      await expect(api.getDeployment(DEPL)).rejects.toMatchObject({ type: 'invalid_id' });
+      expect(isWorkspaceId(bad)).toBe(false);
+    }
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    const plain = harness(() => json(DEPLOYMENT));
+    await plain.api.getDeployment(DEPL);
+    expect(plain.calls[0]?.init.headers).not.toHaveProperty(WORKSPACE_HEADER);
   });
 
   it('une redirection est refusée : la clé ne suit pas un 3xx', async () => {

@@ -97,6 +97,7 @@ contextBridge.exposeInMainWorld('canto', {
     read: (id: string) => ipcRenderer.invoke('agent-cloud:read', id),
     markRead: (id: string) => ipcRenderer.invoke('agent-cloud:mark-read', id),
     setKey: (text: string) => ipcRenderer.invoke('agent-cloud:set-key', text),
+    setWorkspace: (id: string) => ipcRenderer.invoke('agent-cloud:set-workspace', id),
     setDeployment: (id: string | null) => ipcRenderer.invoke('agent-cloud:set-deployment', id),
     setSchedule: (schedule: { cron: string; timezone: string }) => ipcRenderer.invoke('agent-cloud:set-schedule', schedule),
     pull: () => ipcRenderer.invoke('agent-cloud:pull'),

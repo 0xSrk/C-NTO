@@ -175,6 +175,30 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect(api.calls).toEqual(['createEnvironment', 'createAgent', 'updateEnvironment', 'createAgent', 'listDeployments', 'createDeployment']);
   });
 
+  it('CLD24 clé d’utilisateur sans espace de travail : la cause est dite en clair, et où la régler ; avec un espace refusé, la réponse de l’API suit', async () => {
+    const unscoped = 'HTTP 400 · invalid_request_error : This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use.';
+    let workspaceOk = false;
+    const api = fakeApi({
+      createEnvironment: async () => {
+        if (!workspaceOk) throw new CloudApiError(400, 'invalid_request_error', unscoped);
+        return { id: ENV };
+      },
+      createAgent: async () => ({ id: AGENT, version: 1 }),
+      createDeployment: async () => DEPLOYMENT,
+      pauseDeployment: async () => ({ ...DEPLOYMENT, status: 'paused' as const, pausedReason: 'manual' }),
+    });
+    const h = harness({ api, answers: [1, 1, 1] });
+    expect((await h.host.provision()).error).toBe(
+      'Environnement · Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
+    );
+    await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ');
+    expect((await h.host.provision()).error).toBe(`Environnement · Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces). ${unscoped}`);
+    workspaceOk = true;
+    expect(await h.host.provision()).toMatchObject({ error: null, deploymentId: DEPL });
+    const other = harness({ api: fakeApi({ createEnvironment: async () => Promise.reject(new CloudApiError(400, 'invalid_request_error', 'HTTP 400 · invalid_request_error : config.networking: invalid')) }), answers: [1] });
+    expect((await other.host.provision()).error).toBe('Environnement · HTTP 400 · invalid_request_error : config.networking: invalid');
+  });
+
   it('lancer maintenant : dialogue, Annuler par défaut ; une session lancée rapproche le relevé', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
@@ -328,6 +352,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     const first = h.host.provision();
     expect(await h.host.setDeployment('depl_011CZkZcDH3vPqd7xnEfwXYZ')).toMatchObject({ deploymentId: null, error: null });
     expect(h.host.setKey('').keyStored).toBe(true);
+    expect(await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: null, busy: 'provision', error: null });
     release({ response: 2 });
     expect(await first).toMatchObject({ busy: null, deploymentId: null, error: null });
   });

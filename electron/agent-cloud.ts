@@ -1,7 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
-import { CloudApiError, createCloudApi, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
+import { CloudApiError, createCloudApi, isWorkspaceId, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
 import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, DEPLOYMENT_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
 import { uiText, type AppLocale } from './locale';
 
@@ -61,13 +61,15 @@ export interface CloudDeploymentState {
   agentVersion: number | null;
 }
 
-export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | null;
+export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | null;
 type ProvisionStep = 'environment' | 'agent' | 'deployment' | 'pause' | 'resume';
 
 export interface AgentCloudStatus {
   /** Le trousseau du système chiffre : sans lui, aucune clé n'est gardée. */
   available: boolean;
   keyStored: boolean;
+  /** Espace de travail nommé à chaque appel (`anthropic-workspace-id`), pour une clé d'utilisateur ; ce n'est pas un secret. */
+  workspaceId: string | null;
   deploymentId: string | null;
   /** Le desk a installé ce déploiement (environnement, agent, déploiement) et peut le mettre à jour. */
   managed: boolean;
@@ -130,6 +132,7 @@ interface Collected {
 
 interface CloudConfig {
   key: string | null;
+  workspaceId: string | null;
   deploymentId: string | null;
   environmentId: string | null;
   agentId: string | null;
@@ -175,6 +178,7 @@ function coerceConfig(raw: unknown): CloudConfig {
   }
   return {
     key: typeof r.key === 'string' && r.key.length > 0 && r.key.length <= 8192 ? r.key : null,
+    workspaceId: isWorkspaceId(r.workspaceId) ? r.workspaceId : null,
     deploymentId: isApiId(r.deploymentId, 'depl') ? r.deploymentId : null,
     environmentId: isApiId(r.environmentId, 'env') ? r.environmentId : null,
     agentId: isApiId(r.agentId, 'agent') ? r.agentId : null,
@@ -240,7 +244,7 @@ export class AgentCloudHost {
       /* premier lancement : rien de configuré */
     }
     this.config = coerceConfig(raw);
-    this.api = deps.api ?? createCloudApi({ key: () => this.key(), fetchImpl: deps.fetchImpl });
+    this.api = deps.api ?? createCloudApi({ key: () => this.key(), workspace: () => this.config.workspaceId, fetchImpl: deps.fetchImpl });
   }
 
   protected t(fr: string, en: string, es: string): string {
@@ -262,7 +266,7 @@ export class AgentCloudHost {
       const entries = Object.entries(c.collected)
         .sort(([, a], [, b]) => b.at - a.at)
         .slice(0, COLLECTED_MAX);
-      const body = { v: 1, key: c.key, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
+      const body = { v: 1, key: c.key, workspaceId: c.workspaceId, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify(body), { encoding: 'utf8', mode: 0o600 });
       renameSync(tmp, this.file);
@@ -313,6 +317,7 @@ export class AgentCloudHost {
     return {
       available: this.deps.seal.available(),
       keyStored: !!this.config.key,
+      workspaceId: this.config.workspaceId,
       deploymentId: this.config.deploymentId,
       managed: this.config.managed,
       schedule: { ...this.config.schedule },
@@ -405,6 +410,93 @@ export class AgentCloudHost {
     this.reschedule(1_000);
     this.publish();
     return this.status();
+  }
+
+  /**
+   * Espace de travail d'une clé d'utilisateur (`sk-ant-usr-…`) : sans lui, l'API refuse chaque appel (400). Il part dans
+   * l'en-tête `anthropic-workspace-id` ; `''` l'efface. Changer d'espace ne doit jamais perdre de vue un déploiement qui
+   * facture : celui du desk doit rester visible dans le nouvel espace (le nommer quand il était implicite, par exemple),
+   * et une installation commencée sans déploiement connu est d'abord cherchée là où elle a eu lieu.
+   */
+  async setWorkspace(text: unknown): Promise<AgentCloudStatus> {
+    if (this.busy) return this.refuseBusy();
+    const id = typeof text === 'string' ? text.trim() : null;
+    if (id === null || (id !== '' && !isWorkspaceId(id)))
+      return this.refuse(
+        'Espace de travail invalide : wrkspc_… (Console › Settings › Workspaces).',
+        'Invalid workspace: wrkspc_… (Console › Settings › Workspaces).',
+        'Espacio de trabajo no válido: wrkspc_… (Consola › Settings › Workspaces).',
+      );
+    const next = id === '' ? null : id;
+    if (next === this.config.workspaceId) return this.status();
+    const deploymentId = this.config.deploymentId;
+    return this.control('workspace', async () => {
+      if (deploymentId && this.config.managed) {
+        // Le déploiement du desk reste en vue dans le nouvel espace, ou rien ne change : il tournerait, facturé, hors de vue.
+        let view: DeploymentView;
+        try {
+          view = await this.api.getDeployment(deploymentId, { workspace: next });
+        } catch {
+          this.actionError = this.t(
+            'Le déploiement du desk n’est pas visible dans cet espace : indiquez celui où il tourne, ou quittez-le d’abord.',
+            'The desk’s deployment is not visible in this workspace: enter the one it runs in, or leave it first.',
+            'El despliegue del desk no es visible en este espacio: indique aquel donde se ejecuta, o déjelo primero.',
+          );
+          return;
+        }
+        this.deployment = deploymentState(view);
+        this.applyWorkspace(next, true);
+        return;
+      }
+      const agentId = this.config.agentId;
+      if (agentId && !deploymentId) {
+        // Une installation coupée a pu créer son déploiement sans en recevoir la réponse : seul son agent permet de le
+        // retrouver, dans l'espace actuel. Trouvé, il devient celui du desk ; recherche impossible, rien n'est oublié.
+        let found: DeploymentView | undefined;
+        try {
+          found = (await this.api.listDeployments(agentId)).find((d) => d.tagged && !d.archived && d.name === DEPLOYMENT_NAME);
+        } catch {
+          this.actionError = this.t(
+            'Installation commencée dans l’espace actuel, invérifiable : relancez l’installation avant de changer d’espace.',
+            'An installation was started in the current workspace and cannot be checked: run the install again before changing workspace.',
+            'Instalación iniciada en el espacio actual, imposible de verificar: vuelva a lanzar la instalación antes de cambiar de espacio.',
+          );
+          return;
+        }
+        if (found) {
+          this.config.deploymentId = found.id;
+          this.config.managed = true;
+          this.config.floor = null;
+          this.deployment = deploymentState(found);
+          this.persist();
+          this.deps.log('agent cloud · déploiement du desk retrouvé dans l’espace actuel');
+          this.actionError = this.t(
+            'Un déploiement du desk a été retrouvé dans l’espace actuel : quittez-le d’abord.',
+            'A desk deployment was found in the current workspace: leave it first.',
+            'Se encontró un despliegue del desk en el espacio actual: déjelo primero.',
+          );
+          this.reschedule(1_000);
+          return;
+        }
+      }
+      this.applyWorkspace(next, false);
+    });
+  }
+
+  /** `keep` : l'installation reste celle du desk (même espace, désormais nommé) ; sinon elle reste dans l'ancien espace. */
+  private applyWorkspace(next: string | null, keep: boolean): void {
+    this.config.workspaceId = next;
+    if (!keep) {
+      // L'environnement et l'agent d'une installation commencée restent dans l'ancien espace : la prochaine installation les recrée.
+      this.config.environmentId = null;
+      this.config.agentId = null;
+      this.config.agentVersion = null;
+    }
+    this.authBlocked = false;
+    this.error = null;
+    this.persist();
+    this.deps.log(next ? 'agent cloud · espace de travail enregistré' : 'agent cloud · espace de travail effacé');
+    this.reschedule(1_000);
   }
 
   /**
@@ -622,6 +714,7 @@ export class AgentCloudHost {
         detail: [
           this.t('Modèle : Claude Opus 5.5, effort élevé', 'Model: Claude Opus 5.5, high effort', 'Modelo: Claude Opus 5.5, esfuerzo alto'),
           `${this.t('Planification', 'Schedule', 'Planificación')} : ${cron} · ${timezone}`,
+          ...(this.config.workspaceId ? [`${this.t('Espace de travail', 'Workspace', 'Espacio de trabajo')} : ${this.config.workspaceId}`] : []),
           this.t(
             `Plafond appliqué : ${this.money(BUDGET_CENTS_PER_RUN)} par exécution, aux tarifs publics`,
             `Cap applied: ${this.money(BUDGET_CENTS_PER_RUN)} per run, at list prices`,
@@ -834,6 +927,15 @@ export class AgentCloudHost {
         return this.t(`Clé refusée par Anthropic (${error.status}) : enregistrez une clé valide.`, `Key refused by Anthropic (${error.status}): store a valid key.`, `Clave rechazada por Anthropic (${error.status}): guarde una clave válida.`);
       if (error.status === 404) return this.t('Déploiement introuvable dans cette organisation.', 'Deployment not found in this organization.', 'Despliegue no encontrado en esta organización.');
       if (error.status === 402) return this.t('Crédits API épuisés (402).', 'API credits exhausted (402).', 'Créditos API agotados (402).');
+      // Une clé d'utilisateur vaut pour toute l'organisation : l'API demande l'espace de travail visé (CLD23).
+      if (error.status === 400 && /anthropic-workspace-id/i.test(error.message))
+        return this.config.workspaceId
+          ? `${this.t('Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces).', 'Workspace refused: check its ID (Console › Settings › Workspaces).', 'Espacio de trabajo rechazado: verifique su ID (Consola › Settings › Workspaces).')} ${error.message}`
+          : this.t(
+              'Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
+              'User key without a workspace: enter its ID (Console › Settings › Workspaces) in Options › Cloud agent › Workspace.',
+              'Clave de usuario sin espacio de trabajo: indique su ID (Consola › Settings › Workspaces) en Opciones › Agente en la nube › Espacio de trabajo.',
+            );
       return error.message;
     }
     return this.t('Relevé impossible.', 'Pull failed.', 'Lectura imposible.');
