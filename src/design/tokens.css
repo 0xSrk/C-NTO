@@ -1,41 +1,54 @@
 /* ------------------------------------------------------------------
-   CΛNTO — artefact 002 · SIΞRRΛSKΛ Lab · v1.0
-   Grammaire lithographique : noir absolu, hairlines 1 px, grille 4 px,
-   une seule LED d'accent, aucun arrondi, aucune ombre hors halo LED,
-   aucun dégradé décoratif. Précision de circuit — chaque mesure
-   multiple de 4 px (filets 1–2 px exclus).
+   CΛNTO — artefact 002 · SIΞRRΛSKΛ Lab · Système 4.0 « ΟΡΟΣ »
+   La borne et l'horizon. Nuit du Lab, filets 1 px, grille 4 px,
+   aucun arrondi, aucune ombre hors halo LED, aucun dégradé décoratif.
+   Ce qui vit est or (--gold) ; seul ce qui franchit la borne est
+   rouge (--signal, niveau 3). Le rouge marque, il n'écrit pas.
+   Chaque mesure multiple de 4 px (filets 1–2 px exclus).
    Polices chargées depuis src/main.tsx (ne jamais bloquer ce fichier).
    ------------------------------------------------------------------ */
 
 :root {
-  /* Système 3.4 — matières. Les noms restent, les valeurs changent. */
-  --bg-void: #0a0b0d;
-  --bg-0: #0a0b0d;
-  --bg-1: #0f1013;
-  --bg-2: #16171b;
-  --bg-3: #1e2025;
-  --bg-4: #24262b;
+  /* Système 4.0 — matières : la nuit du Lab, en échelle de plaques. Les noms restent, les valeurs changent. */
+  --bg-void: #07080c;
+  --bg-0: #07080c; /* Nuit : châssis, rail, barre de titre */
+  --bg-1: #0d0e12; /* Sol : fond de travail */
+  --bg-2: #14151a; /* Plaque : panneaux */
+  --bg-3: #1c1d23; /* Usiné : champs, actif */
+  --bg-4: #25262d;
   --watermark: transparent;
 
   /* Hairlines */
-  --line-0: #24262b;
-  --line-1: #24262b;
-  --line-2: #33363d;
-  --line-3: #4a4e55;
+  --line-0: #202127;
+  --line-1: #25262c;
+  --line-2: #36373f;
+  --line-3: #4b4e57;
 
-  /* Encre */
-  --text-0: #edebe4;
-  --text-1: #a3a7af;
-  --text-2: #80858e;
-  --text-3: #80858e;
-  --text-4: #80858e;
+  /* Encre chaude : l'ivoire du Lab et ses gris de papier (≥ 4,5:1 sur la Plaque et l'Usiné) */
+  --text-0: #f5f2ea;
+  --text-1: #b9b4a9;
+  --text-2: #8f8a80;
+  --text-3: #8f8a80;
+  --text-4: #8f8a80;
 
-  /* LED : vivant ou à regarder, jamais décorative. */
-  --gold: #e5263d;
-  --gold-soft: rgba(229, 38, 61, 0.12);
-  --gold-line: rgba(229, 38, 61, 0.45);
-  --glow-accent: 0 0 0 1px rgba(229, 38, 61, 0.35), 0 0 6px rgba(229, 38, 61, 0.4), 0 0 14px rgba(229, 38, 61, 0.2);
-  --glow-accent-soft: 0 0 10px rgba(229, 38, 61, 0.16);
+  /* Papier de la Ligne V2 : la bande d'étiquette et l'onglet poinçonné, toujours l'autre matière */
+  --ivory: #f5f2ea;
+  --stone: #e6e2da;
+  --ink: #0b0b0b;
+  --ink-soft: #5e5b55;
+  --gold-ink: #846300; /* l'or quand il s'imprime sur le papier */
+
+  /* LED : ce qui vit et ce qui fait autorité, jamais décorative. Le jeton s'appelle --gold depuis la v1 : il devient or. */
+  --gold: #ccb066;
+  --gold-soft: rgba(204, 176, 102, 0.12);
+  --gold-line: rgba(204, 176, 102, 0.45);
+  --glow-accent: 0 0 0 1px rgba(204, 176, 102, 0.35), 0 0 6px rgba(204, 176, 102, 0.4), 0 0 14px rgba(204, 176, 102, 0.2);
+  --glow-accent-soft: 0 0 10px rgba(204, 176, 102, 0.16);
+
+  /* Signal de niveau 3 — borne franchie, kill switch, compte réel armé — et lui seul. */
+  --signal: #e10600;
+  --signal-soft: rgba(225, 6, 0, 0.14);
+  --signal-line: rgba(225, 6, 0, 0.62);
   --leak-accent: none;
 
   --light-line: none;
@@ -49,9 +62,9 @@
   --ember: #e0735f;
   --ember-soft: rgba(224, 115, 95, 0.1);
   --ember-line: rgba(224, 115, 95, 0.5);
-  --ice: #8fc7e8;
-  --ice-soft: rgba(143, 199, 232, 0.1);
-  --ice-line: rgba(143, 199, 232, 0.5);
+  --ice: #9db4ff; /* Glacier : la technique (outils, liens, indicateurs) */
+  --ice-soft: rgba(157, 180, 255, 0.1);
+  --ice-line: rgba(157, 180, 255, 0.5);
   --violet: #a996e0;
   --violet-soft: rgba(169, 150, 224, 0.1);
   --violet-line: rgba(169, 150, 224, 0.5);
@@ -76,8 +89,8 @@
   --fs-label: 10px;
   --track-11: 0.14em;
 
-  --ghost: #4a4e55;
-  --lab: #ed5d0b;
+  --ghost: #4b4e57;
+  --lab: var(--gold); /* la languette du Lab prend l'or de l'autorité */
   --hatch-neg: repeating-linear-gradient(45deg, var(--neg) 0 2px, transparent 2px 6px);
   --rule-dots: radial-gradient(circle, var(--ghost) 0.8px, transparent 1.1px) 0 50% / 5px 3px repeat-x;
   --chamfer: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
@@ -145,8 +158,8 @@ body,
 }
 
 body {
-  background: #0f1013;
-  background-color: var(--bg-1, #0f1013);
+  background: #0d0e12;
+  background-color: var(--bg-1, #0d0e12);
   color: var(--text-1, #c4c4c4);
   font-family: var(--font-ui);
   font-size: var(--fs-body);
@@ -157,7 +170,7 @@ body {
 }
 
 ::selection {
-  background: rgba(229, 38, 61, 0.35);
+  background: rgba(204, 176, 102, 0.32);
   color: var(--text-0);
 }
 
@@ -373,7 +386,7 @@ input[type='time'] {
   0%,
   100% {
     opacity: 0.55;
-    box-shadow: 0 0 0 1px rgba(196, 30, 58, 0.28), 0 0 6px rgba(196, 30, 58, 0.4);
+    box-shadow: 0 0 0 1px rgba(204, 176, 102, 0.28), 0 0 6px rgba(204, 176, 102, 0.4);
   }
   50% {
     opacity: 1;

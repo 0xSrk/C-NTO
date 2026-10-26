@@ -40,6 +40,16 @@ function contrast(fg: string, bg: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+function hue(hex: string): number {
+  const n = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+
 function token(css: string, name: string): string {
   const match = css.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
   if (!match?.[1]) throw new Error(`jeton ${name} introuvable`);
@@ -78,5 +88,31 @@ describe('garde du système visuel', () => {
     expect(offenders).toEqual([]);
     const lab = walk('src/modules').filter((path) => readFileSync(path, 'utf8').includes('--lab'));
     expect(lab).toEqual([]);
+  });
+
+  it('garde un contraste d’au moins 4,5:1 pour le texte sur l’usiné', () => {
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    const bg = token(css, '--bg-3');
+    for (const name of ['--text-1', '--text-2', '--text-3', '--text-4']) {
+      expect(contrast(token(css, name), bg), name).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('allume la LED en or et garde le rouge au signal de niveau 3', () => {
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    const gold = hue(token(css, '--gold'));
+    expect(gold, `teinte de --gold : ${gold}`).toBeGreaterThanOrEqual(30);
+    expect(gold, `teinte de --gold : ${gold}`).toBeLessThanOrEqual(60);
+    const signal = hue(token(css, '--signal'));
+    expect(signal <= 10 || signal >= 350, `teinte de --signal : ${signal}`).toBe(true);
+  });
+
+  it('pose le papier de la Ligne V2 : encre, encre douce et or d’encre se lisent sur l’ivoire', () => {
+    const css = readFileSync('src/design/tokens.css', 'utf8');
+    const ivory = token(css, '--ivory');
+    token(css, '--stone');
+    for (const name of ['--ink', '--ink-soft', '--gold-ink']) {
+      expect(contrast(token(css, name), ivory), name).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
