@@ -1,7 +1,7 @@
 /**
  * Ce que lisent les signaux de l'onglet 09 · CRY (Système 4.0 « ΟΡΟΣ », `docs/DESIGN.md` § 02) : le niveau du signal d'une
- * alerte, le mot de son état, son seuil (sujet, sens, niveau), les plaques SIGNAL et LINK. Pur : l'écran passe l'état du store,
- * rien ici ne le lit.
+ * alerte, le mot de son état, son seuil (sujet, sens, niveau), ses lignes sur le chart, les plaques SIGNAL et LINK. Pur :
+ * l'écran passe l'état du store et les encres résolues, rien ici ne les lit.
  */
 import type { SlotValues } from '@/design/Micro';
 import { alertDirection, type CryptoAlert } from '@/engine/crypto/alerts';
@@ -9,6 +9,7 @@ import { cryptoMarket, type CryptoMarketId, type CryptoTicker, type CryptoVenue,
 import { tr } from '@/i18n';
 import { alertLevelText } from '@/lib/cryptoAlertText';
 import { fmtPrice } from '@/lib/format';
+import type { ChartPriceLine } from '@/modules/visual/Chart';
 
 export type SignalLevel = 1 | 2;
 
@@ -75,6 +76,22 @@ export function alertThreshold(alert: Pick<CryptoAlert, 'target' | 'kind' | 'lev
     return spec ? fmtPrice(alert.level, spec.precision) : fmtPrice(alert.level);
   }
   return alertLevelText(alert);
+}
+
+/**
+ * Les seuils de prix du marché du chart, en lignes du chart (que le chart trace en tireté) : une par alerte armée, à l'encre du
+ * niveau 1, ou déclenchée, à l'encre du niveau 2, titrée ALERTE. En pause, une alerte ne surveille rien : pas de ligne ; la
+ * température et les autres marchés n'ont pas de prix sur ce chart. `ink` : les encres résolues (le canevas ne lit pas `var()`).
+ */
+export function alertPriceLines(alerts: readonly CryptoAlert[], market: CryptoMarketId, ink: Readonly<Record<SignalLevel, string>>): ChartPriceLine[] {
+  const title = tr('ALERTE', 'ALERT', 'ALERTA');
+  const out: ChartPriceLine[] = [];
+  for (const alert of alerts) {
+    if (alert.target !== market || (alert.kind !== 'price_above' && alert.kind !== 'price_below')) continue;
+    const level = alertSignalLevel(alert.state);
+    if (level !== null) out.push({ id: `alert:${alert.id}`, price: alert.level, title, color: ink[level] });
+  }
+  return out;
 }
 
 /** Les états d'alerte que lit la plaque SIGNAL, du plus fort au plus faible, et leur code de plaque. */

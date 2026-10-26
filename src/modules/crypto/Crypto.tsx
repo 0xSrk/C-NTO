@@ -19,7 +19,7 @@ import v from '../visual/visual.module.css';
 import { cryptoCodeText } from './AlertModal';
 import c from './crypto.module.css';
 import { CryptoSide, VENUE_NAME, timeframeLabel, useCryptoAction, venueStateText } from './CryptoSide';
-import { chartFeed, linkPlateLabel, linkPlateValues } from './cryptoSignals';
+import { alertPriceLines, chartFeed, linkPlateLabel, linkPlateValues } from './cryptoSignals';
 
 /**
  * Onglet 09 · CRY (`docs/ONGLET-CRYPTO.md` § 7). Éteint par défaut : seul le process principal allume le module, après son
@@ -29,6 +29,9 @@ import { chartFeed, linkPlateLabel, linkPlateValues } from './cryptoSignals';
 
 /** La teinte des tracés quand `--violet` ne se lit pas : sa valeur de `tokens.css`, en notation fonctionnelle (aucun hex ici). */
 const DRAWING_COLOR_FALLBACK = 'rgb(169, 150, 224)';
+/** Les encres des seuils d'alerte quand `--text-1` (niveau 1) et `--text-0` (niveau 2) ne se lisent pas : leurs valeurs de `tokens.css`. */
+const STEEL_FALLBACK = 'rgb(185, 180, 169)';
+const IVORY_FALLBACK = 'rgb(245, 242, 234)';
 /** Le chart crypto ne projette aucun trade. */
 const NO_TRADES: Trade[] = [];
 const CVD = 'cvd';
@@ -185,6 +188,7 @@ function CryptoDesk({ meta }: { meta: string }) {
   const cvdAnchoredAt = useCrypto((s) => s.cvdAnchoredAt);
   const venues = useCrypto((s) => s.venues);
   const drawings = useCrypto((s) => s.drawings);
+  const alerts = useCrypto((s) => s.alerts);
   const chartError = useCrypto((s) => s.chartError);
   const proxyError = useCrypto((s) => s.proxyError);
   const setMarket = useCrypto((s) => s.setMarket);
@@ -202,8 +206,11 @@ function CryptoDesk({ meta }: { meta: string }) {
   const shown = useMemo(() => indicators.filter((inst) => catalog.some((def) => def.id === inst.definitionId)), [indicators, catalog]);
   const { lines, definitionOf } = useCryptoLines(bars, proxyBars, shown, catalog);
   const priceFormat = useMemo(() => ({ precision, minMove }), [precision, minMove]);
-  // La langue en dépendance : le titre `AGENT` passe par `tr`.
-  const priceLines = useMemo(() => drawingLines(drawings, market), [drawings, market, locale]);
+  // La langue en dépendance : les titres `AGENT` et `ALERTE` passent par `tr`. Les seuils du marché suivent ses tracés (OROS3.5d).
+  const priceLines = useMemo(
+    () => [...drawingLines(drawings, market), ...alertPriceLines(alerts, market, { 1: cssToken('--text-1', STEEL_FALLBACK), 2: cssToken('--text-0', IVORY_FALLBACK) })],
+    [drawings, alerts, market, locale],
+  );
   const liveSeen = useLiveSeen(bars);
   // Le flux du chart, que lisent la puce du chart et la plaque LINK de la barre (OROS3.5c).
   const feed = chartFeed({ venueState, liveSeen, barCount: bars.length });
@@ -308,7 +315,7 @@ function CryptoDesk({ meta }: { meta: string }) {
                   {venueName} · {tr('figé', 'frozen', 'congelado')}
                 </Tag>
               ) : feed === 'ACTIVE' ? (
-                <Tag tone="mint">
+                <Tag tone="gold" dot live>
                   {venueName} · {tr('direct', 'live', 'directo')}
                 </Tag>
               ) : (

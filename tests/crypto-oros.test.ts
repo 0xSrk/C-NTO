@@ -118,6 +118,15 @@ function visible(el: Element | null | undefined): string {
 
 /** Les lignes d'alerte, dans l'ordre de la liste ; `title` : le titre de la section dans la langue active. */
 const alertRows = (node: HTMLElement, title = 'Alertes'): HTMLElement[] => [...section(node, title).querySelectorAll<HTMLElement>(`.${c.alertRow}`)];
+interface ChartProps {
+  priceLines?: { id: string; price: number; title: string; color: string }[];
+}
+const lastChart = (): ChartProps => {
+  const props = chart.props.at(-1);
+  if (!props) throw new Error('chart jamais rendu');
+  return props as ChartProps;
+};
+
 /** La plaque SIGNAL en tête de la section des alertes ; `title` : le titre de la section dans la langue active. */
 const signalPlate = (node: HTMLElement, title = 'Alertes'): HTMLElement | null => section(node, title).querySelector(`.${c.alertHead} [role="img"]`);
 const tagOf = (row: HTMLElement): HTMLElement | null => row.querySelector(`.${p.tag}`);
@@ -307,5 +316,59 @@ describe('OROS3.5c la plaque LINK dit le flux dans la barre du module ; globe de
     expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     // Le glyphe de la planche remplace l'icône « + » de l'application.
     expect(readFileSync('src/modules/crypto/CryptoSide.tsx', 'utf8')).not.toMatch(/IconPlus/);
+  });
+});
+
+describe('OROS3.5d le chart trace les seuils du marché ; le direct du chart s’allume à l’or', () => {
+  /** Encres résolues pour le canevas (le chart ne lit pas `var(--x)`) : sous jsdom, les replis de `tokens.css`. */
+  const STEEL = 'rgb(185, 180, 169)';
+  const IVORY = 'rgb(245, 242, 234)';
+  const VIOLET = 'rgb(169, 150, 224)';
+
+  it('chaque alerte de prix du marché du chart est une ligne tiretée à l’encre de son niveau ; ni la pause, ni la température, ni un autre marché', async () => {
+    const other = alert('one', { target: 'binance:ONEUSDT', level: 0.0021 });
+    await mount({ alerts: [...ALERTS, other] });
+    expect(lastChart().priceLines).toEqual([
+      { id: 'alert:up', price: 85_000, title: 'ALERTE', color: STEEL },
+      { id: 'alert:down', price: 81_200, title: 'ALERTE', color: IVORY },
+    ]);
+    // Le titre suit la langue.
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect(lastChart().priceLines?.map((line) => line.title)).toEqual(['ALERT', 'ALERT']);
+    await act(async () => useI18n.setState({ locale: 'es' }));
+    expect(lastChart().priceLines?.map((line) => line.title)).toEqual(['ALERTA', 'ALERTA']);
+  });
+
+  it('les tracés du trader et de l’agent restent, les seuils viennent après ; changer de marché change les seuils', async () => {
+    await mount({
+      alerts: ALERTS,
+      drawings: [{ id: 'd1', market: BTC, kind: 'level', price: 82_000, author: 'agent', createdAt: 1 }],
+    });
+    expect(lastChart().priceLines?.map((line) => [line.id, line.color])).toEqual([
+      ['d1', VIOLET],
+      ['alert:up', STEEL],
+      ['alert:down', IVORY],
+    ]);
+    await act(async () => useCrypto.setState({ market: 'binance:ONEUSDT' }));
+    expect(lastChart().priceLines).toEqual([]);
+  });
+
+  it('la puce du direct est or, avec sa LED ; figée ou historique, elle garde sa teinte', async () => {
+    const T0 = Date.UTC(2026, 9, 26, 9, 0) / 1000;
+    const bars = [
+      { time: T0, open: 82_400, high: 82_610.5, low: 82_390.25, close: 82_500, volume: 12.5, buyVolume: 7 },
+      { time: T0 + 3600, open: 82_500, high: 82_700, low: 82_450, close: 82_528.75, volume: 9.25, buyVolume: 4 },
+    ];
+    const node = await mount({ bars });
+    const stampTag = () => node.querySelector(`.${v.stamp} .${p.tag}`);
+    expect(stampTag()?.textContent).toBe('Historique');
+    expect(stampTag()?.classList.contains(p.gold as string)).toBe(false);
+    await act(async () => useCrypto.setState({ bars: [bars[0]!, { ...bars[1]!, close: 82_530 }] }));
+    expect(stampTag()?.textContent).toBe('Coinbase · direct');
+    expect(stampTag()?.classList.contains(p.gold as string)).toBe(true);
+    expect(stampTag()?.querySelector(`.${p.tagDot}.${p.live}`)).not.toBeNull();
+    await act(async () => useCrypto.setState({ venues: { coinbase: 'stale', binance: 'live', bybit: 'live' } }));
+    expect(stampTag()?.textContent).toBe('Coinbase · figé');
+    expect(stampTag()?.classList.contains(p.gold as string)).toBe(false);
   });
 });
