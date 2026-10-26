@@ -76,7 +76,7 @@ vi.mock('@/engine/agent/llm', async (importOriginal) => ({
   }),
 }));
 
-import Agent from '@/modules/agent/Agent';
+import Agent, { agentHeaderCells } from '@/modules/agent/Agent';
 import { CRYPTO_TOOL_NAMES } from '@/engine/agent/cryptoTools';
 import { streamChat } from '@/engine/agent/llm';
 import { renderRoutine } from '@/engine/agent/routines';
@@ -524,6 +524,40 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     expect(strip?.textContent).toContain('lecture seule');
     expect(strip?.textContent).toContain('désactivés');
     expect(panel(node, 'options')?.contains(strip ?? null)).toBe(true);
+  });
+
+  it('CLD17 la conversation descend au dernier message quand on l’ouvre (elle était cachée au montage)', async () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollTo');
+    const node = await mount();
+    scroll.mockClear();
+    await click(tab(node, 'Conversation')!);
+    expect(scroll).toHaveBeenCalled();
+    scroll.mockRestore();
+  });
+
+  it('CLD17 bloc-titre : dernier relevé, prochaine exécution prévue, rapports et non lus', () => {
+    const cells = agentHeaderCells({
+      available: true,
+      keyStored: true,
+      deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
+      managed: true,
+      schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
+      deployment: { name: 'd', state: 'active', pausedReason: null, cron: null, timezone: null, nextRunAt: Date.parse('2026-10-28T06:00:00Z'), lastRunAt: null, budgetCents: 300, agentVersion: 1 },
+      pulling: false,
+      busy: null,
+      lastPullAt: Date.parse('2026-10-27T08:15:00Z'),
+      nextPullAt: null,
+      error: null,
+      pending: 0,
+      failures: [],
+      reports: 12,
+      unread: 3,
+    });
+    expect(cells.map((c) => c.label)).toEqual(['Dernier relevé', 'Prochaine exécution', 'Rapports']);
+    expect(cells[1]?.plan).toBe(true);
+    expect(cells[0]?.value).toMatch(/27\/10.*08:15/);
+    expect(cells[2]?.value).toBe('12 · 3 non lus');
+    expect(agentHeaderCells(null).map((c) => c.value)).toEqual(['—', '—', '0']);
   });
 
   it('les vues suivent la langue du desk', async () => {

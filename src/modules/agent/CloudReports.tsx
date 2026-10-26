@@ -1,4 +1,5 @@
-import { useEffect, useMemo, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, type MouseEvent } from 'react';
+import { count } from '@/app/railQuantity';
 import { reportCodes, type CloudReport } from '@/engine/agent/cloudReport';
 import { Signal } from '@/design/Micro';
 import { Button, Empty, Led, Regle, cx } from '@/design/primitives';
@@ -155,7 +156,7 @@ function Reader({ report, code }: { report: CloudReport; code: string }) {
           <Regle label={tr('Reçu', 'Received', 'Recibido')} value={fullTime(report.receivedAt)} />
           {report.generatedAt !== null ? <Regle label={tr('Écrit', 'Written', 'Escrito')} value={fullTime(report.generatedAt)} /> : null}
           {report.session.costCents !== null ? <Regle label={tr('Coût', 'Cost', 'Coste')} value={dollars(report.session.costCents)} /> : null}
-          {report.session.agentVersion !== null ? <Regle label="Agent" value={`v${report.session.agentVersion}`} /> : null}
+          {report.session.agentVersion !== null ? <Regle label={tr('Agent', 'Agent', 'Agente')} value={`v${report.session.agentVersion}`} /> : null}
         </div>
         {report.summary ? <p className={r.summary}>{report.summary}</p> : null}
       </header>
@@ -192,12 +193,24 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
   const open = useAgentCloud((c) => c.open);
   const select = useAgentCloud((c) => c.select);
   const codes = useMemo(() => reportCodes(reports), [reports]);
-  const latest = reports[0]?.id ?? null;
+  const latest = reports[0] ?? null;
+  const autoOpened = useRef<string | null>(null);
+  const readerRef = useRef<HTMLElement>(null);
 
-  // Le dossier s'ouvre sur le dernier rapport, seulement quand il est à l'écran.
+  // Le dossier s'ouvre sur le dernier rapport quand il est à l'écran ; un rapport plus récent et non lu prend la place,
+  // une fois : l'opérateur qui ouvre ensuite une autre fiche la garde.
   useEffect(() => {
-    if (active && !selectedId && latest) void select(latest);
+    if (!active || !latest) return;
+    if (!selectedId || (latest.id !== autoOpened.current && !latest.read)) {
+      autoOpened.current = latest.id;
+      void select(latest.id);
+    }
   }, [active, selectedId, latest, select]);
+
+  // Une autre fiche s'ouvre en haut, pas au défilement de la précédente.
+  useEffect(() => {
+    if (readerRef.current) readerRef.current.scrollTop = 0;
+  }, [open?.id]);
 
   if (!isDesk || !desk?.agentCloud) {
     return (
@@ -216,6 +229,8 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
 
   const state = cloudState(status);
   const next = state === 'service' ? (status?.deployment?.nextRunAt ?? null) : null;
+  // Le code de la fiche prévue suit la même règle que les autres : jamais celui d'une fiche déjà rangée ce jour-là.
+  const plannedCode = next === null ? '' : (reportCodes([...reports, { id: 'planned', date: dateKeyLocal(new Date(next)), receivedAt: Number.MAX_SAFE_INTEGER }]).get('planned') ?? '');
   return (
     <div className={r.layout}>
       <aside className={r.folder}>
@@ -224,14 +239,14 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
           <span>{tr('Rapports', 'Reports', 'Informes')}</span>
           <i aria-hidden />
           <b>
-            {fmtInt(reports.length)} {reports.length < 2 ? tr('fiche', 'sheet', 'ficha') : tr('fiches', 'sheets', 'fichas')}
+            {count(reports.length, tr('fiche', 'sheet', 'ficha'), tr('fiches', 'sheets', 'fichas'))}
           </b>
         </div>
         <ul className={r.fiches}>
           {next !== null ? (
             <li className={cx(r.fiche, r.planned)}>
               <span className={r.ficheHead}>
-                <span className={r.code}>{`AGT-RPT-${dateKeyLocal(new Date(next)).replace(/-/g, '')}`}</span>
+                <span className={r.code}>{plannedCode}</span>
                 <span>{tr('Prévu', 'Planned', 'Previsto')} · {dayTime(next)}</span>
               </span>
               <span className={r.ficheTitle}>{tr('Prochain rapport', 'Next report', 'Próximo informe')}</span>
@@ -264,7 +279,7 @@ export function CloudReports({ active, onOptions }: { active: boolean; onOptions
           />
         ) : null}
       </aside>
-      <section className={r.reader} aria-live="polite">
+      <section className={r.reader} ref={readerRef}>
         {open ? (
           <Reader report={open} code={codes.get(open.id) ?? ''} />
         ) : (

@@ -197,6 +197,50 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
     expect(node.querySelector('section[aria-label="Agent cloud"]')?.className).toMatch(/dotted/);
   });
 
+  it('CLD17 un rapport plus récent et non lu prend la place d’une fiche déjà ouverte, une fois ; un choix de l’opérateur est gardé', async () => {
+    useAgentCloud.setState({ ready: true, status: status(), reports: [{ ...OLD, read: true }] });
+    await mount(true);
+    await act(async () => undefined);
+    expect(useAgentCloud.getState().selectedId).toBe(OLD.id);
+    await act(async () => useAgentCloud.setState({ reports: [NEW, { ...OLD, read: true }] }));
+    await act(async () => undefined);
+    expect(useAgentCloud.getState().selectedId).toBe(NEW.id);
+    await act(async () => useAgentCloud.getState().select(OLD.id));
+    await act(async () => undefined);
+    expect(useAgentCloud.getState().selectedId).toBe(OLD.id);
+  });
+
+  it('CLD17 le lecteur repart du haut à chaque fiche, et n’annonce pas tout le rapport', async () => {
+    useAgentCloud.setState({ ready: true, status: status(), reports: [NEW, OLD] });
+    const node = await mount(true);
+    await act(async () => undefined);
+    const reader = node.querySelector<HTMLElement>('article')?.parentElement;
+    expect(reader?.hasAttribute('aria-live')).toBe(false);
+    reader!.scrollTop = 900;
+    await act(async () => useAgentCloud.getState().select(OLD.id));
+    expect(reader?.scrollTop).toBe(0);
+  });
+
+  it('CLD17 la fiche prévue prend un code libre : jamais celui d’un rapport déjà rangé ce jour-là', async () => {
+    const today = summary('sesn_011CZkZAtmR3yMPDzynEDx03', '2026-10-28', true, NOW);
+    useAgentCloud.setState({ ready: true, status: status(), reports: [today] });
+    const node = await mount(false);
+    const planned = node.querySelector('li[class*="planned"]');
+    expect(text(planned)).toContain('AGT-RPT-20261028-2');
+  });
+
+  it('CLD17 compte des fiches et libellé « Agent » dans la langue du desk', async () => {
+    useI18n.setState({ locale: 'en' });
+    useAgentCloud.setState({ ready: true, status: status({ deployment: null }), reports: [] });
+    const node = await mount(false);
+    expect(text(node)).toContain('0 sheets');
+    useI18n.setState({ locale: 'es' });
+    useAgentCloud.setState({ ready: true, status: status(), reports: [NEW] });
+    const es = await mount(true);
+    await act(async () => undefined);
+    expect(text(es.querySelector('article'))).toContain('Agente');
+  });
+
   it('suit la langue du desk', async () => {
     useI18n.setState({ locale: 'en' });
     useAgentCloud.setState({ ready: true, status: status(), reports: [NEW] });

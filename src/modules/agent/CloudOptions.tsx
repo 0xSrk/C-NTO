@@ -169,7 +169,7 @@ export function CloudOptions() {
         <div className={s.hint}>
           {deployment.name} · {deployment.cron ?? '—'} · {deployment.timezone ?? '—'}
           {deployment.budgetCents !== null ? ` · ${tr('plafond', 'cap', 'límite')} ${fmtNum(deployment.budgetCents / 100, 2)} $` : ''}
-          {deployment.agentVersion !== null ? ` · agent v${deployment.agentVersion}` : ''}
+          {deployment.agentVersion !== null ? ` · ${tr('agent', 'agent', 'agente')} v${deployment.agentVersion}` : ''}
           {deployment.pausedReason && deployment.pausedReason !== 'manual' ? ` · ${deployment.pausedReason}` : ''}
         </div>
       ) : null}

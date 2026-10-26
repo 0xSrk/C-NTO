@@ -12,6 +12,9 @@ import { fmtInt, fmtNum } from '@/lib/format';
 import { dateTimeFormatter, formatTimeLocal } from '@/lib/time';
 import { db, type AgentMessage } from '@/store/db';
 import { useAgent } from '@/store/agent';
+import { count } from '@/app/railQuantity';
+import type { TitleCell } from '@/app/Shell';
+import type { AgentCloudStatus } from '@/lib/desk';
 import { useAgentCloud } from '@/store/agentCloud';
 import { useAgentOrders } from '@/store/agentOrders';
 import { useCrypto } from '@/store/crypto';
@@ -73,6 +76,22 @@ const NEAR_BOTTOM_PX = 40;
 /** Sous-onglets de l'agent : le dossier des rapports d'abord, la conversation, puis toutes les options. */
 export type AgentView = 'rapports' | 'conversation' | 'options';
 
+const clock = (ms: number | null | undefined) => (ms ? dateTimeFormatter({ day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(ms) : '—');
+
+/** Bloc-titre de l'en-tête : dernier relevé, prochaine exécution (valeur prévue), rapports rangés et non lus. */
+export function agentHeaderCells(status: AgentCloudStatus | null): TitleCell[] {
+  const total = status?.reports ?? 0;
+  const unread = status?.unread ?? 0;
+  return [
+    { label: tr('Dernier relevé', 'Last pull', 'Última lectura'), value: clock(status?.lastPullAt) },
+    { label: tr('Prochaine exécution', 'Next run', 'Próxima ejecución'), value: clock(status?.deployment?.nextRunAt), plan: true },
+    {
+      label: tr('Rapports', 'Reports', 'Informes'),
+      value: unread > 0 ? `${fmtInt(total)} · ${count(unread, tr('non lu', 'unread', 'sin leer'), tr('non lus', 'unread', 'sin leer'))}` : fmtInt(total),
+    },
+  ];
+}
+
 export default function Agent() {
   const locale = useI18n((s) => s.locale);
   // Sélecteurs champ par champ : chaque jeton reçu ne réaffiche que ce qui dépend de streamText.
@@ -111,7 +130,6 @@ export default function Agent() {
   const toast = useUi((u) => u.toast);
   const [view, setView] = useState<AgentView>('rapports');
   const cloudStatus = useAgentCloud((c) => c.status);
-  const cloudCount = useAgentCloud((c) => c.reports.length);
   const pullCloud = useAgentCloud((c) => c.pull);
   const openCloudFolder = useAgentCloud((c) => c.openFolder);
   const ordersStatus = useAgentOrders((a) => a.status);
@@ -144,6 +162,12 @@ export default function Agent() {
     const el = listRef.current;
     if (el && stickToBottom.current) el.scrollTo({ top: el.scrollHeight });
   }, [messages.length, streamText]);
+
+  // Cachée au montage (l'onglet s'ouvre sur les rapports), la liste n'a pas pu descendre : elle le fait à l'affichage.
+  useEffect(() => {
+    const el = listRef.current;
+    if (view === 'conversation' && el && stickToBottom.current) el.scrollTo({ top: el.scrollHeight });
+  }, [view]);
 
   // Un nouvel envoi ramène toujours en bas.
   useEffect(() => {
@@ -197,7 +221,6 @@ export default function Agent() {
   const cloudOn = isDesk && !!desk?.agentCloud;
   const unread = cloudStatus?.unread ?? 0;
   const cloudReady = cloudOn && !!cloudStatus?.keyStored && !!cloudStatus.deploymentId;
-  const clock = (ms: number | null | undefined) => (ms ? dateTimeFormatter({ day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(ms) : '—');
   const views: { value: AgentView; letter: string; label: string }[] = [
     { value: 'rapports', letter: 'A', label: tr('Rapports', 'Reports', 'Informes') },
     { value: 'conversation', letter: 'B', label: tr('Conversation', 'Conversation', 'Conversación') },
@@ -215,18 +238,7 @@ export default function Agent() {
       <ModuleHeader
         tab="agent"
         crumb={current.label.toLocaleUpperCase()}
-        cells={
-          cloudOn
-            ? [
-                { label: tr('Dernier relevé', 'Last pull', 'Última lectura'), value: clock(cloudStatus?.lastPullAt) },
-                { label: tr('Prochaine exécution', 'Next run', 'Próxima ejecución'), value: clock(cloudStatus?.deployment?.nextRunAt), plan: true },
-                {
-                  label: tr('Rapports', 'Reports', 'Informes'),
-                  value: unread > 0 ? `${fmtInt(cloudCount)} · ${fmtInt(unread)} ${tr('non lu(s)', 'unread', 'sin leer')}` : fmtInt(cloudCount),
-                },
-              ]
-            : undefined
-        }
+        cells={cloudOn ? agentHeaderCells(cloudStatus) : undefined}
         actions={
           view === 'rapports' ? (
             <>

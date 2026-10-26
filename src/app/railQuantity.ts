@@ -21,7 +21,7 @@ export interface RailSnapshot {
 }
 
 /** Accord du nombre selon la langue : « 0 lien » en français, « 0 links » et « 0 enlaces » ailleurs. */
-function count(n: number, one: string, many: string): string {
+export function count(n: number, one: string, many: string): string {
   const singular = useI18n.getState().locale === 'fr' ? Math.abs(n) < 2 : Math.abs(n) === 1;
   return `${fmtInt(n)} ${singular ? one : many}`;
 }
