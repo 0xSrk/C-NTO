@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
 import { CloudApiError, type CloudApi, type DeploymentView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, PULL_PENDING_MS } from '../electron/agent-cloud';
-import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
+import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, MAX_PAGES, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
 import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, KEY, NOW, sid, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
@@ -104,6 +104,19 @@ describe('agent cloud · définition installée par le desk', () => {
       expect(prompt).toContain(`"format": "${REPORT_FORMAT}"`);
       expect(prompt.endsWith(line)).toBe(true);
     }
+  });
+
+  it('CLD27 sous plafond, l’agent écrit tôt un rapport valide, puis l’affine, en lisant un nombre borné de pages', () => {
+    const prompt = cloudSystemPrompt('fr');
+    const early = prompt.indexOf('Écris aussitôt `/mnt/session/outputs/rapport.json`');
+    expect(early).toBeGreaterThan(0);
+    // L'écriture précoce vient avant l'affinage et avant la description du livrable : c'est l'ordre de travail.
+    expect(early).toBeLessThan(prompt.indexOf('Ensuite seulement, affine-le'));
+    expect(early).toBeLessThan(prompt.indexOf('## Livrable'));
+    expect(prompt).toContain('la session peut s’arrêter sans prévenir');
+    expect(prompt).toContain(`Lis au plus ${MAX_PAGES} pages web en tout`);
+    expect(MAX_PAGES).toBeGreaterThan(0);
+    expect(MAX_PAGES).toBeLessThanOrEqual(20);
   });
 });
 

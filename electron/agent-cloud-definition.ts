@@ -1,4 +1,4 @@
-import { REPORT_FORMAT } from './agent/cloudReport';
+import { REPORT_FILE, REPORT_FORMAT } from './agent/cloudReport';
 import type { AppLocale } from './locale';
 
 /**
@@ -13,6 +13,11 @@ export const CLOUD_EFFORT = 'high';
 export const BUDGET_CENTS_PER_RUN = 300;
 /** Le correcteur relance l'agent une fois au plus si le rapport manque un critère. */
 export const OUTCOME_MAX_ITERATIONS = 2;
+/**
+ * Pages web lues au plus par exécution, recherches comprises : la première exécution réelle a atteint le plafond
+ * sans écrire de rapport (CLD26, CLD27).
+ */
+export const MAX_PAGES = 15;
 export const ENVIRONMENT_NAME = 'canto-analyste';
 export const AGENT_NAME = 'CΛNTO · analyste quotidien';
 export const DEPLOYMENT_NAME = 'canto-rapport-quotidien';
@@ -53,6 +58,13 @@ export function cloudSystemPrompt(locale: AppLocale): string {
     '2. Recense les publications et événements officiels de cette journée et du lendemain (Fed, BLS, BEA, Census, Trésor, EIA, CFTC, BCE, CME), avec leur heure à New York et à Paris.',
     '3. Pour chacun, dis en une phrase ce qu’il mesure et pourquoi il peut déplacer les contrats à terme.',
     '4. N’invente ni chiffre, ni consensus, ni heure : ce qui est introuvable s’écrit « non trouvé ».',
+    '',
+    '## Méthode : écrire tôt, affiner ensuite',
+    'Ta dépense est plafonnée et la session peut s’arrêter sans prévenir : le livrable doit exister, et rester valide, à tout moment.',
+    '1. Établis d’abord la liste des publications de la journée à partir des calendriers officiels, une page par institution au plus.',
+    `2. Écris aussitôt \`/mnt/session/outputs/${REPORT_FILE}\`, complet et valide même s’il est sommaire : chaque événement trouvé, son heure, sa source.`,
+    '3. Ensuite seulement, affine-le (une phrase par événement), en réécrivant le fichier entier à chaque passe.',
+    `4. Lis au plus ${MAX_PAGES} pages web en tout, recherches comprises ; au-delà, termine avec ce que tu as.`,
     '',
     `## Livrable : contrat ${REPORT_FORMAT}`,
     'Écris un seul fichier, `/mnt/session/outputs/rapport.json`, en JSON valide UTF-8 :',
