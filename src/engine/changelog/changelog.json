@@ -487,23 +487,23 @@
       "highlights": {
         "fr": [
           "Système visuel 4.0 « ΟΡΟΣ » : la nuit du Lab, l’ivoire et l’or. L’or dit ce qui vit (la LED, le dernier prix, « maintenant ») ; le rouge ne marque plus que le niveau 3, et plus rien ne réagit au survol.",
-          "La signature du Lab dans chaque détail : plaques HUD liées à l’état réel du desk, cartouches, emblèmes des modules et composants de la Ligne V2 sur les courbes, les jauges et les outils.",
-          "Le sceau Horizon frappe au démarrage et ferme le verrou ; la barre d’état devient une bande d’étiquette ivoire, avec un seul code-barres en bas à droite.",
+          "La signature du Lab dans chaque détail : plaques HUD liées à l’état réel du desk, cartouches, emblèmes des modules et composants de la Ligne V2 ; le sceau Horizon frappe au démarrage et ferme le verrou, et la barre d’état devient une bande d’étiquette ivoire à un seul code-barres.",
           "Lanceur AUBE refait : l’horizon se trace, la LED or se pose sur la pointe du Λ, les relevés de version s’impriment ; au départ, tout se replie sur l’horizon. Une touche abrège, le mouvement réduit est respecté.",
+          "Agent IA s’ouvre sur le dossier des rapports de l’agent cloud : un agent Managed Agents tourne chaque jour chez Anthropic, sur les crédits API de votre organisation, et dépose son rapport ; le desk le relève sans rien envoyer. Installation et lancement par dialogue, plafond par exécution ; conversation et options ont chacune leur vue.",
           "Kill switch : la bande de niveau 3 se pose même quand l’AddOn NinjaTrader n’est pas connecté. DOMPurify passe en 3.4.17, au-delà des avis critiques."
         ],
         "en": [
           "Visual system 4.0 « ΟΡΟΣ »: the Lab’s night, ivory and gold. Gold marks what is alive (the LED, the last price, “now”); red now marks level 3 only, and nothing reacts to hover any more.",
-          "The Lab’s signature in every detail: HUD plates bound to the desk’s real state, cartouches, module emblems and Ligne V2 components on curves, gauges and tools.",
-          "The Horizon seal strikes at start-up and closes the lock; the status bar becomes an ivory label strip with a single barcode at the bottom right.",
+          "The Lab’s signature in every detail: HUD plates bound to the desk’s real state, cartouches, module emblems and Ligne V2 components; the Horizon seal strikes at start-up and closes the lock, and the status bar becomes an ivory label strip with a single barcode.",
           "AUBE launcher rebuilt: the horizon draws itself, the gold LED settles on the tip of the Λ, version readings print; on launch, everything folds back onto the horizon. A key press skips it; reduced motion is respected.",
+          "AI Agent opens on the cloud agent’s report folder: a Managed Agents agent runs every day at Anthropic, on your organization’s API credits, and drops its report; the desk pulls it without sending anything. Install and runs go through a dialog, each run is capped; conversation and options each have their own view.",
           "Kill switch: the level-3 band shows even when the NinjaTrader AddOn is not connected. DOMPurify moves to 3.4.17, past the critical advisories."
         ],
         "es": [
           "Sistema visual 4.0 « ΟΡΟΣ »: la noche del Lab, el marfil y el oro. El oro marca lo que está vivo (el LED, el último precio, «ahora»); el rojo solo marca el nivel 3, y ya nada reacciona al pasar el ratón.",
-          "La firma del Lab en cada detalle: placas HUD ligadas al estado real del desk, cartuchos, emblemas de los módulos y componentes de la Ligne V2 en curvas, indicadores y herramientas.",
-          "El sello Horizon se estampa al arrancar y cierra el bloqueo; la barra de estado pasa a ser una banda de etiqueta marfil, con un solo código de barras abajo a la derecha.",
+          "La firma del Lab en cada detalle: placas HUD ligadas al estado real del desk, cartuchos, emblemas de los módulos y componentes de la Ligne V2; el sello Horizon se estampa al arrancar y cierra el bloqueo, y la barra de estado pasa a ser una banda de etiqueta marfil con un solo código de barras.",
           "Lanzador AUBE rehecho: el horizonte se traza, el LED dorado se posa en la punta de la Λ, las lecturas de versión se imprimen; al lanzar, todo se repliega sobre el horizonte. Una tecla lo abrevia; se respeta el movimiento reducido.",
+          "Agente IA se abre en la carpeta de informes del agente en la nube: un agente Managed Agents se ejecuta cada día en Anthropic, con los créditos API de su organización, y deja su informe; el desk lo recoge sin enviar nada. Instalación y ejecuciones por diálogo, límite por ejecución; conversación y opciones tienen cada una su vista.",
           "Kill switch: la banda de nivel 3 aparece aunque el AddOn de NinjaTrader no esté conectado. DOMPurify pasa a 3.4.17, por encima de los avisos críticos."
         ]
       }
