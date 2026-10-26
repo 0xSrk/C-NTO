@@ -7,11 +7,11 @@ export const KILL_SHORTCUT_FALLBACK = 'CommandOrControl+Shift+K';
 
 /**
  * Le kill switch engagé, tel que le process principal le dit au renderer. Le raccourci global (Ctrl+Shift+K) aplatit les
- * comptes, ferme le canal d'ordres jusqu'au redémarrage et pousse un statut `ntbridge:status`. Ce statut n'a pas de champ
- * « coupé » : `ordersOpen` vaut `link === 'live' && !ordersClosed`, donc seul un lien vivant au canal fermé prouve la coupure.
+ * comptes, ferme le canal d'ordres jusqu'au redémarrage et pousse un statut `ntbridge:status` qui porte `ordersClosed`,
+ * lien vivant ou non. Un pont plus ancien sans ce champ : seul un lien vivant au canal fermé prouve la coupure.
  */
 export function killEngaged(nt: NtBridgeStatus | null | undefined): boolean {
-  return nt?.link === 'live' && nt.ordersOpen === false;
+  return nt?.ordersClosed === true || (nt?.link === 'live' && nt.ordersOpen === false);
 }
 
 /** Verrou du renderer : le canal ne se rouvre qu'au redémarrage du desk, la bande non plus. */

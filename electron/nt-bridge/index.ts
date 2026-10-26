@@ -372,7 +372,10 @@ export class NtBridgeHost {
 
   killSwitch(): KillSwitchSent {
     this.copier?.disarm();
-    return this.server?.killSwitch() ?? { accounts: [], sent: false, settled: Promise.resolve([]) };
+    const sent = this.server?.killSwitch() ?? { accounts: [], sent: false, settled: Promise.resolve([]) };
+    // le renderer apprend la coupure tout de suite, même si l'AddOn n'est pas connecté
+    this.pushStatus();
+    return sent;
   }
 
   /** Kill switch puis réponses de l'AddOn, pour un message qui ne dit « aplati » que sur confirmation. */

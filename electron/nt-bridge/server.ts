@@ -103,6 +103,8 @@ export interface NtBridgeStatus {
   accountNames: string[];
   heartbeatLatencyMs: number | null;
   ordersOpen: boolean;
+  /** Kill switch engagé : le canal d'ordres reste fermé jusqu'au redémarrage du desk, lien vivant ou non. */
+  ordersClosed: boolean;
   hasToken: boolean;
   /** `mutual` : défi-réponse, le jeton ne circule pas. `token` : ancien AddOn, jeton dans l'URL. */
   auth: 'mutual' | 'token' | null;
@@ -253,6 +255,8 @@ export class NtBridgeServer {
       accountNames: this.accountNames,
       heartbeatLatencyMs,
       ordersOpen: this.link === 'live' && !this.ordersClosed,
+      // le kill switch ferme le canal jusqu'au redémarrage, lien vivant ou non : le renderer le lit ici
+      ordersClosed: this.ordersClosed,
       hasToken: this.token.length > 0,
       auth: this.socket ? this.auth : null,
     };

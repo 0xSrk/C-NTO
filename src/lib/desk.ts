@@ -68,6 +68,8 @@ export interface NtBridgeStatus {
   accountNames: string[];
   heartbeatLatencyMs: number | null;
   ordersOpen: boolean;
+  /** Kill switch engagé : le canal d'ordres reste fermé jusqu'au redémarrage du desk, lien vivant ou non. */
+  ordersClosed?: boolean;
   hasToken: boolean;
   extraAccounts: string[];
   maxContractsPerOrder: number;
