@@ -714,11 +714,7 @@
 }
 
 .barcode {
-  display: inline-block;
-  width: 64px;
-  height: 10px;
-  background-image:
-    repeating-linear-gradient(90deg, var(--text-2) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(90deg, var(--text-2) 0 2px, transparent 2px 7px),
-    repeating-linear-gradient(90deg, transparent 0 11px, var(--text-2) 11px 12px, transparent 12px 17px);
+  display: block;
+  flex: none;
+  color: var(--text-1);
 }
