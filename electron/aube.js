@@ -6,12 +6,15 @@
    le Système 4.0 est une nuit, des filets et une LED. Ce calque dessine ce que le DOM ne sait pas
    dessiner net :
      - la graduation de l'horizon, au pas de 8 px (majeure tous les 40 px) ;
+     - pendant l'aube (temps --t-* de la feuille) : la graduation qui naît avec la lentille, l'onde de
+       la frappe du sceau, l'éclair de l'horizon quand le sceau s'y plie, l'éclat de la LED qui se pose ;
      - la lumière de la LED d'or posée sur la pointe du Λ (son halo, jamais une ombre décorative) ;
      - au départ, le retour de la LED sur l'horizon et la couture de lumière qui ouvre le desk.
-   Couleurs : les jetons de la feuille du lanceur (--gold, --text-0), lus au démarrage.
+   Au repos, une image et plus aucune boucle. Couleurs : les jetons de la feuille (--gold, --text-0).
 
    CSP `script-src 'self'` : aucun eval. API : window.cantoAube
      launch(): Promise<void>  — résout quand le circuit doit prendre la main (CFG.pre)
+     rest()                   — l'aube abrégée : la lumière du repos, tout de suite
      start() · stop() · isRunning() · handoffAt (lecture) · quality (lecture)
    ═══════════════════════════════════════════════════════════════════════════════ */
 (function () {
@@ -53,6 +56,21 @@
   const GOLD = token('--gold', '204,176,102');
   const INK = token('--text-0', '245,242,234');
 
+  /* ── Temps de l'aube (ms), lus sur la feuille (--t-*) : la lumière suit la même partition que le DOM ── */
+  const ms = (name, fallback) => {
+    const s = token(name, NaN);
+    return Number.isFinite(s) && s > 0 ? s * 1000 : fallback;
+  };
+  const T = {
+    horizon: ms('--t-horizon', 100),
+    strike: ms('--t-strike', 300),
+    fold: ms('--t-fold', 720),
+    land: ms('--t-land', 1550),
+    rest: ms('--t-rest', 2800),
+  };
+  /** Hauteur du sceau (px) : son centre est à 12,8 / 740 de sa hauteur sous l'horizon. */
+  const SEAL_H = token('--seal-h', 400);
+
   /* ── Tailles ── */
   let W = 0;
   let H = 0;
@@ -87,17 +105,19 @@
 
   /* ── Dessin ── */
 
-  /** Graduation de l'horizon : du centre vers les bords, plus discrète sous le logotype. */
-  function graduation(a, light) {
+  /** Graduation de l'horizon : du centre vers les bords, plus discrète sous le logotype. `reveal(d)` la fait naître. */
+  function graduation(a, light, reveal) {
     if (light <= 0) return;
     ctx.lineWidth = 1 / dpr;
     const y = snap(HZ + 4);
     for (let d = 0; d <= W / 2; d += CFG.step) {
+      const seen = reveal ? reveal(d) : 1;
+      if (seen <= 0) continue;
       const isMajor = d % CFG.major === 0;
       for (const x of d === 0 ? [W / 2] : [W / 2 - d, W / 2 + d]) {
         const under = x > a.left - 8 && x < a.right + 8 ? 0.35 : 1;
         const edge = 1 - 0.6 * (d / (W / 2));
-        ctx.strokeStyle = `rgba(${INK},${(isMajor ? 0.32 : 0.16) * light * under * edge})`;
+        ctx.strokeStyle = `rgba(${INK},${(isMajor ? 0.32 : 0.16) * light * under * edge * seen})`;
         ctx.beginPath();
         ctx.moveTo(snap(x), y);
         ctx.lineTo(snap(x), y + (isMajor ? 5 : 2));
@@ -121,6 +141,38 @@
   function drawRest(a) {
     graduation(a, 1);
     glow(a.ax, a.ay, 44, 0.12);
+  }
+
+  /** Aube : la graduation naît avec la lentille, l'onde de la frappe, l'éclair du pli, l'éclat de la pose. */
+  function drawIntro(a, t) {
+    // La graduation naît du centre vers les bords, dans le sillage de la lentille.
+    const g0 = T.horizon + 120;
+    graduation(a, 1, (d) => win(t, g0 + 360 * (d / (W / 2)), g0 + 360 * (d / (W / 2)) + 90));
+    // L'onde de la frappe : un filet qui part du centre du sceau quand il touche l'horizon.
+    const shock = win(t, T.strike + 90, T.strike + 700);
+    if (shock > 0 && shock < 1) {
+      const cy = HZ + (12.8 / 740) * SEAL_H;
+      ctx.lineWidth = 1 / dpr;
+      ctx.strokeStyle = `rgba(${INK},${0.34 * (1 - shock)})`;
+      ctx.beginPath();
+      ctx.arc(W / 2, cy, 40 + easeOut(shock) * 300, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Le pli : le sceau rentre dans la ligne, la ligne s'embrase, le soleil s'annonce au centre.
+    const flash = win(t, T.fold + 200, T.fold + 560);
+    if (flash > 0 && flash < 1) {
+      const k = 1 - easeOut(flash);
+      const g = ctx.createLinearGradient(0, 0, W, 0);
+      g.addColorStop(0, `rgba(${INK},0)`);
+      g.addColorStop(0.5, `rgba(${INK},${0.85 * k})`);
+      g.addColorStop(1, `rgba(${INK},0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, Math.round(HZ * dpr) / dpr - 0.5 / dpr, W, 1 / dpr + 0.5);
+      glow(W / 2, HZ, 90, 0.34 * k);
+    }
+    // La pose : la LED arrive sur la pointe, son halo s'allume d'un éclat puis se tient.
+    const land = win(t, T.land, T.land + 500);
+    if (land > 0) glow(a.ax, a.ay, 44 + 26 * (1 - land), 0.12 + 0.34 * (1 - easeOut(land)));
   }
 
   /** Départ : la LED revient de la pointe au centre de l'horizon, la couture de lumière s'ouvre le long de lui. */
@@ -159,6 +211,8 @@
   let launchAt = -1;
   let handoffAt = -1;
   let resolveLaunch = null;
+  const introAt = performance.now();
+  let introDone = reducedMotion;
 
   function settle() {
     if (resolveLaunch) {
@@ -172,7 +226,11 @@
     ctx.clearRect(0, 0, W, H);
     const a = anchors();
     if (launchAt >= 0) drawLaunch(a, now - launchAt);
-    else drawRest(a);
+    else if (!introDone && now - introAt < T.rest) drawIntro(a, now - introAt);
+    else {
+      introDone = true;
+      drawRest(a);
+    }
   }
 
   function loop() {
@@ -185,7 +243,7 @@
       settle();
     }
     // Au repos, rien ne bouge : une image suffit, la boucle s'arrête.
-    if (launchAt < 0) stop();
+    if (launchAt < 0 && introDone) stop();
     else if (handoffAt >= 0 && now - handoffAt > T_DONE + 600) stop();
   }
 
@@ -202,6 +260,14 @@
     running = false;
     cancelAnimationFrame(raf);
     settle();
+  }
+
+  /** L'aube abrégée (touche, clic) : la lumière du repos, tout de suite, et plus aucune image. */
+  function rest() {
+    introDone = true;
+    if (launchAt >= 0) return;
+    stop();
+    render(performance.now());
   }
 
   /** Retour de la LED et couture. Résout quand le circuit doit prendre la main. */
@@ -242,6 +308,7 @@
     launch,
     start,
     stop,
+    rest,
     isRunning: () => running,
     get handoffAt() {
       return handoffAt;

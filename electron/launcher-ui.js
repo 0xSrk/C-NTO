@@ -234,6 +234,11 @@
     const horizon = /<g data-part="horizon">(<path[^>]*\/>)/.exec(MICRO.SEAL.svg);
     const lens = $('lens');
     if (lens && horizon) lens.innerHTML = horizon[1];
+    // Instruments de l'aube : le sceau qui frappe, les rayons de l'horizon d'où la LED se lève.
+    const seal = $('seal');
+    if (seal) seal.innerHTML = MICRO.SEAL.svg;
+    const rays = $('rays');
+    if (rays) rays.innerHTML = MICRO.GLYPHS.horizon;
     for (const [id, name] of [
       ['glyph-launch', 'arrowOpen'],
       ['glyph-update', 'arrowImport'],
@@ -766,6 +771,7 @@
 
   async function launch() {
     if (launching || btnLaunch.disabled) return;
+    toRest();
     launching = true;
     btnLaunch.disabled = true;
     paint();
@@ -783,6 +789,7 @@
     });
   }
   window.addEventListener('keydown', (event) => {
+    if (!frame?.isConnected) return;
     if (event.key === 'Enter' && document.activeElement === document.body) void launch();
     if (event.key === 'Escape' && !launching) window.canto?.window.close();
   });
@@ -844,6 +851,73 @@
       paintLocale();
     }
   });
+
+  /* ─── L'aube : la séquence d'ouverture de la feuille (data-phase="intro"), jusqu'au repos ───────────────
+     Une touche ou un clic l'abrège (ce clic-là ne vise rien) ; Échap garde son sens ; le mouvement réduit
+     donne le repos d'emblée. Le chronomètre T+ dit le temps réel de l'ouverture, puis s'éteint. */
+  const INTRO_REST_MS = 2800; // miroir de --t-rest (tests/launcher-dawn.test.ts)
+  const clock = $('clock');
+  const introAt = performance.now();
+  const raf = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : (cb) => setTimeout(cb, 16);
+  const unraf = window.cancelAnimationFrame ? window.cancelAnimationFrame.bind(window) : clearTimeout;
+  let introTimer = 0;
+  let clockFrame = 0;
+  let swallowUntil = 0;
+
+  function restMs() {
+    const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--t-rest'));
+    return Number.isFinite(value) && value > 0 ? value * 1000 : INTRO_REST_MS;
+  }
+
+  function tickClock() {
+    if (!clock || frame.dataset.phase !== 'intro') return;
+    clock.textContent = 'T+' + ((performance.now() - introAt) / 1000).toFixed(3);
+    clockFrame = raf(tickClock);
+  }
+
+  function toRest() {
+    if (!frame || frame.dataset.phase === 'rest') return;
+    frame.dataset.phase = 'rest';
+    clearTimeout(introTimer);
+    unraf(clockFrame);
+    window.removeEventListener('keydown', skipByKey, true);
+    window.removeEventListener('pointerdown', skipByPointer, true);
+    window.cantoAube?.rest?.();
+  }
+
+  // Une page, une aube : un cadre retiré du document n'écoute plus rien.
+  function skipByKey(event) {
+    if (!frame.isConnected) return;
+    toRest();
+    if (event.key === 'Escape') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  function skipByPointer() {
+    if (!frame.isConnected) return;
+    swallowUntil = performance.now() + 800;
+    toRest();
+  }
+
+  window.addEventListener(
+    'click',
+    (event) => {
+      if (!frame?.isConnected || performance.now() >= swallowUntil) return;
+      swallowUntil = 0;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    true,
+  );
+
+  if (reducedMotion) toRest();
+  else {
+    window.addEventListener('keydown', skipByKey, true);
+    window.addEventListener('pointerdown', skipByPointer, true);
+    introTimer = setTimeout(toRest, restMs());
+    clockFrame = raf(tickClock);
+  }
 
   paintLocale();
   if (window.canto?.locale) {
