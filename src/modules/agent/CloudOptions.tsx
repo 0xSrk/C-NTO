@@ -154,7 +154,7 @@ export function CloudOptions() {
               setWorkspaceDraft('');
             }}
           >
-            {tr('Enregistrer', 'Save', 'Guardar')}
+            {busy === 'workspace' ? tr('Vérification…', 'Checking…', 'Verificando…') : tr('Enregistrer', 'Save', 'Guardar')}
           </Button>
           {status?.workspaceId ? (
             <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void setWorkspace('')}>

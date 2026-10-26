@@ -61,7 +61,7 @@ export interface CloudDeploymentState {
   agentVersion: number | null;
 }
 
-export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | null;
+export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | null;
 type ProvisionStep = 'environment' | 'agent' | 'deployment' | 'pause' | 'resume';
 
 export interface AgentCloudStatus {
@@ -414,10 +414,11 @@ export class AgentCloudHost {
 
   /**
    * Espace de travail d'une clé d'utilisateur (`sk-ant-usr-…`) : sans lui, l'API refuse chaque appel (400). Il part dans
-   * l'en-tête `anthropic-workspace-id` ; `''` l'efface. Il ne change pas tant que le déploiement du desk existe : celui-ci
-   * resterait planifié et facturé dans l'ancien espace, sans que le desk le voie encore.
+   * l'en-tête `anthropic-workspace-id` ; `''` l'efface. Changer d'espace ne doit jamais perdre de vue un déploiement qui
+   * facture : celui du desk doit rester visible dans le nouvel espace (le nommer quand il était implicite, par exemple),
+   * et une installation commencée sans déploiement connu est d'abord cherchée là où elle a eu lieu.
    */
-  setWorkspace(text: unknown): AgentCloudStatus {
+  async setWorkspace(text: unknown): Promise<AgentCloudStatus> {
     if (this.busy) return this.refuseBusy();
     const id = typeof text === 'string' ? text.trim() : null;
     if (id === null || (id !== '' && !isWorkspaceId(id)))
@@ -428,25 +429,74 @@ export class AgentCloudHost {
       );
     const next = id === '' ? null : id;
     if (next === this.config.workspaceId) return this.status();
-    if (this.config.managed && this.config.deploymentId)
-      return this.refuse(
-        'Quittez d’abord le déploiement du desk : il appartient à l’espace de travail actuel.',
-        'Leave the desk’s deployment first: it belongs to the current workspace.',
-        'Deje primero el despliegue del desk: pertenece al espacio de trabajo actual.',
-      );
+    const deploymentId = this.config.deploymentId;
+    return this.control('workspace', async () => {
+      if (deploymentId && this.config.managed) {
+        // Le déploiement du desk reste en vue dans le nouvel espace, ou rien ne change : il tournerait, facturé, hors de vue.
+        let view: DeploymentView;
+        try {
+          view = await this.api.getDeployment(deploymentId, { workspace: next });
+        } catch {
+          this.actionError = this.t(
+            'Le déploiement du desk n’est pas visible dans cet espace : indiquez celui où il tourne, ou quittez-le d’abord.',
+            'The desk’s deployment is not visible in this workspace: enter the one it runs in, or leave it first.',
+            'El despliegue del desk no es visible en este espacio: indique aquel donde se ejecuta, o déjelo primero.',
+          );
+          return;
+        }
+        this.deployment = deploymentState(view);
+        this.applyWorkspace(next, true);
+        return;
+      }
+      const agentId = this.config.agentId;
+      if (agentId && !deploymentId) {
+        // Une installation coupée a pu créer son déploiement sans en recevoir la réponse : seul son agent permet de le
+        // retrouver, dans l'espace actuel. Trouvé, il devient celui du desk ; recherche impossible, rien n'est oublié.
+        let found: DeploymentView | undefined;
+        try {
+          found = (await this.api.listDeployments(agentId)).find((d) => d.tagged && !d.archived && d.name === DEPLOYMENT_NAME);
+        } catch {
+          this.actionError = this.t(
+            'Installation commencée dans l’espace actuel, invérifiable : relancez l’installation avant de changer d’espace.',
+            'An installation was started in the current workspace and cannot be checked: run the install again before changing workspace.',
+            'Instalación iniciada en el espacio actual, imposible de verificar: vuelva a lanzar la instalación antes de cambiar de espacio.',
+          );
+          return;
+        }
+        if (found) {
+          this.config.deploymentId = found.id;
+          this.config.managed = true;
+          this.config.floor = null;
+          this.deployment = deploymentState(found);
+          this.persist();
+          this.deps.log('agent cloud · déploiement du desk retrouvé dans l’espace actuel');
+          this.actionError = this.t(
+            'Un déploiement du desk a été retrouvé dans l’espace actuel : quittez-le d’abord.',
+            'A desk deployment was found in the current workspace: leave it first.',
+            'Se encontró un despliegue del desk en el espacio actual: déjelo primero.',
+          );
+          this.reschedule(1_000);
+          return;
+        }
+      }
+      this.applyWorkspace(next, false);
+    });
+  }
+
+  /** `keep` : l'installation reste celle du desk (même espace, désormais nommé) ; sinon elle reste dans l'ancien espace. */
+  private applyWorkspace(next: string | null, keep: boolean): void {
     this.config.workspaceId = next;
-    // L'environnement et l'agent d'une installation commencée restent dans l'ancien espace : la prochaine installation les recrée.
-    this.config.environmentId = null;
-    this.config.agentId = null;
-    this.config.agentVersion = null;
+    if (!keep) {
+      // L'environnement et l'agent d'une installation commencée restent dans l'ancien espace : la prochaine installation les recrée.
+      this.config.environmentId = null;
+      this.config.agentId = null;
+      this.config.agentVersion = null;
+    }
     this.authBlocked = false;
     this.error = null;
-    this.actionError = null;
     this.persist();
     this.deps.log(next ? 'agent cloud · espace de travail enregistré' : 'agent cloud · espace de travail effacé');
     this.reschedule(1_000);
-    this.publish();
-    return this.status();
   }
 
   /**

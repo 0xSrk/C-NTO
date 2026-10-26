@@ -23,15 +23,15 @@ const ERROR_MAX_BYTES = 16 * 1024;
 const MESSAGE_MAX = 200;
 const RETRY_AFTER_MAX_SEC = 3600;
 
-/**
- * Échec d'un appel. `status` : statut HTTP, ou 0 hors HTTP. `type` : le `error.type` de l'API (`authentication_error`,
- * `not_found_error`…), ou une cause locale (`no_key`, `invalid_id`, `timeout`, `network`, `redirect`, `too_large`, `unreadable`).
- */
 /** Identifiant d'espace de travail : `wrkspc_…`, ou un UUID ; l'API dit s'il existe pour la clé. Jamais rien qui casse un en-tête. */
 export function isWorkspaceId(v: unknown): v is string {
   return typeof v === 'string' && (/^wrkspc_[A-Za-z0-9]{6,128}$/.test(v) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
 }
 
+/**
+ * Échec d'un appel. `status` : statut HTTP, ou 0 hors HTTP. `type` : le `error.type` de l'API (`authentication_error`,
+ * `not_found_error`…), ou une cause locale (`no_key`, `invalid_id`, `timeout`, `network`, `redirect`, `too_large`, `unreadable`).
+ */
 export class CloudApiError extends Error {
   constructor(
     readonly status: number,
@@ -101,7 +101,8 @@ export interface FileView {
 }
 
 export interface CloudApi {
-  getDeployment(id: string): Promise<DeploymentView>;
+  /** `workspace` : lu dans cet espace-là plutôt que dans celui du desk (`null` : sans en-tête), avant d'en changer. */
+  getDeployment(id: string, opts?: { workspace?: string | null }): Promise<DeploymentView>;
   /** Déploiements non archivés d'un agent (100 au plus). */
   listDeployments(agentId: string): Promise<DeploymentView[]>;
   /**
@@ -318,6 +319,8 @@ interface Call {
   query?: Record<string, string>;
   body?: Record<string, unknown>;
   maxBytes?: number;
+  /** Espace de travail de cet appel seul ; absent, celui du desk. */
+  workspace?: string | null;
 }
 
 /** `workspace` : l'espace de travail d'une clé d'utilisateur, envoyé dans `anthropic-workspace-id` ; vide ou absent, rien. */
@@ -327,7 +330,7 @@ export function createCloudApi(deps: { key: () => string; workspace?: () => stri
   async function send(call: Call): Promise<{ res: Response; signal: AbortSignal }> {
     const key = deps.key();
     if (!key) throw new CloudApiError(0, 'no_key', 'Clé API absente');
-    const workspace = deps.workspace?.() || null;
+    const workspace = (call.workspace !== undefined ? call.workspace : deps.workspace?.()) || null;
     if (workspace !== null && !isWorkspaceId(workspace)) throw new CloudApiError(0, 'invalid_id', 'Espace de travail invalide (wrkspc_…)');
     const url = new URL(call.path, CLOUD_API_ORIGIN);
     for (const [name, value] of Object.entries(call.query ?? {})) url.searchParams.set(name, value);
@@ -389,8 +392,8 @@ export function createCloudApi(deps: { key: () => string; workspace?: () => stri
   const clampLimit = (n: number | undefined, max: number, fallback: number) => String(Number.isInteger(n) && n !== undefined && n >= 1 ? Math.min(n, max) : fallback);
 
   return {
-    async getDeployment(id) {
-      return parseDeployment(await json({ method: 'GET', path: `/v1/deployments/${checked(id, 'depl')}` }));
+    async getDeployment(id, opts) {
+      return parseDeployment(await json({ method: 'GET', path: `/v1/deployments/${checked(id, 'depl')}`, workspace: opts?.workspace }));
     },
     async listDeployments(agentId) {
       const raw = await json({ method: 'GET', path: '/v1/deployments', query: { agent_id: checked(agentId, 'agent'), limit: '100' } });

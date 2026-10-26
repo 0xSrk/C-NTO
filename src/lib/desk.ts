@@ -199,7 +199,7 @@ export interface AgentCloudStatus {
   schedule: CloudSchedule;
   deployment: CloudDeploymentState | null;
   pulling: boolean;
-  busy: 'provision' | 'run' | 'pause' | 'unpause' | null;
+  busy: 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | null;
   lastPullAt: number | null;
   nextPullAt: number | null;
   error: string | null;
@@ -221,7 +221,10 @@ export interface AgentCloudApi {
   markRead: (id: string) => Promise<AgentCloudStatus | null>;
   /** La clé part une fois vers le process principal, qui la chiffre ; `''` l'efface. */
   setKey: (text: string) => Promise<AgentCloudStatus | null>;
-  /** Espace de travail d'une clé d'utilisateur (`wrkspc_…`), envoyé dans `anthropic-workspace-id` ; `''` l'efface. */
+  /**
+   * Espace de travail d'une clé d'utilisateur (`wrkspc_…`), envoyé dans `anthropic-workspace-id` ; `''` l'efface. Refusé
+   * si le déploiement du desk n'y est plus visible, ou si une installation commencée y a laissé un déploiement.
+   */
   setWorkspace: (id: string) => Promise<AgentCloudStatus | null>;
   /** Déploiement créé ailleurs (`depl_…`), relevé et lancé, jamais modifié ; `null` l'oublie. Quitter celui du desk passe par un dialogue qui le suspend. */
   setDeployment: (id: string | null) => Promise<AgentCloudStatus | null>;

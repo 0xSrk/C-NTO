@@ -191,7 +191,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect((await h.host.provision()).error).toBe(
       'Environnement · Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
     );
-    h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ');
+    await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ');
     expect((await h.host.provision()).error).toBe(`Environnement · Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces). ${unscoped}`);
     workspaceOk = true;
     expect(await h.host.provision()).toMatchObject({ error: null, deploymentId: DEPL });
@@ -352,6 +352,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     const first = h.host.provision();
     expect(await h.host.setDeployment('depl_011CZkZcDH3vPqd7xnEfwXYZ')).toMatchObject({ deploymentId: null, error: null });
     expect(h.host.setKey('').keyStored).toBe(true);
+    expect(await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: null, busy: 'provision', error: null });
     release({ response: 2 });
     expect(await first).toMatchObject({ busy: null, deploymentId: null, error: null });
   });
