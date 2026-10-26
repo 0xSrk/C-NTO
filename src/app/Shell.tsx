@@ -259,8 +259,17 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               <span className={s.accountName}>{accountLine}</span>
             </div>
             <span className={s.accountSource}>{source}</span>
-            <div className={s.accountMeta}>
+          </div>
+          {/* Plaque d'artefact (Système 4.0) : le seul objet arrondi, celui de l'objet fini. */}
+          <div className={s.plate} role="group" aria-label={tr('Plaque d’artefact', 'Artefact plate', 'Placa del artefacto')}>
+            <span className={s.plateArt}>ART 002</span>
+            <span className={s.plateVer}>
               <ChangelogJournal version={appVersion} />
+            </span>
+            <span className={s.plateName}>CΛNTO</span>
+            <span className={s.plateSector}>{tr('S.01 MARCHÉS', 'S.01 MARKETS', 'S.01 MERCADOS')}</span>
+            <div className={s.plateCode}>
+              <span className={s.plateId}>SK-ART-002</span>
               <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
                 {LOCALES.map((item) => (
                   <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>

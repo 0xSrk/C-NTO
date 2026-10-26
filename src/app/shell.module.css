@@ -340,15 +340,67 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.accountMeta {
+/* Plaque d'artefact : ART 002 · version (journal) / CΛNTO · secteur / code en clair · langues. */
+.plate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ivory) 6%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--bg-void) 50%, transparent);
+}
+.plateArt {
+  padding: 3px 6px 2px;
+  background: var(--ivory);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  font-stretch: var(--value-stretch);
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+.plateVer {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.plateName {
+  font-family: var(--font-name);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--text-0);
+}
+.plateSector {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+}
+.plateCode {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-width: 0;
-  margin-top: 6px;
-  padding: 8px 0 0 18px;
-  border-top: 1px solid var(--line-0);
+  padding-top: 7px;
+  border-top: 1px solid var(--line-1);
+}
+.plateId {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-1);
 }
 .accountSource {
   min-width: 0;
@@ -362,7 +414,7 @@
   text-transform: uppercase;
   color: var(--text-2);
 }
-.accountMeta .versionBtn {
+.plateVer .versionBtn {
   flex: none;
   color: var(--text-1);
 }
