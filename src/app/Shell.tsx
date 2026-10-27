@@ -380,7 +380,6 @@ function ConfirmDialog() {
   return (
     <Modal
       title={pending.title}
-      sub={tr('confirmation requise', 'confirmation required', 'confirmación requerida')}
       onClose={() => resolve(false)}
       width={460}
       footer={

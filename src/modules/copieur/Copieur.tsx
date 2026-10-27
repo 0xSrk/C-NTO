@@ -150,7 +150,7 @@ export default function Copieur() {
               )}
             </div>
 
-            <Panel title={tr('Topologie', 'Topology', 'Topología')} sub={tr('compte maître → comptes suiveurs', 'master account → follower accounts', 'cuenta maestra → cuentas seguidoras')}>
+            <Panel title={tr('Topologie', 'Topology', 'Topología')}>
               <div className={s.topology}>
                 <div>
                   <div className={s.colTitle}>{tr('Maître', 'Master', 'Maestro')}</div>
@@ -207,7 +207,7 @@ export default function Copieur() {
           </div>
 
           <div className={s.col}>
-            <Panel title={tr('Filtres de réplication', 'Replication filters', 'Filtros de replicación')} sub={tr('appliqués avant tout envoi', 'applied before any send', 'aplicados antes de cualquier envío')}>
+            <Panel title={tr('Filtres de réplication', 'Replication filters', 'Filtros de replicación')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div className={s.formGrid}>
                   <Field label={tr('Fenêtre · début (locale)', 'Window · start (local)', 'Ventana · inicio (local)')}>
@@ -238,7 +238,7 @@ export default function Copieur() {
               </div>
             </Panel>
 
-            <Panel title={tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')} sub={tr('séquence du protocole', 'protocol sequence', 'secuencia del protocolo')}>
+            <Panel title={tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}>
               {BRIDGE_STEPS.map(([k, v]) => (
                 <div key={k} className={s.bridgeRow}>
                   <span>{v}</span>
@@ -247,9 +247,9 @@ export default function Copieur() {
               ))}
               <p className={s.hint} style={{ marginTop: 8 }}>
                 {tr(
-                  'Le pont est un AddOn NinjaScript qui se connecte en WebSocket au shell CΛNTO (127.0.0.1). Il ne quitte jamais la machine : aucune donnée de compte ne transite par un serveur tiers.',
-                  'The bridge is a NinjaScript AddOn that connects over WebSocket to the CΛNTO shell (127.0.0.1). It never leaves the machine: no account data goes through a third-party server.',
-                  'El puente es un AddOn NinjaScript que se conecta por WebSocket al shell CΛNTO (127.0.0.1). Nunca sale de la máquina: ningún dato de cuenta pasa por un servidor de terceros.',
+                  'Le pont est un AddOn NinjaScript qui se connecte en WebSocket au shell CΛNTO (127.0.0.1).',
+                  'The bridge is a NinjaScript AddOn that connects over WebSocket to the CΛNTO shell (127.0.0.1).',
+                  'El puente es un AddOn NinjaScript que se conecta por WebSocket al shell CΛNTO (127.0.0.1).',
                 )}
               </p>
             </Panel>

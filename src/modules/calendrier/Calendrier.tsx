@@ -153,7 +153,6 @@ function trCatHelp(c: EventCategory): { lead: string; points: string[] } {
         points: [
           tr('Ils n’arrivent pas d’un fil externe : c’est votre journal de bord.', 'They do not come from an external feed: this is your logbook.', 'No llegan de un feed externo: es su cuaderno de bitácora.'),
           tr('Utilisez-les pour figer une intention avant la séance.', 'Use them to lock an intention before the session.', 'Úselos para fijar una intención antes de la sesión.'),
-          tr('Visibles uniquement sur votre machine.', 'Visible only on your machine.', 'Visibles solo en su máquina.'),
         ],
       };
     default:
@@ -672,7 +671,7 @@ export default function Calendrier() {
       </ModuleContent>
 
       {helpCat && (
-        <Modal title={trCatLabel(helpCat)} sub={tr('Repère débutant', 'Beginner guide', 'Guía para principiantes')} onClose={() => setHelpCat(null)} width={440}>
+        <Modal title={trCatLabel(helpCat)} onClose={() => setHelpCat(null)} width={440}>
           <div className={s.helpBody}>
             <p className={s.helpLead}>{trCatHelp(helpCat).lead}</p>
             <ul className={s.helpList}>
@@ -948,7 +947,6 @@ function DaySide({
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
           <h4>{tr('Personnel', 'Personal', 'Personal')}</h4>
-          <span>{tr('notes et rappels', 'notes and reminders', 'notas y recordatorios')}</span>
         </header>
         <textarea
           rows={2}
@@ -987,7 +985,6 @@ function DaySide({
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
           <h4>{tr('Publiés', 'Released', 'Publicados')}</h4>
-          <span>{tr('fil macro', 'macro feed', 'feed macro')}</span>
         </header>
         <div className={s.history}>
           {history.length === 0 && <div className={s.evDesc}>{tr('Synchroniser pour l’historique, ou consulter le dernier calendrier en cache.', 'Sync for history, or read the last cached calendar.', 'Sincronice para el historial, o consulte el último calendario en caché.')}</div>}
@@ -1010,7 +1007,6 @@ function DaySide({
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
           <h4>{tr('Horaires', 'Schedule', 'Horarios')}</h4>
-          <span>{tr('poste et New York', 'desk and New York', 'puesto y Nueva York')}</span>
         </header>
         <div className={s.markersCompact}>
           {SESSION_MARKERS.map((m) => (

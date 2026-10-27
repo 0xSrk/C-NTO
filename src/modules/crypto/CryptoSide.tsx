@@ -262,7 +262,6 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
         onToggle={(id) => run(toggleIndicator(id))}
         onUpdate={(id, patch) => run(updateIndicator(id, patch))}
         onRemove={(id) => run(removeIndicator(id))}
-        footer={null}
       />
 
       <div className={v.sideSection}>

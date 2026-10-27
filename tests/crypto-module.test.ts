@@ -422,7 +422,7 @@ describe('CRY4.3 › catalogue d’indicateurs', () => {
     expect(lastChart().lines.some((l) => l.key.startsWith('i_bin:'))).toBe(false);
   });
 
-  it('le pied du Lab disparaît sur l’onglet crypto et reste dans Visual par défaut', async () => {
+  it('OROS4.7 plus de note d’accroche sous le catalogue, ni sur l’onglet crypto ni dans Visual', async () => {
     const node = await mount();
     expect(node.textContent).not.toContain('forgé par le Lab');
     const props = { instances: [], catalog: [], nameOf: (_: string, f: string) => f, descOf: (_: string, f: string) => f, onAdd: () => {}, onToggle: () => {}, onUpdate: () => {}, onRemove: () => {} };
@@ -430,8 +430,6 @@ describe('CRY4.3 › catalogue d’indicateurs', () => {
     document.body.appendChild(other);
     const otherRoot = createRoot(other);
     await act(async () => otherRoot.render(createElement(IndicatorCards, props)));
-    expect(other.textContent).toContain('forgé par le Lab');
-    await act(async () => otherRoot.render(createElement(IndicatorCards, { ...props, footer: null })));
     expect(other.textContent).not.toContain('forgé par le Lab');
     act(() => otherRoot.unmount());
   });

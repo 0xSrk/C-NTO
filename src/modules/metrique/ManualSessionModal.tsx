@@ -34,7 +34,6 @@ export function ManualSessionModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       title={tr('Séance manuelle', 'Manual session', 'Sesión manual')}
-      sub={tr('saisie rapide sans détail par trade', 'quick entry without per-trade detail', 'entrada rápida sin detalle por trade')}
       onClose={onClose}
       width={520}
       footer={

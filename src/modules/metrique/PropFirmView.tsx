@@ -118,7 +118,7 @@ export function PropFirmView({ scope }: { scope: TabScope }) {
 
   return (
     <div className={cx(s.grid, s.gridTop)}>
-      <Panel className={s.c4} title={tr('Plan prop', 'Prop plan', 'Plan prop')} sub={tr('choix en cascade', 'cascading choice', 'elección en cascada')}>
+      <Panel className={s.c4} title={tr('Plan prop', 'Prop plan', 'Plan prop')}>
         <div className={s.cascade}>
           <label className={s.cascadeStep}>
             <span className={s.cascadeLabel}>
@@ -310,7 +310,7 @@ export function PropFirmView({ scope }: { scope: TabScope }) {
               {timelineSeries[0]?.points.length ? <LineArea series={timelineSeries} height={260} formatY={(v) => fmtUsd(v)} baseline={null} legend /> : <p className={s.note}>{tr('Aucune séance à rejouer.', 'No session to replay.', 'Ninguna sesión que repetir.')}</p>}
             </Panel>
 
-            <Panel title={tr('Lecture', 'Readout', 'Lectura')} sub={tr('ce que le moteur vérifie', 'what the engine checks', 'lo que el motor verifica')}>
+            <Panel title={tr('Lecture', 'Readout', 'Lectura')}>
               <p className={s.note}>
                 {tr(
                   'Le rejeu applique journée après journée : mise à jour du plus haut, calcul du plancher, franchissement, limite journalière, consistance et jours minimum. L’objectif est validé le jour où toutes les conditions sont réunies.',

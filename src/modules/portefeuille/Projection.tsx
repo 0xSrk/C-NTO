@@ -112,7 +112,7 @@ export function Projection({
     <div className={s.stack}>
       <Panel
         title={tr('Paramètres', 'Parameters', 'Parámetros')}
-        sub={tr('bootstrap avec remise · worker existant', 'bootstrap with replacement · existing worker', 'bootstrap con reemplazo · worker existente')}
+       
         actions={
           busy ? (
             <Button

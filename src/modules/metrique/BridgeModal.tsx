@@ -38,7 +38,6 @@ export function BridgeModal({ onClose, onManualImport }: { onClose: () => void; 
   return (
     <Modal
       title={tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
-      sub={tr('import automatique · dossier surveillé', 'automatic import · watched folder', 'importación automática · carpeta vigilada')}
       onClose={onClose}
       width={720}
       footer={

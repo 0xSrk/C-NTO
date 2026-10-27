@@ -100,7 +100,7 @@ export function ChangelogJournal({ version }: { version: string }) {
     <>
       <VersionMark version={version} unseen={unseen} onOpen={openJournal} />
       {open && (
-        <Modal title={tr('Journal des versions', 'Version journal', 'Diario de versiones')} sub={tr('toutes les versions', 'every version', 'todas las versiones')} onClose={() => setOpen(false)} width={560}>
+        <Modal title={tr('Journal des versions', 'Version journal', 'Diario de versiones')} onClose={() => setOpen(false)} width={560}>
           <ChangelogBody version={version} />
         </Modal>
       )}

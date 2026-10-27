@@ -438,7 +438,7 @@ export default function Portefeuille() {
               pocketNameRef.current?.focus();
             }}
           />
-          <Panel title={tr('Poches', 'Pockets', 'Bolsas')} sub={tr('création, édition, archivage', 'create, edit, archive', 'creación, edición, archivo')}>
+          <Panel title={tr('Poches', 'Pockets', 'Bolsas')}>
             <div className={s.stack}>
               <div className={s.form}>
                 <Field label={tr('Nom', 'Name', 'Nombre')}>
@@ -690,7 +690,7 @@ export default function Portefeuille() {
             )}
           </Panel>
 
-          <Panel title={tr('Liquidités et taux', 'Cash and rates', 'Liquidez y tipos')} sub={tr('taux saisi, inverse déduit', 'entered rate, inverse implied', 'tipo introducido, inverso deducido')}>
+          <Panel title={tr('Liquidités et taux', 'Cash and rates', 'Liquidez y tipos')}>
             <div className={s.stack}>
               <div className={s.form}>
                 <Field label={tr('Devise de base', 'Base currency', 'Divisa base')}>
@@ -788,7 +788,7 @@ export default function Portefeuille() {
             </div>
           </Panel>
 
-          <Panel title={tr('Courbe', 'Curve', 'Curva')} sub={tr('consolidée et par poche, en devise de base', 'consolidated and by pocket, in the base currency', 'consolidada y por bolsa, en la divisa base')}>
+          <Panel title={tr('Courbe', 'Curve', 'Curva')}>
             {curve.series.length === 0 ? (
               <Empty title={tr('Pas encore de courbe', 'No curve yet', 'Aún no hay curva')} text={tr('Une séance, une position ou une liquidité crée le premier point.', 'A session, a position or a cash balance creates the first point.', 'Una sesión, una posición o una liquidez crea el primer punto.')} />
             ) : (

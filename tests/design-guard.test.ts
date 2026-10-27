@@ -213,6 +213,30 @@ describe('garde du système visuel', () => {
     }
   });
 
+  it('OROS4.7 le desk ne dit jamais où vit son coffre : aucune phrase « reste sur ce poste », « ne quitte pas la machine »', () => {
+    const said = /reste sur ce poste|lus sur ce poste|ne quitte (?:pas|jamais) (?:le poste|la machine)|uniquement sur votre machine|se queda en este equipo|no sale del equipo|nunca sale de la máquina|solo en su máquina|stays on this machine|never leaves the machine|only on your machine|read on this desk/i;
+    const offenders = ['src/app', 'src/modules', 'src/design', 'electron/launcher.html', 'electron/launcher-ui.js']
+      .flatMap((entry) => (entry.includes('.') ? [entry] : walk(entry)))
+      .filter((path) => said.test(readFileSync(path, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('OROS4.7 rien de décoratif sous un titre : les accroches retirées ne reviennent pas', () => {
+    // Les accroches telles qu'elles s'écrivaient : un appel tr('…') ou une baseline d'onglet.
+    const gone = [
+      'Journal quantitatif', 'Ultimate journal', 'Graphique avancé', 'Advanced chart', 'Passerelle native', 'Native gateway',
+      "tr('création, édition, archivage'", "tr('points de départ'", "tr('séquence du protocole'", "tr('compte maître → comptes suiveurs'",
+      "tr('appliqués avant tout envoi'", "tr('conditions · actions · garde-fous'", "tr('atelier bot'", "tr('choix en cascade'",
+      "tr('ce que le moteur vérifie'", "tr('saisie rapide sans détail par trade'", "tr('import automatique · dossier surveillé'",
+      "tr('bootstrap avec remise", "tr('distribution des résultats'", "tr('Repère débutant'", "tr('toutes les versions'",
+      "tr('confirmation requise'", "tr('taux saisi, inverse déduit'", "tr('consolidée et par poche", "tr('opérateur · capital · plan suivi",
+      "tr('notes et rappels'", "tr('fil macro'", 'forgé par le Lab', "tr('Période et compte appliqués'",
+    ];
+    const sources = ['src/app', 'src/modules', 'src/design'].flatMap((dir) => walk(dir)).map((path) => [path, readFileSync(path, 'utf8')] as const);
+    const found = gone.flatMap((text) => sources.filter(([, body]) => body.includes(text)).map(([path]) => `${posix('.', path)} : ${text}`));
+    expect(found).toEqual([]);
+  });
+
   it('réserve le rouge au niveau 3 : le toast d’erreur le porte, et le rouge marque sans jamais écrire', () => {
     expect(readFileSync('src/app/shell.module.css', 'utf8')).toMatch(/\.toast\.error\s*\{\s*border-left:\s*2px solid var\(--signal\);/);
     // Le signal vit dans le châssis (toast, bande du kill switch) et dans la primitive Signal, nulle part ailleurs.
