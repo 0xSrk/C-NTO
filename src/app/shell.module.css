@@ -88,26 +88,14 @@
   -webkit-app-region: no-drag;
 }
 
-/* Imprimés en haut à droite (4.1) : le losange du secteur S.01, puis la version, qui ouvre le journal. */
+/* En haut à droite (4.1) : la version seule, qui ouvre le journal. */
 .versionCell {
   display: flex;
   align-items: center;
-  gap: 12px;
   height: 100%;
-  padding: 0 14px 0 12px;
+  padding: 0 14px;
   border-left: 1px solid var(--line-0);
   border-right: 1px solid var(--line-0);
-}
-/* Le losange du secteur S.01 (cartouche SK-SEC-S01), encre acier sur la nuit. */
-.sector {
-  display: flex;
-  align-items: center;
-  --k: var(--text-1);
-  --p: var(--bg-0);
-}
-.sector > span {
-  width: 60px;
-  height: 27px;
 }
 .titleVersion {
   display: inline-flex;
@@ -776,48 +764,44 @@
 .zoomBtn,
 .zoomPct {
   color: var(--text-2);
-  padding: 0 3px;
   font: inherit;
   letter-spacing: inherit;
+  transition: color 200ms linear, background-color 260ms var(--ease-out);
 }
 .zoomBtn:disabled {
   opacity: 0.35;
 }
-/* Le bouton « + — » de la planche (composant 68) : chaque bouton montre sa moitié du dessin. */
+/* « − 95 % + » (4.1) : un seul cadre fin, la valeur au milieu, deux carrés égaux pour − et + ; traits de 1,2 px. */
 .zoomPad {
   display: inline-flex;
-  align-items: center;
-  margin-left: 4px;
-  --k: var(--text-1);
+  align-items: stretch;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--ivory) 11%, transparent);
 }
-.zoomPad .zoomBtn {
+.zoomBtn {
   display: inline-flex;
   align-items: center;
-  height: 24px;
+  justify-content: center;
+  width: 22px;
 }
-.zoomPlus,
-.zoomMinus {
-  display: block;
-  overflow: hidden;
-  height: 7px;
+.zoomPct {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-left: 1px solid var(--line-0);
+  border-right: 1px solid var(--line-0);
+  font-variant-numeric: tabular-nums;
 }
-.zoomPlus {
-  width: 7px;
-}
-.zoomMinus {
-  width: 31px;
-}
-.zoomPlus > span,
-.zoomMinus > span {
-  display: block;
-  width: 40px;
-  height: 7px;
-}
-.zoomMinus > span {
-  margin-left: -9px;
+@media (hover: hover) {
+  .zoomBtn:hover:not(:disabled),
+  .zoomPct:hover {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 6%, transparent);
+  }
 }
 .zoomMode {
-  margin-right: 4px;
+  margin-right: 5px;
+  color: var(--text-3);
 }
 .zoomHint {
   color: var(--text-2);

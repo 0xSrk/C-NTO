@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BraceCode, Button, Led, cx } from '@/design/primitives';
-import { Cartouche, Glyph } from '@/design/Micro';
+import { Glyph } from '@/design/Micro';
 import { Seal } from '@/design/Seal';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
@@ -202,11 +202,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
-          {/* Imprimés en haut à droite (4.1) : le losange du secteur S.01 (cartouche SK-SEC-S01), puis la version, qui ouvre le journal. */}
+          {/* En haut à droite (4.1), la version seule, qui ouvre le journal : plus aucune micro à côté. */}
           <div className={s.versionCell}>
-            <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
-              <Cartouche id="sectorS01" />
-            </span>
             <span className={s.titleVersion}>
               <ChangelogJournal version={appVersion} />
             </span>

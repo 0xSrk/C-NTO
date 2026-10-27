@@ -128,15 +128,22 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(body).toMatch(/-webkit-line-clamp: 2/);
   });
 
-  it('le zoom de la barre de titre est le bouton « + — » de la planche : le plus et la barre restent deux boutons', () => {
+  it('OROS4.17 le zoom de la barre de titre : « − valeur + » dans un cadre, deux traits nets, plus le composant coupé en deux', () => {
     const el = mount(createElement(ZoomControls));
-    const plus = el.querySelector<HTMLButtonElement>('button[aria-label="Augmenter le zoom"]');
-    const minus = el.querySelector<HTMLButtonElement>('button[aria-label="Réduire le zoom"]');
-    expect(plus?.querySelector(`svg.skg-${GLYPH_ID.zoom}`)).not.toBeNull();
-    expect(minus?.querySelector(`svg.skg-${GLYPH_ID.zoom}`)).not.toBeNull();
-    expect(plus!.closest('[role="group"]')).toBe(minus!.closest('[role="group"]'));
+    const group = el.querySelector<HTMLElement>('[role="group"]')!;
+    const buttons = [...group.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Réduire le zoom', 'Basculer auto / manuel', 'Augmenter le zoom']);
+    const [minus, pct, plus] = buttons;
+    // le moins est un trait, le plus une croix ; aucun composant de la planche ne s'y découpe
+    expect(minus!.querySelector('svg path')?.getAttribute('d')).toBe('M1 5 H9');
+    expect(plus!.querySelector('svg path')?.getAttribute('d')).toBe('M1 5 H9 M5 1 V9');
+    expect(group.querySelector(`svg.skg-${GLYPH_ID.zoom}`)).toBeNull();
     // le pourcentage reste lisible et bascule auto / manuel
-    expect(el.querySelector('button[aria-label="Basculer auto / manuel"]')?.textContent).toMatch(/AUTO|FIXE/);
+    expect(pct!.textContent).toMatch(/AUTO|FIXE/);
+    // un cadre fin, deux carrés égaux, la lumière au passage du pointeur
+    expect(rule(shellCss, '.zoomPad')).toMatch(/height: 22px/);
+    expect(rule(shellCss, '.zoomBtn')).toMatch(/width: 22px/);
+    expect(shellCss).not.toMatch(/\.zoomPlus|\.zoomMinus/);
   });
 
   it('l’en-tête de panneau pose son code entre repères d’angle ; chaque panneau a ses croix de calage aux quatre coins', () => {
