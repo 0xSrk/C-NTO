@@ -77,3 +77,25 @@ describe('OROS4.4 les outils de Métrique, dans ses options en haut à droite', 
     expect(glyphs(button)).toEqual([GLYPH_ID.arrowImport]);
   });
 });
+
+describe('OROS4.15 les périodes dans la langue du desk', () => {
+  it('7J · 30J · 90J en français ; 7D · 30D · 90D en anglais et en espagnol', async () => {
+    const node = await metrique();
+    const periods = () => [...node.querySelectorAll('button')].map(textOf).filter((text) => /^(\d+[JD]|TOUT|ALL|TODO)$/.test(text));
+    expect(periods()).toEqual(['7J', '30J', '90J', 'TOUT']);
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect(periods()).toEqual(['7D', '30D', '90D', 'ALL']);
+    await act(async () => useI18n.setState({ locale: 'es' }));
+    expect(periods()).toEqual(['7D', '30D', '90D', 'TODO']);
+  });
+
+  it('le Portefeuille dit ses périodes et ses jours gagnants par tr, jamais par un « J » écrit en dur', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const file of ['src/modules/portefeuille/Portefeuille.tsx', 'src/modules/portefeuille/Synthese.tsx', 'src/modules/metrique/Metrique.tsx']) {
+      const source = readFileSync(file, 'utf8');
+      expect(source, file).not.toMatch(/label: '\d+J'/);
+      expect(source, file).not.toMatch(/\)\} J\n/);
+    }
+    expect(readFileSync('src/modules/portefeuille/Synthese.tsx', 'utf8')).toContain("{tr('J', 'D', 'D')}");
+  });
+});

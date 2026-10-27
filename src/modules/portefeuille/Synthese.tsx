@@ -185,7 +185,7 @@ export function Synthese({
               <span className={s.kName}>{tr('P&L 30 jours', '30-day P&L', 'P&L 30 días')}</span>
             </span>
             <span className={s.hint}>
-              {fmtInt(report30.winningDays)} / {fmtInt(report30.winningDays + report30.losingDays)} J
+              {fmtInt(report30.winningDays)} / {fmtInt(report30.winningDays + report30.losingDays)} {tr('J', 'D', 'D')}
             </span>
           </div>
           <Montant value={report30.totalPnl} discrete={discrete} className={s.kValue} />
