@@ -36,7 +36,8 @@ export function UpdateButton() {
     };
   }, [api]);
 
-  if (!isDesk || !api || !status) return null;
+  // La version est imprimée à côté, dans la barre de titre (4.1) : la cellule ne paraît que pour une mise à jour.
+  if (!isDesk || !api || !status || (!status.available && !busy)) return null;
 
   const available = status.available;
   const label = busy ? tr('Màj…', 'Upd…', 'Act…') : available ? tr('Màj', 'Upd', 'Act') : `v${status.current}`;

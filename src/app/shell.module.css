@@ -88,19 +88,41 @@
   -webkit-app-region: no-drag;
 }
 
+/* Imprimés en haut à droite (4.1) : le losange du secteur S.01, puis la version, qui ouvre le journal. */
+.versionCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  padding: 0 14px 0 12px;
+  border-left: 1px solid var(--line-0);
+  border-right: 1px solid var(--line-0);
+}
 /* Le losange du secteur S.01 (cartouche SK-SEC-S01), encre acier sur la nuit. */
 .sector {
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  border-left: 1px solid var(--line-0);
-  border-right: 1px solid var(--line-0);
   --k: var(--text-1);
   --p: var(--bg-0);
 }
 .sector > span {
-  width: 68px;
-  height: 31px;
+  width: 60px;
+  height: 27px;
+}
+.titleVersion {
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.titleVersion .versionBtn {
+  color: var(--text-1);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .titleVersion .versionBtn:hover {
+    color: var(--text-0);
+  }
 }
 
 .titleZoom {
@@ -302,7 +324,7 @@
 }
 .lienBadge {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.12em;
   color: var(--gold);
 }
@@ -324,17 +346,15 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
 
-/* Compte actif, à même le rail : un intitulé à pointillés, un voyant, le nom, la source. */
+/* Compte actif, à même le rail, sans carte : un intitulé à pointillés, un voyant, le nom, la source. */
 .account {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 10px 8px;
-  background: var(--bg-1);
-  border: 1px solid var(--line-0);
-  box-shadow: inset 0 1px 0 rgba(237, 235, 228, 0.08);
+  padding: 0 12px 0 14px;
 }
 .railLabel {
   display: flex;
@@ -365,42 +385,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Plaque d'artefact : la vraie cartouche SK-ART-002 du Lab (sans code), puis la version (journal) et les langues. */
-.plate {
-  display: flex;
-  flex-direction: column;
-  margin-top: 8px;
-  padding: 9px 9px 6px;
-  border: 1px solid var(--line-2);
-  border-radius: 3px;
-  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--ivory) 6%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--bg-void) 50%, transparent);
-  --k: var(--text-0);
-  --p: var(--bg-1);
-}
-.plateLabel {
-  display: block;
-  width: 100%;
-}
-.plate .plateLabel > svg {
-  height: auto;
-}
-.plateRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 7px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line-1);
-}
-.plateVer {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-}
 .accountSource {
   min-width: 0;
   margin-left: 18px;
@@ -413,9 +397,27 @@
   text-transform: uppercase;
   color: var(--text-2);
 }
-.plateVer .versionBtn {
-  flex: none;
-  color: var(--text-1);
+
+/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit du rail, le même qu'au verrou — encre
+   d'ivoire assourdie, ombre d'un pixel au-dessus, reflet d'un pixel dessous —, puis les langues. */
+.signature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-0);
+}
+.sealMark {
+  display: block;
+  width: 76px;
+  color: color-mix(in srgb, var(--ivory) 36%, transparent);
+}
+.sealMarkSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 -1px 0 color-mix(in srgb, var(--bg-void) 95%, transparent)) drop-shadow(0 1px 0 color-mix(in srgb, var(--ivory) 7%, transparent));
 }
 
 /* Voyant : LED fixe, jamais animée. Allumé = exécutions en direct, veille = pont ouvert, éteint = hors ligne. */
@@ -438,7 +440,8 @@
 
 .langRow {
   display: flex;
-  gap: 0;
+  justify-content: center;
+  gap: 2px;
   flex: none;
 }
 .langBtn {
@@ -446,12 +449,21 @@
   font-size: 10px;
   letter-spacing: 0.08em;
   color: var(--text-2);
-  padding: 0 5px;
-  height: 16px;
+  padding: 0 6px;
+  height: 18px;
+  transition: color 200ms linear, box-shadow 260ms var(--ease-out);
 }
 .langBtn.on {
   color: var(--text-0);
-  box-shadow: inset 0 -1px 0 rgba(237, 235, 228, 0.7);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ivory) 70%, transparent);
+}
+@media (hover: hover) {
+  .langBtn:hover {
+    color: var(--text-1);
+  }
+  .langBtn.on:hover {
+    color: var(--text-0);
+  }
 }
 
 .main {
@@ -464,20 +476,6 @@
   gap: 18px;
   background: transparent;
   overflow: hidden;
-}
-
-.edge {
-  position: absolute;
-  right: 13px;
-  bottom: 22px;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  color: var(--ghost);
-  pointer-events: none;
-  z-index: 2;
 }
 
 :global(.canto-plus) {

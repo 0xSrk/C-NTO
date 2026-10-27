@@ -51,38 +51,39 @@ const rule = (selector: string) => {
 const shellSource = readFileSync('src/app/Shell.tsx', 'utf8');
 
 describe('OROS2.10 cartouches du châssis', () => {
-  it('le pied du rail porte la cartouche SK-ART-002 : version et plateformes liées, la version ouvre le journal, les trois langues', () => {
+  it('OROS4.5 le pied du rail porte le sceau du Lab et les trois langues ; la version, en haut à droite, ouvre le journal', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
-    const plate = el.querySelector<HTMLElement>('aside [role="group"]');
-    expect(plate).not.toBeNull();
-    const aria = plate!.getAttribute('aria-label') ?? '';
-    for (const part of ['SK-ART-002', 'CΛNTO', APP_VERSION]) expect(aria).toContain(part);
-    const label = plate!.querySelector('svg.lbl-plaque');
-    expect(label).not.toBeNull();
-    expect(label!.textContent).toContain(`BUILD: v${APP_VERSION} · DESK`);
-    expect(label!.textContent).toContain('RUNS ON: MACOS / WINDOWS / LINUX');
-    expect(label!.textContent).toContain('SECTOR: S.01 MARKETS');
-    expect(plate!.innerHTML).not.toContain('{{');
-    // la version ouvre le journal des versions
-    const version = plate!.querySelector<HTMLButtonElement>('button[aria-label="Journal des versions"]');
+    const seal = el.querySelector<HTMLElement>('aside [data-part="lab-seal"]');
+    expect(seal).not.toBeNull();
+    const svg = seal!.querySelector('svg')!;
+    expect(svg.getAttribute('role')).toBe('img');
+    expect(svg.getAttribute('aria-label')).toBe('SIΞRRΛSKΛ Lab');
+    expect(svg.querySelector('g[data-part="horizon"]')).not.toBeNull();
+    // plus de cartouche SK-ART-002 au rail, plus de version au rail
+    expect(el.querySelector('aside svg.lbl-plaque')).toBeNull();
+    expect(el.querySelector('aside button[aria-label="Journal des versions"]')).toBeNull();
+    // la version vit dans la barre de titre et ouvre le journal des versions
+    const version = el.querySelector<HTMLButtonElement>('header button[aria-label="Journal des versions"]');
     expect(version?.textContent).toContain(`v${APP_VERSION}`);
     act(() => version!.click());
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Journal des versions');
-    // FR / EN / ES
-    const radios = [...plate!.querySelectorAll<HTMLButtonElement>('[role="radiogroup"] [role="radio"]')];
+    // FR / EN / ES, sous le sceau
+    const radios = [...el.querySelectorAll<HTMLButtonElement>('aside [role="radiogroup"] [role="radio"]')];
     expect(radios.map((r) => r.textContent)).toEqual(['FR', 'EN', 'ES']);
     act(() => radios[1]!.click());
     expect(useI18n.getState().locale).toBe('en');
   });
 
-  it('la barre de titre porte le losange du secteur S.01, avant la cellule de mise à jour', () => {
+  it('la barre de titre porte le losange du secteur S.01, puis la version, avant la cellule de mise à jour', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     const sector = el.querySelector<HTMLElement>('header [role="img"][aria-label^="Secteur S.01"]');
     expect(sector).not.toBeNull();
     expect(sector!.querySelector('svg.lbl-losange')).not.toBeNull();
     const header = shellSource.slice(shellSource.indexOf('<header'), shellSource.indexOf('</header>'));
     expect(header.indexOf('<Cartouche id="sectorS01"')).toBeGreaterThan(-1);
-    expect(header.indexOf('<Cartouche id="sectorS01"')).toBeLessThan(header.indexOf('<UpdateButton />'));
+    // à gauche de la version, la micro du secteur ; puis la cellule de mise à jour
+    expect(header.indexOf('<Cartouche id="sectorS01"')).toBeLessThan(header.indexOf('<ChangelogJournal'));
+    expect(header.indexOf('<ChangelogJournal')).toBeLessThan(header.indexOf('<UpdateButton />'));
     const cell = rule('.sector');
     expect(cell).toMatch(/--k: var\(--text-1\)/);
     expect(cell).toMatch(/--p: var\(--bg-0\)/);

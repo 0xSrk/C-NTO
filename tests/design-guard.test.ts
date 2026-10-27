@@ -236,12 +236,12 @@ describe('garde du système visuel', () => {
     }
   });
 
-  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE, et le bord du desk dit la révision 4.1', () => {
+  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE ; le bord du desk n’annote plus rien (4.1)', () => {
     const doc = readFileSync('docs/DESIGN.md', 'utf8');
     for (const id of Object.keys(PLATES)) expect(doc, id).toContain(`\`${id}\``);
     expect(doc).toMatch(/Un seul code-barres/);
     expect(doc).toMatch(/## 10\. Lanceur AUBE/);
-    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('RÉV. 4.1');
+    expect(readFileSync('src/app/Shell.tsx', 'utf8')).not.toMatch(/DEEP TECH|RÉV\. 4/);
     expect(readFileSync('CLAUDE.md', 'utf8')).toMatch(/Système 4\.1/);
   });
 });

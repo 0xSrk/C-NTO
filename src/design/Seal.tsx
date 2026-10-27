@@ -4,8 +4,8 @@ import negative from './seal/seal-negative.svg?raw';
 /**
  * Sceau Horizon de SIΞRRΛSKΛ Lab, vectorisé (Ligne V2, révision A ; masters dans `src/design/seal/`).
  * Quatre groupes — anneaux, horizon, filaments, inscription — à la couleur du texte (`currentColor`).
- * Positif sur papier, négatif sur la nuit : seul l'horizon change. Il frappe au démarrage et ferme
- * le verrou ; il ne décore aucun module (Système 4.0, `docs/DESIGN.md` § 07).
+ * Positif sur papier, négatif sur la nuit : seul l'horizon change. Il frappe au démarrage, ferme le
+ * verrou et signe, gravé, le pied du rail ; il ne décore aucun module (Système 4.1, `docs/DESIGN.md` § 07).
  */
 export type SealKind = 'positive' | 'negative';
 

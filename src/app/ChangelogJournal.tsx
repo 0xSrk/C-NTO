@@ -63,7 +63,7 @@ function points(highlights: { fr: string[]; en: string[]; es: string[] }, locale
   return highlights.fr;
 }
 
-/** Rail, sous le compte actif : le numéro ouvre le journal. Aucun message ne s'ouvre seul. */
+/** Barre de titre, en haut à droite après le losange du secteur (4.1) : le numéro ouvre le journal. Aucun message ne s'ouvre seul. */
 export function ChangelogJournal({ version }: { version: string }) {
   const [seen, setSeen] = useState<string | null>(null);
   const [ready, setReady] = useState(false);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BraceCode, Button, Led, cx } from '@/design/primitives';
 import { Cartouche, Glyph } from '@/design/Micro';
+import { Seal } from '@/design/Seal';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { OptionsMenu, type OptionItem } from '@/design/OptionsMenu';
@@ -199,10 +200,15 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
-          {/* Le losange du secteur S.01 (cartouche SK-SEC-S01) : le desk sert les marchés. */}
-          <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
-            <Cartouche id="sectorS01" />
-          </span>
+          {/* Imprimés en haut à droite (4.1) : le losange du secteur S.01 (cartouche SK-SEC-S01), puis la version, qui ouvre le journal. */}
+          <div className={s.versionCell}>
+            <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
+              <Cartouche id="sectorS01" />
+            </span>
+            <span className={s.titleVersion}>
+              <ChangelogJournal version={appVersion} />
+            </span>
+          </div>
           <UpdateButton />
           <div className={s.titleZoom}>
             <ZoomControls />
@@ -257,29 +263,23 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             </div>
             <span className={s.accountSource}>{source}</span>
           </div>
-          {/* Plaque d'artefact (Système 4.0) : la cartouche SK-ART-002 du Lab, la version qui ouvre le journal, les langues. Le seul objet arrondi. */}
-          <div className={s.plate} role="group" aria-label={tr(`Plaque d’artefact : SK-ART-002, CΛNTO, version ${appVersion}`, `Artefact plate: SK-ART-002, CΛNTO, version ${appVersion}`, `Placa del artefacto: SK-ART-002, CΛNTO, versión ${appVersion}`)}>
-            <Cartouche id="artefact" values={{ build: `v${appVersion} · DESK`, runs: 'MACOS / WINDOWS / LINUX' }} className={s.plateLabel} />
-            <div className={s.plateRow}>
-              <span className={s.plateVer}>
-                <ChangelogJournal version={appVersion} />
-              </span>
-              <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
-                {LOCALES.map((item) => (
-                  <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
-                    {item.id.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+          {/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit, le même qu'au verrou, puis les langues. */}
+          <div className={s.signature}>
+            <span className={s.sealMark} data-part="lab-seal">
+              <Seal kind="negative" className={s.sealMarkSvg} label="SIΞRRΛSKΛ Lab" />
+            </span>
+            <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
+              {LOCALES.map((item) => (
+                <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
+                  {item.id.toUpperCase()}
+                </button>
+              ))}
             </div>
           </div>
         </div>
       </aside>
 
       <main className={s.main}>
-        <span className={s.edge} aria-hidden>
-          SIΞRRΛSKΛ LAB · DEEP TECH · ARTEFACT 002 · RÉV. 4.1
-        </span>
         {children}
         <div className={s.toasts} role="status" aria-live="polite">
           {toasts.map((toast) => (
