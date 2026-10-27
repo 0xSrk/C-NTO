@@ -181,6 +181,19 @@
 .denied .state {
   color: var(--ember);
 }
+/* L'état du verrou pour les aides techniques seulement. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  text-transform: none;
+  border: 0;
+}
 .denied .led {
   background: var(--ember);
   box-shadow: none;

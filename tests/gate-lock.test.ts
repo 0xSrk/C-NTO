@@ -313,6 +313,28 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(el.querySelector('[role="dialog"]')!.className).not.toMatch(/admitted/);
   });
 
+  it('OROS4.32 l’état du verrou se dit hors de la fiche : admise, la fiche devient inerte, et « Ouvert » s’annonce quand même', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const el = mount();
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    const regions = el.querySelectorAll<HTMLElement>('[role="status"]');
+    expect(regions).toHaveLength(1);
+    const region = regions[0]!;
+    // la région vivante n'est ni dans la fiche ni sous un parent inerte
+    expect(region.closest('form')).toBeNull();
+    expect(region.textContent).toBe('Fermé');
+    // le mot visible de la fiche ne double pas l'annonce
+    const word = form.querySelector<HTMLElement>('[class*="state"]:not([class*="stateLine"])')!;
+    expect(word.textContent).toBe('Fermé');
+    expect(word.getAttribute('aria-hidden')).toBe('true');
+    expect(css).toMatch(/\.srOnly \{[^}]*clip: rect\(0 0 0 0\);[^}]*text-transform: none;/);
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    await submitFake(form);
+    expect(form.hasAttribute('inert')).toBe(true);
+    expect(region.closest('[inert]')).toBeNull();
+    expect(region.textContent).toBe('Ouvert');
+  });
+
   it('OROS4.18 une touche ou un clic abrège : le voile se lève aussitôt sur le desk monté', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
     const onReveal = vi.fn();

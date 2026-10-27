@@ -252,6 +252,11 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
         </span>
       </div>
 
+      {/* L'état du verrou pour les aides techniques, hors de la fiche : admise, elle devient inerte et son mot s'efface. */}
+      <p className={s.srOnly} role="status">
+        {stateWord}
+      </p>
+
       {/* La ligne d'horizon de l'écran : le sceau y pose le sien et s'y plie ; le mot s'en déplie. */}
       <span className={s.horizon} data-part="horizon-line" aria-hidden />
 
@@ -280,7 +285,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
                 </label>
                 <span className={s.stateLine}>
                   <i className={s.led} aria-hidden />
-                  <span className={s.state} role="status">
+                  <span className={s.state} aria-hidden>
                     {stateWord}
                   </span>
                 </span>
