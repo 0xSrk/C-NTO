@@ -113,6 +113,24 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     expect(menu.textContent).toContain('hors ligne');
   });
 
+  it('OROS4.22 ce que les points montrent se dit aussi : le nom du bouton porte chaque état lu, sans ouvrir le menu', () => {
+    const { trigger } = mount([
+      { id: 'pont', label: 'Pont NinjaTrader', state: 'actif', tone: 'mint', onSelect: () => undefined },
+      { id: 'sync', label: 'Synchro', state: 'hors ligne', onSelect: () => undefined },
+      { id: 'plain', label: 'Sans état', onSelect: () => undefined },
+    ]);
+    // les points restent muets ; une ligne cachée les dit, dans l'ordre du menu
+    expect(trigger.querySelector('[data-tone]')!.parentElement!.getAttribute('aria-hidden')).toBe('true');
+    const said = trigger.querySelector('[class*="srOnly"]');
+    expect(said?.textContent).toBe(' · Pont NinjaTrader · actif · Synchro · hors ligne');
+    expect(trigger.textContent).toBe('Options · Pont NinjaTrader · actif · Synchro · hors ligne');
+    // sans état lu, le bouton se nomme « Options », seul
+    act(() => root?.unmount());
+    host?.remove();
+    const bare = mount([{ id: 'a', label: 'Action', onSelect: () => undefined }]);
+    expect(bare.trigger.textContent).toBe('Options');
+  });
+
   it('parle la langue du desk', () => {
     useI18n.setState({ locale: 'es' });
     const { trigger } = mount([{ id: 'a', label: 'Acción', onSelect: () => undefined }]);

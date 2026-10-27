@@ -118,11 +118,15 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
       >
         {name}
         {marks.length > 0 ? (
-          <span className={s.marks} aria-hidden>
-            {marks.map((item) => (
-              <i key={item.id} className={cx(s.mark, item.tone && s[item.tone])} data-tone={item.tone ?? 'neutral'} />
-            ))}
-          </span>
+          <>
+            <span className={s.marks} aria-hidden>
+              {marks.map((item) => (
+                <i key={item.id} className={cx(s.mark, item.tone && s[item.tone])} data-tone={item.tone ?? 'neutral'} />
+              ))}
+            </span>
+            {/* Ce que les points montrent se dit aussi : le nom du bouton porte chaque état, sans ouvrir le menu. */}
+            <span className={s.srOnly}>{marks.map((item) => ` · ${item.label} · ${item.state}`).join('')}</span>
+          </>
         ) : null}
         <svg className={s.chevron} width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
           <path d="M1 2.75l3 3 3-3" />
