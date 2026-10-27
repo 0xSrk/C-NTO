@@ -393,6 +393,33 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
+  it('OROS4.34 un collage qui répond après l’admission n’entre plus dans le champ', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    let release: (text: string) => void = () => undefined;
+    const readText = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          release = resolve;
+        }),
+    );
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText } });
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    // « Coller » : l'invite de permission du navigateur reste ouverte…
+    act(() => el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!.click());
+    expect(readText).toHaveBeenCalledTimes(1);
+    // … l'opérateur tape la phrase et valide…
+    type(input, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    // … puis accepte l'invite : le presse-papiers ne revient pas dans la fiche fermée
+    await act(async () => {
+      release('presse-papiers-secret');
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(input.value).toBe('');
+    expect(el.innerHTML).not.toContain('presse-papiers-secret');
+  });
+
   it('OROS4.18 mouvement réduit : ni glyphes ni circuit ; le mot paraît, puis le voile se lève', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
     Object.defineProperty(window, 'matchMedia', { configurable: true, value: (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener: () => undefined, removeEventListener: () => undefined }) });

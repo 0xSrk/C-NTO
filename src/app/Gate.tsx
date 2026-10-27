@@ -212,6 +212,8 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     }
     try {
       const text = (await navigator.clipboard?.readText?.()) ?? '';
+      // La phrase a pu être admise pendant l'invite du navigateur : rien n'entre plus dans la fiche fermée.
+      if (admittedRef.current) return;
       const line = text.replace(/[\r\n]+/g, '');
       if (line) {
         setRefused(false);
