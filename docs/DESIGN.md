@@ -1,4 +1,4 @@
-# Système visuel — CΛNTO · révision 4.0 « ΟΡΟΣ »
+# Système visuel — CΛNTO · révision 4.1 « ΟΡΟΣ »
 
 Révision du système, pas de la version de l’application. Le Système 4.0 fond le Système 3.4 du desk et la Ligne V2 « Poinçon » du Lab : la nuit, la grille, le chanfrein, le lecteur et le logotype restent ; le sceau, l’ivoire, l’or, les trois voix, les cartouches et les vrais codes arrivent. Le texte de la révision 3.4 est dans `docs/design/archive/DESIGN-3.4.md`, celui de la v1 dans `docs/design/archive/DESIGN-v1.md`. Le lanceur AUBE garde ses propres jetons et Inter.
 
@@ -7,7 +7,7 @@ Révision du système, pas de la version de l’application. Le Système 4.0 fon
 Un desk est un instrument de bornes : perte du jour, plancher de drawdown, plafond de 1 à 1000, comptes `Sim*`, kill switch. En grec, ὅρος est la borne, et la racine d’ὁρίζων, l’horizon — « ce qui borne ». Le sceau du Lab trace déjà cette ligne ; le lanceur AUBE se lève sur elle. Le 4.0 en fait la grammaire du desk.
 
 - **Ce qui vit est or ; seul ce qui franchit la borne est rouge.** `--gold` est la LED : la dernière séance, le direct, la mise à jour, l’autorité. `--signal` est le niveau 3 et lui seul. Le rouge marque — triangle, filet, hachure — et n’écrit jamais : le texte d’un niveau 3 reste ivoire.
-- **Rien ne réagit au passage du pointeur.** L’appui, le focus et la sélection se voient ; le survol, non. Aucune règle `:hover` dans `src/` (garde de design). Restent hors de la règle la lecture d’un graphique sous le curseur et le geste de la marque du siège, décidés avant cette révision.
+- **Le passage du pointeur est une lumière.** L’appui, le focus et la sélection se voient ; le survol aussi, depuis la 4.1 (décision de l’ADMIN, 2026-10-27) : la lumière monte sur le contour, tamisée et lente, sans rien déplacer. Chaque règle `:hover` vit sous `@media (hover: hover)` et ne change que `color`, `background-color`, `border-color`, `box-shadow`, `opacity`, `text-shadow` ou `--k` (garde de design). Restent à part la lecture d’un graphique sous le curseur et le geste de la marque du siège, décidés avant la 4.0.
 - **Une plaque n’est jamais décorative.** Elle affiche un état réel du système qu’elle accompagne.
 
 Quatre axes, repris de la Ligne V2 :
@@ -32,6 +32,8 @@ Quatre axes, repris de la Ligne V2 :
 | Ivoire · encre sur la nuit | `--text-0` | `#F5F2EA` |
 | Acier chaud | `--text-1` | `#B9B4A9` |
 | Graphite chaud · légendes | `--text-2`, `--text-3`, `--text-4` | `#8F8A80` |
+
+Lumière blanche des contours (4.1) : `--light-line`, le filet fin d’un bouton d’action (ivoire à 18 %) ; `--light-edge`, la lumière zénithale posée sur une arête haute (bouton, fenêtre). Aucun bouton d’action n’a de contour transparent (garde de design).
 
 Contraste minimum 4,5:1 pour tout texte lisible sur la Plaque et sur l’Usiné (garde de design). `--ghost` n’est jamais une couleur de texte lisible : annotation verticale du bord (9 px, `aria-hidden`) et repères `+`.
 

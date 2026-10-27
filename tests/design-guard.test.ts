@@ -51,6 +51,49 @@ function hue(hex: string): number {
   return (h * 60 + 360) % 360;
 }
 
+/** Ce qu'un passage du pointeur a le droit de changer : la lumière, jamais la place ni la forme. */
+const HOVER_LIGHT = new Set(['color', 'background-color', 'border-color', 'box-shadow', 'opacity', 'text-shadow', '--k']);
+
+interface CssRule {
+  selector: string;
+  /** En-têtes des blocs @ qui l'entourent, du plus large au plus proche. */
+  at: string[];
+  props: string[];
+  body: string;
+}
+
+/** Lecture des règles d'une feuille (commentaires ôtés) : sélecteur, blocs @ englobants, propriétés déclarées. */
+function cssRules(source: string): CssRule[] {
+  const text = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out: CssRule[] = [];
+  const stack: { head: string; body: string }[] = [];
+  let buf = '';
+  for (const ch of text) {
+    if (ch === '{') {
+      stack.push({ head: buf.trim(), body: '' });
+      buf = '';
+    } else if (ch === '}') {
+      const top = stack.pop();
+      if (top && !top.head.startsWith('@')) {
+        const body = `${top.body}${buf}`;
+        const props = body
+          .split(';')
+          .map((decl) => decl.split(':')[0]?.trim() ?? '')
+          .filter(Boolean);
+        out.push({ selector: top.head, at: stack.filter((s) => s.head.startsWith('@')).map((s) => s.head), props, body });
+      }
+      buf = '';
+    } else if (ch === ';') {
+      // Hors de tout bloc (@import…), la déclaration n'appartient à aucune règle.
+      if (stack.length > 0) stack[stack.length - 1]!.body += `${buf};`;
+      buf = '';
+    } else {
+      buf += ch;
+    }
+  }
+  return out;
+}
+
 function token(css: string, name: string): string {
   const match = css.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
   if (!match?.[1]) throw new Error(`jeton ${name} introuvable`);
@@ -138,9 +181,36 @@ describe('garde du système visuel', () => {
     expect(stale.map((path) => posix('src', path))).toEqual([]);
   });
 
-  it('ne réagit pas au passage du pointeur : aucune règle :hover dans src/', () => {
-    const offenders = walk('src').filter((path) => path.endsWith('.css') && /:hover\b/.test(readFileSync(path, 'utf8')));
-    expect(offenders.map((path) => posix('src', path))).toEqual([]);
+  it('OROS4.1 le passage du pointeur est une lumière : chaque :hover vit sous @media (hover: hover) et ne change que la lumière', () => {
+    const offenders: string[] = [];
+    let hovers = 0;
+    for (const path of walk('src').filter((p) => p.endsWith('.css'))) {
+      for (const rule of cssRules(readFileSync(path, 'utf8'))) {
+        if (!/:hover\b/.test(rule.selector)) continue;
+        hovers++;
+        const where = `${posix('src', path)} ${rule.selector}`;
+        if (!rule.at.some((at) => /^@media\s*\(hover:\s*hover\)/.test(at))) offenders.push(`${where} : hors de @media (hover: hover)`);
+        for (const prop of rule.props) if (!HOVER_LIGHT.has(prop)) offenders.push(`${where} : ${prop}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    // Les boutons d'action portent la règle : sans elle, la garde ne garderait rien.
+    expect(hovers).toBeGreaterThan(0);
+  });
+
+  it('OROS4.1 chaque bouton d’action a son contour : un filet fin et sa lumière blanche, jamais transparent', () => {
+    const css = readFileSync('src/design/primitives.module.css', 'utf8');
+    const tokens = readFileSync('src/design/tokens.css', 'utf8');
+    expect(tokens).toMatch(/--light-line:\s*color-mix\(in srgb, var\(--ivory\) \d+%, transparent\);/);
+    expect(tokens).toMatch(/--light-edge:\s*linear-gradient\(/);
+    const btn = cssRules(css).find((rule) => rule.selector === '.btn');
+    expect(btn?.body).toMatch(/border: 1px solid var\(--light-line\)/);
+    expect(btn?.body).toMatch(/background-image: var\(--light-edge\)/);
+    for (const variant of ['.btn.ghost', '.btn.gold', '.btn.danger']) {
+      const body = cssRules(css).find((rule) => rule.selector === variant)?.body ?? '';
+      expect(body, variant).toMatch(/border-color:/);
+      expect(body, variant).not.toMatch(/border-color:\s*transparent/);
+    }
   });
 
   it('réserve le rouge au niveau 3 : le toast d’erreur le porte, et le rouge marque sans jamais écrire', () => {
@@ -153,10 +223,10 @@ describe('garde du système visuel', () => {
     expect(writes.map((path) => posix('src', path))).toEqual([]);
   });
 
-  it('DESIGN.md décrit le Système 4.0 avec les valeurs exactes de tokens.css', () => {
+  it('DESIGN.md décrit le Système 4.1 avec les valeurs exactes de tokens.css', () => {
     const doc = readFileSync('docs/DESIGN.md', 'utf8');
     const css = readFileSync('src/design/tokens.css', 'utf8');
-    expect(doc).toMatch(/^# Système visuel — CΛNTO · révision 4\.0/m);
+    expect(doc).toMatch(/^# Système visuel — CΛNTO · révision 4\.1/m);
     const rows = [...doc.matchAll(/^\|[^|\n]*\|\s*((?:`--[a-z0-9-]+`,?\s*)+)\|\s*`(#[0-9A-Fa-f]{6})`/gm)];
     expect(rows.length).toBeGreaterThanOrEqual(15);
     for (const [, names, value] of rows) {
@@ -166,12 +236,12 @@ describe('garde du système visuel', () => {
     }
   });
 
-  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE, et le bord du desk dit la révision 4.0', () => {
+  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE, et le bord du desk dit la révision 4.1', () => {
     const doc = readFileSync('docs/DESIGN.md', 'utf8');
     for (const id of Object.keys(PLATES)) expect(doc, id).toContain(`\`${id}\``);
     expect(doc).toMatch(/Un seul code-barres/);
     expect(doc).toMatch(/## 10\. Lanceur AUBE/);
-    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('RÉV. 4.0');
-    expect(readFileSync('CLAUDE.md', 'utf8')).toMatch(/Système 4\.0/);
+    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('RÉV. 4.1');
+    expect(readFileSync('CLAUDE.md', 'utf8')).toMatch(/Système 4\.1/);
   });
 });

@@ -42,7 +42,7 @@ Une entrée de `src/engine/changelog/changelog.json` peut être préparée (troi
 - **Moteur pur** : `src/engine` n'importe ni `src/store`, ni `src/modules`, ni Electron. Les outils de l'agent reçoivent des ports (`src/engine/agent/ports.ts`).
 - **Process principal** : les modules du moteur qu'il exécute sont listés dans `electron/tsconfig.sources.json`, typés par les `.d.ts` de `electron/`, et résolus en test par `vitest.config.mts`. Ajouter un module partagé, c'est toucher ces trois endroits.
 - **IPC** : méthodes nommées dans `electron/preload.ts`, chaque `ipcMain` derrière `trusted(e)` et une validation de forme.
-- **Design** : Système 4.0 « ΟΡΟΣ » (`docs/DESIGN.md`), jetons de `src/design/tokens.css` seulement, aucun jeton nouveau sans décision. `tests/design-guard.test.ts` doit rester vert.
+- **Design** : Système 4.1 « ΟΡΟΣ » (`docs/DESIGN.md`), jetons de `src/design/tokens.css` seulement, aucun jeton nouveau sans décision. `tests/design-guard.test.ts` doit rester vert.
 - **Coffre** : tout champ persisté nouveau passe par `CHECKS` (`src/store/db.ts`) et reste lisible par les coffres plus anciens.
 
 ## 5. Invariants de sécurité

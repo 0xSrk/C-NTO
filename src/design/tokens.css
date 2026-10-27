@@ -1,7 +1,8 @@
 /* ------------------------------------------------------------------
-   CΛNTO — artefact 002 · SIΞRRΛSKΛ Lab · Système 4.0 « ΟΡΟΣ »
+   CΛNTO — artefact 002 · SIΞRRΛSKΛ Lab · Système 4.1 « ΟΡΟΣ »
    La borne et l'horizon. Nuit du Lab, filets 1 px, grille 4 px,
-   aucun arrondi, aucune ombre hors halo LED, aucun dégradé décoratif.
+   aucun arrondi, aucune ombre hors halo LED et lumière blanche des
+   contours (--light-line, --light-edge), aucun dégradé décoratif.
    Ce qui vit est or (--gold) ; seul ce qui franchit la borne est
    rouge (--signal, niveau 3). Le rouge marque, il n'écrit pas.
    Chaque mesure multiple de 4 px (filets 1–2 px exclus).
@@ -51,8 +52,10 @@
   --signal-line: rgba(225, 6, 0, 0.62);
   --leak-accent: none;
 
-  --light-line: none;
-  --light-edge: none;
+  /* Lumière blanche des contours (4.1, décision de l'ADMIN, 2026-10-27) : le filet fin d'un bouton d'action, et la
+     lumière zénithale posée sur son arête haute. Au passage du pointeur, la lumière monte, tamisée. */
+  --light-line: color-mix(in srgb, var(--ivory) 18%, transparent);
+  --light-edge: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ivory) 30%, transparent) 50%, transparent);
   --notch: 0;
 
   /* Signaux */
@@ -305,14 +308,24 @@ input::placeholder,
 textarea::placeholder {
   color: var(--text-4);
 }
+/* Une liste est une option : le contour fin des boutons d'action, et sa lumière au passage. */
 select {
   appearance: none;
   -webkit-appearance: none;
+  border-color: var(--light-line);
+  cursor: pointer;
+  transition: border-color 260ms var(--ease-out), box-shadow 320ms var(--ease-out);
   padding-right: 28px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1 2.5l3 3 3-3' fill='none' stroke='%23ffffff' stroke-width='1.2'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 8px 8px;
+}
+@media (hover: hover) {
+  select:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
+    box-shadow: 0 0 18px -6px color-mix(in srgb, var(--ivory) 42%, transparent);
+  }
 }
 select option,
 select optgroup {

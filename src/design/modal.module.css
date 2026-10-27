@@ -79,13 +79,23 @@
   text-transform: uppercase;
   color: var(--text-3);
 }
+/* Fermer : un bouton d'action comme les autres, son filet fin et sa lumière au passage. */
 .close {
-  color: var(--text-3);
+  color: var(--text-2);
   width: 28px;
   height: 28px;
   display: grid;
   place-items: center;
+  border: 1px solid color-mix(in srgb, var(--ivory) 11%, transparent);
   border-radius: var(--radius);
+  transition: color 200ms linear, border-color 260ms var(--ease-out), box-shadow 320ms var(--ease-out);
+}
+@media (hover: hover) {
+  .close:hover {
+    color: var(--text-0);
+    border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
+    box-shadow: 0 0 16px -6px color-mix(in srgb, var(--ivory) 42%, transparent);
+  }
 }
 .body {
   padding: 16px 20px;

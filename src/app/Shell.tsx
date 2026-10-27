@@ -296,7 +296,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 
       <main className={s.main}>
         <span className={s.edge} aria-hidden>
-          SIΞRRΛSKΛ LAB · DEEP TECH · ARTEFACT 002 · RÉV. 4.0
+          SIΞRRΛSKΛ LAB · DEEP TECH · ARTEFACT 002 · RÉV. 4.1
         </span>
         {children}
         <div className={s.toasts} role="status" aria-live="polite">
