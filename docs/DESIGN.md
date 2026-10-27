@@ -37,7 +37,7 @@ Lumière blanche des contours (4.1) : `--light-line`, le filet fin d’un bouton
 
 Contraste minimum 4,5:1 pour tout texte lisible sur la Plaque et sur l’Usiné (garde de design). `--ghost` n’est jamais une couleur de texte lisible : annotation verticale du bord (9 px, `aria-hidden`) et repères `+`.
 
-Le papier est l’autre matière : la bande d’étiquette et l’onglet poinçonné. Sur la nuit il est ivoire.
+Le papier est l’autre matière : l’en-tête de la fiche d’accès, le bouton principal chanfreiné, la bande et l’onglet de langue du lanceur. Sur la nuit il est ivoire.
 
 | Rôle | Jeton | Valeur |
 | --- | --- | --- |
@@ -93,7 +93,7 @@ Les polices sont embarquées : `src/design/fonts.css` et ses fichiers woff2, cha
 
 ## 06. Détails
 
-Châssis : titre 44, rail 220, état 28, zone de travail `24px 40px 22px`, intervalle 18. Actif du rail : onglet poinçonné — fond Ivoire, texte Encre, carré 5 px ; sous chaque numéro, l’emblème du module (§ 09). Compte actif à même le rail, sans carte : libellé `COMPTE ACTIF ····`, voyant de 6 px devant le nom (allumé : exécutions en direct ; atténué : pont connecté, en veille ; anneau : hors ligne), source dessous. Version sous le compte : `VERSION ···· v{APP_VERSION}`, point LED après le numéro tant que la version n’est pas lue. Chanfrein `--chamfer` : une action principale par écran, fond Ivoire, texte Nuit. Étiquette `[ ORB ]` sur une ligne, tronquée au-delà de 14 caractères. Jauge : piste 8 px, remplissage 3 px, curseur, repère issu d’une donnée ou d’une constante nommée.
+Châssis : titre 44, rail 220, état 28, zone de travail `24px 40px 22px`, intervalle 18. Rail sans catégorie (4.1, décision de l’ADMIN, 2026-10-27 : « bordereau » et « en conception » sont retirés) : chaque onglet est gravé à même la nuit — l’emblème du module en tête (§ 09, 20 px), le nom et ce que le module contient, le numéro du raccourci au bout. L’onglet ouvert s’allume : un filament d’or de 2 px se déplie au bord, une lueur blanche douce monte, l’emblème passe à l’or ; il garde la nuit (plus d’onglet poinçonné d’ivoire). Compte actif à même le rail, sans carte : libellé `COMPTE ACTIF ····`, voyant de 6 px devant le nom (allumé : exécutions en direct ; atténué : pont connecté, en veille ; anneau : hors ligne), source dessous. Version sous le compte : `VERSION ···· v{APP_VERSION}`, point LED après le numéro tant que la version n’est pas lue. Chanfrein `--chamfer` : une action principale par écran, fond Ivoire, texte Nuit. Étiquette `[ ORB ]` sur une ligne, tronquée au-delà de 14 caractères. Jauge : piste 8 px, remplissage 3 px, curseur, repère issu d’une donnée ou d’une constante nommée.
 
 ## 07. Signature
 

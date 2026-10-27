@@ -163,8 +163,8 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 16px 12px 12px;
-  gap: 14px;
+  padding: 20px 12px 16px;
+  gap: 16px;
 }
 
 .nav {
@@ -175,98 +175,106 @@
   overflow: auto;
 }
 
-.navLabelHead,
-.conceptLabel {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-2);
-  padding: 0 14px 10px;
-}
-/* Bordereau : BORDEREAU ········ 9 MODULES */
-.navLabelHead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.navLabelHead i {
-  flex: 1;
-  height: 3px;
-  background: var(--rule-dots);
-}
-
-.conceptLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 18px 14px 8px;
-}
-.conceptLabel i {
-  flex: 1;
-  height: 3px;
-  background: var(--rule-dots);
-}
-
+/* Onglet gravé (4.1) : emblème, nom et contenu, numéro du raccourci ; l'encre au repos est gravée dans la nuit. */
 .navItem {
   position: relative;
-  min-height: 36px;
-  display: flex;
-  /* ligne de pied commune au numéro et au nom ; l'emblème et la quantité dessous (planche) */
-  align-items: baseline;
-  gap: 12px;
-  padding: 6px 12px;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  min-height: 44px;
+  padding: 6px 12px 6px 14px;
   border: 0;
-  border-left: 2px solid transparent;
-  color: var(--text-1);
+  color: var(--text-2);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
+  text-shadow: 0 -1px 0 color-mix(in srgb, var(--bg-void) 90%, transparent);
+  transition: color 240ms linear;
 }
-/* Onglet poinçonné (Système 4.0) : le module ouvert est imprimé, encre sur ivoire. Un seul par écran. */
+/* La lumière de l'onglet ouvert : un filament d'or au bord, qui se déplie ; une lueur blanche, douce, qui monte. */
+.navItem::before {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--gold);
+  box-shadow:
+    0 0 6px color-mix(in srgb, var(--gold) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--gold) 28%, transparent);
+  opacity: 0;
+  transform: scaleY(0.3);
+  transition: opacity 280ms linear, transform 460ms var(--ease-out);
+}
+.navItem::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(140% 120% at 0% 50%, color-mix(in srgb, var(--ivory) 8%, transparent), transparent 72%);
+  opacity: 0;
+  transition: opacity 360ms var(--ease-out);
+}
 .navItem.on {
-  background: var(--ivory);
-  border-left-color: var(--ivory);
-  box-shadow: none;
-  color: var(--ink);
-  font-weight: 600;
+  color: var(--text-0);
 }
-.navIndex {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  width: 18px;
-  color: var(--text-2);
+.navItem.on::before {
+  opacity: 1;
+  transform: none;
 }
-/* Le numéro, et sous lui l'emblème du module (composant de la planche), encre graphite ; poinçonné, encre. */
-.navCol {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  flex: none;
-  width: 18px;
+.navItem.on::after {
+  opacity: 1;
 }
+@media (hover: hover) {
+  .navItem:hover {
+    color: var(--text-1);
+  }
+  .navItem.on:hover {
+    color: var(--text-0);
+  }
+  .navItem:hover::after {
+    opacity: 0.45;
+  }
+  .navItem.on:hover::after {
+    opacity: 1;
+  }
+  .navItem:hover .navEmblem {
+    opacity: 1;
+  }
+  .navItem.on:hover .navEmblem {
+    --k: var(--gold);
+  }
+}
+/* L'emblème du module (composant de la planche), seul en tête ; à l'or quand le module est ouvert. */
 .navEmblem {
-  width: 13px;
-  height: 13px;
-  --k: var(--text-2);
+  width: 20px;
+  height: 20px;
+  justify-self: center;
+  --k: var(--text-1);
+  opacity: 0.72;
+  transition: opacity 280ms linear;
 }
 .navItem.on .navEmblem {
-  --k: var(--ink);
-}
-.navItem.dashed .navEmblem {
-  opacity: 0.7;
-}
-.navItem.on .navIndex,
-.navItem.on .navQty {
-  color: var(--ink-soft);
+  --k: var(--gold);
+  opacity: 1;
 }
 .navText {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.navLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
 }
 .navQty {
   font-family: var(--font-mono);
@@ -280,37 +288,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.navLabel {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.navMark {
-  width: 5px;
-  height: 5px;
-  background: transparent;
-}
-.navItem.on .navMark {
-  width: 0;
-}
-.navItem.dashed {
-  margin: 2px 0;
-  border: 1px dashed var(--line-1);
-  border-left-width: 2px;
+/* Le numéro du raccourci (Ctrl+1…9), au bout de l'onglet. */
+.navIndex {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
   color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
-.navItem.dashed.on {
-  border-color: var(--ivory);
-  border-left-style: solid;
-  color: var(--ink);
-}
-.navItem.on .lienBadge {
-  color: var(--gold-ink);
-}
-.navItem.dashed:first-of-type {
-  margin-top: 0;
+.navItem.on .navQty,
+.navItem.on .navIndex {
+  color: var(--text-1);
 }
 .lienBadge {
   font-family: var(--font-mono);

@@ -24,12 +24,6 @@ export const TABS: TabDef[] = [
   { id: 'crypto', index: '09', label: 'Crypto', code: 'CRY', tagline: 'Chart · température · alertes', icon: IconCrypto },
 ];
 
-const CONCEPTION = new Set<TabId>(['agent', 'bot']);
-
-export function isConception(id: TabId): boolean {
-  return CONCEPTION.has(id);
-}
-
 const TAB_EN: Record<TabId, { label: string; tagline: string }> = {
   metrique: { label: 'Metrics', tagline: 'Ultimate journal · quantitative engine' },
   visual: { label: 'Visual', tagline: 'Advanced chart · indicators' },

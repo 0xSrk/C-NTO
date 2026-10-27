@@ -50,20 +50,22 @@ const rule = (css: string, selector: string) => {
 };
 
 describe('OROS2.11 composants de la planche dans le châssis', () => {
-  it('chaque module du rail porte son emblème sous son numéro ; l’onglet poinçonné l’imprime à l’encre', () => {
+  it('OROS4.2 chaque module du rail porte son emblème en tête, seul ; l’onglet ouvert l’allume à l’or, le numéro du raccourci au bout', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     for (const tab of TABS) {
       const item = el.querySelector<HTMLElement>(`nav button[data-tab="${tab.id}"]`);
       expect(item, tab.id).not.toBeNull();
       const emblem = item!.querySelector(`svg.skg-${GLYPH_ID[tab.id]}`);
       expect(emblem, tab.id).not.toBeNull();
-      // sous le numéro : même colonne, après lui
-      const column = emblem!.closest('[data-part="rail-index"]');
-      expect(column?.textContent, tab.id).toContain(tab.index);
+      // l'emblème ouvre l'onglet ; le numéro le ferme
+      expect(item!.firstElementChild?.contains(emblem!), tab.id).toBe(true);
+      const index = item!.querySelector('[data-part="rail-index"]');
+      expect(index?.textContent, tab.id).toBe(tab.index);
+      expect(emblem!.compareDocumentPosition(index!) & Node.DOCUMENT_POSITION_FOLLOWING, tab.id).toBeTruthy();
     }
-    expect(rule(shellCss, '.navCol')).toMatch(/flex-direction: column/);
-    expect(rule(shellCss, '.navEmblem')).toMatch(/--k: var\(--text-2\)/);
-    expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--ink\)/);
+    expect(rule(shellCss, '.navItem')).toMatch(/grid-template-columns: 20px minmax\(0, 1fr\) auto/);
+    expect(rule(shellCss, '.navEmblem')).toMatch(/--k: var\(--text-1\)/);
+    expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--gold\)/);
   });
 
   it('le zoom de la barre de titre est le bouton « + — » de la planche : le plus et la barre restent deux boutons', () => {

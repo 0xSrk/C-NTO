@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isConception, tabCopy, TABS } from '@/app/tabs';
+import { tabCopy, TABS } from '@/app/tabs';
 import { useI18n } from '@/i18n';
 
 describe('rail', () => {
@@ -25,10 +25,6 @@ describe('rail', () => {
 
 describe('onglet 09 · CRY', () => {
   afterEach(() => useI18n.getState().setLocale('fr'));
-
-  it('reste hors de « en conception » sur le rail', () => {
-    expect(isConception('crypto')).toBe(false);
-  });
 
   it('porte son libellé et sa baseline dans les trois langues', () => {
     const tab = TABS[8];

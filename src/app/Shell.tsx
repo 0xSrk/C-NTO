@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BraceCode, Button, Led, cx } from '@/design/primitives';
 import { Cartouche, Glyph } from '@/design/Micro';
 import { Wordmark } from '@/design/Wordmark';
@@ -27,7 +27,7 @@ import { railQuantity, type RailSnapshot } from './railQuantity';
 import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
 import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
-import { isConception, tabCopy, TABS } from './tabs';
+import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
 function useClock(everyMs = 1000) {
@@ -238,30 +238,11 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       {kill.engaged && <KillBand shortcut={kill.shortcut} />}
 
       <aside className={s.rail}>
+        {/* Les modules gravés à même le rail, sans catégorie : chacun son emblème, son nom, ce qu'il contient. */}
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
-          <div className={s.navLabelHead}>
-            <span>{tr('BORDEREAU', 'MANIFEST', 'ALBARÁN')}</span>
-            <i aria-hidden />
-            <span>
-              {TABS.length} {tr('MODULES', 'MODULES', 'MÓDULOS')}
-            </span>
-          </div>
-          {TABS.map((item, index) => {
-            const conception = isConception(item.id);
-            const prev = index > 0 ? TABS[index - 1] : undefined;
-            const openConcept = conception && (!prev || !isConception(prev.id));
-            return (
-              <Fragment key={item.id}>
-                {openConcept && (
-                  <div className={s.conceptLabel}>
-                    <span>{tr('EN CONCEPTION', 'IN DESIGN', 'EN DISEÑO')}</span>
-                    <i />
-                  </div>
-                )}
-                <RailButton itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} dashed={conception} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
-              </Fragment>
-            );
-          })}
+          {TABS.map((item) => (
+            <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
+          ))}
         </nav>
         <div className={s.railFoot}>
           <div className={s.account}>
@@ -370,20 +351,22 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   );
 }
 
-function RailButton({ itemId, index, label, qty, on, dashed, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; dashed?: boolean; link?: boolean; onClick: () => void }) {
+/**
+ * Un onglet du rail (4.1) : l'emblème du module en tête (composant de la planche), le nom et ce que le module contient,
+ * le numéro du raccourci au bout. L'onglet ouvert s'allume : un filament d'or au bord, une lueur blanche, l'emblème à l'or.
+ */
+function RailButton({ itemId, index, label, qty, on, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; link?: boolean; onClick: () => void }) {
   return (
-    <button type="button" className={cx(s.navItem, on && s.on, dashed && s.dashed)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
-      {/* Le numéro, et sous lui l'emblème du module (composant de la planche). */}
-      <span className={s.navCol} data-part="rail-index">
-        <span className={s.navIndex}>{index}</span>
-        <Glyph name={itemId} className={s.navEmblem} />
-      </span>
+    <button type="button" className={cx(s.navItem, on && s.on)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
+      <Glyph name={itemId} className={s.navEmblem} />
       <span className={s.navText}>
         <span className={s.navLabel}>{label}</span>
         {qty ? <span className={s.navQty}>{qty}</span> : null}
       </span>
       {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
-      <span className={s.navMark} aria-hidden />
+      <span className={s.navIndex} data-part="rail-index" aria-hidden>
+        {index}
+      </span>
       <span className={s.srOnly}>{itemId}</span>
     </button>
   );
