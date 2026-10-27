@@ -300,14 +300,26 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
 
   it('OROS4.31 admise, la phrase quitte le champ tout de suite : les points de la rangée de glyphes la remplacent avant même le départ de l’horloge', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
-    const el = mount();
+    // OROS4.54 l'instant qui compte est celui où le desk se monte dessous : son rendu est lourd, la phrase doit être
+    // partie avant lui
+    let atAdmit: { value: string; html: string; inert: boolean; row: boolean } | null = null;
+    const el = mount({
+      onAdmit: () => {
+        atAdmit = { value: input.value, html: el.innerHTML, inert: form.hasAttribute('inert'), row: !!el.querySelector('[data-part="unlock-glyphs"]') };
+      },
+    });
     const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
     const form = el.querySelector<HTMLFormElement>('form')!;
     type(input, 'la phrase');
     await submitFake(form);
-    // aucune image n'est encore passée : le champ est déjà vide, la fiche déjà fermée à la saisie
+    expect(atAdmit).not.toBeNull();
+    expect(atAdmit!.value).toBe('');
+    expect(atAdmit!.html).not.toContain('la phrase');
+    expect(atAdmit!.inert).toBe(true);
+    expect(atAdmit!.row).toBe(true);
+    // aucune image n'est encore passée : le champ est vide, la fiche fermée à la saisie
     expect(input.value).toBe('');
-    expect(el.textContent).not.toContain('la phrase');
+    expect(el.innerHTML).not.toContain('la phrase');
     expect(form.hasAttribute('inert')).toBe(true);
     // à la place des points du champ, ceux de la rangée de glyphes, en attente : il ne reste que la longueur
     const row = el.querySelector<HTMLElement>('[data-part="unlock-glyphs"]');
