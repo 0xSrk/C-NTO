@@ -2,9 +2,9 @@
 
 # Diffusion des rapports du Lab aux desks des testeurs
 
-Note de conception du 27 octobre 2026, à trancher par l'ADMIN. Rien n'est codé : aucun hôte réseau nouveau, aucune clé créée ni manipulée tant que l'ADMIN n'a pas décidé par écrit (§ 9).
+Note de conception du 27 octobre 2026. L'ADMIN a tranché la première question le jour même : les rapports restent réservés aux testeurs, par la voie C2 (§ 5.5). Rien n'est codé : aucun hôte réseau nouveau, aucune clé créée ni manipulée tant que l'ADMIN n'a pas validé la suite par écrit (§ 9).
 
-L'ADMIN veut que le Lab produise les rapports avec son agent et que chaque desk ne fasse que les lire dans Agent IA › A · Rapports (décision de l'ADMIN du 26 octobre 2026, ticket LAB2 ; `docs/AGENT-CLOUD.md` § 5 et § 6). Le pont livré amène les rapports jusqu'au desk du Lab, pas plus loin. Cette note compare trois voies pour le dernier tronçon et recommande la première.
+L'ADMIN veut que le Lab produise les rapports avec son agent et que chaque desk ne fasse que les lire dans Agent IA › A · Rapports (décision de l'ADMIN du 26 octobre 2026, ticket LAB2 ; `docs/AGENT-CLOUD.md` § 5 et § 6). Le pont livré amène les rapports jusqu'au desk du Lab, pas plus loin. Cette note compare trois voies pour le dernier tronçon. Elle recommandait la première, des rapports publics ; l'ADMIN les réserve aux testeurs. La voie C2 est donc retenue : des rapports chiffrés pour chaque desk inscrit, sur le transport de la voie A.
 
 ## 1. Point de départ (`main`, `fd9b886`)
 
@@ -33,6 +33,8 @@ L'ADMIN veut que le Lab produise les rapports avec son agent et que chaque desk 
 **Menaces retenues.** Compte GitHub ou jeton du Lab compromis ; hébergeur compromis ; réseau hostile, dont un proxy d'entreprise qui inspecte TLS et peut servir n'importe quel fichier public ancien ; page web lue par l'agent qui glisse un texte dans le rapport ; clé de signature des rapports volée ; testeur qui fait suivre un rapport.
 
 ## 3. Voie A — fichiers signés publiés sur GitHub (modèle `SHA256SUMS.txt`)
+
+Depuis la décision du 27 octobre, la voie A ne publie plus de rapport en clair. Son transport (§ 3.2 à § 3.5) porte la voie C2 (§ 5.5).
 
 ### 3.1 Principe
 
@@ -109,7 +111,7 @@ A1 et A2 vivent sur le même poste, où travaillent aussi des sessions d'agent. 
 - **GitHub** : un dépôt public, sans frais. Quelques dizaines de Kio par rapport, environ 250 rapports par an, 125 Mio par an au pire (512 Kio chacun).
 - **Anthropic** : inchangé. Une exécution, au plus 3,00 $, sert tous les desks.
 - **ADMIN** : deux à cinq minutes par jour ouvré (A1), et une signature au moins avant chaque `expire`. Un jour sans relecture est un jour sans rapport diffusé.
-- **Code** : six tickets (§ 10), sans dépendance npm : Ed25519 et SHA-256 par `node:crypto`, comme les Releases.
+- **Code** : six tickets, que le § 10 reprend pour C2, sans dépendance npm : Ed25519 et SHA-256 par `node:crypto`, comme les Releases.
 
 ### 3.8 Ce qui change dans les invariants
 
@@ -172,12 +174,14 @@ Le desk présente sa ligne `SIEGE1` à un service, qui ne sert les rapports qu'a
 
 ### 5.2 C2 · des rapports chiffrés pour les testeurs
 
+**Retenue par l'ADMIN le 27 octobre 2026 ; détaillée au § 5.5.**
+
 Chaque desk crée une paire X25519 dans son trousseau et montre une « clé de réception » publique. Le testeur l'envoie à l'ADMIN à la remise de son siège ; elle n'est pas dans le siège. Pour chaque rapport signé, le script de l'ADMIN tire une clé de contenu et chiffre une seule fois (AES-256-GCM). Il enveloppe cette clé pour chaque destinataire (X25519 puis HKDF, par `node:crypto`, sans dépendance) et publie ce fichier unique dans le dépôt de la voie A. Le desk le télécharge et essaie ses enveloppes : son URL ne dit rien de lui.
 
 - **Sécurité.** La signature et l'index de la voie A, plus la confidentialité. Révoquer un testeur, c'est cesser de l'envelopper : les rapports suivants lui échappent, ceux qu'il a déjà restent lisibles. Un testeur peut toujours faire suivre un rapport en clair.
-- **Vie privée.** Celle de la voie A, sans contenu public. Le dépôt trahit le nombre de destinataires.
-- **Coût.** La voie A, plus une clé par desk, un échange de clé à chaque nouveau testeur, et une centaine d'octets par destinataire et par rapport.
-- **Invariants.** Ceux de la voie A, plus un secret nouveau dans le trousseau de chaque desk. La décision 3 du siège ne change pas si la clé de réception reste à côté de lui. Mais le desk montre une commande de plus, et sa mention dans le README touche la décision 7.
+- **Vie privée.** Celle de la voie A, sans contenu public. Sans enveloppes factices, le dépôt trahirait le nombre de destinataires (§ 5.5.2).
+- **Coût.** La voie A, plus une clé par desk, un échange de clé à chaque nouveau testeur, et environ 130 octets par enveloppe et par rapport.
+- **Invariants.** Ceux de la voie A, plus un secret nouveau dans le trousseau de chaque desk. La décision 3 du siège ne change pas si la clé de réception reste à côté de lui. Mais le desk montre une commande de plus ; le README peut la taire, comme il tait le siège (décision 7).
 
 ### 5.3 C3 · la remise en main propre
 
@@ -191,8 +195,180 @@ L'ADMIN envoie à chaque testeur, par sa propre messagerie, le fichier signé du
 ### 5.4 Décisions demandées
 
 - **C1** : changer la nature du siège, ce que la note déconseille.
-- **C2** : la confidentialité vaut-elle une clé de plus par desk et un échange à chaque testeur ?
+- **C2** : retenue par l'ADMIN le 27 octobre 2026 (§ 5.5).
 - **C3** : sert-elle de secours, pour un desk sans réseau ?
+
+### 5.5 La voie C2 en détail
+
+Décision de l'ADMIN du 27 octobre 2026 : les rapports restent réservés aux testeurs. C2 garde le transport de la voie A : le dépôt public dédié, l'index signé (§ 3.2, avec les lignes du § 5.5.2), la relève sans identifiant (§ 3.4) et ses gardes (§ 3.5). Elle y ajoute le chiffrement : le dépôt ne porte plus que des chiffrés, et seuls les desks inscrits les ouvrent.
+
+La construction a été prototypée hors du dépôt le 27 octobre, sans dépendance. Le scellement tourne sous Node 22 (OpenSSL 3.5), comme le ferait le script de l'ADMIN ; l'ouverture a été essayée sous Node 22 et sous Electron 43.7.1 (BoringSSL), comme le ferait le desk. Un relecteur indépendant l'a ensuite éprouvée : 14 constats, tous pris en compte ici. Deux portaient sur la construction elle-même : des enveloppes factices reconnaissables sans aucune clé, et l'absence d'engagement sur la clé de contenu.
+
+#### 5.5.1 Les clés
+
+| Clé | Algorithme | Qui la tient | Rôle |
+|---|---|---|---|
+| Clé des rapports | Ed25519 | l'ADMIN, sur son poste, chiffrée par phrase de passe | signe l'index (§ 3.2) et la liste des destinataires |
+| Clé de réception | X25519 | chaque desk de testeur, chiffrée par le trousseau dans le process principal | ouvre les enveloppes adressées à ce desk |
+| Clé de contenu | AES-256 | personne : tirée au hasard pour chaque version d'un rapport, oubliée aussitôt | chiffre le rapport, une fois |
+| Clé éphémère | X25519 | personne : une par enveloppe, oubliée aussitôt | donne la clé d'enveloppe d'un destinataire |
+
+Chaque clé a son rôle. La clé des rapports en a deux, signer l'index et signer la liste des destinataires, et leurs préfixes signés les séparent. Les clés de publication et de siège ne changent pas.
+
+#### 5.5.2 Le fichier scellé
+
+Le fichier s'appelle `rapports/<nom>.canto`. `<nom>` compte 32 signes hexadécimaux, tirés au hasard à la première publication et gardés par les révisions. Le dépôt ne montre ni titre, ni journée analysée, ni identifiant de session d'Anthropic. Il montre, comme tout dépôt git, quand chaque fichier est publié, révisé ou retiré.
+
+```json
+{
+  "format": "canto.rapport-scelle/1",
+  "recipients": [{ "epk": "<32 octets>", "wrap": "<48 octets>" }],
+  "commit": "<32 octets>",
+  "iv": "<12 octets>",
+  "body": "<chiffré, étiquette comprise>"
+}
+```
+
+Les champs binaires sont en base64url sans remplissage, sous leur seule forme canonique. Le fichier porte de 1 à 32 enveloppes, factices comprises : C2 sert donc 32 desks au plus. Il pèse 768 Kio au plus ; au-delà, le desk le refuse pour de bon, sans le retenter.
+
+- **Le clair.** Le JSON `{ "report": <canto.rapport/1>, "session": { "id", "createdAt", "agentVersion" } }`, en UTF-8, complété d'espaces jusqu'au multiple de 16 Kio suivant : la taille du fichier ne trahit qu'une tranche. Le script refuse un clair de plus de 512 Kio, remplissage compris. La borne du fichier de l'agent ne suffit pas : `parseReport` réécrit chaque source par `new URL(url).href` (`src/engine/agent/cloudReport.ts:127`), ce qui peut tripler un chemin non ASCII. Le relecteur a ainsi tiré un clair de 972 699 octets d'un fichier d'agent de 485 878.
+- **Le corps.** AES-256-GCM sous la clé de contenu, vecteur de 12 octets tiré au hasard, données associées `canto.rapport-scelle/1\n<dépôt>\n<nom>`. Un corps ne s'ouvre donc ni sous un autre nom, ni depuis un autre dépôt.
+- **Une enveloppe par destinataire.**
+  - Le script tire une clé éphémère neuve et calcule le secret partagé X25519 avec la clé de réception du destinataire.
+  - Il en dérive la clé d'enveloppe : HKDF-SHA-256, avec la clé éphémère suivie de la clé de réception pour sel, et `canto.rapport-scelle/1 enveloppe\n<dépôt>\n<nom>` pour information.
+  - Il y chiffre la clé de contenu en AES-256-GCM, vecteur nul : chaque clé d'enveloppe ne sert qu'une fois.
+
+  Chaque enveloppe pèse environ 130 octets.
+- **L'engagement.** `commit` est le HMAC-SHA-256, sous la clé de contenu, de `canto.rapport-scelle/1 engagement\n<dépôt>\n<nom>`. Le desk le recalcule dès qu'une enveloppe s'ouvre, et refuse le fichier s'il diffère. Tous les destinataires d'un fichier ont ainsi la même clé de contenu, donc le même texte. AES-GCM seul ne le garantit pas, car il n'engage pas sa clé : sans engagement, qui tient la clé des rapports pourrait montrer, dans un seul fichier signé, un texte au desk du Lab et un autre aux testeurs.
+- **Des enveloppes anonymes.**
+  - Aucune ne nomme son destinataire : le desk les essaie toutes.
+  - Le script complète la liste d'enveloppes factices jusqu'à un nombre fixe (par exemple 8), puis la mélange.
+  - Une enveloppe factice est faite de la clé publique d'une paire X25519 tirée puis jetée, et de 48 octets tirés au hasard. Trente-deux octets au hasard ne feraient pas l'affaire : une clé publique X25519 a son bit de poids fort nul et désigne un point de la courbe, dans le sous-groupe d'ordre premier, et 32 octets au hasard ne passent ces tests qu'une fois sur 32.
+
+  Avec de vraies clés jetées, le dépôt ne dit ni combien de testeurs lisent, jusqu'au nombre choisi, ni dans quel ordre ils sont venus.
+- **Comme age, en partie.** L'enveloppe est celle des destinataires X25519 du format age (même sel, vecteur nul), transposée en AES-256-GCM. Le fichier, lui, s'en écarte : age authentifie tout son en-tête par un HMAC sous la clé de fichier, quand C2 s'en remet à l'empreinte signée de l'index, qui couvre le fichier entier, et à l'engagement. La validation de la construction (§ 9, question 1) porte sur cet écart.
+- **L'index.** Le chiffrement ne remplace pas l'index signé du § 3.2, mais ses lignes changent. Elles suivent l'ordre de publication :
+  - `<sha256>  <nom>.canto  <instant de cette version>` pour chaque fichier ;
+  - `retire <nom> <instant>` pour un retrait, ligne gardée pour toujours.
+
+  Une date par ligne ne trahit rien de plus que l'historique du dépôt. Elle donne à chaque desk, même resté fermé, la vraie date d'une révision ou d'un retrait.
+
+Ce que le prototype a montré, après correction :
+
+- un rapport de 30 Ko, complété à 32 Kio et scellé pour trois desks et cinq enveloppes factices, fait un fichier de 44,9 Ko ;
+- chacun des trois desks l'ouvre ;
+- un desk non inscrit essaie les huit enveloppes, n'en ouvre aucune, et ne lève aucune erreur ;
+- un corps altéré d'un seul octet est refusé, et une enveloppe lue sous un autre nom de fichier ne s'ouvre pas ;
+- une enveloppe qui porte une autre clé de contenu est refusée par l'engagement ;
+- une clé éphémère d'ordre faible (u = 0, u = 1) est refusée, par OpenSSL comme par BoringSSL ;
+- le discriminateur du relecteur, qui reconnaissait les enveloppes factices de 32 octets au hasard, juge vraies les huit enveloppes du fichier corrigé, alors que trois desks seulement y sont inscrits.
+
+#### 5.5.3 L'ouverture sur le desk
+
+Dans le process principal, après les étapes 1 à 3 du § 3.4 (signature, fraîcheur, ordre), puis la lecture du fichier et la vérification de son empreinte (étape 4), pour chaque fichier nouveau ou révisé :
+
+1. **Forme.** JSON strict, clés exactes, longueur de chaque champ, bornes. Un fichier de plus de 768 Kio est refusé pour de bon.
+2. **Enveloppes.** Pour chacune : le secret partagé avec la clé de réception (un refus de dérivation fait passer à la suivante), la clé d'enveloppe, puis l'ouverture. La première qui s'ouvre donne la clé de contenu, que l'engagement doit confirmer.
+3. **Aucune.** Le fichier n'est pas adressé à ce desk. Le desk note son nom, son empreinte, l'empreinte de sa propre clé de réception et la version de son ouvreur. Il ne le retélécharge que si l'un d'eux change, et n'affiche rien. Deux cas ne sont jamais « non adressés » :
+   - une clé de réception que le trousseau ne rend pas (le sceau rend alors un texte vide, sans erreur, `electron/agent-cloud.ts:109`) : la relève ne part pas, et les Options disent « clé de réception illisible » ;
+   - une enveloppe qui s'ouvre sur un engagement ou un corps faux : c'est un échec, affiché.
+4. **Corps.** Ouvert avec ses données associées et lu en UTF-8 strict, puis passé par `parseReport`, `isApiId(session.id, 'sesn')` et `isDateNear` contre `createdAt`, comme au § 3.4. Une révision doit porter la session de la version qu'elle remplace ; sinon, elle est refusée.
+5. **Rangement.** Dans `agent-reports/<sesn>.json`, en clair, comme aujourd'hui : c'est le dossier du testeur. La fiche garde son nom, ou ses noms si des copies existent, pour que révisions et retraits la retrouvent tant qu'elle existe.
+6. **Révision non adressée.** Si ce desk tient la version précédente d'un nom et n'ouvre pas la nouvelle, il marque sa fiche « révisée par le Lab ; la nouvelle version n'est pas adressée à ce desk ». Un retrait, lui, s'applique par le nom, adressé ou non (E8).
+
+L'état de la relève vit dans `userData/lab-reports.json` (0600), hors du coffre : le dernier `seq` par clé, les fichiers essayés et non adressés, et l'instantané de l'index pris à la création de la clé de réception. Rien de ce que contient cet instantané ne peut être adressé à la clé neuve : le desk ne le télécharge pas, et n'essaie que ce qui est publié ou révisé ensuite. Cette règle remplace, pour C2, le rattrapage des « trente dernières » (§ 3.4, étape 4).
+
+La relève ne part que d'un desk qui a une clé de réception lisible, et un siège si le bloc lui est réservé (§ 5.5.7). Un desk public ne contacte jamais le dépôt des rapports, et GitHub n'apprend rien de lui. En échange, GitHub apprend quelles adresses relèvent, donc lesquelles sont celles de testeurs ; en voie A, tout desk relevait.
+
+Le desk du Lab est inscrit : c'est une condition de C2. Sans cela, il ne verrait ni les révisions ni les retraits que l'ADMIN publie, ni ce que reçoivent les testeurs. Quand la version publiée remplace l'une de ses fiches, il garde le coût de la session, que lui seul connaît.
+
+#### 5.5.4 La clé de réception
+
+- **Création.** À la demande du testeur, dans C · Options › Rapports du Lab (§ 5.5.7). Le process principal tire la paire X25519, chiffre la clé privée par le trousseau du système (`safeStorage`) et la range dans `userData/report-reception.json` (0600). Sans trousseau, rien n'est créé ni gardé, comme pour la clé de l'agent cloud.
+- **Ce que voit le renderer.** Le code de réception et son empreinte, jamais la clé privée. Ni l'un ni l'autre n'est journalisé ; le coffre ne les connaît pas, son export non plus.
+- **Le code.** `RECEPTION1.<clé publique en base64url>`, environ 55 signes, à copier. Il n'est pas secret, et le desk ne le produit que sous forme canonique.
+- **L'empreinte.** Les 80 premiers bits du SHA-256 de `canto-reception\n` suivi de la clé publique, en base32, quatre groupes de quatre signes. Le desk et le script de l'ADMIN l'affichent de la même façon.
+- **Remplacement.** *Nouvelle clé de réception* passe par un dialogue du process principal (Annuler par défaut). Le dialogue demande au testeur de faire inscrire le nouveau code et retirer l'ancien, en nommant leurs empreintes. Le desk garde l'ancienne clé, essayée avec la nouvelle, jusqu'au premier rapport que la nouvelle ouvre, puis l'efface : aucun rapport ne se perd entre-temps. La garder ne coûte rien, puisque qui l'aurait volée la tient déjà.
+- **Suppression.** *Supprimer ma clé de réception* passe par un dialogue du même genre. La relève s'arrête, les rapports déjà reçus restent, et le Lab doit retirer le code.
+- **Plusieurs desks.** Un testeur qui a deux postes a deux clés, inscrites chacune.
+
+#### 5.5.5 L'inscription d'un testeur
+
+1. Le testeur crée son code et l'envoie à l'ADMIN, par n'importe quel canal.
+2. L'ADMIN l'inscrit sur son poste (`node scripts/report-recipients.mjs --add <nom> <code>`). Le script vérifie la forme canonique (bit de poids fort nul, u < p) et fait une dérivation d'essai avec une clé éphémère. Un code d'ordre faible s'importe en effet sans erreur, sous OpenSSL comme sous BoringSSL, et ferait échouer chaque scellement. Le script affiche ensuite l'empreinte.
+3. L'ADMIN compare cette empreinte **directement** avec le testeur : de vive voix, ou par un canal où aucun relais ne réécrit le message. Le code voyage en clair ; substitué en route, il enverrait les rapports à qui l'a substitué. L'empreinte comparée de bout en bout ferme cette porte. Un code de siège n'a pas ce risque : il est signé, et une substitution ne le forge pas.
+4. L'ADMIN confirme et donne sa phrase de passe : la liste des destinataires est re-signée.
+5. Le desk reçoit à partir de la publication suivante. Le rattrapage reste à décider : aucun en V1 (recommandé), ou des copies des derniers rapports publiées pour le nouveau venu seul, sous des noms neufs, que les autres desks notent « non adressées » sans les ouvrir.
+
+La liste des destinataires relie des testeurs à des clés.
+
+- **Ses lignes.** Une par desk, `<empreinte>  <nom>  <code>  <date>`, adressée par l'empreinte, puisqu'un testeur peut avoir plusieurs desks.
+- **Son lieu.** Le poste de l'ADMIN, à côté de la clé des rapports, hors du dépôt, de GitHub et du centre de contrôle.
+- **Sa garde.** Elle porte un numéro et elle est signée par la clé des rapports (`canto-destinataires\n<contenu>`) ; le script refuse de sceller si cette signature ne vérifie pas. À chaque scellement, il affiche les noms et empreintes qu'il enveloppe, et l'ADMIN confirme. Un destinataire glissé dans le fichier, ou une liste plus ancienne remise à sa place, se voit.
+
+#### 5.5.6 Le retrait d'un testeur
+
+- **Le geste.** `--remove <empreinte>` re-signe la liste ; les publications suivantes n'enveloppent plus ce desk. Remplacer une clé, c'est inscrire la nouvelle et retirer l'ancienne.
+- **Ce qui reste chez lui.** Ce qu'il a reçu reste lisible, et les anciens chiffrés restent ouvrables par sa clé.
+- **Rien ne protège le passé.** Une clé de réception volée ouvre tout ce qui lui a été adressé. Une purge des anciens chiffrés n'y changerait rien : un dépôt public se clone, se forke et s'archive, et ses objets restent joignables. Une rotation des clés non plus : qui tient le desk lit aussi `agent-reports/`, en clair. Seul le retrait protège, et seulement pour les rapports à venir.
+
+#### 5.5.7 L'interface
+
+- **C · Options › Rapports du Lab**, un bloc nouveau, en FR, EN et ES :
+  - *Créer mon code de réception* ;
+  - le code, avec *Copier*, et son empreinte ;
+  - l'état : « en attente du premier rapport adressé à ce desk », « dernier rapport reçu le … », « index du Lab périmé depuis le … », « clé de réception illisible » ;
+  - *Nouvelle clé de réception* et *Supprimer ma clé de réception*.
+- **A · Rapports** reste sans commande (LAB3) : « Dossier en construction » laisse place à l'état de la relève.
+- **Qui voit le bloc.** Tout desk, ou le seul desk qui porte un siège.
+  - La seconde option garde le desk public tel qu'il est, et colle à « réservés aux testeurs ». Mais elle donne au siège un second affichage : les décisions 3 et 8 de `docs/SIEGE-NOMINATIF.md` changent.
+  - Recommandé : la seconde, gardée dans le process principal par `SeatHost`, comme le pilotage du Lab. Perdre le siège arrête alors la relève ; le bloc reste visible tant qu'une clé de réception existe, pour qu'on puisse la supprimer.
+  - Le README peut taire le bloc comme il tait le siège (décision 7) : il dit seulement que les rapports du Lab parviennent à ses testeurs.
+
+#### 5.5.8 Sécurité
+
+| Menace | Ce qu'elle obtient | Garde |
+|---|---|---|
+| GitHub, le réseau, un proxy qui inspecte TLS | ni le contenu, ni une altération acceptée ; un gel, mais visible | chiffrement ; signature ; `expire` |
+| Le public | des métadonnées : quand chaque fichier est publié, révisé ou retiré, et une tranche de taille | noms opaques, remplissage, enveloppes factices tirées de vraies clés |
+| Un testeur retiré | ce qu'il a déjà, pas la suite | il n'est plus enveloppé |
+| Un testeur qui fait suivre | le clair | hors de portée technique : une règle de l'ADMIN |
+| Une clé de réception volée | tout ce qui lui a été adressé, jusqu'au retrait | trousseau ; retrait |
+| Un code substitué à l'inscription | les rapports à venir | l'empreinte comparée de bout en bout |
+| Un code invalide ou d'ordre faible | un scellement qui échoue, ou un desk qui n'ouvre jamais rien | forme canonique et dérivation d'essai à l'inscription |
+| La liste des destinataires altérée, ou remise en arrière | un destinataire caché, ou un testeur retiré de nouveau enveloppé | liste signée et numérotée ; noms et empreintes affichés à chaque scellement |
+| La clé des rapports volée | de faux rapports, pour tous les testeurs : un destinataire complice connaît la clé de contenu et les enveloppes de ce qu'il reçoit, et il ne lui manque que la signature | rotation par une Release signée (§ 3.5) ; le desk du Lab, inscrit, montre à l'ADMIN ce que voient les testeurs |
+| Un texte différent pour chaque destinataire | une tromperie ciblée, invisible du desk du Lab | l'engagement sur la clé de contenu |
+| Le poste de l'ADMIN compromis | tout | la garde de ses clés privées, phrase de passe comprise |
+| Une page piégée lue par l'agent | un texte trompeur | E3, et la relecture de l'ADMIN |
+
+Un testeur, même inscrit, ne peut pas forger un rapport : il peut sceller un autre texte pour les mêmes destinataires, mais il ne signe pas l'index.
+
+#### 5.5.9 Vie privée
+
+- **Le dépôt public.** Il ne porte que des chiffrés sous des noms opaques, et l'index signé. Il trahit quand chaque fichier est publié, révisé ou retiré, et une tranche de taille. Avec des enveloppes factices tirées de vraies clés, il ne trahit pas le nombre de testeurs, jusqu'au nombre choisi.
+- **Ce que voit GitHub.** L'adresse et l'heure de chaque relève, comme au § 3.6, mais des seuls desks qui ont une clé de réception : il apprend donc quelles adresses sont celles de testeurs.
+- **Ce que voit le Lab.** Rien de la lecture : l'ouverture se fait sur le desk.
+- **La liste des destinataires.** Une donnée personnelle, qui reste sur le poste de l'ADMIN.
+- **La redistribution.** Diffuser à quelques testeurs reste une redistribution (E10) : la revue des conditions des sources demeure, à la mesure de cette diffusion.
+
+#### 5.5.10 Coût
+
+- **Transport** : celui de la voie A, d'abord alourdi par le base64url, qui ajoute un tiers. Dans l'exemple du prototype, 30 Ko deviennent 44,9 Ko : environ 10 Ko de base64, 3,4 Ko de remplissage et 1 Ko d'enveloppes. Au pire, un clair borné à 512 Kio donne un fichier d'environ 690 Kio, soit environ 170 Mio par an, révisions en plus.
+- **ADMIN** : le geste quotidien de la voie A, puisque le script scelle seul ; une inscription par nouveau desk, environ cinq minutes, empreinte comprise.
+- **Code** : huit tickets (§ 10), sans dépendance npm.
+
+#### 5.5.11 Ce qui change dans les invariants
+
+- **`CLAUDE.md` § 5**, une ligne nouvelle : « Rapports du Lab : réservés aux testeurs. Relève sortante seule, d'un desk qui a une clé de réception, depuis le dépôt public des rapports sur `api.github.com`, sans redirection, sans cookie, sans cache ni identifiant ; un index n'est lu que signé pour ce dépôt par une clé de `electron/report-keys.ts`, disjointe des clés de publication et de siège, et non périmé ; chaque rapport est scellé pour les clés de réception que l'ADMIN inscrit ; la clé privée de réception, chiffrée par le trousseau dans le process principal, n'est jamais rendue au renderer, journalisée ni exportée ; un rapport reste une donnée affichée. »
+- **`CLAUDE.md` § 3** : la clé des rapports et la liste des destinataires restent à l'ADMIN.
+- **`docs/THESE-AGENTIQUE.md` § 7** : la décision 12, « rapports réservés aux testeurs », avec la construction validée.
+- **`docs/SIEGE-NOMINATIF.md`** : les décisions 3 et 8, si le bloc ne paraît qu'avec un siège.
+- **`docs/AGENT-CLOUD.md`** :
+  - le § 5, pour le bloc des Options et l'état de la relève dans la vue A ;
+  - la ligne « relève sortante seule, vers `api.anthropic.com` seul » du § 6 (`docs/AGENT-CLOUD.md:79`), qui ne vaudra plus que pour le pont de l'agent cloud.
+- **IPC** : chaque canal nouveau passe derrière `trusted(e)` et une validation de forme, et entre dans `tests/agent-cloud-wiring.test.ts`.
+- **Inchangés** : la CSP du renderer, les mises à jour signées, la garde `lab()`, la porte sur `127.0.0.1`, la décision 11, et le coffre : la clé de réception n'y entre pas, comme celle de l'agent cloud.
 
 ## 6. Voies écartées d'emblée
 
@@ -216,9 +392,13 @@ L'ADMIN envoie à chaque testeur, par sa propre messagerie, le fichier signé du
 | Retrait d'un rapport | ligne `retire`, à la relève | ligne `retire`, à la relève | ligne `retire`, à la relève | nouvel envoi |
 | Service à exploiter | aucun | oui | aucun | aucun |
 | Geste quotidien de l'ADMIN | signer | signer | signer, envelopper (script) | signer, envoyer à chacun |
-| Code (ordre de grandeur) | six tickets | une douzaine, plus le service | une dizaine | trois |
+| Code (ordre de grandeur) | six tickets | une douzaine, plus le service | huit tickets (§ 10) | trois |
+
+**Retenue par l'ADMIN le 27 octobre 2026 : C2**, sur le transport de la voie A (§ 5.5).
 
 ## 8. Recommandation
+
+**Décision de l'ADMIN (27 octobre 2026) : les rapports restent réservés aux testeurs.** La voie A n'est pas retenue pour le contenu. Son transport (dépôt public, index signé, relève sans identifiant) porte la voie C2, détaillée au § 5.5. Ce qui suit est la recommandation d'origine, gardée pour mémoire ; sa première question a reçu sa réponse, et la seconde vaut pour C2.
 
 **La voie A, en variante A1 :** l'ADMIN relit, signe sur son poste avec une clé chiffrée par phrase de passe, et publie dans un dépôt public dédié ; chaque desk vérifie dans le process principal. Cette voie :
 
@@ -238,31 +418,39 @@ C3 peut venir plus tard, pour un desk sans réseau : elle partage le vérificate
 
 ## 9. Questions pour l'ADMIN
 
-1. Diffuser les rapports en public (voie A), ou les réserver aux testeurs (C2, ou B) ? Pour la voie A, la revue des conditions des sources de l'agent (douze domaines, `OFFICIAL_DOMAINS`) est-elle à faire avant la première publication ?
-2. Créer une clé Ed25519 des rapports, distincte des clés de publication et de siège, chiffrée par phrase de passe, et dire où elle vit. La générer et inscrire sa clé publique dans `electron/report-keys.ts` est un geste de l'ADMIN, avant le tag de la version qui relève.
-3. Créer le dépôt public des rapports, et le nommer : son nom est écrit dans le code et signé.
-4. Quels desks relèvent ? Tout desk installé (recommandé), ou derrière un interrupteur dans C · Options ? Le siège n'en décide pas, sauf à changer ses décisions 3 et 7.
-5. Retrait et révision d'un rapport diffusé : les deux, ou le retrait seul ?
-6. Cadence (toutes les heures, ou à heures fixes, par exemple 7:45, 9:00 et 13:00 à Paris, pour en dire moins à GitHub) ; validité de l'index (`expire`, par exemple sept jours) ; profondeur du rattrapage d'un desk neuf (par exemple trente fiches).
-7. *Relever maintenant* sur le desk d'un testeur, contre LAB3, ou la relève automatique seule ?
-8. Avertissement public : le README le dit déjà (« its reports are information, not advice », `README.md:821`) ; le dépôt des rapports le reprend-il mot pour mot ?
-9. Le coût de chaque exécution reste-t-il hors du fichier diffusé ?
-10. Le bêta-testeur qui porte déjà un siège sert-il de premier lecteur, sur la version qui portera la relève ?
+Tranchée le 27 octobre 2026 : **les rapports restent réservés aux testeurs**, par la voie C2. Restent :
 
-## 10. Si l'ADMIN retient la voie A
+1. Valider la construction du § 5.5.2 : X25519, HKDF-SHA-256, AES-256-GCM et un engagement HMAC-SHA-256 ; une clé de contenu par version de rapport ; des enveloppes anonymes. Et son écart avec age : l'en-tête n'est authentifié que par l'empreinte signée de l'index.
+2. Créer la clé Ed25519 des rapports, distincte des clés de publication et de siège et chiffrée par phrase de passe, et dire où elle vit, avec la liste des destinataires. La générer et inscrire sa clé publique dans `electron/report-keys.ts` est un geste de l'ADMIN, avant le tag de la version qui relève.
+3. Créer le dépôt public des rapports, et le nommer : son nom est écrit dans le code et signé.
+4. Le bloc « Rapports du Lab » des Options : pour tout desk, ou pour le seul desk qui porte un siège (recommandé, ce qui change les décisions 3 et 8 du siège) ? Dans ce cas, perdre le siège arrête la relève.
+5. L'empreinte comparée de vive voix à chaque inscription, hors de tout relais : obligatoire (recommandé) ?
+6. Les enveloppes factices : combien (recommandé : 8) ? La tranche de remplissage (recommandé : 16 Kio) ? Et le plafond de 32 desks, enveloppes factices comprises : suffit-il ?
+7. Le rattrapage d'un nouveau testeur : aucun (recommandé), ou des copies des N derniers rapports ?
+8. Accepter que rien ne protège le passé d'une clé de réception volée, seul le retrait protégeant la suite (§ 5.5.6) ?
+9. Le retrait et la révision d'un rapport diffusé : les deux (recommandé), ou le retrait seul ?
+10. La cadence de la relève (toutes les heures, ou à heures fixes, par exemple 7:45, 9:00 et 13:00 à Paris) et la validité de l'index (`expire`, par exemple sept jours) ?
+11. *Relever maintenant* sur le desk d'un testeur, contre LAB3, ou la relève automatique seule ?
+12. La revue des conditions des sources (E10), à la mesure d'une diffusion à quelques testeurs ? Une règle de non-diffusion pour les testeurs ?
+13. Le coût de chaque exécution reste-t-il hors du fichier diffusé ?
+14. Le bêta-testeur qui porte déjà un siège sert-il de premier lecteur, après le desk du Lab, inscrit d'office (§ 5.5.3) ?
+
+## 10. Si l'ADMIN valide la voie C2
 
 Un ticket, un commit, un test, dans l'ordre :
 
 | Ticket | Contenu | Preuve |
 |---|---|---|
-| DIF1 | Contrat de l'index `canto-rapports/1` et vérification dans le process principal, sur le modèle de `electron/release-signature.ts` : message lié au dépôt ; `seq` par clé ; `emis` et `expire` ; équivoque ; empreintes ; lignes `retire` permanentes. | Séparation des domaines (une signature de Release ou de siège ne vérifie pas un index, ni l'inverse) ; trois listes de clés disjointes ; index d'un autre dépôt refusé ; rotation après un `seq` démesuré. |
+| DIF1 | L'index de C2 et sa vérification, dans le process principal, sur le modèle de `electron/release-signature.ts` : l'en-tête du § 3.2 (`seq`, `emis`, `expire`) ; les lignes du § 5.5.2, dans l'ordre de publication et datées chacune ; les lignes `retire`, permanentes ; un message lié au dépôt ; `seq` par clé ; l'équivoque. | Séparation des domaines (une signature de Release ou de siège ne vérifie pas un index, ni l'inverse) ; trois listes de clés disjointes ; index d'un autre dépôt refusé ; rotation après un `seq` démesuré. |
 | DIF2 | `electron/report-keys.ts`, vide : la relève ne part pas. | Aucun appel réseau sans clé. |
-| DIF3 | Hôte de relève : session en mémoire sans cache ni cookie ; bornes (256 Kio, 1 Kio, 512 Kio) ; ni redirection ni identifiant ; adresses bâties de constantes et d'un `sesn_…` vérifié ; dix fiches par relève, rattrapage borné ; quota lu, avec une réserve pour le lanceur ; empreinte fausse traitée en échec passager ; rangement dédoublonné ; `seq` et retraits persistants. | Rouge sans chaque garde. |
-| DIF4 | Statut et vue A : « dernier index du Lab », « périmé », état de la relève à la place de « Dossier en construction » ; fiche révisée repassée en non lue ; fiche retirée affichée comme telle ; FR, EN, ES. | `tests/agent-cloud-folder.test.ts` |
-| DIF5 | Script de l'ADMIN : montre la fiche, fait taper sa date, demande la phrase de passe, refait la forme `canto.rapport/1`, signe les octets écrits, écrit dans le clone du dépôt des rapports (`.gitattributes` en `-text`). Il refuse une clé dans un dépôt, une clé non chiffrée, et une clé absente de `report-keys.ts`. | Paire éphémère, hors dépôt. |
-| DIF6 | `docs/AGENT-CLOUD.md`, `CLAUDE.md` § 3 et § 5, décision 12, README (« Lab reports », feuille de route), section de `docs/AUDIT.md`. | — |
+| DIF3 | Le format `canto.rapport-scelle/1` (§ 5.5.2) et son ouverture, dans un module du process principal, hors de `src/engine` que le renderer lit aussi. Forme stricte et canonique, enveloppes essayées l'une après l'autre, engagement, données associées, refus de dérivation passé, bornes, fichier trop lourd refusé pour de bon. | Paires éphémères : chaque destinataire ouvre, un desk non inscrit non. Refusés : une enveloppe d'un autre fichier ou d'un autre dépôt, un corps altéré, une clé de contenu propre à un destinataire, une clé d'ordre faible, sans se fier aux codes d'erreur de la bibliothèque. Sous Electron, à la recette. |
+| DIF4 | La clé de réception (§ 5.5.4) : création, trousseau, `report-reception.json` en 0600, code canonique et empreinte, ancienne clé gardée jusqu'au premier rapport de la nouvelle, suppression ; dialogues du process principal ; IPC derrière `trusted(e)` et une validation de forme. | Jamais rendue au renderer, journalisée ni exportée ; sans trousseau, rien ; `tests/agent-cloud-wiring.test.ts`. |
+| DIF5 | L'hôte de relève (§ 3.4 et § 5.5.3), qui ne part qu'avec une clé lisible, et un siège si l'ADMIN le décide. Session en mémoire sans cache ni cookie ; bornes (256 Kio, 1 Kio, 768 Kio) ; adresses bâties de constantes et d'un nom vérifié ; dix fichiers par relève ; quota lu, avec une réserve pour le lanceur ; empreinte fausse traitée en échec passager. État persistant dans `userData/lab-reports.json`, hors du coffre : `seq` par clé, fichiers non adressés notés avec l'empreinte de la clé et la version de l'ouvreur, instantané pris à la création de la clé. Rangement dédoublonné, nom gardé dans la fiche, révision de même session, révision non adressée marquée, retrait, coût gardé au desk du Lab. | Rouge sans chaque garde ; `seq` gardé d'un redémarrage à l'autre. |
+| DIF6 | L'interface (§ 5.5.7) : bloc des Options, état de la relève dans la vue A, fiche révisée repassée en non lue, fiche retirée affichée comme telle ; garde du siège si décidée ; FR, EN, ES. | `tests/agent-tab.test.ts` (C · Options), `tests/agent-cloud-folder.test.ts` |
+| DIF7 | Les scripts de l'ADMIN. `scripts/report-recipients.mjs` tient la liste par empreinte, numérotée et signée : `--add` après forme canonique, dérivation d'essai et empreinte confirmée ; `--remove <empreinte>` ; la liste. `scripts/publish-report.mjs` montre la fiche, fait taper sa date, demande la phrase de passe et affiche les destinataires enveloppés. Il scelle, complète d'enveloppes factices tirées de vraies clés, signe l'index et écrit dans le clone (`.gitattributes` en `-text`). Refus : clé dans un dépôt, clé non chiffrée, clé absente de `report-keys.ts`, liste dont la signature ne vérifie pas, clair de plus de 512 Kio. | Paires éphémères, hors dépôt. Un fichier scellé par le script s'ouvre par le module de DIF3, comme `tests/release-tools.test.ts:57` le prouve pour la signature des Releases. |
+| DIF8 | `docs/AGENT-CLOUD.md` (le § 5, et la ligne du § 6), `CLAUDE.md` § 3 et § 5, décision 12, `docs/SIEGE-NOMINATIF.md` (décisions 3 et 8) si le bloc est réservé au siège, README (« Lab reports » et feuille de route, sans nommer le siège), section de `docs/AUDIT.md`. | — |
 
-L'ADMIN garde la création de la clé et du dépôt, chaque signature, et la version qui embarque la clé publique.
+L'ADMIN garde la création de la clé des rapports et du dépôt, chaque inscription, chaque signature, et la version qui embarque la clé publique.
 
 ## 11. Relevé en route, hors de cette note
 
