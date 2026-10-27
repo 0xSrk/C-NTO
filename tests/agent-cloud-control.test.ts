@@ -5,7 +5,7 @@ import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
 import { CloudApiError, type CloudApi, type DeploymentView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, PULL_PENDING_MS } from '../electron/agent-cloud';
 import { LAB_SEATS } from '../electron/seat';
-import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, MAX_PAGES, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
+import { BUDGET_CENTS_PER_RUN, CALENDAR_INSTITUTIONS, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, MAX_PAGES, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
 import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, KEY, NOW, sid, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
@@ -118,6 +118,27 @@ describe('agent cloud · définition installée par le desk', () => {
     expect(prompt).toContain(`Lis au plus ${MAX_PAGES} pages web en tout`);
     expect(MAX_PAGES).toBeGreaterThan(0);
     expect(MAX_PAGES).toBeLessThanOrEqual(20);
+  });
+
+  it('CLD29 le calendrier de la fenêtre : neuf institutions lues avant tout contexte, chaque adjudication, rien d’une page périmée, « non consulté » à part', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // Le premier rapport réel (2026-10-27) a lu six pages de contexte et jamais les calendriers de la CFTC ni du CME.
+    const calendars = prompt.split('\n').find((line) => line.startsWith('1. Établis d’abord'));
+    expect(calendars).toBeDefined();
+    expect(CALENDAR_INSTITUTIONS).toEqual(['Fed', 'BLS', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']);
+    expect(CALENDAR_INSTITUTIONS.length).toBeLessThan(MAX_PAGES);
+    for (const institution of CALENDAR_INSTITUTIONS) expect(calendars).toContain(institution);
+    expect(calendars).toContain('une page par institution, avant toute page de contexte');
+    expect(prompt.indexOf(calendars!)).toBeLessThan(prompt.indexOf('Écris aussitôt'));
+    // Il omettait les bills à 6 et 52 semaines adjugés le jour même, et datait une publication arrêtée d'une page périmée.
+    expect(prompt).toContain('chaque adjudication du jour et du lendemain, bills compris');
+    expect(prompt).toContain('une annonce n’est pas une adjudication');
+    expect(prompt).toContain('Une page qui ne montre aucune date de l’année en cours');
+    expect(prompt).toContain('n’en tire aucun événement');
+    // « non trouvé » couvrait aussi ce qui n'avait pas été lu : le correcteur connaît les deux mentions.
+    expect(prompt).toContain('« non consulté »');
+    expect(outcomeRubric('fr')).toContain('« non consulté »');
+    expect(outcomeRubric('fr')).toContain('« non trouvé »');
   });
 });
 
