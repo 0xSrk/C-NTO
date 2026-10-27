@@ -11,7 +11,7 @@ import { LlmKeySeals } from './llm-key-seals';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { ORCH_RESPONSE_ID_MAX, Orchestrator } from './orchestrator';
 import { deskUrlAllowed, onPageLeft } from './page-left';
-import { createPasteGate, reopenOnNewDocument } from './paste-gate';
+import { createPasteGate, isAutoRepeat, reopenOnNewDocument } from './paste-gate';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
 import { McpGateway } from './mcp-server';
 import { syncOfficialCalendar } from './calendar';
@@ -398,7 +398,7 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   // juste après l'un d'eux.
   const deskContents = win.webContents;
   deskContents.on('input-event', (_event, input) => {
-    pasteGate.gesture(deskContents.id, input.type);
+    pasteGate.gesture(deskContents.id, input.type, isAutoRepeat(input));
   });
   // Fermé une fois le verrou passé, « Coller » ne se rouvre qu'avec un document neuf, donc un verrou neuf.
   reopenOnNewDocument(deskContents, pasteGate, deskContents.id);
@@ -604,7 +604,7 @@ ipcMain.on('window:close', (e) => {
 // « Coller » : le presse-papiers entre dans le champ qui a le focus, comme Ctrl+V ; la réponse dit si c'est fait, pour que
 // le verrou montre le raccourci quand le collage est refusé. Le renderer ne lit pas le presse-papiers lui-même (la
 // permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle,
-// et seulement juste après un geste réel de l'opérateur, vu par le process principal : un collage par geste. Le garde ne
+// et seulement juste après un geste réel de l'opérateur, vu par le process principal : un collage par appui. Le garde ne
 // sait pas ce que visait le geste : du code de la page pourrait encore profiter d'un geste de l'opérateur pour coller dans
 // un champ à lui, d'où la fermeture du canal une fois le verrou passé (`./paste-gate`).
 ipcMain.handle('window:paste', (e) => {

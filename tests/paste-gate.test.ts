@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createPasteGate, PASTE_GESTURE_MS, reopenOnNewDocument } from '../electron/paste-gate';
+import { createPasteGate, isAutoRepeat, PASTE_GESTURE_MS, reopenOnNewDocument } from '../electron/paste-gate';
 
 function gateAt(start = 10_000) {
   let clock = start;
@@ -34,11 +34,10 @@ describe('OROS4.36 le garde du collage du verrou, dans le process principal', ()
     advance(1600);
     gate.gesture(1, 'keyUp');
     expect(gate.allow(1)).toBe(true);
-    // un toucher : touchStart, gestureTapDown, touchEnd, gestureShowPress, gestureTap
-    for (const type of ['touchStart', 'gestureTapDown']) gate.gesture(1, type);
-    expect(gate.allow(1)).toBe(false);
-    for (const type of ['touchEnd', 'gestureShowPress', 'gestureTap']) gate.gesture(1, type);
+    // un toucher : touchStart, gestureTapDown, touchEnd, gestureShowPress, gestureTap ; OROS4.48 un seul appui
+    for (const type of ['touchStart', 'gestureTapDown', 'touchEnd', 'gestureShowPress', 'gestureTap']) gate.gesture(1, type);
     expect(gate.allow(1)).toBe(true);
+    expect(gate.allow(1)).toBe(false);
   });
 
   it('un déplacement, une molette ou un survol ne sont pas des gestes ; chaque page a les siens', () => {
@@ -102,8 +101,55 @@ describe('OROS4.36 le garde du collage du verrou, dans le process principal', ()
 
   it('le process principal s’en sert : chaque événement d’entrée du desk lui est donné, le collage lui est demandé', () => {
     const main = readFileSync('electron/main.ts', 'utf8');
-    expect(main).toContain("import { createPasteGate, reopenOnNewDocument } from './paste-gate';");
-    expect(main).toMatch(/deskContents\.on\('input-event', \(_event, input\) => \{\s*pasteGate\.gesture\(deskContents\.id, input\.type\);/);
+    expect(main).toContain("import { createPasteGate, isAutoRepeat, reopenOnNewDocument } from './paste-gate';");
+    expect(main).toMatch(/deskContents\.on\('input-event', \(_event, input\) => \{\s*pasteGate\.gesture\(deskContents\.id, input\.type, isAutoRepeat\(input\)\);/);
     expect(main).not.toMatch(/lastGesture|PASTE_GESTURE_MS = /);
+  });
+});
+
+describe('OROS4.48 un collage par appui', () => {
+  it('un clic vaut un collage, pas deux : le relâchement ne rafraîchit qu’un appui qui n’a pas encore servi', () => {
+    const { gate, advance } = gateAt();
+    // du code de la page colle à l'appui de l'opérateur sur « Coller »…
+    gate.gesture(1, 'mouseDown');
+    expect(gate.allow(1)).toBe(true);
+    // … et le clic de « Coller », au relâchement, n'a plus de jeton : le détournement se voit
+    gate.gesture(1, 'mouseUp');
+    expect(gate.allow(1)).toBe(false);
+    // une frappe de même
+    for (const type of ['rawKeyDown', 'char']) gate.gesture(1, type);
+    expect(gate.allow(1)).toBe(true);
+    gate.gesture(1, 'keyUp');
+    expect(gate.allow(1)).toBe(false);
+    // un relâchement seul ne donne rien
+    advance(PASTE_GESTURE_MS + 1);
+    gate.gesture(1, 'mouseUp');
+    expect(gate.allow(1)).toBe(false);
+  });
+
+  it('une touche tenue est un seul appui : ses répétitions ne redonnent pas de jeton, elles gardent vif celui qui n’a pas servi', () => {
+    const { gate, advance } = gateAt();
+    gate.gesture(1, 'rawKeyDown');
+    expect(gate.allow(1)).toBe(true);
+    for (let i = 0; i < 5; i++) {
+      advance(33);
+      gate.gesture(1, 'rawKeyDown', true);
+    }
+    expect(gate.allow(1)).toBe(false);
+    gate.gesture(1, 'keyUp');
+    // tenue 2 s sans servir : les répétitions la gardent vive
+    gate.gesture(1, 'rawKeyDown');
+    advance(1000);
+    gate.gesture(1, 'rawKeyDown', true);
+    advance(1000);
+    gate.gesture(1, 'rawKeyDown', true);
+    expect(gate.allow(1)).toBe(true);
+  });
+
+  it('la répétition se lit dans les modificateurs de l’événement d’entrée, quelle que soit leur casse', () => {
+    expect(isAutoRepeat({ modifiers: ['isAutoRepeat'] })).toBe(true);
+    expect(isAutoRepeat({ modifiers: ['shift', 'isautorepeat'] })).toBe(true);
+    expect(isAutoRepeat({ modifiers: ['shift'] })).toBe(false);
+    expect(isAutoRepeat({})).toBe(false);
   });
 });
