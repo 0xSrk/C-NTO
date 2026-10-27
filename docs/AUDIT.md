@@ -1279,3 +1279,4 @@ L'ADMIN confie la préparation de la 3.7.0 : le Système 4.0 « ΟΡΟΣ » (fus
 | Ticket | Constat | Correctif | Test |
 |---|---|---|---|
 | R3.7d | La case du jour écrivait « auj. » en dur dans le CSS (`calendrier.module.css:150`), dans les trois langues. | Le chiffre du jour porte `data-today`, traduit par `tr()` (« auj. », « today », « hoy ») ; le CSS l'affiche par `attr(data-today)` et ne contient plus de texte. | `tests/calendrier-oros.test.ts` › R3.7d |
+| R3.7e | Le Bot affichait en français le titre d'un catalyseur du moteur (« Fenêtre résultats mégacaps », `src/engine/calendar.ts:264`), que le calendrier traduit. | La table des titres et `trEventTitle` passent de `Calendrier.tsx` à `src/modules/calendrier/eventTitles.ts` ; le Bot traduit les titres par elle avant `deriveGuards`. | `tests/bot-guards.test.ts` › R3.7e |
