@@ -13,20 +13,20 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 <br/>
 
-<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for macOS" src="https://img.shields.io/badge/macOS-Universal%20DMG-E5263D?style=for-the-badge&labelColor=0A0B0D"/></a>
-<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Windows-x64%20%C2%B7%20ARM64-E5263D?style=for-the-badge&labelColor=0A0B0D"/></a>
-<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for Linux" src="https://img.shields.io/badge/Linux-AppImage%20%C2%B7%20deb-E5263D?style=for-the-badge&labelColor=0A0B0D"/></a>
+<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for macOS" src="https://img.shields.io/badge/macOS-Universal%20DMG-F5F2EA?style=for-the-badge&labelColor=07080C"/></a>
+<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Windows-x64%20%C2%B7%20ARM64-F5F2EA?style=for-the-badge&labelColor=07080C"/></a>
+<a href="https://github.com/0xSrk/C-NTO/releases/latest"><img alt="Download for Linux" src="https://img.shields.io/badge/Linux-AppImage%20%C2%B7%20deb-F5F2EA?style=for-the-badge&labelColor=07080C"/></a>
 
 <br/><br/>
 
-[![Version](https://img.shields.io/badge/version-3.7.0-e5263d?style=flat-square)](#versions)
-[![Tests](https://img.shields.io/badge/tests-2270%20passed-000000?style=flat-square)](tests)
+[![Version](https://img.shields.io/badge/version-3.7.0-CCB066?style=flat-square)](#versions)
+[![Tests](https://img.shields.io/badge/tests-2602%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
 [![MCP](https://img.shields.io/badge/MCP-local%20gateway-000000?style=flat-square)](docs/PROTOCOLE-AGENT.md)
 [![Electron](https://img.shields.io/badge/shell-Electron-000000?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
 [![TypeScript](https://img.shields.io/badge/engine-TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Design](https://img.shields.io/badge/design-SIΞRRΛSKΛ%20system-e5263d?style=flat-square)](docs/DESIGN.md)
+[![Design](https://img.shields.io/badge/design-System%204.0%20ΟΡΟΣ-CCB066?style=flat-square)](docs/DESIGN.md)
 
 <br/>
 
@@ -53,7 +53,7 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 ## Overview
 
-CΛNTO is the desk of **SIΞRRΛSKΛ Lab** for traders who run prop-firm accounts on **CME Group futures** — Nasdaq, S&P, Russell, Dow, crude, gold, euro FX, and their micros — next to NinjaTrader 8. Nine modules share one window and one vault on your disk. The desk measures what you did, watches what you are doing against your plan and your own rules, and gives an AI agent the same view, while the main process, not the model, holds the API key and guards every order. Beside the futures desk, an optional crypto tab, off until you turn it on, follows crypto markets from public exchange data.
+CΛNTO is the desk of **SIΞRRΛSKΛ Lab** for traders who run prop-firm accounts on **CME Group futures** — Nasdaq, S&P, Russell, Dow, crude, gold, euro FX, and their micros — next to NinjaTrader 8. Nine modules share one window and one vault on your disk. The desk measures what you did, watches what you are doing against your plan and your own rules, and gives an AI agent the same view, while the main process, not the model, holds the API key and guards every order. The AI agent tab opens on **Reports**, the folder for the analysis reports the Lab writes with its own agent in the cloud: the desk reads them, only the Lab's own desk drives that agent, and nothing from your desk goes out to produce them. Beside the futures desk, an optional crypto tab, off until you turn it on, follows crypto markets from public exchange data.
 
 <table>
 <tr>
@@ -185,11 +185,11 @@ On Windows, `CANTO.cmd` downloads Electron without the `extract-zip` native modu
 
 <br/>
 
-The desk checks GitHub at start-up; **Update and relaunch** turns amber when a version is ready.
+The launcher checks at start-up and shows **Update and relaunch**, ruled in gold, only when there is something to install: a newer published Release for an installer, new commits on `origin/main` for a git clone. Inside the desk, the version in the title bar turns to **UPD** with a gold dot.
 
 | Install | What the button does |
 |---|---|
-| **Installer** | Compares with the latest published Release (drafts and pre-releases ignored), downloads the installer for this machine with live progress, verifies it against the signed `SHA256SUMS.txt`, then installs natively: the Windows setup runs silently in place and relaunches, a Linux AppImage is replaced and relaunched, a macOS DMG or a Linux deb is opened for you. The system proxy is honored. The check reads the Releases without signing in: while the repository is private it cannot see them and reports *Could not reach GitHub*. Download the new installer from the Release page and run it over the current install; the data folder is kept. |
+| **Installer** | Compares with the latest published Release (drafts and pre-releases ignored), downloads the installer for this machine with live progress, verifies it against the signed `SHA256SUMS.txt`, then installs natively: the Windows setup runs silently in place and relaunches, a Linux AppImage is replaced and relaunched, a macOS DMG or a Linux deb is opened for you. The system proxy is honored. If GitHub cannot be reached, the check says *Could not reach GitHub*: download the new installer from the Release page and run it over the current install; the data folder is kept. |
 | **Git clone** | `git pull --ff-only origin main`, `npm install`, then relaunches the launcher. A dirty working tree asks before stashing. |
 
 </details>
@@ -199,7 +199,7 @@ The desk checks GitHub at start-up; **Update and relaunch** turns amber when a v
 
 <br/>
 
-**Data folder** (vault, bridge state, language, logs): `%APPDATA%\CΛNTO` on Windows, `~/Library/Application Support/CΛNTO` on macOS, `~/.config/CANTO` on Linux. Every start is logged to `logs/main.log` inside it.
+**Data folder** (vault, bridge state, language, logs, and `agent-reports/`, the folder AI agent › Reports shows): `%APPDATA%\CΛNTO` on Windows, `~/Library/Application Support/CΛNTO` on macOS, `~/.config/CANTO` on Linux. Every start is logged to `logs/main.log` inside it.
 
 **Vault export.** JSON export `canto-vault-v2` (v1 still read): sessions, trades and open lots, notes and their links, calendar, portfolio, settings, copier accounts, automations. The API key is never exported. A heavy option adds bars and agent messages; a daily copy goes to a folder you choose.
 
@@ -211,23 +211,23 @@ The desk checks GitHub at start-up; **Update and relaunch** turns amber when a v
 
 ## First run
 
-Every install opens on the **launcher** — desk language, version check, then the circuit transition into the desk (`--desk` skips it).
+Every install opens on the **AUBE launcher**: the horizon draws itself and the gold LED settles on the tip of the Λ. Pick the desk language, read the version check, then launch the desk; the launcher folds back onto the horizon (`--desk` opens the desk directly). In the desk, the Horizon seal strikes while the logotype builds — a key press or a click skips it — and the desk stays locked until its phrase is entered.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/media/arrival.png" alt="CΛNTO — the desk stays closed on arrival"/></td>
-<td width="50%"><img src="docs/media/unlock.png" alt="CΛNTO — Desk Unlocked draws in the center as the desk opens"/></td>
+<td width="50%"><img src="docs/media/arrival.png" alt="CΛNTO — the lock: the Horizon seal on the horizon line, the access sheet with the phrase field"/></td>
+<td width="50%"><img src="docs/media/unlock.png" alt="CΛNTO — Desk Unlocked set on the horizon as the desk opens"/></td>
 </tr>
 <tr>
-<td><sub><b>Arrival</b> — the desk stays closed. SIΞRRΛSKΛ Lab · Artefact 002 above the plate.</sub></td>
-<td><sub><b>Desk Unlocked</b> — drawn in the center, then the desk splits onto the modules.</sub></td>
+<td><sub><b>Arrival</b> — the Horizon seal closes the lock; beside it, the access sheet: state, local vault, the phrase.</sub></td>
+<td><sub><b>Desk Unlocked</b> — the word settles on the horizon, then the desk, already composed underneath, opens along that line.</sub></td>
 </tr>
 </table>
 
 1. **Bring your journal.** Metrics › **Import a CSV**: a NinjaTrader *Trades* or *Executions* export, or a CΛNTO CSV. To explore first, **Load a demo dataset** (140 sessions).
-2. **Set your plan and your rules.** Metrics › ⚙ **Desk settings**: the tracked prop-firm plan and account, then *Discipline* — max daily loss, trades per day, catalyst window, revenge window, allowed instruments.
+2. **Set your plan and your rules.** Metrics › **Settings** (*Desk settings*): the tracked prop-firm plan and account, then *Discipline* — max daily loss, trades per day, catalyst window, revenge window, allowed instruments.
 3. **Connect NinjaTrader 8.** Compile the AddOn once, then **Write the NinjaTrader configuration** in Metrics › NinjaTrader bridge. See [the bridge](#ninjatrader-8-bridge).
-4. **Meet the agent.** `06 · AGT`: pick a provider preset — a local model (Ollama, LM Studio) or a cloud API with your own key — then **Brief** before the open and **Debrief** after the close.
+4. **Meet the agent.** `06 · AGT` opens on **A · Reports**, the Lab's report folder, read-only. In **C · Options**, pick a provider preset — a local model (Ollama, LM Studio) or a cloud API with your own key — then, in **B · Conversation**, **Brief** before the open and **Debrief** after the close.
 
 ---
 
@@ -240,12 +240,14 @@ Every install opens on the **launcher** — desk language, version check, then t
 | <code>01&nbsp;·&nbsp;MET</code> | [Metrics](#metrics) | Journal of up to 1,000 sessions, quantitative engine, risk and context, prop-plan replay, Monte Carlo | Live |
 | <code>02&nbsp;·&nbsp;VIS</code> | [Visual](#visual) | Registry candles, an indicator catalog, a session projected, NinjaTrader live bars on request | Live |
 | <code>03&nbsp;·&nbsp;CAL</code> | [Calendar](#calendar) | Official macro calendars, CME expirations, the note of the day | Live |
-| <code>04&nbsp;·&nbsp;NTE</code> | [Notes](#notes) | Markdown vault, `[[wiki]]` links, a graph, a branch from a selection | Live |
+| <code>04&nbsp;·&nbsp;NTE</code> | [Note](#notes) | Markdown vault, `[[wiki]]` links, a graph, a branch from a selection | Live |
 | <code>05&nbsp;·&nbsp;PTF</code> | [Portfolio](#portfolio) | Consolidated net value, exposure, distance to prop thresholds, projection | Live |
-| <code>06&nbsp;·&nbsp;AGT</code> | [AI agent](#ai-agent) | Reads the desk, briefs and debriefs, proposes Sim orders you confirm; local MCP gateway | Prototype · in design |
+| <code>06&nbsp;·&nbsp;AGT</code> | [AI agent](#ai-agent) | The Lab's report folder; reads the desk, briefs and debriefs, proposes Sim orders you confirm; local MCP gateway | Prototype · in design |
 | <code>07&nbsp;·&nbsp;BOT</code> | [Bot](#bot) | Automaton workshop under imposed guardrails | Design · no orders |
 | <code>08&nbsp;·&nbsp;CPY</code> | [Copier](#copier) | Position-based replication from a master to Sim followers | Sim only · disarmed on launch |
 | <code>09&nbsp;·&nbsp;CRY</code> | [Crypto](#crypto) | Live crypto chart with its CVD, market temperature and local alerts; read and driven by the agent | Optional · off by default |
+
+**Nine modules, one chassis.** The **rail** is a manifest: under each module's name, what it holds right now — sessions in the journal, notes and links, unread reports or the orchestrator's state, the copier's accounts, the crypto markets on the watchlist. AI agent and Bot sit apart, under *In design*; `Ctrl` or `⌘` + `1` … `9` switches modules. At the foot of the rail, the **active account**, its lamp and its source, then the artefact plate: the version, which opens the changelog, and FR · EN · ES. The **status bar** keeps the chassis black: the NT8 bridge live or offline, the CME Globex phase and the New York session date, Tokyo, Paris and New York clocks in 24 h or 12 h; it ends on the Lab's signature, eleven bars between braces drawn anew at each launch, and `[ SIΞRRΛSKΛ ]`. Once the kill switch is engaged, a level-3 band stays under the title bar until the desk restarts.
 
 <a id="metrics"></a>
 <a id="métrique"></a>
@@ -259,14 +261,16 @@ Every install opens on the **launcher** — desk language, version check, then t
 
 ### Metrics
 
-Five views — **Dashboard · Sessions · Analysis · Prop firm · Monte Carlo** — on a pure TypeScript engine (`src/engine`) that never touches the interface.
+Five views — **A Dashboard · B Sessions · C Analysis · D Prop firm · E Monte Carlo** — read the range (7, 30 or 90 days, or all) and the account chosen at the top; Prop firm ignores the range, Sessions keeps its own filters. A tool row holds the NinjaTrader bridge, a manual session, CSV export, vault export and restore, and the desk settings. Underneath, a pure TypeScript engine (`src/engine`) that never touches the interface.
 
+- **The dashboard.** Net P&L after commissions, four gauges — K.01 expectancy, K.02 win rate, K.03 profit factor before and after fees, K.04 drawdown — and the A.02 equity curve by session or by trade, with its high, the trough of the largest drawdown and an underwater pane; `Ctrl` + wheel zooms, a double-click shows all. With one account filtered and its plan tracked, K.04 becomes the margin to the floor and the plan's limit is drawn under the curve; the gauge turns to watch at 80 % of the limit used and to critical once it is crossed.
+- **During the session.** With the AddOn live, a strip at the top reads the tracked account: realized, unrealized, balance, positions, the day loss against its limit (the plan's or your rule's), trades against your daily cap, fresh or stale. Working orders follow, read-only; those the agent proposed are marked.
 - **A journal you can trust.** Up to 1,000 sessions, each with its account, its CME trading date (Globex, 18:00 New York) and its trades; past that, a warning and an export, never a silent drop. P&L is recomputed from price × point value (the registry cites CME Group), commissions deducted.
 - **Ratios with their uncertainty.** Profit factor before and after fees, expectancy in $ and in R, Sharpe / Sortino / Calmar with intervals, SQN, Kelly, MAE / MFE, drawdown and recovery.
 - **Risk and R.** Each trade carries its initial stop and target; risk comes from the stop, else from the risk you entered, else from a fixed risk per contract.
 - **Reading by context.** A sheet per session — Garman-Klass volatility, regime and band, ATR, the day's releases — and your results read along one axis at a time. A verdict needs 30 distinct days and must pass the rail; otherwise the tab says no marker is solid.
 - **Your prop plan, replayed.** Versioned plans (EOD or intraday trailing, or static; lock, daily loss, consistency, minimum days) replayed day by day, with the K.04 margin to the floor dated at the last session's low.
-- **Monte Carlo.** A bounded i.i.d. bootstrap with a reproducible seed: percentiles, ruin and target probabilities.
+- **Monte Carlo.** A bounded i.i.d. bootstrap with a reproducible seed, drawn from one account at a time (copied accounts would inflate the sample), by day or by trade: percentiles, ruin and target probabilities.
 
 <table>
 <tr>
@@ -322,6 +326,7 @@ Five views — **Dashboard · Sessions · Analysis · Prop firm · Monte Carlo**
 - **Follow the bridge.** With the NinjaTrader WebSocket live, Visual asks for five days of history on the full contract (`NQ 12-26`), then subscribes to its live bars — only on your gesture. A silent feed is marked stale; **Stop following** unsubscribes. Nothing else subscribes, the agent included.
 - An indicator **catalog**, not a frozen menu: EMA / SMA, session VWAP with ±σ bands, RTH opening range, previous-session levels, ATR, relative volume.
 - From Metrics › Sessions › **View in Visual**, one day's trades are projected onto the chart. NinjaTrader *Historical Data* CSV files import directly.
+- Live bars never move a view you have zoomed or scrolled, and the last price is lit in gold.
 
 <a id="calendar"></a>
 <a id="03-cal"></a>
@@ -334,11 +339,12 @@ Five views — **Dashboard · Sessions · Analysis · Prop firm · Monte Carlo**
 
 ### Calendar
 
-<img src="docs/media/calendrier.png" alt="CΛNTO — Calendar: October 2026 grid, catalyst families, journal P&L in the cells, desk schedule" width="920"/>
+<img src="docs/media/calendrier.png" alt="CΛNTO — Calendar, browser build offline: the month grid with estimated catalysts (≈) drawn by state and impact, journal P&L in the cells, the TIME ENGINE plate" width="920"/>
 
 - Catalysts from the official pages — **BLS, BEA, the Federal Reserve, the ECB, EIA and TreasuryDirect** — with a 2026 snapshot inside the binary, so a fresh install still shows NFP and CPI when a host refuses. FRED only with a key you type.
 - CME expirations and rollovers computed locally (marked estimated), US and EU clock changes, shortened sessions.
-- Monthly grid or chronological feed, local and New York times, your journal P&L in each cell, and the note of the day beside it.
+- Monthly grid or chronological feed, filtered by impact (all, notable and up, major) and by family, each family with a beginner's guide; estimated dates shown, marked ≈, and hidden on request; local and New York times, your journal P&L in each cell. Beside it, the selected day: its session (projected onto Visual in one click), each release with expected, previous and actual, your note and timed reminders.
+- **The stroke tells the state.** Solid once released, dashed when due within seven days, dotted beyond that horizon; three bars tell the impact. *Now* is drawn in gold, and the TIME ENGINE plate reads the CME Globex session, the day's next major catalysts and the state of the sync.
 
 <a id="notes"></a>
 <a id="04-nte"></a>
@@ -353,9 +359,9 @@ Five views — **Dashboard · Sessions · Analysis · Prop firm · Monte Carlo**
 
 <img src="docs/media/note.png" alt="CΛNTO — Notes: Markdown source and preview, backlinks, tags, properties" width="920"/>
 
-- A Markdown vault inside the desk: `[[wiki]]` links, backlinks, `#tags`, full-text search, a force-directed graph.
-- The prefilled **note of the day**, and a **branch** from any selection: a child note with a question and an anchor, linked to its parent.
-- A sanitized preview (no styles, forms or SVG; links limited to `http(s)`, `mailto` and anchors). Notes written by an agent are signed `agent`; a lesson enters your trading memory only once you adopt it.
+- A Markdown vault inside the desk: `[[wiki]]` links, backlinks, `#tags`, full-text search, a force-directed graph; edit, split or preview, pin a note, export it as `.md`. Typed relations proposed as hypotheses wait for you to confirm or reject them.
+- The prefilled **note of the day**, and a **branch** from any selection: a child note that keeps the selection as its anchor and links back to its parent (an agent may branch with a question).
+- A sanitized preview (no scripts, styles, forms or SVG; links limited to `http(s)` and anchors — `mailto` is refused, so a note cannot open the system mail client). Notes written by an agent are signed `agent`; a lesson enters your trading memory only once you adopt it.
 
 <a id="portfolio"></a>
 <a id="portefeuille"></a>
@@ -374,6 +380,7 @@ Five views — **Dashboard · Sessions · Analysis · Prop firm · Monte Carlo**
 - **Net value** consolidated in a base currency, by pocket: prop-firm accounts from the journal, futures from a fresh bridge snapshot, securities and cash you enter.
 - **Risk:** drawdown, gross leverage, concentration, and the distance of each prop pocket to its threshold.
 - **Projection:** Monte Carlo on the consolidated daily P&L; ruin defaults to the sum of the remaining prop drawdowns.
+- **Statement** for the range (7 days, 30 days, quarter, year or custom dates), exported as CSV; a discrete mode hides every amount.
 - No quote feed, no broker. A missing exchange rate leaves its pocket out of the total — never converted at 1.
 
 <a id="ai-agent"></a>
@@ -387,9 +394,17 @@ Five views — **Dashboard · Sessions · Analysis · Prop firm · Monte Carlo**
 
 ### AI agent
 
-<img src="docs/media/agent.png" alt="CΛNTO — AI agent: gateway, suggested questions, brief and debrief, provider panel" width="920"/>
+<img src="docs/media/agent.png" alt="CΛNTO — AI agent, B · Conversation: the agent gateway, suggested questions, Brief and Debrief" width="920"/>
 
-The embedded agent and any external MCP client read the desk through the same typed tools. Providers go through the main process: a local model (Ollama, LM Studio) or a cloud API with your own key. **How it reads, watches and proposes — and what stops it — is in [The agent](#the-agent).**
+The tab opens on the reports; a draft, a scroll or a setting in progress survives a change of view.
+
+| View | What it holds |
+|---|---|
+| **A · Reports** | The folder of the Lab's analysis reports, read the same way on every desk; the Lab's own desk adds **Pull now** and the next planned sheet. One sheet per report, coded `AGT-RPT-YYYYMMDD`, with a gold LED until you open it; the latest report opens by itself. The reader shows the day, when the report was written and received, its sections and its sources; each link shows the host it leads to, and an `https` link opens in your system browser. The header and the rail count unread reports; **Open the folder** shows them on disk. Where they come from: [Lab reports](#lab-reports). |
+| **B · Conversation** | The conversational model with the native desk tools, suggested questions, and the **Brief** and **Debrief** routines, marked when they are due. |
+| **C · Options** | A status strip — model, MCP gateway, orchestrator, agents writing, agent orders — then the provider, external agents over MCP, the external orchestrator, orders proposed by the agent, and the native tools. |
+
+The Lab's own desk has a fourth view, **D · Lab**, to steer the cloud agent that writes the reports; no other desk shows it. The embedded agent and any external MCP client read the desk through the same typed tools. Providers go through the main process: a local model (Ollama, LM Studio) or a cloud API with your own key. **How it reads, watches and proposes — and what stops it — is in [The agent](#the-agent).**
 
 <a id="bot"></a>
 <a id="07-bot"></a>
@@ -404,7 +419,7 @@ The embedded agent and any external MCP client read the desk through the same ty
 
 <img src="docs/media/bot.png" alt="CΛNTO — Bot: automaton workshop, ORB 15 and VWAP reclaim templates, imposed guardrails, roadmap" width="920"/>
 
-**Design phase: no order is sent.** The workshop formalizes an automaton (`draft → backtest → paper`) from templates — **ORB 15 min** and **VWAP reclaim** — under guardrails derived from the tracked prop plan and the calendar, which no automaton can turn off: a circuit breaker at 30 % of max drawdown, an internal daily loss, a consistency cap, flat before 16:59 New York, a blackout ±15 minutes around major catalysts.
+**Design phase: no order is sent.** The workshop formalizes an automaton — from a template, **ORB 15 min** or **VWAP reclaim**, or from a blank sheet — as conditions, actions and guardrails, with a lifecycle `draft → backtest → paper`. Its imposed guardrails come from the tracked prop plan and the major catalysts the desk computes for the next 10 days, and no automaton can turn them off: a circuit breaker when the buffer to the floor drops under 30 % of max drawdown; a daily stop at 80 % of the firm's daily loss limit, or at 40 % of max drawdown when the firm sets none; a cap on the daily gain when the plan has a consistency rule; flat before 16:59 New York; a blackout ±15 minutes around each timed major catalyst, and a risk day for an untimed one. Only the design stage is under way: backtest, paper and a locked live stage are the workshop's roadmap.
 
 <a id="copier"></a>
 <a id="08-cpy"></a>
@@ -424,7 +439,7 @@ Replication runs in the main process on the execution port: each fill of the mas
 | Control | Behavior |
 |---|---|
 | **Sizing** | Master ratio, fixed size or contracts by risk; a contract cap per follower; NQ ↔ MNQ map |
-| **Filters** | Local time window, latency budget, catalyst blackout, and the follower's prop floor: its dated buffer (the K.04 gauge, as the agent reads it) minus its unrealized loss, kept at 30 % of max drawdown or more by default |
+| **Filters** | Local time window, latency budget, a blackout ±15 minutes around major catalysts, and the follower's prop floor: its dated buffer (the K.04 gauge, as the agent reads it) minus its unrealized loss, kept at 30 % of max drawdown or more by default |
 | **Exits** | A reduction always goes out — outside the window, during a blackout, under the floor — and never beyond the follower's real position |
 | **Arming** | Disarmed on every launch; **Arm** confirms in a main-process dialog (Cancel by default); **Cut** disarms and cancels working follower orders; flattening is an option, off by default |
 
@@ -441,7 +456,7 @@ Followers are `Sim*` accounts only, never the master and never twice. No real fo
 
 ### Crypto
 
-**Optional, off by default.** The tab sits on the rail from the first launch, empty, with one action: **Turn on the crypto module**, confirmed in a main-process dialog (Cancel by default). Until then the desk opens no connection to an exchange and lists no crypto tool. Once on, the module stays on across launches until you click **Turn off the module** in the tab, which closes every feed at once.
+**Optional, off by default.** The tab sits on the rail from the first launch, empty, with one action: **Turn on the crypto module**, confirmed in a main-process dialog (Cancel by default). Until then the desk opens no connection to an exchange and lists no crypto tool. Once on, the module stays on across launches until you click **Turn off the module** in the tab, which closes every feed at once. Desktop app only: in the browser build (`npm run dev`) the tab stays off — there is no main process to open a feed, and the interface's Content Security Policy admits no exchange host.
 
 - **A live chart.** The market you pick, in six timeframes from 1 minute to 1 day, with prices to the exchange's own tick size. Indicator cards as in Visual — EMA, SMA, VWAP and previous-day levels anchored at 00:00 UTC, ATR, relative volume — and the levels or zones an agent draws, marked AGENT.
 - **CVD.** Complete from history where the exchange gives the buyer volume (Binance), and built from live trades elsewhere (Coinbase, Bybit), marked *since HH:MM*; for a Coinbase market that Binance also lists, a *CVD Binance* option adds a CVD with its full history.
@@ -452,7 +467,7 @@ Followers are `Sim*` accounts only, never the master and never twice. No real fo
 
 **What it never does.** No order, no account, no key, no position: the tab reads public exchange data, for personal use, through the main process only. Crypto stays out of Portfolio, discipline, the Copier, order execution and the NinjaTrader bridge. Bars stay in memory; the chart, the watchlist, the alerts and the drawings are kept in the local vault.
 
-**Where it goes.** Crypto markets are listed one by one, release after release. The tab starts small on purpose and grows with each market added.
+**Where it goes.** Today the tab lists four markets on three exchanges — BTC-USD and ONDO-USD on Coinbase, ONEUSDT on Binance, ZIGUSDT on Bybit. Markets are added one by one, release after release: the tab starts small on purpose and grows with each one.
 
 ---
 
@@ -467,17 +482,19 @@ Followers are `Sim*` accounts only, never the master and never twice. No real fo
 - **Prepares** — the **morning brief** (8:30–9:30 New York) and the **evening debrief**, from the same texts as the MCP prompts — sent to the provider only when you click.
 - **Proposes** — an order on a **Sim** account with `propose_order`. The main process guards it; you confirm it in a main-process dialog.
 
+The agent you talk to lives in **AI agent › B · Conversation**, with the Brief and Debrief. Its provider, gateways, order limits and native tools are in **C · Options**. The tab opens on **A · Reports**: the reports of the Lab's cloud agent. That is a separate agent: it runs away from your desk, sees nothing of it and has no tool on it. See [Lab reports](#lab-reports).
+
 ### An order, from proposal to market
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant A as Agent · embedded or MCP
+    participant A as Agent · embedded, MCP or orchestrator
     participant M as CΛNTO main process
     participant T as You
     participant N as NinjaTrader AddOn
     A->>M: propose_order(account, instrument, side, qty)
-    M->>M: Guards — Sim account, agent limits and cadence, dated prop buffer, your rules, kill switch
+    M->>M: Guards — Sim account, bridge live, one proposal at a time, agent limits and cadence, dated prop buffer, your rules, kill switch
     alt Refused
         M-->>A: Refusal and its reason · nothing is asked, nothing is sent
     else Passes
@@ -489,9 +506,9 @@ sequenceDiagram
     end
 ```
 
-- **Guards before any dialog.** Sim accounts only; the agent's own limits (contracts per order, resulting position, proposals per minute); the tracked prop plan's dated buffer (the K.04 gauge, unrealized loss included) above 25 % of max drawdown; your rules — day loss reached, catalyst window, instrument not allowed. An order that reduces the position is exempt from the position cap, the prop buffer and your rules.
-- **You decide.** Each order waits for you in a main-process dialog: 45 seconds, **Decline** by default. Agent-proposed orders are off each time the desk opens; turning them on, or raising the agent's limits, takes a main-process dialog — lowering a limit is immediate.
-- **The agent never submits.** `copy.order` is not an agent tool; other writes — notes, links, annotations, crypto tab edits (chart, indicators, drawings, alerts, watchlist) — are confirmed by you, or allowed for external agents (MCP and orchestrator) by a flag that is off by default.
+- **Guards before any dialog.** Sim accounts only. The NinjaTrader bridge must be live and its order channel open; after the kill switch the channel stays closed until the desk restarts. One proposal may wait at a time. The agent has its own limits: contracts per order, resulting position and proposals per minute, 1, 2 and 3 by default. The tracked prop plan's dated buffer (the K.04 gauge, unrealized loss included) must stay above 25 % of max drawdown. Your rules apply: day loss reached, catalyst window, instrument not allowed. An order that reduces the position is exempt from the position cap, the prop buffer and your rules, but not from the per-order size or the cadence.
+- **You decide.** Each order waits for you in a main-process dialog for 45 seconds, **Decline** by default. The dialog shows the order, the account, the position before and after, and the agent's reason; without an answer, nothing is sent. Agent-proposed orders are off each time the desk opens. Turning them on in **AI agent › C · Options › Orders proposed by the agent**, or raising the agent's limits, takes a main-process dialog; lowering a limit is immediate. An MCP client or the orchestrator reaches `propose_order` only once *write allowed* is on, and the guards and the dialog stay the same.
+- **No agent submits.** `copy.order` is not an agent tool, and the Lab's cloud agent has no order tool at all. Other writes (notes, links, annotations, crypto tab edits: chart, indicators, drawings, alerts, watchlist) are confirmed by you. For external agents they are allowed by one switch, *write allowed*, shared by the MCP gateway and the orchestrator and off by default.
 
 <a id="agent-tools"></a>
 
@@ -530,7 +547,7 @@ sequenceDiagram
 | `crypto_chart_set` · `crypto_indicator_set` · `crypto_drawing_set` | write | Market and timeframe, indicators, levels and zones of the crypto chart |
 | `crypto_alert_set` · `crypto_watchlist_set` | write | Crypto alerts and the crypto watchlist |
 
-Embedded agent: 6 turns, 8 calls per turn, 2 writes per turn. Every client: `body` / `note` ≤ 20,000 characters. The embedded agent's tool results and the text of MCP results carry an *untrusted data* preamble; the orchestrator returns plain JSON-RPC results. Protocol: [docs/PROTOCOLE-AGENT.md](docs/PROTOCOLE-AGENT.md) · design rationale: [docs/THESE-AGENTIQUE.md](docs/THESE-AGENTIQUE.md).
+Embedded agent: 6 turns, 8 calls per turn, 2 writes per turn. Every client: `body` / `note` ≤ 20,000 characters. None of these tools reads the Lab's reports ([Lab reports](#lab-reports)). The embedded agent's tool results and the text of MCP results carry an *untrusted data* preamble; the orchestrator returns plain JSON-RPC results. Protocol: [docs/PROTOCOLE-AGENT.md](docs/PROTOCOLE-AGENT.md) · design rationale: [docs/THESE-AGENTIQUE.md](docs/THESE-AGENTIQUE.md).
 
 </details>
 
@@ -538,13 +555,13 @@ Embedded agent: 6 turns, 8 calls per turn, 2 writes per turn. Every client: `bod
 
 ### MCP gateway
 
-External agents — **Claude Code, Claude Desktop, Codex, Cursor**, any MCP client — read the desk with the same tools at `http://127.0.0.1:47118/mcp` (desktop app only; `npm run dev` has no gateway).
+External agents — **Claude Code, Claude Desktop, Codex, Cursor**, any MCP client — read the desk with the same tools at `http://127.0.0.1:47118/mcp` (default port; desktop app only, `npm run dev` has no gateway). The gateway stays closed until you open it in **AI agent › C · Options › External agents · MCP**; once open, it reopens at the next launch, after the desk opens.
 
 - A bearer token kept in the desk's data folder, renewable; browser origins and non-loopback hosts refused; 1 MB per request, 40 requests per second.
-- Write tools stay hidden and refused until you allow writing.
+- Write tools, `propose_order` included, stay hidden and refused until you turn on *write allowed*: one switch, shared with the orchestrator, off by default.
 - The ten `crypto_*` tools are listed only while the crypto module is on, and refused otherwise; reconnect the client after turning the module on or off. Once a client is allowed to write, its crypto edits apply without a dialog in the desk.
 - Tools titled and typed by the desk, with output schemas; `canto://` resources; three prompts — pre-session brief, session debrief, prop plan review; messages and refusals in the desk language.
-- The gateway stays on the machine: no tunnel, no cloud connector. ChatGPT on the web calls MCP servers from OpenAI's cloud and cannot reach `127.0.0.1`.
+- The gateway stays on the machine: no tunnel, no cloud connector. ChatGPT on the web calls MCP servers from OpenAI's cloud and cannot reach `127.0.0.1`. The Lab's reports do not change this: the main process pulls them outbound and opens nothing ([Lab reports](#lab-reports)).
 
 <details>
 <summary><b>Connect a client</b> — the panel copies these with your token</summary>
@@ -600,9 +617,25 @@ bearer_token_env_var = "CANTO_MCP_TOKEN"
 
 ### Providers and the orchestrator
 
-The interface never calls a provider: chat and probes go through the main process, and the API key is encrypted by the operating system's keychain (`safeStorage`). Hosts are pinned in the main process — `127.0.0.1`, `localhost`, `api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.moonshot.ai` — and the interface cannot widen the list. A key is bound to the host it was entered for and is never sent to another; a key saved by an older version follows the base URL until it is entered again.
+The provider is set in **AI agent › C · Options › Provider**: a local model (Ollama, LM Studio) or a cloud API with your own key. The interface never calls a provider: chat and probes go through the main process, and the API key is encrypted by the operating system's keychain (`safeStorage`). Hosts are pinned in the main process — `127.0.0.1`, `localhost`, `api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.moonshot.ai` — and the interface cannot widen the list. A key is bound to the host it was entered for and is never sent to another; a key saved by an older version follows the base URL until it is entered again. This key serves the conversational model only: the Lab's cloud agent has its own, kept on the Lab's desk.
 
-The **orchestrator** is a JSON-RPC 2.0 WebSocket on `ws://127.0.0.1:47117` for an external agent that drives the desk: session token compared in constant time and never shown in the periodic status, browser origins refused, 8 clients, 1 MB per frame, 40 requests per second per client. It pushes desk events as `desk.event`.
+The **orchestrator** is a JSON-RPC 2.0 WebSocket on `ws://127.0.0.1:47117` (default port) for an external agent that drives the desk. You open it by hand in **AI agent › C · Options › External orchestrator**, and it does not reopen on its own at the next launch. The session token is compared in constant time and never shown in the periodic status; browser origins are refused; it takes 8 clients, 1 MB per frame and 40 requests per second per client. It pushes desk events as `desk.event`, and its writes follow the same *write allowed* switch as the MCP gateway.
+
+<a id="lab-reports"></a>
+
+### Lab reports
+
+> The Lab writes them. Your desk reads them.
+
+The Lab runs its own agent on Anthropic's Managed Agents: on a schedule, in Anthropic's sandbox, away from your desk. Each run is meant to leave one report; a run that ends without a valid one files nothing. For now it is a pre-session brief: the official releases and events of the CME trading day and the next, their time in New York and Paris, what each one measures, and its sources — no figure, consensus or time invented. Reports are filed under **AI agent › A · Reports**, the view the tab opens on.
+
+- **The folder.** Sheets coded `AGT-RPT-YYYYMMDD`, newest first, with a gold LED on each unread one and a reader beside them. The latest report opens by itself, and an opened sheet is marked read; the rail counts unread reports under AI agent. Reports are files in the desk's data folder (`agent-reports/`), outside the vault; **Open the folder** shows them.
+- **What the desk checks.** A report is filed only if it holds to the `canto.rapport/1` contract: bounded fields, control characters dropped, sources kept in https only, a day within a week of its run. The reader renders the Markdown through DOMPurify, keeps images hidden, prints beside each link the host it leads to, and opens https links in your system browser.
+- **What it reads.** Official public sources only: the Federal Reserve (Board, New York, St. Louis), the BLS, the DOL, the BEA, the Census Bureau, the Treasury, the EIA, the CFTC, the SEC and the ECB. The CME is not among them, so a report gives no CME hours or holidays, and says so.
+- **What never leaves.** The pull is outbound only, from the main process to `api.anthropic.com` only, with no redirect: nothing listens, and no journal, session or note is sent. The cloud agent has no desk tool, no MCP server and no order tool. A report is displayed data: no desk tool reads it, so neither the conversational model nor an MCP client is ever handed one.
+- **Who drives it.** Only the Lab's own desk steers the cloud agent; on any other desk the main process refuses every control command. There, its key is separate from the conversational model's, encrypted by the system keychain and never returned to the interface, logged or exported; installing, running and resuming each take a main-process dialog, Cancel by default, that states the spending cap, and leaving the desk's own deployment first asks to pause it.
+
+In this version, reports are pulled by the Lab's own desk only: on any other desk the folder stays empty, marked *Folder under construction*. Desktop app only — the browser build (`npm run dev`) shows neither the folder's contents nor the Lab view.
 
 ---
 
@@ -619,7 +652,7 @@ Two transports, both local. The **WebSocket** (`127.0.0.1`, default port **48231
 | **Automatic** | Metrics › NinjaTrader bridge › folder — by default `Documents/NinjaTrader 8/export/CANTO` on macOS, Windows and Linux. Any finished `.csv` or `.txt` is imported once (SHA-256 of the stable file). |
 | **Manual** | *Trade Performance* › Trades or Executions › Export CSV, then **Import a CSV**. |
 
-Defaults: `Sim*` accounts, 20 contracts per order, mandatory tag, circuit breaker after 6 s of silence, kill switch <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd> on macOS). `scripts/fake-addon.mjs` speaks the same protocol without NinjaTrader. Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**.
+Defaults: `Sim*` accounts, 20 contracts per order, mandatory tag, circuit breaker after 6 s of silence, kill switch <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd> on macOS): it flattens every allowed account the desk knows, then a level-3 band stays under the title bar until the desk restarts, AddOn connected or not. AddOn **2.2.0**. `scripts/fake-addon.mjs` speaks the same protocol without NinjaTrader. Guide: **[docs/PONT-NINJATRADER.md](docs/PONT-NINJATRADER.md)**.
 
 ---
 
@@ -631,16 +664,17 @@ A trading desk that can send orders earns trust by what it refuses to do. These 
 
 | Area | What the desk guarantees |
 |---|---|
-| **Orders** | Accounts whose name starts with `Sim` by default; a live account only after an explicit main-process dialog. Contract ceiling from 1 to 1,000 (default 20); raising it takes a main-process dialog. Mandatory tag. Kill switch <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd> on macOS); after it, submission stays closed until the desk restarts. |
+| **Orders** | Accounts whose name starts with `Sim` by default; a live account only after an explicit main-process dialog. Contract ceiling from 1 to 1,000 (default 20); raising it takes a main-process dialog. Mandatory tag. Kill switch <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd> on macOS); after it, submission stays closed until the desk restarts, and a level-3 band stays under the title bar, AddOn connected or not. |
 | **NinjaTrader AddOn** | Its own guard, read from `bridge.json`: allowed accounts, ceiling, tag. The token never travels — desk and AddOn prove they hold it by HMAC challenge–response — and the AddOn sends nothing and executes nothing before the desk has proven itself. |
 | **Agent** | Never submits; `copy.order` is not an agent tool. `propose_order` passes the main-process guards — Sim accounts only, the agent's limits and cadence, the dated prop buffer (K.04), your rules, a channel closed after the kill switch; an order that reduces risk is exempt from the position cap, the prop buffer and your rules — then waits for your confirmation in a main-process dialog (Decline by default, 45 s). Other writes — notes, links, annotations, crypto tab edits — are confirmed by you, or allowed for external agents by a flag that is off by default. Agent-proposed orders are off at every launch; turning them on and raising the agent's limits each take a main-process dialog, while lowering a limit is immediate. It subscribes to no market data on its own: it reads what you opened, and a read never opens a feed. In the crypto tab, a write that changes the market or the timeframe, the watchlist or the Binance CVD has the desk open the matching feed — after your confirmation, or without a dialog for an external agent allowed to write. |
 | **Bot** | Design only: no automaton sends an order. |
 | **Copier** | Disarmed at every launch; Sim followers only, never the master or a duplicate; arming through a main-process dialog. A risk reduction is never blocked and never exceeds the follower's real position; an opening passes the follower's floor: its dated buffer (K.04), unrealized loss included. |
 | **Crypto** | Off at the first launch, and until you consent in a main-process dialog (Cancel by default); turning it off closes every feed. Network only in the main process, to pinned exchange hosts over `https:` and `wss:` only, with no redirects and no credentials. Public data only — no order, no account. An agent's write can open a feed: see **Agent**. |
+| **Cloud agent** | The Lab runs it; its reports are read in AI agent › Reports. Only the Lab's own desk drives it: the main process checks at every command and, on any other desk, refuses the key, the schedule, install, run, pause and resume. Pickup only: the main process calls `api.anthropic.com` alone, over HTTPS, with no redirects; nothing listens, and nothing from the journal or the vault leaves the desk. Its key is separate from the model's, encrypted by the system keychain in the main process, and never returned to the interface, logged or exported. Installing, running and resuming each take a main-process dialog (Cancel by default) that states the cap; leaving the desk's own deployment first asks to pause it (Cancel by default); a deployment set up elsewhere is read, never changed, paused or resumed. The agent reads official sources only and has no desk tool and no order tool; its report is displayed as data, never passed as an instruction to the desk's agent or to external agents. |
 | **Keys and providers** | The API key stays in the main process, encrypted at rest; provider hosts are pinned and cannot be widened from the interface. |
-| **Network** | The interface runs under a strict Content Security Policy — connections to the app itself and to the loopback only — and calls no outside host; providers and crypto exchanges go through the main process. The MCP gateway and the orchestrator listen on `127.0.0.1` only: no tunnel, no cloud connector. |
+| **Network** | The interface runs under a strict Content Security Policy — connections to the app itself and to the loopback only — and calls no outside host; providers, crypto exchanges and the cloud agent's reports go through the main process. The MCP gateway and the orchestrator listen on `127.0.0.1` only: no tunnel, no cloud connector. |
 | **Updates** | An installer is installed only if `SHA256SUMS.txt` carries a signature from a Lab key embedded in the desk, bound to that version. The private key never touches the repository or GitHub. |
-| **Data** | The journal lives in a local vault and needs no third-party server. No token, secret or key in a log, a vault export, or a commit. |
+| **Data** | The journal lives in a local vault and needs no third-party server; nothing from it goes to the cloud agent. Reports are kept as files in the desk's data folder, outside the vault. No token, secret or key in a log, a vault export, or a commit. |
 
 ---
 
@@ -652,15 +686,16 @@ A trading desk that can send orders earns trust by what it refuses to do. These 
 flowchart LR
     X["MCP clients<br/>Claude · Codex · Cursor"] -->|"HTTP 127.0.0.1:47118 · bearer"| M
     subgraph DESK["CΛNTO desk · Electron · on your machine"]
-        R["Interface<br/>React 19 · 9 modules · strict CSP"] <-->|"IPC · named methods"| M["Main process<br/>guards · dialogs · LLM proxy · signed updates"]
+        R["Interface<br/>React 19 · 9 modules · strict CSP"] <-->|"IPC · named methods"| M["Main process<br/>guards · dialogs · LLM proxy · report pickup · signed updates"]
         R --- V[("Vault<br/>IndexedDB")]
     end
     M <-->|"WebSocket 127.0.0.1:48231 · HMAC"| NT["NinjaTrader 8<br/>CantoBridge AddOn"]
     M -->|"HTTPS · pinned hosts · key held in main"| P["LLM provider"]
     M -.->|"HTTPS · WSS · pinned hosts · crypto module on"| CX["Crypto exchanges<br/>public data"]
+    M -.->|"HTTPS · api.anthropic.com · pull only · Lab desk"| CA["Cloud agent<br/>Managed Agents · reports"]
 ```
 
-The engine (`src/engine`) is pure TypeScript and never imports the interface: metrics, prop firm, Monte Carlo, imports, portfolio, the instrument registry, the execution port, the copier router, indicators and agent tools, and, for crypto, the market registry, its indicators, the temperature and the alerts. Indicators, agent tools and prop plans are registries; agent tools receive injected **ports** rather than writing into the stores. The modules the main process runs are compiled from the same sources and guarded by the same tests.
+The engine (`src/engine`) is pure TypeScript and never imports the interface: metrics, prop firm, Monte Carlo, imports, portfolio, the instrument registry, the execution port, the copier router, indicators and agent tools, the cloud report contract (`canto.rapport/1`), and, for crypto, the market registry, its indicators, the temperature and the alerts. Indicators, agent tools and prop plans are registries; agent tools receive injected **ports** rather than writing into the stores. The modules the main process runs are compiled from the same sources and guarded by the same tests.
 
 <details>
 <summary><b>Source tree</b></summary>
@@ -669,18 +704,22 @@ The engine (`src/engine`) is pure TypeScript and never imports the interface: me
 
 ```
 electron/            shell: window, launcher, updates, dialogs, folder bridge, secrets,
-                     LLM proxy, MCP gateway, orchestrator, crypto switch and feeds
+                     LLM proxy, MCP gateway, orchestrator, crypto switch and feeds,
+                     cloud agent pickup
 electron/nt-bridge/  dedicated JSON-RPC server on 127.0.0.1:48231 (protocol, guards, copier host)
 ninjatrader/         CantoBridge AddOn (atomic CSV and .seen file, WebSocket client)
 src/app/             boot, gate, shell (title bar 44 · rail 220 · status 28), tabs
-src/design/          tokens, primitives, CΛNTO wordmark, SVG charts
+src/design/          tokens, fonts, primitives, CΛNTO wordmark, Horizon seal,
+                     Lab micrographics, SVG charts
 src/engine/          metrics, Monte Carlo, imports, prop firm, portfolio, instruments,
                      official calendar, execution port, copier, indicators, agent tools, crypto
 src/store/           Dexie (IndexedDB) and Zustand stores
 src/modules/         one folder per tab, 01 to 09
-tests/               Vitest — engine, import, vault, calendar, bridge, agent, copier, portfolio, crypto, shell
+tests/               Vitest — engine, import, vault, calendar, bridge, agent, cloud agent, copier,
+                     portfolio, crypto, design, shell
 vectors/             shared JSON vectors (trades and metrics, prop firm, portfolio, copier, execution guards)
-docs/                DESIGN · PONT-NINJATRADER · PROTOCOLE-AGENT · THESE-AGENTIQUE · PUBLICATION · AUDIT
+docs/                DESIGN · PONT-NINJATRADER · PROTOCOLE-AGENT · THESE-AGENTIQUE · AGENT-CLOUD ·
+                     ONGLET-CRYPTO · PUBLICATION · AUDIT
 ```
 
 </details>
@@ -689,7 +728,7 @@ docs/                DESIGN · PONT-NINJATRADER · PROTOCOLE-AGENT · THESE-AGEN
 
 ### Visual system
 
-System 3.4 — **[docs/DESIGN.md](docs/DESIGN.md)**. Carbon `#0A0B0D`, floor `#0F1013`, plate `#16171B`, graphite labels at 4.5:1 or more. Archivo for display and interface, Doto for one readout per screen, JetBrains Mono capitals for labels. The Lab LED `#E5263D` is a 5 px dot and its halo, never decoration. Chrome: title bar 44 · rail 220 · status 28.
+System 4.0 « ΟΡΟΣ » — **[docs/DESIGN.md](docs/DESIGN.md)**. The Lab's night, ivory and gold: night `#07080C` for the chassis, floor `#0D0E12`, plate `#14151A`, ivory ink `#F5F2EA`, labels at 4.5:1 or more. Gold `#CCB066` marks what is alive — the LED, the last price, “now”; signal red `#E10600` marks level 3 only, and nothing reacts to hover. The line tells the state: solid in service, dashed planned or in design, dotted beyond the horizon. Instrument Sans for display and interface, Geist Mono capitals for labels, IBM Plex Sans for the name and the Greek, Doto for one readout per screen. A plate is never decoration: each shows a real state of the desk. The Horizon seal strikes at start-up and closes the lock; one barcode on the chassis, eleven bars between braces, ends the status bar. Chrome: title bar 44 · rail 220 · status 28.
 
 ---
 
@@ -729,6 +768,8 @@ Installers land in `release/`, each built on its own OS.
 - NinjaTrader AddOn 2.3.0 (order fills and average price, a full bridge snapshot) ships only once it has been compiled and tried on Sim.
 - The Lab's model joins the agent presets when its host opens.
 - Crypto markets are added to the crypto tab one by one, release after release; the tab grows with them.
+- The cloud agent's analysis is provisional — a pre-session brief of the day's official publications and their times — until the Lab sets its own instructions and report design.
+- The Lab's reports reach the Lab's own desk for now; delivering them to other desks is not built yet.
 
 ---
 
@@ -738,7 +779,7 @@ Installers land in `release/`, each built on its own OS.
 
 The journal inside the desk lists every release in French, English and Spanish.
 
-- **3.7.0** — Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; the status bar in the chassis black, signed with an eleven-bar code between braces; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected. (2026-10-26)
+- **3.7.0** — Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; the status bar in the chassis black, signed with an eleven-bar code between braces; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected; DOMPurify 3.4.17. (2026-10-26)
 - <a id="whats-new-in-360"></a>**3.6.0** — Optional crypto tab `09 · CRY`, off until you consent in a main-process dialog: live markets with their CVD and the desk's indicators, the Binance market temperature, local alerts, ten `crypto_*` tools for the agent and MCP clients. Network in the main process only, to pinned exchange hosts. (2026-10-13)
 - <a id="whats-new-in-350"></a>**3.5.0** — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. The session in progress, discipline rules, Visual following the bridge. The agent reads your rules and day loss, prepares the brief and the debrief, and the desk refuses its proposed orders when they break your rules; the Copier's follower floor reads the same dated buffer. (2026-10-06)
 - **3.4.0** — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
@@ -777,7 +818,7 @@ The journal inside the desk lists every release in French, English and Spanish.
 > [!WARNING]
 > CΛNTO gives no investment advice. The prop-firm registry is **indicative**: rules change often and must be confirmed with each firm. Whether an order proposed by an AI and confirmed by you is allowed depends on each prop firm's rules: CΛNTO makes no claim of compliance with any firm. Check with yours.
 
-What the desk refuses to do — orders, the agent, Bot, the Copier, the crypto tab, the NinjaTrader bridge — is listed in [Safety by design](#safety-by-design).
+What the desk refuses to do — orders, the agent, the cloud agent, Bot, the Copier, the crypto tab, the NinjaTrader bridge — is listed in [Safety by design](#safety-by-design). The cloud agent is instructed to give no order, no buy or sell recommendation and no position size: its reports are information, not advice.
 
 ---
 
@@ -792,14 +833,14 @@ Personal noncommercial use of this desk is free under the [PolyForm Noncommercia
 
 <br/>
 
-Copied next to the launcher at build time, with the license file beside each family. Bundling and redistribution with the desk are allowed.
+Embedded in the desk (`src/design/fonts/`, Doto from its package) and copied next to the launcher at build time, each with its license file. No font is loaded from a remote server. Bundling and redistribution with the desk are allowed.
 
 | Family | Copyright | License file |
 |---|---|---|
-| Inter (variable, latin and greek) — launcher only | 2016 The Inter Project Authors | `electron/fonts/OFL-Inter.txt` |
-| Archivo (variable, width axis) | 2020 The Archivo Project Authors | `electron/fonts/OFL-Archivo.txt` |
+| Instrument Sans (variable, width axis) | 2022 The Instrument Sans Project Authors | `src/design/fonts/OFL-InstrumentSans.txt` |
+| Geist Mono (variable) | 2024 The Geist Project Authors | `src/design/fonts/OFL-GeistMono.txt` |
+| IBM Plex Sans (500, latin and greek) | 2019 IBM Corp. | `src/design/fonts/OFL-IBMPlexSans.txt` |
 | Doto (variable) | 2024 The Doto Project Authors | `electron/fonts/OFL-Doto.txt` |
-| JetBrains Mono (variable, latin and greek) | 2020 The JetBrains Mono Project Authors | `electron/fonts/OFL-JetBrainsMono.txt` |
 
 </details>
 
