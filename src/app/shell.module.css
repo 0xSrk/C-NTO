@@ -164,6 +164,9 @@
   -webkit-app-region: no-drag;
 }
 
+/* Le rail se mesure lui-même (conteneur de taille) : sa hauteur se lit en px CSS du rail sous le zoom natif du desk
+   (setZoomFactor, que voit aussi une requête @media) comme sous le zoom CSS de la racine du repli navigateur (qu'elle ne
+   voit pas), bande du kill switch comprise. */
 .rail {
   grid-area: rail;
   background: var(--bg-0);
@@ -175,14 +178,18 @@
   overflow: hidden;
   padding: 20px 12px 16px;
   gap: 16px;
+  container: rail / size;
 }
 
+/* S'il faut défiler, la barre, fine, passe dans la marge droite du rail : les cartouches gardent la largeur du compte. */
 .nav {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
   overflow: auto;
+  margin-right: -12px;
+  scrollbar-width: thin;
 }
 
 /* Onglet en cartouche (4.1, décision de l'ADMIN, 2026-10-27) : un filet d'un pixel à l'ivoire très bas, le coin chanfreiné
@@ -195,6 +202,7 @@
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
   column-gap: 12px;
+  width: min(100cqw, 100%);
   min-height: 48px;
   padding: 7px 12px;
   border: 0;
@@ -502,6 +510,30 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
+}
+
+/* Le rail court (fenêtre minimale, zoom relevé) : à 704 px de haut et moins, marges ôtées, le rail ordinaire ne tiendrait
+   plus neuf cartouches dont deux quantités sur deux lignes. Les cartouches passent à 44 px, 4 px entre deux, le compte
+   les suit et le pied se resserre ; à 1180 × 720 au zoom 100 %, les neuf et le compte tiennent sans défiler. Le sceau
+   garde ses 76 px. */
+@container rail (max-height: 704px) {
+  .nav {
+    gap: 4px;
+  }
+  .navItem {
+    min-height: 44px;
+    padding-block: 4px;
+  }
+  .railFoot {
+    gap: 12px;
+  }
+  .account {
+    min-height: 44px;
+    padding-block: 6px;
+  }
+  .accountMark {
+    margin-block: -6px;
+  }
 }
 
 /* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit du rail, le même qu'au verrou — encre
