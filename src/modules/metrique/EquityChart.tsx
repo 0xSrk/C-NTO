@@ -5,7 +5,7 @@ import { Montant, Segmented } from '@/design/primitives';
 import { equityCurve, type EquityCurveData, type EquityGrain, type EquityStep } from '@/engine/equityCurve';
 import type { Session, SessionSource, Trade } from '@/engine/types';
 import { intlTag, tr, useI18n } from '@/i18n';
-import { fmtInt, fmtNum, montantParts } from '@/lib/format';
+import { decimalMark, fmtInt, fmtNum, montantParts } from '@/lib/format';
 import { dateTimeFormatter } from '@/lib/time';
 import { chartHostReady, safePaneHeight } from '@/modules/visual/chartBox';
 import s from './dashboard.module.css';
@@ -93,10 +93,10 @@ const GLYPHS: readonly [GlyphKey, number][] = [
   ['borne', 10],
 ];
 
-/** Montant de plaque : signe, groupes de trois, virgule, deux décimales. */
+/** Montant de plaque : signe, groupes de trois, séparateur décimal de la langue, deux décimales. */
 function plateAmount(value: number): string {
   const parts = montantParts(value, 2);
-  return `${parts.sign}${parts.groups.join(' ')},${parts.decimals}`;
+  return `${parts.sign}${parts.groups.join(' ')}${decimalMark()}${parts.decimals}`;
 }
 
 function sourceLabel(source: SessionSource): string {

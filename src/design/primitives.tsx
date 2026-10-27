@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { BRACE_HEIGHT, BRACE_WIDTH, braceBarsPath, sessionBraceBars } from '@/lib/braceCode';
 import { code128Path } from '@/lib/code128';
-import { montantAria, montantParts, type MontantParts } from '@/lib/format';
+import { useI18n } from '@/i18n';
+import { decimalMark, montantAria, montantParts, type MontantParts } from '@/lib/format';
 import { APP_VERSION } from '@/lib/version';
 import s from './primitives.module.css';
 
@@ -190,6 +191,8 @@ export function Sigil({ size = 11, className, style, engraved, lab = true }: { s
 export const tableClass = s.table;
 
 export function Montant({ value, decimals = 2, discrete, sign = true, className }: { value: number; decimals?: number; discrete?: boolean; sign?: boolean; className?: string }) {
+  // Le séparateur décimal suit la langue : le montant se redessine quand elle change.
+  useI18n((st) => st.locale);
   const parts = montantParts(value, decimals, { sign });
   const label = montantAria(parts);
   if (discrete) return <span className={cx(s.montant, s.masked, className)} aria-label={label}>•••••</span>;
@@ -201,13 +204,17 @@ export function Montant({ value, decimals = 2, discrete, sign = true, className 
           {group}
         </span>
       ))}
-      <span className={s.decimals}>,{parts.decimals}</span>
+      <span className={s.decimals}>
+        {decimalMark()}
+        {parts.decimals}
+      </span>
     </span>
   );
 }
 
 /** Lecteur Doto — un seul par écran, posé sur une plaque vissée. */
 export function Lecteur({ value, decimals = 2, discrete, sign = true }: { value: number; decimals?: number; discrete?: boolean; sign?: boolean }) {
+  useI18n((st) => st.locale);
   const parts = montantParts(value, decimals, { sign });
   const label = montantAria(parts);
   if (discrete) {
@@ -243,7 +250,10 @@ function MontantInner({ parts }: { parts: MontantParts }) {
           {group}
         </span>
       ))}
-      <span className={s.decimals}>,{parts.decimals}</span>
+      <span className={s.decimals}>
+        {decimalMark()}
+        {parts.decimals}
+      </span>
     </>
   );
 }
