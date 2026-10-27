@@ -8,7 +8,7 @@ import { tr, useI18n } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { shortcutLabel } from './KillBand';
 import { glyphsAt, SEAT_ALPHABET, SEAT_TICK_MS } from './seatGlyphs';
-import { FADE_MS, FOLD_AT_MS, reducedTimeline, runUnlockCircuit, UNLOCK_GLYPH_MAX, UNLOCK_GLYPHS, UNLOCK_SEAL, unlockTimeline, WORD_AT_MS, WORD_MS, type UnlockTimeline } from './unlockCircuit';
+import { FADE_MS, FOLD_AT_MS, glyphCapacity, reducedTimeline, runUnlockCircuit, UNLOCK_GLYPH_MAX, UNLOCK_GLYPHS, UNLOCK_SEAL, unlockTimeline, WORD_AT_MS, WORD_MS, type UnlockTimeline } from './unlockCircuit';
 import s from './gate.module.css';
 
 /** L'horizon du sceau (48,27 % de sa hauteur) se pose sur la ligne de l'écran. */
@@ -33,6 +33,17 @@ const PASTE_HINT_MS = 3000;
 function afterFrames(run: () => void) {
   const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb: () => void) => window.setTimeout(cb, 16);
   frame(() => frame(run));
+}
+
+/** Ce que le champ masqué montre de points : sa largeur utile, et le pas d'un point (`1ch` de sa police et l'interlettre). */
+function fieldCapacity(input: HTMLInputElement | null): number {
+  if (!input) return UNLOCK_GLYPH_MAX;
+  const cs = getComputedStyle(input);
+  const inner = input.clientWidth - (Number.parseFloat(cs.paddingLeft) || 0) - (Number.parseFloat(cs.paddingRight) || 0);
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) return UNLOCK_GLYPH_MAX;
+  ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return glyphCapacity(inner, ctx.measureText('0').width + (Number.parseFloat(cs.letterSpacing) || 0));
 }
 
 function prefersReducedMotion(): boolean {
@@ -180,7 +191,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     if (admittedRef.current) return;
     if (ok) {
       admittedRef.current = true;
-      const count = Math.min(UNLOCK_GLYPH_MAX, [...phrase].length);
+      const count = Math.min(fieldCapacity(inputRef.current), [...phrase].length);
       // La phrase quitte le champ tout de suite, rendue à part avant le montage du desk : les points de la rangée de
       // glyphes, en attente, remplacent ceux du champ, et la fiche se ferme à la saisie.
       window.clearTimeout(hintTimer.current);

@@ -21,8 +21,21 @@ export type Pt = readonly [number, number];
 
 /** Les glyphes de la phrase tournent au pas du geste du code d'accolades : même écart, même vie, même cadence. */
 export const UNLOCK_GLYPHS: GlyphPlan = SEAT_DOMINO;
-/** Au plus autant de glyphes, ce que montre le champ ; le geste, lui, ne dépasse jamais sa durée (`maxTotal`). */
+/**
+ * Au plus autant de glyphes ; le geste, lui, ne dépasse jamais sa durée (`maxTotal`). La rangée s'arrête plus tôt si le
+ * champ montre moins de points (`glyphCapacity`) : 28 à 1180 × 720.
+ */
 export const UNLOCK_GLYPH_MAX = 32;
+
+/**
+ * Combien de points le champ masqué montre à la fois, de sa largeur utile et du pas d'un point (un caractère de la police
+ * mono, plus l'interlettre) : la rangée de glyphes n'en pose pas plus, sinon elle sauterait du défilement du champ et
+ * déborderait sur « Coller ». Sans mesure, la borne haute.
+ */
+export function glyphCapacity(inner: number, advance: number): number {
+  if (!(inner > 0) || !(advance > 0)) return UNLOCK_GLYPH_MAX;
+  return Math.max(1, Math.min(UNLOCK_GLYPH_MAX, Math.floor(inner / advance)));
+}
 /** Une piste va de sa pastille à la pointe de l'horizon en ce temps, quelle que soit sa longueur. */
 export const TRAVEL_MS = 380;
 /** La lumière parcourt l'horizon du sceau, de sa pointe droite à sa pointe gauche. */

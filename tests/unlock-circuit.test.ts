@@ -17,6 +17,7 @@ import {
   RING_LEAD_MS,
   RING_MS,
   RING_STEP_MS,
+  glyphCapacity,
   ringAround,
   ringArcs,
   routes,
@@ -201,6 +202,17 @@ describe('OROS4.18 le circuit de l’ouverture', () => {
       if (n % 2 === 1 && n < LANES) expect(lanes[(n - 1) / 2], String(n)).toBe(AXIS_LANE);
     }
     expect([1, 3, 5].map((n) => Array.from({ length: n }, (_, i) => laneOf(i, n)))).toEqual([[3], [0, 3, 6], [0, 2, 3, 5, 6]]);
+  });
+
+  it('OROS4.52 la rangée de glyphes ne pose pas plus de cases que le champ ne montre de points', () => {
+    // 1180 × 720, zoom 1 : 28 points visibles (pas de 11,48 px), alors que la borne haute en permet 32
+    expect(glyphCapacity(330, 11.48)).toBe(28);
+    expect(glyphCapacity(1000, 11.48)).toBe(UNLOCK_GLYPH_MAX);
+    expect(glyphCapacity(5, 11.48)).toBe(1);
+    // sans mesure (aucun rendu), la borne haute
+    expect(glyphCapacity(0, 11.48)).toBe(UNLOCK_GLYPH_MAX);
+    expect(glyphCapacity(330, 0)).toBe(UNLOCK_GLYPH_MAX);
+    expect(glyphCapacity(Number.NaN, 11.48)).toBe(UNLOCK_GLYPH_MAX);
   });
 
   it('du point d’or, le circuit du chargement : l’axe d’or part de l’anneau du mot, tout reste dans l’écran', () => {

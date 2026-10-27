@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { Gate } from '@/app/Gate';
+import { opens } from '@/engine/gate';
 import { SEAL_HORIZON } from '@/design/Seal';
 import { SEAT_ALPHABET, SEAT_DOMINO } from '@/app/seatGlyphs';
 import { reducedTimeline, unlockTimeline } from '@/app/unlockCircuit';
@@ -316,6 +317,24 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(cells.every((c) => c.dataset.phase === 'wait' && c.textContent === '•')).toBe(true);
     // l'horloge, elle, part deux images plus tard
     expect(el.querySelector('[role="dialog"]')!.className).not.toMatch(/admitted/);
+  });
+
+  it('OROS4.52 une phrase plus longue que le champ : la rangée s’arrête aux points qu’il montre, sans déborder sur « Coller »', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    // la mesure du champ : 8,4 px pour un caractère de la police mono, 3,08 px d'interlettre, 330 px utiles
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+      return (this.isConnected ? null : { font: '', measureText: () => ({ width: 8.4 }) }) as never;
+    });
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    Object.defineProperty(input, 'clientWidth', { configurable: true, get: () => 330 });
+    input.style.letterSpacing = '3.08px';
+    const phrase = 'abcdefghijklmnopqrstuvwxyz012345';
+    vi.mocked(opens).mockImplementationOnce(async (p: string) => p === phrase);
+    type(input, phrase);
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    const cells = el.querySelectorAll('[data-part="unlock-glyphs"] [data-phase]');
+    expect(cells).toHaveLength(28);
   });
 
   it('OROS4.32 l’état du verrou se dit hors de la fiche : admise, la fiche devient inerte, et « Ouvert » s’annonce quand même', async () => {
