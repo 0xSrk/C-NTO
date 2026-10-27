@@ -26,24 +26,12 @@
   background-repeat: repeat, repeat;
 }
 
-.nano {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ─── Télémétrie : VERROU, puis UNLOCK le temps du mot ─── */
+/* ─── Le repère de l'écran, seul, en haut à gauche : VERROU, puis UNLOCK le temps du mot ─── */
 .hud {
   position: absolute;
   z-index: 4;
   top: 44px;
   left: 56px;
-  right: 56px;
-  display: flex;
-  justify-content: space-between;
   font-family: var(--font-mono);
   font-size: var(--fs-label);
   letter-spacing: var(--track-11);
@@ -51,21 +39,12 @@
   color: var(--text-3);
   animation: fade-in 0.4s linear 0.08s both;
 }
-.hud b {
-  color: var(--text-0);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
 .slash {
   font-style: normal;
   color: var(--gold);
 }
-.granted {
-  color: var(--gold);
-  text-shadow: 0 0 6px color-mix(in srgb, var(--gold) 40%, transparent);
-}
 
-/* ─── L'horizon de l'écran : le sceau y pose le sien ─── */
+/* ─── L'horizon de l'écran : le sceau y pose le sien et s'y plie ; une LED d'or s'y allume, la couture s'y ouvre ─── */
 .horizon {
   position: absolute;
   left: 0;
@@ -73,28 +52,23 @@
   top: 50%;
   z-index: 2;
   height: 1px;
-  background: color-mix(in srgb, var(--text-0) 14%, transparent);
+  background-color: color-mix(in srgb, var(--text-0) 14%, transparent);
   pointer-events: none;
+  transition:
+    background-color 0.42s linear var(--fold-at, 0.46s),
+    box-shadow 0.5s linear var(--fold-at, 0.46s);
 }
-
-/* Plaque ACCESS (Ligne V2), en haut à droite : coffre local, clé phrase, desk verrouillé. */
-.accessPlate {
+.horizon::after {
+  content: '';
   position: absolute;
-  z-index: 3;
-  top: 10%;
-  right: 5%;
-  width: 200px;
-  pointer-events: none;
-  --k: var(--text-1);
-  --p: var(--bg-0);
-  animation: fade-in 0.4s linear 0.12s both;
-}
-.accessPlate > span {
-  display: block;
-  width: 100%;
-}
-.accessPlate > span > svg {
-  height: auto;
+  left: calc(50% - 12px);
+  top: 0;
+  width: 24px;
+  height: 1px;
+  background: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 80%, transparent);
+  opacity: 0;
+  transition: opacity 0.3s linear var(--word-at, 0.66s);
 }
 
 /* ─── Scène : le sceau à gauche, la fiche d'accès à droite ─── */
@@ -112,12 +86,17 @@
   position: relative;
   pointer-events: none;
 }
-/* Centré dans la scène, le sceau descend de (50 % − --hz) de sa hauteur : son horizon tombe sur la ligne. */
+/* Centré dans la scène, le sceau descend de (50 % − --hz) de sa hauteur : son horizon tombe sur la ligne. À l'ouverture,
+   il glisse au centre de l'écran (--glide), puis se plie dans son horizon : le pli suit la ligne de l'écran. */
 .sealw {
   max-width: 520px;
   margin: 0 auto;
   color: var(--text-0);
   transform: translateY(calc(50% - var(--hz)));
+  transition:
+    translate var(--glide-s, 0.56s) cubic-bezier(0.65, 0, 0.35, 1),
+    scale var(--fold-s, 0.3s) cubic-bezier(0.6, 0, 0.9, 0.4) var(--fold-at, 0.46s),
+    opacity var(--fold-s, 0.3s) linear var(--fold-at, 0.46s);
 }
 .sealSvg {
   display: block;
@@ -130,9 +109,12 @@
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
+  transition:
+    opacity 0.26s linear,
+    translate 0.42s var(--ease-out);
 }
 .heading {
-  margin: 0 0 10px;
+  margin: 0 0 26px;
   font-family: var(--font-display);
   font-size: 52px;
   font-weight: 600;
@@ -150,19 +132,11 @@
   line-height: 1;
   letter-spacing: 0.14em;
 }
-.sub {
-  margin: 0 0 22px;
-  max-width: 34ch;
-  font-size: 15px;
-  line-height: 1.45;
-  color: var(--text-1);
-  text-wrap: balance;
-}
 
-/* La fiche d'accès : filet ivoire, en-tête imprimé (papier et encre), une règle au pied. */
+/* La fiche d'accès (4.1, plus large) : filet ivoire, en-tête imprimé (papier et encre), la phrase et ses gestes. */
 .fiche {
   position: relative;
-  width: min(440px, 100%);
+  width: min(540px, 100%);
   border: 1.5px solid var(--text-0);
   background: var(--bg-0);
   font-family: var(--font-mono);
@@ -181,7 +155,7 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
+  padding: 10px 16px;
   background: var(--ivory);
   color: var(--ink);
   font-size: 11px;
@@ -189,39 +163,39 @@
   line-height: 1.2;
   letter-spacing: 0.06em;
 }
-.fr {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--text-0) 40%, transparent);
+.fin {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 18px 18px;
 }
-.fr > div {
-  padding: 8px 12px;
+.fieldHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
-.fr > div + div {
-  border-left: 1px solid color-mix(in srgb, var(--text-0) 40%, transparent);
-}
-.fr dt {
-  margin: 0 0 3px;
+.fieldLabel {
   font-size: var(--fs-label);
   font-weight: 500;
   line-height: 1.3;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
   color: var(--text-2);
 }
-.fr dd {
-  display: flex;
+.stateLine {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
-  text-transform: uppercase;
-  color: var(--text-0);
 }
 .state {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   white-space: nowrap;
+  color: var(--text-0);
 }
 .led {
   width: 4px;
@@ -237,35 +211,71 @@
   background: var(--ember);
   box-shadow: none;
 }
-.denied .fiche input {
-  border-color: var(--ember);
-}
 
-.fin {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--text-0) 40%, transparent);
+/* La phrase et « Coller » : un seul cadre, le geste de la souris accolé au champ. */
+.inputRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
-.fiche input {
+.inputRow input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  font-size: 14px;
   letter-spacing: 0.22em;
   background: var(--bg-3);
-  border-color: var(--text-0);
+  border: 1px solid var(--text-0);
+  border-right: 0;
   color: var(--text-0);
 }
+/* Le focus se lit sur le cadre entier, le champ et son geste ensemble. */
+.inputRow input:focus,
+.inputRow input:focus-visible {
+  outline: none;
+}
+.inputRow:focus-within {
+  outline: 1px solid var(--gold);
+  outline-offset: 3px;
+}
+.denied .inputRow input {
+  border-color: var(--ember);
+}
+.paste {
+  height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--text-0);
+  background-color: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+  transition:
+    color 200ms linear,
+    background-color 260ms var(--ease-out),
+    box-shadow 320ms var(--ease-out);
+}
+.paste:active {
+  background-color: color-mix(in srgb, var(--ivory) 10%, transparent);
+}
+@media (hover: hover) {
+  .paste:hover {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 6%, transparent);
+    box-shadow: 0 0 18px -6px color-mix(in srgb, var(--ivory) 42%, transparent);
+  }
+}
+
+/* Fermer CΛNTO à gauche, Ouvrir à droite. */
 .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-.hint {
-  font-size: var(--fs-label);
-  font-weight: 500;
-  line-height: 1.3;
-  letter-spacing: 0.08em;
-  color: var(--text-2);
+  padding-top: 4px;
 }
 /* La flèche d'ouverture de la planche, à l'encre du bouton. */
 .bi {
@@ -274,31 +284,7 @@
   --k: currentColor;
 }
 
-.fc {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px 12px;
-}
-/* Une règle là où il n'y a plus de code. */
-.fcr {
-  display: block;
-  --k: var(--text-2);
-}
-.fcr > span {
-  display: block;
-  width: 100%;
-  height: 12px;
-}
-.k {
-  font-size: var(--fs-label);
-  font-weight: 500;
-  line-height: 1.3;
-  letter-spacing: 0.06em;
-  color: var(--text-2);
-}
-
-/* Le mot, dans la police du desk : chasse régulière, les deux mots sur un axe. */
+/* Le mot, dans la police du desk : chasse régulière, les deux mots sur un axe ; il se lève de la ligne. */
 .unlock {
   position: absolute;
   left: 50%;
@@ -324,7 +310,7 @@
   opacity: 0;
 }
 .unlock .live {
-  animation: seal-settle var(--draw, 0.85s) cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation: seal-settle var(--draw, 0.7s) cubic-bezier(0.65, 0, 0.35, 1) var(--word-at, 0.66s) forwards;
 }
 @keyframes seal-settle {
   to {
@@ -333,15 +319,25 @@
   }
 }
 
-/* La scène cède la place au mot. */
-.forming .stage,
-.forming .accessPlate,
-.opening .stage,
-.opening .accessPlate {
-  animation: none;
+/* ─── L'ouverture part du sceau : la fiche se retire, le sceau glisse au centre et se plie, le mot se lève ─── */
+.forming .stack,
+.opening .stack {
   opacity: 0;
+  translate: 18px 0;
   pointer-events: none;
-  transition: opacity 0.16s linear;
+}
+.forming .sealw,
+.opening .sealw {
+  translate: var(--glide, 0px) 0;
+  scale: 1 0.004;
+  opacity: 0.5;
+}
+.forming .horizon {
+  background-color: color-mix(in srgb, var(--text-0) 42%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--text-0) 16%, transparent);
+}
+.forming .horizon::after {
+  opacity: 1;
 }
 .forming .unlock {
   opacity: 1;
@@ -350,10 +346,6 @@
 .opening .unlock {
   opacity: 0;
   transition: opacity 0.22s linear 0.1s;
-}
-.opening .nano {
-  opacity: 0.55;
-  transition: opacity 0.4s linear;
 }
 
 /* ─── Couture : le desk, déjà monté dessous, apparaît par l'horizon ─── */
@@ -430,10 +422,22 @@
   }
 }
 
+/* Mouvement réduit : ni glissement ni pli ; le mot paraît, puis le verrou s'efface. */
 .reduced .fiche,
-.reduced .hud,
-.reduced .accessPlate {
+.reduced .hud {
   animation: none;
+}
+.reduced .stack,
+.reduced .sealw,
+.reduced .horizon,
+.reduced .horizon::after {
+  transition: none;
+}
+.reduced.forming .sealw,
+.reduced.opening .sealw {
+  translate: none;
+  scale: none;
+  opacity: 0;
 }
 .reduced .unlock p {
   animation: none;
@@ -460,14 +464,12 @@
   .hud {
     top: 20px;
     left: 16px;
-    right: 16px;
   }
   .stage {
     grid-template-columns: minmax(0, 1fr);
     padding: 0 24px;
   }
-  .sealbox,
-  .accessPlate {
+  .sealbox {
     display: none;
   }
 }

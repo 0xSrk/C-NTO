@@ -589,6 +589,14 @@ ipcMain.on('window:close', (e) => {
   if (!trusted(e)) return;
   (BrowserWindow.fromWebContents(e.sender) ?? win)?.close();
 });
+// « Coller » : le presse-papiers entre dans le champ qui a le focus, comme Ctrl+V. Le renderer ne le lit jamais lui-même
+// (la permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle.
+ipcMain.on('window:paste', (e) => {
+  if (!trusted(e)) return;
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (!w || !w.isFocused()) return;
+  e.sender.paste();
+});
 
 ipcMain.handle('app:version', (e) => (trusted(e) ? app.getVersion() : ''));
 ipcMain.handle('locale:get', (e) => (trusted(e) ? readLocaleFile(app.getPath('userData')) : 'fr'));

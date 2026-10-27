@@ -364,6 +364,8 @@ export interface DeskApi {
     minimize: () => void;
     toggleMaximize: () => void;
     close: () => void;
+    /** Colle le presse-papiers dans le champ qui a le focus, comme Ctrl+V (bouton « Coller » du verrou). Absent d'un shell plus ancien. */
+    paste?: () => void;
     onMaximized: (cb: (max: boolean) => void) => () => void;
   };
   zoom?: {
