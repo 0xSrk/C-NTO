@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createPasteGate, PASTE_GESTURE_MS } from '../electron/paste-gate';
+import { createPasteGate, PASTE_GESTURE_MS, reopenOnNewDocument } from '../electron/paste-gate';
 
 function gateAt(start = 10_000) {
   let clock = start;
@@ -69,18 +69,40 @@ describe('OROS4.36 le garde du collage du verrou, dans le process principal', ()
     expect(gate.allow(1)).toBe(true);
   });
 
-  it('OROS4.37 la fermeture est nommée au preload, gardée par trusted(e), et la page qui part rouvre le canal pour la suivante', () => {
+  it('OROS4.37 la fermeture est nommée au preload, gardée par trusted(e) ; OROS4.47 un document neuf rouvre le canal, une navigation qui part non', () => {
     const preload = readFileSync('electron/preload.ts', 'utf8');
     const main = readFileSync('electron/main.ts', 'utf8');
     expect(preload).toContain("pasteClose: () => ipcRenderer.send('window:paste-close'),");
     const close = main.slice(main.indexOf("ipcMain.on('window:paste-close'"), main.indexOf('});', main.indexOf("ipcMain.on('window:paste-close'")));
     expect(close).toMatch(/if \(!trusted\(e\)\) return;\s*pasteGate\.close\(e\.sender\.id\);/);
-    expect(main).toMatch(/onPageLeft\(win\.webContents, deskUrl, \(\) => \{[^}]*pasteGate\.reset\(deskContents\.id\);/);
+    expect(main).toContain('reopenOnNewDocument(deskContents, pasteGate, deskContents.id);');
+    // le départ d'une page (did-start-navigation) ne rouvre rien : la page qui a passé le verrou pourrait l'interrompre
+    const left = main.slice(main.indexOf('onPageLeft(win.webContents'), main.indexOf('});', main.indexOf('onPageLeft(win.webContents')));
+    expect(left).not.toContain('pasteGate');
+  });
+
+  it('OROS4.47 le canal ne se rouvre qu’à l’arrivée d’un document neuf : une navigation lancée puis interrompue le laisse fermé', () => {
+    const { gate } = gateAt();
+    const listeners = new Map<string, (() => void)[]>();
+    const contents = { on: (event: string, listener: () => void) => listeners.set(event, [...(listeners.get(event) ?? []), listener]) };
+    const emit = (event: string) => (listeners.get(event) ?? []).forEach((listener) => listener());
+    reopenOnNewDocument(contents, gate, 1);
+    gate.close(1);
+    // la page lance une navigation vers le desk, puis l'arrête : aucun document neuf, le verrou passé reste passé
+    emit('did-start-navigation');
+    emit('did-stop-loading');
+    gate.gesture(1, 'mouseDown');
+    expect(gate.allow(1)).toBe(false);
+    // le rechargement abouti : un document neuf, donc un verrou neuf, et son collage
+    emit('did-navigate');
+    gate.gesture(1, 'mouseDown');
+    expect(gate.allow(1)).toBe(true);
+    expect([...listeners.keys()]).toEqual(['did-navigate']);
   });
 
   it('le process principal s’en sert : chaque événement d’entrée du desk lui est donné, le collage lui est demandé', () => {
     const main = readFileSync('electron/main.ts', 'utf8');
-    expect(main).toContain("import { createPasteGate } from './paste-gate';");
+    expect(main).toContain("import { createPasteGate, reopenOnNewDocument } from './paste-gate';");
     expect(main).toMatch(/deskContents\.on\('input-event', \(_event, input\) => \{\s*pasteGate\.gesture\(deskContents\.id, input\.type\);/);
     expect(main).not.toMatch(/lastGesture|PASTE_GESTURE_MS = /);
   });

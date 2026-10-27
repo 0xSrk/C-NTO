@@ -11,7 +11,7 @@ import { LlmKeySeals } from './llm-key-seals';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { ORCH_RESPONSE_ID_MAX, Orchestrator } from './orchestrator';
 import { deskUrlAllowed, onPageLeft } from './page-left';
-import { createPasteGate } from './paste-gate';
+import { createPasteGate, reopenOnNewDocument } from './paste-gate';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
 import { McpGateway } from './mcp-server';
 import { syncOfficialCalendar } from './calendar';
@@ -400,6 +400,8 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   deskContents.on('input-event', (_event, input) => {
     pasteGate.gesture(deskContents.id, input.type);
   });
+  // Fermé une fois le verrou passé, « Coller » ne se rouvre qu'avec un document neuf, donc un verrou neuf.
+  reopenOnNewDocument(deskContents, pasteGate, deskContents.id);
   const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
   const indexUrl = pathToFileURL(indexFile).href;
   /** Seule règle de navigation de la fenêtre du desk : `will-navigate` et le départ de la page la lisent tous deux. */
@@ -410,8 +412,6 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   onPageLeft(win.webContents, deskUrl, () => {
     void ntBridge?.releaseSubscriptions(); // asynchrone, ne lève pas : passe avant le crypto
     cryptoRuntime?.releaseSubscriptions();
-    // La page suivante a son verrou : « Coller » s'y rouvre.
-    pasteGate.reset(deskContents.id);
   });
   let rendererReloads = 0;
   win.webContents.on('render-process-gone', (_event, details) => {
@@ -615,8 +615,9 @@ ipcMain.handle('window:paste', (e) => {
   e.sender.paste();
   return true;
 });
-// Le verrou passé, « Coller » n'a plus d'appelant : le canal se ferme pour la page, qui ne peut pas le rouvrir ; seule une
-// page neuve, donc un verrou neuf, le rouvre. Pendant la séance, aucun geste de l'opérateur ne peut plus servir à coller.
+// Le verrou passé, « Coller » n'a plus d'appelant : le canal se ferme pour la page, qui ne peut pas le rouvrir ; seul un
+// document neuf, donc un verrou neuf, le rouvre (`did-navigate`, non le départ d'une navigation, qu'elle pourrait
+// interrompre). Pendant la séance, aucun geste de l'opérateur ne peut plus servir à coller.
 ipcMain.on('window:paste-close', (e) => {
   if (!trusted(e)) return;
   pasteGate.close(e.sender.id);

@@ -6,7 +6,7 @@
  * de l'opérateur, vu par le process principal sur `input-event` : appui ou relâchement de souris ou de touche, toucher.
  * Un geste ne vaut qu'un collage. Il ne sait pas quel élément le geste visait : du code de la page pourrait encore
  * profiter d'un geste de l'opérateur. Le canal se ferme donc une fois le verrou passé, son seul appelant (`close`), et ne
- * se rouvre qu'avec une page neuve, donc un verrou neuf (`reset`).
+ * se rouvre qu'avec un document neuf, donc un verrou neuf (`reset`, par `reopenOnNewDocument`).
  */
 
 /** « Coller » n'est honoré que dans ce délai après un geste réel (ms). */
@@ -25,8 +25,23 @@ export interface PasteGate {
   allow(id: number): boolean;
   /** Le verrou est passé : plus de collage pour cette page. */
   close(id: number): void;
-  /** La page s'en va (rechargement, rendu perdu) : la suivante a son verrou, et le canal rouvert. */
+  /** Un document neuf est arrivé (rechargement abouti) : il a son verrou, et le canal rouvert. */
   reset(id: number): void;
+}
+
+/** Ce que `reopenOnNewDocument` lit d'un `webContents` : un événement. */
+export interface DocumentEvents {
+  on(event: 'did-navigate', listener: () => void): unknown;
+}
+
+/**
+ * Rouvre « Coller » quand un document neuf arrive dans le cadre principal (`did-navigate`, émis quand la navigation est
+ * validée, rechargement compris ; jamais pour une ancre ni une navigation interrompue), donc avec un verrou neuf. Pas au
+ * départ d'une navigation : la page qui a passé le verrou pourrait en lancer une, l'interrompre, et rouvrir ainsi le
+ * canal pour elle-même.
+ */
+export function reopenOnNewDocument(contents: DocumentEvents, gate: PasteGate, id: number): void {
+  contents.on('did-navigate', () => gate.reset(id));
 }
 
 export function createPasteGate(now: () => number = Date.now): PasteGate {
