@@ -146,8 +146,8 @@
   color: var(--gold);
   font-weight: 600;
 }
-.day.today .dayNum::after {
-  content: ' · auj.';
+/* « aujourd'hui », dit dans la langue du desk (l'écran l'écrit, plus de texte en dur dans la feuille). */
+.todayMark {
   font-size: 11px;
   letter-spacing: var(--track-11);
 }
@@ -493,10 +493,18 @@
   color: var(--text-0);
   font-weight: 500;
 }
+/*
+ * Le rappel tient dans la colonne : l'heure à sa largeur naturelle (24 h ou 12 h, selon la langue du poste), lisible en
+ * entier ; le titre prend le reste et peut rétrécir ; l'ajout au bout.
+ */
 .persoForm {
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 4px;
+}
+.persoTitle {
+  width: 100%;
+  min-width: 0;
 }
 .noteArea {
   width: 100%;

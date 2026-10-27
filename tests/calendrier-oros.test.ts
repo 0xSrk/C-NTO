@@ -172,6 +172,38 @@ describe('OROS3.4b′ la grille mensuelle marque aussi l’horizon', () => {
   });
 });
 
+describe('OROS4.12 « aujourd’hui » dans la langue du desk ; le rappel tient dans sa colonne', () => {
+  it('la case du jour dit « auj. », « today », « hoy » : la feuille de style n’écrit plus de texte', async () => {
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+    const { useI18n } = await import('@/i18n');
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, calendarView: 'grille' } });
+    const node = await calendrier();
+    const today = () => node.querySelector('[data-day="2026-10-28"]')?.textContent ?? '';
+    expect(today()).toBe('28 · auj.');
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect(today()).toBe('28 · today');
+    await act(async () => useI18n.setState({ locale: 'es' }));
+    expect(today()).toBe('28 · hoy');
+    // Un autre jour ne porte pas la marque.
+    expect(node.querySelector('[data-day="2026-10-29"]')?.textContent).toBe('29');
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8')).not.toMatch(/content:\s*'[^']*[a-z]/i);
+  });
+
+  it('le formulaire du rappel ne déborde pas : l’heure se lit en entier, le titre rétrécit, l’ajout reste au bout', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8');
+    // L'heure garde sa largeur naturelle (« 14:30 » comme « 02:30 PM ») ; seul le titre rétrécit.
+    expect(css).toMatch(/\.persoForm \{[^}]*grid-template-columns: auto minmax\(0, 1fr\) auto/);
+    expect(css).toMatch(/\.persoTitle \{[^}]*min-width: 0/);
+    const node = await calendrier();
+    const form = node.querySelector('aside form')!;
+    expect([...form.children].map((el) => el.tagName)).toEqual(['INPUT', 'INPUT', 'BUTTON']);
+    expect(form.children[0]?.getAttribute('type')).toBe('time');
+    expect(form.children[1]?.classList.length).toBe(1);
+  });
+});
+
 describe('OROS4.10 la colonne s’ouvre sans plaque : chaque relevé est dit une fois, à sa place', () => {
   it('ni plaque TIME ENGINE ni cadre de HUD : la colonne commence par la légende du trait', async () => {
     const node = await calendrier();

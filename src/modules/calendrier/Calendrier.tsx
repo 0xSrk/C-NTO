@@ -575,7 +575,10 @@ export default function Calendrier() {
                         onKeyDown={onActivate(() => setSelected(d))}
                       >
                         <div className={s.dayHead} data-day={d}>
-                          <span className={s.dayNum}>{Number(d.slice(-2))}</span>
+                          <span className={s.dayNum}>
+                            {Number(d.slice(-2))}
+                            {d === today ? <span className={s.todayMark}> · {tr('auj.', 'today', 'hoy')}</span> : null}
+                          </span>
                           {d === hzDay && <Glyph name="horizon" className={s.hzGlyph} label={tr('Horizon', 'Horizon', 'Horizonte')} />}
                           {sess && <span className={cx(s.dayPnl, signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>}
                         </div>
@@ -958,7 +961,7 @@ function DaySide({
           ))}
         <form className={s.persoForm} onSubmit={(ev) => void addReminder(ev)}>
           <input type="time" value={evTime} onChange={(e) => setEvTime(e.target.value)} aria-label={tr('Heure du rappel', 'Reminder time', 'Hora del recordatorio')} />
-          <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder={tr('Rappel…', 'Reminder…', 'Recordatorio…')} aria-label={tr('Titre du rappel', 'Reminder title', 'Título del recordatorio')} />
+          <input className={s.persoTitle} value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder={tr('Rappel…', 'Reminder…', 'Recordatorio…')} aria-label={tr('Titre du rappel', 'Reminder title', 'Título del recordatorio')} />
           <Button size="sm" type="submit" title={tr('Ajouter', 'Add', 'Añadir')} aria-label={tr('Ajouter le rappel', 'Add reminder', 'Añadir el recordatorio')} disabled={busy || !evTitle.trim()}>
             <IconPlus size={12} />
           </Button>
