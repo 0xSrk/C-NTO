@@ -285,6 +285,27 @@
   --k: var(--gold);
   opacity: 1;
 }
+/*
+ * Un même trait pour tous les emblèmes : un trait de 0,75 sur une grande boîte (Visual 26, Note 91, Portefeuille 130,
+ * Agent 29) tomberait sous 0,25 px à 20 px ; il est relevé à ≈ 0,5 px rendu, le poids des autres emblèmes. Le dessin du
+ * master ne change pas, seulement sa graisse.
+ */
+.navEmblem :global(.g26-1),
+.navEmblem :global(.g26-2),
+.navEmblem :global(.g26-3) {
+  stroke-width: 3.6px;
+}
+.navEmblem :global(.g91-1) {
+  stroke-width: 1.8px;
+}
+.navEmblem :global(.g130-1),
+.navEmblem :global(.g130-2),
+.navEmblem :global(.g130-3) {
+  stroke-width: 2.2px;
+}
+.navEmblem :global(.g29-1) {
+  stroke-width: 3.5px;
+}
 .navText {
   min-width: 0;
   display: flex;
@@ -560,6 +581,10 @@
 .layerGlyph {
   width: 18px;
   height: 18px;
+}
+/* La couche IA (composant 29, Agent et Bot) : son trait de 0,75 sur 140 unités disparaîtrait à 18 px ; relevé à ≈ 0,5 px rendu. */
+.layerGlyph :global(.g29-1) {
+  stroke-width: 3.9px;
 }
 /* Le relevé du module (poches, sources, marchés…) : une ligne de données sur la même ligne que le nom. */
 .moduleMeta {

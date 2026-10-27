@@ -68,6 +68,39 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--gold\)/);
   });
 
+  it('OROS4.14 chaque emblème du rail et chaque couche d’en-tête pèse le même trait : entre 0,4 et 0,75 px rendu', async () => {
+    const { COMPONENTS } = await import('@/design/micro/assets');
+    const { LAYER_GLYPH } = await import('@/app/moduleLayers');
+    const { cssRules } = await import('./helpers/cssRules');
+    const rules = cssRules(shellCss);
+    /** La graisse qu'impose la feuille du châssis à une classe du master, sous `scope`. */
+    const override = (scope: string, cls: string) => {
+      for (const r of rules) {
+        if (r.selector.split(',').some((sel) => sel.trim() === `${scope} :global(.${cls})`)) return Number.parseFloat(/stroke-width:\s*([\d.]+)px/.exec(r.body)?.[1] ?? 'NaN');
+      }
+      return null;
+    };
+    const check = (n: number, size: number, scope: string, what: string) => {
+      const svg = COMPONENTS[n]!;
+      const [, , w, h] = /viewBox="([^"]+)"/.exec(svg)![1]!.split(' ').map(Number);
+      const scale = size / Math.max(w!, h!);
+      const style = /<style>([^<]*)<\/style>/.exec(svg)?.[1] ?? '';
+      for (const [, selectors, body] of style.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        const width = /stroke-width:\s*([\d.]+)px/.exec(body!)?.[1];
+        if (!width) continue;
+        for (const [, cls] of selectors!.matchAll(/\.(g\d+-\d+)/g)) {
+          const rendered = (override(scope, cls!) ?? Number(width)) * scale;
+          expect(rendered, `${what} · .${cls}`).toBeGreaterThanOrEqual(0.4);
+          expect(rendered, `${what} · .${cls}`).toBeLessThanOrEqual(0.75);
+        }
+      }
+    };
+    expect(rule(shellCss, '.navEmblem')).toMatch(/width: 20px;\s*height: 20px/);
+    expect(rule(shellCss, '.layerGlyph')).toMatch(/width: 18px;\s*height: 18px/);
+    for (const tab of TABS) check(GLYPH_ID[tab.id], 20, '.navEmblem', `rail ${tab.id}`);
+    for (const [layer, glyph] of Object.entries(LAYER_GLYPH)) check(GLYPH_ID[glyph], 18, '.layerGlyph', `couche ${layer}`);
+  });
+
   it('OROS4.11 la quantité du rail n’est jamais coupée : elle passe à la ligne, deux lignes au plus, entre ses parties', async () => {
     const { useNotes } = await import('@/store/notes');
     const { useLinks } = await import('@/store/links');
