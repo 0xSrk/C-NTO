@@ -180,78 +180,83 @@
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
   min-height: 0;
   overflow: auto;
 }
 
-/* Onglet gravé (4.1) : emblème, nom et contenu, numéro du raccourci ; l'encre au repos est gravée dans la nuit. */
+/* Onglet en cartouche (4.1, décision de l'ADMIN, 2026-10-27) : un filet d'un pixel à l'ivoire très bas, le coin chanfreiné
+   de la Ligne V2, un fond à peine levé ; l'emblème en tête, le nom et dessous ce que le module contient ; le numéro du
+   raccourci en code, au coin, sous le chanfrein. */
 .navItem {
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
   column-gap: 12px;
-  min-height: 44px;
-  padding: 6px 12px 6px 14px;
+  min-height: 48px;
+  padding: 7px 12px;
   border: 0;
-  color: var(--text-2);
+  color: var(--text-1);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
-  text-shadow: 0 -1px 0 color-mix(in srgb, var(--bg-void) 90%, transparent);
   transition: color 240ms linear;
 }
-/* La lumière de l'onglet ouvert : un filament d'or au bord, qui se déplie ; une lueur blanche, douce, qui monte. */
+/* Deux calques découpés au chanfrein : le filet (::before), puis le fond (::after), retiré d'un pixel. */
 .navItem::before {
   content: '';
   position: absolute;
   pointer-events: none;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  background: var(--gold);
-  box-shadow:
-    0 0 6px color-mix(in srgb, var(--gold) 70%, transparent),
-    0 0 16px color-mix(in srgb, var(--gold) 28%, transparent);
-  opacity: 0;
-  transform: scaleY(0.3);
-  transition: opacity 280ms linear, transform 460ms var(--ease-out);
+  inset: 0;
+  z-index: -2;
+  background: color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
+  clip-path: var(--chamfer);
+  transition: background-color 280ms var(--ease-out);
 }
+/* Le chanfrein du fond, retiré d'un pixel : 10 − (2 − √2) ≈ 9,4 px ; le filet du biais garde son pixel. */
 .navItem::after {
   content: '';
   position: absolute;
   pointer-events: none;
-  inset: 0;
+  inset: 1px;
   z-index: -1;
-  background: radial-gradient(140% 120% at 0% 50%, color-mix(in srgb, var(--ivory) 8%, transparent), transparent 72%);
-  opacity: 0;
-  transition: opacity 360ms var(--ease-out);
+  background: color-mix(in srgb, var(--ivory) 1.5%, var(--bg-0));
+  clip-path: polygon(0 0, calc(100% - 9.4px) 0, 100% 9.4px, 100% 100%, 0 100%);
+  transition: background-color 280ms var(--ease-out);
 }
+/* L'onglet ouvert : le filet s'éclaircit et la lumière zénithale se pose sur son arête haute ; le fond se lève à peine,
+   éclairé d'en haut ; l'emblème passe à l'or. La nuit reste. */
 .navItem.on {
   color: var(--text-0);
 }
 .navItem.on::before {
-  opacity: 1;
-  transform: none;
+  background:
+    linear-gradient(90deg, transparent 4%, color-mix(in srgb, var(--ivory) 70%, transparent) 50%, transparent 96%) top / 100% 1px no-repeat,
+    color-mix(in srgb, var(--ivory) 18%, var(--bg-0));
 }
 .navItem.on::after {
-  opacity: 1;
+  background:
+    linear-gradient(color-mix(in srgb, var(--ivory) 6%, transparent), transparent 60%),
+    color-mix(in srgb, var(--ivory) 2%, var(--bg-0));
 }
+/* Au passage du pointeur, la lumière monte sur le filet et le fond ; rien ne bouge. */
 @media (hover: hover) {
   .navItem:hover {
-    color: var(--text-1);
-  }
-  .navItem.on:hover {
     color: var(--text-0);
   }
-  .navItem:hover::after {
-    opacity: 0.45;
+  .navItem:hover::before {
+    background-color: color-mix(in srgb, var(--ivory) 12%, var(--bg-0));
   }
-  .navItem.on:hover::after {
-    opacity: 1;
+  .navItem.on:hover::before {
+    background-color: color-mix(in srgb, var(--ivory) 24%, var(--bg-0));
+  }
+  .navItem:hover::after {
+    background-color: color-mix(in srgb, var(--ivory) 2.5%, var(--bg-0));
+  }
+  .navItem:hover .navIndex {
+    color: var(--text-1);
   }
   .navItem:hover .navEmblem {
     opacity: 1;
@@ -298,9 +303,17 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+}
+/* Le nom et, quand l'orchestrateur tourne, le badge LIEN sur la même ligne. */
+.navHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 .navLabel {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -313,7 +326,7 @@
   font-size: 10px;
   font-weight: 500;
   line-height: 1.3;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-2);
   display: -webkit-box;
@@ -325,21 +338,28 @@
 .navQtyPart {
   white-space: nowrap;
 }
-/* Le numéro du raccourci (Ctrl+1…9), au bout de l'onglet. */
+/* Le numéro du raccourci (Ctrl+1…9) : un code discret au coin de la cartouche, sous le chanfrein. */
 .navIndex {
+  position: absolute;
+  top: 6px;
+  right: 14px;
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.08em;
+  line-height: 12px;
+  letter-spacing: 0.06em;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
+  transition: color 240ms linear;
 }
 .navItem.on .navQty,
 .navItem.on .navIndex {
   color: var(--text-1);
 }
 .lienBadge {
+  flex: none;
   font-family: var(--font-mono);
   font-size: 10px;
+  line-height: 1;
   letter-spacing: 0.12em;
   color: var(--gold);
 }

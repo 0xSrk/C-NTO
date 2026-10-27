@@ -50,7 +50,7 @@ const rule = (css: string, selector: string) => {
 };
 
 describe('OROS2.11 composants de la planche dans le châssis', () => {
-  it('OROS4.2 chaque module du rail porte son emblème en tête, seul ; l’onglet ouvert l’allume à l’or, le numéro du raccourci au bout', () => {
+  it('OROS4.2 chaque module du rail porte son emblème en tête, seul ; l’onglet ouvert l’allume à l’or ; OROS4.19 le numéro du raccourci au coin', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     for (const tab of TABS) {
       const item = el.querySelector<HTMLElement>(`nav button[data-tab="${tab.id}"]`);
@@ -63,7 +63,9 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
       expect(index?.textContent, tab.id).toBe(tab.index);
       expect(emblem!.compareDocumentPosition(index!) & Node.DOCUMENT_POSITION_FOLLOWING, tab.id).toBeTruthy();
     }
-    expect(rule(shellCss, '.navItem')).toMatch(/grid-template-columns: 20px minmax\(0, 1fr\) auto/);
+    expect(rule(shellCss, '.navItem')).toMatch(/grid-template-columns: 20px minmax\(0, 1fr\);/);
+    // le code du raccourci sort de la grille : il se pose au coin, sous le chanfrein, et laisse au nom toute la largeur
+    expect(rule(shellCss, '.navIndex')).toMatch(/position: absolute;\s*top: 6px;\s*right: 14px;/);
     expect(rule(shellCss, '.navEmblem')).toMatch(/--k: var\(--text-1\)/);
     expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--gold\)/);
   });

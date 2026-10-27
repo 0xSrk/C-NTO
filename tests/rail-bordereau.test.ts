@@ -54,7 +54,7 @@ describe('OROS2.3 rail-bordereau', () => {
     expect(railQuantity('crypto', EMPTY)).toBeNull();
   });
 
-  it('OROS4.2 le rail n’a plus de catégorie : chaque module gravé dit sa quantité ; l’onglet ouvert s’allume, filament d’or et lueur blanche', () => {
+  it('OROS4.19 le rail n’a plus de catégorie : chaque module, en cartouche, dit sa quantité ; l’onglet ouvert s’éclaire, filet plus clair et lumière au sommet', () => {
     expect(shell).not.toMatch(/BORDEREAU|MANIFEST|EN CONCEPTION|IN DESIGN|navLabelHead|conceptLabel|dashed/);
     expect(css).not.toMatch(/\.navLabelHead|\.conceptLabel|\.navItem\.dashed/);
     expect(shell).toMatch(/qty=\{railQuantity\(item\.id, snapshot\)\}/);
@@ -63,10 +63,19 @@ describe('OROS2.3 rail-bordereau', () => {
     const on = rule('.navItem.on');
     expect(on).not.toMatch(/--ivory|--ink/);
     expect(on).toMatch(/color:\s*var\(--text-0\)/);
-    expect(rule('.navItem::before')).toMatch(/background:\s*var\(--gold\)/);
-    expect(rule('.navItem.on::before')).toMatch(/opacity:\s*1/);
-    expect(rule('.navItem::after')).toMatch(/radial-gradient\(/);
-    expect(rule('.navItem.on::after')).toMatch(/opacity:\s*1/);
+    // la cartouche : un filet d'un pixel à l'ivoire très bas, découpé au chanfrein du Lab, et son fond retiré d'un pixel
+    const ivory = (body: string) => Number(/color-mix\(in srgb, var\(--ivory\) ([\d.]+)%, var\(--bg-0\)\)\s*;?\s*$/m.exec(body)?.[1] ?? NaN);
+    const frame = rule('.navItem::before');
+    expect(frame).toMatch(/clip-path:\s*var\(--chamfer\)/);
+    expect(ivory(frame)).toBeLessThanOrEqual(8);
+    expect(rule('.navItem::after')).toMatch(/inset:\s*1px/);
+    // l'onglet ouvert : le filet s'éclaircit, la lumière se pose sur son arête haute ; plus de filament d'or au bord
+    const lit = rule('.navItem.on::before');
+    expect(ivory(lit)).toBeGreaterThan(ivory(frame));
+    expect(lit).toMatch(/top \/ 100% 1px no-repeat/);
+    expect(css).not.toMatch(/scaleY\(0\.3\)/);
+    // le numéro du raccourci devient un code au coin de la cartouche
+    expect(rule('.navIndex')).toMatch(/position:\s*absolute/);
     expect(rule('.navQty')).toMatch(/font-family:\s*var\(--font-mono\)/);
   });
 });

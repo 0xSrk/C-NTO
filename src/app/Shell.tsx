@@ -245,7 +245,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       {kill.engaged && <KillBand shortcut={kill.shortcut} />}
 
       <aside className={s.rail} data-chassis="rail">
-        {/* Les modules gravés à même le rail, sans catégorie : chacun son emblème, son nom, ce qu'il contient. */}
+        {/* Les modules en cartouches, sans catégorie : chacun son emblème, son nom, ce qu'il contient, son code au coin. */}
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
           {TABS.map((item) => (
             <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
@@ -353,18 +353,21 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 }
 
 /**
- * Un onglet du rail (4.1) : l'emblème du module en tête (composant de la planche), le nom et ce que le module contient,
- * le numéro du raccourci au bout. L'onglet ouvert s'allume : un filament d'or au bord, une lueur blanche, l'emblème à l'or.
+ * Un onglet du rail (4.1) : une cartouche — filet d'un pixel, coin chanfreiné, fond à peine levé. L'emblème du module en
+ * tête (composant de la planche), le nom et, dessous, ce que le module contient ; le numéro du raccourci en code, au coin,
+ * sous le chanfrein. L'onglet ouvert s'allume : filet plus clair, lumière zénithale au sommet, l'emblème à l'or.
  */
 function RailButton({ itemId, index, label, qty, on, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; link?: boolean; onClick: () => void }) {
   return (
     <button type="button" className={cx(s.navItem, on && s.on)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
       <Glyph name={itemId} className={s.navEmblem} />
       <span className={s.navText}>
-        <span className={s.navLabel}>{label}</span>
+        <span className={s.navHead}>
+          <span className={s.navLabel}>{label}</span>
+          {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
+        </span>
         {qty ? <RailQty text={qty} /> : null}
       </span>
-      {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
       <span className={s.navIndex} data-part="rail-index" aria-hidden>
         {index}
       </span>
