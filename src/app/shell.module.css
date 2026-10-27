@@ -907,7 +907,8 @@
 .zoomBtn:disabled {
   opacity: 0.35;
 }
-/* « − 95 % + » (4.1) : un seul cadre fin, la valeur au milieu, deux carrés égaux pour − et + ; traits de 1,2 px. */
+/* « − 95 % + » (4.1) : un seul cadre fin, la valeur au milieu, deux carrés égaux pour − et + ; traits de 1,2 px. Le cadre
+   compte ses filets (border-box) : 22 px de haut, 20 dedans, et chaque geste est un carré de 20 × 20. */
 .zoomPad {
   display: inline-flex;
   align-items: stretch;
@@ -918,7 +919,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
+  width: 20px;
 }
 .zoomPct {
   display: inline-flex;

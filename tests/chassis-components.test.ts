@@ -268,10 +268,29 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(group.querySelector(`svg.skg-${GLYPH_ID.zoom}`)).toBeNull();
     // le pourcentage reste lisible et bascule auto / manuel
     expect(pct!.textContent).toMatch(/AUTO|FIXE/);
-    // un cadre fin, deux carrés égaux, la lumière au passage du pointeur
+    // un cadre fin (les carrés : OROS4.46)
     expect(rule(shellCss, '.zoomPad')).toMatch(/height: 22px/);
-    expect(rule(shellCss, '.zoomBtn')).toMatch(/width: 22px/);
     expect(shellCss).not.toMatch(/\.zoomPlus|\.zoomMinus/);
+  });
+
+  it('OROS4.46 les deux gestes du zoom sont de vrais carrés : leur côté est la hauteur du cadre, ses filets ôtés', async () => {
+    const { cssRules } = await import('./helpers/cssRules');
+    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`(?:^|[\\s;{])${prop}: ([\\d.]+)px`).exec(body)?.[1] ?? 'NaN');
+    // Le desk compte les filets dans la boîte : le cadre de 22 px ne laisse que 20 px de haut à ses boutons, étirés.
+    // Comparer la hauteur du cadre à la largeur du bouton donnait des « carrés » de 22 × 20 (mesurés dans Chromium).
+    expect(readFileSync('src/design/tokens.css', 'utf8')).toMatch(/\*,\s*\*::before,\s*\*::after\s*\{\s*box-sizing: border-box;/);
+    const pad = rule(shellCss, '.zoomPad');
+    expect(pad).toMatch(/align-items: stretch;/);
+    const filet = Number(/border: ([\d.]+)px solid/.exec(pad)?.[1]);
+    const inner = px(pad, 'height') - 2 * filet;
+    const btn = rule(shellCss, '.zoomBtn');
+    expect(px(btn, 'width')).toBe(inner);
+    // rien sur le bouton ne fausse le carré : ni marge intérieure, ni filet, ni hauteur à lui, dans aucune de ses règles
+    const own = cssRules(shellCss).filter((r) => r.selector.split(',').some((sel) => /^\.zoomBtn(?::not\(:disabled\))?$/.test(sel.trim())));
+    expect(own.length).toBeGreaterThanOrEqual(2);
+    for (const r of own) expect(r.props.filter((prop) => /^(padding|border|height|min-height|box-sizing)/.test(prop)), r.selector).toEqual([]);
+    // sur la grille de 4 px du desk, les filets à part
+    expect(inner % 4).toBe(0);
   });
 
   it('l’en-tête de panneau pose son code entre repères d’angle ; chaque panneau a ses croix de calage aux quatre coins', () => {
