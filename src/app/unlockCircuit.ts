@@ -147,8 +147,14 @@ const BUNDLE_GAP = 3;
 /** Le faisceau se forme à cette distance de la pointe, puis s'y resserre. */
 const ELBOW = 18;
 
-/** La voie de chaque pastille : de gauche à droite, de haut en bas ; ainsi aucune piste n'en croise une autre. */
+/**
+ * La voie de chaque pastille : de gauche à droite, de haut en bas ; ainsi aucune piste n'en croise une autre. L'axe,
+ * la voie du milieu, est toujours pris : une phrase courte et impaire y pose sa pastille du milieu, les autres
+ * s'écartent symétriquement ; sinon la pastille de l'axe est celle que la répartition y amène.
+ */
 export function laneOf(i: number, n: number): number {
+  if (n === 1) return AXIS_LANE;
+  if (n < LANES && n % 2 === 1) return Math.round((i * (LANES - 1)) / (n - 1));
   return Math.min(LANES - 1, Math.floor((i * LANES) / Math.max(1, n)));
 }
 

@@ -191,6 +191,18 @@ describe('OROS4.18 le circuit de l’ouverture', () => {
     expect(routes({ pads: [[tip[0] + 20, 380]], fieldBottom: 400, tip })).toEqual([]);
   });
 
+  it('OROS4.30 l’axe d’or est toujours pris : une phrase courte et impaire pose sa pastille du milieu dessus', () => {
+    for (let n = 1; n <= 32; n++) {
+      const lanes = Array.from({ length: n }, (_, i) => laneOf(i, n));
+      expect(lanes, String(n)).toContain(AXIS_LANE);
+      for (let i = 1; i < n; i++) expect(lanes[i]!, String(n)).toBeGreaterThanOrEqual(lanes[i - 1]!);
+      expect(Math.min(...lanes), String(n)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...lanes), String(n)).toBeLessThan(LANES);
+      if (n % 2 === 1 && n < LANES) expect(lanes[(n - 1) / 2], String(n)).toBe(AXIS_LANE);
+    }
+    expect([1, 3, 5].map((n) => Array.from({ length: n }, (_, i) => laneOf(i, n)))).toEqual([[3], [0, 3, 6], [0, 2, 3, 5, 6]]);
+  });
+
   it('du point d’or, le circuit du chargement : l’axe d’or part de l’anneau du mot, tout reste dans l’écran', () => {
     const [W, H, cx, cy] = [1600, 1000, 800, 500];
     const word = { left: 560, top: 471, width: 480, height: 58 };
