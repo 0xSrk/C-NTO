@@ -110,6 +110,18 @@ describe('OROS2.10 cartouches du châssis', () => {
     expect(header).not.toMatch(/tagline|def\.code|<Cartouche/);
   });
 
+  it('OROS4.21 le numéro et le nom du module ne cèdent jamais : à l’étroit, les actions passent à la ligne de l’en-tête', () => {
+    const plate = rule('.modulePlate');
+    expect(plate).toMatch(/flex: none;/);
+    expect(plate).not.toMatch(/min-width: 0/);
+    const head = rule('.moduleHead');
+    expect(head).toMatch(/flex-wrap: wrap;/);
+    expect(head).toMatch(/gap: 10px 18px;/);
+    // le relevé, lui, s'abrège ; les actions gardent leur bord droit sur leur ligne
+    expect(rule('.moduleMeta')).toMatch(/min-width: 0;[^}]*text-overflow: ellipsis;/);
+    expect(rule('.moduleActions')).toMatch(/flex-wrap: wrap;[^}]*justify-content: flex-end;[^}]*margin-left: auto;/);
+  });
+
   it('la bande du kill switch : cartouche SK-SIG-3 rouge, titre, sous-titre, plaque critique à droite, 66 px', () => {
     const el = mount(createElement(KillBand));
     const band = el.querySelector<HTMLElement>('[role="alert"]');
