@@ -207,10 +207,9 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(handler).toMatch(/if \(!trusted\(e\)\) return;/);
     expect(handler).toMatch(/if \(!w \|\| !w\.isFocused\(\)\) return;/);
     expect(handler).toMatch(/e\.sender\.paste\(\);/);
-    // OROS4.28 juste après un geste réel de l'opérateur, vu par le process principal, et un collage par geste
-    expect(handler).toMatch(/if \(Date\.now\(\) - at > PASTE_GESTURE_MS\) return;\s*lastGesture\.delete\(e\.sender\.id\);\s*e\.sender\.paste\(\);/);
-    expect(main).toMatch(/const PASTE_GESTURE_MS = 1500;/);
-    expect(main).toMatch(/deskContents\.on\('input-event', \(_event, input\) => \{\s*if \(input\.type === 'mouseDown' \|\| input\.type === 'keyDown' \|\| input\.type === 'rawKeyDown'\) lastGesture\.set\(deskContents\.id, Date\.now\(\)\);/);
+    // OROS4.28 juste après un geste réel de l'opérateur, vu par le process principal, et un collage par geste ; OROS4.36 le
+    // garde vit dans electron/paste-gate.ts, éprouvé à l'horloge factice par tests/paste-gate.test.ts
+    expect(handler).toMatch(/if \(!pasteGate\.allow\(e\.sender\.id\)\) return;\s*e\.sender\.paste\(\);/);
     expect(main).toContain("const PERMISSIONS_ALLOWED = new Set(['clipboard-sanitized-write']);");
   });
 
