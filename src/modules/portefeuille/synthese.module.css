@@ -44,6 +44,8 @@
   gap: 8px;
 }
 .head { padding: 14px 22px 10px; border-bottom: 1px solid var(--line-1); }
+/* Dans une carte à marge, l'en-tête reprend toute la largeur : son titre s'aligne sur celui de B.02, son filet va d'un bord à l'autre. */
+.pad > .head { margin: -14px -22px 0; }
 .code {
   font-family: var(--font-mono);
   font-size: 10px;
