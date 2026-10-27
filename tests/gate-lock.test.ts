@@ -16,7 +16,7 @@ import { GLYPH_ID } from '@/design/micro/assets';
 vi.mock('@/engine/gate', () => ({ opens: vi.fn(async (phrase: string) => phrase === 'la phrase') }));
 
 // Le shell du desk, présent ou non selon le test : « Coller » et « Fermer CΛNTO » passent par lui.
-const shell = vi.hoisted(() => ({ desk: undefined as undefined | { window: { close: () => void; paste?: () => void } } }));
+const shell = vi.hoisted(() => ({ desk: undefined as undefined | { window: { close: () => void; paste?: () => Promise<boolean> | void; pasteClose?: () => void } } }));
 vi.mock('@/lib/desk', () => ({
   get desk() {
     return shell.desk;
@@ -390,6 +390,24 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.37 la phrase admise, le verrou ferme le canal « Coller » du process principal, une fois', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const pasteClose = vi.fn();
+    shell.desk = { window: { close: () => undefined, paste: async () => true, pasteClose } };
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    // une phrase refusée ne le ferme pas : il faut pouvoir coller la bonne
+    type(input, 'canto');
+    await submitFake(form);
+    expect(pasteClose).not.toHaveBeenCalled();
+    type(input, 'la phrase');
+    await submitFake(form);
+    expect(pasteClose).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(600));
+    expect(pasteClose).toHaveBeenCalledTimes(1);
   });
 
   it('OROS4.34 un collage qui répond après l’admission n’entre plus dans le champ', async () => {

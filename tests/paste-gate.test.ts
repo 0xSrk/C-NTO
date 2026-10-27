@@ -50,6 +50,34 @@ describe('OROS4.36 le garde du collage du verrou, dans le process principal', ()
     expect(gate.allow(2)).toBe(true);
   });
 
+  it('OROS4.37 le verrou passé, le canal se ferme ; une page neuve, donc un verrou neuf, le rouvre', () => {
+    const { gate } = gateAt();
+    gate.gesture(1, 'mouseDown');
+    gate.close(1);
+    expect(gate.allow(1)).toBe(false);
+    // plus aucun geste ne le rouvre : c'est là qu'il protège, pendant toute la séance
+    gate.gesture(1, 'mouseUp');
+    gate.gesture(1, 'keyDown');
+    expect(gate.allow(1)).toBe(false);
+    // les autres pages ne sont pas touchées
+    gate.gesture(2, 'mouseDown');
+    expect(gate.allow(2)).toBe(true);
+    // la page s'en va (rechargement, rendu perdu) : la suivante a son verrou, et son collage
+    gate.reset(1);
+    expect(gate.allow(1)).toBe(false);
+    gate.gesture(1, 'mouseDown');
+    expect(gate.allow(1)).toBe(true);
+  });
+
+  it('OROS4.37 la fermeture est nommée au preload, gardée par trusted(e), et la page qui part rouvre le canal pour la suivante', () => {
+    const preload = readFileSync('electron/preload.ts', 'utf8');
+    const main = readFileSync('electron/main.ts', 'utf8');
+    expect(preload).toContain("pasteClose: () => ipcRenderer.send('window:paste-close'),");
+    const close = main.slice(main.indexOf("ipcMain.on('window:paste-close'"), main.indexOf('});', main.indexOf("ipcMain.on('window:paste-close'")));
+    expect(close).toMatch(/if \(!trusted\(e\)\) return;\s*pasteGate\.close\(e\.sender\.id\);/);
+    expect(main).toMatch(/onPageLeft\(win\.webContents, deskUrl, \(\) => \{[^}]*pasteGate\.reset\(deskContents\.id\);/);
+  });
+
   it('le process principal s’en sert : chaque événement d’entrée du desk lui est donné, le collage lui est demandé', () => {
     const main = readFileSync('electron/main.ts', 'utf8');
     expect(main).toContain("import { createPasteGate } from './paste-gate';");

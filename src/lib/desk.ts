@@ -366,6 +366,8 @@ export interface DeskApi {
     close: () => void;
     /** Colle le presse-papiers dans le champ qui a le focus, comme Ctrl+V (bouton « Coller » du verrou). Absent d'un shell plus ancien. */
     paste?: () => void;
+    /** Le verrou est passé : le process principal ferme « Coller » pour cette page. Absent d'un shell plus ancien. */
+    pasteClose?: () => void;
     onMaximized: (cb: (max: boolean) => void) => () => void;
   };
   zoom?: {

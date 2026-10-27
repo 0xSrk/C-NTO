@@ -410,6 +410,8 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
   onPageLeft(win.webContents, deskUrl, () => {
     void ntBridge?.releaseSubscriptions(); // asynchrone, ne lève pas : passe avant le crypto
     cryptoRuntime?.releaseSubscriptions();
+    // La page suivante a son verrou : « Coller » s'y rouvre.
+    pasteGate.reset(deskContents.id);
   });
   let rendererReloads = 0;
   win.webContents.on('render-process-gone', (_event, details) => {
@@ -603,13 +605,19 @@ ipcMain.on('window:close', (e) => {
 // permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle,
 // et seulement juste après un geste réel de l'opérateur, vu par le process principal : un collage par geste. Le garde ne
 // sait pas ce que visait le geste : du code de la page pourrait encore profiter d'un geste de l'opérateur pour coller dans
-// un champ à lui (`./paste-gate`).
+// un champ à lui, d'où la fermeture du canal une fois le verrou passé (`./paste-gate`).
 ipcMain.on('window:paste', (e) => {
   if (!trusted(e)) return;
   const w = BrowserWindow.fromWebContents(e.sender);
   if (!w || !w.isFocused()) return;
   if (!pasteGate.allow(e.sender.id)) return;
   e.sender.paste();
+});
+// Le verrou passé, « Coller » n'a plus d'appelant : le canal se ferme pour la page, qui ne peut pas le rouvrir ; seule une
+// page neuve, donc un verrou neuf, le rouvre. Pendant la séance, aucun geste de l'opérateur ne peut plus servir à coller.
+ipcMain.on('window:paste-close', (e) => {
+  if (!trusted(e)) return;
+  pasteGate.close(e.sender.id);
 });
 
 ipcMain.handle('app:version', (e) => (trusted(e) ? app.getVersion() : ''));

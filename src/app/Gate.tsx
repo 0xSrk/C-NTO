@@ -168,6 +168,8 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
         setValue('');
         setCells(count);
       });
+      // « Coller » n'a plus d'appelant : le process principal le ferme pour la séance.
+      desk?.window.pasteClose?.();
       // Le desk se monte dessous ; son premier rendu est lourd. L'horloge de l'ouverture part deux images plus tard, sur
       // un fil libre : sinon ses glyphes sauteraient et la fiche se figerait le temps du montage.
       admitRef.current();
