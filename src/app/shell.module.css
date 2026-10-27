@@ -314,12 +314,14 @@
   flex-direction: column;
   gap: 3px;
 }
-/* Le nom et, quand l'orchestrateur tourne, le badge LIEN sur la même ligne. */
+/* Le nom et, quand l'orchestrateur tourne, le badge LIEN sur la même ligne. La ligne laisse au numéro du coin sa place
+   (14 + 13,2 px depuis le bord, moins les 12 px de marge) et un peu d'air : trop longue, le nom cède, jamais le badge. */
 .navHead {
   display: flex;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
+  padding-right: 20px;
 }
 .navLabel {
   flex: 0 1 auto;

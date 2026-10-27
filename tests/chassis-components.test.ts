@@ -91,6 +91,24 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     }
   });
 
+  it('OROS4.41 le numéro du coin garde sa place : la ligne du nom et du badge s’arrête avant lui ; trop longue, le nom cède, jamais le badge', () => {
+    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`(?:^|[\\s;{])${prop}: ([\\d.-]+)px`).exec(body)?.[1] ?? 'NaN');
+    // Le numéro, hors du flux : deux chiffres de Geist Mono (chasse de 0,6 em), espacés de 0,06 em, à 14 px du bord droit,
+    // soit 27,2 px depuis le bord de la cartouche (mesuré dans Chromium : 13,2 px de large).
+    const index = rule(shellCss, '.navIndex');
+    const spacing = Number(/letter-spacing: ([\d.]+)em/.exec(index)?.[1]);
+    const footprint = px(index, 'right') + 2 * px(index, 'font-size') * (0.6 + spacing);
+    expect(footprint).toBeCloseTo(27.2, 1);
+    // La ligne du nom finit à la marge de la cartouche plus sa réserve. Sans réserve, elle allait jusqu'à 12 px du bord,
+    // sous le numéro : ENLACE le chevauchait de 6,9 px quand une barre classique ramenait la cartouche à 180 px.
+    const margin = Number(/padding: [\d.]+px ([\d.]+)px/.exec(rule(shellCss, '.navItem'))?.[1]);
+    const reserve = px(rule(shellCss, '.navHead'), 'padding-right') || 0;
+    expect(margin + reserve - footprint).toBeGreaterThanOrEqual(4);
+    // Trop longue, la ligne fait céder le nom, à l'ellipse ; le badge garde sa place.
+    expect(rule(shellCss, '.navLabel')).toMatch(/flex: 0 1 auto;[\s\S]*min-width: 0;[\s\S]*text-overflow: ellipsis;/);
+    expect(rule(shellCss, '.lienBadge')).toMatch(/flex: none;/);
+  });
+
   it('OROS4.14 chaque emblème du rail et chaque couche d’en-tête pèse le même trait : entre 0,4 et 0,75 px rendu', async () => {
     const { COMPONENTS } = await import('@/design/micro/assets');
     const { LAYER_GLYPH } = await import('@/app/moduleLayers');
