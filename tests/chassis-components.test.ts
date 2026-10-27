@@ -70,6 +70,27 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--gold\)/);
   });
 
+  it('OROS4.19a l’orchestrateur en service : le badge LIEN se pose sur la ligne du nom, le numéro reste au coin', async () => {
+    const { useAgent } = await import('@/store/agent');
+    const orchestrator = useAgent.getState().orchestrator;
+    useAgent.setState({ orchestrator: { ...orchestrator, running: true } });
+    try {
+      const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+      const agent = el.querySelector<HTMLElement>('nav button[data-tab="agent"]')!;
+      const badge = [...agent.querySelectorAll('span')].find((span) => span.textContent === 'LIEN')!;
+      expect(badge).toBeDefined();
+      // le badge suit le nom dans sa ligne ; la grille de l'onglet ne garde que l'emblème et le texte
+      const head = badge.parentElement!;
+      expect(head.className).toMatch(/navHead/);
+      expect(head.firstElementChild?.textContent).toBe('Agent IA');
+      expect(badge.parentElement!.closest('[class*="navText"]')).not.toBeNull();
+      expect([...agent.children].filter((child) => !/navIndex|srOnly/.test(child.className))).toHaveLength(2);
+      expect(rule(shellCss, '.navHead')).toMatch(/display: flex;\s*align-items: baseline;/);
+    } finally {
+      useAgent.setState({ orchestrator });
+    }
+  });
+
   it('OROS4.14 chaque emblème du rail et chaque couche d’en-tête pèse le même trait : entre 0,4 et 0,75 px rendu', async () => {
     const { COMPONENTS } = await import('@/design/micro/assets');
     const { LAYER_GLYPH } = await import('@/app/moduleLayers');
