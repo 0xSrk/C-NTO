@@ -205,7 +205,8 @@
   color: var(--text-2);
   white-space: nowrap;
 }
-/* La couleur de l'option : son composant et sa lecture la portent, jamais son nom. */
+/* La couleur de l'option : son composant et sa lecture la portent, jamais son nom ; sans composant ni lecture, un point
+   de la couleur, celui du bouton (une suppression, à la braise). */
 .item.gold .glyph {
   --k: var(--gold);
 }

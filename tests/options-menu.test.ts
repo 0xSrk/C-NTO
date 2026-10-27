@@ -150,6 +150,27 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     expect(bare.trigger.textContent).toBe('Options');
   });
 
+  it('OROS4.24 une option sans composant ni lecture porte sa couleur en point : « Supprimer la série » se lit à la braise', () => {
+    const { trigger, entries } = mount([
+      { id: 'demo', label: 'Régénérer la démo', onSelect: () => undefined },
+      { id: 'supprimer', label: 'Supprimer la série', tone: 'ember', group: true, onSelect: () => undefined },
+    ]);
+    act(() => trigger.click());
+    const [plain, remove] = entries();
+    expect(plain!.querySelector('[data-tone]')).toBeNull();
+    const dot = remove!.querySelector<HTMLElement>('[data-tone="ember"]');
+    expect(dot).not.toBeNull();
+    expect(dot!.className).toMatch(/mark/);
+    expect(dot!.className).toMatch(/ember/);
+    expect(dot!.parentElement!.getAttribute('aria-hidden')).toBe('true');
+    // le nom, lui, reste à l'encre de toutes les options ; le point prend la braise du bouton
+    expect(rule('.mark.ember')).toMatch(/background: var\(--ember\)/);
+    expect(css).not.toMatch(/\.item\.ember \.label|\.item\.ember \{/);
+    // le Visual pose la suppression d'une série importée à la braise
+    const visual = readFileSync('src/modules/visual/Visual.tsx', 'utf8');
+    expect(visual).toMatch(/id: 'supprimer'[^}]*tone: 'ember'/);
+  });
+
   it('parle la langue du desk', () => {
     useI18n.setState({ locale: 'es' });
     const { trigger } = mount([{ id: 'a', label: 'Acción', onSelect: () => undefined }]);
