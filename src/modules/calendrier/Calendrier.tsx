@@ -429,7 +429,14 @@ export default function Calendrier() {
           </>
         }
         options={[
-          { id: 'estimees', label: tr('Dates estimées', 'Estimated dates', 'Fechas estimadas'), checked: showEstimated, onSelect: () => setShowEstimated(!showEstimated) },
+          // Masquées, les dates estimées le disent sur le bouton : la grille perd des publications, l'en-tête le montre.
+          {
+            id: 'estimees',
+            label: tr('Dates estimées', 'Estimated dates', 'Fechas estimadas'),
+            checked: showEstimated,
+            state: showEstimated ? undefined : tr('masquées', 'hidden', 'ocultas'),
+            onSelect: () => setShowEstimated(!showEstimated),
+          },
           {
             id: 'synchro',
             group: true,
