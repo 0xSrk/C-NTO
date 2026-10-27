@@ -401,17 +401,22 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
     const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
     const status = () => el.querySelector('[role="status"]')!.textContent;
+    const said = () => el.querySelector('[data-part="paste-hint"]')!.textContent;
     await act(async () => {
       button.click();
       await vi.advanceTimersByTimeAsync(0);
     });
+    act(() => vi.advanceTimersByTime(40));
     expect(paste).toHaveBeenCalledTimes(1);
     expect(button.textContent).toBe('Ctrl+V');
-    expect(status()).toBe('Collez avec Ctrl+V');
+    // OROS4.49 le rappel a sa propre région vivante : l'état du verrou reste où il est
+    expect(said()).toBe('Collez avec Ctrl+V');
+    expect(status()).toBe('Fermé');
     expect(document.activeElement).toBe(input);
-    // le rappel s'efface de lui-même, ou dès que le champ change
+    // le rappel s'efface de lui-même, ou dès que le champ change, sans rien annoncer de plus
     act(() => vi.advanceTimersByTime(3000));
     expect(button.textContent).toBe('Coller');
+    expect(said()).toBe('');
     expect(status()).toBe('Fermé');
     await act(async () => {
       button.click();
@@ -432,6 +437,55 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
       button.click();
       await vi.advanceTimersByTimeAsync(0);
     });
+    expect(button.textContent).toBe('Coller');
+  });
+
+  it('OROS4.49 le rappel de collage ne masque jamais l’état : la soumission l’efface, un refus répété se redit', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    shell.desk = { window: { close: () => undefined, paste: async () => false } };
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
+    const region = el.querySelector<HTMLElement>('[data-part="paste-hint"]')!;
+    const status = el.querySelector<HTMLElement>('[role="status"]')!;
+    // la région du rappel est vivante, entière, et hors de la fiche qui devient inerte
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(region.getAttribute('aria-atomic')).toBe('true');
+    expect(region.closest('form')).toBeNull();
+    expect(region.textContent).toBe('');
+    const refuse = async () => {
+      await act(async () => {
+        button.click();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      act(() => vi.advanceTimersByTime(40));
+    };
+    await refuse();
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    // un second refus, dans les 3 s : la région se vide puis se redit, pour être entendue à nouveau
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(region.textContent).toBe('');
+    act(() => vi.advanceTimersByTime(40));
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    // une phrase fausse, soumise pendant le rappel : « Refusé » se dit aussitôt, le rappel se tait
+    type(input, 'canto');
+    await refuse();
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    await submitFake(form);
+    expect(status.textContent).toBe('Refusé');
+    expect(region.textContent).toBe('');
+    expect(button.textContent).toBe('Coller');
+    // la bonne, soumise pendant le rappel : « Ouvert » aussitôt
+    type(input, 'la phrase');
+    await refuse();
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    await submitFake(form);
+    expect(status.textContent).toBe('Ouvert');
+    expect(region.textContent).toBe('');
     expect(button.textContent).toBe('Coller');
   });
 

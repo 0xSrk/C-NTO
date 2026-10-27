@@ -61,6 +61,8 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const [refused, setRefused] = useState(false);
   /** Le process principal a refusé « Coller » : le bouton montre le raccourci, un temps. */
   const [pasteHint, setPasteHint] = useState(false);
+  /** Le rappel dit dans sa région vivante : vidé puis reposé à chaque refus, pour se faire entendre chaque fois. */
+  const [hintSaid, setHintSaid] = useState(false);
   const hintTimer = useRef(0);
   const [busy, setBusy] = useState(false);
   /** La longueur de la phrase admise, seule chose qui en reste : la rangée de glyphes la remplace dans le champ. */
@@ -95,7 +97,13 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const hint = (on: boolean) => {
     window.clearTimeout(hintTimer.current);
     setPasteHint(on);
-    if (on) hintTimer.current = window.setTimeout(() => setPasteHint(false), PASTE_HINT_MS);
+    setHintSaid(false);
+    if (!on) return;
+    afterFrames(() => setHintSaid(true));
+    hintTimer.current = window.setTimeout(() => {
+      setPasteHint(false);
+      setHintSaid(false);
+    }, PASTE_HINT_MS);
   };
 
   useEffect(() => {
@@ -177,8 +185,11 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
       const count = Math.min(UNLOCK_GLYPH_MAX, [...phrase].length);
       // La phrase quitte le champ tout de suite, rendue à part avant le montage du desk : les points de la rangée de
       // glyphes, en attente, remplacent ceux du champ, et la fiche se ferme à la saisie.
+      window.clearTimeout(hintTimer.current);
       flushSync(() => {
         setRefused(false);
+        setPasteHint(false);
+        setHintSaid(false);
         setValue('');
         setCells(count);
       });
@@ -195,6 +206,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
       return;
     }
     setBusy(false);
+    hint(false);
     setRefused(true);
     setValue('');
     inputRef.current?.focus();
@@ -282,7 +294,11 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
 
       {/* L'état du verrou pour les aides techniques, hors de la fiche : admise, elle devient inerte et son mot s'efface. */}
       <p className={s.srOnly} role="status">
-        {pasteHint ? tr(`Collez avec ${pasteKey}`, `Paste with ${pasteKey}`, `Pegue con ${pasteKey}`) : stateWord}
+        {stateWord}
+      </p>
+      {/* Le rappel du raccourci, dans sa propre région : il ne masque jamais l'état, et se vider ne s'annonce pas. */}
+      <p className={s.srOnly} data-part="paste-hint" aria-live="polite" aria-atomic="true">
+        {pasteHint && hintSaid ? tr(`Collez avec ${pasteKey}`, `Paste with ${pasteKey}`, `Pegue con ${pasteKey}`) : ''}
       </p>
 
       {/* La ligne d'horizon de l'écran : le sceau y pose le sien et s'y plie ; le mot s'en déplie. */}
