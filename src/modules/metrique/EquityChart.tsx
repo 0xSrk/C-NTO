@@ -124,7 +124,7 @@ function plateValues(curve: EquityCurveData, sessions: readonly Session[], stats
     sessions: fmtInt(sessions.length),
     trades: stats ? fmtInt(stats.trades) : null,
     win: stats ? fmtNum(stats.winRate * 100, 1) : null,
-    pf: stats ? (Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2).replace('.', ',') : '∞') : null,
+    pf: stats ? (Number.isFinite(stats.profitFactor) ? fmtNum(stats.profitFactor, 2) : '∞') : null,
   };
 }
 
