@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { Gate } from '@/app/Gate';
 import { SEAL_HORIZON } from '@/design/Seal';
 import { SEAT_ALPHABET, SEAT_DOMINO } from '@/app/seatGlyphs';
-import { reducedTimeline, unlockTimeline } from '@/app/unlockCircuit';
+import { ABRIDGE_GRACE_MS, reducedTimeline, unlockTimeline } from '@/app/unlockCircuit';
 import { GLYPH_ID } from '@/design/micro/assets';
 
 // La phrase reste celle du moteur (tests/desk-gate.test.ts) ; ici, une doublure : seule « la phrase » ouvre.
@@ -342,7 +342,7 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     const el = mount({ onReveal, onOpen });
     type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
     await submitFake(el.querySelector<HTMLFormElement>('form')!);
-    act(() => vi.advanceTimersByTime(200));
+    act(() => vi.advanceTimersByTime(ABRIDGE_GRACE_MS + 100));
     expect(onReveal).not.toHaveBeenCalled();
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -360,6 +360,35 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     // une seconde touche ne relance rien
     act(() => {
       window.dispatchEvent(new PointerEvent('pointerdown'));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.33 le geste qui a ouvert n’abrège pas : ni le second clic d’un double-clic sur « Ouvrir », ni Entrée tenue', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const onReveal = vi.fn();
+    const el = mount({ onReveal });
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    const admittedAt = performance.now();
+    // le second clic d'un double-clic, 120 puis 250 ms après le premier
+    for (const ms of [120, 250]) {
+      advanceTo(admittedAt, ms);
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointerdown'));
+      });
+    }
+    expect(onReveal).not.toHaveBeenCalled();
+    // Entrée tenue : la répétition de la touche, même après le délai du geste
+    advanceTo(admittedAt, ABRIDGE_GRACE_MS + 60);
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true }));
+    });
+    expect(onReveal).not.toHaveBeenCalled();
+    expect(el.querySelector('[role="dialog"]')!.className).not.toMatch(/revealing/);
+    // un geste neuf, lui, abrège
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     expect(onReveal).toHaveBeenCalledTimes(1);
   });

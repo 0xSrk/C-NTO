@@ -34,6 +34,8 @@ export const RING_MS = 520;
 /** Le point d'or s'allume après la dernière arrivée, et tient avant que le sceau ne parte. */
 export const GOLD_AFTER_MS = 160;
 export const GOLD_HOLD_MS = 120;
+/** Le geste qui a ouvert n'abrège pas : le second clic d'un double-clic tombe dans cette fenêtre (ms). */
+export const ABRIDGE_GRACE_MS = 500;
 /** Le sceau glisse au centre (ms), se plie à partir de (ms), pendant (ms), jusqu'à cette hauteur. */
 export const GLIDE_MS = 500;
 export const FOLD_AT_MS = 340;
