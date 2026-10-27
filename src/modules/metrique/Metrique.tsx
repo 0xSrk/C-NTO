@@ -208,9 +208,9 @@ export default function Metrique() {
               value={range}
               onChange={setRange}
               options={[
-                { value: '7j', label: '7J' },
-                { value: '30j', label: '30J' },
-                { value: '90j', label: '90J' },
+                { value: '7j', label: tr('7J', '7D', '7D') },
+                { value: '30j', label: tr('30J', '30D', '30D') },
+                { value: '90j', label: tr('90J', '90D', '90D') },
                 { value: 'tout', label: tr('TOUT', 'ALL', 'TODO') },
               ]}
             />

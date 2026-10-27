@@ -69,7 +69,7 @@ export function fmtRatio(v: number | undefined | null, digits = 2): string {
 
 export function fmtPoints(v: number | undefined | null): string {
   if (v === undefined || v === null || !Number.isFinite(v)) return '—';
-  return `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} pts`;
+  return `${v > 0 ? '+' : ''}${fixedFormatter(2).format(unsignZero(v))} pts`;
 }
 
 /** Prix à `digits` décimales (2 par défaut : les futures) ; un marché de petit prix demande davantage. */

@@ -147,7 +147,7 @@
   font-weight: 600;
 }
 .day.today .dayNum::after {
-  content: ' · auj.';
+  content: ' · ' attr(data-today);
   font-size: 11px;
   letter-spacing: var(--track-11);
 }

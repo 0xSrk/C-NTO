@@ -382,8 +382,8 @@ export default function Portefeuille() {
               value={preset}
               onChange={setPreset}
               options={[
-                { value: '7j', label: '7J' },
-                { value: '30j', label: '30J' },
+                { value: '7j', label: tr('7J', '7D', '7D') },
+                { value: '30j', label: tr('30J', '30D', '30D') },
                 { value: 'trimestre', label: tr('TRIM.', 'QTR.', 'TRIM.') },
                 { value: 'annee', label: tr('ANNÉE', 'YEAR', 'AÑO') },
               ]}

@@ -44,7 +44,8 @@ export function llmHostAllowed(baseUrl: string, extra: string[] = []): boolean {
   void extra;
   try {
     const u = new URL(baseUrl);
-    const host = u.hostname.toLowerCase();
+    // Crochets d'une adresse IPv6 retirés, comme dans le main (`llmHostOk`).
+    const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
     if (LOOPBACK_HOSTS.has(host)) {
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
     } else if (u.protocol !== 'https:') {
