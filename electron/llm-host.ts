@@ -10,7 +10,8 @@ export function llmHostOk(baseUrl: string, extra?: unknown): boolean {
   void extra;
   try {
     const u = new URL(baseUrl);
-    const host = u.hostname.toLowerCase();
+    // `URL.hostname` écrit une adresse IPv6 entre crochets (« [::1] ») ; la liste l'écrit nue.
+    const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
     if (LOOPBACK.has(host)) {
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
     } else if (u.protocol !== 'https:') {

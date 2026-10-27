@@ -2,7 +2,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LLM_HOSTS, llmHostAllowed, llmKeyBound, probeProvider, streamChat } from '@/engine/agent/llm';
-import { keyFor, llmFetch, llmHostOk, llmKeyHost } from '../electron/llm-host';
+import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from '../electron/llm-host';
 
 async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -128,5 +128,20 @@ describe('clé API liée à son hôte', () => {
     expect(llmKeyHost('http://localhost:11434/v1')).toBe('localhost:11434');
     expect(llmKeyHost('http://[::1]:8080/v1')).toBe('[::1]:8080');
     expect(llmKeyHost('pas une url')).toBe('');
+  });
+});
+
+describe('R3.7i la boucle locale IPv6 [::1] est un hôte épinglé comme les autres', () => {
+  it('`URL.hostname` garde les crochets : les deux contrôles les retirent, comme `llmLoopback`', () => {
+    for (const url of ['http://[::1]:11434/v1', 'https://[::1]:8443/v1', 'http://[::1]/v1']) {
+      expect(llmHostOk(url), url).toBe(true);
+      expect(llmHostAllowed(url), url).toBe(true);
+      expect(llmLoopback(url), url).toBe(true);
+    }
+    // Ni un autre schéma, ni une autre adresse IPv6, ni un renderer qui voudrait élargir la liste.
+    for (const url of ['ftp://[::1]:11434/v1', 'https://[2001:db8::1]/v1', 'http://[::2]:11434/v1']) {
+      expect(llmHostOk(url, ['[2001:db8::1]', '2001:db8::1']), url).toBe(false);
+      expect(llmHostAllowed(url, ['[2001:db8::1]', '2001:db8::1']), url).toBe(false);
+    }
   });
 });
