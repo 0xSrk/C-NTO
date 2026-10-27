@@ -202,14 +202,15 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
   it('OROS4.6 le canal « Coller » : nommé au preload, gardé par trusted(e), seulement pour la fenêtre au premier plan ; OROS4.28 juste après un geste réel ; la lecture du presse-papiers reste refusée au renderer', () => {
     const preload = readFileSync('electron/preload.ts', 'utf8');
     const main = readFileSync('electron/main.ts', 'utf8');
-    expect(preload).toContain("paste: () => ipcRenderer.send('window:paste'),");
-    const handler = main.slice(main.indexOf("ipcMain.on('window:paste'"), main.indexOf('});', main.indexOf("ipcMain.on('window:paste'")));
-    expect(handler).toMatch(/if \(!trusted\(e\)\) return;/);
-    expect(handler).toMatch(/if \(!w \|\| !w\.isFocused\(\)\) return;/);
-    expect(handler).toMatch(/e\.sender\.paste\(\);/);
+    // OROS4.38 le process principal dit s'il a collé
+    expect(preload).toContain("paste: () => ipcRenderer.invoke('window:paste') as Promise<boolean>,");
+    const handler = main.slice(main.indexOf("ipcMain.handle('window:paste'"), main.indexOf('});', main.indexOf("ipcMain.handle('window:paste'")));
+    expect(handler).toMatch(/if \(!trusted\(e\)\) return false;/);
+    expect(handler).toMatch(/if \(!w \|\| !w\.isFocused\(\)\) return false;/);
+    expect(handler).toMatch(/e\.sender\.paste\(\);\s*return true;/);
     // OROS4.28 juste après un geste réel de l'opérateur, vu par le process principal, et un collage par geste ; OROS4.36 le
     // garde vit dans electron/paste-gate.ts, éprouvé à l'horloge factice par tests/paste-gate.test.ts
-    expect(handler).toMatch(/if \(!pasteGate\.allow\(e\.sender\.id\)\) return;\s*e\.sender\.paste\(\);/);
+    expect(handler).toMatch(/if \(!pasteGate\.allow\(e\.sender\.id\)\) return false;\s*e\.sender\.paste\(\);/);
     expect(main).toContain("const PERMISSIONS_ALLOWED = new Set(['clipboard-sanitized-write']);");
   });
 
@@ -390,6 +391,48 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.38 un collage refusé se dit : le bouton montre le raccourci, l’annonce le dit, le champ garde le focus', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const paste = vi.fn(async () => false);
+    shell.desk = { window: { close: () => undefined, paste } };
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
+    const status = () => el.querySelector('[role="status"]')!.textContent;
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(paste).toHaveBeenCalledTimes(1);
+    expect(button.textContent).toBe('Ctrl+V');
+    expect(status()).toBe('Collez avec Ctrl+V');
+    expect(document.activeElement).toBe(input);
+    // le rappel s'efface de lui-même, ou dès que le champ change
+    act(() => vi.advanceTimersByTime(3000));
+    expect(button.textContent).toBe('Coller');
+    expect(status()).toBe('Fermé');
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(button.textContent).toBe('Ctrl+V');
+    type(input, 'la phrase');
+    expect(button.textContent).toBe('Coller');
+    // un collage accepté ne dit rien ; un shell plus ancien, qui ne répond pas, non plus
+    paste.mockResolvedValueOnce(true);
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(button.textContent).toBe('Coller');
+    shell.desk.window.paste = vi.fn(() => undefined);
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(button.textContent).toBe('Coller');
   });
 
   it('OROS4.37 la phrase admise, le verrou ferme le canal « Coller » du process principal, une fois', async () => {

@@ -6,6 +6,7 @@ import { Seal, SEAL_HORIZON } from '@/design/Seal';
 import { opens } from '@/engine/gate';
 import { tr, useI18n } from '@/i18n';
 import { desk } from '@/lib/desk';
+import { shortcutLabel } from './KillBand';
 import { glyphsAt, SEAT_ALPHABET, SEAT_TICK_MS } from './seatGlyphs';
 import { ABRIDGE_GRACE_MS, FADE_MS, FOLD_AT_MS, reducedTimeline, runUnlockCircuit, UNLOCK_GLYPH_MAX, UNLOCK_GLYPHS, UNLOCK_SEAL, unlockTimeline, WORD_AT_MS, WORD_MS, type UnlockTimeline } from './unlockCircuit';
 import s from './gate.module.css';
@@ -24,6 +25,9 @@ const TIMING = {
 const BULLET = '•';
 /** La dernière lettre du Lab d'un glyphe qui tourne : c'est elle qui se pose en pastille. */
 const LAST_FRAME = Math.floor((UNLOCK_GLYPHS.spin - 1) / UNLOCK_GLYPHS.frame);
+
+/** Le rappel du raccourci, après un collage refusé (ms). */
+const PASTE_HINT_MS = 3000;
 
 /** Deux images plus tard : le rendu demandé avant est posé et peint. */
 function afterFrames(run: () => void) {
@@ -55,6 +59,9 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   useI18n((st) => st.locale);
   const [value, setValue] = useState('');
   const [refused, setRefused] = useState(false);
+  /** Le process principal a refusé « Coller » : le bouton montre le raccourci, un temps. */
+  const [pasteHint, setPasteHint] = useState(false);
+  const hintTimer = useRef(0);
   const [busy, setBusy] = useState(false);
   /** La longueur de la phrase admise, seule chose qui en reste : la rangée de glyphes la remplace dans le champ. */
   const [cells, setCells] = useState<number | null>(null);
@@ -83,6 +90,13 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
 
   const admitted = cells !== null;
   const live = unlock !== null;
+
+  useEffect(() => () => window.clearTimeout(hintTimer.current), []);
+  const hint = (on: boolean) => {
+    window.clearTimeout(hintTimer.current);
+    setPasteHint(on);
+    if (on) hintTimer.current = window.setTimeout(() => setPasteHint(false), PASTE_HINT_MS);
+  };
 
   useEffect(() => {
     if (!unlock) return;
@@ -209,7 +223,10 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     if (!input || admittedRef.current) return;
     input.focus();
     if (desk?.window.paste) {
-      desk.window.paste();
+      // Sans geste réel récent (une aide technique, un clic de script), le process principal refuse : le champ garde le
+      // focus, et le bouton dit le raccourci du clavier.
+      const pasted = await desk.window.paste();
+      if (pasted === false && !admittedRef.current) hint(true);
       return;
     }
     try {
@@ -228,6 +245,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
 
   const stateWord = admitted ? tr('Ouvert', 'Open', 'Abierto') : refused ? tr('Refusé', 'Refused', 'Rechazado') : tr('Fermé', 'Closed', 'Cerrado');
   const lock = tr('VERROU', 'LOCK', 'CERROJO');
+  const pasteKey = shortcutLabel('CommandOrControl+V');
   const past = (moment: number | undefined) => unlock !== null && moment !== undefined && t >= moment;
   // Les glyphes de la phrase, au temps de l'ouverture : en attente (avant l'horloge aussi), le point du champ ; puis les
   // lettres du Lab ; posés, la pastille d'où part leur piste.
@@ -264,7 +282,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
 
       {/* L'état du verrou pour les aides techniques, hors de la fiche : admise, elle devient inerte et son mot s'efface. */}
       <p className={s.srOnly} role="status">
-        {stateWord}
+        {pasteHint ? tr(`Collez avec ${pasteKey}`, `Paste with ${pasteKey}`, `Pegue con ${pasteKey}`) : stateWord}
       </p>
 
       {/* La ligne d'horizon de l'écran : le sceau y pose le sien et s'y plie ; le mot s'en déplie. */}
@@ -316,6 +334,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
                   value={value}
                   onChange={(event) => {
                     setRefused(false);
+                    if (pasteHint) hint(false);
                     setValue(event.target.value);
                   }}
                 />
@@ -330,7 +349,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
                 ) : null}
                 {/* Le champ garde le focus : le clic ne le lui prend pas, le collage y entre. */}
                 <button type="button" className={s.paste} data-part="paste" onMouseDown={(event) => event.preventDefault()} onClick={() => void paste()}>
-                  {tr('Coller', 'Paste', 'Pegar')}
+                  {pasteHint ? pasteKey : tr('Coller', 'Paste', 'Pegar')}
                 </button>
               </div>
               <div className={s.row}>

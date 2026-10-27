@@ -601,17 +601,19 @@ ipcMain.on('window:close', (e) => {
   if (!trusted(e)) return;
   (BrowserWindow.fromWebContents(e.sender) ?? win)?.close();
 });
-// « Coller » : le presse-papiers entre dans le champ qui a le focus, comme Ctrl+V. Le renderer ne le lit pas lui-même (la
+// « Coller » : le presse-papiers entre dans le champ qui a le focus, comme Ctrl+V ; la réponse dit si c'est fait, pour que
+// le verrou montre le raccourci quand le collage est refusé. Le renderer ne lit pas le presse-papiers lui-même (la
 // permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle,
 // et seulement juste après un geste réel de l'opérateur, vu par le process principal : un collage par geste. Le garde ne
 // sait pas ce que visait le geste : du code de la page pourrait encore profiter d'un geste de l'opérateur pour coller dans
 // un champ à lui, d'où la fermeture du canal une fois le verrou passé (`./paste-gate`).
-ipcMain.on('window:paste', (e) => {
-  if (!trusted(e)) return;
+ipcMain.handle('window:paste', (e) => {
+  if (!trusted(e)) return false;
   const w = BrowserWindow.fromWebContents(e.sender);
-  if (!w || !w.isFocused()) return;
-  if (!pasteGate.allow(e.sender.id)) return;
+  if (!w || !w.isFocused()) return false;
+  if (!pasteGate.allow(e.sender.id)) return false;
   e.sender.paste();
+  return true;
 });
 // Le verrou passé, « Coller » n'a plus d'appelant : le canal se ferme pour la page, qui ne peut pas le rouvrir ; seule une
 // page neuve, donc un verrou neuf, le rouvre. Pendant la séance, aucun geste de l'opérateur ne peut plus servir à coller.
