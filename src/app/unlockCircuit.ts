@@ -488,8 +488,8 @@ export function runUnlockCircuit(canvas: HTMLCanvasElement, opts: UnlockCircuitO
   let spreadKey = '';
   /** Les pistes, relues à chaque image jusqu'au départ du sceau ; ensuite figées, le temps de s'éteindre. */
   let traces: Poly[] | null = null;
-  /** L'écart du glissement (px CSS), mesuré à son départ. */
-  let glideDx: number | null = null;
+  /** Le glissement posé sur le sceau à l'image précédente (px CSS de l'élément) : sans lui, sa place au repos. */
+  let shift = 0;
   /** Les éclats, peints une fois par densité de pixels : un halo par encre. */
   let sprites: { dpr: number; ivory: HTMLCanvasElement; gold: HTMLCanvasElement } | null = null;
   const buckets: number[][] = Array.from({ length: LEVELS * 2 }, () => []);
@@ -612,14 +612,16 @@ export function runUnlockCircuit(canvas: HTMLCanvasElement, opts: UnlockCircuitO
     // chaque image, puis relu ; une transition de la feuille, menée ailleurs, laisserait la lumière en retard d'une image.
     const carrier = opts.sealCarrier();
     if (carrier && t >= tl.glide) {
-      if (glideDx === null) {
-        const r = opts.seal();
-        const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-        glideDx = r && r.width > 0 ? (frameLeft + W / 2 - (r.left + r.width / 2)) / zoom : 0;
-      }
+      // L'écart au centre de l'écran se relit à chaque image, depuis la place du sceau au repos : un redimensionnement
+      // (et le zoom automatique qui le suit) pendant le glissement ne décentre ni le sceau ni le circuit qui en part.
+      const r = opts.seal();
+      const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+      const rest = r && r.width > 0 ? r.left + r.width / 2 - shift * zoom : null;
+      const dx = rest === null ? 0 : (frameLeft + W / 2 - rest) / zoom;
       const g = easeInOut(clamp01((t - tl.glide) / GLIDE_MS));
       const f = Math.pow(clamp01((t - tl.fold) / FOLD_MS), 2.2);
-      carrier.style.translate = `${(glideDx * g).toFixed(2)}px 0`;
+      shift = Number((dx * g).toFixed(2));
+      carrier.style.translate = `${shift.toFixed(2)}px 0`;
       carrier.style.scale = `1 ${(1 - (1 - SEAL_FOLDED) * f).toFixed(4)}`;
       carrier.style.opacity = (t < tl.spread ? 1 - 0.5 * clamp01((t - tl.fold) / FOLD_MS) : 0.5 * (1 - clamp01((t - tl.spread) / 200))).toFixed(3);
     }
