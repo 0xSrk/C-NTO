@@ -763,7 +763,7 @@ export class AgentCloudHost {
             `Cap applied: ${this.money(BUDGET_CENTS_PER_RUN)} per run, at list prices`,
             `Límite aplicado: ${this.money(BUDGET_CENTS_PER_RUN)} por ejecución, a precios públicos`,
           ),
-          this.t(`Sources : ${OFFICIAL_DOMAINS.length} domaines officiels (Fed, BLS, BEA, Trésor, EIA, CME…)`, `Sources: ${OFFICIAL_DOMAINS.length} official domains (Fed, BLS, BEA, Treasury, EIA, CME…)`, `Fuentes: ${OFFICIAL_DOMAINS.length} dominios oficiales (Fed, BLS, BEA, Tesoro, EIA, CME…)`),
+          this.t(`Sources : ${OFFICIAL_DOMAINS.length} domaines officiels (Fed, BLS, BEA, Trésor, EIA, BCE…)`, `Sources: ${OFFICIAL_DOMAINS.length} official domains (Fed, BLS, BEA, Treasury, EIA, ECB…)`, `Fuentes: ${OFFICIAL_DOMAINS.length} dominios oficiales (Fed, BLS, BEA, Tesoro, EIA, BCE…)`),
           '',
           this.t(
             'Facturé sur les crédits API de l’organisation de la clé. Aucune donnée du desk n’est envoyée : le desk relève seulement le rapport.',

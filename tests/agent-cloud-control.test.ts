@@ -125,7 +125,7 @@ describe('agent cloud · définition installée par le desk', () => {
     // Le premier rapport réel (2026-10-27) a lu six pages de contexte et jamais les calendriers de la CFTC ni du CME.
     const calendars = prompt.split('\n').find((line) => line.startsWith('1. Établis d’abord'));
     expect(calendars).toBeDefined();
-    expect(CALENDAR_INSTITUTIONS).toEqual(expect.arrayContaining(['Fed', 'BLS', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']));
+    expect(CALENDAR_INSTITUTIONS).toEqual(expect.arrayContaining(['Fed', 'BLS', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE']));
     expect(CALENDAR_INSTITUTIONS.length).toBeLessThan(MAX_PAGES);
     for (const institution of CALENDAR_INSTITUTIONS) expect(calendars).toContain(institution);
     expect(calendars).toContain('une page par institution, avant toute page de contexte');
@@ -171,7 +171,7 @@ describe('agent cloud · définition installée par le desk', () => {
   it('CLD32 relecture de CLD31 : le DOL au calendrier, les exceptions des jours fériés, un calendrier lu reste lu', () => {
     const prompt = cloudSystemPrompt('fr');
     // Les inscriptions hebdomadaires au chômage (DOL, jeudi 8:30 ET) ne figurent pas au calendrier du BLS ; dol.gov est autorisé.
-    expect(CALENDAR_INSTITUTIONS).toEqual(['Fed', 'BLS', 'DOL', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']);
+    expect(CALENDAR_INSTITUTIONS).toContain('DOL');
     expect(OFFICIAL_DOMAINS).toContain('dol.gov');
     expect(CALENDAR_INSTITUTIONS.length).toBeLessThan(MAX_PAGES);
     // ir.eia.gov ne donne que la règle habituelle et renvoie aux jours fériés : le WPSR du 11 novembre 2026 passe au jeudi midi.
@@ -204,6 +204,36 @@ describe('agent cloud · définition installée par le desk', () => {
     expect(prompt).toContain('dont la date d’embargo remonte à huit jours au plus avant la journée analysée');
     expect(prompt).toContain('plus ancien, cite les inscriptions avec « non trouvé » pour leur jour et leur heure');
     expect(prompt).toContain('cite la publication avec « non consulté » pour son jour et son heure');
+  });
+
+  it('CLD35 décision de l’ADMIN : le CME, dont les conditions interdisent l’accès automatisé, sort des calendriers et des domaines', async () => {
+    expect(CALENDAR_INSTITUTIONS).toEqual(['Fed', 'BLS', 'DOL', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE']);
+    expect(OFFICIAL_DOMAINS).toHaveLength(12);
+    expect(OFFICIAL_DOMAINS.some((domain) => /cme/i.test(domain))).toBe(false);
+    // Ni la recherche, ni la lecture web, ni le réseau du bac à sable ne l'ouvrent ; « Mettre à jour l'agent » met aussi à jour l'environnement.
+    const env = cloudEnvironmentBody() as { config: { networking: { allowed_hosts: string[] } } };
+    expect(env.config.networking.allowed_hosts.some((host) => /cme/i.test(host))).toBe(false);
+    const tools = (cloudAgentBody('fr') as { tools: Array<{ configs: Array<{ allowed_domains: string[] }> }> }).tools[0]!.configs;
+    for (const tool of tools) expect(tool.allowed_domains.some((domain) => /cme/i.test(domain))).toBe(false);
+    // L'agent le dit, au lieu de laisser croire à des horaires ordinaires.
+    expect(cloudSystemPrompt('fr')).toContain('Le CME n’est pas lu : ses conditions interdisent l’accès automatisé. N’annonce ni horaire ni jour férié du CME ; dis-le en une ligne, avec « non consulté ».');
+    // Installer puis mettre à jour : l'environnement reçoit le corps sans le CME, et le dialogue ne le nomme plus, en trois langues.
+    for (const [locale, sources] of [
+      ['fr', 'Sources : 12 domaines officiels (Fed, BLS, BEA, Trésor, EIA, BCE…)'],
+      ['en', 'Sources: 12 official domains (Fed, BLS, BEA, Treasury, EIA, ECB…)'],
+      ['es', 'Fuentes: 12 dominios oficiales (Fed, BLS, BEA, Tesoro, EIA, BCE…)'],
+    ] as const) {
+      const h = harness({ api: installer(), answers: [1, 1], locale });
+      await h.host.provision();
+      await h.host.provision();
+      expect(vi.mocked(h.api.createEnvironment).mock.calls[0]?.[0]).toEqual(cloudEnvironmentBody());
+      expect(vi.mocked(h.api.updateEnvironment).mock.calls[0]?.[1]).toEqual(cloudEnvironmentBody());
+      expect(h.dialogs).toHaveLength(2);
+      for (const dialog of h.dialogs) {
+        expect(dialog.detail).toContain(sources);
+        expect(dialog.detail).not.toMatch(/CME/);
+      }
+    }
   });
 });
 
