@@ -86,9 +86,11 @@ describe('journal des versions', () => {
     expect(entryFor('3.6.0')?.highlights.es).toHaveLength(5);
     expect(entryFor('3.7.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.7.0')?.date).toBe('2026-10-26');
-    expect(entryFor('3.7.0')?.highlights.fr).toHaveLength(5);
-    expect(entryFor('3.7.0')?.highlights.en).toHaveLength(5);
-    expect(entryFor('3.7.0')?.highlights.es).toHaveLength(5);
+    expect(entryFor('3.7.0')?.highlights.fr).toHaveLength(4);
+    expect(entryFor('3.7.0')?.highlights.en).toHaveLength(4);
+    expect(entryFor('3.7.0')?.highlights.es).toHaveLength(4);
+    // R3.7b la 3.7.0 se publie sans l'agent cloud, destiné à la version suivante (décision de l'ADMIN, 2026-10-26).
+    for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.7.0')?.highlights[lang].join(' ')).not.toMatch(/agent cloud|cloud agent|agente en la nube|Managed Agents/i);
     expect(entryFor('3.0.1')).toBeNull();
   });
 

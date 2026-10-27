@@ -78,6 +78,8 @@ type ProvisionStep = 'environment' | 'agent' | 'deployment' | 'pause' | 'resume'
 export interface AgentCloudStatus {
   /** Le trousseau du système chiffre : sans lui, aucune clé n'est gardée. */
   available: boolean;
+  /** Ce desk porte un siège du Lab : lui seul pilote l'agent cloud ; les autres lisent le dossier. */
+  lab: boolean;
   keyStored: boolean;
   /** Espace de travail nommé à chaque appel (`anthropic-workspace-id`), pour une clé d'utilisateur ; ce n'est pas un secret. */
   workspaceId: string | null;
@@ -132,6 +134,8 @@ export interface AgentCloudDeps {
   now?: () => number;
   /** Client de l'API ; par défaut celui de `agent-cloud-api.ts`, sur la clé gardée ici. */
   api?: CloudApi;
+  /** Siège du Lab vérifié (`SeatHost.isLab`) : sans lui, toute commande de pilotage est refusée. */
+  lab: () => boolean;
 }
 
 interface Collected {
@@ -327,6 +331,7 @@ export class AgentCloudHost {
   status(): AgentCloudStatus {
     return {
       available: this.deps.seal.available(),
+      lab: this.lab(),
       keyStored: !!this.config.key,
       workspaceId: this.config.workspaceId,
       deploymentId: this.config.deploymentId,
@@ -389,6 +394,7 @@ export class AgentCloudHost {
 
   /** Clé saisie par l'opérateur : chiffrée ici, jamais rendue. Une chaîne vide efface la clé. */
   setKey(text: unknown): AgentCloudStatus {
+    if (!this.lab()) return this.refuseLab();
     if (this.busy) return this.refuseBusy();
     if (text === '') {
       if (this.config.key) this.deps.log('agent cloud · clé effacée');
@@ -430,6 +436,7 @@ export class AgentCloudHost {
    * et une installation commencée sans déploiement connu est d'abord cherchée là où elle a eu lieu.
    */
   async setWorkspace(text: unknown): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
     if (this.busy) return this.refuseBusy();
     const id = typeof text === 'string' ? text.trim() : null;
     if (id === null || (id !== '' && !isWorkspaceId(id)))
@@ -516,6 +523,7 @@ export class AgentCloudHost {
    * oublié tel quel, il continuerait de tourner chaque jour, sur les crédits, sans que personne ne le relève.
    */
   async setDeployment(id: unknown): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
     if (this.busy) return this.refuseBusy();
     if (id !== null && !isApiId(id, 'depl'))
       return this.refuse('Identifiant de déploiement invalide (depl_…).', 'Invalid deployment ID (depl_…).', 'Identificador de despliegue no válido (depl_…).');
@@ -591,6 +599,7 @@ export class AgentCloudHost {
   }
 
   setSchedule(raw: unknown): AgentCloudStatus {
+    if (!this.lab()) return this.refuseLab();
     const r = isRecord(raw) ? raw : {};
     if (!isCron(r.cron) || !isTimezone(r.timezone))
       return this.refuse(
@@ -654,6 +663,28 @@ export class AgentCloudHost {
     return this.status();
   }
 
+  /** Siège du Lab vérifié dans le process principal, à chaque commande : le renderer ne peut pas s'en dire porteur. */
+  private lab(): boolean {
+    try {
+      return this.deps.lab() === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private refuseLab(): AgentCloudStatus {
+    return this.refuse(
+      'Pilotage réservé au siège du Lab : ce desk lit les rapports.',
+      'Control is reserved for the Lab seat: this desk reads the reports.',
+      'Pilotaje reservado al asiento del Lab: este desk lee los informes.',
+    );
+  }
+
+  /** Un siège vient d'être accepté : le statut dit si ce desk pilote désormais. */
+  seatChanged(): void {
+    this.publish();
+  }
+
   private refuseExternal(): AgentCloudStatus {
     return this.refuse(
       'Déploiement externe : le desk ne le suspend ni ne le reprend ; faites-le dans la Console.',
@@ -708,6 +739,7 @@ export class AgentCloudHost {
    * obtenu est écrit tout de suite : une installation coupée en route reprend où elle s'est arrêtée.
    */
   async provision(): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
     if (!this.config.key) return this.refuse('Aucune clé API enregistrée.', 'No API key stored.', 'Ninguna clave API guardada.');
     if (this.config.deploymentId && !this.config.managed)
       return this.refuse(
@@ -796,6 +828,7 @@ export class AgentCloudHost {
 
   /** Exécution immédiate du déploiement (même en pause) : dialogue, Annuler par défaut. */
   async runNow(): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
     const id = this.config.deploymentId;
     if (!this.config.key || !id) return this.refuse('Installez ou indiquez d’abord un déploiement.', 'Install or enter a deployment first.', 'Instale o indique primero un despliegue.');
     return this.control('run', async () => {
@@ -830,6 +863,7 @@ export class AgentCloudHost {
 
   /** Suspendre la planification ne coûte rien : pas de dialogue. */
   async pause(): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
     const id = this.config.deploymentId;
     if (!this.config.key || !id) return this.status();
     if (!this.config.managed) return this.refuseExternal();
@@ -841,6 +875,7 @@ export class AgentCloudHost {
 
   /** Reprendre la planification dépense chaque jour : dialogue, Annuler par défaut. */
   async unpause(): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
     const id = this.config.deploymentId;
     if (!this.config.key || !id) return this.status();
     if (!this.config.managed) return this.refuseExternal();
@@ -943,9 +978,9 @@ export class AgentCloudHost {
         return this.config.workspaceId
           ? `${this.t('Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces).', 'Workspace refused: check its ID (Console › Settings › Workspaces).', 'Espacio de trabajo rechazado: verifique su ID (Consola › Settings › Workspaces).')} ${error.message}`
           : this.t(
-              'Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
-              'User key without a workspace: enter its ID (Console › Settings › Workspaces) in Options › Cloud agent › Workspace.',
-              'Clave de usuario sin espacio de trabajo: indique su ID (Consola › Settings › Workspaces) en Opciones › Agente en la nube › Espacio de trabajo.',
+              'Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Agent IA › Lab › Espace de travail.',
+              'User key without a workspace: enter its ID (Console › Settings › Workspaces) in AI Agent › Lab › Workspace.',
+              'Clave de usuario sin espacio de trabajo: indique su ID (Consola › Settings › Workspaces) en Agente IA › Lab › Espacio de trabajo.',
             );
       return error.message;
     }

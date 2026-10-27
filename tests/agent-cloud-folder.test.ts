@@ -27,13 +27,14 @@ const fake = vi.hoisted(() => {
   return state;
 });
 
-import { CloudReports, cloudState, decorateLinks } from '@/modules/agent/CloudReports';
+import { CloudReports, cloudState, decorateLinks, LabPlate } from '@/modules/agent/CloudReports';
 import { useI18n } from '@/i18n';
 import { resetAgentCloudForTests, useAgentCloud } from '@/store/agentCloud';
 
 const NOW = Date.parse('2026-10-27T08:00:00Z');
 const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   available: true,
+  lab: true,
   keyStored: true,
   workspaceId: null,
   deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
@@ -81,12 +82,23 @@ afterEach(() => {
   host = null;
 });
 
-async function mount(active = true, onOptions = () => undefined): Promise<HTMLDivElement> {
+async function mount(active = true): Promise<HTMLDivElement> {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root?.render(createElement(CloudReports, { active, onOptions }));
+    root?.render(createElement(CloudReports, { active }));
+  });
+  return host;
+}
+
+/** La plaque du Lab, montée seule : elle vit dans la vue « D · Lab », pas dans le dossier. */
+async function mountPlate(): Promise<HTMLDivElement> {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  await act(async () => {
+    root?.render(createElement(LabPlate, { status: useAgentCloud.getState().status }));
   });
   return host;
 }
@@ -104,26 +116,32 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
     expect(cloudState(status({ deployment: { ...status().deployment!, state: 'archived' } }))).toBe('archived');
   });
 
-  it('dossier en construction : plaque au trait tireté, renvoi aux options, aucune fiche', async () => {
-    const onOptions = vi.fn();
+  it('LAB3 le dossier est le même pour tous : les fiches et le lecteur, sans plaque ni pilotage', async () => {
+    useAgentCloud.setState({ ready: true, status: status({ lab: false, keyStored: false, deploymentId: null, deployment: null }), reports: [] });
+    const node = await mount(true);
+    expect(node.querySelector('section[aria-label="Agent cloud"]')).toBeNull();
+    expect(text(node)).toContain('Dossier en construction');
+    expect(text(node)).toContain('Les rapports d’analyse du Lab arrivent ici');
+    expect(node.querySelectorAll('button')).toHaveLength(0);
+    expect(text(node)).not.toMatch(/Agent cloud|Ouvrir les options|Clé API/);
+  });
+
+  it('dossier en construction : la plaque du Lab au trait tireté, qui renvoie au pilotage juste en dessous', async () => {
     useAgentCloud.setState({ ready: true, status: status({ keyStored: false, deploymentId: null, deployment: null }), reports: [] });
-    const node = await mount(true, onOptions);
-    const plate = node.querySelector('section[aria-label="Agent cloud"]');
+    const plate = (await mountPlate()).querySelector('section[aria-label="Agent cloud"]');
     expect(plate?.className).toMatch(/dashed/);
     expect(text(plate)).toContain('En construction');
-    expect(text(node)).toContain('Dossier en construction');
-    const button = [...node.querySelectorAll('button')].find((b) => b.textContent === 'Ouvrir les options');
-    await act(async () => button?.click());
-    expect(onOptions).toHaveBeenCalledTimes(1);
+    expect(text(plate)).toContain('se règlent dans le panneau « Agent cloud · Anthropic »');
   });
 
   it('en service : trait plein et LED, fiche prévue au trait tireté, fiches codées, la non lue porte la LED', async () => {
     useAgentCloud.setState({ ready: true, status: status(), reports: [NEW, OLD] });
-    const node = await mount(false);
-    const plate = node.querySelector('section[aria-label="Agent cloud"]');
+    const plate = (await mountPlate()).querySelector('section[aria-label="Agent cloud"]');
     expect(plate?.className).toMatch(/solid/);
     expect(text(plate)).toContain('En service');
     expect(text(plate)).toContain('3,00 $ / exéc.');
+    host?.remove();
+    const node = await mount(false);
     const items = [...node.querySelectorAll('li')];
     expect(items[0]?.className).toMatch(/planned/);
     expect(text(items[0])).toContain('Prochain rapport');
@@ -194,7 +212,7 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
       status: status({ error: 'Clé refusée par Anthropic (401) : enregistrez une clé valide.', failures: [{ at: NOW, kind: 'no_report', detail: 'terminated' }] }),
       reports: [],
     });
-    const node = await mount(false);
+    const node = await mountPlate();
     const levels = [...node.querySelectorAll('[data-level]')].map((el) => el.getAttribute('data-level'));
     expect(levels).toEqual(['2', '1']);
     expect(text(node)).toContain('Session finie sans rapport · terminated');
@@ -248,8 +266,9 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
   it('suit la langue du desk', async () => {
     useI18n.setState({ locale: 'en' });
     useAgentCloud.setState({ ready: true, status: status(), reports: [NEW] });
+    expect(text(await mountPlate())).toContain('In service');
+    host?.remove();
     const node = await mount(false);
-    expect(text(node)).toContain('In service');
     expect(text(node)).toContain('Next report');
     expect(text(node)).toContain('1 sheet');
   });

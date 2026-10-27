@@ -94,12 +94,11 @@ It reads the whole desk and your rules, prepares the brief and the debrief, and 
 ## What's new in 3.7.0
 
 > [!NOTE]
-> **v3.7.0 · 2026-10-26.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
+> **v3.7.0 · 2026-10-26.** The same four points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
 
 - **Visual system 4.0 « ΟΡΟΣ ».** Visual system 4.0 « ΟΡΟΣ »: the Lab’s night, ivory and gold. Gold marks what is alive (the LED, the last price, “now”); red now marks level 3 only, and nothing reacts to hover any more.
 - **The Lab’s signature, seal and a single barcode.** The Lab’s signature in every detail: HUD plates bound to the desk’s real state, cartouches, module emblems and Ligne V2 components; the Horizon seal strikes at start-up and closes the lock, and the status bar keeps the chassis black, signed with an eleven-bar code between braces.
 - **The AUBE launcher, rebuilt.** AUBE launcher rebuilt: the horizon draws itself, the gold LED settles on the tip of the Λ, version readings print; on launch, everything folds back onto the horizon. A key press skips it; reduced motion is respected.
-- **AI Agent and the cloud agent.** AI Agent opens on the cloud agent’s report folder: a Managed Agents agent runs every day at Anthropic, on your organization’s API credits, and drops its report; the desk pulls it without sending anything. Install and runs go through a dialog, each run is capped; conversation and options each have their own view.
 - **Kill switch and DOMPurify.** Kill switch: the level-3 band shows even when the NinjaTrader AddOn is not connected. DOMPurify moves to 3.4.17, past the critical advisories.
 
 NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.7.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.7.0).

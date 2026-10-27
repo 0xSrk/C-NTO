@@ -192,6 +192,8 @@ export interface CloudDeploymentState {
 /** Miroir de `AgentCloudStatus` (`electron/agent-cloud.ts`) ; un test de types tient les deux égaux. La clé n'y figure jamais. */
 export interface AgentCloudStatus {
   available: boolean;
+  /** Ce desk porte un siège du Lab (vérifié dans le process principal) : lui seul pilote l'agent cloud. */
+  lab: boolean;
   keyStored: boolean;
   workspaceId: string | null;
   deploymentId: string | null;

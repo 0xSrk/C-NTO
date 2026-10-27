@@ -23,6 +23,26 @@ function host(dir: string, keys: readonly string[]) {
 describe('siège nominatif : persistance dans le process principal', () => {
   const lab = pair();
 
+  it('LAB2 seul un siège du Lab, signé et vérifié, ouvre le pilotage : ni un testeur, ni un desk sans siège, ni une ligne fausse', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'canto-seat-'));
+    const forger = pair();
+    const tester = host(dir, [lab.x]);
+    expect(tester.seat.isLab()).toBe(false);
+    expect(tester.seat.submit(seatLine('Filou', lab.priv))).toMatchObject({ ok: true });
+    expect(tester.seat.isLab()).toBe(false);
+    // Le nom du Lab signé par une autre clé n'est pas un siège : le testeur reste testeur.
+    expect(tester.seat.submit(seatLine('0xSrk', forger.priv))).toEqual({ ok: false });
+    expect(tester.seat.isLab()).toBe(false);
+    expect(tester.seat.submit(seatLine('0xSrk', lab.priv))).toMatchObject({ ok: true });
+    expect(tester.seat.isLab()).toBe(true);
+    // Relu au lancement suivant.
+    expect(host(dir, [lab.x]).seat.isLab()).toBe(true);
+    // Casse comprise : « 0XSRK » n'est pas le siège du Lab.
+    const other = host(mkdtempSync(path.join(tmpdir(), 'canto-seat-')), [lab.x]);
+    other.seat.submit(seatLine('0XSRK', lab.priv));
+    expect(other.seat.isLab()).toBe(false);
+  });
+
   it('un code accepté est gardé tel quel (0600), relu et revérifié au lancement suivant', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'canto-seat-'));
     const line = seatLine('0xSrk', lab.priv);
@@ -89,6 +109,6 @@ describe('siège nominatif : persistance dans le process principal', () => {
     expect(preload).toContain("invoke('seat:submit', line)");
     const main = readFileSync('electron/main.ts', 'utf8');
     expect(main).toContain("ipcMain.handle('seat:status', (e) => (trusted(e) ?");
-    expect(main).toMatch(/ipcMain\.handle\('seat:submit', \(e, line: unknown\) => \(trusted\(e\) && typeof line === 'string'/);
+    expect(main).toMatch(/ipcMain\.handle\('seat:submit', \(e, line: unknown\) => \{\s*if \(!trusted\(e\) \|\| typeof line !== 'string' \|\| line\.length > 4096\) return \{ ok: false \};/);
   });
 });

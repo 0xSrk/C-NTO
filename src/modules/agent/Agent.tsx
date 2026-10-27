@@ -25,8 +25,8 @@ import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvid
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
 import { AgentOrdersPanel } from './AgentOrdersPanel';
-import { CloudOptions, cloudStateLabel } from './CloudOptions';
-import { CloudReports, cloudState } from './CloudReports';
+import { CloudOptions } from './CloudOptions';
+import { CloudReports, LabPlate } from './CloudReports';
 import { claudeCodeCommand, claudeDesktopConfig, codexConfig, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
 import s from './agent.module.css';
@@ -75,22 +75,37 @@ function StreamBubble({ text }: { text: string }) {
 const NEAR_BOTTOM_PX = 40;
 
 /** Sous-onglets de l'agent : le dossier des rapports d'abord, la conversation, puis toutes les options. */
-export type AgentView = 'rapports' | 'conversation' | 'options';
+export type AgentView = 'rapports' | 'conversation' | 'options' | 'lab';
 
 const clock = (ms: number | null | undefined) => (ms ? dateTimeFormatter({ day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(ms) : '—');
 
-/** Bloc-titre de l'en-tête : dernier relevé, prochaine exécution (valeur prévue), rapports rangés et non lus. */
-export function agentHeaderCells(status: AgentCloudStatus | null): TitleCell[] {
+/**
+ * Bloc-titre de l'en-tête : les rapports rangés et non lus ; au siège du Lab, en plus, le dernier relevé et la prochaine
+ * exécution (valeur prévue).
+ */
+export function agentHeaderCells(status: AgentCloudStatus | null, lab = true): TitleCell[] {
   const total = status?.reports ?? 0;
   const unread = status?.unread ?? 0;
+  const reports: TitleCell = {
+    label: tr('Rapports', 'Reports', 'Informes'),
+    value: unread > 0 ? `${fmtInt(total)} · ${count(unread, tr('non lu', 'unread', 'sin leer'), tr('non lus', 'unread', 'sin leer'))}` : fmtInt(total),
+  };
+  if (!lab) return [reports];
   return [
     { label: tr('Dernier relevé', 'Last pull', 'Última lectura'), value: clock(status?.lastPullAt) },
     { label: tr('Prochaine exécution', 'Next run', 'Próxima ejecución'), value: clock(status?.deployment?.nextRunAt), plan: true },
-    {
-      label: tr('Rapports', 'Reports', 'Informes'),
-      value: unread > 0 ? `${fmtInt(total)} · ${count(unread, tr('non lu', 'unread', 'sin leer'), tr('non lus', 'unread', 'sin leer'))}` : fmtInt(total),
-    },
+    reports,
   ];
+}
+
+/** Les vues de l'onglet : rapports, conversation, options pour tous ; « D · Lab », le pilotage de l'agent cloud, au seul siège du Lab. */
+export function agentViews(lab: boolean): { value: AgentView; letter: string; label: string }[] {
+  const views: { value: AgentView; letter: string; label: string }[] = [
+    { value: 'rapports', letter: 'A', label: tr('Rapports', 'Reports', 'Informes') },
+    { value: 'conversation', letter: 'B', label: tr('Conversation', 'Conversation', 'Conversación') },
+    { value: 'options', letter: 'C', label: tr('Options', 'Options', 'Opciones') },
+  ];
+  return lab ? [...views, { value: 'lab', letter: 'D', label: 'Lab' }] : views;
 }
 
 export default function Agent() {
@@ -170,6 +185,12 @@ export default function Agent() {
     if (view === 'conversation' && el && stickToBottom.current) el.scrollTo({ top: el.scrollHeight });
   }, [view]);
 
+  // Sans siège du Lab, la vue Lab n'existe pas : on revient aux rapports.
+  const labSeat = cloudStatus?.lab === true;
+  useEffect(() => {
+    if (view === 'lab' && !labSeat) setView('rapports');
+  }, [view, labSeat]);
+
   // Un nouvel envoi ramène toujours en bas.
   useEffect(() => {
     if (streaming) stickToBottom.current = true;
@@ -220,13 +241,11 @@ export default function Agent() {
   const visibleMessages = messages.filter((m) => m.role !== 'system');
 
   const cloudOn = isDesk && !!desk?.agentCloud;
+  // Le siège du Lab, dit par le process principal : lui seul voit et pilote l'agent cloud ; les autres lisent le dossier.
+  const lab = cloudOn && cloudStatus?.lab === true;
   const unread = cloudStatus?.unread ?? 0;
-  const cloudReady = cloudOn && !!cloudStatus?.keyStored && !!cloudStatus.deploymentId;
-  const views: { value: AgentView; letter: string; label: string }[] = [
-    { value: 'rapports', letter: 'A', label: tr('Rapports', 'Reports', 'Informes') },
-    { value: 'conversation', letter: 'B', label: tr('Conversation', 'Conversation', 'Conversación') },
-    { value: 'options', letter: 'C', label: tr('Options', 'Options', 'Opciones') },
-  ];
+  const cloudReady = lab && !!cloudStatus?.keyStored && !!cloudStatus.deploymentId;
+  const views = agentViews(lab);
   const current = views.find((v) => v.value === view) ?? views[0]!;
   const modelTag = (
     <Tag tone={probeState?.ok ? 'mint' : 'gold'} dot live={streaming}>
@@ -239,16 +258,18 @@ export default function Agent() {
       <ModuleHeader
         tab="agent"
         crumb={current.label.toLocaleUpperCase()}
-        cells={cloudOn ? agentHeaderCells(cloudStatus) : undefined}
+        cells={cloudOn ? agentHeaderCells(cloudStatus, lab) : undefined}
         actions={
           view === 'rapports' ? (
             <>
               <Button variant="ghost" disabled={!cloudOn} onClick={() => void openCloudFolder()}>
                 {tr('Ouvrir le dossier', 'Open the folder', 'Abrir la carpeta')}
               </Button>
-              <Button variant="chamfer" disabled={!cloudReady || !!cloudStatus?.pulling} onClick={() => void pullCloud()}>
-                {cloudStatus?.pulling ? tr('Relevé…', 'Pulling…', 'Leyendo…') : tr('Relever maintenant', 'Pull now', 'Leer ahora')}
-              </Button>
+              {lab ? (
+                <Button variant="chamfer" disabled={!cloudReady || !!cloudStatus?.pulling} onClick={() => void pullCloud()}>
+                  {cloudStatus?.pulling ? tr('Relevé…', 'Pulling…', 'Leyendo…') : tr('Relever maintenant', 'Pull now', 'Leer ahora')}
+                </Button>
+              ) : null}
             </>
           ) : view === 'conversation' ? (
             <>
@@ -281,16 +302,18 @@ export default function Agent() {
         ))}
         <span className={s.scopeNote}>
           {view === 'rapports'
-            ? tr('Relevé par le desk · rien du desk ne part vers le cloud', 'Pulled by the desk · nothing from the desk goes to the cloud', 'Recogido por el desk · nada del desk sale hacia la nube')
+            ? tr('Produits par le Lab · lus sur ce poste', 'Produced by the Lab · read on this desk', 'Producidos por el Lab · leídos en este equipo')
             : view === 'conversation'
               ? tr('Modèle conversationnel · outils natifs du desk', 'Conversational model · native desk tools', 'Modelo conversacional · herramientas nativas del desk')
-              : tr('Agent cloud · modèle · passerelles · ordres · outils', 'Cloud agent · model · gateways · orders · tools', 'Agente en la nube · modelo · pasarelas · órdenes · herramientas')}
+              : view === 'lab'
+                ? tr('Agent cloud du Lab · pilotage réservé à son siège', 'The Lab’s cloud agent · control reserved for its seat', 'Agente en la nube del Lab · pilotaje reservado a su asiento')
+                : tr('Modèle · passerelles · ordres · outils', 'Model · gateways · orders · tools', 'Modelo · pasarelas · órdenes · herramientas')}
         </span>
       </div>
       <ModuleContent noPad>
         {/* Les trois vues restent montées : brouillon, défilement et réglages en cours survivent au changement de vue. */}
         <div className={s.view} role="tabpanel" id="agent-panel-rapports" aria-labelledby="agent-tab-rapports" hidden={view !== 'rapports'}>
-          <CloudReports active={view === 'rapports'} onOptions={() => startTransition(() => setView('options'))} />
+          <CloudReports active={view === 'rapports'} />
         </div>
         <div className={s.view} role="tabpanel" id="agent-panel-conversation" aria-labelledby="agent-tab-conversation" hidden={view !== 'conversation'}>
           <section className={s.chat}>
@@ -399,7 +422,6 @@ export default function Agent() {
             <dl className={s.ops} aria-label={tr('État des services de l’agent', 'Agent services status', 'Estado de los servicios del agente')}>
               {(
                 [
-                  [tr('Agent cloud', 'Cloud agent', 'Agente en la nube'), cloudOn ? cloudStateLabel(cloudState(cloudStatus)) : '—', cloudOn && cloudState(cloudStatus) === 'service'],
                   [tr('Modèle', 'Model', 'Modelo'), `${agent.provider === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'} · ${agent.model}`, false],
                   [
                     tr('Passerelle MCP', 'MCP gateway', 'Pasarela MCP'),
@@ -427,7 +449,6 @@ export default function Agent() {
                 </div>
               ))}
             </dl>
-            <CloudOptions />
             <div className={s.section}>
               <div className={s.sectionTitle}>
                 <span>{tr('Fournisseur', 'Provider', 'Proveedor')}</span>
@@ -785,6 +806,14 @@ export default function Agent() {
             </div>
           </div>
         </div>
+        {lab ? (
+          <div className={s.view} role="tabpanel" id="agent-panel-lab" aria-labelledby="agent-tab-lab" hidden={view !== 'lab'}>
+            <div className={s.options}>
+              <LabPlate status={cloudStatus} />
+              <CloudOptions />
+            </div>
+          </div>
+        ) : null}
       </ModuleContent>
     </>
   );

@@ -119,6 +119,8 @@ export interface HarnessOptions {
   noWindow?: boolean;
   /** Le vrai client de l'API (`createCloudApi`) sur ce faux `fetch`, à la place du faux client. */
   realFetch?: FetchLike;
+  /** Siège du Lab présent (défaut : oui, le desk de l'ADMIN) ; `false` : un desk qui ne fait que lire. */
+  lab?: boolean;
 }
 
 /** Un hôte sur un `userData` temporaire (à effacer par l'appelant : `dirs`). */
@@ -147,6 +149,7 @@ export function cloudHarness(dirs: string[], opts: HarnessOptions = {}) {
     timers: { setTimeout, clearTimeout },
     now: () => clock.now,
     api: opts.realFetch ? undefined : api,
+    lab: () => opts.lab ?? true,
   };
   return { host: new AgentCloudHost(deps), dir, sent, logs, dialogs, api, clock };
 }

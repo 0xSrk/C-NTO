@@ -46,6 +46,7 @@ Le bas à droite du desk est le pied de la barre d'état, pas la plaque.
 5. Le texte saisi n'est jamais affiché comme nom, même en cas de refus.
 6. Deux clés distinctes. La clé de siège ne vérifie pas une Release ; la clé de publication ne vérifie pas un siège.
 7. Le siège est caché (décision de l'ADMIN, 2026-10-06). Ni le README ni les nouveautés du desk ne le mentionnent : le Lab donne l'accès lui-même. `tests/seat.test.ts` garde cette règle.
+8. Le siège du Lab ouvre, en plus, le pilotage de l'agent cloud (décision de l'ADMIN, 2026-10-26). Un siège dont le nom signé figure dans `LAB_SEATS` (`electron/seat.ts`, aujourd'hui `0xSrk`) est un siège du Lab ; `SeatHost.isLab()` le dit au process principal, qui garde chaque commande de l'agent cloud. Tout autre siège, ou aucun, ne fait que lire le dossier des rapports. Le nom affiché ne change pas de règle : celui du code, jamais le texte saisi.
 
 ---
 

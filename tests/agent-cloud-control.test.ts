@@ -1,9 +1,10 @@
-import { readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
 import { CloudApiError, type CloudApi, type DeploymentView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, PULL_PENDING_MS } from '../electron/agent-cloud';
+import { LAB_SEATS } from '../electron/seat';
 import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, MAX_PAGES, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
 import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, KEY, NOW, sid, type HarnessOptions } from './helpers/agentCloudFakes';
 
@@ -188,6 +189,35 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect(api.calls).toEqual(['createEnvironment', 'createAgent', 'updateEnvironment', 'createAgent', 'listDeployments', 'createDeployment']);
   });
 
+  it('LAB2 sans siège du Lab, ce desk lit : chaque commande de pilotage est refusée, rien ne part vers l’API, rien n’est écrit', async () => {
+    const api = installer();
+    const h = cloudHarness(dirs, { api, lab: false, answers: [0, 0, 0, 0] });
+    const refused = 'Pilotage réservé au siège du Lab : ce desk lit les rapports.';
+    expect(h.host.status().lab).toBe(false);
+    expect(h.host.setKey(KEY)).toMatchObject({ keyStored: false, error: refused });
+    expect(await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: null, error: refused });
+    expect(await h.host.setDeployment(DEPL)).toMatchObject({ deploymentId: null, error: refused });
+    expect(h.host.setSchedule({ cron: '30 13 * * 1-5', timezone: 'Europe/Paris' })).toMatchObject({ schedule: { cron: '0 7 * * 1-5' }, error: refused });
+    for (const action of [() => h.host.provision(), () => h.host.runNow(), () => h.host.pause(), () => h.host.unpause()]) expect(await action()).toMatchObject({ error: refused });
+    expect(api.calls).toEqual([]);
+    expect(h.dialogs).toEqual([]);
+    expect(existsSync(path.join(h.dir, AGENT_CLOUD_FILE))).toBe(false);
+    // Lire reste permis : le dossier, une fiche, la marque de lecture.
+    expect(h.host.list()).toEqual([]);
+    expect(h.host.read('sesn_011CZkZAtmR3yMPDzynEDxu7')).toBeNull();
+    // Le même desk, une fois le siège du Lab accepté, pilote.
+    const lab = cloudHarness(dirs, { api: installer(), lab: true });
+    expect(lab.host.status().lab).toBe(true);
+    expect(lab.host.setKey(KEY)).toMatchObject({ keyStored: true, error: null });
+  });
+
+  it('LAB2 le siège du Lab est celui que signe l’ADMIN, vérifié par le process principal ; le statut le suit', () => {
+    const main = readFileSync('electron/main.ts', 'utf8');
+    expect(main).toContain('lab: () => seat.isLab(),');
+    expect(main).toMatch(/const result = seat\.submit\(line\);\s*\/\/[^\n]*\n\s*if \(result\.ok\) agentCloud\?\.seatChanged\(\);/);
+    expect(LAB_SEATS).toEqual(['0xSrk']);
+  });
+
   it('CLD24 clé d’utilisateur sans espace de travail : la cause est dite en clair, et où la régler ; avec un espace refusé, la réponse de l’API suit', async () => {
     const unscoped = 'HTTP 400 · invalid_request_error : This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use.';
     let workspaceOk = false;
@@ -202,7 +232,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     });
     const h = harness({ api, answers: [1, 1, 1] });
     expect((await h.host.provision()).error).toBe(
-      'Environnement · Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Options › Agent cloud › Espace de travail.',
+      'Environnement · Clé d’utilisateur sans espace de travail : indiquez son ID (Console › Settings › Workspaces) dans Agent IA › Lab › Espace de travail.',
     );
     await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ');
     expect((await h.host.provision()).error).toBe(`Environnement · Espace de travail refusé : vérifiez son ID (Console › Settings › Workspaces). ${unscoped}`);

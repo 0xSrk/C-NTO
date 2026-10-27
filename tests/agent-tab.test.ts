@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -76,7 +77,7 @@ vi.mock('@/engine/agent/llm', async (importOriginal) => ({
   }),
 }));
 
-import Agent, { agentHeaderCells } from '@/modules/agent/Agent';
+import Agent, { agentHeaderCells, agentViews } from '@/modules/agent/Agent';
 import { CRYPTO_TOOL_NAMES } from '@/engine/agent/cryptoTools';
 import { streamChat } from '@/engine/agent/llm';
 import { renderRoutine } from '@/engine/agent/routines';
@@ -477,6 +478,9 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     expect(panel(node, 'conversation')?.hidden).toBe(true);
     expect(panel(node, 'options')?.hidden).toBe(true);
     expect(panel(node, 'rapports')?.textContent).toContain('Disponible dans le shell local');
+    // Sans siège du Lab (ici, hors du desk), pas de vue Lab : trois sous-onglets.
+    expect(panel(node, 'lab')).toBeNull();
+    expect(tab(node, 'Lab')).toBeUndefined();
   });
 
   it('les options (fournisseur, MCP, orchestrateur, ordres, outils) sont dans la vue C ; la conversation et ses routines dans la vue B', async () => {
@@ -517,10 +521,11 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     expect(fake.puts).toEqual([]);
   });
 
-  it('la vue Options s’ouvre sur une bande d’état : agent cloud, modèle, passerelles, écriture, ordres', async () => {
+  it('LAB3 la vue Options s’ouvre sur une bande d’état du desk : modèle, passerelles, écriture, ordres ; plus d’agent cloud', async () => {
     const node = await mount();
     const strip = node.querySelector('dl[aria-label="État des services de l’agent"]');
-    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Agent cloud', 'Modèle', 'Passerelle MCP', 'Orchestrateur', 'Écriture des agents', 'Ordres de l’agent']);
+    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Modèle', 'Passerelle MCP', 'Orchestrateur', 'Écriture des agents', 'Ordres de l’agent']);
+    expect(panel(node, 'options')?.textContent).not.toContain('Agent cloud · Anthropic');
     expect(strip?.textContent).toContain('lecture seule');
     expect(strip?.textContent).toContain('désactivés');
     expect(panel(node, 'options')?.contains(strip ?? null)).toBe(true);
@@ -538,6 +543,7 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
   it('CLD17 bloc-titre : dernier relevé, prochaine exécution prévue, rapports et non lus', () => {
     const cells = agentHeaderCells({
       available: true,
+      lab: true,
       keyStored: true,
       workspaceId: null,
       deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
@@ -559,6 +565,17 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     expect(cells[0]?.value).toMatch(/27\/10.*08:15/);
     expect(cells[2]?.value).toBe('12 · 3 non lus');
     expect(agentHeaderCells(null).map((c) => c.value)).toEqual(['—', '—', '0']);
+  });
+
+  it('LAB3 un desk qui lit : l’en-tête ne dit que les rapports ; la vue « D · Lab » n’existe qu’au siège du Lab', () => {
+    expect(agentHeaderCells(null, false).map((c) => c.label)).toEqual(['Rapports']);
+    expect(agentViews(false).map((v) => v.value)).toEqual(['rapports', 'conversation', 'options']);
+    expect(agentViews(true).map((v) => [v.letter, v.value])).toEqual([['A', 'rapports'], ['B', 'conversation'], ['C', 'options'], ['D', 'lab']]);
+    const source = readFileSync('src/modules/agent/Agent.tsx', 'utf8');
+    // Le pilotage n'est monté que dans la vue Lab, elle-même montée au seul siège du Lab.
+    expect(source.match(/<CloudOptions \/>/g)).toHaveLength(1);
+    expect(source).toMatch(/\{lab \? \(\s*<div className=\{s\.view\} role="tabpanel" id="agent-panel-lab"[\s\S]*?<LabPlate status=\{cloudStatus\} \/>\s*<CloudOptions \/>/);
+    expect(source).toContain('const lab = cloudOn && cloudStatus?.lab === true;');
   });
 
   it('les vues suivent la langue du desk', async () => {
