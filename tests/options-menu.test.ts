@@ -101,6 +101,25 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     expect(menu.getAttribute('data-open')).toBe('false');
   });
 
+  it('OROS4.23 ↑ sur le bouton ouvre le menu sur sa dernière option, ↓ sur la première', () => {
+    const { trigger, menu, entries } = mount([
+      { id: 'a', label: 'Première', onSelect: () => undefined },
+      { id: 'b', label: 'Milieu', onSelect: () => undefined },
+      { id: 'c', label: 'Dernière', onSelect: () => undefined },
+    ]);
+    key(trigger, 'ArrowUp');
+    expect(menu.getAttribute('data-open')).toBe('true');
+    expect(document.activeElement).toBe(entries()[2]);
+    key(menu, 'Escape');
+    expect(document.activeElement).toBe(trigger);
+    key(trigger, 'ArrowDown');
+    expect(document.activeElement).toBe(entries()[0]);
+    key(menu, 'Escape');
+    // un clic ouvre toujours sur la première
+    act(() => trigger.click());
+    expect(document.activeElement).toBe(entries()[0]);
+  });
+
   it('le code couleur se lit sur le bouton : un point par état lu, à la couleur de l’état ; les filets séparent les groupes', () => {
     const { trigger, menu } = mount([
       { id: 'pont', label: 'Pont', state: 'actif', tone: 'mint', onSelect: () => undefined },

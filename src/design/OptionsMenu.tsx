@@ -28,7 +28,7 @@ export interface OptionItem {
 /**
  * Bouton « Options » d'un module (4.1), en haut à droite : ses états se lisent sur le bouton par leur code couleur, et le
  * menu se déroule sous lui, fluide — chaque option glisse à son tour. Clavier : Entrée, Espace ou ↓ ouvrent sur la
- * première option ; ↑ ↓ Début Fin parcourent ; Échap referme et rend la main au bouton ; Tab referme.
+ * première option, ↑ sur la dernière ; ↑ ↓ Début Fin parcourent ; Échap referme et rend la main au bouton ; Tab referme.
  */
 export function OptionsMenu({ items, label, className }: { items: OptionItem[]; label?: string; className?: string }) {
   useI18n((st) => st.locale);
@@ -37,6 +37,8 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  /** L'option qui prend le focus à l'ouverture : la première, ou la dernière quand ↑ ouvre le menu. */
+  const openAt = useRef(0);
   const name = label ?? tr('Options', 'Options', 'Opciones');
   const marks = items.filter((item) => item.state !== undefined);
 
@@ -61,16 +63,19 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
     return () => document.removeEventListener('pointerdown', onDown);
   }, [open]);
 
-  // À l'ouverture, la première option prend le focus, après le rendu du menu.
+  // À l'ouverture, la première option prend le focus (la dernière si ↑ a ouvert), après le rendu du menu.
   useEffect(() => {
-    if (open) focusAt(0);
+    if (!open) return;
+    focusAt(openAt.current);
+    openAt.current = 0;
   }, [open]);
 
   const onButtonKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
+      openAt.current = event.key === 'ArrowDown' ? 0 : -1;
       if (!open) setOpen(true);
-      else focusAt(event.key === 'ArrowDown' ? 0 : -1);
+      else focusAt(openAt.current);
     }
   };
 
