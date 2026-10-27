@@ -109,6 +109,31 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(rule(shellCss, '.lienBadge')).toMatch(/flex: none;/);
   });
 
+  it('OROS4.44 le focus clavier d’une cartouche se voit en entier : son filet passe à l’or, au chanfrein, et l’anneau rogné par la nav devient transparent pour elle seule', async () => {
+    const { cssRules } = await import('./helpers/cssRules');
+    const rules = cssRules(shellCss);
+    const find = (selector: string) => rules.find((r) => r.at.length === 0 && r.selector.split(',').map((s) => s.trim()).includes(selector));
+    // L'anneau du desk se trace 2 px hors du bouton ; la nav (overflow: auto) le coupait, il n'en restait que des traits.
+    const tokens = readFileSync('src/design/tokens.css', 'utf8');
+    expect(tokens).toMatch(/:focus-visible \{\s*outline: 1px solid var\(--gold\);\s*outline-offset: 2px;/);
+    expect(rule(shellCss, '.nav')).toMatch(/overflow: auto;/);
+    // Transparent plutôt que retiré : en couleurs forcées (contraste élevé), le filet s'efface et le système redessine l'anneau.
+    expect(find('.navItem:focus-visible')?.body).toMatch(/outline-color: transparent/);
+    expect(find('.navItem:focus-visible')?.body).not.toMatch(/outline: none/);
+    // Le filet (::before, découpé au chanfrein) prend l'or, l'onglet ouvert compris.
+    for (const selector of ['.navItem:focus-visible::before', '.navItem.on:focus-visible::before']) {
+      expect(find(selector)?.body, selector).toMatch(/background: var\(--gold\)/);
+    }
+    expect(rule(shellCss, '.navItem::before')).toMatch(/clip-path: var\(--chamfer\)/);
+    // Le focus vient après le survol, à spécificité égale : une cartouche sous le pointeur garde son filet d'or.
+    const at = (selector: string) => rules.findIndex((r) => r.selector.split(',').map((s) => s.trim()).includes(selector));
+    expect(at('.navItem.on:focus-visible::before')).toBeGreaterThan(at('.navItem.on:hover::before'));
+    expect(at('.navItem:focus-visible::before')).toBeGreaterThan(at('.navItem:hover::before'));
+    // Rien d'autre ne perd l'anneau du desk dans le châssis.
+    const dropped = rules.filter((r) => /outline:\s*none|outline-color:\s*transparent/.test(r.body)).map((r) => r.selector);
+    expect(dropped).toEqual(['.navItem:focus-visible']);
+  });
+
   it('OROS4.14 chaque emblème du rail et chaque couche d’en-tête pèse le même trait : entre 0,4 et 0,75 px rendu', async () => {
     const { COMPONENTS } = await import('@/design/micro/assets');
     const { LAYER_GLYPH } = await import('@/app/moduleLayers');

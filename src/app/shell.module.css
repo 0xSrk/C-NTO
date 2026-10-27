@@ -274,6 +274,16 @@
     --k: var(--gold);
   }
 }
+/* Le focus clavier : le filet de la cartouche passe à l'or et suit son chanfrein. L'anneau du desk, tracé 2 px au-dehors,
+   serait rogné par la nav qui défile ; il devient transparent pour la cartouche seule, et les couleurs forcées (contraste
+   élevé), qui effacent le filet, le redessinent. Après le survol : le focus l'emporte. */
+.navItem:focus-visible {
+  outline-color: transparent;
+}
+.navItem:focus-visible::before,
+.navItem.on:focus-visible::before {
+  background: var(--gold);
+}
 /* L'emblème du module (composant de la planche), seul en tête ; à l'or quand le module est ouvert. */
 .navEmblem {
   width: 20px;
