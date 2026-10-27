@@ -108,3 +108,15 @@ describe('OROS4.39 le rail tient dans la fenêtre minimale du desk', () => {
     expect(value('.navItem', 'width', false)).toBe('min(100cqw, 100%)');
   });
 });
+
+describe('OROS4.40 une cartouche ne s’écrase jamais', () => {
+  it('à l’étroit, la nav défile : une quantité sur deux lignes garde sa cartouche entière, sous le filet', () => {
+    // Sans flex: none, une cartouche de 60,5 px (« ORCHESTRATEUR EN / SERVICE ») était ramenée à sa hauteur minimale et
+    // sa quantité passait 5,5 px sous le filet (6,5 px dans le rail court, au zoom 125 %).
+    expect(value('.navItem', 'flex', false)).toBe('none');
+    for (const compact of [false, true]) expect(item(2, compact), compact ? 'rail court' : 'rail ordinaire').toBeGreaterThan(px(value('.navItem', 'min-height', compact)));
+    // la nav, elle, peut céder sa hauteur et défiler
+    expect(value('.nav', 'min-height', false)).toBe('0');
+    expect(value('.nav', 'overflow', false)).toBe('auto');
+  });
+});

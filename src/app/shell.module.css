@@ -194,10 +194,11 @@
 
 /* Onglet en cartouche (4.1, décision de l'ADMIN, 2026-10-27) : un filet d'un pixel à l'ivoire très bas, le coin chanfreiné
    de la Ligne V2, un fond à peine levé ; l'emblème en tête, le nom et dessous ce que le module contient ; le numéro du
-   raccourci en code, au coin, sous le chanfrein. */
+   raccourci en code, au coin, sous le chanfrein. Elle ne s'écrase jamais (flex: none) : à l'étroit, la nav défile. */
 .navItem {
   position: relative;
   isolation: isolate;
+  flex: none;
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
