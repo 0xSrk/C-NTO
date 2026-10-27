@@ -55,7 +55,7 @@ describe('OROS4.4 les outils de Métrique, dans ses options en haut à droite', 
     expect(options.parentElement!.lastElementChild).toBe(options);
     const trigger = options.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!;
     // OROS4.22 le nom du bouton dit l'état du pont, comme le faisait son ancien bouton
-    expect(textOf(trigger)).toBe('Options · Pont NinjaTrader · inactif');
+    expect(textOf(trigger)).toBe('Options — Pont NinjaTrader : inactif');
     // le code couleur : un point par état lu, ici le pont, à l'anneau tant qu'il est inactif
     expect([...trigger.querySelectorAll('[data-tone]')].map((i) => i.getAttribute('data-tone'))).toEqual(['neutral']);
     const items = [...options.querySelectorAll('[role="menu"] [role^="menuitem"]')];

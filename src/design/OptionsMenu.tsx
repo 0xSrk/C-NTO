@@ -16,6 +16,8 @@ export interface OptionItem {
   tone?: OptionTone;
   /** Ce que l'option lit, à droite (« actif », « hors ligne »…). Une option qui lit un état le montre aussi sur le bouton. */
   state?: string;
+  /** Le libellé dit déjà l'état (« Synchronisation… » pendant qu'elle court) : le nom du bouton ne le répète pas. */
+  stateInLabel?: boolean;
   /** Interrupteur : l'option se coche et le menu reste ouvert. */
   checked?: boolean;
   disabled?: boolean;
@@ -41,6 +43,9 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
   const openAt = useRef(0);
   const name = label ?? tr('Options', 'Options', 'Opciones');
   const marks = items.filter((item) => item.state !== undefined);
+  /** Ce que les points montrent, dit dans le nom du bouton : une ponctuation par paire, dans la typographie de la langue
+   *  (« Options — Pont NinjaTrader : inactif ; Dates estimées : masquées ») ; l'état que dit déjà le libellé se tait. */
+  const said = marks.map((item) => (item.stateInLabel ? item.label : `${item.label}${tr(' : ', ': ', ': ')}${item.state}`)).join(tr(' ; ', '; ', '; '));
 
   const entries = () => [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
   const focusAt = (index: number) => {
@@ -134,7 +139,7 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
               ))}
             </span>
             {/* Ce que les points montrent se dit aussi : le nom du bouton porte chaque état, sans ouvrir le menu. */}
-            <span className={s.srOnly}>{marks.map((item) => ` · ${item.label} · ${item.state}`).join('')}</span>
+            <span className={s.srOnly}>{` — ${said}`}</span>
           </>
         ) : null}
         <svg className={s.chevron} width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>

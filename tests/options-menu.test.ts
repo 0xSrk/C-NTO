@@ -168,13 +168,42 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     // les points restent muets ; une ligne cachée les dit, dans l'ordre du menu
     expect(trigger.querySelector('[data-tone]')!.parentElement!.getAttribute('aria-hidden')).toBe('true');
     const said = trigger.querySelector('[class*="srOnly"]');
-    expect(said?.textContent).toBe(' · Pont NinjaTrader · actif · Synchro · hors ligne');
-    expect(trigger.textContent).toBe('Options · Pont NinjaTrader · actif · Synchro · hors ligne');
+    expect(said?.textContent).toBe(' — Pont NinjaTrader : actif ; Synchro : hors ligne');
+    expect(trigger.textContent).toBe('Options — Pont NinjaTrader : actif ; Synchro : hors ligne');
     // sans état lu, le bouton se nomme « Options », seul
     act(() => root?.unmount());
     host?.remove();
     const bare = mount([{ id: 'a', label: 'Action', onSelect: () => undefined }]);
     expect(bare.trigger.textContent).toBe('Options');
+  });
+
+  it('OROS4.43 le nom du bouton se lit comme il s’écrit : sans les capitales du bouton, une ponctuation par paire dans chaque langue ; l’état que dit déjà le libellé ne se répète pas', () => {
+    // jsdom calcule textContent sans text-transform ; Chromium nomme le bouton d'après le texte rendu. Sans cette ligne, la
+    // ligne cachée prenait les capitales du bouton d'action : « OPTIONS · DATES ESTIMÉES · MASQUÉES · SYNCHRONISER… ».
+    expect(rule('.srOnly')).toMatch(/text-transform: none;/);
+    // « — » entre le bouton et ses états, « : » entre un libellé et son état, « ; » entre deux options ; l'espace avant
+    // les deux-points et le point-virgule en français seulement. Pendant la synchro, « Synchronisation… » suffit.
+    const cases: [string, string, [string, string][]][] = [
+      ['fr', 'Options — Pont NinjaTrader : inactif ; Dates estimées : masquées ; Synchronisation…', [['Pont NinjaTrader', 'inactif'], ['Dates estimées', 'masquées'], ['Synchronisation…', 'en cours']]],
+      ['en', 'Options — NinjaTrader bridge: inactive; Estimated dates: hidden; Syncing…', [['NinjaTrader bridge', 'inactive'], ['Estimated dates', 'hidden'], ['Syncing…', 'running']]],
+      ['es', 'Opciones — Puente NinjaTrader: inactivo; Fechas estimadas: ocultas; Sincronizando…', [['Puente NinjaTrader', 'inactivo'], ['Fechas estimadas', 'ocultas'], ['Sincronizando…', 'en curso']]],
+    ];
+    for (const [locale, name, [bridge, dates, sync]] of cases) {
+      act(() => useI18n.setState({ locale: locale as 'fr' | 'en' | 'es' }));
+      const { trigger } = mount([
+        { id: 'pont', label: bridge![0], state: bridge![1], glyph: 'bridge', onSelect: () => undefined },
+        { id: 'estimees', label: dates![0], state: dates![1], checked: false, onSelect: () => undefined },
+        { id: 'synchro', label: sync![0], state: sync![1], stateInLabel: true, tone: 'gold', group: true, disabled: true, onSelect: () => undefined },
+      ]);
+      expect(trigger.textContent, locale).toBe(name);
+      // trois états, trois points : le point de la synchro reste, seul son mot se tait
+      expect(trigger.querySelectorAll('[data-tone]'), locale).toHaveLength(3);
+      act(() => root?.unmount());
+      host?.remove();
+      root = null;
+    }
+    // Le Calendrier le dit pendant que sa synchro court.
+    expect(readFileSync('src/modules/calendrier/Calendrier.tsx', 'utf8')).toMatch(/label: syncing \? tr\('Synchronisation…'[\s\S]*stateInLabel: syncing,/);
   });
 
   it('OROS4.24 une option sans composant ni lecture porte sa couleur en point : « Supprimer la série » se lit à la braise', () => {

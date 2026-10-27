@@ -250,7 +250,7 @@ describe('OROS4.26 un filtre du Calendrier se voit hors du menu', () => {
     // le menu lit l'état, le bouton porte un point de plus et le dit
     expect(option.textContent).toContain('masquées');
     expect(marks()).toBe(before + 1);
-    expect(trigger.textContent).toContain('Dates estimées · masquées');
+    expect(trigger.textContent).toContain('Dates estimées : masquées');
     act(() => option.click());
     expect(marks()).toBe(before);
     expect(trigger.textContent).not.toMatch(/Dates estimées/);

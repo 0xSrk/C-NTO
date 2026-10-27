@@ -43,7 +43,8 @@
   background: var(--ice);
   box-shadow: none;
 }
-/* Pour les lecteurs d'écran seulement. */
+/* Pour les lecteurs d'écran seulement, tel que la ligne s'écrit : Chromium nomme le bouton d'après le texte rendu, et les
+   capitales du bouton d'action (text-transform) passeraient dans le nom. */
 .srOnly {
   position: absolute;
   width: 1px;
@@ -54,6 +55,7 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+  text-transform: none;
 }
 .chevron {
   display: block;
