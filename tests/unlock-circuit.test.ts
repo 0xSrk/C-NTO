@@ -199,9 +199,13 @@ describe('OROS4.18 le circuit de l’ouverture', () => {
       for (let i = 1; i < n; i++) expect(lanes[i]!, String(n)).toBeGreaterThanOrEqual(lanes[i - 1]!);
       expect(Math.min(...lanes), String(n)).toBeGreaterThanOrEqual(0);
       expect(Math.max(...lanes), String(n)).toBeLessThan(LANES);
-      if (n % 2 === 1 && n < LANES) expect(lanes[(n - 1) / 2], String(n)).toBe(AXIS_LANE);
+      if (n % 2 === 1 && n < LANES) {
+        expect(lanes[(n - 1) / 2], String(n)).toBe(AXIS_LANE);
+        // OROS4.53 les autres s'écartent de l'axe en miroir
+        for (let i = 0; i < n; i++) expect(lanes[i]! - AXIS_LANE, `${n} · ${i}`).toBe(AXIS_LANE - lanes[n - 1 - i]!);
+      }
     }
-    expect([1, 3, 5].map((n) => Array.from({ length: n }, (_, i) => laneOf(i, n)))).toEqual([[3], [0, 3, 6], [0, 2, 3, 5, 6]]);
+    expect([1, 3, 5].map((n) => Array.from({ length: n }, (_, i) => laneOf(i, n)))).toEqual([[3], [0, 3, 6], [0, 1, 3, 5, 6]]);
   });
 
   it('OROS4.52 la rangée de glyphes ne pose pas plus de cases que le champ ne montre de points', () => {

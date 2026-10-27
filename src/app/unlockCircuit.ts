@@ -167,7 +167,11 @@ const ELBOW = 18;
  */
 export function laneOf(i: number, n: number): number {
   if (n === 1) return AXIS_LANE;
-  if (n < LANES && n % 2 === 1) return Math.round((i * (LANES - 1)) / (n - 1));
+  if (n < LANES && n % 2 === 1) {
+    // l'écart à l'axe, arrondi en miroir : 1,5 donne 2 et −1,5 donne −2
+    const x = (i - (n - 1) / 2) * ((LANES - 1) / (n - 1));
+    return AXIS_LANE + Math.sign(x) * Math.round(Math.abs(x));
+  }
   return Math.min(LANES - 1, Math.floor((i * LANES) / Math.max(1, n)));
 }
 
