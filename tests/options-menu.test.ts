@@ -120,6 +120,33 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     expect(document.activeElement).toBe(entries()[0]);
   });
 
+  it('OROS4.42 un ↑ menu déjà ouvert ne colle pas à l’ouverture suivante : Entrée, Espace ou un clic rouvrent sur la première', () => {
+    const { trigger, menu, entries } = mount([
+      { id: 'a', label: 'Première', onSelect: () => undefined },
+      { id: 'b', label: 'Milieu', onSelect: () => undefined },
+      { id: 'c', label: 'Dernière', onSelect: () => undefined },
+    ]);
+    act(() => trigger.click()); // ouvert à la souris : la première
+    expect(document.activeElement).toBe(entries()[0]);
+    // Dans Chromium : un clic sur le filet entre deux groupes, puis Maj+Tab, rendent le focus au bouton, menu ouvert.
+    act(() => trigger.focus());
+    key(trigger, 'ArrowUp'); // menu déjà ouvert : la dernière
+    expect(document.activeElement).toBe(entries()[2]);
+    key(menu, 'Escape');
+    expect(menu.getAttribute('data-open')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+    // Entrée sur un bouton se dit par son clic : il rouvre sur la première, pas sur la dernière du ↑ d'avant.
+    act(() => trigger.click());
+    expect(document.activeElement).toBe(entries()[0]);
+    // ↓ menu ouvert garde son sens, et ne colle pas davantage.
+    act(() => trigger.focus());
+    key(trigger, 'ArrowDown');
+    expect(document.activeElement).toBe(entries()[0]);
+    key(menu, 'Escape');
+    key(trigger, 'ArrowUp'); // fermé : ↑ ouvre sur la dernière, comme le veut le motif
+    expect(document.activeElement).toBe(entries()[2]);
+  });
+
   it('le code couleur se lit sur le bouton : un point par état lu, à la couleur de l’état ; les filets séparent les groupes', () => {
     const { trigger, menu } = mount([
       { id: 'pont', label: 'Pont', state: 'actif', tone: 'mint', onSelect: () => undefined },

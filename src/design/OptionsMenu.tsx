@@ -73,9 +73,13 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
   const onButtonKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      openAt.current = event.key === 'ArrowDown' ? 0 : -1;
-      if (!open) setOpen(true);
-      else focusAt(openAt.current);
+      const at = event.key === 'ArrowDown' ? 0 : -1;
+      // Menu déjà ouvert, le focus y va tout de suite : rien ne reste pour l'ouverture suivante, qui repart de la première.
+      if (open) focusAt(at);
+      else {
+        openAt.current = at;
+        setOpen(true);
+      }
     }
   };
 
