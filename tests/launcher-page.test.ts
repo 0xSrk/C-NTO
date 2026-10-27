@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { code128Path } from '@/lib/code128';
+import { hoverOffenses } from './helpers/cssRules';
 
 const HTML = readFileSync('electron/launcher.html', 'utf8');
 const UI = readFileSync('electron/launcher-ui.js', 'utf8');
@@ -71,13 +72,11 @@ async function boot({ status = UP_TO_DATE, locale = 'fr', shell = true, apply }:
   await vi.waitFor(() => {
     const text = document.getElementById('meta-text')?.textContent ?? '';
     if (status !== 'pending' && shell) expect(text).not.toMatch(/Contrôle|Checking|Comprobando/);
-    expect(document.getElementById('plate-seal')?.textContent).toMatch(/V\.3\.6\.0/);
+    expect(document.getElementById('strip-code')?.textContent).toBe('SK-ART-002-3.6.0');
   });
   await new Promise((r) => setTimeout(r, 0));
 }
 
-/** Texte d'un emplacement lié (tspan .lm-v), dans l'ordre de la plaque. */
-const slots = (id: string) => [...document.querySelectorAll(`#${id} .lm-v`)].map((n) => n.textContent);
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -112,8 +111,10 @@ describe('OROS3.9 lanceur recomposé en Système 4.0 — la page', () => {
     expect(HTML).not.toMatch(/Inter|JetBrains|fonts\.(googleapis|gstatic)/);
   });
 
-  it('ne réagit pas au passage du pointeur : aucune règle :hover', () => {
-    expect(CSS).not.toMatch(/:hover/);
+  it('OROS4.8 le passage du pointeur est une lumière : chaque :hover vit sous @media (hover: hover) et ne change que la lumière', () => {
+    const { offenders, hovers } = hoverOffenses(CSS, 'launcher.html');
+    expect(offenders).toEqual([]);
+    expect(hovers).toBeGreaterThan(0);
   });
 
   it('ne peint plus de scène 3D : l’aube se lève sur l’horizon du sceau, en vecteurs', () => {
@@ -144,25 +145,30 @@ describe('OROS3.9 lanceur recomposé en Système 4.0 — la page', () => {
   });
 });
 
-describe('OROS3.9 lanceur recomposé en Système 4.0 — les plaques lisent l’état réel', () => {
-  it('à jour : la plaque du sceau porte la version, la publication dit le canal et la latence, la bande porte le vrai code', async () => {
+describe('OROS4.8 lanceur allégé : aucune plaque, la ligne d’état et la bande disent l’état réel', () => {
+  it('n’imprime plus de plaque : ni dans la page, ni dans ses micrographies', () => {
+    expect(HTML).not.toMatch(/class="plate|plate-(seal|artefact|release)|--t-plates|aube-print/);
+    expect(UI).not.toMatch(/PLATES|bindSlots|paintPlates/);
+    installPage();
+    window.eval(MICRO);
+    expect((window as unknown as { cantoMicro: Record<string, unknown> }).cantoMicro.PLATES).toBeUndefined();
+  });
+
+  it('à jour : la ligne d’état dit la version, la bande dit le canal, la latence et porte le vrai code', async () => {
     await boot({ status: UP_TO_DATE });
-    expect(slots('plate-seal')).toEqual(['3.6.0']);
-    const [next, state, channel, latency] = slots('plate-release');
-    expect([next, state, channel]).toEqual(['3.6.0', 'À JOUR', 'GITHUB']);
-    expect(latency).toMatch(/^\d+ MS$/);
-    expect(slots('plate-artefact')).toEqual(['PRÊT']);
+    expect(document.getElementById('meta-text')!.textContent).toBe('À jour · v3.6.0');
     expect(document.getElementById('meta')!.dataset.level).toBe('1');
     expect(document.querySelector('#meta-glyph .skg-131')).not.toBeNull();
     expect((document.getElementById('btn-update') as HTMLButtonElement).hidden).toBe(true);
     expect(document.getElementById('strip-code')!.textContent).toBe('SK-ART-002-3.6.0');
     expect(document.getElementById('strip-channel')!.textContent).toBe('■ GITHUB');
+    expect(document.getElementById('strip-latency')!.textContent).toMatch(/^· \d+ MS$/);
     expect(document.querySelector('svg.code path')!.getAttribute('d')).toBe(code128Path('SK-ART-002-3.6.0', 12).d);
   });
 
-  it('mise à jour disponible : la version suivante paraît, le signal passe au rayonnement, le bouton or s’ouvre', async () => {
+  it('mise à jour disponible : la ligne dit la version suivante, le signal passe au rayonnement, le bouton or s’ouvre', async () => {
     await boot({ status: AVAILABLE });
-    expect(slots('plate-release').slice(0, 3)).toEqual(['3.7.0', 'DISPO', 'GITHUB']);
+    expect(document.getElementById('meta-text')!.textContent).toBe('v3.6.0 → v3.7.0 disponible');
     expect(document.getElementById('meta')!.dataset.level).toBe('2');
     expect(document.querySelector('#meta-glyph .skg-12')).not.toBeNull();
     expect((document.getElementById('btn-update') as HTMLButtonElement).hidden).toBe(false);
@@ -170,10 +176,8 @@ describe('OROS3.9 lanceur recomposé en Système 4.0 — les plaques lisent l’
     expect(document.querySelector('#glyph-launch .skg-46')).not.toBeNull();
   });
 
-  it('échec : le cercle barré marque le niveau 3, la plaque ne devine aucune version, le texte reste ivoire', async () => {
+  it('échec : le cercle barré marque le niveau 3, le texte reste ivoire, le canal se dit non joint', async () => {
     await boot({ status: FAILED });
-    const [next, state, channel] = slots('plate-release');
-    expect([next, state, channel]).toEqual(['—', 'ÉCHEC', 'GITHUB']);
     expect(document.getElementById('meta')!.dataset.level).toBe('3');
     expect(document.querySelector('#meta-glyph .skg-123')).not.toBeNull();
     expect(document.getElementById('meta-text')!.textContent).toBe('Impossible de joindre GitHub');
@@ -181,16 +185,15 @@ describe('OROS3.9 lanceur recomposé en Système 4.0 — les plaques lisent l’
     expect(CSS).not.toMatch(/(?:^|[\s;{])color:\s*var\(--signal\)/m);
   });
 
-  it('contrôle en cours : l’anneau de « maintenant » tourne, la version lue tout de suite, le reste se lit « — »', async () => {
+  it('contrôle en cours : l’anneau de « maintenant » tourne, la version lue tout de suite paraît dans la bande', async () => {
     await boot({ status: 'pending' });
     expect(document.querySelector('#meta-glyph .skg-27')).not.toBeNull();
     expect(document.getElementById('meta')!.dataset.level).toBe('busy');
-    expect(slots('plate-seal')).toEqual(['3.6.0']);
-    expect(slots('plate-release')).toEqual(['—', '—', '—', '—']);
     expect(document.getElementById('strip-code')!.textContent).toBe('SK-ART-002-3.6.0');
+    expect(document.getElementById('strip-channel')!.textContent).toBe('□ —');
   });
 
-  it('téléchargement : la règle se remplit de points d’or au pourcentage reçu, la plaque le relève', async () => {
+  it('téléchargement : la règle se remplit de points d’or au pourcentage reçu, la ligne le relève', async () => {
     let finish: (s: Status) => void = () => undefined;
     await boot({ status: AVAILABLE, apply: () => new Promise<Status>((r) => (finish = r)) });
     (document.getElementById('btn-update') as HTMLButtonElement).click();
@@ -200,26 +203,25 @@ describe('OROS3.9 lanceur recomposé en Système 4.0 — les plaques lisent l’
     expect(gauge.hidden).toBe(false);
     expect(gauge.style.getPropertyValue('--fill')).toBe('0.4');
     expect(document.querySelector('#gauge .skg-31')).not.toBeNull();
-    expect(slots('plate-release')[1]).toBe('40 %');
-    expect(slots('plate-artefact')).toEqual(['MAJ…']);
+    expect(document.getElementById('gauge-pct')!.textContent).toBe('40 %');
     expect(document.getElementById('meta-text')!.textContent).toContain('40 %');
     finish({ ...UP_TO_DATE, applied: false, opened: 'installer' } as Status);
   });
 
-  it('les relevés suivent la langue du desk', async () => {
+  it('la ligne d’état suit la langue du desk', async () => {
     await boot({ status: UP_TO_DATE, locale: 'en' });
-    await vi.waitFor(() => expect(slots('plate-release')[1]).toBe('LATEST'));
-    expect(slots('plate-artefact')).toEqual(['READY']);
+    await vi.waitFor(() => expect(document.getElementById('meta-text')!.textContent).toBe('Up to date · v3.6.0'));
   });
 
-  it('sans shell : rien d’inventé, le signal dit l’échec', async () => {
+  it('sans shell : rien d’inventé, le signal dit l’échec, la bande ne porte que l’artefact', async () => {
     installPage();
     (window as unknown as { canto?: unknown }).canto = undefined;
     window.eval(MICRO);
     window.eval(UI);
     expect(document.getElementById('meta-text')!.textContent).toBe('Shell indisponible');
     expect(document.getElementById('meta')!.dataset.level).toBe('3');
-    expect(slots('plate-seal')).toEqual(['—']);
-    expect(slots('plate-release')).toEqual(['—', '—', '—', '—']);
+    expect(document.getElementById('strip-code')!.textContent).toBe('SK-ART-002');
+    expect(document.querySelector('svg.code')!.childElementCount).toBe(0);
   });
 });
+

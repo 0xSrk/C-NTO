@@ -120,7 +120,7 @@ Plaques HUD, cartouches et composants de la planche des 150 viennent des masters
 
 ## 10. Lanceur AUBE
 
-L’aube sur l’horizon : l’horizon se trace en lentille du sceau, le sceau frappe puis se plie dans la ligne, la LED or se lève et se pose sur la pointe du Λ, le logotype se construit sur sa grille (axe y 80 = l’horizon), les plaques s’impriment comme des relevés liés à l’état réel (version, canal de publication, version disponible). Signal par glyphe ; rouge au seul échec. Au départ, chaque trait de la graduation est une étape comptée, le sceau se rouvre en filets puis se replie avec le logotype, la LED reste seule. Une touche ou un clic abrège ; mouvement réduit : état de repos d’emblée. Un seul Code 128, en bas à droite. Icône : le Λ et sa LED carrée, passée à l’or.
+L’aube sur l’horizon : l’horizon se trace en lentille du sceau, le sceau frappe puis se plie dans la ligne, la LED or se lève et se pose sur la pointe du Λ, le logotype se construit sur sa grille (axe y 80 = l’horizon), la ligne du Lab se resserre dessous. Aucune plaque (4.1, décision de l’ADMIN, 2026-10-27) : la version et l’état se lisent une fois, dans la ligne d’état, le canal et la latence dans la bande ; le ciel reste vide. La langue choisie s’allume (lueur blanche, filet d’or au pied) ; l’ivoire reste à la seule action principale ; le passage du pointeur est une lumière, comme au desk. Signal par glyphe ; rouge au seul échec. Au départ, chaque trait de la graduation est une étape comptée, le sceau se rouvre en filets puis se replie avec le logotype, la LED reste seule. Une touche ou un clic abrège ; mouvement réduit : état de repos d’emblée. Un seul Code 128, en bas à droite. Icône : le Λ et sa LED carrée, passée à l’or.
 
 ## Règles de cette révision
 

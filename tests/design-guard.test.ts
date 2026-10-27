@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLATES } from '@/design/micro/assets';
+import { cssRules, hoverOffenses } from './helpers/cssRules';
 
 const TEXT = new Set(['.ts', '.tsx', '.css', '.html', '.js', '.mjs', '.cjs', '.svg']);
 
@@ -49,49 +50,6 @@ function hue(hex: string): number {
   if (d === 0) return 0;
   const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return (h * 60 + 360) % 360;
-}
-
-/** Ce qu'un passage du pointeur a le droit de changer : la lumière, jamais la place ni la forme. */
-const HOVER_LIGHT = new Set(['color', 'background-color', 'border-color', 'box-shadow', 'opacity', 'text-shadow', '--k']);
-
-interface CssRule {
-  selector: string;
-  /** En-têtes des blocs @ qui l'entourent, du plus large au plus proche. */
-  at: string[];
-  props: string[];
-  body: string;
-}
-
-/** Lecture des règles d'une feuille (commentaires ôtés) : sélecteur, blocs @ englobants, propriétés déclarées. */
-function cssRules(source: string): CssRule[] {
-  const text = source.replace(/\/\*[\s\S]*?\*\//g, '');
-  const out: CssRule[] = [];
-  const stack: { head: string; body: string }[] = [];
-  let buf = '';
-  for (const ch of text) {
-    if (ch === '{') {
-      stack.push({ head: buf.trim(), body: '' });
-      buf = '';
-    } else if (ch === '}') {
-      const top = stack.pop();
-      if (top && !top.head.startsWith('@')) {
-        const body = `${top.body}${buf}`;
-        const props = body
-          .split(';')
-          .map((decl) => decl.split(':')[0]?.trim() ?? '')
-          .filter(Boolean);
-        out.push({ selector: top.head, at: stack.filter((s) => s.head.startsWith('@')).map((s) => s.head), props, body });
-      }
-      buf = '';
-    } else if (ch === ';') {
-      // Hors de tout bloc (@import…), la déclaration n'appartient à aucune règle.
-      if (stack.length > 0) stack[stack.length - 1]!.body += `${buf};`;
-      buf = '';
-    } else {
-      buf += ch;
-    }
-  }
-  return out;
 }
 
 function token(css: string, name: string): string {
@@ -185,13 +143,9 @@ describe('garde du système visuel', () => {
     const offenders: string[] = [];
     let hovers = 0;
     for (const path of walk('src').filter((p) => p.endsWith('.css'))) {
-      for (const rule of cssRules(readFileSync(path, 'utf8'))) {
-        if (!/:hover\b/.test(rule.selector)) continue;
-        hovers++;
-        const where = `${posix('src', path)} ${rule.selector}`;
-        if (!rule.at.some((at) => /^@media\s*\(hover:\s*hover\)/.test(at))) offenders.push(`${where} : hors de @media (hover: hover)`);
-        for (const prop of rule.props) if (!HOVER_LIGHT.has(prop)) offenders.push(`${where} : ${prop}`);
-      }
+      const found = hoverOffenses(readFileSync(path, 'utf8'), posix('src', path));
+      offenders.push(...found.offenders);
+      hovers += found.hovers;
     }
     expect(offenders).toEqual([]);
     // Les boutons d'action portent la règle : sans elle, la garde ne garderait rien.
