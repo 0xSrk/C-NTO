@@ -243,6 +243,11 @@ for (const host of dataHosts) {
   if (host.includes('://') || host.includes('/') || host.includes(':')) throw new Error(`Hôte de données invalide : ${host}`);
 }
 
+/** Dernier geste réel de l'opérateur par page (appui de souris ou touche), relevé par `input-event`. */
+const lastGesture = new Map<number, number>();
+/** « Coller » n'est honoré que dans ce délai après un geste réel. */
+const PASTE_GESTURE_MS = 1500;
+
 /** Préférence zoom envoyée par le renderer (persistée dans IndexedDB). */
 let zoomUser = 1;
 let zoomAuto = true;
@@ -389,6 +394,12 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     applyZoom(win);
     win?.webContents.setBackgroundThrottling(true);
     win?.webContents.send('zoom:changed', zoomSnapshot(win));
+  });
+  // Le dernier geste réel de l'opérateur (appui de souris, touche), vu ici et non dans la page : « Coller » n'est honoré
+  // que juste après l'un d'eux.
+  const deskContents = win.webContents;
+  deskContents.on('input-event', (_event, input) => {
+    if (input.type === 'mouseDown' || input.type === 'keyDown' || input.type === 'rawKeyDown') lastGesture.set(deskContents.id, Date.now());
   });
   const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
   const indexUrl = pathToFileURL(indexFile).href;
@@ -590,11 +601,16 @@ ipcMain.on('window:close', (e) => {
   (BrowserWindow.fromWebContents(e.sender) ?? win)?.close();
 });
 // « Coller » : le presse-papiers entre dans le champ qui a le focus, comme Ctrl+V. Le renderer ne le lit jamais lui-même
-// (la permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle.
+// (la permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle,
+// et seulement juste après un geste réel de l'opérateur, vu par le process principal : un collage par geste. Sans geste,
+// du code de la page ne peut pas faire entrer le presse-papiers dans un champ pour le lire.
 ipcMain.on('window:paste', (e) => {
   if (!trusted(e)) return;
   const w = BrowserWindow.fromWebContents(e.sender);
   if (!w || !w.isFocused()) return;
+  const at = lastGesture.get(e.sender.id) ?? 0;
+  if (Date.now() - at > PASTE_GESTURE_MS) return;
+  lastGesture.delete(e.sender.id);
   e.sender.paste();
 });
 
