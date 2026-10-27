@@ -133,12 +133,27 @@ describe('agent cloud · définition installée par le desk', () => {
     // Il omettait les bills à 6 et 52 semaines adjugés le jour même, et datait une publication arrêtée d'une page périmée.
     expect(prompt).toContain('chaque adjudication du jour et du lendemain, bills compris');
     expect(prompt).toContain('une annonce n’est pas une adjudication');
-    expect(prompt).toContain('Une page qui ne montre aucune date de l’année en cours');
     expect(prompt).toContain('n’en tire aucun événement');
     // « non trouvé » couvrait aussi ce qui n'avait pas été lu : le correcteur connaît les deux mentions.
     expect(prompt).toContain('« non consulté »');
     expect(outcomeRubric('fr')).toContain('« non consulté »');
     expect(outcomeRubric('fr')).toContain('« non trouvé »');
+  });
+
+  it('CLD30 relecture de CLD29 : une page sans année n’est pas périmée, une page refusée ne se retente pas, le reste comble d’abord le calendrier', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // La page du rapport pétrolier hebdomadaire (ir.eia.gov) ne porte aucune année : CLD29 l'aurait écartée. Seule une page
+    // aux dates anciennes, comme les exceptions de « This Week in Petroleum » figées sur 2025, est périmée.
+    expect(prompt).not.toContain('aucune date de l’année en cours');
+    expect(prompt).toContain('Une page dont la date la plus récente remonte à plus de trois mois avant la journée analysée est périmée');
+    // cmegroup.com refuse l'accès automatisé : une page refusée ne doit pas brûler les pages qui restent.
+    expect(prompt).toContain('Une page qui ne s’ouvre pas (erreur, accès refusé, délai) ne se retente pas, ni par une autre page du même site');
+    // Les pages qui restent comblent d'abord le calendrier de la fenêtre, puis seulement le contexte.
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
+    expect(method).toBeDefined();
+    expect(method!.indexOf('d’abord ce qui manque au calendrier de la fenêtre')).toBeGreaterThan(0);
+    expect(method!.indexOf('d’abord ce qui manque au calendrier de la fenêtre')).toBeLessThan(method!.indexOf('puis le contexte'));
+    expect(method).toContain('la page du mois suivant quand le lendemain y tombe');
   });
 });
 
