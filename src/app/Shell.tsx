@@ -1,8 +1,10 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BraceCode, Button, Led, cx } from '@/design/primitives';
 import { Cartouche, Glyph } from '@/design/Micro';
+import { Seal } from '@/design/Seal';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
+import { OptionsMenu, type OptionItem } from '@/design/OptionsMenu';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
@@ -24,10 +26,10 @@ import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
 import { followerCount, railQuantity, type RailSnapshot } from './railQuantity';
-import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
+import { LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
 import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
-import { isConception, tabCopy, TABS } from './tabs';
+import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
 function useClock(everyMs = 1000) {
@@ -200,10 +202,15 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
-          {/* Le losange du secteur S.01 (cartouche SK-SEC-S01) : le desk sert les marchés. */}
-          <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
-            <Cartouche id="sectorS01" />
-          </span>
+          {/* Imprimés en haut à droite (4.1) : le losange du secteur S.01 (cartouche SK-SEC-S01), puis la version, qui ouvre le journal. */}
+          <div className={s.versionCell}>
+            <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
+              <Cartouche id="sectorS01" />
+            </span>
+            <span className={s.titleVersion}>
+              <ChangelogJournal version={appVersion} />
+            </span>
+          </div>
           <UpdateButton />
           <div className={s.titleZoom}>
             <ZoomControls />
@@ -240,30 +247,11 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       {kill.engaged && <KillBand shortcut={kill.shortcut} />}
 
       <aside className={s.rail}>
+        {/* Les modules gravés à même le rail, sans catégorie : chacun son emblème, son nom, ce qu'il contient. */}
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
-          <div className={s.navLabelHead}>
-            <span>{tr('BORDEREAU', 'MANIFEST', 'ALBARÁN')}</span>
-            <i aria-hidden />
-            <span>
-              {TABS.length} {tr('MODULES', 'MODULES', 'MÓDULOS')}
-            </span>
-          </div>
-          {TABS.map((item, index) => {
-            const conception = isConception(item.id);
-            const prev = index > 0 ? TABS[index - 1] : undefined;
-            const openConcept = conception && (!prev || !isConception(prev.id));
-            return (
-              <Fragment key={item.id}>
-                {openConcept && (
-                  <div className={s.conceptLabel}>
-                    <span>{tr('EN CONCEPTION', 'IN DESIGN', 'EN DISEÑO')}</span>
-                    <i />
-                  </div>
-                )}
-                <RailButton itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} dashed={conception} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
-              </Fragment>
-            );
-          })}
+          {TABS.map((item) => (
+            <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
+          ))}
         </nav>
         <div className={s.railFoot}>
           <div className={s.account}>
@@ -277,29 +265,23 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             </div>
             <span className={s.accountSource}>{source}</span>
           </div>
-          {/* Plaque d'artefact (Système 4.0) : la cartouche SK-ART-002 du Lab, la version qui ouvre le journal, les langues. Le seul objet arrondi. */}
-          <div className={s.plate} role="group" aria-label={tr(`Plaque d’artefact : SK-ART-002, CΛNTO, version ${appVersion}`, `Artefact plate: SK-ART-002, CΛNTO, version ${appVersion}`, `Placa del artefacto: SK-ART-002, CΛNTO, versión ${appVersion}`)}>
-            <Cartouche id="artefact" values={{ build: `v${appVersion} · DESK`, runs: 'MACOS / WINDOWS / LINUX' }} className={s.plateLabel} />
-            <div className={s.plateRow}>
-              <span className={s.plateVer}>
-                <ChangelogJournal version={appVersion} />
-              </span>
-              <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
-                {LOCALES.map((item) => (
-                  <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
-                    {item.id.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+          {/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit, le même qu'au verrou, puis les langues. */}
+          <div className={s.signature}>
+            <span className={s.sealMark} data-part="lab-seal">
+              <Seal kind="negative" className={s.sealMarkSvg} label="SIΞRRΛSKΛ Lab" />
+            </span>
+            <div className={s.langRow} role="radiogroup" aria-label={tr('Langue du desk', 'Desk language', 'Idioma del desk')}>
+              {LOCALES.map((item) => (
+                <button key={item.id} type="button" role="radio" aria-checked={locale === item.id} aria-label={item.label} title={item.label} className={cx(s.langBtn, locale === item.id && s.on)} onClick={() => void chooseLocale(item.id)}>
+                  {item.id.toUpperCase()}
+                </button>
+              ))}
             </div>
           </div>
         </div>
       </aside>
 
       <main className={s.main}>
-        <span className={s.edge} aria-hidden>
-          SIΞRRΛSKΛ LAB · DEEP TECH · ARTEFACT 002 · RÉV. 4.0
-        </span>
         {children}
         <div className={s.toasts} role="status" aria-live="polite">
           {toasts.map((toast) => (
@@ -372,22 +354,44 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   );
 }
 
-function RailButton({ itemId, index, label, qty, on, dashed, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; dashed?: boolean; link?: boolean; onClick: () => void }) {
+/**
+ * Un onglet du rail (4.1) : l'emblème du module en tête (composant de la planche), le nom et ce que le module contient,
+ * le numéro du raccourci au bout. L'onglet ouvert s'allume : un filament d'or au bord, une lueur blanche, l'emblème à l'or.
+ */
+function RailButton({ itemId, index, label, qty, on, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; link?: boolean; onClick: () => void }) {
   return (
-    <button type="button" className={cx(s.navItem, on && s.on, dashed && s.dashed)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
-      {/* Le numéro, et sous lui l'emblème du module (composant de la planche). */}
-      <span className={s.navCol} data-part="rail-index">
-        <span className={s.navIndex}>{index}</span>
-        <Glyph name={itemId} className={s.navEmblem} />
-      </span>
+    <button type="button" className={cx(s.navItem, on && s.on)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
+      <Glyph name={itemId} className={s.navEmblem} />
       <span className={s.navText}>
         <span className={s.navLabel}>{label}</span>
-        {qty ? <span className={s.navQty}>{qty}</span> : null}
+        {qty ? <RailQty text={qty} /> : null}
       </span>
       {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
-      <span className={s.navMark} aria-hidden />
+      <span className={s.navIndex} data-part="rail-index" aria-hidden>
+        {index}
+      </span>
       <span className={s.srOnly}>{itemId}</span>
     </button>
+  );
+}
+
+/**
+ * La quantité sous le nom du module (4.1) : jamais coupée. Trop longue pour le rail, elle passe à la ligne, deux lignes au
+ * plus ; faite de plusieurs parties, elle ne se brise qu'entre elles (« 2 notes · » puis « 472 liens »).
+ */
+function RailQty({ text }: { text: string }) {
+  const parts = text.split(' · ');
+  return (
+    <span className={s.navQty}>
+      {parts.length < 2
+        ? text
+        : parts.map((part, i) => (
+            <Fragment key={i}>
+              {i > 0 ? ' · ' : null}
+              <span className={s.navQtyPart}>{part}</span>
+            </Fragment>
+          ))}
+    </span>
   );
 }
 
@@ -398,7 +402,6 @@ function ConfirmDialog() {
   return (
     <Modal
       title={pending.title}
-      sub={tr('confirmation requise', 'confirmation required', 'confirmación requerida')}
       onClose={() => resolve(false)}
       width={460}
       footer={
@@ -425,10 +428,11 @@ export interface TitleCell {
 }
 
 /**
- * En-tête de module (Système 4.0) : numéro d'afficheur, nom, code et baseline, puis le bloc-titre
- * que le module remplit de ses propres données. Sans cellule passée, pas de bloc-titre.
+ * En-tête de module (4.1) : numéro d'afficheur et nom sur une ligne, rien dessous. La couche du Lab tient en un seul
+ * composant, posé après le nom ; un relevé du module (`meta`) le suit sur la même ligne. Puis le bloc-titre que le
+ * module remplit de ses propres données, sans cellule passée aucun, ses actions, et ses options tout au bout.
  */
-export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: TabId; actions?: ReactNode; crumb?: string; meta?: ReactNode; cells?: TitleCell[] }) {
+export function ModuleHeader({ tab, actions, options, crumb = '', meta, cells }: { tab: TabId; actions?: ReactNode; options?: OptionItem[]; crumb?: string; meta?: ReactNode; cells?: TitleCell[] }) {
   const setCrumb = useUi((u) => u.setCrumb);
   const def = TABS.find((item) => item.id === tab);
   useEffect(() => {
@@ -443,20 +447,13 @@ export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: T
         <span className={s.moduleNum} aria-hidden>
           {def.index}
         </span>
-        <span className={s.moduleTitle}>
-          <span className={s.moduleName}>{copy.label}</span>
-          <span className={s.moduleLine}>
-            <span className={s.moduleCode}>{def.code}</span>
-            <span className={s.moduleTagline}>{copy.tagline}</span>
-            {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
-          </span>
-        </span>
+        <span className={s.moduleName}>{copy.label}</span>
       </h1>
-      {/* La couche du Lab à laquelle le module appartient : son composant et sa bande (Ligne V2). */}
+      {/* La couche du Lab à laquelle le module appartient : son seul composant de la planche (Ligne V2). */}
       <span className={s.moduleLayer} role="img" aria-label={`${tr('Couche', 'Layer', 'Capa')} ${layerCode(layer)} · ${layerName(layer)}`} data-layer={layer}>
         <Glyph name={LAYER_GLYPH[layer]} className={s.layerGlyph} />
-        <Cartouche id={LAYER_CARTOUCHE[layer]} className={s.layerBand} />
       </span>
+      {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
       {cells && cells.length > 0 ? (
         <dl className={s.titleBlock}>
           {cells.map((cell) => (
@@ -467,7 +464,13 @@ export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: T
           ))}
         </dl>
       ) : null}
-      {actions && <div className={s.moduleActions}>{actions}</div>}
+      {actions || (options && options.length > 0) ? (
+        <div className={s.moduleActions}>
+          {actions}
+          {/* Les options du module, au bout de la ligne, en haut à droite. */}
+          {options && options.length > 0 ? <OptionsMenu items={options} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -127,8 +127,6 @@ const lastChart = (): ChartProps => {
   return props as ChartProps;
 };
 
-/** La plaque SIGNAL en tête de la section des alertes ; `title` : le titre de la section dans la langue active. */
-const signalPlate = (node: HTMLElement, title = 'Alertes'): HTMLElement | null => section(node, title).querySelector(`.${c.alertHead} [role="img"]`);
 const tagOf = (row: HTMLElement): HTMLElement | null => row.querySelector(`.${p.tag}`);
 const levelOf = (row: HTMLElement): string | null => row.querySelector('[data-level]')?.getAttribute('data-level') ?? null;
 const css = () => readFileSync('src/modules/crypto/crypto.module.css', 'utf8');
@@ -203,54 +201,61 @@ describe('OROS3.5a les alertes sont des signaux', () => {
   });
 });
 
-describe('OROS3.5b la plaque SIGNAL ouvre la section des alertes, liée au marché du chart', () => {
+describe('OROS4.10 la section des alertes s’ouvre sur la légende, sans plaque SIGNAL ; chaque état reste dit à sa place', () => {
   const ONE: CryptoMarketId = 'binance:ONEUSDT';
   const ticker = { [BTC]: { market: BTC, last: 82_487.05, change24hPct: -0.21, time: NOW } };
-  /** Le texte d'une ligne de la plaque, par la classe de son master (`mgsignal-2` : WATCH / TARGET / STATE ; `mgsignal-6` : la pastille). */
-  const slot = (plate: HTMLElement | null, cls: string): string => visible(plate?.querySelector(`text.${cls}`));
+  /** La ligne de marché de la colonne dont le symbole est `symbol`. */
+  const marketRow = (node: HTMLElement, symbol: string): HTMLElement => {
+    const row = [...section(node, 'Marchés').querySelectorAll<HTMLElement>(`.${c.marketRow}`)].find((el) => visible(el).startsWith(symbol));
+    if (!row) throw new Error(`marché ${symbol} introuvable`);
+    return row;
+  };
 
-  it('cible le marché du chart, lit l’état de ses alertes (déclenchée avant armée) et le direct de son prix', async () => {
+  it('ni plaque SIGNAL ni sa lecture : la légende ouvre la section, avant la première ligne d’alerte', async () => {
     const node = await mount({ alerts: ALERTS, tickers: ticker });
-    const plate = signalPlate(node);
-    expect(plate).not.toBeNull();
-    expect(plate!.querySelector('svg.mg-signal')).not.toBeNull();
-    // La plaque ouvre la section : avant la première ligne d'alerte.
-    const head = section(node, 'Alertes').querySelector(`.${c.alertHead}`);
+    expect(node.querySelector('svg.mg-signal')).toBeNull();
+    expect(section(node, 'Alertes').querySelector('[role="img"][aria-label^="Signal"]')).toBeNull();
+    const legend = section(node, 'Alertes').querySelector(`.${c.alertLegend}`);
     const first = alertRows(node)[0];
-    expect(head && first && head.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(slot(plate, 'mgsignal-2')).toBe('WATCHTARGET: BTC-USDSTATE: TRIGGERED');
-    expect(slot(plate, 'mgsignal-6')).toBe('LIVE');
-    expect(plate?.getAttribute('aria-label')).toBe('Signal : BTC-USD · alerte déclenchée · prix en direct');
+    expect(legend && first && legend.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(css()).not.toMatch(/\.signalPlate|\.alertHead/);
+    const signals = await import('@/modules/crypto/cryptoSignals');
+    expect(Object.keys(signals)).not.toContain('signalPlateValues');
+    expect(Object.keys(signals)).not.toContain('signalPlateLabel');
   });
 
-  it('armée seule : ARMED ; aucune alerte sur le marché : un tiret ; prix pas encore reçu ou venue périmée : pas de direct', async () => {
-    const node = await mount({ alerts: [ALERTS[0]!, ALERTS[2]!], tickers: ticker });
-    expect(slot(signalPlate(node), 'mgsignal-2')).toBe('WATCHTARGET: BTC-USDSTATE: ARMED');
+  it('l’état de chaque alerte est sur sa ligne ; le direct du prix, sur la ligne de son marché', async () => {
+    const node = await mount({ alerts: ALERTS, tickers: ticker });
+    expect(alertRows(node).map((row) => tagOf(row)?.textContent)).toEqual(['Armée', 'Déclenchée', 'Armée', 'En pause']);
+    // Venue en direct et prix reçu : la ligne BTC-USD est allumée ; ONEUSDT, sans prix, ne l'est pas.
+    expect(marketRow(node, 'BTC-USD').querySelector(`.${p.led}`)).not.toBeNull();
+    expect(marketRow(node, 'ONEUSDT').querySelector(`.${p.led}`)).toBeNull();
     await act(async () => useCrypto.setState({ venues: { coinbase: 'stale', binance: 'live', bybit: 'live' } }));
-    expect(slot(signalPlate(node), 'mgsignal-6')).toBe('—');
+    expect(marketRow(node, 'BTC-USD').querySelector(`.${p.led}`)).toBeNull();
+    // Un autre marché au chart ne change rien aux lignes : chacune dit son propre état.
     await act(async () => useCrypto.setState({ market: ONE }));
-    expect(slot(signalPlate(node), 'mgsignal-2')).toBe('WATCHTARGET: ONEUSDTSTATE: —');
-    expect(slot(signalPlate(node), 'mgsignal-6')).toBe('—');
-    expect(signalPlate(node)?.getAttribute('aria-label')).toBe('Signal : ONEUSDT · aucune alerte · prix pas en direct');
+    expect(alertRows(node).map((row) => tagOf(row)?.textContent)).toEqual(['Armée', 'Déclenchée', 'Armée', 'En pause']);
   });
 
-  it('la légende dit les trois niveaux par leur forme ; seul le niveau 3 est rouge, et il n’écrit pas', async () => {
+  it('la légende dit les trois niveaux par leur forme, sur une ligne ; seul le niveau 3 est rouge, et il n’écrit pas', async () => {
     const node = await mount({ alerts: ALERTS });
     const legend = section(node, 'Alertes').querySelector(`.${c.alertLegend}`);
     const signals = [...(legend?.querySelectorAll<HTMLElement>('[data-level]') ?? [])];
     expect(signals.map((el) => el.getAttribute('data-level'))).toEqual(['1', '2', '3']);
     expect(signals.map((el) => visible(el))).toEqual(['Repère', 'Attention', 'Borne franchie']);
     expect(signals.map((el) => el.classList.contains('sig-l3'))).toEqual([false, false, true]);
-    // Encre et papier de la plaque posés par la zone : l'acier sur le panneau, jamais le rouge.
-    expect(rule('alertHead')).toMatch(/--k:\s*var\(--text-1\)/);
-    expect(rule('alertHead')).toMatch(/--p:\s*var\(--bg-1\)/);
+    // Une ligne qui passe à la ligne à l'étroit ; le texte à l'acier sur le papier du panneau, jamais le rouge.
+    expect(rule('alertLegend')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('alertLegend')).not.toMatch(/flex-direction:\s*column/);
+    expect(rule('alertLegend')).toMatch(/color:\s*var\(--text-1\)/);
+    expect(rule('alertLegend')).toMatch(/--p:\s*var\(--bg-1\)/);
+    expect(rule('alertLegend')).not.toMatch(/crimson|ember/);
     await act(async () => useI18n.setState({ locale: 'en' }));
     expect([...(section(node, 'Alerts').querySelectorAll(`.${c.alertLegend} [data-level]`) ?? [])].map((el) => visible(el))).toEqual(['Marker', 'Attention', 'Limit crossed']);
-    expect(signalPlate(node, 'Alerts')?.getAttribute('aria-label')).toMatch(/^Signal: BTC-USD · /);
   });
 });
 
-describe('OROS3.5c la plaque LINK dit le flux dans la barre du module ; globe des marchés, glyphe d’ajout', () => {
+describe('OROS4.10 le flux du chart se lit sur sa puce, sans plaque LINK dans la barre ; globe des marchés, glyphe d’ajout', () => {
   const T0 = Date.UTC(2026, 9, 26, 9, 0) / 1000;
   const bars: CryptoBar[] = [
     { time: T0, open: 82_400, high: 82_610.5, low: 82_390.25, close: 82_500, volume: 12.5, buyVolume: 7 },
@@ -258,50 +263,34 @@ describe('OROS3.5c la plaque LINK dit le flux dans la barre du module ; globe de
   ];
   /** La barre du module : le parent du sélecteur de marché. */
   const bar = (node: HTMLElement): HTMLElement => node.querySelector('select')!.parentElement!;
-  const linkPlate = (node: HTMLElement): HTMLElement | null => bar(node).querySelector(`.${c.linkPlate}`);
-  /** Les lignes du master : `mglink-1` (LOCAL, venue, websocket) et `mglink-2` (flux, latence). */
-  const lines = (node: HTMLElement): string[] => [...(linkPlate(node)?.querySelectorAll('text') ?? [])].map((el) => visible(el));
+  const stamp = (node: HTMLElement): string => visible(node.querySelector(`.${v.stamp}`));
 
-  it('la plaque LINK prend la place de l’étiquette du direct : venue du marché, websocket, flux du chart ; la latence non mesurée reste un tiret', async () => {
+  it('la barre ne porte ni plaque ni étiquette du direct : le flux est dit une fois, sur la puce du chart', async () => {
     const node = await mount({ bars });
-    const plate = linkPlate(node);
-    expect(plate).not.toBeNull();
-    expect(plate!.querySelector('svg.mg-link')).not.toBeNull();
-    // Avant le sélecteur de marché, comme sur la planche.
-    expect(plate && plate.compareDocumentPosition(node.querySelector('select')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(lines(node)).toEqual(['LOCAL', 'COINBASE', 'WS.LIVE', 'MARKET FEED — HISTORYPUBLIC DATA | LATENCY: —']);
-    // L'étiquette menthe « direct » a quitté la barre : le direct se lit sur la plaque.
-    expect([...bar(node).querySelectorAll(`.${p.tag}`)].map((el) => el.textContent)).not.toContain('direct');
-    expect(plate?.getAttribute('aria-label')).toBe('Lien de marché : Coinbase · direct · historique seul');
-
-    // Une bougie du direct change le chart : le flux est actif.
+    expect(node.querySelector('svg.mg-link')).toBeNull();
+    expect(bar(node).querySelector('[role="img"]')).toBeNull();
+    expect([...bar(node).querySelectorAll(`.${p.tag}`)].map((el) => el.textContent)).toEqual([]);
+    expect(stamp(node)).toBe('Historique');
+    // Une bougie du direct change le chart : la puce passe au direct.
     await act(async () => useCrypto.setState({ bars: [bars[0]!, { ...bars[1]!, close: 82_530 }] }));
-    expect(lines(node)[3]).toBe('MARKET FEED — ACTIVEPUBLIC DATA | LATENCY: —');
-    expect(plate?.getAttribute('aria-label')).toBe('Lien de marché : Coinbase · direct · flux en direct');
-
-    // La venue perd le direct : websocket périmé, flux figé ; l'avertissement « données périmées » reste à côté.
+    expect(stamp(node)).toBe('Coinbase · direct');
+    // La venue perd le direct : la puce dit le gel, la barre avertit des données périmées.
     await act(async () => useCrypto.setState({ venues: { coinbase: 'stale', binance: 'live', bybit: 'live' } }));
-    expect(lines(node).slice(1, 3)).toEqual(['COINBASE', 'WS.STALE']);
-    expect(lines(node)[3]).toBe('MARKET FEED — FROZENPUBLIC DATA | LATENCY: —');
-    expect([...bar(node).querySelectorAll(`.${p.tag}`)].map((el) => el.textContent)).toContain('données périmées');
+    expect(stamp(node)).toBe('Coinbase · figé');
+    expect([...bar(node).querySelectorAll(`.${p.tag}`)].map((el) => el.textContent)).toEqual(['données périmées']);
+    expect(css()).not.toMatch(/\.linkPlate/);
+    const signals = await import('@/modules/crypto/cryptoSignals');
+    expect(Object.keys(signals)).not.toContain('linkPlateValues');
+    expect(Object.keys(signals)).not.toContain('linkPlateLabel');
   });
 
-  it('chaque état de venue a son code de websocket, sept signes au plus après WS. ; un autre marché lit sa venue', async () => {
+  it('l’état de chaque venue reste dit dans la colonne, à la section Source', async () => {
     const node = await mount();
-    for (const [state, code] of [
-      ['off', 'WS.OFF'],
-      ['connecting', 'WS.CONN'],
-      ['reconnecting', 'WS.RECON'],
-      ['blocked', 'WS.BLOCK'],
-    ] as const) {
-      await act(async () => useCrypto.setState({ venues: { coinbase: state, binance: 'live', bybit: 'live' } }));
-      expect(lines(node)[2], state).toBe(code);
-    }
-    await act(async () => useCrypto.setState({ market: 'bybit:ZIGUSDT' }));
-    expect(lines(node).slice(1, 3)).toEqual(['BYBIT', 'WS.LIVE']);
-    expect(lines(node)[3]).toBe('MARKET FEED — —PUBLIC DATA | LATENCY: —');
-    expect(rule('linkPlate')).toMatch(/height:\s*19px/);
-    expect(rule('linkPlate')).toMatch(/--k:\s*var\(--text-1\)/);
+    await act(async () => useCrypto.setState({ venues: { coinbase: 'reconnecting', binance: 'live', bybit: 'blocked' } }));
+    const source = visible(section(node, 'Source'));
+    expect(source).toMatch(/Coinbase\s*reconnexion/);
+    expect(source).toMatch(/Binance\s*direct/);
+    expect(source).toMatch(/Bybit\s*bloquée/);
   });
 
   it('les marchés s’ouvrent sur le globe ; « Ajouter » (nouvelle alerte) porte le glyphe d’ajout de la planche', async () => {

@@ -127,7 +127,7 @@ export default function Bot() {
                 )}
               </div>
             </Panel>
-            <Panel title={tr('Gabarits', 'Templates', 'Plantillas')} sub={tr('points de départ', 'starting points', 'puntos de partida')}>
+            <Panel title={tr('Gabarits', 'Templates', 'Plantillas')}>
               <div className={s.templates}>
                 {BOT_TEMPLATES.map((t) => {
                   const copy = templateCopy(t.id, t.name, t.description);
@@ -218,7 +218,7 @@ export default function Bot() {
                   </div>
                 </Panel>
 
-                <Panel title={tr('Règles', 'Rules', 'Reglas')} sub={tr('conditions · actions · garde-fous', 'conditions · actions · guardrails', 'condiciones · acciones · salvaguardas')}>
+                <Panel title={tr('Règles', 'Rules', 'Reglas')}>
                   <div className={s.rules}>
                     {bot.rules.map((r) => (
                       <div key={r.id} className={s.rule}>
@@ -298,7 +298,7 @@ export default function Bot() {
                 )}
               </p>
             </Panel>
-            <Panel title={tr('Feuille de route', 'Roadmap', 'Hoja de ruta')} sub={tr('atelier bot', 'bot workshop', 'taller bot')}>
+            <Panel title={tr('Feuille de route', 'Roadmap', 'Hoja de ruta')}>
               <div className={s.roadmap}>
                 <div className={s.phase}>
                   <i>P1</i>

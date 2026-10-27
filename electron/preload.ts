@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('canto', {
     minimize: () => ipcRenderer.send('window:minimize'),
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
     close: () => ipcRenderer.send('window:close'),
+    paste: () => ipcRenderer.send('window:paste'),
     onMaximized: (cb: (max: boolean) => void) => subscribe<boolean>('window:maximized', cb),
   },
   zoom: {

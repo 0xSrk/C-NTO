@@ -106,8 +106,8 @@ Les liquidations sont un **minorant** : Binance ne pousse qu'une liquidation par
 
 Décision de l'ADMIN (9 octobre 2026) : l'onglet reprend le **design final de la 3.5.0**, comme chaque onglet. Mêmes primitives (`src/design/primitives.tsx`), même châssis (`ModuleHeader`, `ModuleContent`, `src/app/Shell.tsx:358-381`), même composition que 02 · VIS (`src/modules/visual/Visual.tsx`). Aucune mise en page, aucun composant visuel et aucun jeton nouveaux. Références : `docs/DESIGN.md` (Système 3.4) et les planches `docs/media/visual.png`, `copieur.png`, `portefeuille.png`, `agent.png`.
 
-**En-tête.** `ModuleHeader tab="crypto"` : plaque `CRY │ Crypto · CHART · TEMPÉRATURE · ALERTES` (libellé et tagline en trois langues dans `src/app/tabs.ts`), `meta` `4 MARCHÉS · 3 VENUES`. Actions, dans l'ordre de Visual (`Visual.tsx:273-298`) :
-- `Tag` d'état du flux du chart : `mint` « direct », `ember` « données périmées », rien sinon ;
+**En-tête.** `ModuleHeader tab="crypto"` : au Système 4.1, le numéro et le nom `09 Crypto` (libellé en trois langues dans `src/app/tabs.ts`) et le composant de sa couche, sans tagline ni plaque (`docs/DESIGN.md`) ; `meta` `4 MARCHÉS · 3 VENUES`. Actions, dans l'ordre de Visual (`Visual.tsx:273-298`) :
+- `Tag` `ember` « données périmées » quand la venue du marché a perdu le direct, rien sinon : le flux du chart se lit sur sa puce, une seule fois ;
 - `<select>` du marché (`BTC-USD · Coinbase`, `ONDO-USD · Coinbase`, `ONEUSDT · Binance`, `ZIGUSDT · Bybit`) à la place du sélecteur de série ;
 - `Segmented` des six timeframes.
 
@@ -115,7 +115,7 @@ Décision de l'ADMIN (9 octobre 2026) : l'onglet reprend le **design final de la
 
 *Chart.*
 - Ligne `legend` de Visual : `BTC-USD · 1h`, date et heure de la bougie, O H L C colorés par `signClass`, Vol ; au survol, la valeur de chaque indicateur ; l'ancrage du CVD (« CVD depuis 11:43 » ou « CVD Binance »).
-- Puce `stamp` : `Tag tone="mint"` « Coinbase · direct », `Tag tone="ember"` « Coinbase · figé », `Tag tone="ice"` « Historique » avant le premier tick.
+- Puce `stamp` : `Tag tone="gold"` et sa LED « Coinbase · direct », `Tag tone="ember"` « Coinbase · figé », `Tag tone="ice"` « Historique » avant le premier tick.
 - `Chart.tsx` réutilisé, avec deux props optionnelles, sans effet sur Visual quand elles sont absentes : `priceFormat` (précision et pas du marché, au lieu de `precision: 2, minMove: 0.25`, `Chart.tsx:145`) et `priceLines` (tracés en `--violet`, titre `AGENT` quand l'agent les a posés). `fmtPrice` (`src/lib/format.ts:75`) gagne un nombre de décimales optionnel, 2 par défaut.
 - Le CVD est une `IndicatorLine` `pane: 'pane'` : panneau propre, déjà géré par `Chart.tsx:222-239`.
 
@@ -129,7 +129,7 @@ Décision de l'ADMIN (9 octobre 2026) : l'onglet reprend le **design final de la
 
 **Interrupteur éteint.** L'onglet garde sa place sur le rail. `ModuleContent` montre `Empty` : titre, texte, et `Button variant="chamfer"` « Activer le module crypto », seule action principale de l'écran, qui demande le dialogue du process principal.
 
-**Styles.** `src/modules/crypto/Crypto.tsx` importe `src/modules/visual/visual.module.css` pour tout ce qu'il partage avec Visual : rendu identique, aucune copie. `crypto.module.css` ne porte que les lignes de marché et d'alerte, en jetons de `tokens.css`, et la marge droite de la colonne (`.side`), qui laisse libre la plaque verticale du châssis (CRY4.4). `--gold` ne marque que le vivant ; tracés et séries d'indicateurs en couleurs catégorielles (`--violet`, `--ice`, `--amber`) ; aucun `--lab`. Chaînes par `tr(fr, en, es)`. `tests/design-guard.test.ts` reste vert.
+**Styles.** `src/modules/crypto/Crypto.tsx` importe `src/modules/visual/visual.module.css` pour tout ce qu'il partage avec Visual : rendu identique, aucune copie. `crypto.module.css` ne porte que les lignes de marché et d'alerte, en jetons de `tokens.css` ; la colonne a la marge de celle de Visual, le châssis n'ayant plus de plaque verticale au bord droit (Système 4.1 ; la marge `.side` de CRY4.4 est retirée). `--gold` ne marque que le vivant ; tracés et séries d'indicateurs en couleurs catégorielles (`--violet`, `--ice`, `--amber`) ; aucun `--lab`. Chaînes par `tr(fr, en, es)`. `tests/design-guard.test.ts` reste vert.
 
 **Preuve visuelle.** Au lot CRY4, capture de l'onglet par le chemin des planches du README, à poser à côté de `docs/media/visual.png`.
 

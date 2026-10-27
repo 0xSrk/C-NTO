@@ -3,7 +3,7 @@
  */
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { NtBridgeStatus } from '@/lib/desk';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,36 +34,54 @@ async function panel(available: boolean): Promise<HTMLDivElement> {
   return host;
 }
 
-describe('OROS3.3a la plaque AGENT_GUARD lit les invariants de la garde', () => {
-  it('ses valeurs viennent des constantes de la garde et du raccourci du process principal', async () => {
-    const orders = await import('@/engine/agent/orders');
-    const { agentGuardValues } = await import('@/modules/agent/agentGuard');
-    const [lo, hi] = orders.AGENT_ORDER_BOUNDS.maxQty;
-    expect(agentGuardValues('CommandOrControl+Shift+K')).toEqual({
-      accounts: `${orders.AGENT_SIM_PREFIX.toUpperCase()}* // ${lo}–${hi}`,
-      confirm: `${orders.AGENT_CONFIRM_TIMEOUT_MS / 1000} S`,
-      kill: 'CTRL+SHIFT+K',
-    });
-    // Raccourci inconnu (navigateur, pont absent) : la plaque dit « — », elle n'invente pas.
-    expect(agentGuardValues(null).kill).toBeNull();
+describe('OROS4.10 le panneau des ordres s’ouvre sur son titre, sans plaque AGENT_GUARD ; la notice dit la garde', () => {
+  it('ni plaque ni sa lecture : le titre du panneau vient en premier', async () => {
+    const { useBridge } = await import('@/store/bridge');
+    useBridge.setState({ nt: nt('CommandOrControl+Shift+K') });
+    const node = await panel(true);
+    expect(node.querySelector('svg.mg-agentGuard')).toBeNull();
+    expect(node.querySelector('[role="img"]')).toBeNull();
+    expect(node.firstElementChild?.firstElementChild?.textContent).toMatch(/^Ordres proposés par l’agent/);
+    const guard = await import('@/modules/agent/agentGuard');
+    expect(Object.keys(guard)).not.toContain('agentGuardValues');
+    expect(Object.keys(guard)).not.toContain('agentGuardLabel');
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/modules/agent/agent.module.css', 'utf8')).not.toMatch(/\.guardPlate/);
   });
 
-  it('changer un invariant change la plaque : aucune valeur n’est recopiée', async () => {
-    vi.resetModules();
-    vi.doMock('@/engine/agent/orders', async (importOriginal) => {
-      const real = await importOriginal<typeof import('@/engine/agent/orders')>();
-      return { ...real, AGENT_SIM_PREFIX: 'Demo', AGENT_CONFIRM_TIMEOUT_MS: 30_000, AGENT_ORDER_BOUNDS: { ...real.AGENT_ORDER_BOUNDS, maxQty: [2, 7] } };
-    });
-    try {
-      const { agentGuardValues } = await import('@/modules/agent/agentGuard');
-      expect(agentGuardValues('Alt+F4')).toEqual({ accounts: 'DEMO* // 2–7', confirm: '30 S', kill: 'ALT+F4' });
-    } finally {
-      vi.doUnmock('@/engine/agent/orders');
-      vi.resetModules();
-    }
+  it('la notice nomme le kill switch avec le raccourci qu’annonce le process principal ; sans pont, elle n’en invente aucun', async () => {
+    const { useBridge } = await import('@/store/bridge');
+    useBridge.setState({ nt: nt('CommandOrControl+Shift+K') });
+    let node = await panel(true);
+    expect(node.textContent).toContain('ou après le kill switch (Ctrl+Shift+K), l’agent ne peut plus ouvrir ni augmenter');
+    act(() => root?.unmount());
+    host?.remove();
+    // Un autre raccourci annoncé : la notice le suit, rien n'est écrit à la main.
+    useBridge.setState({ nt: nt('Alt+F4') });
+    node = await panel(true);
+    expect(node.textContent).toContain('après le kill switch (Alt+F4)');
+    act(() => root?.unmount());
+    host?.remove();
+    useBridge.setState({ nt: null });
+    node = await panel(true);
+    expect(node.textContent).toContain('ou après le kill switch, l’agent ne peut plus ouvrir ni augmenter');
+    expect(node.textContent).not.toMatch(/Ctrl\+|Alt\+/);
   });
 
-  it('le préfixe de la plaque est celui que la garde applique : hors Sim, refus', async () => {
+  it('les trois langues portent le raccourci', async () => {
+    const { useBridge } = await import('@/store/bridge');
+    const { useI18n } = await import('@/i18n');
+    useBridge.setState({ nt: nt('CommandOrControl+Shift+K') });
+    const node = await panel(true);
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect(node.textContent).toContain('or after the kill switch (Ctrl+Shift+K), the agent can no longer open or add');
+    await act(async () => useI18n.setState({ locale: 'es' }));
+    expect(node.textContent).toContain('o tras el kill switch (Ctrl+Shift+K), el agente ya no puede abrir ni aumentar');
+  });
+});
+
+describe('OROS3.3a les invariants que dit la notice sont ceux que la garde applique', () => {
+  it('le compte Sim de la notice est le préfixe que la garde applique : hors Sim, refus', async () => {
     const { AGENT_ORDER_DEFAULTS, AGENT_SIM_PREFIX, guardProposal } = await import('@/engine/agent/orders');
     const policy = { ...AGENT_ORDER_DEFAULTS, enabled: true };
     const snap = { busy: false, link: 'live', ordersOpen: true, recent: [], now: 0, position: 0 } as unknown as Parameters<typeof guardProposal>[2];
@@ -77,27 +95,6 @@ describe('OROS3.3a la plaque AGENT_GUARD lit les invariants de la garde', () => 
     const engine = await import('@/engine/agent/orders');
     const main = await import('../electron/agent-orders');
     expect(main.AGENT_CONFIRM_TIMEOUT_MS).toBe(engine.AGENT_CONFIRM_TIMEOUT_MS);
-  });
-
-  it('le panneau des ordres s’ouvre sur la plaque ; le kill switch est lu au pont, « — » sans lui', async () => {
-    const { useBridge } = await import('@/store/bridge');
-    useBridge.setState({ nt: nt('CommandOrControl+Shift+K') });
-    let node = await panel(false);
-    let plate = node.querySelector('svg.mg-agentGuard');
-    expect(plate).not.toBeNull();
-    expect(plate!.textContent).toContain('ACCOUNTS: SIM* // 1–50');
-    expect(plate!.textContent).toContain('CONFIRM — DIALOG: 45 S');
-    expect(plate!.textContent).toContain('KILL: CTRL+SHIFT+K');
-    // La plaque est la seule à dire le raccourci : elle se lit aux lecteurs d'écran.
-    const wrap = plate!.parentElement!;
-    expect(wrap.getAttribute('role')).toBe('img');
-    expect(wrap.getAttribute('aria-label')).toMatch(/Sim\*.*45 s.*Ctrl\+Shift\+K/);
-    act(() => root?.unmount());
-    host?.remove();
-    useBridge.setState({ nt: null });
-    node = await panel(false);
-    plate = node.querySelector('svg.mg-agentGuard');
-    expect(plate!.textContent).toContain('KILL: —');
   });
 
   it('la notice dit le délai de la constante, pas un chiffre écrit à la main', async () => {

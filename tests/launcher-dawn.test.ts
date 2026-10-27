@@ -12,7 +12,7 @@ const AUBE = readFileSync('electron/aube.js', 'utf8');
 const CSS = (/<style>([\s\S]*?)<\/style>/.exec(HTML)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** Les temps de l'aube, posés une fois dans le bloc de jetons (s). */
-const PHASES = ['--t-horizon', '--t-strike', '--t-fold', '--t-rise', '--t-trace', '--t-land', '--t-plates', '--t-panel', '--t-strip', '--t-rest'] as const;
+const PHASES = ['--t-horizon', '--t-strike', '--t-fold', '--t-rise', '--t-trace', '--t-land', '--t-lab', '--t-panel', '--t-strip', '--t-rest'] as const;
 function phase(name: string): number {
   const m = new RegExp(`${name}:\\s*([\\d.]+)s;`).exec(CSS);
   if (!m) throw new Error(`${name} absent du bloc de jetons`);
@@ -68,7 +68,7 @@ afterEach(() => {
 });
 
 describe('OROS3.10 l’aube : la séquence', () => {
-  it('pose ses phases dans l’ordre du récit — horizon, frappe, pli, lever, tracé, pose, plaques, commandes, bande — et se tait avant 2,8 s', () => {
+  it('pose ses phases dans l’ordre du récit — horizon, frappe, pli, lever, tracé, pose, ligne du Lab, commandes, bande — et se tait avant 2,8 s', () => {
     const times = PHASES.map(phase);
     for (let i = 1; i < times.length; i++) expect(times[i]!, PHASES[i]).toBeGreaterThan(times[i - 1]!);
     expect(phase('--t-rest')).toBeLessThanOrEqual(2.8);

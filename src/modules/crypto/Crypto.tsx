@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
-import { Plate } from '@/design/Micro';
 import { Button, Empty, Segmented, Tag } from '@/design/primitives';
 import type { Bar } from '@/engine/bars';
 import { inputBarsFor, offeredCatalog } from '@/engine/crypto/indicators';
@@ -17,9 +16,8 @@ import { useCrypto } from '@/store/crypto';
 import { useUi } from '@/store/ui';
 import v from '../visual/visual.module.css';
 import { cryptoCodeText } from './AlertModal';
-import c from './crypto.module.css';
-import { CryptoSide, VENUE_NAME, timeframeLabel, useCryptoAction, venueStateText } from './CryptoSide';
-import { alertPriceLines, chartFeed, linkPlateLabel, linkPlateValues } from './cryptoSignals';
+import { CryptoSide, VENUE_NAME, timeframeLabel, useCryptoAction } from './CryptoSide';
+import { alertPriceLines, chartFeed } from './cryptoSignals';
 
 /**
  * Onglet 09 · CRY (`docs/ONGLET-CRYPTO.md` § 7). Éteint par défaut : seul le process principal allume le module, après son
@@ -212,9 +210,8 @@ function CryptoDesk({ meta }: { meta: string }) {
     [drawings, alerts, market, locale],
   );
   const liveSeen = useLiveSeen(bars);
-  // Le flux du chart, que lisent la puce du chart et la plaque LINK de la barre (OROS3.5c).
+  // Le flux du chart, que lit la puce du chart : il n'est dit qu'une fois (Système 4.1, plus de plaque LINK dans la barre).
   const feed = chartFeed({ venueState, liveSeen, barCount: bars.length });
-  const link = { venueName, venueState, feed };
 
   // Une identité stable : un `onHover` neuf recréerait le graphique (Chart.tsx), sans rejouer ses données.
   const onHover = useCallback((info: HoverInfo | null) => setHover(info), []);
@@ -238,7 +235,6 @@ function CryptoDesk({ meta }: { meta: string }) {
         meta={meta}
         actions={
           <>
-            <Plate id="link" values={linkPlateValues(link)} label={linkPlateLabel(link, venueStateText(venueState))} className={c.linkPlate} />
             {(venueState === 'stale' || venueState === 'reconnecting') && <Tag tone="ember">{tr('données périmées', 'stale data', 'datos caducados')}</Tag>}
             <select value={market} onChange={(e) => run(setMarket(e.target.value))} style={{ minWidth: 260 }}>
               {CHARTABLE_MARKETS.map((id) => (

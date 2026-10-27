@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { Boot } from '@/app/Boot';
 
 // React : act() est attendu dans ce fichier.
@@ -67,20 +67,20 @@ describe('Boot 3.2.2 — construction du logotype', () => {
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
-  it('le circuit ne dessine plus sa propre LED : c’est le logotype qui la porte', () => {
-    const circuit = readFileSync('src/app/bootCircuit.ts', 'utf8');
-    expect(circuit).not.toMatch(/ledFade/);
+  it('OROS4.6 plus de circuit : la LED est au logotype, et l’ouverture du verrou part du sceau', () => {
+    expect(existsSync('src/app/bootCircuit.ts')).toBe(false);
     expect(readFileSync('src/app/Boot.tsx', 'utf8')).not.toMatch(/<Sigil/);
+    expect(readFileSync('src/app/Gate.tsx', 'utf8')).not.toMatch(/runBootCircuit|<canvas/);
   });
 
-  it('le coin porte le nom du Lab en caractères, pas en glyphes', () => {
+  it('OROS4.9 le nom du Lab se dit une fois, en caractères, dans la ligne du Lab ; plus de pied décoratif', () => {
     const el = mount();
-    expect(el.textContent).toContain('SIΞRRΛSKΛ');
     expect(el.textContent).not.toMatch(/Accès accordé|Access granted|Acceso concedido/);
-    // Système 4.0 : le sceau et ses plaques sont des dessins muets ; le coin, lui, reste en caractères.
-    const corner = [...el.querySelectorAll('span')].find((span) => span.textContent === 'SIΞRRΛSKΛ');
-    expect(corner).toBeDefined();
-    expect(corner!.querySelector('svg')).toBeNull();
+    const sous = [...el.querySelectorAll('p')].find((p) => p.textContent?.includes('SIΞRRΛSKΛ LAB'))!;
+    expect(sous).toBeDefined();
+    expect(sous.querySelector('svg')).toBeNull();
+    expect(el.textContent).not.toMatch(/Design Unit|Rev\. B|CΛNTO · Artefact 002/);
+    expect(el.textContent?.match(/SIΞRRΛSKΛ/g)).toHaveLength(1);
     expect(readFileSync('src/app/Boot.tsx', 'utf8')).not.toContain('SignatureGlyphs');
   });
 });

@@ -54,13 +54,19 @@ describe('OROS2.3 rail-bordereau', () => {
     expect(railQuantity('crypto', EMPTY)).toBeNull();
   });
 
-  it('le rail porte le bordereau et un seul onglet poinçonné, encre sur ivoire', () => {
-    expect(shell).toContain("tr('BORDEREAU', 'MANIFEST', 'ALBARÁN')");
+  it('OROS4.2 le rail n’a plus de catégorie : chaque module gravé dit sa quantité ; l’onglet ouvert s’allume, filament d’or et lueur blanche', () => {
+    expect(shell).not.toMatch(/BORDEREAU|MANIFEST|EN CONCEPTION|IN DESIGN|navLabelHead|conceptLabel|dashed/);
+    expect(css).not.toMatch(/\.navLabelHead|\.conceptLabel|\.navItem\.dashed/);
     expect(shell).toMatch(/qty=\{railQuantity\(item\.id, snapshot\)\}/);
     expect(shell).toMatch(/aria-current=\{on \? 'page' : undefined\}/);
+    // plus d'ivoire poinçonné : l'onglet ouvert garde la nuit et prend la lumière
     const on = rule('.navItem.on');
-    expect(on).toMatch(/background:\s*var\(--ivory\)/);
-    expect(on).toMatch(/color:\s*var\(--ink\)/);
+    expect(on).not.toMatch(/--ivory|--ink/);
+    expect(on).toMatch(/color:\s*var\(--text-0\)/);
+    expect(rule('.navItem::before')).toMatch(/background:\s*var\(--gold\)/);
+    expect(rule('.navItem.on::before')).toMatch(/opacity:\s*1/);
+    expect(rule('.navItem::after')).toMatch(/radial-gradient\(/);
+    expect(rule('.navItem.on::after')).toMatch(/opacity:\s*1/);
     expect(rule('.navQty')).toMatch(/font-family:\s*var\(--font-mono\)/);
   });
 });

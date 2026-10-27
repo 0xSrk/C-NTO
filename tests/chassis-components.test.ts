@@ -50,20 +50,82 @@ const rule = (css: string, selector: string) => {
 };
 
 describe('OROS2.11 composants de la planche dans le châssis', () => {
-  it('chaque module du rail porte son emblème sous son numéro ; l’onglet poinçonné l’imprime à l’encre', () => {
+  it('OROS4.2 chaque module du rail porte son emblème en tête, seul ; l’onglet ouvert l’allume à l’or, le numéro du raccourci au bout', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     for (const tab of TABS) {
       const item = el.querySelector<HTMLElement>(`nav button[data-tab="${tab.id}"]`);
       expect(item, tab.id).not.toBeNull();
       const emblem = item!.querySelector(`svg.skg-${GLYPH_ID[tab.id]}`);
       expect(emblem, tab.id).not.toBeNull();
-      // sous le numéro : même colonne, après lui
-      const column = emblem!.closest('[data-part="rail-index"]');
-      expect(column?.textContent, tab.id).toContain(tab.index);
+      // l'emblème ouvre l'onglet ; le numéro le ferme
+      expect(item!.firstElementChild?.contains(emblem!), tab.id).toBe(true);
+      const index = item!.querySelector('[data-part="rail-index"]');
+      expect(index?.textContent, tab.id).toBe(tab.index);
+      expect(emblem!.compareDocumentPosition(index!) & Node.DOCUMENT_POSITION_FOLLOWING, tab.id).toBeTruthy();
     }
-    expect(rule(shellCss, '.navCol')).toMatch(/flex-direction: column/);
-    expect(rule(shellCss, '.navEmblem')).toMatch(/--k: var\(--text-2\)/);
-    expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--ink\)/);
+    expect(rule(shellCss, '.navItem')).toMatch(/grid-template-columns: 20px minmax\(0, 1fr\) auto/);
+    expect(rule(shellCss, '.navEmblem')).toMatch(/--k: var\(--text-1\)/);
+    expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--gold\)/);
+  });
+
+  it('OROS4.14 chaque emblème du rail et chaque couche d’en-tête pèse le même trait : entre 0,4 et 0,75 px rendu', async () => {
+    const { COMPONENTS } = await import('@/design/micro/assets');
+    const { LAYER_GLYPH } = await import('@/app/moduleLayers');
+    const { cssRules } = await import('./helpers/cssRules');
+    const rules = cssRules(shellCss);
+    /** La graisse qu'impose la feuille du châssis à une classe du master, sous `scope`. */
+    const override = (scope: string, cls: string) => {
+      for (const r of rules) {
+        if (r.selector.split(',').some((sel) => sel.trim() === `${scope} :global(.${cls})`)) return Number.parseFloat(/stroke-width:\s*([\d.]+)px/.exec(r.body)?.[1] ?? 'NaN');
+      }
+      return null;
+    };
+    const check = (n: number, size: number, scope: string, what: string) => {
+      const svg = COMPONENTS[n]!;
+      const [, , w, h] = /viewBox="([^"]+)"/.exec(svg)![1]!.split(' ').map(Number);
+      const scale = size / Math.max(w!, h!);
+      const style = /<style>([^<]*)<\/style>/.exec(svg)?.[1] ?? '';
+      for (const [, selectors, body] of style.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        const width = /stroke-width:\s*([\d.]+)px/.exec(body!)?.[1];
+        if (!width) continue;
+        for (const [, cls] of selectors!.matchAll(/\.(g\d+-\d+)/g)) {
+          const rendered = (override(scope, cls!) ?? Number(width)) * scale;
+          expect(rendered, `${what} · .${cls}`).toBeGreaterThanOrEqual(0.4);
+          expect(rendered, `${what} · .${cls}`).toBeLessThanOrEqual(0.75);
+        }
+      }
+    };
+    expect(rule(shellCss, '.navEmblem')).toMatch(/width: 20px;\s*height: 20px/);
+    expect(rule(shellCss, '.layerGlyph')).toMatch(/width: 18px;\s*height: 18px/);
+    for (const tab of TABS) check(GLYPH_ID[tab.id], 20, '.navEmblem', `rail ${tab.id}`);
+    for (const [layer, glyph] of Object.entries(LAYER_GLYPH)) check(GLYPH_ID[glyph], 18, '.layerGlyph', `couche ${layer}`);
+  });
+
+  it('OROS4.11 la quantité du rail n’est jamais coupée : elle passe à la ligne, deux lignes au plus, entre ses parties', async () => {
+    const { useNotes } = await import('@/store/notes');
+    const { useLinks } = await import('@/store/links');
+    const notes = useNotes.getState().notes;
+    const links = useLinks.getState().links;
+    useNotes.setState({ notes: [{ id: 'a' }, { id: 'b' }] as unknown as typeof notes });
+    useLinks.setState({ links: Array.from({ length: 472 }, (_, i) => ({ id: `l${i}` })) as unknown as typeof links });
+    try {
+      const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+      const qty = el.querySelector('nav button[data-tab="note"] [class*="navQty"]')!;
+      // Deux parties, chacune insécable : la ligne ne se brise qu'au séparateur.
+      expect(qty.textContent).toBe('2 notes · 472 liens');
+      expect([...qty.children].map((part) => part.textContent)).toEqual(['2 notes', '472 liens']);
+      const parts = rule(shellCss, '.navQtyPart');
+      expect(parts).toMatch(/white-space: nowrap/);
+      // Une quantité d'une seule partie (« Orchestrateur en service ») se brise entre ses mots.
+      const agent = el.querySelector('nav button[data-tab="agent"] [class*="navQty"]')!;
+      expect(agent.children).toHaveLength(0);
+    } finally {
+      useNotes.setState({ notes });
+      useLinks.setState({ links });
+    }
+    const body = rule(shellCss, '.navQty');
+    expect(body).not.toMatch(/text-overflow: ellipsis|white-space: nowrap/);
+    expect(body).toMatch(/-webkit-line-clamp: 2/);
   });
 
   it('le zoom de la barre de titre est le bouton « + — » de la planche : le plus et la barre restent deux boutons', () => {

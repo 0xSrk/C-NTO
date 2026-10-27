@@ -53,14 +53,14 @@
 
         /* Temps de l'aube (s) : posés une fois ici, lus par launcher-ui.js (le repos) et aube.js (la lumière).
            L'horizon se trace, le sceau frappe puis se plie en lui, la LED se lève et se pose sur la pointe du Λ
-           pendant que le logotype se construit, les plaques s'impriment, les commandes montent, la bande sort. */
+           pendant que le logotype se construit, la ligne du Lab se resserre, les commandes montent, la bande sort. */
         --t-horizon: 0.1s;
         --t-strike: 0.3s;
         --t-fold: 0.72s;
         --t-rise: 0.96s;
         --t-trace: 1.05s;
         --t-land: 1.55s;
-        --t-plates: 1.65s;
+        --t-lab: 1.65s;
         --t-panel: 1.95s;
         --t-strip: 2.1s;
         --t-rest: 2.8s;
@@ -233,42 +233,6 @@
       .close svg {
         display: block;
         shape-rendering: crispEdges;
-      }
-
-      /* ─── Plaques : relevés réels, l'encre en graphite, la valeur liée en ivoire ─── */
-      .plate {
-        position: absolute;
-        line-height: 0;
-      }
-      .plate svg {
-        display: block;
-        width: 100%;
-        height: auto;
-        overflow: visible;
-        font-family: var(--f-mono);
-        font-weight: 450;
-      }
-      .plate text {
-        font-kerning: normal;
-      }
-      .plate .lm-v {
-        fill: var(--text-0);
-      }
-      /* Le ciel : les deux plaques se tiennent sur l'horizon, à 52 px au-dessus de lui. */
-      .p-seal {
-        left: 24px;
-        bottom: calc(100% - var(--H) + 52px);
-        width: 140px;
-      }
-      .p-artefact {
-        right: 24px;
-        bottom: calc(100% - var(--H) + 52px);
-        width: 168px;
-      }
-      .p-release {
-        left: 34px;
-        right: 34px;
-        top: calc(var(--H) + 68px);
       }
 
       /* ─── L'horizon : la lentille du sceau, à l'échelle de la fenêtre ─── */
@@ -460,6 +424,7 @@
         grid-template-columns: 1fr 1fr 1fr;
         height: 32px;
         border: 1px solid var(--line-2);
+        transition: border-color 260ms var(--ease);
       }
       .lang-row button {
         position: relative;
@@ -474,9 +439,10 @@
         box-shadow: inset 1px 0 0 var(--line-2);
       }
       .lang-row button.on {
-        color: var(--ink);
+        color: var(--text-0);
       }
-      /* L'onglet poinçonné : l'ivoire glisse sous la langue choisie. */
+      /* La langue choisie s'allume (4.1) : une lueur blanche douce et un filet d'or au pied glissent sous elle ;
+         l'ivoire reste à la seule action principale. */
       .lang-row .thumb {
         position: absolute;
         z-index: 0;
@@ -484,7 +450,10 @@
         bottom: 0;
         left: 0;
         width: calc(100% / 3);
-        background: var(--ivory);
+        background: color-mix(in srgb, var(--ivory) 8%, transparent);
+        box-shadow:
+          inset 0 -1px 0 var(--gold),
+          0 0 18px -8px color-mix(in srgb, var(--ivory) 45%, transparent);
         transform: translateX(calc(var(--at, 0) * 100%));
         transition: transform 0.32s var(--ease);
       }
@@ -505,6 +474,10 @@
         letter-spacing: -0.005em;
         text-align: left;
         overflow: hidden;
+        transition:
+          background-color 260ms var(--ease),
+          box-shadow 320ms var(--ease),
+          color 200ms linear;
       }
       .btn .label {
         flex: 1;
@@ -550,6 +523,31 @@
       }
       .btn.update.busy {
         box-shadow: inset 0 0 0 1px var(--gold-line);
+      }
+
+      /* ─── Le passage du pointeur est une lumière (4.1) : tamisée, lente, rien ne bouge ─── */
+      @media (hover: hover) {
+        .close:hover {
+          color: var(--text-0);
+        }
+        .lang-row:hover {
+          border-color: color-mix(in srgb, var(--ivory) 32%, transparent);
+        }
+        .lang-row button:hover:not(.on) {
+          color: var(--text-0);
+        }
+        .btn.primary:hover:not(:disabled) {
+          background-color: var(--stone);
+        }
+        .btn.update:hover:not(:disabled) {
+          background-color: var(--gold-soft);
+          box-shadow:
+            inset 0 0 0 1px var(--gold),
+            0 0 18px -6px color-mix(in srgb, var(--gold) 70%, transparent);
+        }
+        .notes-toggle:hover {
+          color: var(--text-0);
+        }
       }
 
       /* ─── Pied d'état : la jauge, le signal, les nouveautés — calés au-dessus de la bande ─── */
@@ -814,7 +812,6 @@
 
       /* Départ : tout se retire sauf le logotype et l'horizon. */
       .frame.leaving .title,
-      .frame.leaving .plate,
       .frame.leaving .lab,
       .frame.leaving .panel,
       .frame.leaving .status,
@@ -835,7 +832,7 @@
 
       /* ═══ L'AUBE — la séquence d'ouverture (≤ 2,8 s). Chaque pas dit un état réel du lanceur : le cadre se cale,
          l'horizon se trace, le sceau signe, la LED (vivante) se lève et se pose, la marque se construit sur sa
-         grille, les relevés s'impriment, les commandes deviennent actives. Une touche ou un clic l'abrège ; le
+         grille, la ligne du Lab se resserre, les commandes deviennent actives. Une touche ou un clic l'abrège ; le
          mouvement réduit la tait. Seuls transform et opacity bougent (et la découpe des plaques imprimées). ═══ */
       .frame[data-phase='intro'] {
         -webkit-app-region: no-drag;
@@ -942,18 +939,9 @@
       .frame[data-phase='intro'] .word .halo {
         animation: aube-halo 0.6s linear calc(var(--t-land) + 0.35s) both;
       }
-      /* 6 · Les relevés s'impriment : plaques de haut en bas, la ligne du Lab se resserre. */
-      .frame[data-phase='intro'] .p-seal {
-        animation: aube-print 0.32s steps(8, end) var(--t-plates) both;
-      }
-      .frame[data-phase='intro'] .p-artefact {
-        animation: aube-print 0.32s steps(8, end) calc(var(--t-plates) + 0.1s) both;
-      }
+      /* 6 · La ligne du Lab se resserre sous la marque. */
       .frame[data-phase='intro'] .lab {
-        animation: aube-track 0.5s var(--ease) calc(var(--t-plates) + 0.15s) both;
-      }
-      .frame[data-phase='intro'] .p-release {
-        animation: aube-print 0.32s steps(8, end) calc(var(--t-plates) + 0.25s) both;
+        animation: aube-track 0.5s var(--ease) calc(var(--t-lab) + 0.15s) both;
       }
       /* 7 · Les commandes montent, l'état se pose, la bande d'étiquette sort de l'imprimante et son code avec elle. */
       .frame[data-phase='intro'] .rule {
@@ -1203,14 +1191,6 @@
           opacity: 0.16;
         }
       }
-      @keyframes aube-print {
-        from {
-          clip-path: inset(0 0 100% 0);
-        }
-        to {
-          clip-path: inset(-12px);
-        }
-      }
       @keyframes aube-track {
         from {
           transform: scaleX(1.3);
@@ -1269,9 +1249,6 @@
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" /></svg>
         </button>
       </header>
-
-      <div class="plate p-seal" id="plate-seal" aria-hidden="true"></div>
-      <div class="plate p-artefact" id="plate-artefact" aria-hidden="true"></div>
 
       <svg class="lens" id="lens" viewBox="-404 -23 808 27" preserveAspectRatio="none" fill="currentColor" aria-hidden="true"></svg>
       <i class="rays" id="rays" aria-hidden="true"></i>
@@ -1342,8 +1319,6 @@
       <i class="led-path" id="led-path" aria-hidden="true"><i class="led" id="led"></i></i>
 
       <p class="lab"><b>SIΞRRΛSKΛ</b><span>LAB</span><i aria-hidden="true"></i><span>ARTEFACT 002</span></p>
-
-      <div class="plate p-release" id="plate-release" aria-hidden="true"></div>
 
       <div class="notes" id="notes-panel" hidden></div>
 

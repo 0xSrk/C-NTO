@@ -94,7 +94,8 @@ const CARDS =
   `<div class="${v.indicator}">${head(true, 'Moyenne mobile exponentielle')}<div class="${v.params}"><label>Période<input min="2" max="500" step="1" type="number" value="21"></label></div><div class="${v.desc}">Tendance court/moyen terme. Les scalpers Nasdaq surveillent souvent EMA 9 / 21 sur 1–5 min.</div></div>` +
   `<div class="${v.indicator} ${v.off}">${head(false, 'VWAP de séance')}<div class="${v.params}"><label>Bandes<select><option value="0">Aucune</option><option value="1">±1σ</option><option value="2">±1σ et ±2σ</option></select></label></div><div class="${v.desc}">Prix moyen pondéré par le volume, réinitialisé à chaque séance Globex (18:00 ET). Bandes ±1σ / ±2σ.</div></div>` +
   `<div class="${v.indicator}">${head(true, 'Niveaux séance précédente')}<div class="${v.desc}">Plus haut, plus bas et clôture de la séance précédente : supports/résistances suivis par la majorité des intervenants.</div></div>`;
-const LAB = `<p class="${v.desc}">Chaque nouvel indicateur forgé par le Lab rejoint ce catalogue avec ses paramètres : le graphique évolue avec la méthode du trader.</p>`;
+/** OROS4.7 : plus de note d'accroche sous le catalogue. */
+const LAB = '';
 
 const spies = {
   addIndicator: vi.fn(async () => {}),
@@ -165,7 +166,7 @@ describe('CRY4.2 Visual garde le rendu de son panneau d’indicateurs', () => {
     expect(text).toContain('Exponential moving average');
     expect(text).toContain('Period');
     expect(text).toContain('Previous session high, low and close: supports/resistances watched by most participants.');
-    expect(text).toContain('Each new indicator forged by the Lab joins this catalog');
+    expect(text).not.toContain('forged by the Lab');
   });
 });
 

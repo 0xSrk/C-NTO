@@ -98,7 +98,6 @@ export function MonteCarloView({ scope }: { scope: TabScope }) {
       <Panel
         className={s.c4}
         title={tr('Paramètres', 'Parameters', 'Parámetros')}
-        sub={tr('bootstrap avec remise', 'bootstrap with replacement', 'bootstrap con reemplazo')}
         actions={
           busy ? (
             <Button
@@ -182,7 +181,7 @@ export function MonteCarloView({ scope }: { scope: TabScope }) {
             <Panel title={tr('Éventail des trajectoires', 'Path fan', 'Abanico de trayectorias')} sub={`${fmtInt(result.runs)} ${tr('simulations', 'simulations', 'simulaciones')} · ${result.horizon} ${tr('périodes', 'periods', 'periodos')}`}>
               <Fan result={result} height={300} formatY={(v) => fmtUsd(v)} ruin={ruin === '' ? undefined : ruin} target={target === '' ? undefined : target} />
             </Panel>
-            <Panel title={tr('Percentiles', 'Percentiles', 'Percentiles')} sub={tr('distribution des résultats', 'result distribution', 'distribución de resultados')}>
+            <Panel title={tr('Percentiles', 'Percentiles', 'Percentiles')}>
               <div className={s.formGrid}>
                 <dl className={s.kv}>
                   <dt>{tr('PnL final · p5', 'Final PnL · p5', 'PnL final · p5')}</dt>

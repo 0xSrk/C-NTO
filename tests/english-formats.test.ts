@@ -15,6 +15,7 @@ import { decimalMark, fmtPoints, montantAria, montantParts } from '@/lib/format'
 import Bot from '@/modules/bot/Bot';
 import s from '@/modules/bot/bot.module.css';
 import { Dashboard } from '@/modules/metrique/Dashboard';
+import dashboard from '@/modules/metrique/dashboard.module.css';
 import Metrique from '@/modules/metrique/Metrique';
 import Portefeuille from '@/modules/portefeuille/Portefeuille';
 import { useBots } from '@/store/bots';
@@ -106,7 +107,7 @@ describe('R3.7h l’interface anglaise parle anglais : libellés de période, jo
     expect(hard).toEqual([]);
   });
 
-  it('Métrique : 7D · 30D · 90D, et le profit factor de K.03 et de la plaque A.02 au point décimal', async () => {
+  it('Métrique : 7D · 30D · 90D, et le profit factor de K.03 et le taux de K.02 au point décimal', async () => {
     useSettings.setState({ settings: { ...DEFAULT_SETTINGS } });
     useUi.setState({ metricAccount: null });
     useJournal.setState({ sessions: [], trades: [] });
@@ -134,7 +135,9 @@ describe('R3.7h l’interface anglaise parle anglais : libellés de période, jo
     expect(k3).toContain('0.50');
     expect(k3).toContain('BEFORE FEES 0.50');
     expect(k3).not.toContain('0,50');
-    expect(node.querySelector('svg.mg-equity')?.textContent ?? '').toContain('– 30 – 30 – 33.3 – 0.50');
+    // La plaque A.02 qui redisait ces chiffres est retirée (OROS4.10) : le taux de réussite se lit en K.02.
+    expect(node.querySelector('svg.mg-equity')).toBeNull();
+    expect(tile(node, 'K.02').textContent).toMatch(/33\.3\u202f%/u);
   }, 15_000);
 
   it('Portefeuille : 7D · 30D, « 0 / 0 D » en K.01, levier au point décimal en K.02', async () => {
@@ -188,7 +191,7 @@ describe('R3.7k les montants prennent le séparateur décimal de la langue : poi
     expect(ink.textContent).toBe('93508,84');
   });
 
-  it('la plaque A.02 de Métrique écrit ses montants au point en anglais', async () => {
+  it('la lecture de la courbe A.02 écrit ses montants au point en anglais (la plaque qui les redisait est retirée, OROS4.10)', async () => {
     useI18n.setState({ locale: 'en' });
     const sessions = groupIntoSessions(TRADES, 18, 'csv');
     const node = await render(
@@ -204,6 +207,9 @@ describe('R3.7k les montants prennent le séparateur décimal de la langue : poi
         onSessions: () => undefined,
       }),
     );
-    expect(node.querySelector('svg.mg-equity')?.textContent ?? '').toContain('CUMUL −1 000.00 // DD −2 000.00');
+    // Dernier pas : cumul −1 000,00 et écart au plus haut −2 000,00, au point en anglais.
+    const read = [...node.querySelectorAll(`.${dashboard.eqRead} .${primitives.montant}`)];
+    expect(read.map((el) => el.getAttribute('aria-label'))).toEqual(expect.arrayContaining(['−1\u202f000.00', '−2\u202f000.00']));
+    expect(read.map((el) => el.textContent).join(' ')).not.toMatch(/\d,\d{2}\b/);
   }, 15_000);
 });

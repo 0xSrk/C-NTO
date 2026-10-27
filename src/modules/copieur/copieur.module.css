@@ -105,10 +105,24 @@
   font-size: 11px;
   color: var(--text-2);
 }
+/*
+ * Les champs d'une même ligne partagent leurs pistes (libellé, champ, aide) : un libellé qui passe sur deux lignes n'écarte
+ * plus le champ voisin, les deux champs restent sur la même ligne, dans chaque langue.
+ */
 .formGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px 12px;
+}
+.formGrid > label {
+  grid-row: span 3;
+  display: grid;
+  grid-template-rows: subgrid;
+  align-content: start;
+  row-gap: 8px;
+}
+.formGrid > label > :first-child {
+  align-self: end;
 }
 .bridgeRow {
   display: grid;

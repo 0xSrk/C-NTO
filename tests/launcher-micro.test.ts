@@ -1,9 +1,8 @@
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { LAUNCHER_GLYPHS, RELEASE_LIMITS, generateLauncherMicro } from '../scripts/launcher-micro.mjs';
-import { COMPONENTS, GLYPH_ID, PLATES } from '@/design/micro/assets';
-import { bindSlots } from '@/design/Micro';
+import { LAUNCHER_GLYPHS, generateLauncherMicro } from '../scripts/launcher-micro.mjs';
+import { COMPONENTS, GLYPH_ID } from '@/design/micro/assets';
 import { SEAL_HORIZON, SEAL_VIEWBOX } from '@/design/Seal';
 import { code128Widths } from '@/lib/code128';
 
@@ -13,8 +12,8 @@ const lf = (text: string) => text.replace(/\r\n/g, '\n');
 interface LauncherMicro {
   SEAL: { viewBox: string; horizon: number; svg: string };
   GLYPHS: Record<string, string>;
-  PLATES: Record<string, { svg: string; slots: string[] }>;
-  bindSlots: (svg: string, values?: Record<string, unknown>) => string;
+  PLATES?: unknown;
+  bindSlots?: unknown;
   code128Widths: (text: string) => number[];
   code128Path: (text: string, height?: number) => { d: string; modules: number };
 }
@@ -26,11 +25,6 @@ function load(): LauncherMicro {
   if (!win.cantoMicro) throw new Error('window.cantoMicro absent');
   return win.cantoMicro;
 }
-
-/** Lignes de la plaque de liaison dans la maquette validée (sierraska-canto-v2/build/micro.cjs, dklink). */
-const MASTER_LINES = ['LOCAL', 'COINBASE', 'WS.LIVE', 'MARKET FEED — ACTIVE', 'PUBLIC DATA | LATENCY: 82 MS'];
-
-const texts = (svg: string) => [...svg.matchAll(/<tspan[^>]*>([^<]*(?:<tspan[^>]*>[^<]*<\/tspan>[^<]*)*)<\/tspan>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, ''));
 
 describe('OROS3.7 micrographies du lanceur, tirées des sources du desk', () => {
   it('electron/launcher-micro.js est la sortie exacte du générateur, sans retouche', () => {
@@ -59,40 +53,11 @@ describe('OROS3.7 micrographies du lanceur, tirées des sources du desk', () => 
     }
   });
 
-  it('les plaques du sceau et de l’artefact sont celles du desk ; la liaison devient le canal de publication', () => {
-    const { PLATES: P } = load();
-    expect(P.seal!.slots).toEqual(['version']);
-    expect(P.artefact!.slots).toEqual(['state']);
-    expect(P.release!.slots).toEqual(['next', 'state', 'channel', 'latency']);
-    for (const id of ['seal', 'artefact'] as const) {
-      expect(texts(P[id]!.svg), id).toEqual(texts(PLATES[id].svg));
-    }
-    expect(texts(P.release!.svg)).toEqual(['LOCAL', '{{next}}', '{{state}}', 'RELEASE — {{channel}}', 'CHECK | LATENCY: {{latency}}']);
-  });
-
-  it('une ligne réécrite, emplacements remplis au plus long, ne dépasse pas la ligne du master', () => {
-    const { PLATES: P } = load();
-    const longest = (line: string) => line.replace(/\{\{(\w+)\}\}/g, (_, key: string) => 'X'.repeat(RELEASE_LIMITS[key as keyof typeof RELEASE_LIMITS]));
-    texts(P.release!.svg).forEach((line, i) => expect(longest(line).length, line).toBeLessThanOrEqual(MASTER_LINES[i]!.length));
-  });
-
-  it('une valeur liée s’allume seule : chaque emplacement est porté par son propre tspan', () => {
-    const { PLATES: P } = load();
-    for (const [id, plate] of Object.entries(P)) {
-      for (const slot of plate.slots) expect(plate.svg, `${id}.${slot}`).toContain(`<tspan class="lm-v">{{${slot}}}</tspan>`);
-    }
-  });
-
-  it('un emplacement sans valeur se lit « — », une valeur est échappée : la même règle que le desk', () => {
-    const { bindSlots: bind } = load();
-    for (const [svg, values] of [
-      ['<text>{{x}}</text>', { x: '<b>&' }],
-      ['<text>{{x}} {{y}}</text>', { x: null, y: '' }],
-      ['<text>{{x}}</text>', {}],
-      ['<text>{{n}}</text>', { n: 0 }],
-    ] as const) {
-      expect(bind(svg, values), svg).toBe(bindSlots(svg, values));
-    }
+  it('OROS4.8 aucune plaque dans le lanceur : le générateur n’en emporte plus, ni la règle de leurs emplacements', () => {
+    const micro = load();
+    expect(micro.PLATES).toBeUndefined();
+    expect(micro.bindSlots).toBeUndefined();
+    expect(readFileSync(FILE, 'utf8')).not.toMatch(/mg-release|mg-seal|mg-artefact|lm-v/);
   });
 
   it('Code 128 : les largeurs du desk, au module près', () => {

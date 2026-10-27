@@ -13,9 +13,10 @@ describe('rail 3.2.2', () => {
     expect(shell).toMatch(/className=\{cx\(s\.voyant, s\[linkState\]\)\} role="img" aria-label=\{linkLabel\}/);
   });
 
-  it('la version quitte la barre d’état pour le rail, sous le compte', () => {
+  it('OROS4.5 la version quitte le rail pour la barre de titre, en haut à droite ; jamais dans la barre d’état', () => {
     const rail = between(shell, '<div className={s.railFoot}>', '</aside>');
-    expect(rail.indexOf('COMPTE ACTIF')).toBeLessThan(rail.indexOf('<ChangelogJournal'));
+    expect(rail).not.toContain('<ChangelogJournal');
+    expect(between(shell, '<header', '</header>')).toContain('<ChangelogJournal version={appVersion} />');
     expect(between(shell, '<footer', '</footer>')).not.toContain('ChangelogJournal');
   });
 

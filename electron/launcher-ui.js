@@ -1,6 +1,6 @@
 /* UI du lanceur AUBE — plain JS. Logique de version, de mise à jour, de nouveautés et de langue ; présentation
-   en Système 4.0 « ΟΡΟΣ » : plaques liées à l'état réel, signal par glyphe, jauge du téléchargement, bande
-   d'étiquette au vrai Code 128. Micrographies : window.cantoMicro (launcher-micro.js, généré). */
+   en Système 4.1 « ΟΡΟΣ » : signal par glyphe, jauge du téléchargement, bande d'étiquette au vrai Code 128, aucune
+   plaque. Micrographies : window.cantoMicro (launcher-micro.js, généré). */
 (function () {
   const COPY = {
     fr: {
@@ -28,8 +28,6 @@
       updateFail: 'Échec de la mise à jour',
       notes: (v) => `Nouveautés de la v${v} ▾`,
       sheet: 'Fiche · Nouveautés',
-      release: { upToDate: 'À JOUR', available: 'DISPO', failed: 'ÉCHEC', applying: 'MAJ…' },
-      artefact: { ready: 'PRÊT', updating: 'MAJ…', launching: 'LANCÉ' },
     },
     en: {
       close: 'Close',
@@ -56,8 +54,6 @@
       updateFail: 'Update failed',
       notes: (v) => `What's new in v${v} ▾`,
       sheet: 'Sheet · What’s new',
-      release: { upToDate: 'LATEST', available: 'UPDATE', failed: 'FAILED', applying: 'UPDATE…' },
-      artefact: { ready: 'READY', updating: 'UPDATE…', launching: 'OPENING' },
     },
     es: {
       close: 'Cerrar',
@@ -84,8 +80,6 @@
       updateFail: 'Error de la actualización',
       notes: (v) => `Novedades de la v${v} ▾`,
       sheet: 'Ficha · Novedades',
-      release: { upToDate: 'AL DÍA', available: 'NUEVA', failed: 'FALLO', applying: 'ACT…' },
-      artefact: { ready: 'LISTO', updating: 'ACT…', launching: 'ABRIENDO' },
     },
   };
 
@@ -111,9 +105,6 @@
   const notesPanel = $('notes-panel');
   // Présentation (absente de pages réduites : chaque usage est gardé).
   const metaGlyph = $('meta-glyph');
-  const plateSeal = $('plate-seal');
-  const plateArtefact = $('plate-artefact');
-  const plateRelease = $('plate-release');
   const gauge = $('gauge');
   const gaugePct = $('gauge-pct');
   const stripChannel = $('strip-channel');
@@ -142,12 +133,9 @@
     return COPY[locale];
   }
 
-  /* ─── Présentation : plaques, signal, bande ─────────────────────────────── */
+  /* ─── Présentation : signal, jauge, bande — aucune plaque (4.1) : chaque relevé a sa place, une seule fois ── */
 
-  /** Longueur maximale de chaque relevé de la plaque de publication (scripts/launcher-micro.mjs). */
-  const LIMIT = { next: 8, state: 7, channel: 6, latency: 7 };
   const CHANNEL = { github: 'GITHUB', git: 'GIT' };
-  const clip = (value, n) => (value === null || value === undefined ? null : String(value).slice(0, n));
 
   function fmtLatency(ms) {
     if (ms === null || !Number.isFinite(ms)) return null;
@@ -156,37 +144,6 @@
 
   function currentVersion() {
     return status?.current || version || null;
-  }
-
-  function bind(el, plate, values) {
-    if (!el || !MICRO || !MICRO.PLATES[plate]) return;
-    el.innerHTML = MICRO.bindSlots(MICRO.PLATES[plate].svg, values);
-  }
-
-  function releaseState() {
-    if (!status) return null;
-    if (receivedPct !== null) return `${receivedPct} %`;
-    if (applying) return L().release.applying;
-    if (status.error && !status.available) return L().release.failed;
-    return status.available ? L().release.available : L().release.upToDate;
-  }
-
-  function artefactState() {
-    if (!window.canto?.update) return null;
-    if (launching) return L().artefact.launching;
-    if (applying) return L().artefact.updating;
-    return L().artefact.ready;
-  }
-
-  function paintPlates() {
-    bind(plateSeal, 'seal', { version: currentVersion() });
-    bind(plateArtefact, 'artefact', { state: artefactState() });
-    bind(plateRelease, 'release', {
-      next: clip(status ? status.latest : null, LIMIT.next),
-      state: clip(releaseState(), LIMIT.state),
-      channel: clip(status ? CHANNEL[status.source] : null, LIMIT.channel),
-      latency: clip(status ? fmtLatency(latencyMs) : null, LIMIT.latency),
-    });
   }
 
   function paintStrip() {
@@ -263,7 +220,6 @@
       button.setAttribute('aria-checked', on ? 'true' : 'false');
       if (on) langRow.style.setProperty('--at', String(index));
     });
-    paintPlates();
     paintStrip();
     if (!status && !window.canto?.update) {
       setMeta(c.shell, 'err');
@@ -350,7 +306,6 @@
   }
 
   function paint() {
-    paintPlates();
     paintStrip();
     paintGauge();
     if (!status) return;
@@ -628,7 +583,6 @@
       const pct = p.total ? ' · ' + Math.floor((p.received / p.total) * 100) + ' %' : '';
       receivedPct = p.total ? Math.min(100, Math.floor((p.received / p.total) * 100)) : null;
       paintGauge();
-      paintPlates();
       setMeta(L().downloading + pct + ' · ' + mb(p.received) + (p.total ? ' / ' + mb(p.total) : '') + ' Mo', 'busy');
     });
     try {
@@ -752,14 +706,13 @@
       }
     });
   }
-  // La version qui tourne, lue tout de suite : la plaque du sceau et le code de la bande n'attendent pas le réseau.
+  // La version qui tourne, lue tout de suite : le code de la bande n'attend pas le réseau.
   if (window.canto?.version) {
     void Promise.resolve()
       .then(() => window.canto.version())
       .then((v) => {
         if (typeof v === 'string' && v) {
           version = v;
-          paintPlates();
           paintStrip();
         }
       })

@@ -110,7 +110,7 @@ let root: Root | null = null;
 let host: HTMLElement | null = null;
 const size = { clientWidth: 800, clientHeight: 300 };
 
-async function mount(props: { floor?: number | null; stats?: { trades: number; winRate: number; profitFactor: number } } = {}) {
+async function mount(props: { floor?: number | null } = {}) {
   const { EquityCard } = await import('@/modules/metrique/EquityChart');
   const { useI18n } = await import('@/i18n');
   useI18n.setState({ locale: 'fr' });
@@ -308,22 +308,16 @@ describe('OROS3.2b la carte A.02 : composants de la planche, borne du plan, plaq
     expect(host!.textContent).not.toMatch(/Plancher · borne/);
   });
 
-  it('la plaque A.02 en filigrane lit la courbe et les statistiques réelles, et se tait pour les lecteurs d’écran', async () => {
-    await mount({ stats: { trades: 5, winRate: 0.8, profitFactor: 2.22 } });
-    const plate = host!.querySelector('svg.mg-equity')!;
-    expect(plate).not.toBeNull();
-    const text = plate.textContent ?? '';
-    expect(text).toContain('A.02 — EQUITY — NT8');
-    expect(text).toContain('CUMUL +150,00 // DD −250,00');
-    expect(text).toContain('– 4 – 5 – 80,0 – 2,22');
-    expect(plate.closest('[aria-hidden="true"]')).not.toBeNull();
-  });
-
-  it('sans statistiques transmises, la plaque dit « — » plutôt qu’un chiffre inventé', async () => {
+  it('OROS4.10 plus de plaque en filigrane : la courbe seule, sa lecture au-dessus dit le cumul et l’écart au plus haut', async () => {
     await mount();
-    const text = host!.querySelector('svg.mg-equity')!.textContent ?? '';
-    expect(text).toContain('– 4 – — – — – —');
-    expect(text).not.toMatch(/\{\{/);
+    expect(host!.querySelector('svg.mg-equity')).toBeNull();
+    // Le graphique n'a plus de scène qui l'empile sur une plaque : son hôte est l'enfant direct de la carte.
+    expect(host!.querySelector('[role="img"]')?.parentElement?.tagName).toBe('SECTION');
+    expect(readout()).toMatch(/Cumul/);
+    expect(readout()).toMatch(/Sous le plus haut/);
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/modules/metrique/dashboard.module.css', 'utf8')).not.toMatch(/\.eqPlate|\.eqStage/);
+    expect(readFileSync('src/modules/metrique/EquityChart.tsx', 'utf8')).not.toMatch(/<Plate\b|EquityPlateStats/);
   });
 });
 

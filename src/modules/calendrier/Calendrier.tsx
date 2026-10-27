@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
-import { Glyph, Plate } from '@/design/Micro';
+import { Glyph } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
-import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
+import { Button, Panel, Segmented, Tag, cx } from '@/design/primitives';
 import { CATEGORY_HELP, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
 import { eventProvenance, mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
 import { intlTag, tr, useI18n } from '@/i18n';
@@ -14,7 +14,7 @@ import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
-import { horizonDay, impactBars, LENS_PATH, nowIndex, strokeOf, STROKES, timeEngineLabel, timeEngineValues, type Stroke } from './calState';
+import { horizonDay, impactBars, LENS_PATH, nowIndex, strokeOf, STROKES, type Stroke } from './calState';
 import s from './calendrier.module.css';
 import { trEventTitle } from './eventTitles';
 
@@ -154,7 +154,6 @@ function trCatHelp(c: EventCategory): { lead: string; points: string[] } {
         points: [
           tr('Ils n’arrivent pas d’un fil externe : c’est votre journal de bord.', 'They do not come from an external feed: this is your logbook.', 'No llegan de un feed externo: es su cuaderno de bitácora.'),
           tr('Utilisez-les pour figer une intention avant la séance.', 'Use them to lock an intention before the session.', 'Úselos para fijar una intención antes de la sesión.'),
-          tr('Visibles uniquement sur votre machine.', 'Visible only on your machine.', 'Visibles solo en su máquina.'),
         ],
       };
     default:
@@ -392,8 +391,6 @@ export default function Calendrier() {
   // Le jour de « maintenant » (date de New York, celle des publications) et le premier jour au-delà de l'horizon.
   const etToday = etDateKey(nowAt);
   const hzDay = horizonDay(view === 'grille' ? gridDays : fluxDays, nowAt);
-  // La plaque TIME ENGINE : séance de l'instant, catalyseurs majeurs du jour (tous filtres confondus), synchro.
-  const timePlate = timeEngineValues({ now: nowAt, events, syncing, sources, cached: eventsMacro.length }, trEventTitle);
 
   const monthLabel = parseDateKey(`${cursor}-01`).toLocaleDateString(intlTag(), { month: 'long', year: 'numeric' });
   const shift = (n: number) => {
@@ -414,6 +411,13 @@ export default function Calendrier() {
         .join(' · ')
     : tr('hors ligne', 'offline', 'sin conexión');
 
+  const sync = async () => {
+    await syncMacro(addDays(`${cursor}-01`, -10), addDays(`${cursor}-28`, 40), true);
+    const st = useMacro.getState();
+    if (st.lastError && st.events.length === 0) toast(st.lastError, 'warn');
+    else toast(tr(`Calendrier · ${st.events.length} publications`, `Calendar · ${st.events.length} releases`, `Calendario · ${st.events.length} publicaciones`), 'ok');
+  };
+
   return (
     <>
       <ModuleHeader
@@ -422,23 +426,22 @@ export default function Calendrier() {
           <>
             <Segmented value={view} onChange={changeView} options={[{ value: 'grille', label: tr('Grille mensuelle', 'Monthly grid', 'Cuadrícula mensual') }, { value: 'flux', label: tr('Flux chronologique', 'Chronological feed', 'Flujo cronológico') }]} />
             <Segmented value={String(minImpact) as '1' | '2' | '3'} onChange={(v) => setMinImpact(Number(v) as 1 | 2 | 3)} options={[{ value: '1', label: tr('Tout', 'All', 'Todo') }, { value: '2', label: tr('Notable +', 'Notable+', 'Notable +') }, { value: '3', label: tr('Majeur', 'Major', 'Mayor') }]} />
-            <Toggle on={showEstimated} onChange={setShowEstimated} label={tr('Dates estimées', 'Estimated dates', 'Fechas estimadas')} />
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={syncing}
-              onClick={async () => {
-                await syncMacro(addDays(`${cursor}-01`, -10), addDays(`${cursor}-28`, 40), true);
-                const st = useMacro.getState();
-                if (st.lastError && st.events.length === 0) toast(st.lastError, 'warn');
-                else toast(tr(`Calendrier · ${st.events.length} publications`, `Calendar · ${st.events.length} releases`, `Calendario · ${st.events.length} publicaciones`), 'ok');
-              }}
-            >
-              {syncing ? tr('Sync…', 'Sync…', 'Sync…') : tr('Synchroniser', 'Sync', 'Sincronizar')}
-              <Glyph name="sync" className={s.btnGlyph} />
-            </Button>
           </>
         }
+        options={[
+          { id: 'estimees', label: tr('Dates estimées', 'Estimated dates', 'Fechas estimadas'), checked: showEstimated, onSelect: () => setShowEstimated(!showEstimated) },
+          {
+            id: 'synchro',
+            group: true,
+            label: syncing ? tr('Synchronisation…', 'Syncing…', 'Sincronizando…') : tr('Synchroniser les sources', 'Sync the sources', 'Sincronizar las fuentes'),
+            glyph: 'sync',
+            disabled: syncing,
+            // La synchro dit son état sur le bouton : or pendant qu'elle court, braise si une source a manqué.
+            state: syncing ? tr('en cours', 'running', 'en curso') : lastError ? tr('partiel', 'partial', 'parcial') : sources.length ? tr('à jour', 'up to date', 'al día') : tr('hors ligne', 'offline', 'sin conexión'),
+            tone: syncing ? 'gold' : lastError ? 'ember' : undefined,
+            onSelect: () => void sync(),
+          },
+        ]}
       />
       <ModuleContent>
         <div className={s.layout}>
@@ -604,24 +607,13 @@ export default function Calendrier() {
             )}
           </div>
 
-          <DaySide
-            key={selected}
-            date={selected}
-            events={byDate.get(selected) ?? []}
-            history={history}
-            onSelectDate={setSelected}
-            onHelp={setHelpCat}
-            lead={
-              <div className={s.timeHud}>
-                <Plate id="timeEngine" values={timePlate} label={timeEngineLabel(timePlate)} className={s.timePlate} />
-              </div>
-            }
-          />
+          {/* Système 4.1 : la colonne s'ouvre sur la légende, sans plaque — la séance est dite par la barre d'état, la synchro par la barre d'outils, les catalyseurs par le jour. */}
+          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} onHelp={setHelpCat} />
         </div>
       </ModuleContent>
 
       {helpCat && (
-        <Modal title={trCatLabel(helpCat)} sub={tr('Repère débutant', 'Beginner guide', 'Guía para principiantes')} onClose={() => setHelpCat(null)} width={440}>
+        <Modal title={trCatLabel(helpCat)} onClose={() => setHelpCat(null)} width={440}>
           <div className={s.helpBody}>
             <p className={s.helpLead}>{trCatHelp(helpCat).lead}</p>
             <ul className={s.helpList}>
@@ -760,15 +752,12 @@ function DaySide({
   history,
   onSelectDate,
   onHelp,
-  lead,
 }: {
   date: string;
   events: CalEvent[];
   history: ReturnType<typeof useMacro.getState>['events'];
   onSelectDate: (d: string) => void;
   onHelp: (c: EventCategory) => void;
-  /** En tête de colonne : la plaque TIME ENGINE. */
-  lead?: ReactNode;
 }) {
   useI18n((s) => s.locale);
   const sessions = useJournal((j) => j.sessions);
@@ -841,7 +830,6 @@ function DaySide({
 
   return (
     <aside className={s.side}>
-      {lead}
       <CalLegend />
       <Panel title={formatDateFr(date, { weekday: true })} sub={plural(events.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos'))} accent tight>
         <div className={s.sideStack}>
@@ -897,7 +885,6 @@ function DaySide({
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
           <h4>{tr('Personnel', 'Personal', 'Personal')}</h4>
-          <span>{tr('notes et rappels', 'notes and reminders', 'notas y recordatorios')}</span>
         </header>
         <textarea
           rows={2}
@@ -926,7 +913,7 @@ function DaySide({
           ))}
         <form className={s.persoForm} onSubmit={(ev) => void addReminder(ev)}>
           <input type="time" value={evTime} onChange={(e) => setEvTime(e.target.value)} aria-label={tr('Heure du rappel', 'Reminder time', 'Hora del recordatorio')} />
-          <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder={tr('Rappel…', 'Reminder…', 'Recordatorio…')} aria-label={tr('Titre du rappel', 'Reminder title', 'Título del recordatorio')} />
+          <input className={s.persoTitle} value={evTitle} onChange={(e) => setEvTitle(e.target.value)} placeholder={tr('Rappel…', 'Reminder…', 'Recordatorio…')} aria-label={tr('Titre du rappel', 'Reminder title', 'Título del recordatorio')} />
           <Button size="sm" type="submit" title={tr('Ajouter', 'Add', 'Añadir')} aria-label={tr('Ajouter le rappel', 'Add reminder', 'Añadir el recordatorio')} disabled={busy || !evTitle.trim()}>
             <IconPlus size={12} />
           </Button>
@@ -936,7 +923,6 @@ function DaySide({
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
           <h4>{tr('Publiés', 'Released', 'Publicados')}</h4>
-          <span>{tr('fil macro', 'macro feed', 'feed macro')}</span>
         </header>
         <div className={s.history}>
           {history.length === 0 && <div className={s.evDesc}>{tr('Synchroniser pour l’historique, ou consulter le dernier calendrier en cache.', 'Sync for history, or read the last cached calendar.', 'Sincronice para el historial, o consulte el último calendario en caché.')}</div>}
@@ -959,7 +945,6 @@ function DaySide({
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
           <h4>{tr('Horaires', 'Schedule', 'Horarios')}</h4>
-          <span>{tr('poste et New York', 'desk and New York', 'puesto y Nueva York')}</span>
         </header>
         <div className={s.markersCompact}>
           {SESSION_MARKERS.map((m) => (

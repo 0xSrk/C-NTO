@@ -84,7 +84,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}
-      sub={tr('opérateur · capital · plan suivi · discipline', 'operator · capital · tracked plan · discipline', 'operador · capital · plan seguido · disciplina')}
       onClose={onClose}
       width={560}
       footer={

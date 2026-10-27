@@ -149,7 +149,8 @@
   padding: 0;
 }
 
-/* ─── Boutons : 32 px, mono capitales ; primaire inversé, fantôme hairline ─── */
+/* ─── Boutons d'action (4.1) : 32 px, mono capitales. Chacun a son contour, un filet fin et sa lumière blanche
+   posée sur l'arête haute ; au passage du pointeur, la lumière monte, tamisée et lente. Primaire inversé. ─── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -157,9 +158,13 @@
   gap: 8px;
   height: var(--ctrl-h);
   padding: 0 16px;
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--light-line);
   border-radius: 0;
-  background: transparent;
+  background-color: transparent;
+  background-image: var(--light-edge);
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ivory) 4%, transparent);
   color: var(--text-0);
   font-family: var(--font-mono);
   font-size: var(--fs-label);
@@ -167,7 +172,12 @@
   letter-spacing: var(--track-11);
   text-transform: uppercase;
   white-space: nowrap;
-  transition: border-color 120ms linear, background-color 120ms linear, color 120ms linear, transform 80ms linear;
+  transition:
+    border-color 260ms var(--ease-out),
+    background-color 260ms var(--ease-out),
+    box-shadow 320ms var(--ease-out),
+    color 200ms linear,
+    transform 80ms linear;
   user-select: none;
 }
 .btn:active {
@@ -180,24 +190,30 @@
   height: var(--chip-h);
   padding: 0 12px;
 }
+/* Fantôme : le même contour, plus bas d'un ton ; l'encre reste lisible. */
 .btn.ghost {
-  border-color: transparent;
-  color: var(--text-2);
+  border-color: color-mix(in srgb, var(--ivory) 11%, transparent);
+  background-image: none;
+  color: var(--text-1);
 }
 .btn.gold {
   border-color: var(--gold-line);
+  background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 55%, transparent) 50%, transparent);
   color: var(--gold);
 }
 .btn.solid {
   border-color: var(--text-0);
-  background: var(--text-0);
+  background-color: var(--text-0);
+  background-image: none;
   color: var(--bg-0);
 }
 .btn.chamfer {
   height: 34px;
   padding: 0 20px 0 16px;
   border: none;
-  background: var(--text-0);
+  background-color: var(--text-0);
+  background-image: none;
+  box-shadow: none;
   color: var(--bg-0);
   font-family: var(--font-ui);
   font-size: 13px;
@@ -208,12 +224,48 @@
 }
 .btn.danger {
   border-color: var(--ember-line);
+  background-image: none;
   color: var(--ember);
 }
 .btn.active {
-  background: var(--text-0);
+  background-color: var(--text-0);
+  background-image: none;
   color: var(--bg-0);
   border-color: var(--text-0);
+}
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--ivory) 8%, transparent),
+      0 0 18px -6px color-mix(in srgb, var(--ivory) 42%, transparent);
+    color: var(--text-0);
+  }
+  .btn.gold:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--gold) 80%, transparent);
+    background-color: var(--gold-soft);
+    box-shadow: var(--glow-accent-soft);
+    color: var(--gold);
+  }
+  .btn.danger:hover:not(:disabled) {
+    border-color: var(--ember);
+    background-color: var(--ember-soft);
+    box-shadow: none;
+    color: var(--ember);
+  }
+  .btn.chamfer:hover:not(:disabled) {
+    background-color: var(--stone);
+    box-shadow: none;
+    color: var(--bg-0);
+  }
+  .btn.solid:hover:not(:disabled),
+  .btn.active:hover:not(:disabled) {
+    background-color: var(--stone);
+    border-color: var(--stone);
+    box-shadow: none;
+    color: var(--bg-0);
+  }
 }
 
 /* ─── Étiquettes : hairline, mono, couleur fonctionnelle en texte ─── */
@@ -256,24 +308,6 @@
 }
 .tag.gold .tagDot.live {
   box-shadow: var(--glow-accent);
-}
-
-/* ─── Onglet inversé : un seul par écran ─── */
-.invertedTab {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  background: var(--text-0);
-  color: var(--bg-0);
-  font-family: var(--font-mono);
-  font-size: var(--fs-label);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--track-11);
-  line-height: 1;
-  padding: 0 8px;
-  white-space: nowrap;
-  transition: transform 120ms var(--ease-out), background 120ms linear;
 }
 
 /* ─── Statistique : libellé → valeur → sous-texte ─── */
@@ -382,10 +416,10 @@
 .toggleTrack {
   width: 32px;
   height: 16px;
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--light-line);
   position: relative;
   background: var(--bg-3);
-  transition: border-color 120ms linear;
+  transition: border-color 240ms var(--ease-out), box-shadow 300ms var(--ease-out);
 }
 .toggleTrack::after {
   content: '';
@@ -407,8 +441,24 @@
 .toggle.on {
   color: var(--text-0);
 }
+@media (hover: hover) {
+  .toggle:hover:not(:disabled) {
+    color: var(--text-1);
+  }
+  .toggle.on:hover:not(:disabled) {
+    color: var(--text-0);
+  }
+  .toggle:hover:not(:disabled) .toggleTrack {
+    border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
+    box-shadow: 0 0 14px -6px color-mix(in srgb, var(--ivory) 42%, transparent);
+  }
+  .toggle.on:hover:not(:disabled) .toggleTrack {
+    border-color: var(--gold);
+  }
+}
 
-/* ─── Puces (chips) : actif = fond blanc, texte noir ─── */
+/* ─── Puces (chips, 4.1) : chacune son contour fin ; l'option choisie s'allume — encre ivoire, lumière douce,
+   filet or au pied — au lieu d'un bloc d'ivoire. ─── */
 .segmented {
   display: inline-flex;
   flex-wrap: wrap;
@@ -418,21 +468,40 @@
 .segmented button {
   height: var(--chip-h);
   padding: 0 12px;
-  border: 1px solid var(--line-1);
+  border: 1px solid color-mix(in srgb, var(--ivory) 11%, transparent);
   font-family: var(--font-mono);
   font-size: var(--fs-label);
   font-weight: 500;
   letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-2);
-  background: linear-gradient(90deg, var(--text-0), var(--text-0)) no-repeat 0 0 / 0% 100%;
-  transition: background-size 160ms var(--ease-out), color 120ms linear, border-color 120ms linear;
+  background-color: transparent;
+  box-shadow: inset 0 0 0 transparent;
+  transition:
+    color 200ms linear,
+    border-color 260ms var(--ease-out),
+    background-color 260ms var(--ease-out),
+    box-shadow 320ms var(--ease-out);
   white-space: nowrap;
 }
 .segmented button.on {
-  background-size: 100% 100%;
-  color: var(--bg-0);
-  border-color: var(--text-0);
+  color: var(--text-0);
+  border-color: color-mix(in srgb, var(--ivory) 46%, transparent);
+  background-color: color-mix(in srgb, var(--ivory) 7%, transparent);
+  box-shadow:
+    inset 0 -1px 0 var(--gold),
+    0 0 16px -6px color-mix(in srgb, var(--ivory) 40%, transparent);
+}
+@media (hover: hover) {
+  .segmented button:hover:not(:disabled) {
+    color: var(--text-0);
+    border-color: color-mix(in srgb, var(--ivory) 32%, transparent);
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+  }
+  .segmented button.on:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--ivory) 56%, transparent);
+    background-color: color-mix(in srgb, var(--ivory) 9%, transparent);
+  }
 }
 
 /* ─── État vide ─── */

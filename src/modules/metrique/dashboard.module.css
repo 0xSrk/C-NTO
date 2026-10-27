@@ -233,29 +233,11 @@
 }
 .eqRead .pos { color: var(--pos); }
 .eqRead .neg { color: var(--neg); }
+/* Système 4.1 : la courbe seule, sans plaque en filigrane derrière elle. */
 .eqChart {
   position: relative;
-  z-index: 1;
   width: 100%;
   min-width: 0;
-}
-/* La plaque de lecture A.02 (Ligne V2) en filigrane, en haut à gauche, sous la courbe (fond du graphique transparent) :
-   la courbe passe par-dessus, la plaque n'intercepte aucun geste. */
-.eqStage {
-  position: relative;
-  isolation: isolate;
-  min-width: 0;
-}
-.eqPlate {
-  position: absolute;
-  left: 12px;
-  top: 8px;
-  z-index: 0;
-  width: 148px;
-  pointer-events: none;
-  opacity: 0.8;
-  --k: var(--text-2);
-  --p: var(--bg-2);
 }
 .eqFault {
   height: 300px;
@@ -472,6 +454,7 @@
   border-bottom: 1px solid var(--line-1);
 }
 .subtab {
+  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
@@ -482,6 +465,7 @@
   font-weight: 500;
   border-bottom: 1px solid transparent;
   margin-bottom: -1px;
+  transition: color 220ms linear;
 }
 .subtab i {
   font-family: var(--font-mono);
@@ -491,7 +475,35 @@
 }
 .subtab.on {
   color: var(--text-0);
-  border-bottom-color: var(--text-0);
+}
+/* L'onglet ouvert s'allume (4.1) : un filet d'or se déplie sous son nom, avec sa lueur. */
+.subtab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 60%, transparent);
+  opacity: 0;
+  transform: scaleX(0.2);
+  transition: opacity 260ms linear, transform 420ms var(--ease-out);
+}
+.subtab.on::after {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: hover) {
+  .subtab:hover {
+    color: var(--text-0);
+  }
+  .subtab:hover::after {
+    opacity: 0.35;
+  }
+  .subtab.on:hover::after {
+    opacity: 1;
+  }
 }
 .scopeNote {
   margin-left: auto;
@@ -529,35 +541,6 @@
 }
 .liveOrders p {
   margin: 0 0 4px;
-}
-.tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-/* composants de la planche dans les outils : encre des libellés, taille par l'enveloppe */
-.toolGlyph {
-  width: 12px;
-  height: 12px;
-  --k: var(--text-2);
-  --p: var(--bg-1);
-}
-.toolWide {
-  width: 30px;
-  height: 8px;
-  --k: var(--text-2);
-  --p: var(--bg-1);
-}
-/* l'étoile sépare les groupes d'outils */
-.toolSep {
-  display: inline-flex;
-  padding: 0 4px;
-  --k: var(--line-3);
-}
-.toolSep > span {
-  width: 8px;
-  height: 8px;
 }
 /* flèche de la planche au bout d'un bouton (import, séances) */
 .btnGlyph {

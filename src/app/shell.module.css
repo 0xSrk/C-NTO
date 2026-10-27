@@ -88,19 +88,41 @@
   -webkit-app-region: no-drag;
 }
 
+/* Imprimés en haut à droite (4.1) : le losange du secteur S.01, puis la version, qui ouvre le journal. */
+.versionCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  padding: 0 14px 0 12px;
+  border-left: 1px solid var(--line-0);
+  border-right: 1px solid var(--line-0);
+}
 /* Le losange du secteur S.01 (cartouche SK-SEC-S01), encre acier sur la nuit. */
 .sector {
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  border-left: 1px solid var(--line-0);
-  border-right: 1px solid var(--line-0);
   --k: var(--text-1);
   --p: var(--bg-0);
 }
 .sector > span {
-  width: 68px;
-  height: 31px;
+  width: 60px;
+  height: 27px;
+}
+.titleVersion {
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.titleVersion .versionBtn {
+  color: var(--text-1);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .titleVersion .versionBtn:hover {
+    color: var(--text-0);
+  }
 }
 
 .titleZoom {
@@ -163,8 +185,8 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 16px 12px 12px;
-  gap: 14px;
+  padding: 20px 12px 16px;
+  gap: 16px;
 }
 
 .nav {
@@ -175,99 +197,129 @@
   overflow: auto;
 }
 
-.navLabelHead,
-.conceptLabel {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-2);
-  padding: 0 14px 10px;
-}
-/* Bordereau : BORDEREAU ········ 9 MODULES */
-.navLabelHead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.navLabelHead i {
-  flex: 1;
-  height: 3px;
-  background: var(--rule-dots);
-}
-
-.conceptLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 18px 14px 8px;
-}
-.conceptLabel i {
-  flex: 1;
-  height: 3px;
-  background: var(--rule-dots);
-}
-
+/* Onglet gravé (4.1) : emblème, nom et contenu, numéro du raccourci ; l'encre au repos est gravée dans la nuit. */
 .navItem {
   position: relative;
-  min-height: 36px;
-  display: flex;
-  /* ligne de pied commune au numéro et au nom ; l'emblème et la quantité dessous (planche) */
-  align-items: baseline;
-  gap: 12px;
-  padding: 6px 12px;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  min-height: 44px;
+  padding: 6px 12px 6px 14px;
   border: 0;
-  border-left: 2px solid transparent;
-  color: var(--text-1);
+  color: var(--text-2);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
+  text-shadow: 0 -1px 0 color-mix(in srgb, var(--bg-void) 90%, transparent);
+  transition: color 240ms linear;
 }
-/* Onglet poinçonné (Système 4.0) : le module ouvert est imprimé, encre sur ivoire. Un seul par écran. */
+/* La lumière de l'onglet ouvert : un filament d'or au bord, qui se déplie ; une lueur blanche, douce, qui monte. */
+.navItem::before {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--gold);
+  box-shadow:
+    0 0 6px color-mix(in srgb, var(--gold) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--gold) 28%, transparent);
+  opacity: 0;
+  transform: scaleY(0.3);
+  transition: opacity 280ms linear, transform 460ms var(--ease-out);
+}
+.navItem::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(140% 120% at 0% 50%, color-mix(in srgb, var(--ivory) 8%, transparent), transparent 72%);
+  opacity: 0;
+  transition: opacity 360ms var(--ease-out);
+}
 .navItem.on {
-  background: var(--ivory);
-  border-left-color: var(--ivory);
-  box-shadow: none;
-  color: var(--ink);
-  font-weight: 600;
+  color: var(--text-0);
 }
-.navIndex {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  width: 18px;
-  color: var(--text-2);
+.navItem.on::before {
+  opacity: 1;
+  transform: none;
 }
-/* Le numéro, et sous lui l'emblème du module (composant de la planche), encre graphite ; poinçonné, encre. */
-.navCol {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  flex: none;
-  width: 18px;
+.navItem.on::after {
+  opacity: 1;
 }
+@media (hover: hover) {
+  .navItem:hover {
+    color: var(--text-1);
+  }
+  .navItem.on:hover {
+    color: var(--text-0);
+  }
+  .navItem:hover::after {
+    opacity: 0.45;
+  }
+  .navItem.on:hover::after {
+    opacity: 1;
+  }
+  .navItem:hover .navEmblem {
+    opacity: 1;
+  }
+  .navItem.on:hover .navEmblem {
+    --k: var(--gold);
+  }
+}
+/* L'emblème du module (composant de la planche), seul en tête ; à l'or quand le module est ouvert. */
 .navEmblem {
-  width: 13px;
-  height: 13px;
-  --k: var(--text-2);
+  width: 20px;
+  height: 20px;
+  justify-self: center;
+  --k: var(--text-1);
+  opacity: 0.72;
+  transition: opacity 280ms linear;
 }
 .navItem.on .navEmblem {
-  --k: var(--ink);
+  --k: var(--gold);
+  opacity: 1;
 }
-.navItem.dashed .navEmblem {
-  opacity: 0.7;
+/*
+ * Un même trait pour tous les emblèmes : un trait de 0,75 sur une grande boîte (Visual 26, Note 91, Portefeuille 130,
+ * Agent 29) tomberait sous 0,25 px à 20 px ; il est relevé à ≈ 0,5 px rendu, le poids des autres emblèmes. Le dessin du
+ * master ne change pas, seulement sa graisse.
+ */
+.navEmblem :global(.g26-1),
+.navEmblem :global(.g26-2),
+.navEmblem :global(.g26-3) {
+  stroke-width: 3.6px;
 }
-.navItem.on .navIndex,
-.navItem.on .navQty {
-  color: var(--ink-soft);
+.navEmblem :global(.g91-1) {
+  stroke-width: 1.8px;
+}
+.navEmblem :global(.g130-1),
+.navEmblem :global(.g130-2),
+.navEmblem :global(.g130-3) {
+  stroke-width: 2.2px;
+}
+.navEmblem :global(.g29-1) {
+  stroke-width: 3.5px;
 }
 .navText {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+.navLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+/* La quantité n'est jamais coupée : trop longue, elle passe à la ligne, deux lignes au plus, entre ses parties s'il y en a. */
 .navQty {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -276,45 +328,30 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+}
+.navQtyPart {
   white-space: nowrap;
 }
-.navLabel {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.navMark {
-  width: 5px;
-  height: 5px;
-  background: transparent;
-}
-.navItem.on .navMark {
-  width: 0;
-}
-.navItem.dashed {
-  margin: 2px 0;
-  border: 1px dashed var(--line-1);
-  border-left-width: 2px;
+/* Le numéro du raccourci (Ctrl+1…9), au bout de l'onglet. */
+.navIndex {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
   color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
-.navItem.dashed.on {
-  border-color: var(--ivory);
-  border-left-style: solid;
-  color: var(--ink);
-}
-.navItem.on .lienBadge {
-  color: var(--gold-ink);
-}
-.navItem.dashed:first-of-type {
-  margin-top: 0;
+.navItem.on .navQty,
+.navItem.on .navIndex {
+  color: var(--text-1);
 }
 .lienBadge {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.12em;
   color: var(--gold);
 }
@@ -336,17 +373,15 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
 
-/* Compte actif, à même le rail : un intitulé à pointillés, un voyant, le nom, la source. */
+/* Compte actif, à même le rail, sans carte : un intitulé à pointillés, un voyant, le nom, la source. */
 .account {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 10px 8px;
-  background: var(--bg-1);
-  border: 1px solid var(--line-0);
-  box-shadow: inset 0 1px 0 rgba(237, 235, 228, 0.08);
+  padding: 0 12px 0 14px;
 }
 .railLabel {
   display: flex;
@@ -377,42 +412,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Plaque d'artefact : la vraie cartouche SK-ART-002 du Lab (sans code), puis la version (journal) et les langues. */
-.plate {
-  display: flex;
-  flex-direction: column;
-  margin-top: 8px;
-  padding: 9px 9px 6px;
-  border: 1px solid var(--line-2);
-  border-radius: 3px;
-  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--ivory) 6%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--bg-void) 50%, transparent);
-  --k: var(--text-0);
-  --p: var(--bg-1);
-}
-.plateLabel {
-  display: block;
-  width: 100%;
-}
-.plate .plateLabel > svg {
-  height: auto;
-}
-.plateRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 7px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line-1);
-}
-.plateVer {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-}
 .accountSource {
   min-width: 0;
   margin-left: 18px;
@@ -425,9 +424,27 @@
   text-transform: uppercase;
   color: var(--text-2);
 }
-.plateVer .versionBtn {
-  flex: none;
-  color: var(--text-1);
+
+/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit du rail, le même qu'au verrou — encre
+   d'ivoire assourdie, ombre d'un pixel au-dessus, reflet d'un pixel dessous —, puis les langues. */
+.signature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-0);
+}
+.sealMark {
+  display: block;
+  width: 76px;
+  color: color-mix(in srgb, var(--ivory) 36%, transparent);
+}
+.sealMarkSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 -1px 0 color-mix(in srgb, var(--bg-void) 95%, transparent)) drop-shadow(0 1px 0 color-mix(in srgb, var(--ivory) 7%, transparent));
 }
 
 /* Voyant : LED fixe, jamais animée. Allumé = exécutions en direct, veille = pont ouvert, éteint = hors ligne. */
@@ -450,7 +467,8 @@
 
 .langRow {
   display: flex;
-  gap: 0;
+  justify-content: center;
+  gap: 2px;
   flex: none;
 }
 .langBtn {
@@ -458,12 +476,21 @@
   font-size: 10px;
   letter-spacing: 0.08em;
   color: var(--text-2);
-  padding: 0 5px;
-  height: 16px;
+  padding: 0 6px;
+  height: 18px;
+  transition: color 200ms linear, box-shadow 260ms var(--ease-out);
 }
 .langBtn.on {
   color: var(--text-0);
-  box-shadow: inset 0 -1px 0 rgba(237, 235, 228, 0.7);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ivory) 70%, transparent);
+}
+@media (hover: hover) {
+  .langBtn:hover {
+    color: var(--text-1);
+  }
+  .langBtn.on:hover {
+    color: var(--text-0);
+  }
 }
 
 .main {
@@ -476,20 +503,6 @@
   gap: 18px;
   background: transparent;
   overflow: hidden;
-}
-
-.edge {
-  position: absolute;
-  right: 13px;
-  bottom: 22px;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  color: var(--ghost);
-  pointer-events: none;
-  z-index: 2;
 }
 
 :global(.canto-plus) {
@@ -515,19 +528,22 @@
   padding: 0;
 }
 
-/* En-tête de module (Système 4.0) : cartouche de dessin — numéro d'afficheur, nom, bloc-titre de données. */
+/* En-tête de module (4.1) : le numéro d'afficheur et le nom sur une ligne, rien dessous ; la couche en un seul composant ;
+   un relevé et le bloc-titre à même la nuit, filets d'un pixel ; les actions en haut à droite. */
 .moduleHead {
+  position: relative;
+  z-index: 3;
   display: flex;
-  align-items: flex-end;
-  gap: 20px;
+  align-items: center;
+  gap: 18px;
   flex-shrink: 0;
-  padding: 14px 40px 0;
-  container: module-head / inline-size;
+  min-height: 60px;
+  padding: 16px 40px 0;
 }
 .modulePlate {
   display: flex;
-  align-items: flex-end;
-  gap: 14px;
+  align-items: baseline;
+  gap: 12px;
   min-width: 0;
   margin: 0;
   font-weight: 600;
@@ -541,87 +557,61 @@
   letter-spacing: -0.04em;
   color: var(--text-0);
 }
-.moduleTitle {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
 .moduleName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 600;
   font-stretch: 86%;
-  line-height: 0.95;
+  line-height: 1;
   letter-spacing: -0.02em;
   color: var(--text-0);
 }
-.moduleLine {
-  display: flex;
+/* La couche du Lab : son seul composant de la planche, à l'encre graphite, après le nom. */
+.moduleLayer {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  flex: none;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+.layerGlyph {
+  width: 18px;
+  height: 18px;
+}
+/* La couche IA (composant 29, Agent et Bot) : son trait de 0,75 sur 140 unités disparaîtrait à 18 px ; relevé à ≈ 0,5 px rendu. */
+.layerGlyph :global(.g29-1) {
+  stroke-width: 3.9px;
+}
+/* Le relevé du module (poches, sources, marchés…) : une ligne de données sur la même ligne que le nom. */
+.moduleMeta {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-2);
-  white-space: nowrap;
-}
-.moduleCode {
-  color: var(--text-1);
-}
-.moduleMeta {
-  color: var(--text-1);
-}
-.moduleMeta::before,
-.moduleTagline::before {
-  content: '·';
-  margin-right: 10px;
-  color: var(--ghost);
-}
-/* La couche du Lab : son composant de la planche et sa bande mini (SK-LYR-L0x-M). */
-.moduleLayer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  padding-bottom: 2px;
-  --k: var(--text-1);
-  --p: var(--bg-1);
-}
-.layerGlyph {
-  width: 22px;
-  height: 22px;
-}
-.layerBand {
-  width: 102px;
-  height: 34px;
-}
-/* En-tête étroit (fenêtre minimale) : la bande cède, le composant reste et la ligne du module se lit en entier. */
-@container module-head (max-width: 1240px) {
-  .layerBand {
-    display: none;
-  }
 }
 .titleBlock {
   display: flex;
   flex: none;
   margin: 0;
-  border: 1px solid var(--line-2);
 }
 .titleBlock > div {
   min-width: 0;
-  padding: 5px 12px 6px;
+  padding: 1px 14px;
   border-left: 1px solid var(--line-1);
 }
-.titleBlock > div:first-child {
-  border-left: 0;
-}
 .titleBlock dt {
-  margin: 0 0 3px;
+  margin: 0 0 4px;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.14em;

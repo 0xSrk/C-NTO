@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLATES } from '@/design/micro/assets';
+import { cssRules, hoverOffenses } from './helpers/cssRules';
 
 const TEXT = new Set(['.ts', '.tsx', '.css', '.html', '.js', '.mjs', '.cjs', '.svg']);
 
@@ -138,9 +139,56 @@ describe('garde du système visuel', () => {
     expect(stale.map((path) => posix('src', path))).toEqual([]);
   });
 
-  it('ne réagit pas au passage du pointeur : aucune règle :hover dans src/', () => {
-    const offenders = walk('src').filter((path) => path.endsWith('.css') && /:hover\b/.test(readFileSync(path, 'utf8')));
-    expect(offenders.map((path) => posix('src', path))).toEqual([]);
+  it('OROS4.1 le passage du pointeur est une lumière : chaque :hover vit sous @media (hover: hover) et ne change que la lumière', () => {
+    const offenders: string[] = [];
+    let hovers = 0;
+    for (const path of walk('src').filter((p) => p.endsWith('.css'))) {
+      const found = hoverOffenses(readFileSync(path, 'utf8'), posix('src', path));
+      offenders.push(...found.offenders);
+      hovers += found.hovers;
+    }
+    expect(offenders).toEqual([]);
+    // Les boutons d'action portent la règle : sans elle, la garde ne garderait rien.
+    expect(hovers).toBeGreaterThan(0);
+  });
+
+  it('OROS4.1 chaque bouton d’action a son contour : un filet fin et sa lumière blanche, jamais transparent', () => {
+    const css = readFileSync('src/design/primitives.module.css', 'utf8');
+    const tokens = readFileSync('src/design/tokens.css', 'utf8');
+    expect(tokens).toMatch(/--light-line:\s*color-mix\(in srgb, var\(--ivory\) \d+%, transparent\);/);
+    expect(tokens).toMatch(/--light-edge:\s*linear-gradient\(/);
+    const btn = cssRules(css).find((rule) => rule.selector === '.btn');
+    expect(btn?.body).toMatch(/border: 1px solid var\(--light-line\)/);
+    expect(btn?.body).toMatch(/background-image: var\(--light-edge\)/);
+    for (const variant of ['.btn.ghost', '.btn.gold', '.btn.danger']) {
+      const body = cssRules(css).find((rule) => rule.selector === variant)?.body ?? '';
+      expect(body, variant).toMatch(/border-color:/);
+      expect(body, variant).not.toMatch(/border-color:\s*transparent/);
+    }
+  });
+
+  it('OROS4.7 le desk ne dit jamais où vit son coffre : aucune phrase « reste sur ce poste », « ne quitte pas la machine »', () => {
+    const said = /reste sur ce poste|lus sur ce poste|ne quitte (?:pas|jamais) (?:le poste|la machine)|uniquement sur votre machine|se queda en este equipo|no sale del equipo|nunca sale de la máquina|solo en su máquina|stays on this machine|never leaves the machine|only on your machine|read on this desk/i;
+    const offenders = ['src/app', 'src/modules', 'src/design', 'electron/launcher.html', 'electron/launcher-ui.js']
+      .flatMap((entry) => (entry.includes('.') ? [entry] : walk(entry)))
+      .filter((path) => said.test(readFileSync(path, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('OROS4.7 rien de décoratif sous un titre : les accroches retirées ne reviennent pas', () => {
+    // Les accroches telles qu'elles s'écrivaient : un appel tr('…') ou une baseline d'onglet.
+    const gone = [
+      'Journal quantitatif', 'Ultimate journal', 'Graphique avancé', 'Advanced chart', 'Passerelle native', 'Native gateway',
+      "tr('création, édition, archivage'", "tr('points de départ'", "tr('séquence du protocole'", "tr('compte maître → comptes suiveurs'",
+      "tr('appliqués avant tout envoi'", "tr('conditions · actions · garde-fous'", "tr('atelier bot'", "tr('choix en cascade'",
+      "tr('ce que le moteur vérifie'", "tr('saisie rapide sans détail par trade'", "tr('import automatique · dossier surveillé'",
+      "tr('bootstrap avec remise", "tr('distribution des résultats'", "tr('Repère débutant'", "tr('toutes les versions'",
+      "tr('confirmation requise'", "tr('taux saisi, inverse déduit'", "tr('consolidée et par poche", "tr('opérateur · capital · plan suivi",
+      "tr('notes et rappels'", "tr('fil macro'", 'forgé par le Lab', "tr('Période et compte appliqués'",
+    ];
+    const sources = ['src/app', 'src/modules', 'src/design'].flatMap((dir) => walk(dir)).map((path) => [path, readFileSync(path, 'utf8')] as const);
+    const found = gone.flatMap((text) => sources.filter(([, body]) => body.includes(text)).map(([path]) => `${posix('.', path)} : ${text}`));
+    expect(found).toEqual([]);
   });
 
   it('réserve le rouge au niveau 3 : le toast d’erreur le porte, et le rouge marque sans jamais écrire', () => {
@@ -153,10 +201,10 @@ describe('garde du système visuel', () => {
     expect(writes.map((path) => posix('src', path))).toEqual([]);
   });
 
-  it('DESIGN.md décrit le Système 4.0 avec les valeurs exactes de tokens.css', () => {
+  it('DESIGN.md décrit le Système 4.1 avec les valeurs exactes de tokens.css', () => {
     const doc = readFileSync('docs/DESIGN.md', 'utf8');
     const css = readFileSync('src/design/tokens.css', 'utf8');
-    expect(doc).toMatch(/^# Système visuel — CΛNTO · révision 4\.0/m);
+    expect(doc).toMatch(/^# Système visuel — CΛNTO · révision 4\.1/m);
     const rows = [...doc.matchAll(/^\|[^|\n]*\|\s*((?:`--[a-z0-9-]+`,?\s*)+)\|\s*`(#[0-9A-Fa-f]{6})`/gm)];
     expect(rows.length).toBeGreaterThanOrEqual(15);
     for (const [, names, value] of rows) {
@@ -166,12 +214,12 @@ describe('garde du système visuel', () => {
     }
   });
 
-  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE, et le bord du desk dit la révision 4.0', () => {
+  it('DESIGN.md décrit les micrographies du Lab et le lanceur AUBE ; le bord du desk n’annote plus rien (4.1)', () => {
     const doc = readFileSync('docs/DESIGN.md', 'utf8');
     for (const id of Object.keys(PLATES)) expect(doc, id).toContain(`\`${id}\``);
     expect(doc).toMatch(/Un seul code-barres/);
     expect(doc).toMatch(/## 10\. Lanceur AUBE/);
-    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('RÉV. 4.0');
-    expect(readFileSync('CLAUDE.md', 'utf8')).toMatch(/Système 4\.0/);
+    expect(readFileSync('src/app/Shell.tsx', 'utf8')).not.toMatch(/DEEP TECH|RÉV\. 4/);
+    expect(readFileSync('CLAUDE.md', 'utf8')).toMatch(/Système 4\.1/);
   });
 });

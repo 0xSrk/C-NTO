@@ -1,29 +1,9 @@
 /*
- * Onglet 09 · CRY : seules les lignes de marché et d'alerte vivent ici, avec la marge droite de la colonne (`.side`, plus
- * bas). Tout le reste (grille, chart, légende, colonne, `tradeRow`) vient de `../visual/visual.module.css`. Même grain
- * que `tradeRow` (mono 11, filet pointillé), en jetons.
+ * Onglet 09 · CRY : seules les lignes de marché et d'alerte vivent ici. Tout le reste (grille, chart, légende, colonne,
+ * `tradeRow`) vient de `../visual/visual.module.css`, marge de la colonne comprise : le châssis n'a plus de plaque verticale
+ * au bord droit (Système 4.1), la colonne crypto a la marge de celle de Visual. Même grain que `tradeRow` (mono 11, filet
+ * pointillé), en jetons.
  */
-
-/*
- * La colonne laisse libre, à droite, la bande de la plaque verticale du châssis (`.edge`, shell.module.css : texte à 13 px du
- * bord, large de 13 px). Les sections de Visual n'ont que 16 px de marge : leurs valeurs alignées à droite (« +0.0081 % »,
- * « LIVE ») et les fins de ligne passeraient sous la plaque. 12 px de plus, filets compris, les arrêtent avant elle.
- */
-.side {
-  padding-right: 12px;
-}
-
-/*
- * La plaque LINK (Ligne V2) dans la barre du module, à la place de l'étiquette du direct : la venue du marché du chart, son
- * websocket, le flux du chart. Encre acier, papier du fond de travail ; 19 px de haut, sa largeur suit le master.
- */
-.linkPlate {
-  height: 19px;
-  aspect-ratio: 303.52 / 42.37;
-  margin-right: 6px;
-  --k: var(--text-1);
-  --p: var(--bg-1);
-}
 
 /* Le globe ouvre les marchés ; encre des titres de la colonne. */
 .titleGlyph {
@@ -77,33 +57,22 @@
 }
 
 /*
- * La plaque SIGNAL (Ligne V2) ouvre la section des alertes, la légende des trois niveaux à sa droite : encre acier, papier du
- * panneau. Les signaux de la légende posent leur propre encre (le niveau 3 seul est rouge, sur son glyphe).
+ * La légende des trois niveaux ouvre la section des alertes, sur une ligne, sans plaque (Système 4.1) : papier du panneau.
+ * Chaque signal pose sa propre encre (le niveau 3 seul est rouge, sur son glyphe) ; le texte reste à l'acier.
  */
-.alertHead {
-  display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
-  gap: 14px;
-  align-items: end;
-  margin: 4px 0 6px;
-  --k: var(--text-1);
-  --p: var(--bg-1);
-}
-.signalPlate {
-  display: block;
-  width: 100%;
-  aspect-ratio: 133.12 / 136.84;
-}
 .alertLegend {
   display: flex;
-  flex-direction: column;
-  gap: 9px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 2px 0 6px;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-1);
+  --p: var(--bg-1);
 }
 
 /*

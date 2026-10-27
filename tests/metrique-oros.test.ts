@@ -83,13 +83,14 @@ async function dashboard(sessions: Session[] = SESSIONS, trades: Trade[] = TRADE
 }
 
 describe('OROS3.2b le tableau de bord lie la carte A.02 à l’état réel', () => {
-  it('la plaque A.02 lit le journal filtré et les statistiques du tableau de bord', async () => {
+  it('OROS4.10 la carte A.02 n’a plus de plaque : les statistiques du journal filtré sont dites une fois, par leurs cartes', async () => {
     const node = await dashboard();
-    const text = node.querySelector('svg.mg-equity')?.textContent ?? '';
-    expect(text).toContain('A.02 — EQUITY — CSV');
-    expect(text).toContain('CUMUL −1 000,00 // DD −2 000,00');
-    // 30 séances, 30 trades, 10 gagnants (33,3 %), profit factor 1 000 / 2 000.
-    expect(text).toContain('– 30 – 30 – 33,3 – 0,50');
+    expect(node.querySelector('svg.mg-equity')).toBeNull();
+    // 30 trades, 10 gagnants (33,3 %), profit factor 1 000 / 2 000 : dits par les cartes K du tableau de bord.
+    const text = node.textContent ?? '';
+    expect(text).toContain('10 / 30');
+    expect(text).toMatch(/33,3\s?%/);
+    expect(text).toContain('0,50');
   });
 
   it('le plan suivi pour le compte filtré pose sa borne sur la courbe ; « tous les comptes », aucune', async () => {

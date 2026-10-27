@@ -79,7 +79,6 @@ vi.mock('@/modules/visual/Chart', () => ({
 
 import { CHARTABLE_MARKETS, CRYPTO_MARKETS } from '@/engine/crypto/markets';
 import p from '@/design/primitives.module.css';
-import c from '@/modules/crypto/crypto.module.css';
 import { useI18n } from '@/i18n';
 import { fmtPrice } from '@/lib/format';
 import Crypto from '@/modules/crypto/Crypto';
@@ -196,11 +195,10 @@ const toasts = () => useUi.getState().toasts;
 const instance = (id: string, definitionId: string, params: Record<string, number | string> = {}): IndicatorInstance => ({ id, definitionId, params, visible: true });
 
 describe('CRY4.3 › en-tête', () => {
-  it('plaque CRY, quatre marchés dans l’ordre du registre, six timeframes', async () => {
+  it('en-tête 09 Crypto, quatre marchés dans l’ordre du registre, six timeframes', async () => {
     const node = await mount();
     const head = node.textContent ?? '';
-    expect(head).toContain('CRY');
-    expect(head).toContain('Crypto');
+    expect(node.querySelector('h1')?.textContent).toBe('09Crypto');
     expect(head).toContain('4 MARCHÉS · 3 VENUES');
     const select = node.querySelector('select');
     const options = [...(select?.querySelectorAll('option') ?? [])];
@@ -222,23 +220,20 @@ describe('CRY4.3 › en-tête', () => {
     expect(node.textContent).toContain('4 MARKETS · 3 VENUES');
   });
 
-  it('flux : la plaque LINK dit « direct » sur une venue live (OROS3.5c), « données périmées » si stale ou reconnecting, rien sinon', async () => {
+  it('flux : la barre dit « données périmées » si stale ou reconnecting, rien sinon ; sans plaque LINK, le direct se lit sur la puce du chart (OROS4.10)', async () => {
     const node = await mount();
     const tags = () => [...headerActions(node).querySelectorAll('span')].map((el) => el.textContent);
-    // Le direct se lit sur la plaque LINK de la barre, nommée pour les lecteurs d'écran.
-    const link = () => headerActions(node).querySelector('[role="img"]')?.getAttribute('aria-label') ?? '';
-    expect(link()).toMatch(/· direct ·/);
+    expect(headerActions(node).querySelector('[role="img"]')).toBeNull();
     expect(tags()).not.toContain('données périmées');
     for (const state of ['stale', 'reconnecting'] as const) {
       await set({ venues: { coinbase: state, binance: 'live', bybit: 'live' } });
       expect(tags()).toContain('données périmées');
-      expect(link()).not.toMatch(/direct/);
     }
-    for (const state of ['connecting', 'blocked', 'off'] as const) {
+    for (const state of ['connecting', 'blocked', 'off', 'live'] as const) {
       await set({ venues: { coinbase: state, binance: 'live', bybit: 'live' } });
       expect(tags()).not.toContain('données périmées');
-      expect(link()).not.toMatch(/direct/);
     }
+    expect(tags().join(' ')).not.toMatch(/direct/);
   });
 
   it('le sélecteur et le Segmented écrivent dans le store', async () => {
@@ -423,7 +418,7 @@ describe('CRY4.3 › catalogue d’indicateurs', () => {
     expect(lastChart().lines.some((l) => l.key.startsWith('i_bin:'))).toBe(false);
   });
 
-  it('le pied du Lab disparaît sur l’onglet crypto et reste dans Visual par défaut', async () => {
+  it('OROS4.7 plus de note d’accroche sous le catalogue, ni sur l’onglet crypto ni dans Visual', async () => {
     const node = await mount();
     expect(node.textContent).not.toContain('forgé par le Lab');
     const props = { instances: [], catalog: [], nameOf: (_: string, f: string) => f, descOf: (_: string, f: string) => f, onAdd: () => {}, onToggle: () => {}, onUpdate: () => {}, onRemove: () => {} };
@@ -431,8 +426,6 @@ describe('CRY4.3 › catalogue d’indicateurs', () => {
     document.body.appendChild(other);
     const otherRoot = createRoot(other);
     await act(async () => otherRoot.render(createElement(IndicatorCards, props)));
-    expect(other.textContent).toContain('forgé par le Lab');
-    await act(async () => otherRoot.render(createElement(IndicatorCards, { ...props, footer: null })));
     expect(other.textContent).not.toContain('forgé par le Lab');
     act(() => otherRoot.unmount());
   });
@@ -753,15 +746,12 @@ describe('CRY4.3 › design', () => {
     expect(css).not.toMatch(/rgba?\(/);
   });
 
-  it('la colonne laisse libre la bande de la plaque verticale du châssis (valeurs alignées à droite, fins de ligne)', async () => {
-    // `.edge` (shell.module.css) : texte vertical à 13 px du bord droit, large de 13 px ; les sections de Visual n'ont que 16 px de marge.
-    expect(c.side, 'classe .side de crypto.module.css').toBeTruthy();
+  it('OROS4.10 la colonne a la marge de celle de Visual : le châssis n’a plus de plaque verticale au bord droit', async () => {
     const node = await mount();
     const side = node.querySelector('aside');
-    expect(side?.classList.contains(v.side as string)).toBe(true);
-    expect(side?.classList.contains(c.side as string)).toBe(true);
-    const css = readFileSync('src/modules/crypto/crypto.module.css', 'utf8');
-    expect(css).toMatch(/\.side\s*\{[^}]*padding-right:\s*12px/);
+    expect(side?.className).toBe(v.side);
+    expect(readFileSync('src/modules/crypto/crypto.module.css', 'utf8')).not.toMatch(/\.side\s*\{/);
+    expect(readFileSync('src/app/shell.module.css', 'utf8')).not.toMatch(/\.edge\s*\{/);
   });
 
   it('l’onglet importe la feuille de Visual, sans copie', () => {

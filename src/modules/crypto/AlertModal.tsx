@@ -155,7 +155,6 @@ export function AlertModal({
   return (
     <Modal
       title={tr('Nouvelle alerte', 'New alert', 'Nueva alerta')}
-      sub={tr('Prix ou température · desk ouvert', 'Price or temperature · desk open', 'Precio o temperatura · desk abierto')}
       onClose={onClose}
       dismissable={!busy}
       width={480}

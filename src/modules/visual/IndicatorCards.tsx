@@ -109,7 +109,7 @@ export interface IndicatorCardsProps {
   onToggle: (id: string) => void;
   onUpdate: (id: string, patch: Record<string, number | string>) => void;
   onRemove: (id: string) => void;
-  /** Sous les cartes. Absent : la note du Lab de Visual ; `null` : rien (le catalogue crypto est fixe, le Lab n'y forge rien). */
+  /** Sous les cartes, ce que l'appelant y pose ; absent : rien (4.1 : plus de note d'accroche sous le catalogue). */
   footer?: ReactNode;
 }
 
@@ -182,11 +182,7 @@ export function IndicatorCards({ instances, catalog, nameOf, descOf, onAdd, onTo
           </div>
         );
       })}
-      {footer === undefined ? (
-        <p className={s.desc}>{tr('Chaque nouvel indicateur forgé par le Lab rejoint ce catalogue avec ses paramètres : le graphique évolue avec la méthode du trader.', 'Each new indicator forged by the Lab joins this catalog with its parameters: the chart evolves with the trader’s method.', 'Cada nuevo indicador forjado por el Lab se une a este catálogo con sus parámetros: el gráfico evoluciona con el método del trader.')}</p>
-      ) : (
-        footer
-      )}
+      {footer}
     </div>
   );
 }

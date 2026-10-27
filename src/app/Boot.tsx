@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { tr, useI18n } from '@/i18n';
-import { InvertedTab } from '@/design/primitives';
-import { Plate } from '@/design/Micro';
 import { Seal, SEAL_HORIZON } from '@/design/Seal';
 import { CONSTRUCTION_END, Wordmark } from '@/design/Wordmark';
-import { APP_VERSION } from '@/lib/version';
 import s from './boot.module.css';
 
 export interface BootStep {
@@ -120,16 +117,13 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
       </div>
 
       <div className={s.center} ref={markRef}>
-        {/* Une seule boîte pour le logotype, le sceau et sa plaque : l'axe du logotype (y 80) est la ligne d'horizon. */}
+        {/* Une seule boîte pour le logotype et le sceau : l'axe du logotype (y 80) est la ligne d'horizon. Aucune plaque (4.1). */}
         <div className={s.mark} data-part="mark">
           <span className={s.horizon} aria-hidden />
           <div className={s.sealw} data-part="seal" style={{ '--hz': SEAL_HZ } as CSSProperties}>
             <Seal kind="negative" className={s.seal} />
           </div>
           <Wordmark width={WORDMARK_W} animated delay={delay} />
-          <div className={s.plateSeal} data-part="seal-plate">
-            <Plate id="seal" values={{ version: APP_VERSION }} />
-          </div>
         </div>
         <p className={s.sous} style={{ '--sous-delay': `${(delay + SOUS_AT_S).toFixed(2)}s` } as CSSProperties}>
           SIΞRRΛSKΛ LAB
@@ -156,15 +150,6 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
         <div className={`${s.bar} ${ready ? s.barDone : ''}`} style={{ '--steps': steps.length } as CSSProperties}>
           <span style={{ width: `${Math.max(2, progress * 100)}%` }} />
         </div>
-        <div className={s.footer}>
-          <InvertedTab>CΛNTO · Artefact 002</InvertedTab>
-          <span>Design Unit · SIΞRRΛSKΛ Lab · Rev. B</span>
-          <span className={s.markSlot}>SIΞRRΛSKΛ</span>
-        </div>
-      </div>
-
-      <div className={s.plateArtefact} data-part="artefact-plate">
-        <Plate id="artefact" values={{ state: 'LIVE' }} />
       </div>
 
       <div className={s.seam} aria-hidden>

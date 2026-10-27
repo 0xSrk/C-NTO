@@ -457,23 +457,6 @@
   color: var(--text-2);
   line-height: 1.45;
 }
-.tip {
-  font-size: 12px;
-  color: var(--text-1);
-  line-height: 1.55;
-  padding: 8px 12px;
-  border: 1px solid var(--line-1);
-  border-left: 2px solid var(--gold);
-  background: var(--bg-1);
-}
-.tip::before {
-  content: 'Repère débutant — ';
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--gold);
-}
 /* L'impact par la forme : barres croissantes, à l'encre ; éteintes, au filet. */
 .impactBar {
   display: inline-flex;
@@ -510,10 +493,18 @@
   color: var(--text-0);
   font-weight: 500;
 }
+/*
+ * Le rappel tient dans la colonne : l'heure à sa largeur naturelle (24 h ou 12 h, selon la langue du poste), lisible en
+ * entier ; le titre prend le reste et peut rétrécir ; l'ajout au bout.
+ */
 .persoForm {
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 4px;
+}
+.persoTitle {
+  width: 100%;
+  min-width: 0;
 }
 .noteArea {
   width: 100%;
@@ -774,21 +765,6 @@
   height: 9px;
   --k: var(--text-2);
   --p: var(--bg-1);
-}
-
-/* Plaque TIME ENGINE (Ligne V2) en tête de colonne : encre secondaire, papier du panneau */
-.timeHud {
-  flex: none;
-  padding: 12px 14px 10px;
-  border: 1px solid var(--line-1);
-  background: var(--bg-1);
-  --k: var(--text-1);
-  --p: var(--bg-1);
-}
-.timePlate {
-  display: block;
-  width: 100%;
-  aspect-ratio: 368 / 82;
 }
 
 /* glyphe de la planche au bout d'un bouton */
