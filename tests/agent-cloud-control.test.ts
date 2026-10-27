@@ -125,7 +125,7 @@ describe('agent cloud · définition installée par le desk', () => {
     // Le premier rapport réel (2026-10-27) a lu six pages de contexte et jamais les calendriers de la CFTC ni du CME.
     const calendars = prompt.split('\n').find((line) => line.startsWith('1. Établis d’abord'));
     expect(calendars).toBeDefined();
-    expect(CALENDAR_INSTITUTIONS).toEqual(['Fed', 'BLS', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']);
+    expect(CALENDAR_INSTITUTIONS).toEqual(expect.arrayContaining(['Fed', 'BLS', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']));
     expect(CALENDAR_INSTITUTIONS.length).toBeLessThan(MAX_PAGES);
     for (const institution of CALENDAR_INSTITUTIONS) expect(calendars).toContain(institution);
     expect(calendars).toContain('une page par institution, avant toute page de contexte');
@@ -161,11 +161,27 @@ describe('agent cloud · définition installée par le desk', () => {
     // Le premier rapport avait repris la BEA par d'autres pages de bea.gov ; CLD30 aurait perdu l'institution au premier délai.
     expect(prompt).not.toContain('ne se retente pas, ni par une autre page du même site');
     expect(prompt).toContain('se retente une fois au plus, elle-même ou une autre page de la même institution');
-    expect(prompt).toContain('au second échec, ce site est clos pour la session et son calendrier est « non consulté »');
+    expect(prompt).toContain('au second échec, n’ouvre plus aucune page de cette institution');
     const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
-    expect(method).toContain('la seconde tentative d’une page qui n’a pas répondu');
+    expect(method).toContain('la seconde tentative d’une page');
     // ir.eia.gov ne porte aucune date : la consigne le dit, au lieu de le laisser déduire.
     expect(prompt).toContain('Une page qui ne porte aucune date n’est pas périmée : sa règle vaut.');
+  });
+
+  it('CLD32 relecture de CLD31 : le DOL au calendrier, les exceptions des jours fériés, un calendrier lu reste lu', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // Les inscriptions hebdomadaires au chômage (DOL, jeudi 8:30 ET) ne figurent pas au calendrier du BLS ; dol.gov est autorisé.
+    expect(CALENDAR_INSTITUTIONS).toEqual(['Fed', 'BLS', 'DOL', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']);
+    expect(OFFICIAL_DOMAINS).toContain('dol.gov');
+    expect(CALENDAR_INSTITUTIONS.length).toBeLessThan(MAX_PAGES);
+    // ir.eia.gov ne donne que la règle habituelle et renvoie aux jours fériés : le WPSR du 11 novembre 2026 passe au jeudi midi.
+    expect(prompt).toContain('Une règle dite habituelle qui renvoie à des exceptions (jours fériés) ne vaut, la semaine d’un jour férié fédéral américain, qu’une fois ces exceptions lues');
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
+    expect(method).toContain('les exceptions d’une règle habituelle la semaine d’un jour férié');
+    // Toute page qui ne s'ouvre pas, pas seulement un délai ; ce qui a déjà été lu reste au rapport.
+    expect(method).toContain('la seconde tentative d’une page qui ne s’est pas ouverte');
+    expect(prompt).toContain('ce qui en a déjà été lu reste au rapport, et seul ce que la page devait donner s’écrit « non consulté »');
+    expect(prompt).not.toContain('ce site est clos');
   });
 });
 
