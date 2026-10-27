@@ -381,53 +381,124 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-/* Compte actif, à même le rail, sans carte : un intitulé à pointillés, un voyant, le nom, la source. */
+/* Le compte (4.1, décision de l'ADMIN, 2026-10-27) : la cartouche des onglets, sans intitulé. Un compartiment, séparé du
+   nom par un filet d'un pixel comme une étiquette du Lab, porte sa micro ; puis le nom, plus petit, et la source. */
 .account {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 12px 0 14px;
-}
-.railLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-2);
-}
-.railLabel > i {
-  flex: 1;
-  height: 3px;
-  background: var(--rule-dots);
-}
-.accountLine {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: auto auto;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 12px;
+  row-gap: 2px;
+  min-height: 48px;
+  padding: 8px 12px 8px 0;
+}
+.account::before {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  inset: 0;
+  z-index: -2;
+  background: color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
+  clip-path: var(--chamfer);
+}
+.account::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  inset: 1px;
+  z-index: -1;
+  background: color-mix(in srgb, var(--ivory) 1.5%, var(--bg-0));
+  clip-path: polygon(0 0, calc(100% - 9.4px) 0, 100% 9.4px, 100% 100%, 0 100%);
+}
+.accountMark {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  margin-block: -8px;
+  display: grid;
+  place-items: center;
+  border-right: 1px solid color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
+}
+/* La micro du compte : le pont (composant 1) dont la borne ⊗ devient le coffre (composant 124), le voyant au cœur du
+   coffre. Chaque composant montre la part de son dessin qui sert, et leurs traits se rejoignent : le pont jusqu'au bout
+   de sa ligne (89,91 / 125,42 de sa largeur), le coffre depuis le bord gauche de son carré (47,16 / 215,44). */
+.accountArt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 40px;
+  height: 26px;
+  --k: var(--text-1);
+}
+.accountBridge {
+  display: flex;
+  flex: none;
+  width: 19.69px;
+  height: 7.86px;
+  overflow: hidden;
+  opacity: 0.85;
+}
+.accountBridge > span {
+  width: 27.47px;
+  height: 7.86px;
+}
+.accountVault {
+  display: flex;
+  flex: none;
+  width: 20.31px;
+  height: 26px;
+  overflow: hidden;
+  opacity: 0.85;
+}
+.accountVault > span {
+  width: 26px;
+  height: 26px;
+  margin-left: -5.69px;
+}
+/* Un même trait pour les deux composants : ≈ 0,6 px rendu, la graisse des emblèmes du rail. */
+.accountBridge :global(.g1-1) {
+  stroke-width: 2.75px;
+}
+.accountVault :global(.g124-1),
+.accountVault :global(.g124-2) {
+  stroke-width: 5px;
+}
+/* Le voyant au cœur du coffre : 19,69 − 5,69 + 13 − 3 = 24 ; 13 − 3 = 10. */
+.accountArt .voyant {
+  position: absolute;
+  left: 24px;
+  top: 10px;
 }
 .accountName {
-  font-size: 14px;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  min-width: 0;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.3;
   color: var(--text-0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .accountSource {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
   min-width: 0;
-  margin-left: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 10px;
+  line-height: 1.3;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
@@ -440,8 +511,6 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line-0);
 }
 .sealMark {
   display: block;

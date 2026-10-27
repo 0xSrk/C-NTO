@@ -103,6 +103,55 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     for (const [layer, glyph] of Object.entries(LAYER_GLYPH)) check(GLYPH_ID[glyph], 18, '.layerGlyph', `couche ${layer}`);
   });
 
+  it('OROS4.20 le compte se pose dans sa cartouche : la micro assemble le pont (1) et le coffre (124), le voyant au cœur ; plus d’intitulé visible', async () => {
+    const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+    const account = el.querySelector<HTMLElement>('aside [role="group"][aria-label="Compte actif"]');
+    expect(account).not.toBeNull();
+    // la ligne « COMPTE ACTIF ····· » est retirée : le nom de l'encart ne vit plus que pour les lecteurs d'écran
+    expect(account!.textContent).not.toMatch(/COMPTE ACTIF/i);
+    const mark = account!.querySelector<HTMLElement>('[data-part="account-mark"]')!;
+    expect(mark).not.toBeNull();
+    expect(account!.firstElementChild).toBe(mark);
+    const bridge = mark.querySelector(`svg.skg-${GLYPH_ID.bridge}`);
+    const vault = mark.querySelector(`svg.skg-${GLYPH_ID.vault}`);
+    expect(bridge).not.toBeNull();
+    expect(vault).not.toBeNull();
+    // le pont entre par la gauche dans le coffre ; le voyant, au cœur, garde son rôle et son libellé
+    expect(bridge!.compareDocumentPosition(vault!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const voyant = mark.querySelector<HTMLElement>('[role="img"][class*="voyant"]');
+    expect(voyant?.getAttribute('aria-label')).toBe('Hors ligne · import CSV');
+    expect(account!.getAttribute('title')).toBe('Hors ligne · import CSV');
+    // le nom puis la source, après la micro
+    const name = account!.querySelector('[class*="accountName"]');
+    expect(name?.textContent).toMatch(/^Tous les comptes · \d+$/);
+    expect(mark.compareDocumentPosition(name!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rule(shellCss, '.accountName')).toMatch(/font-size: 12px/);
+    // la cartouche du compte parle la langue des onglets : filet découpé au chanfrein, fond retiré d'un pixel
+    expect(rule(shellCss, '.account::before')).toMatch(/clip-path: var\(--chamfer\)/);
+    expect(rule(shellCss, '.account::after')).toMatch(/inset: 1px/);
+    expect(shellCss).not.toMatch(/\.railLabel|\.accountLine/);
+    // chaque composant montre la part de son dessin qui sert : le pont jusqu'au bout de sa ligne, le coffre depuis son carré
+    const { COMPONENTS } = await import('@/design/micro/assets');
+    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`${prop}: ([\\d.-]+)px`).exec(body)?.[1] ?? 'NaN');
+    const bridgeWin = rule(shellCss, '.accountBridge');
+    const bridgeGlyph = rule(shellCss, '.accountBridge > span');
+    const vaultWin = rule(shellCss, '.accountVault');
+    const vaultGlyph = rule(shellCss, '.accountVault > span');
+    expect(COMPONENTS[1]).toContain('<line class="g1-1" x1="89.91" y1="17.94" x2="13.75" y2="17.94"/>');
+    expect(COMPONENTS[124]).toContain('<rect class="g124-1" x="47.16" y="47.16" width="121.12" height="121.12"/>');
+    expect(px(bridgeWin, 'width') / px(bridgeGlyph, 'width')).toBeCloseTo(89.91 / 125.42, 3);
+    expect(-px(vaultGlyph, 'margin-left') / px(vaultGlyph, 'width')).toBeCloseTo(47.16 / 215.44, 3);
+    expect(px(bridgeWin, 'width') + px(vaultWin, 'width')).toBeCloseTo(40, 2);
+    // un même trait : ≈ 0,6 px rendu pour les deux, entre 0,4 et 0,75 px comme les emblèmes du rail
+    const stroke = (selector: string) => px(rule(shellCss, selector), 'stroke-width');
+    const bridgeStroke = stroke('.accountBridge :global(.g1-1)') * (px(bridgeGlyph, 'width') / 125.42);
+    const vaultStroke = Number.parseFloat(/stroke-width: ([\d.]+)px/.exec(shellCss.slice(shellCss.indexOf('.accountVault :global(.g124-1),')))![1]!) * (px(vaultGlyph, 'width') / 215.44);
+    for (const rendered of [bridgeStroke, vaultStroke]) {
+      expect(rendered).toBeGreaterThanOrEqual(0.4);
+      expect(rendered).toBeLessThanOrEqual(0.75);
+    }
+  });
+
   it('OROS4.11 la quantité du rail n’est jamais coupée : elle passe à la ligne, deux lignes au plus, entre ses parties', async () => {
     const { useNotes } = await import('@/store/notes');
     const { useLinks } = await import('@/store/links');

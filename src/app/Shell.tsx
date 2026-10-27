@@ -252,15 +252,21 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           ))}
         </nav>
         <div className={s.railFoot}>
-          <div className={s.account}>
-            <span className={s.railLabel}>
-              {tr('COMPTE ACTIF', 'ACTIVE ACCOUNT', 'CUENTA ACTIVA')}
-              <i aria-hidden />
+          {/* Le compte (4.1) : une cartouche du Lab, sans intitulé. Sa micro assemble le pont (composant 1), dont la
+              borne devient le coffre (composant 124), et le voyant au cœur du coffre ; puis le nom et la source. */}
+          <div className={s.account} role="group" aria-label={tr('Compte actif', 'Active account', 'Cuenta activa')} title={linkLabel}>
+            <span className={s.accountMark} data-part="account-mark">
+              <span className={s.accountArt}>
+                <span className={s.accountBridge}>
+                  <Glyph name="bridge" />
+                </span>
+                <span className={s.accountVault}>
+                  <Glyph name="vault" />
+                </span>
+                <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
+              </span>
             </span>
-            <div className={s.accountLine} title={linkLabel}>
-              <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
-              <span className={s.accountName}>{accountLine}</span>
-            </div>
+            <span className={s.accountName}>{accountLine}</span>
             <span className={s.accountSource}>{source}</span>
           </div>
           {/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit, le même qu'au verrou, puis les langues. */}
