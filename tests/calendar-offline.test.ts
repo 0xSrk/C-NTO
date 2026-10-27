@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { blsAdapter, BLS_CPI_URL, BLS_EMPSIT_URL } from '../electron/calendar/bls';
-import { cacheKeyFor, runCalendarSync, type RawCacheEntry } from '../electron/calendar/sync';
+import { CALENDAR_ADAPTERS, cacheKeyFor, runCalendarSync, type RawCacheEntry } from '../electron/calendar/sync';
 import { eventProvenance } from '@/engine/macroMerge';
 
 describe('calendrier hors ligne', () => {
@@ -161,5 +161,31 @@ describe('calendrier hors ligne', () => {
     expect(bls?.state).toBe('error');
     expect(bls?.detail).toMatch(/[Rr]edirection/);
     expect(JSON.stringify(result)).not.toContain('SECRETKEY99');
+  });
+
+  it('chaque source part sans cookie (UPD3) : `net.fetch` garderait sinon ceux de la session par défaut', async () => {
+    const calls: { url: string; credentials: RequestCredentials | undefined }[] = [];
+    await runCalendarSync({
+      range: { from: '2026-01-01', to: '2026-12-31' },
+      locale: 'fr',
+      now: 5_000,
+      hostOk: () => true,
+      byok: { fred: 'cle-de-test', bls: 'cle-de-test' },
+      adapters: CALENDAR_ADAPTERS,
+      fetchImpl: async (url: string, init?: RequestInit) => {
+        calls.push({ url, credentials: init?.credentials });
+        return new Response(null, { status: 503 });
+      },
+      cache: {
+        async read() {
+          return null;
+        },
+        async write() {
+          /* pas de cache */
+        },
+      },
+    });
+    expect(calls.length).toBeGreaterThan(5);
+    for (const call of calls) expect(call).toEqual({ url: call.url, credentials: 'omit' });
   });
 });

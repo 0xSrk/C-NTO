@@ -146,7 +146,8 @@ async function guardedFetch(url: string, init: RequestInit | undefined, opts: {
   if (cached?.etag) headers.set('If-None-Match', cached.etag);
   if (cached?.lastModified) headers.set('If-Modified-Since', cached.lastModified);
   try {
-    const res = await opts.fetchImpl(url, { ...init, headers, redirect: 'manual' });
+    // Sans cookie : `net.fetch` garderait sinon ceux d'une source dans la session par défaut et les lui renverrait (UPD3).
+    const res = await opts.fetchImpl(url, { ...init, headers, redirect: 'manual', credentials: 'omit' });
     if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400 && res.status !== 304)) {
       await res.body?.cancel().catch(() => undefined);
       throw new Error(redirectRefusal(res.status, redirectHost(res.headers.get('location'), url)));
