@@ -69,6 +69,11 @@ async function enter(form: HTMLFormElement) {
   });
 }
 
+/** Le libellé visible de « Coller » (OROS4.50) : les deux libellés gardent la même case, l'autre est caché. */
+function pasteLabel(button: HTMLButtonElement): string | null {
+  return button.querySelector('span:not([aria-hidden="true"])')?.textContent ?? null;
+}
+
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   // jsdom n'anime pas : le refus secoue la fiche par l'API Web Animations.
@@ -132,7 +137,7 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     const el = mount();
     const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
     const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
     expect(button.type).toBe('button');
     input.blur();
     act(() => button.click());
@@ -408,36 +413,36 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     });
     act(() => vi.advanceTimersByTime(40));
     expect(paste).toHaveBeenCalledTimes(1);
-    expect(button.textContent).toBe('Ctrl+V');
+    expect(pasteLabel(button)).toBe('Ctrl+V');
     // OROS4.49 le rappel a sa propre région vivante : l'état du verrou reste où il est
     expect(said()).toBe('Collez avec Ctrl+V');
     expect(status()).toBe('Fermé');
     expect(document.activeElement).toBe(input);
     // le rappel s'efface de lui-même, ou dès que le champ change, sans rien annoncer de plus
     act(() => vi.advanceTimersByTime(3000));
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
     expect(said()).toBe('');
     expect(status()).toBe('Fermé');
     await act(async () => {
       button.click();
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(button.textContent).toBe('Ctrl+V');
+    expect(pasteLabel(button)).toBe('Ctrl+V');
     type(input, 'la phrase');
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
     // un collage accepté ne dit rien ; un shell plus ancien, qui ne répond pas, non plus
     paste.mockResolvedValueOnce(true);
     await act(async () => {
       button.click();
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
     shell.desk.window.paste = vi.fn(() => undefined);
     await act(async () => {
       button.click();
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
   });
 
   it('OROS4.49 le rappel de collage ne masque jamais l’état : la soumission l’efface, un refus répété se redit', async () => {
@@ -478,7 +483,7 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     await submitFake(form);
     expect(status.textContent).toBe('Refusé');
     expect(region.textContent).toBe('');
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
     // la bonne, soumise pendant le rappel : « Ouvert » aussitôt
     type(input, 'la phrase');
     await refuse();
@@ -486,7 +491,31 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     await submitFake(form);
     expect(status.textContent).toBe('Ouvert');
     expect(region.textContent).toBe('');
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
+  });
+
+  it('OROS4.50 « Coller » garde sa largeur quand il montre le raccourci : les deux libellés partagent la même case', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    shell.desk = { window: { close: () => undefined, paste: async () => false } };
+    const el = mount();
+    const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
+    const labels = () => [...button.querySelectorAll<HTMLElement>(':scope > span')].map((span) => [span.textContent, span.getAttribute('aria-hidden') === 'true']);
+    expect(labels()).toEqual([
+      ['Coller', false],
+      ['Ctrl+V', true],
+    ]);
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(labels()).toEqual([
+      ['Coller', true],
+      ['Ctrl+V', false],
+    ]);
+    // la case unique tient le plus long des deux ; celui qui ne sert pas est caché, et hors du nom du bouton
+    expect(css).toMatch(/\.paste \{[^}]*display: inline-grid;/);
+    expect(css).toMatch(/\.paste > span \{\s*grid-area: 1 \/ 1;/);
+    expect(css).toMatch(/\.paste > \[aria-hidden='true'\] \{\s*visibility: hidden;/);
   });
 
   it('OROS4.37 la phrase admise, le verrou ferme le canal « Coller » du process principal, une fois', async () => {

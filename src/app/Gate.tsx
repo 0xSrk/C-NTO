@@ -364,8 +364,10 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
                   </span>
                 ) : null}
                 {/* Le champ garde le focus : le clic ne le lui prend pas, le collage y entre. */}
+                {/* Les deux libellés dans la même case : le bouton garde la largeur du plus long quand il montre le raccourci. */}
                 <button type="button" className={s.paste} data-part="paste" onMouseDown={(event) => event.preventDefault()} onClick={() => void paste()}>
-                  {pasteHint ? pasteKey : tr('Coller', 'Paste', 'Pegar')}
+                  <span aria-hidden={pasteHint || undefined}>{tr('Coller', 'Paste', 'Pegar')}</span>
+                  <span aria-hidden={!pasteHint || undefined}>{pasteKey}</span>
                 </button>
               </div>
               <div className={s.row}>

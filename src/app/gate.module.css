@@ -229,6 +229,8 @@
   border-color: var(--ember);
 }
 .paste {
+  display: inline-grid;
+  place-items: center;
   height: 46px;
   padding: 0 18px;
   border: 1px solid var(--text-0);
@@ -245,6 +247,13 @@
     color 200ms linear,
     background-color 260ms var(--ease-out),
     box-shadow 320ms var(--ease-out);
+}
+/* « Coller » et le raccourci du clavier dans la même case : la largeur ne bouge pas quand le rappel paraît. */
+.paste > span {
+  grid-area: 1 / 1;
+}
+.paste > [aria-hidden='true'] {
+  visibility: hidden;
 }
 .paste:active {
   background-color: color-mix(in srgb, var(--ivory) 10%, transparent);
