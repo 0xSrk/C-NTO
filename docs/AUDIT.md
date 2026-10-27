@@ -1329,3 +1329,17 @@ Demande de l'ADMIN du 27 octobre 2026 : le desk est lourd, « on ne sait pas où
 - README : ses 14 plaques (R3.7l) et sa section « Visual system » montrent le Système 4.0 de la 3.7.0 publiée (plaques des modules, « nothing reacts to hover ») ; à refaire à la publication de la 4.1.
 - Le centre de contrôle (`node scripts/centre.mjs etat`) n'est pas initialisé dans ce conteneur.
 - Recette au desk lancé : « Coller » (bouton et Ctrl+V), « Fermer CΛNTO », la glisse du sceau à l'ouverture sous le zoom automatique, la lumière au passage du pointeur sur un écran tactile (aucune attendue).
+
+## Mise à jour sans cookie (2026-10-27)
+
+Relevé en concevant la diffusion des rapports du Lab (`docs/DIFFUSION-RAPPORTS.md` § 11).
+
+| Ticket | Constat d'origine | Ce qui change | Preuve |
+|---|---|---|---|
+| UPD1 | La mise à jour et son journal appelaient `net.fetch` sans `credentials` : `fetchGithubPackageVersion` et `fetchLatestRelease` (`electron/updater.ts:138`, `:157`), `fetchLatestReleaseInfo`, `download` et les lectures de `SHA256SUMS.txt` et de sa signature (`electron/native-update.ts:44`, `:54`, `:89`, `:96`), `fetchReleaseChangelog` (`electron/changelog-fetch.ts:47`). Essai sous Electron 43.7.1, avec un serveur sur 127.0.0.1 et un profil jetable. Sans `credentials`, `net.fetch` garde dans la session par défaut, persistante, le cookie d'une réponse, redirection comprise, et le renvoie aux appels suivants. Avec `credentials: 'omit'`, rien n'est gardé ni envoyé, pas même un cookie déjà dans la session. La doc d'Electron ne dit le défaut que pour `net.request` (pas de cookie). Relevé le 27/10 : GitHub ne pose aucun cookie sur ces adresses (`api.github.com`, redirection de `releases/download`, fichier final). Mais github.com pose `_octo`, identifiant valable un an au domaine `.github.com`, sur ses pages : rien n'empêchait un tel cookie de suivre le desk d'une adresse à l'autre. | Les sept appels partent avec `credentials: 'omit'`. | `tests/update-credentials.test.ts` : appels simulés, de la dernière Release au téléchargement de l'installeur, et garde de la source sur les trois fichiers ; rouge sans le correctif. |
+
+**Laissés hors du ticket.**
+- Les autres `net.fetch` du process principal gardent le comportement par défaut : calendrier officiel (`electron/calendar/index.ts:41`) et marchés crypto (`electron/crypto-electron.ts:198`). Des sources posent des cookies : `__cf_bm` (30 min) sur federalreserve.gov, deux cookies de répartiteur sur treasurydirect.gov (relevé le 27/10). Le desk les garde et ne les renvoie qu'à ces mêmes sites. Les retirer touche la relève des données et se vérifie source par source : c'est un ticket à part.
+- Sous Electron 43.7.1, la `Response` de `net.fetch` porte une `url` vide, même après une redirection ; la doc d'Electron dit cette valeur incorrecte. La garde d'hôte final de `electron/changelog-fetch.ts:54` (`if (res.url && …)`) ne joue donc jamais. Le journal reste demandé en https à une URL de GitHub, et validé par son schéma. La garde est à refaire à part : `redirect: 'manual'` avec l'hôte de `Location` vérifié, ou garde retirée et dite.
+
+**Vérifications.** `npm run typecheck`, `npm test`, `npm run build`, `npm run electron:compile`.

@@ -1,6 +1,6 @@
 /**
  * Journal publié avec la Release, lu par le process principal.
- * Même chemin que l'installeur : `net.fetch`, hôte GitHub en https, redirections suivies.
+ * Même chemin que l'installeur : `net.fetch`, hôte GitHub en https, redirections suivies, sans cookie.
  * Au-delà de 64 Ko, asset absent ou schéma invalide : `null`, sans erreur visible.
  */
 import { net } from 'electron';
@@ -47,6 +47,7 @@ export async function fetchReleaseChangelog(repo: string): Promise<ChangelogFile
     const res = await net.fetch(asset.url, {
       headers: { Accept: 'application/json', 'User-Agent': 'CANTO-Desk' },
       redirect: 'follow',
+      credentials: 'omit',
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok || !res.body) return null;

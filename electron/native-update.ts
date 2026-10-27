@@ -18,7 +18,8 @@ import { compareSemver } from './semver';
  * par une clé du Lab, voir `release-signature.ts`), puis
  * installé. Windows : installeur NSIS silencieux qui relance CΛNTO ; Linux AppImage : fichier
  * remplacé puis relance ; macOS DMG et Linux deb : l'installeur est ouvert pour l'utilisateur.
- * Réseau via `net.fetch` (pile Chromium) : le proxy système du poste est respecté.
+ * Réseau via `net.fetch` (pile Chromium) : le proxy système du poste est respecté. Chaque appel part sans cookie
+ * (`credentials: 'omit'`) : sinon, `net.fetch` garde ceux d'une réponse dans la session par défaut et les renvoie (UPD1).
  */
 
 const API_HEADERS = { Accept: 'application/vnd.github+json', 'User-Agent': 'CANTO-Desk', 'X-GitHub-Api-Version': '2022-11-28' };
@@ -41,7 +42,7 @@ let pending: PendingRestart | null = null;
 
 export async function fetchLatestReleaseInfo(repo: string): Promise<ReleaseInfo | null> {
   try {
-    const res = await net.fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: API_HEADERS, signal: AbortSignal.timeout(12_000) });
+    const res = await net.fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: API_HEADERS, credentials: 'omit', signal: AbortSignal.timeout(12_000) });
     if (!res.ok) return null;
     return parseLatestRelease(await res.json());
   } catch {
@@ -51,7 +52,7 @@ export async function fetchLatestReleaseInfo(repo: string): Promise<ReleaseInfo 
 
 /** Téléchargement en flux vers `dest`, empreinte SHA-256 calculée au passage. */
 async function download(url: string, dest: string, onProgress?: (p: DownloadProgress) => void): Promise<string> {
-  const res = await net.fetch(url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', signal: AbortSignal.timeout(15 * 60_000) });
+  const res = await net.fetch(url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', credentials: 'omit', signal: AbortSignal.timeout(15 * 60_000) });
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
   const total = Number(res.headers.get('content-length')) || 0;
   const hash = createHash('sha256');
@@ -86,14 +87,14 @@ export async function applyInstallerUpdate(opts: {
   if (!pick) throw new Error('no_installer');
   const sumsAsset = release.assets.find((a) => a.name === 'SHA256SUMS.txt');
   if (!sumsAsset) throw new Error('no_checksums');
-  const sumsRes = await net.fetch(sumsAsset.url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', signal: AbortSignal.timeout(30_000) });
+  const sumsRes = await net.fetch(sumsAsset.url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', credentials: 'omit', signal: AbortSignal.timeout(30_000) });
   if (!sumsRes.ok) throw new Error('no_checksums');
   const sums = await sumsRes.text();
   // Signature du Lab sur SHA256SUMS.txt : sans elle, des empreintes publiées avec les installeurs ne prouvent rien.
   const sigAsset = release.assets.find((a) => a.name === SIGNATURE_ASSET);
   let signature: string | null = null;
   if (sigAsset && sigAsset.size <= SIGNATURE_MAX_BYTES) {
-    const sigRes = await net.fetch(sigAsset.url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', signal: AbortSignal.timeout(30_000) });
+    const sigRes = await net.fetch(sigAsset.url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', credentials: 'omit', signal: AbortSignal.timeout(30_000) });
     if (sigRes.ok) signature = (await sigRes.text()).slice(0, SIGNATURE_MAX_BYTES);
   }
   const trust = trustedChecksum({ version: release.version, installer: pick.asset.name, sums, signature, keys: RELEASE_PUBLIC_KEYS });

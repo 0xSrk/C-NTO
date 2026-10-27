@@ -137,6 +137,7 @@ async function fetchGithubPackageVersion(): Promise<string | null> {
   try {
     const res = await net.fetch(url, {
       headers: { Accept: 'application/json', 'User-Agent': 'CANTO-Desk' },
+      credentials: 'omit',
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) return null;
@@ -156,6 +157,7 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
   try {
     const res = await net.fetch(url, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'CANTO-Desk', 'X-GitHub-Api-Version': '2022-11-28' },
+      credentials: 'omit',
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) return null;
