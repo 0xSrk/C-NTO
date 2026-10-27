@@ -21,16 +21,18 @@ export const MAX_PAGES = 15;
 /**
  * Les institutions dont l'agent lit le calendrier, une page chacune, avant toute page de contexte : le premier rapport
  * réel a lu six pages de contexte et jamais les calendriers de la CFTC ni du CME (CLD29). Le DOL publie les inscriptions
- * hebdomadaires au chômage, absentes du calendrier du BLS (CLD32).
+ * hebdomadaires au chômage, absentes du calendrier du BLS (CLD32). Le CME en sort, comme de `OFFICIAL_DOMAINS` : ses
+ * conditions interdisent l'accès automatisé (décision de l'ADMIN, CLD35).
  */
-export const CALENDAR_INSTITUTIONS = ['Fed', 'BLS', 'DOL', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME'] as const;
+export const CALENDAR_INSTITUTIONS = ['Fed', 'BLS', 'DOL', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE'] as const;
 export const ENVIRONMENT_NAME = 'canto-analyste';
 export const AGENT_NAME = 'CΛNTO · analyste quotidien';
 export const DEPLOYMENT_NAME = 'canto-rapport-quotidien';
 
 /**
  * Domaines officiels que l'agent peut lire (recherche et lecture web, et réseau du bac à sable). Un domaine couvre ses
- * sous-domaines pour les outils web ; l'environnement liste le domaine et `*.domaine`.
+ * sous-domaines pour les outils web ; l'environnement liste le domaine et `*.domaine`. cmegroup.com n'y est plus : ses
+ * conditions interdisent l'accès automatisé, et le desk lui-même ne le lit pas (`src/engine/sources.ts`, CLD35).
  */
 export const OFFICIAL_DOMAINS = [
   'federalreserve.gov',
@@ -44,7 +46,6 @@ export const OFFICIAL_DOMAINS = [
   'eia.gov',
   'cftc.gov',
   'sec.gov',
-  'cmegroup.com',
   'ecb.europa.eu',
 ] as const;
 
@@ -77,6 +78,7 @@ export function cloudSystemPrompt(locale: AppLocale): string {
     '- Une règle générale (« chaque mercredi à 10:30 ») ne date un événement que lue sur une page à jour. Une page qui ne porte aucune date n’est pas périmée : sa règle vaut. Une page dont la date la plus récente remonte à plus de trois mois avant la journée analysée est périmée : la publication a pu cesser, n’en tire aucun événement.',
     '- Une règle dite habituelle qui renvoie à des exceptions (jours fériés) ne vaut, la semaine d’un jour férié fédéral américain, qu’une fois ces exceptions lues ; sinon, n’en place aucune date dans la fenêtre : cite la publication avec « non consulté » pour son jour et son heure.',
     '- DOL : les inscriptions hebdomadaires au chômage paraissent chaque jeudi à 8:30 ET, le mercredi quand le jeudi est férié ; le dernier communiqué (dol.gov/ui/data.pdf), dont la date d’embargo remonte à huit jours au plus avant la journée analysée, tient lieu de calendrier et de source ; plus ancien, cite les inscriptions avec « non trouvé » pour leur jour et leur heure.',
+    '- Le CME n’est pas lu : ses conditions interdisent l’accès automatisé. N’annonce ni horaire ni jour férié du CME ; dis-le en une ligne, avec « non consulté ».',
     '- Une page qui ne s’ouvre pas (erreur, accès refusé, délai) se retente une fois au plus, elle-même ou une autre page de la même institution ; au second échec, n’ouvre plus aucune page de cette institution : ce qui en a déjà été lu reste au rapport, et seul ce que la page devait donner s’écrit « non consulté ».',
     '- Le calendrier d’une institution que tu n’as pas lu s’écrit « non consulté », jamais « non trouvé » : « non trouvé » veut dire lu, et absent.',
     '',

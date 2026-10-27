@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
 import type { CloudApi, DeploymentView, FetchLike, FileView, SessionPage, SessionView } from '../../electron/agent-cloud-api';
 import { AgentCloudHost, type AgentCloudDeps, type CloudDialogOptions } from '../../electron/agent-cloud';
+import type { AppLocale } from '../../electron/locale';
 
 export const KEY = 'sk-ant-api03-cle-de-test-0123456789';
 export const DEPL = 'depl_011CZkZcDH3vPqd7xnEfwTai';
@@ -121,6 +122,8 @@ export interface HarnessOptions {
   realFetch?: FetchLike;
   /** Siège du Lab présent (défaut : oui, le desk de l'ADMIN) ; `false` : un desk qui ne fait que lire. */
   lab?: boolean;
+  /** Langue du desk (défaut : français). */
+  locale?: AppLocale;
 }
 
 /** Un hôte sur un `userData` temporaire (à effacer par l'appelant : `dirs`). */
@@ -135,7 +138,7 @@ export function cloudHarness(dirs: string[], opts: HarnessOptions = {}) {
   const api = opts.api ?? fakeApi();
   const deps: AgentCloudDeps = {
     userDataDir: dir,
-    locale: () => 'fr',
+    locale: () => opts.locale ?? 'fr',
     window: () => (opts.noWindow ? null : { isDestroyed: () => false }),
     showMessageBox: async (_win, options) => {
       dialogs.push(options);
