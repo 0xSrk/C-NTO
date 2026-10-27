@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BraceCode, Button, Led, cx } from '@/design/primitives';
 import { Cartouche, Glyph } from '@/design/Micro';
 import { Seal } from '@/design/Seal';
@@ -362,7 +362,7 @@ function RailButton({ itemId, index, label, qty, on, link, onClick }: { itemId: 
       <Glyph name={itemId} className={s.navEmblem} />
       <span className={s.navText}>
         <span className={s.navLabel}>{label}</span>
-        {qty ? <span className={s.navQty}>{qty}</span> : null}
+        {qty ? <RailQty text={qty} /> : null}
       </span>
       {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
       <span className={s.navIndex} data-part="rail-index" aria-hidden>
@@ -370,6 +370,26 @@ function RailButton({ itemId, index, label, qty, on, link, onClick }: { itemId: 
       </span>
       <span className={s.srOnly}>{itemId}</span>
     </button>
+  );
+}
+
+/**
+ * La quantité sous le nom du module (4.1) : jamais coupée. Trop longue pour le rail, elle passe à la ligne, deux lignes au
+ * plus ; faite de plusieurs parties, elle ne se brise qu'entre elles (« 2 notes · » puis « 472 liens »).
+ */
+function RailQty({ text }: { text: string }) {
+  const parts = text.split(' · ');
+  return (
+    <span className={s.navQty}>
+      {parts.length < 2
+        ? text
+        : parts.map((part, i) => (
+            <Fragment key={i}>
+              {i > 0 ? ' · ' : null}
+              <span className={s.navQtyPart}>{part}</span>
+            </Fragment>
+          ))}
+    </span>
   );
 }
 

@@ -68,6 +68,33 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--gold\)/);
   });
 
+  it('OROS4.11 la quantité du rail n’est jamais coupée : elle passe à la ligne, deux lignes au plus, entre ses parties', async () => {
+    const { useNotes } = await import('@/store/notes');
+    const { useLinks } = await import('@/store/links');
+    const notes = useNotes.getState().notes;
+    const links = useLinks.getState().links;
+    useNotes.setState({ notes: [{ id: 'a' }, { id: 'b' }] as unknown as typeof notes });
+    useLinks.setState({ links: Array.from({ length: 472 }, (_, i) => ({ id: `l${i}` })) as unknown as typeof links });
+    try {
+      const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+      const qty = el.querySelector('nav button[data-tab="note"] [class*="navQty"]')!;
+      // Deux parties, chacune insécable : la ligne ne se brise qu'au séparateur.
+      expect(qty.textContent).toBe('2 notes · 472 liens');
+      expect([...qty.children].map((part) => part.textContent)).toEqual(['2 notes', '472 liens']);
+      const parts = rule(shellCss, '.navQtyPart');
+      expect(parts).toMatch(/white-space: nowrap/);
+      // Une quantité d'une seule partie (« Orchestrateur en service ») se brise entre ses mots.
+      const agent = el.querySelector('nav button[data-tab="agent"] [class*="navQty"]')!;
+      expect(agent.children).toHaveLength(0);
+    } finally {
+      useNotes.setState({ notes });
+      useLinks.setState({ links });
+    }
+    const body = rule(shellCss, '.navQty');
+    expect(body).not.toMatch(/text-overflow: ellipsis|white-space: nowrap/);
+    expect(body).toMatch(/-webkit-line-clamp: 2/);
+  });
+
   it('le zoom de la barre de titre est le bouton « + — » de la planche : le plus et la barre restent deux boutons', () => {
     const el = mount(createElement(ZoomControls));
     const plus = el.querySelector<HTMLButtonElement>('button[aria-label="Augmenter le zoom"]');

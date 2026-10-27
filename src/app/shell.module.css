@@ -298,6 +298,7 @@
   white-space: nowrap;
   line-height: 1.25;
 }
+/* La quantité n'est jamais coupée : trop longue, elle passe à la ligne, deux lignes au plus, entre ses parties s'il y en a. */
 .navQty {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -306,8 +307,13 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+}
+.navQtyPart {
   white-space: nowrap;
 }
 /* Le numéro du raccourci (Ctrl+1…9), au bout de l'onglet. */
