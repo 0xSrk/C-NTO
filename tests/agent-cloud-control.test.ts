@@ -196,6 +196,15 @@ describe('agent cloud · définition installée par le desk', () => {
     const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'))!;
     expect(method.indexOf('les exceptions d’une règle habituelle')).toBeLessThan(method.indexOf('puis le contexte'));
   });
+
+  it('CLD34 relecture de CLD33 : le communiqué du DOL vaut huit jours au plus, et la semaine fériée la publication reste citée', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // Le jeudi qui suit une parution du mercredi (Thanksgiving), l'exécution de 7:00 à Paris lit un communiqué de huit jours pile.
+    expect(prompt).not.toContain('daté de moins de huit jours');
+    expect(prompt).toContain('dont la date d’embargo remonte à huit jours au plus avant la journée analysée');
+    expect(prompt).toContain('plus ancien, cite les inscriptions avec « non trouvé » pour leur jour et leur heure');
+    expect(prompt).toContain('cite la publication avec « non consulté » pour son jour et son heure');
+  });
 });
 
 describe('agent cloud · installation et commandes, par dialogue du process principal', () => {
