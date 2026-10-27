@@ -9,7 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupIntoSessions } from '@/engine/import/ninjatrader';
 import type { Trade } from '@/engine/types';
 import { useI18n } from '@/i18n';
-import { fmtPoints } from '@/lib/format';
+import { Lecteur, Montant } from '@/design/primitives';
+import primitives from '@/design/primitives.module.css';
+import { decimalMark, fmtPoints, montantAria, montantParts } from '@/lib/format';
 import Bot from '@/modules/bot/Bot';
 import s from '@/modules/bot/bot.module.css';
 import { Dashboard } from '@/modules/metrique/Dashboard';
@@ -140,7 +142,7 @@ describe('R3.7h l’interface anglaise parle anglais : libellés de période, jo
     useI18n.setState({ locale: 'en' });
     const node = await render(createElement(Portefeuille));
     expect(pressable(node).slice(0, 2)).toEqual(['7D', '30D']);
-    // « 0 / 0 D », puis le montant (que `Montant` écrit à la virgule, anatomie du Système 4.0, hors de ce ticket).
+    // « 0 / 0 D », puis le montant de `Montant`.
     expect(tile(node, 'K.01').textContent).toMatch(/0 \/ 0 D/);
     expect(tile(node, 'K.01').textContent).not.toMatch(/\d J/);
     expect(tile(node, 'K.02').textContent).toContain('0.00×');
@@ -160,4 +162,48 @@ describe('R3.7h l’interface anglaise parle anglais : libellés de période, jo
     expect(fr).toMatch(/du DD max \(750\s\$\)/u);
     expect(fr).toMatch(/Perte journalière interne : −1\s000\s\$ \(/u);
   });
+});
+
+describe('R3.7k les montants prennent le séparateur décimal de la langue : point en anglais, virgule en français et en espagnol', () => {
+  it('`decimalMark` et `montantAria` suivent la langue ; le groupement reste U+202F', () => {
+    const parts = montantParts(4812.5, 2);
+    for (const [locale, mark] of [['fr', ','], ['en', '.'], ['es', ',']] as const) {
+      useI18n.setState({ locale });
+      expect(decimalMark(), locale).toBe(mark);
+      expect(montantAria(parts), locale).toBe(`+4 812${mark}50`);
+    }
+  });
+
+  it('`Montant` et `Lecteur` écrivent le séparateur de la langue, et le reprennent quand elle change', async () => {
+    useI18n.setState({ locale: 'en' });
+    const amount = await render(createElement('div', null, createElement(Montant, { value: -2897.62 }), createElement(Lecteur, { value: 93508.84, sign: false })));
+    const montant = amount.querySelector(`.${primitives.montant}`)!;
+    const ink = amount.querySelector(`.${primitives.lecteurInk}`)!;
+    expect(montant.textContent).toBe('−2897.62');
+    expect(montant.getAttribute('aria-label')).toBe('−2 897.62');
+    expect(ink.textContent).toBe('93508.84');
+    expect(amount.querySelector(`.${primitives.lecteurGhost}`)?.textContent).toBe('88888.88');
+    await act(async () => useI18n.setState({ locale: 'fr' }));
+    expect(montant.textContent).toBe('−2897,62');
+    expect(ink.textContent).toBe('93508,84');
+  });
+
+  it('la plaque A.02 de Métrique écrit ses montants au point en anglais', async () => {
+    useI18n.setState({ locale: 'en' });
+    const sessions = groupIntoSessions(TRADES, 18, 'csv');
+    const node = await render(
+      createElement(Dashboard, {
+        sessions,
+        trades: TRADES,
+        range: 'tout',
+        period: { from: null, to: '2026-07-30' },
+        history: { sessions, trades: TRADES },
+        journalEmpty: false,
+        onImport: () => undefined,
+        onDemo: () => undefined,
+        onSessions: () => undefined,
+      }),
+    );
+    expect(node.querySelector('svg.mg-equity')?.textContent ?? '').toContain('CUMUL −1 000.00 // DD −2 000.00');
+  }, 15_000);
 });

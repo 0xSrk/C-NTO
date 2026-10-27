@@ -4,6 +4,7 @@ let cacheTag = '';
 let usd0 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol', maximumFractionDigits: 0 });
 let usd2 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let num = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
+let decimal = ',';
 const fixedCache = new Map<string, Intl.NumberFormat>();
 
 function formats(): void {
@@ -13,6 +14,7 @@ function formats(): void {
   usd0 = new Intl.NumberFormat(tag, { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol', maximumFractionDigits: 0 });
   usd2 = new Intl.NumberFormat(tag, { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   num = new Intl.NumberFormat(tag, { maximumFractionDigits: 2 });
+  decimal = num.formatToParts(1.5).find((part) => part.type === 'decimal')?.value ?? '.';
   fixedCache.clear();
 }
 
@@ -124,8 +126,14 @@ export function montantParts(v: number, decimals: number, opts?: { sign?: boolea
   };
 }
 
-/** Chaîne complète pour `aria-label` : U+202F entre les groupes, U+2212 pour le moins. */
+/** Séparateur décimal de la langue, celui des formateurs ci-dessus : virgule en français et en espagnol, point en anglais. */
+export function decimalMark(): string {
+  formats();
+  return decimal;
+}
+
+/** Chaîne complète pour `aria-label` : U+202F entre les groupes, U+2212 pour le moins, le séparateur décimal de la langue. */
 export function montantAria(parts: MontantParts): string {
-  const body = `${parts.groups.join('\u202f')},${parts.decimals}`;
+  const body = `${parts.groups.join('\u202f')}${decimalMark()}${parts.decimals}`;
   return parts.sign ? `${parts.sign}${body}` : body;
 }
