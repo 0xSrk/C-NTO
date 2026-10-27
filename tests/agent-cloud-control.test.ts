@@ -5,7 +5,7 @@ import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
 import { CloudApiError, type CloudApi, type DeploymentView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, PULL_PENDING_MS } from '../electron/agent-cloud';
 import { LAB_SEATS } from '../electron/seat';
-import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, MAX_PAGES, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
+import { BUDGET_CENTS_PER_RUN, CALENDAR_INSTITUTIONS, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudSystemPrompt, MAX_PAGES, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
 import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, KEY, NOW, sid, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
@@ -118,6 +118,83 @@ describe('agent cloud · définition installée par le desk', () => {
     expect(prompt).toContain(`Lis au plus ${MAX_PAGES} pages web en tout`);
     expect(MAX_PAGES).toBeGreaterThan(0);
     expect(MAX_PAGES).toBeLessThanOrEqual(20);
+  });
+
+  it('CLD29 le calendrier de la fenêtre : neuf institutions lues avant tout contexte, chaque adjudication, rien d’une page périmée, « non consulté » à part', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // Le premier rapport réel (2026-10-27) a lu six pages de contexte et jamais les calendriers de la CFTC ni du CME.
+    const calendars = prompt.split('\n').find((line) => line.startsWith('1. Établis d’abord'));
+    expect(calendars).toBeDefined();
+    expect(CALENDAR_INSTITUTIONS).toEqual(expect.arrayContaining(['Fed', 'BLS', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']));
+    expect(CALENDAR_INSTITUTIONS.length).toBeLessThan(MAX_PAGES);
+    for (const institution of CALENDAR_INSTITUTIONS) expect(calendars).toContain(institution);
+    expect(calendars).toContain('une page par institution, avant toute page de contexte');
+    expect(prompt.indexOf(calendars!)).toBeLessThan(prompt.indexOf('Écris aussitôt'));
+    // Il omettait les bills à 6 et 52 semaines adjugés le jour même, et datait une publication arrêtée d'une page périmée.
+    expect(prompt).toContain('chaque adjudication du jour et du lendemain, bills compris');
+    expect(prompt).toContain('une annonce n’est pas une adjudication');
+    expect(prompt).toContain('n’en tire aucun événement');
+    // « non trouvé » couvrait aussi ce qui n'avait pas été lu : le correcteur connaît les deux mentions.
+    expect(prompt).toContain('« non consulté »');
+    expect(outcomeRubric('fr')).toContain('« non consulté »');
+    expect(outcomeRubric('fr')).toContain('« non trouvé »');
+  });
+
+  it('CLD30 relecture de CLD29 : une page sans année n’est pas périmée, une page refusée ne se retente pas, le reste comble d’abord le calendrier', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // La page du rapport pétrolier hebdomadaire (ir.eia.gov) ne porte aucune année : CLD29 l'aurait écartée. Seule une page
+    // aux dates anciennes, comme les exceptions de « This Week in Petroleum » figées sur 2025, est périmée.
+    expect(prompt).not.toContain('aucune date de l’année en cours');
+    expect(prompt).toContain('Une page dont la date la plus récente remonte à plus de trois mois avant la journée analysée est périmée');
+    // cmegroup.com refuse l'accès automatisé : une page refusée ne doit pas brûler les pages qui restent.
+    expect(prompt).toContain('Une page qui ne s’ouvre pas (erreur, accès refusé, délai)');
+    // Les pages qui restent comblent d'abord le calendrier de la fenêtre, puis seulement le contexte.
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
+    expect(method).toBeDefined();
+    expect(method!.indexOf('d’abord ce qui manque au calendrier de la fenêtre')).toBeGreaterThan(0);
+    expect(method!.indexOf('d’abord ce qui manque au calendrier de la fenêtre')).toBeLessThan(method!.indexOf('puis le contexte'));
+    expect(method).toContain('la page du mois suivant quand le lendemain y tombe');
+  });
+
+  it('CLD31 relecture de CLD30 : un échec passager se retente une fois, puis le site est clos ; une page sans date n’est pas périmée', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // Le premier rapport avait repris la BEA par d'autres pages de bea.gov ; CLD30 aurait perdu l'institution au premier délai.
+    expect(prompt).not.toContain('ne se retente pas, ni par une autre page du même site');
+    expect(prompt).toContain('se retente une fois au plus, elle-même ou une autre page de la même institution');
+    expect(prompt).toContain('au second échec, n’ouvre plus aucune page de cette institution');
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
+    expect(method).toContain('la seconde tentative d’une page');
+    // ir.eia.gov ne porte aucune date : la consigne le dit, au lieu de le laisser déduire.
+    expect(prompt).toContain('Une page qui ne porte aucune date n’est pas périmée : sa règle vaut.');
+  });
+
+  it('CLD32 relecture de CLD31 : le DOL au calendrier, les exceptions des jours fériés, un calendrier lu reste lu', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // Les inscriptions hebdomadaires au chômage (DOL, jeudi 8:30 ET) ne figurent pas au calendrier du BLS ; dol.gov est autorisé.
+    expect(CALENDAR_INSTITUTIONS).toEqual(['Fed', 'BLS', 'DOL', 'BEA', 'Census', 'Trésor', 'EIA', 'CFTC', 'BCE', 'CME']);
+    expect(OFFICIAL_DOMAINS).toContain('dol.gov');
+    expect(CALENDAR_INSTITUTIONS.length).toBeLessThan(MAX_PAGES);
+    // ir.eia.gov ne donne que la règle habituelle et renvoie aux jours fériés : le WPSR du 11 novembre 2026 passe au jeudi midi.
+    expect(prompt).toContain('Une règle dite habituelle qui renvoie à des exceptions (jours fériés) ne vaut, la semaine d’un jour férié fédéral américain, qu’une fois ces exceptions lues');
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
+    expect(method).toContain('les exceptions d’une règle habituelle la semaine d’un jour férié');
+    // Toute page qui ne s'ouvre pas, pas seulement un délai ; ce qui a déjà été lu reste au rapport.
+    expect(method).toContain('la seconde tentative d’une page qui ne s’est pas ouverte');
+    expect(prompt).toContain('ce qui en a déjà été lu reste au rapport, et seul ce que la page devait donner s’écrit « non consulté »');
+    expect(prompt).not.toContain('ce site est clos');
+  });
+
+  it('CLD33 relecture de CLD32 : la règle publiée du DOL, et un jour férié déplace le jour, pas seulement l’heure', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // dol.gov ne publie aucun calendrier des inscriptions ; leur horaire est sur oui.doleta.gov, hors des domaines autorisés.
+    expect(prompt).toContain('DOL : les inscriptions hebdomadaires au chômage paraissent chaque jeudi à 8:30 ET, le mercredi quand le jeudi est férié');
+    expect(prompt).toContain('dol.gov/ui/data.pdf');
+    expect(OFFICIAL_DOMAINS).not.toContain('doleta.gov');
+    // Sans les exceptions lues, la semaine fériée, ni le jour ni l'heure de la règle habituelle ne valent.
+    expect(prompt).not.toContain('sinon, son heure s’écrit « non consulté »');
+    expect(prompt).toContain('sinon, n’en place aucune date dans la fenêtre');
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'))!;
+    expect(method.indexOf('les exceptions d’une règle habituelle')).toBeLessThan(method.indexOf('puis le contexte'));
   });
 });
 
