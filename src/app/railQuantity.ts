@@ -17,6 +17,8 @@ export interface RailSnapshot {
   agentReportsUnread: number | null;
   /** Comptes suiveurs du Copieur, le maître exclu ; `null` tant que le Copieur n'a pas chargé ses comptes. */
   copierFollowers: number | null;
+  /** Module Crypto allumé (`useCrypto().enabled`) : éteint, sa liste suivie ne dit rien. */
+  cryptoEnabled: boolean;
   cryptoMarkets: number;
 }
 
@@ -57,7 +59,7 @@ export function railQuantity(id: TabId, snap: RailSnapshot): string | null {
         ? count(snap.copierFollowers, tr('compte suiveur', 'follower account', 'cuenta seguidora'), tr('comptes suiveurs', 'follower accounts', 'cuentas seguidoras'))
         : tr('Aucun suiveur', 'No follower', 'Sin seguidor');
     case 'crypto':
-      return snap.cryptoMarkets > 0
+      return snap.cryptoEnabled && snap.cryptoMarkets > 0
         ? count(snap.cryptoMarkets, tr('marché suivi', 'market tracked', 'mercado seguido'), tr('marchés suivis', 'markets tracked', 'mercados seguidos'))
         : null;
     default:

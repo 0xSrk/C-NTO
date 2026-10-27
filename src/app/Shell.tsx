@@ -89,6 +89,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const calendarEntries = useCalendar((c) => c.entries);
   const copierReady = useCopier((c) => c.ready);
   const copierFollowers = useCopier((c) => followerCount(c.accounts));
+  const cryptoEnabled = useCrypto((c) => c.enabled);
   const cryptoMarkets = useCrypto((c) => c.watchlist.length);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
@@ -165,6 +166,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     agentRunning: orchestrator.running,
     agentReportsUnread: reportsUnread,
     copierFollowers: copierReady ? copierFollowers : null,
+    cryptoEnabled,
     cryptoMarkets,
   };
   const chooseFace = (next: ClockFace) => {
