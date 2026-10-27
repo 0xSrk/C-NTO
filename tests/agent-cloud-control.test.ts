@@ -147,13 +147,25 @@ describe('agent cloud · définition installée par le desk', () => {
     expect(prompt).not.toContain('aucune date de l’année en cours');
     expect(prompt).toContain('Une page dont la date la plus récente remonte à plus de trois mois avant la journée analysée est périmée');
     // cmegroup.com refuse l'accès automatisé : une page refusée ne doit pas brûler les pages qui restent.
-    expect(prompt).toContain('Une page qui ne s’ouvre pas (erreur, accès refusé, délai) ne se retente pas, ni par une autre page du même site');
+    expect(prompt).toContain('Une page qui ne s’ouvre pas (erreur, accès refusé, délai)');
     // Les pages qui restent comblent d'abord le calendrier de la fenêtre, puis seulement le contexte.
     const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
     expect(method).toBeDefined();
     expect(method!.indexOf('d’abord ce qui manque au calendrier de la fenêtre')).toBeGreaterThan(0);
     expect(method!.indexOf('d’abord ce qui manque au calendrier de la fenêtre')).toBeLessThan(method!.indexOf('puis le contexte'));
     expect(method).toContain('la page du mois suivant quand le lendemain y tombe');
+  });
+
+  it('CLD31 relecture de CLD30 : un échec passager se retente une fois, puis le site est clos ; une page sans date n’est pas périmée', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // Le premier rapport avait repris la BEA par d'autres pages de bea.gov ; CLD30 aurait perdu l'institution au premier délai.
+    expect(prompt).not.toContain('ne se retente pas, ni par une autre page du même site');
+    expect(prompt).toContain('se retente une fois au plus, elle-même ou une autre page de la même institution');
+    expect(prompt).toContain('au second échec, ce site est clos pour la session et son calendrier est « non consulté »');
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'));
+    expect(method).toContain('la seconde tentative d’une page qui n’a pas répondu');
+    // ir.eia.gov ne porte aucune date : la consigne le dit, au lieu de le laisser déduire.
+    expect(prompt).toContain('Une page qui ne porte aucune date n’est pas périmée : sa règle vaut.');
   });
 });
 
