@@ -221,3 +221,24 @@ describe('OROS3.4c la plaque TIME ENGINE lit la séance, les catalyseurs du jour
     expect(sync.querySelector(`svg.skg-${GLYPH_ID.sync}`)).not.toBeNull();
   });
 });
+
+describe('R3.7d la case du jour se dit dans la langue du desk', () => {
+  it('« auj. », « today », « hoy » : un attribut traduit, que le CSS affiche sans texte en dur', async () => {
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+    const { useI18n } = await import('@/i18n');
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, calendarView: 'grille' } });
+    for (const [locale, label] of [['fr', 'auj.'], ['en', 'today'], ['es', 'hoy']] as const) {
+      useI18n.setState({ locale });
+      const node = await calendrier();
+      const marked = [...node.querySelectorAll('[data-today]')];
+      expect(marked.map((el) => el.closest('[data-day]')?.getAttribute('data-day')), locale).toEqual(['2026-10-28']);
+      expect(marked[0]?.getAttribute('data-today')).toBe(label);
+      act(() => root?.unmount());
+      host?.remove();
+    }
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8');
+    expect(css).not.toContain('auj.');
+    expect(css).toMatch(/\.day\.today \.dayNum::after\s*\{[^}]*content:\s*' · ' attr\(data-today\)/);
+  });
+});

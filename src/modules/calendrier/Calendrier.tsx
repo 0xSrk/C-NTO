@@ -572,7 +572,9 @@ export default function Calendrier() {
                         onKeyDown={onActivate(() => setSelected(d))}
                       >
                         <div className={s.dayHead} data-day={d}>
-                          <span className={s.dayNum}>{Number(d.slice(-2))}</span>
+                          <span className={s.dayNum} data-today={d === today ? tr('auj.', 'today', 'hoy') : undefined}>
+                            {Number(d.slice(-2))}
+                          </span>
                           {d === hzDay && <Glyph name="horizon" className={s.hzGlyph} label={tr('Horizon', 'Horizon', 'Horizonte')} />}
                           {sess && <span className={cx(s.dayPnl, signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>}
                         </div>
