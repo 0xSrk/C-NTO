@@ -146,8 +146,8 @@
   color: var(--gold);
   font-weight: 600;
 }
-/* « aujourd'hui », dit dans la langue du desk (l'écran l'écrit, plus de texte en dur dans la feuille). */
-.todayMark {
+.day.today .dayNum::after {
+  content: ' · ' attr(data-today);
   font-size: 11px;
   letter-spacing: var(--track-11);
 }

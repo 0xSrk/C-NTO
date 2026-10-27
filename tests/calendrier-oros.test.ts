@@ -172,24 +172,8 @@ describe('OROS3.4b′ la grille mensuelle marque aussi l’horizon', () => {
   });
 });
 
-describe('OROS4.12 « aujourd’hui » dans la langue du desk ; le rappel tient dans sa colonne', () => {
-  it('la case du jour dit « auj. », « today », « hoy » : la feuille de style n’écrit plus de texte', async () => {
-    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
-    const { useI18n } = await import('@/i18n');
-    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, calendarView: 'grille' } });
-    const node = await calendrier();
-    const today = () => node.querySelector('[data-day="2026-10-28"]')?.textContent ?? '';
-    expect(today()).toBe('28 · auj.');
-    await act(async () => useI18n.setState({ locale: 'en' }));
-    expect(today()).toBe('28 · today');
-    await act(async () => useI18n.setState({ locale: 'es' }));
-    expect(today()).toBe('28 · hoy');
-    // Un autre jour ne porte pas la marque.
-    expect(node.querySelector('[data-day="2026-10-29"]')?.textContent).toBe('29');
-    const { readFileSync } = await import('node:fs');
-    expect(readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8')).not.toMatch(/content:\s*'[^']*[a-z]/i);
-  });
-
+// « auj. », « today », « hoy » : R3.7d (plus bas), venu de main, l'a corrigé le premier ; OROS4.12 n'en garde que le rappel.
+describe('OROS4.12 le rappel tient dans sa colonne', () => {
   it('le formulaire du rappel ne déborde pas : l’heure se lit en entier, le titre rétrécit, l’ajout reste au bout', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8');
@@ -227,5 +211,26 @@ describe('OROS4.10 la colonne s’ouvre sans plaque : chaque relevé est dit une
     expect(sync.textContent).toMatch(/à jour/);
     // Le jour ouvert est aujourd'hui : son panneau dit le catalyseur à venir (la séance, elle, est dans la barre d'état du desk).
     expect(node.querySelector('aside')?.textContent).toContain('Décision témoin FOMC');
+  });
+});
+
+describe('R3.7d la case du jour se dit dans la langue du desk', () => {
+  it('« auj. », « today », « hoy » : un attribut traduit, que le CSS affiche sans texte en dur', async () => {
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+    const { useI18n } = await import('@/i18n');
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, calendarView: 'grille' } });
+    for (const [locale, label] of [['fr', 'auj.'], ['en', 'today'], ['es', 'hoy']] as const) {
+      useI18n.setState({ locale });
+      const node = await calendrier();
+      const marked = [...node.querySelectorAll('[data-today]')];
+      expect(marked.map((el) => el.closest('[data-day]')?.getAttribute('data-day')), locale).toEqual(['2026-10-28']);
+      expect(marked[0]?.getAttribute('data-today')).toBe(label);
+      act(() => root?.unmount());
+      host?.remove();
+    }
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8');
+    expect(css).not.toContain('auj.');
+    expect(css).toMatch(/\.day\.today \.dayNum::after\s*\{[^}]*content:\s*' · ' attr\(data-today\)/);
   });
 });

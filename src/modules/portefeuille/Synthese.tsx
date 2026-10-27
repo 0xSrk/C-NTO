@@ -9,7 +9,7 @@ import { LEVERAGE_WARN, type BridgeSnapshot, type Coeur, type EquityPoint, type 
 import { engineNote, sourceTag } from './labels';
 import { Projection } from './Projection';
 import { tr, useI18n } from '@/i18n';
-import { fmtInt, fmtPct } from '@/lib/format';
+import { fmtInt, fmtNum, fmtPct } from '@/lib/format';
 import { ET_ZONE, etDateKey } from '@/lib/time';
 import s from './synthese.module.css';
 
@@ -203,7 +203,7 @@ export function Synthese({
             </span>
             <span className={s.hint}>{discrete ? '•••••' : `${fmtInt(expo.totalNotional)} NOT.`}</span>
           </div>
-          <span className={s.kValue}>{discrete ? '•••••' : `${leverage.toFixed(2).replace('.', ',')}×`}</span>
+          <span className={s.kValue}>{discrete ? '•••••' : `${fmtNum(leverage, 2)}×`}</span>
           <Jauge
             min={0}
             max={5}
@@ -234,7 +234,7 @@ export function Synthese({
             markerColor="var(--neg)"
             ticks={[
               { value: 0, label: '0' },
-              ...(period.worst > 0 ? [{ value: worstPct * 100, label: `−${(worstPct * 100).toFixed(1).replace('.', ',')}`, color: 'var(--neg)' }] : []),
+              ...(period.worst > 0 ? [{ value: worstPct * 100, label: `−${fmtNum(worstPct * 100, 1)}`, color: 'var(--neg)' }] : []),
               { value: gaugeMax, label: `−${gaugeMax.toFixed(0)} %` },
             ]}
           />

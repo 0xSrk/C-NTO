@@ -267,9 +267,9 @@ export function Dashboard({
             </span>
             <span className={s.hint}>{tr('APRÈS FRAIS', 'AFTER FEES', 'TRAS COMISIONES')}</span>
           </div>
-          <span className={s.kValue}>{Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2).replace('.', ',') : '∞'}</span>
+          <span className={s.kValue}>{Number.isFinite(stats.profitFactor) ? fmtRatio(stats.profitFactor) : '∞'}</span>
           <span className={s.hint}>
-            {tr('AVANT FRAIS', 'BEFORE FEES', 'ANTES DE COMISIONES')} {Number.isFinite(stats.profitFactorBeforeFees) ? stats.profitFactorBeforeFees.toFixed(2).replace('.', ',') : '∞'}
+            {tr('AVANT FRAIS', 'BEFORE FEES', 'ANTES DE COMISIONES')} {Number.isFinite(stats.profitFactorBeforeFees) ? fmtRatio(stats.profitFactorBeforeFees) : '∞'}
           </span>
           <Gauge
             min={0}

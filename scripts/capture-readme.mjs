@@ -1,22 +1,29 @@
 /**
  * Recapture les plaques du README (`docs/media`), en anglais, à 1600×1000.
  *
- * Le build navigateur doit écouter 127.0.0.1:5173 (`npx vite`). La phrase d'ouverture du desk est lue
- * dans CANTO_PHRASE : elle n'est écrite ni dans le dépôt, ni dans un journal. Playwright n'est pas une
- * dépendance du dépôt :
+ * Le build navigateur doit écouter 127.0.0.1:5173 (`npx vite`), ou l'adresse donnée dans CANTO_CAPTURE_URL
+ * (un second build quand le desk du jour occupe 5173) ; la langue y est toujours forcée à l'anglais. La
+ * phrase d'ouverture du desk est lue dans CANTO_PHRASE : elle n'est écrite ni dans le dépôt, ni dans un
+ * journal. Playwright n'est pas une dépendance du dépôt :
  *
- *   CANTO_PHRASE=… PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs CHROME_PATH=/chemin/chrome \
- *     node scripts/capture-readme.mjs [--out <dossier>]
+ *   CANTO_PHRASE=… [CANTO_CAPTURE_URL=http://127.0.0.1:5199/] PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs \
+ *     CHROME_PATH=/chemin/chrome node scripts/capture-readme.mjs [--out <dossier>]
  *
- * Données : le jeu de démonstration (140 séances), plus deux poches, des positions et une topologie Sim
+ * Données : le jeu de démonstration (140 séances), plus trois poches, des positions et une topologie Sim
  * saisies dans le navigateur de capture, comme le ferait un trader. Rien n'est envoyé hors de la machine.
+ * Le build navigateur n'a ni siège ni pont Electron : aucun nom au pied, et Agent IA est pris sur
+ * B · Conversation (A · Rapports y est vide).
  */
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const URL = 'http://127.0.0.1:5173/?lang=en';
+const DESK_URL = (() => {
+  const url = new URL(process.env.CANTO_CAPTURE_URL || 'http://127.0.0.1:5173/');
+  url.searchParams.set('lang', 'en');
+  return url.toString();
+})();
 const VIEW = { width: 1600, height: 1000 };
 
 /** Clique à l'écart du rail : un survol allumerait un module. */
@@ -54,7 +61,8 @@ export async function unlock(page, phrase, out) {
   await input.fill(phrase);
   await page.mouse.move(1595, 980);
   await page.getByRole('button', { name: /open/i }).click();
-  await page.waitForTimeout(800);
+  // Le mot se pose sur l'horizon en 850 ms et tient jusqu'à 1 400 ms, avant la couture.
+  await page.waitForTimeout(1100);
   await page.screenshot({ path: path.join(out, 'unlock.png') });
   await page.locator('aside').waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(3000);
@@ -96,7 +104,10 @@ export async function capture(page, out) {
     await input.blur();
   }
   await page.waitForTimeout(600);
-  await shot(page, out, 'discipline.png', { x: 480, y: 63, width: 640, height: 400 });
+  // Le cadre suit la fenêtre des réglages, centrée, au rapport 16:10 des autres plaques.
+  const box = await dialog.boundingBox();
+  const clip = box ? { x: Math.round(box.x + box.width / 2 - 320), y: Math.round(box.y), width: 640, height: 400 } : { x: 480, y: 63, width: 640, height: 400 };
+  await shot(page, out, 'discipline.png', clip);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
 
@@ -141,17 +152,21 @@ export async function capture(page, out) {
   await page.getByLabel('Cash date', { exact: true }).fill('2026-09-01');
   await page.getByRole('button', { name: 'Add cash', exact: true }).click();
   await page.waitForTimeout(800);
-  // Le haut de la synthèse : on remonte le conteneur qui défile.
-  await page.getByText(/consolidated net value/i).first().evaluate((el) => {
-    let node = el.parentElement;
-    while (node && node.scrollHeight <= node.clientHeight + 1) node = node.parentElement;
-    if (node) node.scrollTop = 0;
+  // Le haut de la synthèse : le dernier champ saisi garde le focus et fait défiler la vue ; on le libère,
+  // puis on remonte tout conteneur qui a défilé.
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    for (const el of document.querySelectorAll('*')) if (el.scrollTop > 0) el.scrollTop = 0;
+    window.scrollTo(0, 0);
   });
   await page.waitForTimeout(1500);
   await shot(page, out, 'portefeuille.png');
 
   await nav('AI Agent').click();
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1500);
+  // L'onglet s'ouvre sur A · Rapports, vide hors du shell Electron : la plaque montre B · Conversation.
+  await tab('Conversation').click();
+  await page.waitForTimeout(1500);
   await shot(page, out, 'agent.png');
 
   await nav('Bot').click();
@@ -188,7 +203,7 @@ async function main() {
   });
   const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'America/New_York' });
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await page.goto(DESK_URL, { waitUntil: 'domcontentloaded', timeout: 90_000 });
   await arrival(page, out);
   await unlock(page, phrase, out);
   await capture(page, out);

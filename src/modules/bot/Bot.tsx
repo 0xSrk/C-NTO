@@ -7,6 +7,7 @@ import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr } from '@/lib/time';
+import { trEventTitle } from '@/modules/calendrier/eventTitles';
 import { BOT_TEMPLATES, deriveGuards, useBots, type BotRule } from '@/store/bots';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -71,7 +72,9 @@ export default function Bot() {
   const plan = useMemo(() => findPlan(planId), [planId]);
   const guards = useMemo(() => {
     const y = new Date().getFullYear();
-    return deriveGuards(plan, [...generateNasdaqEvents(y), ...generateNasdaqEvents(y + 1)], 10);
+    // Titres du moteur dans la langue du desk, par la même table que le calendrier.
+    const events = [...generateNasdaqEvents(y), ...generateNasdaqEvents(y + 1)].map((e) => ({ ...e, title: trEventTitle(e.title) }));
+    return deriveGuards(plan, events, 10);
   }, [plan, locale]);
   const confirmDialog = useUi((u) => u.confirm);
   const [ruleKind, setRuleKind] = useState<BotRule['kind']>('condition');

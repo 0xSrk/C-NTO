@@ -2,6 +2,7 @@ import { tr } from '@/i18n';
 import { create } from 'zustand';
 import type { CalEvent } from '@/engine/calendar';
 import type { PropPlan } from '@/engine/propfirm';
+import { fmtUsd } from '@/lib/format';
 import { uid } from '@/lib/id';
 import { db, type BotBlueprint } from './db';
 
@@ -70,23 +71,23 @@ export function deriveGuards(plan: PropPlan | undefined, events: CalEvent[], hor
   if (plan) {
     const floor = Math.round(plan.maxDrawdown * 0.3);
     out.push(tr(
-      `Coupe-circuit drawdown : arrêt total si la marge au plancher passe sous 30 % du DD max (${floor} $)`,
-      `Drawdown circuit breaker: full stop if the buffer to the floor drops under 30% of max DD (${floor} $)`,
-      `Cortacircuitos de drawdown: parada total si el margen al suelo baja del 30 % del DD máx. (${floor} $)`,
+      `Coupe-circuit drawdown : arrêt total si la marge au plancher passe sous 30 % du DD max (${fmtUsd(floor)})`,
+      `Drawdown circuit breaker: full stop if the buffer to the floor drops under 30% of max DD (${fmtUsd(floor)})`,
+      `Cortacircuitos de drawdown: parada total si el margen al suelo baja del 30 % del DD máx. (${fmtUsd(floor)})`,
     ));
     if (plan.dailyLossLimit) {
       const stop = Math.round(plan.dailyLossLimit * 0.8);
       out.push(tr(
-        `Perte journalière : fermeture de toutes les positions à −${stop} $ (80 % de la limite ${plan.dailyLossLimit} $)`,
-        `Daily loss: close every position at −${stop} $ (80% of the ${plan.dailyLossLimit} $ limit)`,
-        `Pérdida diaria: cierre de todas las posiciones en −${stop} $ (80 % del límite de ${plan.dailyLossLimit} $)`,
+        `Perte journalière : fermeture de toutes les positions à −${fmtUsd(stop)} (80 % de la limite ${fmtUsd(plan.dailyLossLimit)})`,
+        `Daily loss: close every position at −${fmtUsd(stop)} (80% of the ${fmtUsd(plan.dailyLossLimit)} limit)`,
+        `Pérdida diaria: cierre de todas las posiciones en −${fmtUsd(stop)} (80 % del límite de ${fmtUsd(plan.dailyLossLimit)})`,
       ));
     } else {
       const stop = Math.round(plan.maxDrawdown * 0.4);
       out.push(tr(
-        `Perte journalière interne : −${stop} $ (40 % du DD max, la firme n’impose pas de limite)`,
-        `Internal daily loss: −${stop} $ (40% of max DD, the firm sets no limit)`,
-        `Pérdida diaria interna: −${stop} $ (40 % del DD máx., la firma no impone límite)`,
+        `Perte journalière interne : −${fmtUsd(stop)} (40 % du DD max, la firme n’impose pas de limite)`,
+        `Internal daily loss: −${fmtUsd(stop)} (40% of max DD, the firm sets no limit)`,
+        `Pérdida diaria interna: −${fmtUsd(stop)} (40 % del DD máx., la firma no impone límite)`,
       ));
     }
     if (plan.consistencyPct) {

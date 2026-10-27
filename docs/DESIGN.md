@@ -89,7 +89,7 @@ Les polices sont embarquées : `src/design/fonts.css` et ses fichiers woff2, cha
 
 ## 05. Chiffres
 
-`montantParts` sépare le signe (moins U+2212), les groupes de trois (marge `0.22em`, pas U+202F, absent de Doto) et les décimales à 60 % en Graphite. Zéro arrondi sans signe. Une valeur n’a pas de plus ; un négatif garde son moins. Le signe plus reste réservé aux P&L, aux variations et aux écarts. `aria-label` conserve U+202F et U+2212. Chiffres tabulaires partout.
+`montantParts` sépare le signe (moins U+2212), les groupes de trois (marge `0.22em`, pas U+202F, absent de Doto) et les décimales à 60 % en Graphite, derrière le séparateur décimal de la langue (`decimalMark` : virgule en français et en espagnol, point en anglais). Zéro arrondi sans signe. Une valeur n’a pas de plus ; un négatif garde son moins. Le signe plus reste réservé aux P&L, aux variations et aux écarts. `aria-label` conserve U+202F et U+2212. Chiffres tabulaires partout.
 
 ## 06. Détails
 
