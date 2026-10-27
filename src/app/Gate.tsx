@@ -5,21 +5,30 @@ import { Seal, SEAL_HORIZON } from '@/design/Seal';
 import { opens } from '@/engine/gate';
 import { tr, useI18n } from '@/i18n';
 import { desk } from '@/lib/desk';
-import { SEAL_DRAW_S, SEAL_FOLD_AT_S, SEAL_FOLD_S, SEAL_GLIDE_S, WORD_AT_S, sealFormMs } from './unlockMark';
+import { glyphsAt, SEAT_ALPHABET, SEAT_TICK_MS } from './seatGlyphs';
+import { FADE_MS, FOLD_AT_MS, reducedTimeline, runUnlockCircuit, UNLOCK_GLYPH_MAX, UNLOCK_GLYPHS, UNLOCK_SEAL, unlockTimeline, WORD_AT_MS, WORD_MS, type UnlockTimeline } from './unlockCircuit';
 import s from './gate.module.css';
 
-/** Durée de l'ouverture sur l'axe, la même que le boot. */
-const LEAVE_MS = 760;
 /** L'horizon du sceau (48,27 % de sa hauteur) se pose sur la ligne de l'écran. */
 const SEAL_HZ = `${(SEAL_HORIZON * 100).toFixed(2)}%`;
-/** Les temps de l'ouverture, posés une fois ici et lus par la feuille. */
+/** Les temps de l'ouverture, posés une fois ici et lus par la feuille ; le circuit lit les mêmes. */
 const TIMING = {
-  '--glide-s': `${SEAL_GLIDE_S}s`,
-  '--fold-at': `${SEAL_FOLD_AT_S}s`,
-  '--fold-s': `${SEAL_FOLD_S}s`,
-  '--word-at': `${WORD_AT_S}s`,
-  '--draw': `${SEAL_DRAW_S}s`,
+  '--fold-at': `${FOLD_AT_MS / 1000}s`,
+  '--word-at': `${WORD_AT_MS / 1000}s`,
+  '--draw': `${WORD_MS / 1000}s`,
+  '--fade-s': `${FADE_MS / 1000}s`,
+  '--spin': `${UNLOCK_GLYPHS.spin}ms`,
 } as CSSProperties;
+/** Le caractère du champ masqué : les glyphes partent de ce que le champ montrait. */
+const BULLET = '•';
+/** La dernière lettre du Lab d'un glyphe qui tourne : c'est elle qui se pose en pastille. */
+const LAST_FRAME = Math.floor((UNLOCK_GLYPHS.spin - 1) / UNLOCK_GLYPHS.frame);
+
+/** Deux images plus tard : le rendu demandé avant est posé et peint. */
+function afterFrames(run: () => void) {
+  const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb: () => void) => window.setTimeout(cb, 16);
+  frame(() => frame(run));
+}
 
 function prefersReducedMotion(): boolean {
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -28,93 +37,133 @@ function prefersReducedMotion(): boolean {
 function UnlockMark({ active }: { active: boolean }) {
   return (
     <p className={active ? s.live : undefined} role="img" aria-label="Desk Unlocked">
-      DESK UNLOCKED
+      {UNLOCK_SEAL}
     </p>
   );
 }
 
 /**
  * Le verrou (4.1) : le sceau du Lab, et une fiche d'accès plus large — la phrase, « Coller » pour qui navigue à la
- * souris, « Fermer CΛNTO » pour qui n'a pas la phrase, « Ouvrir ». L'ouverture part du sceau : il glisse au centre,
- * se plie dans son horizon, le mot se lève de la ligne, puis la couture s'ouvre sur le desk déjà monté.
+ * souris, « Fermer CΛNTO » pour qui n'a pas la phrase, « Ouvrir ». À l'ouverture, la phrase se défait en glyphes au
+ * pas du code d'accolades, les glyphes se posent en pastilles et leurs pistes rejoignent le sceau, dont la lumière
+ * rallume les lignes ; le point d'or s'allume au centre, le sceau glisse et se plie dans son horizon, le circuit
+ * s'étend jusqu'aux bords, trace les lignes du châssis, et le voile se lève sur le desk déjà monté
+ * (`src/app/unlockCircuit.ts`). Une touche ou un clic abrège.
  */
 export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onReveal: () => void; onOpen: () => void }) {
   useI18n((st) => st.locale);
   const [value, setValue] = useState('');
   const [refused, setRefused] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState<'locked' | 'forming' | 'opening'>('locked');
+  /** Le plan de l'ouverture une fois la phrase admise ; rien d'autre de la phrase n'est gardé que sa longueur. */
+  const [unlock, setUnlock] = useState<UnlockTimeline | null>(null);
+  const [t, setT] = useState(0);
   const [reduced] = useState(prefersReducedMotion);
-  const [axis, setAxis] = useState<number | null>(null);
-  const [glide, setGlide] = useState(0);
   const inputId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const sealRef = useRef<HTMLDivElement>(null);
-  const markRef = useRef<HTMLDivElement>(null);
+  const wordRef = useRef<HTMLDivElement>(null);
   const plateRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const phaseRef = useRef(phase);
+  const glyphsRef = useRef<HTMLSpanElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** La phrase est admise : plus de seconde soumission, même avant que l'ouverture ne parte. */
+  const admittedRef = useRef(false);
   const admitRef = useRef(onAdmit);
   const revealRef = useRef(onReveal);
   const openRef = useRef(onOpen);
-  phaseRef.current = phase;
   admitRef.current = onAdmit;
   revealRef.current = onReveal;
   openRef.current = onOpen;
 
-  const live = phase !== 'locked';
+  const live = unlock !== null;
 
   useEffect(() => {
-    if (phase !== 'forming') return;
-    admitRef.current();
-    // Le sceau part de sa place vers le centre de l'écran. L'écart se mesure deux images après l'admission : le desk
-    // monté dessous a posé son zoom (navigateur) ; il se convertit en pixels CSS, ceux du `translate`.
-    let raf = 0;
-    if (!reduced) {
-      raf = requestAnimationFrame(() => {
-        raf = requestAnimationFrame(() => {
-          const seal = sealRef.current?.getBoundingClientRect();
-          const root = rootRef.current?.getBoundingClientRect();
-          const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-          if (seal && root && seal.width > 0) setGlide((root.left + root.width / 2 - (seal.left + seal.width / 2)) / zoom);
-        });
-      });
-    }
-    const wait = reduced ? 280 : sealFormMs();
-    const t = window.setTimeout(() => {
-      const box = markRef.current?.getBoundingClientRect();
-      const root = rootRef.current?.getBoundingClientRect();
-      if (box && root && root.height > 0) setAxis(((box.top + box.height / 2 - root.top) / root.height) * 100);
-      setPhase('opening');
-      revealRef.current();
-    }, wait);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(t);
+    if (!unlock) return;
+    const tl = unlock;
+    // Une seule horloge pour les glyphes, les étapes de la feuille et le circuit ; l'abrègement l'avance.
+    const t0 = performance.now();
+    let offset = 0;
+    let abridged = false;
+    const clock = () => performance.now() - t0 + offset;
+    let revealed = false;
+    let opened = false;
+    let id = 0;
+    const tick = () => {
+      const at = clock();
+      if (!revealed && at >= tl.reveal) {
+        revealed = true;
+        revealRef.current();
+      }
+      setT(at);
+      if (!opened && at >= tl.end) {
+        opened = true;
+        window.clearInterval(id);
+        openRef.current();
+      }
     };
-  }, [phase, reduced]);
-
-  useEffect(() => {
-    if (phase !== 'opening') return;
-    const t = window.setTimeout(() => openRef.current(), reduced ? 240 : LEAVE_MS);
-    return () => window.clearTimeout(t);
-  }, [phase, reduced]);
+    id = window.setInterval(tick, SEAT_TICK_MS);
+    tick();
+    const canvas = canvasRef.current;
+    const stop =
+      reduced || !canvas
+        ? () => undefined
+        : runUnlockCircuit(canvas, {
+            timeline: tl,
+            clock,
+            abridged: () => abridged,
+            pads: () => [...(glyphsRef.current?.children ?? [])].map((cell) => cell.getBoundingClientRect()),
+            field: () => inputRef.current?.getBoundingClientRect() ?? null,
+            seal: () => sealRef.current?.querySelector('svg')?.getBoundingClientRect() ?? null,
+            sealCarrier: () => sealRef.current,
+            word: () => wordRef.current?.querySelector('p')?.getBoundingClientRect() ?? null,
+            chassis: () => ({
+              title: document.querySelector('[data-chassis="title"]')?.getBoundingClientRect() ?? null,
+              rail: document.querySelector('[data-chassis="rail"]')?.getBoundingClientRect() ?? null,
+              status: document.querySelector('[data-chassis="status"]')?.getBoundingClientRect() ?? null,
+            }),
+          });
+    // Une touche ou un clic abrège : le voile se lève aussitôt sur le desk déjà monté.
+    const abridge = () => {
+      const at = clock();
+      if (at >= tl.reveal) return;
+      abridged = true;
+      offset += tl.reveal - at;
+      tick();
+    };
+    window.addEventListener('pointerdown', abridge);
+    window.addEventListener('keydown', abridge);
+    return () => {
+      window.clearInterval(id);
+      stop();
+      window.removeEventListener('pointerdown', abridge);
+      window.removeEventListener('keydown', abridge);
+    };
+  }, [unlock, reduced]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (busy || phaseRef.current !== 'locked') return;
+    if (busy || admittedRef.current) return;
     setBusy(true);
     const phrase = value;
     const ok = await opens(phrase);
-    setBusy(false);
-    if (phaseRef.current !== 'locked') return;
+    if (admittedRef.current) return;
     if (ok) {
-      setValue('');
+      admittedRef.current = true;
       setRefused(false);
-      inputRef.current?.blur();
-      setPhase('forming');
+      // Le desk se monte dessous ; son premier rendu est lourd. L'ouverture part deux images plus tard, sur un fil
+      // libre : sinon ses glyphes sauteraient et la fiche se figerait le temps du montage.
+      admitRef.current();
+      const count = Math.min(UNLOCK_GLYPH_MAX, [...phrase].length);
+      afterFrames(() => {
+        setValue('');
+        inputRef.current?.blur();
+        setT(0);
+        setUnlock(reduced ? reducedTimeline() : unlockTimeline(count));
+      });
       return;
     }
+    setBusy(false);
     setRefused(true);
     setValue('');
     inputRef.current?.focus();
@@ -140,7 +189,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
    */
   const paste = async () => {
     const input = inputRef.current;
-    if (!input || phaseRef.current !== 'locked') return;
+    if (!input || admittedRef.current) return;
     input.focus();
     if (desk?.window.paste) {
       desk.window.paste();
@@ -158,14 +207,30 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     }
   };
 
-  const stateWord = refused ? tr('Refusé', 'Refused', 'Rechazado') : tr('Fermé', 'Closed', 'Cerrado');
+  const stateWord = live ? tr('Ouvert', 'Open', 'Abierto') : refused ? tr('Refusé', 'Refused', 'Rechazado') : tr('Fermé', 'Closed', 'Cerrado');
   const lock = tr('VERROU', 'LOCK', 'CERROJO');
+  const past = (moment: number | undefined) => unlock !== null && moment !== undefined && t >= moment;
+  // Les glyphes de la phrase, au temps de l'ouverture : en attente, le point du champ ; puis les lettres du Lab ; posés,
+  // la pastille d'où part leur piste.
+  const glyphs = unlock && !reduced ? glyphsAt(BULLET.repeat(unlock.count), t, UNLOCK_GLYPHS) : null;
 
   return (
     <div
       ref={rootRef}
-      className={[s.gate, phase === 'forming' && s.forming, phase === 'opening' && s.opening, reduced && s.reduced, refused && s.denied].filter(Boolean).join(' ')}
-      style={{ ...TIMING, ...(axis !== null ? { '--axis': `${axis.toFixed(3)}%` } : null), '--glide': `${glide.toFixed(1)}px` } as CSSProperties}
+      className={[
+        s.gate,
+        live && s.admitted,
+        past(unlock?.gold) && s.charged,
+        past(unlock?.glide) && s.gliding,
+        past(unlock?.spread) && s.spreading,
+        past(unlock?.form) && s.forming,
+        past(unlock?.reveal) && s.revealing,
+        reduced && s.reduced,
+        refused && s.denied,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={TIMING}
       role="dialog"
       aria-modal="true"
       aria-labelledby="gate-title"
@@ -178,11 +243,11 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
         </span>
       </div>
 
-      {/* La ligne d'horizon de l'écran : le sceau y pose le sien, s'y plie, la couture s'y ouvre. */}
+      {/* La ligne d'horizon de l'écran : le sceau y pose le sien et s'y plie ; le mot s'en déplie. */}
       <span className={s.horizon} data-part="horizon-line" aria-hidden />
 
       <div className={s.stage}>
-        {/* Le sceau ferme le verrou ; c'est de lui que part l'ouverture. */}
+        {/* Le sceau ferme le verrou ; c'est lui que rejoint le circuit de l'ouverture. */}
         <div className={s.sealbox}>
           <div ref={sealRef} className={s.sealw} data-part="seal" style={{ '--hz': SEAL_HZ } as CSSProperties}>
             <Seal kind="negative" className={s.sealSvg} />
@@ -230,6 +295,15 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
                     setValue(event.target.value);
                   }}
                 />
+                {glyphs ? (
+                  <span ref={glyphsRef} className={s.glyphs} data-part="unlock-glyphs" aria-hidden>
+                    {glyphs.map((g, i) => (
+                      <span key={i} className={s.cell} data-phase={g.phase}>
+                        <i className={g.phase === 'turn' ? s.turn : g.phase === 'set' ? s.pad : undefined}>{g.phase === 'set' ? SEAT_ALPHABET[(i * 3 + LAST_FRAME * 7) % SEAT_ALPHABET.length] : g.char}</i>
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
                 {/* Le champ garde le focus : le clic ne le lui prend pas, le collage y entre. */}
                 <button type="button" className={s.paste} data-part="paste" onMouseDown={(event) => event.preventDefault()} onClick={() => void paste()}>
                   {tr('Coller', 'Paste', 'Pegar')}
@@ -253,14 +327,11 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
         </div>
       </div>
 
-      <div className={s.unlock} ref={markRef} aria-hidden={!live}>
-        <UnlockMark active={live} />
+      <div className={s.unlock} ref={wordRef} aria-hidden={!live}>
+        <UnlockMark active={past(unlock?.spread)} />
       </div>
 
-      <div className={s.seam} aria-hidden>
-        <i />
-        <i />
-      </div>
+      {unlock && !reduced ? <canvas ref={canvasRef} className={s.circuit} data-part="unlock-circuit" aria-hidden /> : null}
     </div>
   );
 }

@@ -183,7 +183,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   return (
     <div className={cx(s.shell, revealed ? s.intro : s.pending)} inert={inert}>
       <div className={s.texture} aria-hidden />
-      <header className={s.title}>
+      {/* Les trois lignes du châssis : le circuit de l'ouverture les trace là où elles sont (src/app/unlockCircuit.ts). */}
+      <header className={s.title} data-chassis="title">
         <div className={s.brand}>
           <span className={s.brandMark}>
             <Wordmark width={84} ticks survol />
@@ -243,7 +244,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       {/* Niveau 3 : le kill switch est engagé ; la bande reste jusqu'au redémarrage du desk. */}
       {kill.engaged && <KillBand shortcut={kill.shortcut} />}
 
-      <aside className={s.rail}>
+      <aside className={s.rail} data-chassis="rail">
         {/* Les modules gravés à même le rail, sans catégorie : chacun son emblème, son nom, ce qu'il contient. */}
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
           {TABS.map((item) => (
@@ -302,7 +303,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
       </main>
 
-      <footer className={s.status}>
+      <footer className={s.status} data-chassis="status">
         <div className={s.statusLeft}>
           <span className={s.statusLive}>
             <Led on={nt?.link === 'live'}>{tr('PONT NT8', 'NT8 BRIDGE', 'PUENTE NT8')}</Led>
