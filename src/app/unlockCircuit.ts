@@ -2,12 +2,12 @@
  * Le circuit de l'ouverture (4.1) — canvas, net au pixel physique.
  *
  * La phrase admise se défait en glyphes, au pas du geste du code d'accolades ; chaque glyphe se pose en pastille et
- * pousse sa piste, à 45°, vers la pointe de l'horizon du sceau. La lumière court alors sur les lignes du sceau — les
- * tracés mêmes du master, rallumés par-dessus les siens —, et le point d'or s'allume en son centre. Le sceau glisse au
- * centre de l'écran et se plie dans son horizon ; le point d'or se partage sur l'axe et le circuit s'étend jusqu'aux
- * bords autour du mot (celui du chargement, aux couleurs du Système 4.1 : l'ivoire, l'or pour l'axe). Ses cadres se
- * retirent, les lignes du châssis — barre de titre, rail, barre d'état — se tracent là où le desk, monté dessous, a
- * les siennes, et le voile se lève sur un desk déjà formé.
+ * pousse sa piste, à 45° quand la place le permet, vers la pointe de l'horizon du sceau. La lumière court alors sur les
+ * lignes du sceau — les tracés mêmes du master, rallumés par-dessus les siens —, et le point d'or s'allume en son
+ * centre. Le sceau glisse au centre de l'écran et se plie dans son horizon ; le point d'or se partage sur l'axe et le
+ * circuit s'étend jusqu'aux bords autour du mot (celui du chargement, aux couleurs du Système 4.1 : l'ivoire, l'or pour
+ * l'axe). Ses cadres se retirent, les lignes du châssis — barre de titre, rail, barre d'état — se tracent là où le
+ * desk, monté dessous, a les siennes, et le voile se lève sur un desk déjà formé.
  *
  * Tout se calcule depuis le temps écoulé et la géométrie relue à chaque image : un zoom ou un redimensionnement ne
  * perd pas la chorégraphie.
@@ -160,25 +160,40 @@ export interface RouteInput {
   tip: Pt;
 }
 
+/** La montée la plus raide qu'on trace (dx/dy) : en deçà, les pistes ne se lisent plus, on n'en trace aucune. */
+const MIN_RUN = 0.25;
+
 /**
- * Une polyligne par pastille : elle descend sur sa voie, file vers le sceau, monte (ou descend) à 45° jusqu'au
- * faisceau et s'y resserre sur la pointe. Les montées sont parallèles, chacune part d'autant plus loin que sa voie est
- * loin du faisceau ; la voie du milieu se pose exactement sur l'horizon : c'est l'axe, à l'or.
+ * Une polyligne par pastille : elle descend sur sa voie, file vers le sceau, monte (ou descend) jusqu'au faisceau et
+ * s'y resserre sur la pointe ; la voie du milieu se pose exactement sur l'horizon : c'est l'axe, à l'or. Toutes les
+ * montées ont la même pente, 45° quand la place le permet, sinon celle que demande la pastille la plus serrée : des
+ * montées parallèles, chacune partant d'autant plus loin que sa voie est loin du faisceau, ne se coupent jamais (une
+ * pente par piste les croisait dans les fenêtres basses). Sans place pour monter, aucune piste, comme sans sceau.
  */
 export function routes({ pads, fieldBottom, tip }: RouteInput): Pt[][] {
   const n = pads.length;
   const [tx, ty] = tip;
   const elbowX = tx + ELBOW;
-  return pads.map(([px, py], i) => {
-    const k = laneOf(i, n);
+  const lane = (k: number) => {
     const laneY = fieldBottom + LANE_DROP + k * LANE_GAP;
     const bundleY = ty + (k - AXIS_LANE) * BUNDLE_GAP;
-    // 45° tant que la pastille est assez loin ; sinon la montée se fait plus raide, jamais au-delà de la pointe.
-    const turnX = Math.max(elbowX, Math.min(px - 4, elbowX + Math.abs(laneY - bundleY)));
+    return { laneY, bundleY, rise: Math.abs(laneY - bundleY) };
+  };
+  let run = 1;
+  for (const [i, [px]] of pads.entries()) {
+    const { rise } = lane(laneOf(i, n));
+    const room = px - 4 - elbowX;
+    if (rise > 0) run = Math.min(run, room / rise);
+    else if (room < 0) run = -1;
+  }
+  if (run < MIN_RUN) return [];
+  return pads.map(([px, py], i) => {
+    const k = laneOf(i, n);
+    const { laneY, bundleY, rise } = lane(k);
     const pts: Pt[] = [
       [px, py],
       [px, laneY],
-      [turnX, laneY],
+      [elbowX + rise * run, laneY],
       [elbowX, bundleY],
       [tx + 10 + Math.abs(k - AXIS_LANE) * 2, bundleY],
       [tx, ty],

@@ -135,6 +135,62 @@ describe('OROS4.18 le circuit de l’ouverture', () => {
     }
   });
 
+  it('OROS4.29 une seule pente pour toutes les montées : aucune piste n’en coupe une autre, sur la géométrie relevée du verrou comme à l’étroit', () => {
+    const faults: string[] = [];
+    const check = (pads: Pt[], fieldBottom: number, tip: Pt, label: string) => {
+      const all = routes({ pads, fieldBottom, tip });
+      if (!all.length) return all;
+      if (all.length !== pads.length) faults.push(`${label} : ${all.length} pistes pour ${pads.length} pastilles`);
+      // toutes les paires de pistes, toutes voies confondues : aucun croisement propre (celles d'une même voie se suivent)
+      const segs = all.map(segmentsOf);
+      for (let a = 0; a < all.length; a++) {
+        for (let b = a + 1; b < all.length; b++) {
+          for (const sa of segs[a]!) for (const sb of segs[b]!) if (crosses(sa, sb)) faults.push(`${label} : ${a}/${b} se croisent`);
+        }
+      }
+      // des montées parallèles : un même rapport dx/dy pour toutes
+      const runs = all.map((pts) => [Math.abs(pts[2]![0] - pts[3]![0]), Math.abs(pts[2]![1] - pts[3]![1])] as const).filter(([, dy]) => dy > 1e-6).map(([dx, dy]) => dx / dy);
+      if (runs.some((r) => Math.abs(r - runs[0]!) > 1e-9)) faults.push(`${label} : pentes ${runs.map((r) => r.toFixed(2)).join(' ')}`);
+      for (const [i, pts] of all.entries()) {
+        const end = pts[pts.length - 1]!;
+        if (end[0] !== tip[0] || end[1] !== tip[1]) faults.push(`${label} : ${i} ne finit pas sur la pointe`);
+        // la montée part à gauche de sa pastille, jamais derrière elle
+        if (pts[2]![0] > pts[0]![0] - 4 + 1e-9) faults.push(`${label} : ${i} monte derrière sa pastille`);
+      }
+      return all;
+    };
+    // relevés dans Chromium à quatorze caractères : première pastille, pas des cases, bas du champ, pointe de l'horizon
+    const measured: { name: string; first: Pt; step: number; fieldBottom: number; tip: Pt }[] = [
+      { name: '1180×720, relevé de la revue', first: [660.35, 419.28], step: 11.52, fieldBottom: 441.16, tip: [580.65, 359.99] },
+      { name: '1180×720, zoom 1', first: [654.75, 410.37], step: (781.3 - 654.75) / 13, fieldBottom: 428.97, tip: [552.26, 359.99] },
+      { name: '1280×800, zoom 1', first: [707.48, 450.37], step: (834.03 - 707.48) / 13, fieldBottom: 468.97, tip: [580.4, 399.99] },
+      { name: '1440×900, zoom 1', first: [793.7, 503.35], step: (927.76 - 793.7) / 13, fieldBottom: 523.05, tip: [638.38, 449.99] },
+    ];
+    for (const m of measured) {
+      for (const n of [1, 3, 5, 9, 14, 20, 32]) {
+        const pads = Array.from({ length: n }, (_, i): Pt => [m.first[0] + i * m.step, m.first[1]]);
+        // la place y est : les pistes se tracent
+        expect(check(pads, m.fieldBottom, m.tip, `${m.name} · ${n}`).length, `${m.name} · ${n}`).toBe(n);
+      }
+    }
+    // à l'étroit comme au large : pastilles de 24 à 220 px de la pointe, champ au-dessus et au-dessous de l'horizon
+    const tip: Pt = [600, 400];
+    for (const gap of [24, 30, 40, 60, 90, 140, 220]) {
+      for (const drop of [-60, -20, 0, 20, 50, 90, 140]) {
+        for (const n of [1, 2, 3, 5, 7, 9, 14, 20, 32]) {
+          const pads = Array.from({ length: n }, (_, i): Pt => [tip[0] + gap + i * 11.5, tip[1] + drop - 18]);
+          check(pads, tip[1] + drop, tip, `${gap} · ${drop} · ${n}`);
+        }
+      }
+    }
+    expect(faults).toEqual([]);
+    // 45° dès que la place le permet
+    const wide = routes({ pads: Array.from({ length: 14 }, (_, i): Pt => [tip[0] + 220 + i * 11.5, 482]), fieldBottom: 500, tip });
+    for (const pts of wide) expect(Math.abs(pts[2]![0] - pts[3]![0])).toBeCloseTo(Math.abs(pts[2]![1] - pts[3]![1]), 9);
+    // une pastille collée à la pointe : pas de place pour monter, pas de pistes (comme sans sceau)
+    expect(routes({ pads: [[tip[0] + 20, 380]], fieldBottom: 400, tip })).toEqual([]);
+  });
+
   it('du point d’or, le circuit du chargement : l’axe d’or part de l’anneau du mot, tout reste dans l’écran', () => {
     const [W, H, cx, cy] = [1600, 1000, 800, 500];
     const word = { left: 560, top: 471, width: 480, height: 58 };
