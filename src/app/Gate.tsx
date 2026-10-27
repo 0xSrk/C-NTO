@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { Button } from '@/design/primitives';
 import { Glyph } from '@/design/Micro';
 import { Seal, SEAL_HORIZON } from '@/design/Seal';
@@ -55,7 +56,9 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const [value, setValue] = useState('');
   const [refused, setRefused] = useState(false);
   const [busy, setBusy] = useState(false);
-  /** Le plan de l'ouverture une fois la phrase admise ; rien d'autre de la phrase n'est gardé que sa longueur. */
+  /** La longueur de la phrase admise, seule chose qui en reste : la rangée de glyphes la remplace dans le champ. */
+  const [cells, setCells] = useState<number | null>(null);
+  /** Le plan de l'ouverture, deux images après l'admission. */
   const [unlock, setUnlock] = useState<UnlockTimeline | null>(null);
   const [t, setT] = useState(0);
   const [reduced] = useState(prefersReducedMotion);
@@ -76,6 +79,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   revealRef.current = onReveal;
   openRef.current = onOpen;
 
+  const admitted = cells !== null;
   const live = unlock !== null;
 
   useEffect(() => {
@@ -150,13 +154,18 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     if (admittedRef.current) return;
     if (ok) {
       admittedRef.current = true;
-      setRefused(false);
-      // Le desk se monte dessous ; son premier rendu est lourd. L'ouverture part deux images plus tard, sur un fil
-      // libre : sinon ses glyphes sauteraient et la fiche se figerait le temps du montage.
-      admitRef.current();
       const count = Math.min(UNLOCK_GLYPH_MAX, [...phrase].length);
-      afterFrames(() => {
+      // La phrase quitte le champ tout de suite, rendue à part avant le montage du desk : les points de la rangée de
+      // glyphes, en attente, remplacent ceux du champ, et la fiche se ferme à la saisie.
+      flushSync(() => {
+        setRefused(false);
         setValue('');
+        setCells(count);
+      });
+      // Le desk se monte dessous ; son premier rendu est lourd. L'horloge de l'ouverture part deux images plus tard, sur
+      // un fil libre : sinon ses glyphes sauteraient et la fiche se figerait le temps du montage.
+      admitRef.current();
+      afterFrames(() => {
         inputRef.current?.blur();
         setT(0);
         setUnlock(reduced ? reducedTimeline() : unlockTimeline(count));
@@ -207,12 +216,12 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     }
   };
 
-  const stateWord = live ? tr('Ouvert', 'Open', 'Abierto') : refused ? tr('Refusé', 'Refused', 'Rechazado') : tr('Fermé', 'Closed', 'Cerrado');
+  const stateWord = admitted ? tr('Ouvert', 'Open', 'Abierto') : refused ? tr('Refusé', 'Refused', 'Rechazado') : tr('Fermé', 'Closed', 'Cerrado');
   const lock = tr('VERROU', 'LOCK', 'CERROJO');
   const past = (moment: number | undefined) => unlock !== null && moment !== undefined && t >= moment;
-  // Les glyphes de la phrase, au temps de l'ouverture : en attente, le point du champ ; puis les lettres du Lab ; posés,
-  // la pastille d'où part leur piste.
-  const glyphs = unlock && !reduced ? glyphsAt(BULLET.repeat(unlock.count), t, UNLOCK_GLYPHS) : null;
+  // Les glyphes de la phrase, au temps de l'ouverture : en attente (avant l'horloge aussi), le point du champ ; puis les
+  // lettres du Lab ; posés, la pastille d'où part leur piste.
+  const glyphs = cells !== null && !reduced ? glyphsAt(BULLET.repeat(cells), unlock ? t : -1, UNLOCK_GLYPHS) : null;
 
   return (
     <div
@@ -259,7 +268,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
             <span id="gate-title">{tr('Desk verrouillé', 'Desk locked', 'Desk bloqueado')}</span>
           </h2>
           {/* Fiche d'accès (Ligne V2) : aucun code ici — le seul code du desk est au pied de la barre d'état. */}
-          <form ref={plateRef} className={s.fiche} data-part="fiche" inert={live} onSubmit={(event) => void submit(event)}>
+          <form ref={plateRef} className={s.fiche} data-part="fiche" inert={admitted} onSubmit={(event) => void submit(event)}>
             <div className={s.fh}>
               <span>{tr('FICHE D’ACCÈS', 'ACCESS SHEET', 'FICHA DE ACCESO')}</span>
               <span>SK-ART-002 / {lock}</span>

@@ -248,12 +248,12 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
     type(input, 'la phrase');
     await submitFake(el.querySelector<HTMLFormElement>('form')!);
-    // le desk se monte dessous tout de suite ; l'ouverture part deux images plus tard, sur un fil libre
+    // le desk se monte dessous tout de suite ; l'horloge de l'ouverture part deux images plus tard, sur un fil libre
     expect(onAdmit).toHaveBeenCalledTimes(1);
-    expect(el.querySelector('[data-part="unlock-glyphs"]')).toBeNull();
+    const gate = el.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(gate.className).not.toMatch(/admitted/);
     act(() => vi.advanceTimersByTime(40));
     const start = performance.now();
-    const gate = el.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(gate.className).toMatch(/admitted/);
     expect(input.value).toBe('');
     expect(el.querySelector('[role="status"]')?.textContent).toBe('Ouvert');
@@ -290,6 +290,27 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     advanceTo(start, tl.end);
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onAdmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.31 admise, la phrase quitte le champ tout de suite : les points de la rangée de glyphes la remplacent avant même le départ de l’horloge', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    type(input, 'la phrase');
+    await submitFake(form);
+    // aucune image n'est encore passée : le champ est déjà vide, la fiche déjà fermée à la saisie
+    expect(input.value).toBe('');
+    expect(el.textContent).not.toContain('la phrase');
+    expect(form.hasAttribute('inert')).toBe(true);
+    // à la place des points du champ, ceux de la rangée de glyphes, en attente : il ne reste que la longueur
+    const row = el.querySelector<HTMLElement>('[data-part="unlock-glyphs"]');
+    expect(row).not.toBeNull();
+    const cells = [...row!.querySelectorAll<HTMLElement>('[data-phase]')];
+    expect(cells).toHaveLength([...'la phrase'].length);
+    expect(cells.every((c) => c.dataset.phase === 'wait' && c.textContent === '•')).toBe(true);
+    // l'horloge, elle, part deux images plus tard
+    expect(el.querySelector('[role="dialog"]')!.className).not.toMatch(/admitted/);
   });
 
   it('OROS4.18 une touche ou un clic abrège : le voile se lève aussitôt sur le desk monté', async () => {
