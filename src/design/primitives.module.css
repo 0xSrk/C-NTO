@@ -310,24 +310,6 @@
   box-shadow: var(--glow-accent);
 }
 
-/* ─── Onglet inversé : un seul par écran ─── */
-.invertedTab {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  background: var(--text-0);
-  color: var(--bg-0);
-  font-family: var(--font-mono);
-  font-size: var(--fs-label);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--track-11);
-  line-height: 1;
-  padding: 0 8px;
-  white-space: nowrap;
-  transition: transform 120ms var(--ease-out), background 120ms linear;
-}
-
 /* ─── Statistique : libellé → valeur → sous-texte ─── */
 .stat {
   display: flex;

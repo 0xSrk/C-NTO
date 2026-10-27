@@ -73,14 +73,14 @@ describe('Boot 3.2.2 — construction du logotype', () => {
     expect(readFileSync('src/app/Gate.tsx', 'utf8')).not.toMatch(/runBootCircuit|<canvas/);
   });
 
-  it('le coin porte le nom du Lab en caractères, pas en glyphes', () => {
+  it('OROS4.9 le nom du Lab se dit une fois, en caractères, dans la ligne du Lab ; plus de pied décoratif', () => {
     const el = mount();
-    expect(el.textContent).toContain('SIΞRRΛSKΛ');
     expect(el.textContent).not.toMatch(/Accès accordé|Access granted|Acceso concedido/);
-    // Système 4.0 : le sceau et ses plaques sont des dessins muets ; le coin, lui, reste en caractères.
-    const corner = [...el.querySelectorAll('span')].find((span) => span.textContent === 'SIΞRRΛSKΛ');
-    expect(corner).toBeDefined();
-    expect(corner!.querySelector('svg')).toBeNull();
+    const sous = [...el.querySelectorAll('p')].find((p) => p.textContent?.includes('SIΞRRΛSKΛ LAB'))!;
+    expect(sous).toBeDefined();
+    expect(sous.querySelector('svg')).toBeNull();
+    expect(el.textContent).not.toMatch(/Design Unit|Rev\. B|CΛNTO · Artefact 002/);
+    expect(el.textContent?.match(/SIΞRRΛSKΛ/g)).toHaveLength(1);
     expect(readFileSync('src/app/Boot.tsx', 'utf8')).not.toContain('SignatureGlyphs');
   });
 });

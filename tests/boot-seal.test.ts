@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { Boot } from '@/app/Boot';
 import { SEAL_HORIZON } from '@/design/Seal';
-import { APP_VERSION } from '@/lib/version';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -58,20 +57,12 @@ describe('OROS2.7 la frappe du démarrage', () => {
     expect(css).not.toMatch(/196,\s*30,\s*58|229,\s*38,\s*61/);
   });
 
-  it('les plaques du sceau lisent l’artefact : la version à droite sur l’horizon, l’état en bas à droite', () => {
+  it('OROS4.9 le démarrage n’imprime plus de plaque : le sceau, le logotype et la ligne du Lab, seuls', () => {
     const el = mount();
-    const seal = el.querySelector<HTMLElement>('[data-part="seal-plate"]');
-    expect(seal).not.toBeNull();
-    // dans la boîte du logotype : centrée sur l'horizon, comme le sceau
-    expect(seal!.closest('[data-part="mark"]')).not.toBeNull();
-    expect(seal!.querySelector('svg.mg-seal')?.textContent).toContain(`V.${APP_VERSION}`);
-    const artefact = el.querySelector<HTMLElement>('[data-part="artefact-plate"]');
-    expect(artefact).not.toBeNull();
-    expect(artefact!.closest('[data-part="mark"]')).toBeNull();
-    expect(artefact!.querySelector('svg.mg-artefact')?.textContent).toMatch(/SK-ART-002[\s\S]*LIVE/);
-    expect(el.innerHTML).not.toContain('{{');
-    // encre et papier par les jetons : l'ivoire sur la nuit
-    expect(css).toMatch(/\.plateSeal \{[^}]*top: 50%;[^}]*transform: translateY\(-50%\);[^}]*--k: var\(--text-0\);[^}]*--p: var\(--bg-0\);/);
-    expect(css).toMatch(/\.plateArtefact \{[^}]*bottom: [^;]+;[^}]*--k: var\(--text-1\);[^}]*--p: var\(--bg-0\);/);
+    expect(el.querySelector('[data-part="seal-plate"]')).toBeNull();
+    expect(el.querySelector('[data-part="artefact-plate"]')).toBeNull();
+    expect(el.querySelector('svg[class*="mg-"]')).toBeNull();
+    expect(css).not.toMatch(/\.plateSeal|\.plateArtefact|plate-stamp/);
+    expect(el.querySelector('[data-part="mark"] [data-part="seal"]')).not.toBeNull();
   });
 });

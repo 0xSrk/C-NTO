@@ -69,11 +69,6 @@ export function Tag({ children, tone, dot, live, className }: { children: ReactN
   );
 }
 
-/** Onglet inversé (fond blanc, texte noir) — un seul par écran. */
-export function InvertedTab({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cx(s.invertedTab, className)}>{children}</span>;
-}
-
 /** Interpole une valeur numérique vers sa nouvelle cible (380 ms), chiffres tabulaires. */
 function useCountUp(target: number | undefined, duration = 380): number | undefined {
   const [value, setValue] = useState(target);
