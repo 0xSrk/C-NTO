@@ -233,29 +233,11 @@
 }
 .eqRead .pos { color: var(--pos); }
 .eqRead .neg { color: var(--neg); }
+/* Système 4.1 : la courbe seule, sans plaque en filigrane derrière elle. */
 .eqChart {
   position: relative;
-  z-index: 1;
   width: 100%;
   min-width: 0;
-}
-/* La plaque de lecture A.02 (Ligne V2) en filigrane, en haut à gauche, sous la courbe (fond du graphique transparent) :
-   la courbe passe par-dessus, la plaque n'intercepte aucun geste. */
-.eqStage {
-  position: relative;
-  isolation: isolate;
-  min-width: 0;
-}
-.eqPlate {
-  position: absolute;
-  left: 12px;
-  top: 8px;
-  z-index: 0;
-  width: 148px;
-  pointer-events: none;
-  opacity: 0.8;
-  --k: var(--text-2);
-  --p: var(--bg-2);
 }
 .eqFault {
   height: 300px;

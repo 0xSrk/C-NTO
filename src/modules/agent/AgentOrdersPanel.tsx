@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Plate } from '@/design/Micro';
 import { Button, Field, Tag } from '@/design/primitives';
 import { AGENT_CONFIRM_TIMEOUT_MS, AGENT_ORDER_BOUNDS, AGENT_ORDER_TAG } from '@/engine/agent/orders';
 import { tr, useI18n } from '@/i18n';
 import { dateTimeFormatter } from '@/lib/time';
 import { useAgentOrders } from '@/store/agentOrders';
 import { useBridge } from '@/store/bridge';
-import { agentGuardLabel, agentGuardValues } from './agentGuard';
+import { killSwitchText } from './agentGuard';
 import { originLabel, outcomeLabel } from './agentOrderLabels';
 import s from './agent.module.css';
 
@@ -21,8 +20,9 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
   const enable = useAgentOrders((a) => a.enable);
   const disable = useAgentOrders((a) => a.disable);
   const setLimits = useAgentOrders((a) => a.setLimits);
-  // Le raccourci du kill switch, tel que l'annonce le process principal ; inconnu hors du shell.
+  // Le raccourci du kill switch, tel que l'annonce le process principal ; inconnu hors du shell, la notice ne le dit pas.
   const killShortcut = useBridge((b) => b.nt?.killSwitchShortcut ?? null);
+  const kill = killSwitchText(killShortcut);
   const confirmSeconds = AGENT_CONFIRM_TIMEOUT_MS / 1000;
   const [draft, setDraft] = useState<Record<LimitKey, number>>({ maxQty: status.maxQty, maxPosition: status.maxPosition, perMinute: status.perMinute });
 
@@ -44,8 +44,7 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
 
   return (
     <div className={s.section}>
-      {/* La plaque de la garde en tête : les invariants que le process principal applique, lus, pas recopiés. */}
-      <Plate id="agentGuard" values={agentGuardValues(killShortcut)} label={agentGuardLabel(killShortcut)} className={s.guardPlate} />
+      {/* Système 4.1 : le panneau s'ouvre sur son titre, sans plaque ; la garde est dite par la notice, ses chiffres lus aux constantes et au pont. */}
       <div className={s.sectionTitle}>
         <span>{tr('Ordres proposés par l’agent', 'Orders proposed by the agent', 'Órdenes propuestas por el agente')}</span>
         <Tag tone={status.pending ? 'gold' : status.enabled ? 'ember' : undefined} dot live={status.pending || status.enabled}>
@@ -122,9 +121,9 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
           )}
           <div className={s.hint}>
             {tr(
-              'Baisser une limite est immédiat ; la relever passe par une fenêtre du système. Au-dessous de 25 % de marge du plan prop suivi, ou après le kill switch, l’agent ne peut plus ouvrir ni augmenter. Agents externes : l’outil n’apparaît qu’avec l’écriture autorisée.',
-              'Lowering a limit is immediate; raising it goes through a system window. Below 25% of the tracked prop plan buffer, or after the kill switch, the agent can no longer open or add. External agents: the tool only appears when writing is allowed.',
-              'Bajar un límite es inmediato; subirlo pasa por una ventana del sistema. Por debajo del 25 % de margen del plan prop seguido, o tras el kill switch, el agente ya no puede abrir ni aumentar. Agentes externos: la herramienta solo aparece con la escritura autorizada.',
+              `Baisser une limite est immédiat ; la relever passe par une fenêtre du système. Au-dessous de 25 % de marge du plan prop suivi, ou après le ${kill}, l’agent ne peut plus ouvrir ni augmenter. Agents externes : l’outil n’apparaît qu’avec l’écriture autorisée.`,
+              `Lowering a limit is immediate; raising it goes through a system window. Below 25% of the tracked prop plan buffer, or after the ${kill}, the agent can no longer open or add. External agents: the tool only appears when writing is allowed.`,
+              `Bajar un límite es inmediato; subirlo pasa por una ventana del sistema. Por debajo del 25 % de margen del plan prop seguido, o tras el ${kill}, el agente ya no puede abrir ni aumentar. Agentes externos: la herramienta solo aparece con la escritura autorizada.`,
             )}
           </div>
           {last && outcome && (

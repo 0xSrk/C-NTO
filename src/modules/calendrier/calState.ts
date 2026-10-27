@@ -1,15 +1,11 @@
-import type { SlotValues } from '@/design/Micro';
 import { CATALYST_HORIZON_DAYS } from '@/engine/agent/tools';
 import type { CalEvent } from '@/engine/calendar';
-import type { CalendarSourceStatus } from '@/engine/calendarEvents';
-import { majorCatalysts } from '@/engine/discipline';
-import { tr } from '@/i18n';
-import { cmeSession } from '@/lib/cmeClosed';
-import { addDays, etDateKey, ET_ZONE, globexState, zonedToUtc, type GlobexState } from '@/lib/time';
+import { addDays, etDateKey, ET_ZONE, zonedToUtc } from '@/lib/time';
 
 /**
  * Calendrier, Système 4.0 : le trait dit l'état d'une publication, la forme dit son impact — aucune couleur dépensée,
  * l'or et le rouge restent aux signaux du desk. Pur : l'instant `now` est passé, les dates sont celles de New York.
+ * Système 4.1 : plus de plaque TIME ENGINE ; la séance, la synchro et les catalyseurs sont dits chacun une fois ailleurs.
  */
 
 /** Plein : publié ou passé (en service) · tireté : prévu dans la fenêtre · pointillé : au-delà de l'horizon. */
@@ -54,64 +50,3 @@ export function nowIndex(events: readonly Pick<CalEvent, 'date' | 'timeET'>[], n
 
 /** Tracé de « maintenant » : la lentille du sceau, épaisse au centre, effilée aux bouts (boîte 400 × 8). */
 export const LENS_PATH = 'M0 4 C120 1.6 280 1.6 400 4 C280 6.4 120 6.4 0 4 Z';
-
-/** État de la synchro des sources officielles, tel que le tient le calendrier. */
-export interface SyncInput {
-  syncing: boolean;
-  sources: readonly Pick<CalendarSourceStatus, 'sourceId' | 'state'>[];
-  /** Publications officielles en cache. */
-  cached: number;
-}
-
-/** La synchro dite telle qu'elle est (voix technique de la plaque). */
-export function syncLabel({ syncing, sources, cached }: SyncInput): string {
-  if (syncing) return 'SYNCING';
-  if (!sources.length) return cached > 0 ? 'CACHED' : 'OFFLINE';
-  if (sources.every((src) => src.state === 'ok')) return 'SYNCED';
-  if (sources.some((src) => src.state === 'ok')) return 'PARTIAL';
-  return sources.some((src) => src.state === 'stale') ? 'STALE' : 'ERROR';
-}
-
-function globexLabel(state: GlobexState): string {
-  switch (state) {
-    case 'FERMÉ':
-      return tr('FERMÉ', 'CLOSED', 'CERRADO');
-    case 'FERMÉ · FÉRIÉ':
-      return tr('FERMÉ · FÉRIÉ', 'CLOSED · HOLIDAY', 'CERRADO · FESTIVO');
-    default:
-      return state;
-  }
-}
-
-/** Libellé court d'une publication sur la plaque : sans parenthèse, en capitales, borné. */
-export function plateTitle(title: string, max = 18): string {
-  const bare = (title.replace(/\s*\([^)]*\)/g, '').split(/\s+[·—–]\s+/)[0] ?? '').trim().toUpperCase();
-  return bare.length > max ? `${bare.slice(0, max - 1).trimEnd()}…` : bare;
-}
-
-/**
- * Ce que lit la plaque TIME ENGINE : la séance CME Globex de l'instant (jours fermés et demi-séances compris), les
- * prochains catalyseurs majeurs du jour (ceux que surveille la discipline du desk), l'état de la synchro.
- */
-export function timeEngineValues(input: SyncInput & { now: number; events: readonly CalEvent[] }, label: (title: string) => string = (title) => title): SlotValues {
-  const day = etDateKey(input.now);
-  const cme = cmeSession(day);
-  const next = majorCatalysts(input.events.filter((e) => e.date === day))
-    .filter((c) => c.at >= input.now)
-    .slice(0, 3);
-  return {
-    session: `CME GLOBEX · ${globexLabel(globexState(input.now, cme.closed, cme.earlyCloseMinute))}`,
-    catalysts: next.length ? next.map((c) => `${plateTitle(label(c.title))} ${c.timeET}`).join(' • ') : tr('AUCUN CATALYSEUR', 'NO CATALYST', 'SIN CATALIZADOR'),
-    sync: syncLabel(input),
-  };
-}
-
-/** La même lecture, en phrase, pour les lecteurs d'écran. */
-export function timeEngineLabel(values: SlotValues): string {
-  const session = String(values.session ?? '—').replace('CME GLOBEX', 'CME Globex');
-  return tr(
-    `Moteur de temps : ${session} · prochains catalyseurs : ${values.catalysts ?? '—'} · synchro ${values.sync ?? '—'}`,
-    `Time engine: ${session} · next catalysts: ${values.catalysts ?? '—'} · sync ${values.sync ?? '—'}`,
-    `Motor de tiempo: ${session} · próximos catalizadores: ${values.catalysts ?? '—'} · sincronización ${values.sync ?? '—'}`,
-  );
-}

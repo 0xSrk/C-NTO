@@ -76,8 +76,6 @@ export function Dashboard({
   const metricAccount = useUi((st) => st.metricAccount);
   const stabilityWindow = useSettings((st) => st.settings.stabilityWindow);
   const stats = useMemo(() => computeTradeStats(trades), [trades]);
-  // Ce que lit la plaque A.02 : les statistiques de cette page, pas un second calcul.
-  const plateStats = useMemo(() => ({ trades: stats.count, winRate: stats.winRate, profitFactor: stats.profitFactor }), [stats]);
   const daily = useMemo(() => computeDailyStats(sessions, startingBalance, stabilityWindow, { from: period.from ?? undefined, to: period.to }), [sessions, startingBalance, period.from, period.to, stabilityWindow]);
   const dailyPnls = useMemo(() => dailyResultSeries(sessions), [sessions]);
   const band = useMemo(() => rollingBands(dailyPnls, stabilityWindow).at(-1) ?? null, [dailyPnls]);
@@ -353,7 +351,7 @@ export function Dashboard({
         </div>
       </section>
 
-      <EquityCard className={s.span8} sessions={ordered} trades={trades} floor={limit} stats={plateStats} />
+      <EquityCard className={s.span8} sessions={ordered} trades={trades} floor={limit} />
 
       <section className={`${s.card} ${s.pad} ${s.span4}`}>
         <div className={s.cardHead}>

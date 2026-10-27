@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ColorType, createChart, CrosshairMode, LineStyle, type AutoscaleInfo, type IChartApi, type ISeriesApi, type SeriesPartialOptions, type Time, type UTCTimestamp, type WhitespaceData } from 'lightweight-charts';
-import { Plate, type SlotValues } from '@/design/Micro';
 import { Montant, Segmented } from '@/design/primitives';
 import { equityCurve, type EquityCurveData, type EquityGrain, type EquityStep } from '@/engine/equityCurve';
-import type { Session, SessionSource, Trade } from '@/engine/types';
+import type { Session, Trade } from '@/engine/types';
 import { intlTag, tr, useI18n } from '@/i18n';
-import { fmtInt, fmtNum, montantParts } from '@/lib/format';
+import { fmtInt } from '@/lib/format';
 import { dateTimeFormatter } from '@/lib/time';
 import { chartHostReady, safePaneHeight } from '@/modules/visual/chartBox';
 import s from './dashboard.module.css';
@@ -16,7 +15,8 @@ import { glyphImage, readyImage } from './glyphSprite';
 /**
  * Métrique › A.02 : courbe d'équité, P&L par pas et drawdown sous l'eau, au trait du Lab
  * (fils d'un pixel légèrement lumineux, trame de points, pixel signature au dernier pas), avec les composants de
- * la planche : ⊕ au plus haut, ⊗ au creux, la borne du plan suivi, la plaque de lecture A.02 en filigrane.
+ * la planche : ⊕ au plus haut, ⊗ au creux, la borne du plan suivi. Système 4.1 : plus de plaque en filigrane, la lecture
+ * au-dessus de la courbe dit le pas.
  * Glisser déplace, Ctrl (⌘) + molette zoome, double-clic recadre : la molette seule fait défiler la page.
  */
 
@@ -79,54 +79,12 @@ interface Refs {
   floor: number;
 }
 
-/** Statistiques de la période que lit la plaque A.02 : celles du tableau de bord, pas recalculées ici. */
-export interface EquityPlateStats {
-  trades: number;
-  winRate: number;
-  profitFactor: number;
-}
-
 /** Composants de la planche peints sur la courbe, et leur taille (px CSS) : ⊕ et ⊗ de 12, la borne de 10. */
 const GLYPHS: readonly [GlyphKey, number][] = [
   ['target', 12],
   ['mire', 12],
   ['borne', 10],
 ];
-
-/** Montant de plaque : signe, groupes de trois, virgule, deux décimales. */
-function plateAmount(value: number): string {
-  const parts = montantParts(value, 2);
-  return `${parts.sign}${parts.groups.join(' ')},${parts.decimals}`;
-}
-
-function sourceLabel(source: SessionSource): string {
-  switch (source) {
-    case 'demo':
-      return tr('DÉMO', 'DEMO', 'DEMO');
-    case 'ninjatrader':
-      return 'NT8';
-    case 'csv':
-      return 'CSV';
-    case 'manuel':
-      return tr('MANUEL', 'MANUAL', 'MANUAL');
-  }
-}
-
-/** Ce que lit la plaque A.02 : la source du journal, le cumul et l'écart au plus haut du dernier pas, les statistiques. */
-function plateValues(curve: EquityCurveData, sessions: readonly Session[], stats: EquityPlateStats | undefined): SlotValues {
-  const sources = new Set(sessions.map((row) => row.source));
-  const only = sources.size === 1 ? [...sources][0] : undefined;
-  const last = curve.steps[curve.steps.length - 1];
-  return {
-    state: only ? sourceLabel(only) : sources.size > 1 ? tr('JOURNAL', 'JOURNAL', 'DIARIO') : null,
-    cumul: last ? plateAmount(curve.net) : null,
-    dd: last ? plateAmount(last.drawdown) : null,
-    sessions: fmtInt(sessions.length),
-    trades: stats ? fmtInt(stats.trades) : null,
-    win: stats ? fmtNum(stats.winRate * 100, 1) : null,
-    pf: stats ? (Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2).replace('.', ',') : '∞') : null,
-  };
-}
 
 const floorLabel = (floor: number) => (floor > 0 ? `${tr('PLANCHER', 'FLOOR', 'SUELO')} −${fmtInt(floor)}` : '');
 
@@ -163,14 +121,12 @@ export function EquityCard({
   trades,
   className,
   floor,
-  stats,
 }: {
   sessions: Session[];
   trades: Trade[];
   className?: string;
   /** Drawdown maximal du plan suivi pour le compte filtré : la borne du volet sous l'eau. Absent : aucune borne inventée. */
   floor?: number | null;
-  stats?: EquityPlateStats;
 }) {
   const locale = useI18n((st) => st.locale);
   const [grain, setGrain] = useState<EquityGrain>('session');
@@ -178,7 +134,6 @@ export function EquityCard({
   const floorValue = floor != null && floor > 0 ? floor : 0;
   const floorRef = useRef(floorValue);
   floorRef.current = floorValue;
-  const plate = useMemo(() => plateValues(curve, sessions, stats), [curve, sessions, stats, locale]);
   const [hover, setHover] = useState<number | null>(null);
   const [fault, setFault] = useState(false);
   const host = useRef<HTMLDivElement>(null);
@@ -390,11 +345,7 @@ export function EquityCard({
       {fault ? (
         <div className={s.eqFault}>{tr('Graphique indisponible.', 'Chart unavailable.', 'Gráfico no disponible.')}</div>
       ) : (
-        <div className={s.eqStage}>
-          <div ref={host} className={s.eqChart} style={{ height: CHART_HEIGHT }} role="img" aria-label={tr(`P&L cumulé ${signed(curve.net)} USD`, `Cumulative P&L ${signed(curve.net)} USD`, `P&L acumulado ${signed(curve.net)} USD`)} />
-          {/* La plaque de lecture A.02 en filigrane : elle lit la courbe et les statistiques réelles, la lecture au-dessus les dit déjà. */}
-          <Plate id="equity" values={plate} className={s.eqPlate} />
-        </div>
+        <div ref={host} className={s.eqChart} style={{ height: CHART_HEIGHT }} role="img" aria-label={tr(`P&L cumulé ${signed(curve.net)} USD`, `Cumulative P&L ${signed(curve.net)} USD`, `P&L acumulado ${signed(curve.net)} USD`)} />
       )}
       <div className={s.eqLegend}>
         <span>

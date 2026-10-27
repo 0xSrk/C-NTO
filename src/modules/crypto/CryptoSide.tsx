@@ -6,7 +6,7 @@
  * l'écriture aussi, et rien ne s'échappe en rejet non géré.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Glyph, Plate, Signal } from '@/design/Micro';
+import { Glyph, Signal } from '@/design/Micro';
 import { Button, Etiquette, Led, Regle, Tag, cx } from '@/design/primitives';
 import { alertDirection, alertEvaluability, type AlertIdleReason, type AlertReading, type EvaluabilityData } from '@/engine/crypto/alerts';
 import { CHARTABLE_MARKETS, cryptoMarket, type CryptoMarketId, type CryptoTimeframe, type CryptoVenue, type VenueState } from '@/engine/crypto/markets';
@@ -21,7 +21,7 @@ import { IndicatorCards } from '../visual/IndicatorCards';
 import v from '../visual/visual.module.css';
 import { AlertModal, cryptoCodeText, saveFailedText } from './AlertModal';
 import c from './crypto.module.css';
-import { alertSignalLevel, alertStateWord, alertSubject, alertThreshold, directionGlyph, directionText, signalPlateLabel, signalPlateValues } from './cryptoSignals';
+import { alertSignalLevel, alertStateWord, alertSubject, alertThreshold, directionGlyph, directionText } from './cryptoSignals';
 import { cryptoIndicatorDesc, cryptoIndicatorName } from './indicatorCopy';
 
 /** Les venues, dans l'ordre du registre, et leur nom. */
@@ -200,7 +200,6 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
   const lastBar = bars[bars.length - 1];
   const day = (time: number) => formatDateFr(dateKeyLocal(new Date(time * 1000)), { short: true });
   const chartTicker = tickers[market];
-  const signal = signalPlateValues({ market, alerts, venues, tickers });
 
   const turnOff = () => {
     if (turningOff) return;
@@ -228,7 +227,7 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
   const oiChange = (share: number | null | undefined) => (share === null || share === undefined || !Number.isFinite(share) ? '—' : `${fmtSigned(share * 100, 1)} %`);
 
   return (
-    <aside className={cx(v.side, c.side)}>
+    <aside className={v.side}>
       <div className={v.sideSection}>
         <SideTitle>
           <Glyph name="globe" className={c.titleGlyph} />
@@ -299,14 +298,11 @@ export function CryptoSide({ catalog, instances }: CryptoSideProps) {
         >
           {tr('Alertes', 'Alerts', 'Alertas')} · {alerts.length}
         </SideTitle>
-        {/* La plaque SIGNAL ouvre la section (OROS3.5b) : le marché du chart, l'état de ses alertes, le direct de son prix ; la légende dit les niveaux. */}
-        <div className={c.alertHead}>
-          <Plate id="signal" values={signal} label={signalPlateLabel(signal)} className={c.signalPlate} />
-          <div className={c.alertLegend}>
-            <Signal level={1}>{tr('Repère', 'Marker', 'Hito')}</Signal>
-            <Signal level={2}>{tr('Attention', 'Attention', 'Atención')}</Signal>
-            <Signal level={3}>{tr('Borne franchie', 'Limit crossed', 'Límite superado')}</Signal>
-          </div>
+        {/* Système 4.1 : la section s'ouvre sur la légende des trois niveaux, sans plaque. L'état de chaque alerte est sur sa ligne, le direct du prix sur la ligne de son marché. */}
+        <div className={c.alertLegend}>
+          <Signal level={1}>{tr('Repère', 'Marker', 'Hito')}</Signal>
+          <Signal level={2}>{tr('Attention', 'Attention', 'Atención')}</Signal>
+          <Signal level={3}>{tr('Borne franchie', 'Limit crossed', 'Límite superado')}</Signal>
         </div>
         {alerts.length === 0 && (
           <div className={v.desc}>
