@@ -253,9 +253,10 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </nav>
         <div className={s.railFoot}>
           {/* Le compte (4.1) : une cartouche du Lab, sans intitulé. Sa micro assemble le pont (composant 1), dont la
-              borne devient le coffre (composant 124), et le voyant au cœur du coffre ; puis le nom et la source. */}
-          <div className={s.account} role="group" aria-label={tr('Compte actif', 'Active account', 'Cuenta activa')} title={linkLabel}>
-            <span className={s.accountMark} data-part="account-mark">
+              borne devient le coffre (composant 124), et le voyant au cœur du coffre ; puis le nom et la source. L'état
+              du pont se dit une fois, par le voyant ; l'infobulle vit sur la micro, pas sur le groupe qui le redisait. */}
+          <div className={s.account} role="group" aria-label={tr('Compte actif', 'Active account', 'Cuenta activa')}>
+            <span className={s.accountMark} data-part="account-mark" title={linkLabel}>
               <span className={s.accountArt}>
                 <span className={s.accountBridge}>
                   <Glyph name="bridge" />

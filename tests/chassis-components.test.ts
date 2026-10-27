@@ -184,7 +184,6 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(bridge!.compareDocumentPosition(vault!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const voyant = mark.querySelector<HTMLElement>('[role="img"][class*="voyant"]');
     expect(voyant?.getAttribute('aria-label')).toBe('Hors ligne · import CSV');
-    expect(account!.getAttribute('title')).toBe('Hors ligne · import CSV');
     // le nom puis la source, après la micro
     const name = account!.querySelector('[class*="accountName"]');
     expect(name?.textContent).toMatch(/^Tous les comptes · \d+$/);
@@ -214,6 +213,20 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
       expect(rendered).toBeGreaterThanOrEqual(0.4);
       expect(rendered).toBeLessThanOrEqual(0.75);
     }
+  });
+
+  it('OROS4.45 le compte dit l’état du pont une fois : par son voyant ; l’infobulle vit sur la micro, plus sur le groupe', () => {
+    const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+    const account = el.querySelector<HTMLElement>('aside [role="group"][aria-label="Compte actif"]')!;
+    const mark = account.querySelector<HTMLElement>('[data-part="account-mark"]')!;
+    const voyant = mark.querySelector<HTMLElement>('[role="img"][class*="voyant"]')!;
+    // Le title du groupe devenait sa description : Chromium lisait « Hors ligne · import CSV » deux fois de suite.
+    expect(account.hasAttribute('title')).toBe(false);
+    expect(account.querySelectorAll('[title]')).toHaveLength(1);
+    expect(mark.getAttribute('title')).toBe(voyant.getAttribute('aria-label'));
+    expect(voyant.getAttribute('aria-label')).toBe('Hors ligne · import CSV');
+    // le nom et la source restent du texte, sans infobulle
+    expect(account.querySelector('[class*="accountName"]')?.hasAttribute('title')).toBe(false);
   });
 
   it('OROS4.11 la quantité du rail n’est jamais coupée : elle passe à la ligne, deux lignes au plus, entre ses parties', async () => {
