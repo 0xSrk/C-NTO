@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { Gate } from '@/app/Gate';
 import { SEAL_HORIZON } from '@/design/Seal';
 import { SEAT_ALPHABET, SEAT_DOMINO } from '@/app/seatGlyphs';
-import { ABRIDGE_GRACE_MS, reducedTimeline, unlockTimeline } from '@/app/unlockCircuit';
+import { reducedTimeline, unlockTimeline } from '@/app/unlockCircuit';
 import { GLYPH_ID } from '@/design/micro/assets';
 
 // La phrase reste celle du moteur (tests/desk-gate.test.ts) ; ici, une doublure : seule « la phrase » ouvre.
@@ -347,7 +347,7 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     const el = mount({ onReveal, onOpen });
     type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
     await submitFake(el.querySelector<HTMLFormElement>('form')!);
-    act(() => vi.advanceTimersByTime(ABRIDGE_GRACE_MS + 100));
+    act(() => vi.advanceTimersByTime(200));
     expect(onReveal).not.toHaveBeenCalled();
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -362,38 +362,53 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(onOpen).not.toHaveBeenCalled();
     advanceTo(pressed, tl.end - tl.reveal);
     expect(onOpen).toHaveBeenCalledTimes(1);
-    // une seconde touche ne relance rien
+    // un second geste ne relance rien
     act(() => {
-      window.dispatchEvent(new PointerEvent('pointerdown'));
+      window.dispatchEvent(new MouseEvent('mousedown', { detail: 1 }));
     });
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
-  it('OROS4.33 le geste qui a ouvert n’abrège pas : ni le second clic d’un double-clic sur « Ouvrir », ni Entrée tenue', async () => {
+  it('OROS4.33 le geste qui a ouvert n’abrège pas : ni le second clic d’un double-clic sur « Ouvrir », ni Entrée tenue ; OROS4.51 un geste neuf, aussitôt', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
     const onReveal = vi.fn();
     const el = mount({ onReveal });
     type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
     await submitFake(el.querySelector<HTMLFormElement>('form')!);
     const admittedAt = performance.now();
-    // le second clic d'un double-clic, 120 puis 250 ms après le premier
-    for (const ms of [120, 250]) {
+    // le second clic d'un double-clic (puis le troisième d'un triple), 120 puis 250 ms après le premier
+    for (const [ms, detail] of [
+      [120, 2],
+      [250, 3],
+    ] as const) {
       advanceTo(admittedAt, ms);
       act(() => {
-        window.dispatchEvent(new PointerEvent('pointerdown'));
+        window.dispatchEvent(new MouseEvent('mousedown', { detail }));
       });
     }
     expect(onReveal).not.toHaveBeenCalled();
-    // Entrée tenue : la répétition de la touche, même après le délai du geste
-    advanceTo(admittedAt, ABRIDGE_GRACE_MS + 60);
+    // Entrée tenue : la répétition de la touche
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true }));
     });
     expect(onReveal).not.toHaveBeenCalled();
     expect(el.querySelector('[role="dialog"]')!.className).not.toMatch(/revealing/);
-    // un geste neuf, lui, abrège
+    // un geste neuf, lui, abrège, même tout de suite après l'ouverture
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.51 un clic neuf juste après Entrée abrège aussitôt : rien n’est retenu pendant une fenêtre de grâce', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const onReveal = vi.fn();
+    const el = mount({ onReveal });
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    act(() => vi.advanceTimersByTime(120));
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousedown', { detail: 1 }));
     });
     expect(onReveal).toHaveBeenCalledTimes(1);
   });

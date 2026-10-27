@@ -8,7 +8,7 @@ import { tr, useI18n } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { shortcutLabel } from './KillBand';
 import { glyphsAt, SEAT_ALPHABET, SEAT_TICK_MS } from './seatGlyphs';
-import { ABRIDGE_GRACE_MS, FADE_MS, FOLD_AT_MS, reducedTimeline, runUnlockCircuit, UNLOCK_GLYPH_MAX, UNLOCK_GLYPHS, UNLOCK_SEAL, unlockTimeline, WORD_AT_MS, WORD_MS, type UnlockTimeline } from './unlockCircuit';
+import { FADE_MS, FOLD_AT_MS, reducedTimeline, runUnlockCircuit, UNLOCK_GLYPH_MAX, UNLOCK_GLYPHS, UNLOCK_SEAL, unlockTimeline, WORD_AT_MS, WORD_MS, type UnlockTimeline } from './unlockCircuit';
 import s from './gate.module.css';
 
 /** L'horizon du sceau (48,27 % de sa hauteur) se pose sur la ligne de l'écran. */
@@ -81,8 +81,6 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** La phrase est admise : plus de seconde soumission, même avant que l'ouverture ne parte. */
   const admittedRef = useRef(false);
-  /** L'instant de l'admission : le geste qui a ouvert n'abrège pas l'ouverture. */
-  const admittedAtRef = useRef(0);
   const admitRef = useRef(onAdmit);
   const revealRef = useRef(onReveal);
   const openRef = useRef(onOpen);
@@ -151,23 +149,24 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
               status: document.querySelector('[data-chassis="status"]')?.getBoundingClientRect() ?? null,
             }),
           });
-    // Une touche ou un clic abrège : le voile se lève aussitôt sur le desk déjà monté. Le geste qui a ouvert ne compte
-    // pas : ni la répétition d'une touche tenue, ni le second clic d'un double-clic sur « Ouvrir ».
+    // Une touche ou un clic abrège : le voile se lève aussitôt sur le desk déjà monté. Seuls les échos du geste qui a
+    // ouvert ne comptent pas : la répétition d'une touche tenue, le second clic d'un double-clic sur « Ouvrir » (son
+    // `detail` compte les clics) ; tout geste neuf abrège, même aussitôt.
     const abridge = (event: Event) => {
       if (event instanceof KeyboardEvent && event.repeat) return;
-      if (performance.now() - admittedAtRef.current < ABRIDGE_GRACE_MS) return;
+      if (event instanceof MouseEvent && event.detail > 1) return;
       const at = clock();
       if (at >= tl.reveal) return;
       abridged = true;
       offset += tl.reveal - at;
       tick();
     };
-    window.addEventListener('pointerdown', abridge);
+    window.addEventListener('mousedown', abridge);
     window.addEventListener('keydown', abridge);
     return () => {
       window.clearInterval(id);
       stop();
-      window.removeEventListener('pointerdown', abridge);
+      window.removeEventListener('mousedown', abridge);
       window.removeEventListener('keydown', abridge);
     };
   }, [unlock, reduced]);
@@ -181,7 +180,6 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     if (admittedRef.current) return;
     if (ok) {
       admittedRef.current = true;
-      admittedAtRef.current = performance.now();
       const count = Math.min(UNLOCK_GLYPH_MAX, [...phrase].length);
       // La phrase quitte le champ tout de suite, rendue à part avant le montage du desk : les points de la rangée de
       // glyphes, en attente, remplacent ceux du champ, et la fiche se ferme à la saisie.
