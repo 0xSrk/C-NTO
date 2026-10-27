@@ -171,6 +171,23 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     expect(visual).toMatch(/id: 'supprimer'[^}]*tone: 'ember'/);
   });
 
+  it('OROS4.25 le pont se lit dans le menu : 24 px de large, son trait relevé à un demi-pixel rendu', async () => {
+    const { COMPONENTS } = await import('@/design/micro/assets');
+    const { trigger, entries } = mount([{ id: 'pont', label: 'Pont NinjaTrader', glyph: 'bridge', state: 'actif', tone: 'mint', onSelect: () => undefined }]);
+    act(() => trigger.click());
+    const lead = entries()[0]!.querySelector<HTMLElement>('[data-glyph]')!;
+    expect(lead.getAttribute('data-glyph')).toBe('bridge');
+    expect(lead.querySelector(`svg.skg-${GLYPH_ID.bridge}`)).not.toBeNull();
+    const box = rule(".lead[data-glyph='bridge'] .glyph");
+    const width = Number(/width: ([\d.]+)px/.exec(box)?.[1]);
+    expect(width).toBe(24);
+    const [, , vw] = /viewBox="([^"]+)"/.exec(COMPONENTS[GLYPH_ID.bridge]!)![1]!.split(' ').map(Number);
+    const raised = Number(/stroke-width: ([\d.]+)px/.exec(rule(".lead[data-glyph='bridge'] :global(.g1-1)"))?.[1]);
+    const rendered = (raised * width) / vw!;
+    expect(rendered).toBeGreaterThanOrEqual(0.4);
+    expect(rendered).toBeLessThanOrEqual(0.75);
+  });
+
   it('parle la langue du desk', () => {
     useI18n.setState({ locale: 'es' });
     const { trigger } = mount([{ id: 'a', label: 'Acción', onSelect: () => undefined }]);

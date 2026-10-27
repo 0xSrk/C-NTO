@@ -152,7 +152,7 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
               onClick={() => choose(item)}
             >
               {/* En tête : la coche, ou le composant ; sans composant, une option qui a une couleur la porte en point. */}
-              <span className={s.lead} aria-hidden>
+              <span className={s.lead} aria-hidden data-glyph={item.checked === undefined ? item.glyph : undefined}>
                 {item.checked !== undefined ? (
                   <i className={cx(s.check, item.checked && s.checked)} />
                 ) : item.glyph ? (

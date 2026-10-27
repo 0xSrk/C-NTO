@@ -190,6 +190,16 @@
   height: 16px;
   --k: var(--text-1);
 }
+/* Le pont (composant 1) est large et bas : dans le carré de 16 px il tombait à 4 px de haut, son trait à 0,09 px. Il
+   prend 24 px, débordant dans l'écart, et son trait relevé rend ≈ 0,5 px, comme les emblèmes du rail. */
+.lead[data-glyph='bridge'] .glyph {
+  flex: none;
+  width: 24px;
+  height: 8px;
+}
+.lead[data-glyph='bridge'] :global(.g1-1) {
+  stroke-width: 2.6px;
+}
 .label {
   min-width: 0;
   overflow: hidden;
