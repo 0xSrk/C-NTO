@@ -183,6 +183,19 @@ describe('agent cloud · définition installée par le desk', () => {
     expect(prompt).toContain('ce qui en a déjà été lu reste au rapport, et seul ce que la page devait donner s’écrit « non consulté »');
     expect(prompt).not.toContain('ce site est clos');
   });
+
+  it('CLD33 relecture de CLD32 : la règle publiée du DOL, et un jour férié déplace le jour, pas seulement l’heure', () => {
+    const prompt = cloudSystemPrompt('fr');
+    // dol.gov ne publie aucun calendrier des inscriptions ; leur horaire est sur oui.doleta.gov, hors des domaines autorisés.
+    expect(prompt).toContain('DOL : les inscriptions hebdomadaires au chômage paraissent chaque jeudi à 8:30 ET, le mercredi quand le jeudi est férié');
+    expect(prompt).toContain('dol.gov/ui/data.pdf');
+    expect(OFFICIAL_DOMAINS).not.toContain('doleta.gov');
+    // Sans les exceptions lues, la semaine fériée, ni le jour ni l'heure de la règle habituelle ne valent.
+    expect(prompt).not.toContain('sinon, son heure s’écrit « non consulté »');
+    expect(prompt).toContain('sinon, n’en place aucune date dans la fenêtre');
+    const method = prompt.split('\n').find((line) => line.startsWith('3. Ensuite seulement'))!;
+    expect(method.indexOf('les exceptions d’une règle habituelle')).toBeLessThan(method.indexOf('puis le contexte'));
+  });
 });
 
 describe('agent cloud · installation et commandes, par dialogue du process principal', () => {
