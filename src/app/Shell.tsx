@@ -24,7 +24,7 @@ import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
 import { railQuantity, type RailSnapshot } from './railQuantity';
-import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
+import { LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
 import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
 import { tabCopy, TABS } from './tabs';
@@ -406,8 +406,9 @@ export interface TitleCell {
 }
 
 /**
- * En-tête de module (Système 4.0) : numéro d'afficheur, nom, code et baseline, puis le bloc-titre
- * que le module remplit de ses propres données. Sans cellule passée, pas de bloc-titre.
+ * En-tête de module (4.1) : numéro d'afficheur et nom sur une ligne, rien dessous. La couche du Lab tient en un seul
+ * composant, posé après le nom ; un relevé du module (`meta`) le suit sur la même ligne. Puis le bloc-titre que le
+ * module remplit de ses propres données, sans cellule passée aucun, et ses actions en haut à droite.
  */
 export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: TabId; actions?: ReactNode; crumb?: string; meta?: ReactNode; cells?: TitleCell[] }) {
   const setCrumb = useUi((u) => u.setCrumb);
@@ -424,20 +425,13 @@ export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: T
         <span className={s.moduleNum} aria-hidden>
           {def.index}
         </span>
-        <span className={s.moduleTitle}>
-          <span className={s.moduleName}>{copy.label}</span>
-          <span className={s.moduleLine}>
-            <span className={s.moduleCode}>{def.code}</span>
-            <span className={s.moduleTagline}>{copy.tagline}</span>
-            {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
-          </span>
-        </span>
+        <span className={s.moduleName}>{copy.label}</span>
       </h1>
-      {/* La couche du Lab à laquelle le module appartient : son composant et sa bande (Ligne V2). */}
+      {/* La couche du Lab à laquelle le module appartient : son seul composant de la planche (Ligne V2). */}
       <span className={s.moduleLayer} role="img" aria-label={`${tr('Couche', 'Layer', 'Capa')} ${layerCode(layer)} · ${layerName(layer)}`} data-layer={layer}>
         <Glyph name={LAYER_GLYPH[layer]} className={s.layerGlyph} />
-        <Cartouche id={LAYER_CARTOUCHE[layer]} className={s.layerBand} />
       </span>
+      {meta ? <span className={s.moduleMeta}>{meta}</span> : null}
       {cells && cells.length > 0 ? (
         <dl className={s.titleBlock}>
           {cells.map((cell) => (

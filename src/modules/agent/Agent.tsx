@@ -300,15 +300,6 @@ export default function Agent() {
             {item.value === 'rapports' && unread > 0 ? <b className={s.subtabCount}>{fmtInt(unread)}</b> : null}
           </button>
         ))}
-        <span className={s.scopeNote}>
-          {view === 'rapports'
-            ? tr('Produits par le Lab · lus sur ce poste', 'Produced by the Lab · read on this desk', 'Producidos por el Lab · leídos en este equipo')
-            : view === 'conversation'
-              ? tr('Modèle conversationnel · outils natifs du desk', 'Conversational model · native desk tools', 'Modelo conversacional · herramientas nativas del desk')
-              : view === 'lab'
-                ? tr('Agent cloud du Lab · pilotage réservé à son siège', 'The Lab’s cloud agent · control reserved for its seat', 'Agente en la nube del Lab · pilotaje reservado a su asiento')
-                : tr('Modèle · passerelles · ordres · outils', 'Model · gateways · orders · tools', 'Modelo · pasarelas · órdenes · herramientas')}
-        </span>
       </div>
       <ModuleContent noPad>
         {/* Les trois vues restent montées : brouillon, défilement et réglages en cours survivent au changement de vue. */}

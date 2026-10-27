@@ -56,7 +56,8 @@ import { useCrypto } from '@/store/crypto';
 
 const TITLE = 'Module crypto éteint';
 const ENABLE = 'Activer le module crypto';
-const TAGLINE = 'Chart · température · alertes';
+/** L'en-tête du module (4.1) : le numéro et le nom, sans baseline. */
+const HEADER = '09Crypto';
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -93,7 +94,7 @@ describe('onglet 09 · CRY, éteint par défaut', () => {
   it('éteint : état vide et bouton chanfrein qui demande l’activation au process principal', async () => {
     const container = await mount();
     expect(fake.status).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain(TAGLINE);
+    expect(container.querySelector('h1')?.textContent).toBe(HEADER);
     expect(container.textContent).toContain(TITLE);
     expect(container.textContent).toContain('Données publiques de Coinbase, Binance et Bybit, pour un usage personnel. Le desk ne s’y connecte qu’une fois le module activé.');
     const button = buttonOf(container, ENABLE);
@@ -113,7 +114,7 @@ describe('onglet 09 · CRY, éteint par défaut', () => {
     expect(useCrypto.getState()).toMatchObject({ ready: true, enabled: true, venues: fake.on.venues });
     expect(container.textContent).not.toContain(TITLE);
     expect(buttonOf(container, ENABLE)).toBeUndefined();
-    expect(container.textContent).toContain(TAGLINE);
+    expect(container.querySelector('h1')?.textContent).toBe(HEADER);
   });
 
   it('un statut poussé par le process principal bascule l’écran', async () => {
@@ -134,7 +135,7 @@ describe('onglet 09 · CRY, éteint par défaut', () => {
     );
     const container = await mount();
     expect(useCrypto.getState().ready).toBe(false);
-    expect(container.textContent).toContain(TAGLINE);
+    expect(container.querySelector('h1')?.textContent).toBe(HEADER);
     expect(container.textContent).not.toContain(TITLE);
     await act(async () => answer(fake.on));
     expect(useCrypto.getState()).toMatchObject({ ready: true, enabled: true });

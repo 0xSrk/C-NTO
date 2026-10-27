@@ -1,4 +1,4 @@
-import type { CartoucheId, GlyphName } from '@/design/Micro';
+import type { GlyphName } from '@/design/Micro';
 import { tr } from '@/i18n';
 import type { TabId } from '@/store/ui';
 
@@ -27,15 +27,6 @@ export const LAYER_GLYPH: Readonly<Record<LayerId, GlyphName>> = {
   L03: 'layerAlerts',
   L04: 'layerAi',
   L05: 'layerDoctrine',
-};
-
-/** La bande mini de la couche (cartouche SK-LYR-L0x-M). */
-export const LAYER_CARTOUCHE: Readonly<Record<LayerId, CartoucheId>> = {
-  L01: 'layerL01',
-  L02: 'layerL02',
-  L03: 'layerL03',
-  L04: 'layerL04',
-  L05: 'layerL05',
 };
 
 /** « L.02 » : le code de la couche tel que la planche l'imprime. */

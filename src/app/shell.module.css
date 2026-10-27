@@ -503,19 +503,22 @@
   padding: 0;
 }
 
-/* En-tête de module (Système 4.0) : cartouche de dessin — numéro d'afficheur, nom, bloc-titre de données. */
+/* En-tête de module (4.1) : le numéro d'afficheur et le nom sur une ligne, rien dessous ; la couche en un seul composant ;
+   un relevé et le bloc-titre à même la nuit, filets d'un pixel ; les actions en haut à droite. */
 .moduleHead {
+  position: relative;
+  z-index: 3;
   display: flex;
-  align-items: flex-end;
-  gap: 20px;
+  align-items: center;
+  gap: 18px;
   flex-shrink: 0;
-  padding: 14px 40px 0;
-  container: module-head / inline-size;
+  min-height: 60px;
+  padding: 16px 40px 0;
 }
 .modulePlate {
   display: flex;
-  align-items: flex-end;
-  gap: 14px;
+  align-items: baseline;
+  gap: 12px;
   min-width: 0;
   margin: 0;
   font-weight: 600;
@@ -529,87 +532,57 @@
   letter-spacing: -0.04em;
   color: var(--text-0);
 }
-.moduleTitle {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
 .moduleName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 600;
   font-stretch: 86%;
-  line-height: 0.95;
+  line-height: 1;
   letter-spacing: -0.02em;
   color: var(--text-0);
 }
-.moduleLine {
-  display: flex;
+/* La couche du Lab : son seul composant de la planche, à l'encre graphite, après le nom. */
+.moduleLayer {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  flex: none;
+  --k: var(--text-2);
+  --p: var(--bg-1);
+}
+.layerGlyph {
+  width: 18px;
+  height: 18px;
+}
+/* Le relevé du module (poches, sources, marchés…) : une ligne de données sur la même ligne que le nom. */
+.moduleMeta {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-2);
-  white-space: nowrap;
-}
-.moduleCode {
-  color: var(--text-1);
-}
-.moduleMeta {
-  color: var(--text-1);
-}
-.moduleMeta::before,
-.moduleTagline::before {
-  content: '·';
-  margin-right: 10px;
-  color: var(--ghost);
-}
-/* La couche du Lab : son composant de la planche et sa bande mini (SK-LYR-L0x-M). */
-.moduleLayer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  padding-bottom: 2px;
-  --k: var(--text-1);
-  --p: var(--bg-1);
-}
-.layerGlyph {
-  width: 22px;
-  height: 22px;
-}
-.layerBand {
-  width: 102px;
-  height: 34px;
-}
-/* En-tête étroit (fenêtre minimale) : la bande cède, le composant reste et la ligne du module se lit en entier. */
-@container module-head (max-width: 1240px) {
-  .layerBand {
-    display: none;
-  }
 }
 .titleBlock {
   display: flex;
   flex: none;
   margin: 0;
-  border: 1px solid var(--line-2);
 }
 .titleBlock > div {
   min-width: 0;
-  padding: 5px 12px 6px;
+  padding: 1px 14px;
   border-left: 1px solid var(--line-1);
 }
-.titleBlock > div:first-child {
-  border-left: 0;
-}
 .titleBlock dt {
-  margin: 0 0 3px;
+  margin: 0 0 4px;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.14em;

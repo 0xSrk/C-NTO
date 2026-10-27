@@ -472,6 +472,7 @@
   border-bottom: 1px solid var(--line-1);
 }
 .subtab {
+  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
@@ -482,6 +483,7 @@
   font-weight: 500;
   border-bottom: 1px solid transparent;
   margin-bottom: -1px;
+  transition: color 220ms linear;
 }
 .subtab i {
   font-family: var(--font-mono);
@@ -491,7 +493,35 @@
 }
 .subtab.on {
   color: var(--text-0);
-  border-bottom-color: var(--text-0);
+}
+/* L'onglet ouvert s'allume (4.1) : un filet d'or se déplie sous son nom, avec sa lueur. */
+.subtab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 60%, transparent);
+  opacity: 0;
+  transform: scaleX(0.2);
+  transition: opacity 260ms linear, transform 420ms var(--ease-out);
+}
+.subtab.on::after {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: hover) {
+  .subtab:hover {
+    color: var(--text-0);
+  }
+  .subtab:hover::after {
+    opacity: 0.35;
+  }
+  .subtab.on:hover::after {
+    opacity: 1;
+  }
 }
 .scopeNote {
   margin-left: auto;

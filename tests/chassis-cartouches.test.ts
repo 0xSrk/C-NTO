@@ -7,7 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { KillBand } from '@/app/KillBand';
-import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS } from '@/app/moduleLayers';
+import { LAYER_GLYPH, MODULE_LAYERS } from '@/app/moduleLayers';
 import { ModuleHeader, Shell } from '@/app/Shell';
 import { TABS } from '@/app/tabs';
 import { GLYPH_ID } from '@/design/micro/assets';
@@ -88,9 +88,8 @@ describe('OROS2.10 cartouches du châssis', () => {
     expect(cell).toMatch(/--p: var\(--bg-0\)/);
   });
 
-  it('chaque en-tête de module dit sa couche du Lab, lue dans une table centrale', () => {
+  it('OROS4.3 chaque en-tête de module dit sa couche du Lab par son seul composant, lu dans une table centrale ; rien sous le titre', () => {
     expect(MODULE_LAYERS).toEqual({ metrique: 'L02', visual: 'L02', calendrier: 'L01', note: 'L05', portefeuille: 'L02', agent: 'L04', bot: 'L04', copieur: 'L03', crypto: 'L03' });
-    const names: Record<string, string> = { L01: 'L.01 DATA', L02: 'L.02 COCKPIT', L03: 'L.03 ALERTS', L04: 'L.04 AI', L05: 'L.05 DOCTRINE' };
     for (const tab of TABS) {
       const layer = MODULE_LAYERS[tab.id];
       const el = mount(createElement(ModuleHeader, { tab: tab.id }));
@@ -98,8 +97,11 @@ describe('OROS2.10 cartouches du châssis', () => {
       expect(mark?.getAttribute('data-layer'), tab.id).toBe(layer);
       expect(mark!.getAttribute('aria-label'), tab.id).toMatch(new RegExp(`^Couche ${layer.replace('L0', 'L.0')} · `));
       expect(mark!.querySelector(`svg.skg-${GLYPH_ID[LAYER_GLYPH[layer]]}`), tab.id).not.toBeNull();
-      expect(mark!.querySelector('svg.lbl-bande')?.textContent, tab.id).toContain(names[layer]);
-      expect(LAYER_CARTOUCHE[layer]).toBe(`layer${layer}`);
+      // un composant, une place : plus de bande de couche à côté
+      expect(mark!.querySelectorAll('svg'), tab.id).toHaveLength(1);
+      expect(el.querySelector('svg.lbl-bande'), tab.id).toBeNull();
+      // le titre est le numéro et le nom, rien d'autre
+      expect(el.querySelector('h1')?.textContent, tab.id).toBe(`${tab.index}${el.querySelector('h1 span:last-child')?.textContent}`);
       act(() => root?.unmount());
       host?.remove();
       root = null;
@@ -107,6 +109,7 @@ describe('OROS2.10 cartouches du châssis', () => {
     // les modules n'ont rien à passer : la couche se déduit de l'onglet
     const header = shellSource.slice(shellSource.indexOf('export function ModuleHeader'), shellSource.indexOf('export function ModuleContent'));
     expect(header).toMatch(/MODULE_LAYERS\[tab\]/);
+    expect(header).not.toMatch(/tagline|def\.code|<Cartouche/);
   });
 
   it('la bande du kill switch : cartouche SK-SIG-3 rouge, titre, sous-titre, plaque critique à droite, 66 px', () => {

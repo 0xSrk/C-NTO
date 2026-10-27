@@ -26,17 +26,15 @@ describe('rail', () => {
 describe('onglet 09 · CRY', () => {
   afterEach(() => useI18n.getState().setLocale('fr'));
 
-  it('porte son libellé et sa baseline dans les trois langues', () => {
+  it('OROS4.3 porte son libellé dans les trois langues, et plus aucune baseline', () => {
     const tab = TABS[8];
     if (!tab) throw new Error('onglet 09 absent du rail');
     const copy = (['fr', 'en', 'es'] as const).map((locale) => {
       useI18n.getState().setLocale(locale);
       return tabCopy(tab);
     });
-    expect(copy).toEqual([
-      { label: 'Crypto', tagline: 'Chart · température · alertes' },
-      { label: 'Crypto', tagline: 'Chart · temperature · alerts' },
-      { label: 'Cripto', tagline: 'Gráfico · temperatura · alertas' },
-    ]);
+    expect(copy).toEqual([{ label: 'Crypto' }, { label: 'Crypto' }, { label: 'Cripto' }]);
+    for (const def of TABS) expect(Object.keys(def), def.id).not.toContain('tagline');
+    expect(readFileSync('src/app/tabs.ts', 'utf8')).not.toMatch(/Ultimate journal|quantitative engine|Advanced chart|Journal quantitatif/);
   });
 });

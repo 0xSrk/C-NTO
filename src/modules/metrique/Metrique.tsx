@@ -168,7 +168,7 @@ export default function Metrique() {
   // Tout l'historique du compte filtré : la marge d'un plan suivi ne dépend pas de la période.
   const history = useMemo(() => scopeFor('prop', sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
   const scope = useMemo(() => (view === 'analyse' || view === 'prop' || view === 'mc' ? scopeFor(view, sessions, trades, range, asOf, metricAccount) : null), [view, sessions, trades, range, asOf, metricAccount]);
-  // Ce que l'onglet fait des filtres de l'en-tête.
+  // Ce que l'onglet fait des filtres de l'en-tête, seulement quand il s'en écarte : le cas ordinaire se tait (4.1).
   const scopeNote =
     view === 'seances'
       ? tr('Filtres propres à l’onglet', 'Tab’s own filters', 'Filtros propios de la pestaña')
@@ -176,7 +176,7 @@ export default function Metrique() {
         ? tr('Période ignorée : le plancher dépend de tout l’historique du compte', 'Range ignored: the floor depends on the account’s whole history', 'Período ignorado: el suelo depende de todo el historial de la cuenta')
         : view === 'mc' && !metricAccount
           ? tr('Compte obligatoire : choisissez-en un en haut', 'Account required: pick one above', 'Cuenta obligatoria: elija una arriba')
-          : tr('Période et compte appliqués', 'Range and account applied', 'Período y cuenta aplicados');
+          : null;
   const span = ordered.length > 0 ? `${shortDay(ordered[0]?.date ?? '')} → ${shortDay(ordered[ordered.length - 1]?.date ?? '')}` : '—';
   const crumbs: Record<View, string> = {
     bord: tr('TABLEAU DE BORD', 'DASHBOARD', 'TABLERO'),
@@ -236,7 +236,7 @@ export default function Metrique() {
             {item.label}
           </button>
         ))}
-        <span className={d.scopeNote}>{scopeNote}</span>
+        {scopeNote ? <span className={d.scopeNote}>{scopeNote}</span> : null}
       </div>
       <ModuleContent>
         {head && (

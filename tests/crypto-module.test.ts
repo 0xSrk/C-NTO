@@ -196,11 +196,10 @@ const toasts = () => useUi.getState().toasts;
 const instance = (id: string, definitionId: string, params: Record<string, number | string> = {}): IndicatorInstance => ({ id, definitionId, params, visible: true });
 
 describe('CRY4.3 › en-tête', () => {
-  it('plaque CRY, quatre marchés dans l’ordre du registre, six timeframes', async () => {
+  it('en-tête 09 Crypto, quatre marchés dans l’ordre du registre, six timeframes', async () => {
     const node = await mount();
     const head = node.textContent ?? '';
-    expect(head).toContain('CRY');
-    expect(head).toContain('Crypto');
+    expect(node.querySelector('h1')?.textContent).toBe('09Crypto');
     expect(head).toContain('4 MARCHÉS · 3 VENUES');
     const select = node.querySelector('select');
     const options = [...(select?.querySelectorAll('option') ?? [])];

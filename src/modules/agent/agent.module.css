@@ -7,6 +7,7 @@
   border-bottom: 1px solid var(--line-1);
 }
 .subtab {
+  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: var(--s-2);
@@ -17,6 +18,7 @@
   color: var(--text-1);
   font-size: 14px;
   font-weight: 500;
+  transition: color 220ms linear;
 }
 .subtab i {
   font-family: var(--font-mono);
@@ -26,7 +28,35 @@
 }
 .subtab.on {
   color: var(--text-0);
-  border-bottom-color: var(--text-0);
+}
+/* L'onglet ouvert s'allume (4.1) : un filet d'or se déplie sous son nom, avec sa lueur. */
+.subtab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 60%, transparent);
+  opacity: 0;
+  transform: scaleX(0.2);
+  transition: opacity 260ms linear, transform 420ms var(--ease-out);
+}
+.subtab.on::after {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: hover) {
+  .subtab:hover {
+    color: var(--text-0);
+  }
+  .subtab:hover::after {
+    opacity: 0.35;
+  }
+  .subtab.on:hover::after {
+    opacity: 1;
+  }
 }
 .subtabCount {
   font-family: var(--font-mono);
@@ -35,17 +65,6 @@
   letter-spacing: var(--track-11);
   color: var(--gold);
 }
-.scopeNote {
-  margin-left: auto;
-  align-self: center;
-  padding-bottom: 10px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-label);
-  letter-spacing: var(--track-13);
-  text-transform: uppercase;
-  color: var(--text-2);
-}
-
 /* Une vue occupe toute la zone de travail ; `hidden` la retire (aucune règle `display` ici). */
 .view {
   flex: 1;
