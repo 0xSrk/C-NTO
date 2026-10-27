@@ -560,35 +560,6 @@
 .liveOrders p {
   margin: 0 0 4px;
 }
-.tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-/* composants de la planche dans les outils : encre des libellés, taille par l'enveloppe */
-.toolGlyph {
-  width: 12px;
-  height: 12px;
-  --k: var(--text-2);
-  --p: var(--bg-1);
-}
-.toolWide {
-  width: 30px;
-  height: 8px;
-  --k: var(--text-2);
-  --p: var(--bg-1);
-}
-/* l'étoile sépare les groupes d'outils */
-.toolSep {
-  display: inline-flex;
-  padding: 0 4px;
-  --k: var(--line-3);
-}
-.toolSep > span {
-  width: 8px;
-  height: 8px;
-}
 /* flèche de la planche au bout d'un bouton (import, séances) */
 .btnGlyph {
   width: 10px;

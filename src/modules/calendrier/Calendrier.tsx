@@ -3,7 +3,7 @@ import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Glyph, Plate } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
-import { Button, Panel, Segmented, Tag, Toggle, cx } from '@/design/primitives';
+import { Button, Panel, Segmented, Tag, cx } from '@/design/primitives';
 import { CATEGORY_HELP, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
 import { eventProvenance, mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
 import { intlTag, tr, useI18n } from '@/i18n';
@@ -461,6 +461,13 @@ export default function Calendrier() {
         .join(' · ')
     : tr('hors ligne', 'offline', 'sin conexión');
 
+  const sync = async () => {
+    await syncMacro(addDays(`${cursor}-01`, -10), addDays(`${cursor}-28`, 40), true);
+    const st = useMacro.getState();
+    if (st.lastError && st.events.length === 0) toast(st.lastError, 'warn');
+    else toast(tr(`Calendrier · ${st.events.length} publications`, `Calendar · ${st.events.length} releases`, `Calendario · ${st.events.length} publicaciones`), 'ok');
+  };
+
   return (
     <>
       <ModuleHeader
@@ -469,23 +476,22 @@ export default function Calendrier() {
           <>
             <Segmented value={view} onChange={changeView} options={[{ value: 'grille', label: tr('Grille mensuelle', 'Monthly grid', 'Cuadrícula mensual') }, { value: 'flux', label: tr('Flux chronologique', 'Chronological feed', 'Flujo cronológico') }]} />
             <Segmented value={String(minImpact) as '1' | '2' | '3'} onChange={(v) => setMinImpact(Number(v) as 1 | 2 | 3)} options={[{ value: '1', label: tr('Tout', 'All', 'Todo') }, { value: '2', label: tr('Notable +', 'Notable+', 'Notable +') }, { value: '3', label: tr('Majeur', 'Major', 'Mayor') }]} />
-            <Toggle on={showEstimated} onChange={setShowEstimated} label={tr('Dates estimées', 'Estimated dates', 'Fechas estimadas')} />
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={syncing}
-              onClick={async () => {
-                await syncMacro(addDays(`${cursor}-01`, -10), addDays(`${cursor}-28`, 40), true);
-                const st = useMacro.getState();
-                if (st.lastError && st.events.length === 0) toast(st.lastError, 'warn');
-                else toast(tr(`Calendrier · ${st.events.length} publications`, `Calendar · ${st.events.length} releases`, `Calendario · ${st.events.length} publicaciones`), 'ok');
-              }}
-            >
-              {syncing ? tr('Sync…', 'Sync…', 'Sync…') : tr('Synchroniser', 'Sync', 'Sincronizar')}
-              <Glyph name="sync" className={s.btnGlyph} />
-            </Button>
           </>
         }
+        options={[
+          { id: 'estimees', label: tr('Dates estimées', 'Estimated dates', 'Fechas estimadas'), checked: showEstimated, onSelect: () => setShowEstimated(!showEstimated) },
+          {
+            id: 'synchro',
+            group: true,
+            label: syncing ? tr('Synchronisation…', 'Syncing…', 'Sincronizando…') : tr('Synchroniser les sources', 'Sync the sources', 'Sincronizar las fuentes'),
+            glyph: 'sync',
+            disabled: syncing,
+            // La synchro dit son état sur le bouton : or pendant qu'elle court, braise si une source a manqué.
+            state: syncing ? tr('en cours', 'running', 'en curso') : lastError ? tr('partiel', 'partial', 'parcial') : sources.length ? tr('à jour', 'up to date', 'al día') : tr('hors ligne', 'offline', 'sin conexión'),
+            tone: syncing ? 'gold' : lastError ? 'ember' : undefined,
+            onSelect: () => void sync(),
+          },
+        ]}
       />
       <ModuleContent>
         <div className={s.layout}>

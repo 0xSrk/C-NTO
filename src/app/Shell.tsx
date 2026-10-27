@@ -3,6 +3,7 @@ import { BraceCode, Button, Led, cx } from '@/design/primitives';
 import { Cartouche, Glyph } from '@/design/Micro';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
+import { OptionsMenu, type OptionItem } from '@/design/OptionsMenu';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
@@ -408,9 +409,9 @@ export interface TitleCell {
 /**
  * En-tête de module (4.1) : numéro d'afficheur et nom sur une ligne, rien dessous. La couche du Lab tient en un seul
  * composant, posé après le nom ; un relevé du module (`meta`) le suit sur la même ligne. Puis le bloc-titre que le
- * module remplit de ses propres données, sans cellule passée aucun, et ses actions en haut à droite.
+ * module remplit de ses propres données, sans cellule passée aucun, ses actions, et ses options tout au bout.
  */
-export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: TabId; actions?: ReactNode; crumb?: string; meta?: ReactNode; cells?: TitleCell[] }) {
+export function ModuleHeader({ tab, actions, options, crumb = '', meta, cells }: { tab: TabId; actions?: ReactNode; options?: OptionItem[]; crumb?: string; meta?: ReactNode; cells?: TitleCell[] }) {
   const setCrumb = useUi((u) => u.setCrumb);
   const def = TABS.find((item) => item.id === tab);
   useEffect(() => {
@@ -442,7 +443,13 @@ export function ModuleHeader({ tab, actions, crumb = '', meta, cells }: { tab: T
           ))}
         </dl>
       ) : null}
-      {actions && <div className={s.moduleActions}>{actions}</div>}
+      {actions || (options && options.length > 0) ? (
+        <div className={s.moduleActions}>
+          {actions}
+          {/* Les options du module, au bout de la ligne, en haut à droite. */}
+          {options && options.length > 0 ? <OptionsMenu items={options} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

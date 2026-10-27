@@ -1,7 +1,7 @@
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Glyph } from '@/design/Micro';
-import { Button, Segmented, Tag } from '@/design/primitives';
+import { Button, Segmented } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
 import { findPlan } from '@/engine/propfirm';
 import { desk, openTextFile, saveTextFile } from '@/lib/desk';
@@ -228,6 +228,16 @@ export default function Metrique() {
             </Button>
           </>
         }
+        options={[
+          // Le pont dit son état sur le bouton : le point s'allume en menthe quand les exécutions arrivent.
+          { id: 'bridge', label: tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader'), glyph: 'bridge', state: bridgeLive ? tr('actif', 'active', 'activo') : tr('inactif', 'inactive', 'inactivo'), tone: bridgeLive ? 'mint' : undefined, onSelect: () => setModal('pont') },
+          { id: 'manuel', group: true, label: tr('Séance manuelle', 'Manual session', 'Sesión manual'), glyph: 'addSession', onSelect: () => setModal('manuel') },
+          { id: 'csv', label: tr('Exporter les trades en CSV', 'Export trades as CSV', 'Exportar los trades en CSV'), glyph: 'csv', onSelect: onExportCsv },
+          { id: 'coffre', label: tr('Sauvegarder le coffre', 'Back up the vault', 'Guardar la caja'), glyph: 'vault', title: tr('Sauvegarde complète du coffre (JSON)', 'Full vault backup (JSON)', 'Copia completa de la caja (JSON)'), onSelect: onExportVault },
+          { id: 'restaurer', label: tr('Restaurer une sauvegarde', 'Restore a backup', 'Restaurar una copia'), glyph: 'restore', title: tr('Restaurer une sauvegarde JSON', 'Restore a JSON backup', 'Restaurar una copia JSON'), onSelect: onRestore },
+          { id: 'reglages', group: true, label: tr('Réglages du desk', 'Desk settings', 'Ajustes del desk'), glyph: 'settings', onSelect: () => setModal('reglages') },
+          ...(sessions.length === 0 ? [{ id: 'demo', label: tr('Charger un jeu de démonstration', 'Load a demo dataset', 'Cargar un juego de demostración'), onSelect: onDemo }] : []),
+        ]}
       />
       <div className={d.subtabs} role="tablist">
         {views.map((item) => (
@@ -295,41 +305,6 @@ export default function Metrique() {
             )}
           </div>
         )}
-        {/* Rangée d'outils : chaque outil porte son composant de la planche ; l'étoile sépare le pont, le journal et les réglages. */}
-        <div className={d.tools} data-tools="">
-          <Button variant="ghost" onClick={() => setModal('pont')}>
-            <Glyph name="bridge" className={d.toolWide} /> {tr('Pont NinjaTrader', 'NinjaTrader bridge', 'Puente NinjaTrader')}
-            <Tag tone={bridgeLive ? 'mint' : undefined} dot live={bridgeLive}>
-              {bridgeLive ? tr('actif', 'active', 'activo') : tr('inactif', 'inactive', 'inactivo')}
-            </Tag>
-          </Button>
-          <i className={d.toolSep} aria-hidden>
-            <Glyph name="star" />
-          </i>
-          <Button variant="ghost" onClick={() => setModal('manuel')}>
-            <Glyph name="addSession" className={d.toolGlyph} /> {tr('Séance manuelle', 'Manual session', 'Sesión manual')}
-          </Button>
-          <Button variant="ghost" onClick={onExportCsv} title={tr('Exporter les trades en CSV', 'Export trades as CSV', 'Exportar los trades en CSV')}>
-            <Glyph name="csv" className={d.toolGlyph} /> CSV
-          </Button>
-          <Button variant="ghost" onClick={onExportVault} title={tr('Sauvegarde complète du coffre (JSON)', 'Full vault backup (JSON)', 'Copia completa de la caja (JSON)')}>
-            <Glyph name="vault" className={d.toolGlyph} /> {tr('Coffre', 'Vault', 'Caja')}
-          </Button>
-          <Button variant="ghost" onClick={onRestore} title={tr('Restaurer une sauvegarde JSON', 'Restore a JSON backup', 'Restaurar una copia JSON')}>
-            <Glyph name="restore" className={d.toolGlyph} /> {tr('Restaurer', 'Restore', 'Restaurar')}
-          </Button>
-          <i className={d.toolSep} aria-hidden>
-            <Glyph name="star" />
-          </i>
-          <Button variant="ghost" onClick={() => setModal('reglages')} title={tr('Réglages du desk', 'Desk settings', 'Ajustes del desk')}>
-            <Glyph name="settings" className={d.toolGlyph} /> {tr('Réglages', 'Settings', 'Ajustes')}
-          </Button>
-          {sessions.length === 0 && (
-            <Button size="sm" variant="ghost" onClick={onDemo}>
-              {tr('Charger un jeu de démonstration', 'Load a demo dataset', 'Cargar un juego de demostración')}
-            </Button>
-          )}
-        </div>
         {view === 'bord' && (
           <Dashboard
             sessions={filtered.sessions}

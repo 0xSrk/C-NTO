@@ -375,9 +375,6 @@ export default function Portefeuille() {
         meta={`${active.length} ${tr('POCHES', 'POCKETS', 'BOLSAS')} · ${sources} ${tr('SOURCES', 'SOURCES', 'FUENTES')} · ${base}`}
         actions={
           <>
-            <Button size="sm" variant="ghost" active={discrete} onClick={toggleDiscrete}>
-              {discrete ? tr('Afficher les montants', 'Show amounts', 'Mostrar importes') : tr('Mode discret', 'Discrete mode', 'Modo discreto')}
-            </Button>
             <Segmented
               value={preset}
               onChange={setPreset}
@@ -399,6 +396,10 @@ export default function Portefeuille() {
             </Button>
           </>
         }
+        options={[
+          // Le mode discret se lit sur le bouton : le point s'allume à l'or tant que les montants sont masqués.
+          { id: 'discret', label: tr('Mode discret', 'Discrete mode', 'Modo discreto'), checked: discrete, state: discrete ? tr('montants masqués', 'amounts hidden', 'importes ocultos') : undefined, tone: discrete ? 'gold' : undefined, onSelect: toggleDiscrete },
+        ]}
       />
       <ModuleContent>
         <div className={s.frame}>

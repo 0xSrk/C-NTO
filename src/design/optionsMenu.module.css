@@ -1,0 +1,231 @@
+/* ─── Options d'un module (4.1) : le bouton en haut à droite, son code couleur, et le menu qui se déroule ─── */
+.root {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+/* Le bouton est un bouton d'action (filet fin, lumière blanche) ; ses états se lisent en points de couleur. */
+.trigger {
+  gap: 10px;
+  padding: 0 12px 0 14px;
+}
+.trigger[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--ivory) 46%, transparent);
+  background-color: color-mix(in srgb, var(--ivory) 5%, transparent);
+  color: var(--text-0);
+}
+.marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Un point par état lu : l'anneau graphite au repos, la couleur de l'état quand il vit. */
+.mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--text-2);
+}
+.mark.gold {
+  background: var(--gold);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent);
+}
+.mark.mint {
+  background: var(--mint);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--mint) 60%, transparent);
+}
+.mark.ember {
+  background: var(--ember);
+  box-shadow: none;
+}
+.mark.ice {
+  background: var(--ice);
+  box-shadow: none;
+}
+.chevron {
+  display: block;
+  flex: none;
+  color: var(--text-2);
+  transition: transform 300ms var(--ease-out), color 200ms linear;
+}
+.trigger[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+  color: var(--text-0);
+}
+
+/* Le menu : une plaque de nuit, sa lumière zénithale, qui se déplie sous le bouton ; chaque option glisse à son tour. */
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: max-content;
+  min-width: 264px;
+  max-width: 400px;
+  padding: 6px;
+  background-color: var(--bg-2);
+  background-image: var(--light-edge);
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  border: 1px solid var(--line-2);
+  box-shadow:
+    0 22px 44px -20px color-mix(in srgb, var(--bg-void) 95%, transparent),
+    0 0 24px -12px color-mix(in srgb, var(--ivory) 22%, transparent);
+  opacity: 0;
+  transform: translateY(-6px) scale(0.985);
+  transform-origin: 100% 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 160ms linear,
+    transform 240ms var(--ease-out),
+    visibility 0s linear 240ms;
+}
+.menu[data-open='true'] {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 180ms linear,
+    transform 300ms var(--ease-out),
+    visibility 0s;
+}
+.row {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 180ms linear,
+    transform 260ms var(--ease-out);
+}
+.menu[data-open='true'] .row {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(var(--i, 0) * 24ms);
+}
+.sep {
+  display: block;
+  height: 1px;
+  margin: 6px 6px;
+  background: var(--line-1);
+}
+
+/* Une option : son composant ou sa coche, son nom, ce qu'elle lit. */
+.item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition:
+    color 200ms linear,
+    background-color 240ms var(--ease-out),
+    border-color 240ms var(--ease-out);
+}
+.item::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  background: var(--gold);
+  opacity: 0;
+  transition: opacity 220ms linear;
+}
+.item:focus-visible {
+  outline: none;
+  color: var(--text-0);
+  border-color: color-mix(in srgb, var(--ivory) 26%, transparent);
+  background-color: color-mix(in srgb, var(--ivory) 5%, transparent);
+}
+.item:focus-visible::before {
+  opacity: 1;
+}
+.item:disabled {
+  opacity: 1;
+  color: var(--text-2);
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .item:hover:not(:disabled) {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 5%, transparent);
+  }
+  .item:hover:not(:disabled)::before {
+    opacity: 1;
+  }
+}
+.lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+.glyph {
+  width: 16px;
+  height: 16px;
+  --k: var(--text-1);
+}
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+/* La couleur de l'option : son composant et sa lecture la portent, jamais son nom. */
+.item.gold .glyph {
+  --k: var(--gold);
+}
+.item.gold .state {
+  color: var(--gold);
+}
+.item.mint .glyph {
+  --k: var(--mint);
+}
+.item.mint .state {
+  color: var(--mint);
+}
+.item.ember .glyph {
+  --k: var(--ember);
+}
+.item.ember .state {
+  color: var(--ember);
+}
+.item.ice .glyph {
+  --k: var(--ice);
+}
+.item.ice .state {
+  color: var(--ice);
+}
+/* Interrupteur : un carré de 8 px, à l'or quand l'option est cochée. */
+.check {
+  width: 8px;
+  height: 8px;
+  box-shadow: inset 0 0 0 1px var(--text-2);
+  transition: background-color 200ms linear, box-shadow 240ms var(--ease-out);
+}
+.check.checked {
+  background-color: var(--gold);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent);
+}

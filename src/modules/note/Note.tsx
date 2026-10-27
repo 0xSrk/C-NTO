@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IconGraph, IconPlus, IconSearch, IconTrash } from '@/app/icons';
+import { IconPlus, IconSearch, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Button, Empty, Segmented, Tag, cx } from '@/design/primitives';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
@@ -84,13 +84,13 @@ export default function Note() {
             <Button variant="gold" onClick={() => create()}>
               <IconPlus size={14} /> {tr('Nouvelle note', 'New note', 'Nueva nota')}
             </Button>
-            <Button onClick={() => dailyNote(dateKeyLocal(new Date()))}>{tr('Note du jour', 'Daily note', 'Nota del día')}</Button>
-            <Button variant="ghost" active={graph} onClick={() => setGraph((g) => !g)}>
-              <IconGraph size={14} /> {tr('Graphe', 'Graph', 'Grafo')}
-            </Button>
             {!graph && <Segmented value={mode} onChange={setMode} options={[{ value: 'editer', label: tr('Éditer', 'Edit', 'Editar') }, { value: 'scinde', label: tr('Scindé', 'Split', 'Dividido') }, { value: 'apercu', label: tr('Aperçu', 'Preview', 'Vista previa') }]} />}
           </>
         }
+        options={[
+          { id: 'jour', label: tr('Note du jour', 'Daily note', 'Nota del día'), glyph: 'now', onSelect: () => dailyNote(dateKeyLocal(new Date())) },
+          { id: 'graphe', group: true, label: tr('Vue en graphe', 'Graph view', 'Vista en grafo'), checked: graph, onSelect: () => setGraph((g) => !g) },
+        ]}
       />
       <ModuleContent noPad>
         <div className={s.layout}>

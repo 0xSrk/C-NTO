@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IconImport, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Modal } from '@/design/Modal';
 import { Button, Empty, Field, Progress, Tag } from '@/design/primitives';
@@ -192,19 +191,18 @@ export default function Visual() {
                 </option>
               ))}
             </select>
-            <Button variant="gold" onClick={() => setImportOpen(true)}>
-              <IconImport size={14} /> {tr('Importer des barres', 'Import bars', 'Importar barras')}
-            </Button>
-            <Button variant="ghost" onClick={() => demoBars(5, { days: 12 }).then((bars) => saveDemoSeries(bars, 5)).then(() => toast(tr('Démo régénérée.', 'Demo regenerated.', 'Demo regenerada.'), 'ok'))} title={tr('Régénérer des barres synthétiques', 'Regenerate synthetic bars', 'Regenerar barras sintéticas')}>
-              {tr('Démo', 'Demo', 'Demo')}
-            </Button>
-            {active && active.source !== 'demo' && (
-              <Button variant="ghost" onClick={() => void removeActive()} aria-label={tr('Supprimer la série', 'Delete series', 'Eliminar la serie')} title={tr('Supprimer la série', 'Delete series', 'Eliminar la serie')}>
-                <IconTrash size={13} />
-              </Button>
-            )}
           </>
         }
+        options={[
+          { id: 'importer', label: tr('Importer des barres', 'Import bars', 'Importar barras'), glyph: 'arrowImport', onSelect: () => setImportOpen(true) },
+          {
+            id: 'demo',
+            label: tr('Régénérer la démo', 'Regenerate the demo', 'Regenerar la demo'),
+            title: tr('Régénérer des barres synthétiques', 'Regenerate synthetic bars', 'Regenerar barras sintéticas'),
+            onSelect: () => void demoBars(5, { days: 12 }).then((bars) => saveDemoSeries(bars, 5)).then(() => toast(tr('Démo régénérée.', 'Demo regenerated.', 'Demo regenerada.'), 'ok')),
+          },
+          ...(active && active.source !== 'demo' ? [{ id: 'supprimer', group: true, label: tr('Supprimer la série', 'Delete series', 'Eliminar la serie'), tone: 'ember' as const, onSelect: () => void removeActive() }] : []),
+        ]}
       />
       <ModuleContent noPad>
         <div className={s.layout}>
