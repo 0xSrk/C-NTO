@@ -191,7 +191,7 @@ const MIN_RUN = 0.25;
  * s'y resserre sur la pointe ; la voie du milieu se pose exactement sur l'horizon : c'est l'axe, à l'or. Toutes les
  * montées ont la même pente, 45° quand la place le permet, sinon celle que demande la pastille la plus serrée : des
  * montées parallèles, chacune partant d'autant plus loin que sa voie est loin du faisceau, ne se coupent jamais (une
- * pente par piste les croisait dans les fenêtres basses). Sans place pour monter, aucune piste, comme sans sceau.
+ * pente par piste les croisait dans les fenêtres étroites). Sans place pour monter, aucune piste, comme sans sceau.
  */
 export function routes({ pads, fieldBottom, tip }: RouteInput): Pt[][] {
   const n = pads.length;
