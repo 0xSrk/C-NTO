@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
-import { railQuantity, type RailSnapshot } from '@/app/railQuantity';
+import { followerCount, railQuantity, type RailSnapshot } from '@/app/railQuantity';
 import { useI18n } from '@/i18n';
 
-const EMPTY: RailSnapshot = { sessions: 0, todayEntries: 0, notes: 0, links: 0, agentRunning: false, agentReportsUnread: null, copierAccounts: null, cryptoMarkets: 0 };
+const EMPTY: RailSnapshot = { sessions: 0, todayEntries: 0, notes: 0, links: 0, agentRunning: false, agentReportsUnread: null, copierFollowers: null, cryptoMarkets: 0 };
 const shell = readFileSync('src/app/Shell.tsx', 'utf8');
 const css = readFileSync('src/app/shell.module.css', 'utf8');
 /** Corps de la règle dont le sélecteur ouvre la ligne (pas une règle descendante qui le contient). */
@@ -17,7 +17,7 @@ afterEach(() => useI18n.setState({ locale: 'fr' }));
 
 describe('OROS2.3 rail-bordereau', () => {
   it('chaque module dit sa quantité, lue dans les données du desk', () => {
-    const snap: RailSnapshot = { sessions: 140, todayEntries: 3, notes: 48, links: 112, agentRunning: false, agentReportsUnread: 0, copierAccounts: 2, cryptoMarkets: 4 };
+    const snap: RailSnapshot = { sessions: 140, todayEntries: 3, notes: 48, links: 112, agentRunning: false, agentReportsUnread: 0, copierFollowers: 2, cryptoMarkets: 4 };
     expect(railQuantity('metrique', snap)).toBe('140 séances');
     expect(railQuantity('calendrier', snap)).toBe('3 repères ce jour');
     expect(railQuantity('note', snap)).toBe('48 notes · 112 liens');
@@ -62,5 +62,20 @@ describe('OROS2.3 rail-bordereau', () => {
     expect(on).toMatch(/background:\s*var\(--ivory\)/);
     expect(on).toMatch(/color:\s*var\(--ink\)/);
     expect(rule('.navQty')).toMatch(/font-family:\s*var\(--font-mono\)/);
+  });
+});
+
+describe('R3.7f le Copieur ne compte que ses suiveurs, jamais le maître', () => {
+  it('un maître et deux suiveurs : « 2 comptes suiveurs » ; le maître seul : « Aucun suiveur »', () => {
+    const desk = [{ role: 'maitre' }, { role: 'suiveur' }, { role: 'suiveur' }] as const;
+    expect(followerCount(desk)).toBe(2);
+    expect(railQuantity('copieur', { ...EMPTY, copierFollowers: followerCount(desk) })).toBe('2 comptes suiveurs');
+    expect(railQuantity('copieur', { ...EMPTY, copierFollowers: followerCount([{ role: 'maitre' }]) })).toBe('Aucun suiveur');
+    useI18n.setState({ locale: 'en' });
+    expect(railQuantity('copieur', { ...EMPTY, copierFollowers: followerCount(desk) })).toBe('2 follower accounts');
+    // Le rail lit ce compte, pas la longueur de la liste des comptes.
+    expect(shell).toContain('useCopier((c) => followerCount(c.accounts))');
+    expect(shell).toContain('copierFollowers: copierReady ? copierFollowers : null,');
+    expect(shell).not.toContain('c.accounts.length');
   });
 });

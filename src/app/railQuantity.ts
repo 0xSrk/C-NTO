@@ -15,9 +15,14 @@ export interface RailSnapshot {
   agentRunning: boolean;
   /** Rapports de l'agent cloud non lus ; `null` hors du desk ou avant le premier statut. */
   agentReportsUnread: number | null;
-  /** `null` tant que le Copieur n'a pas chargé ses comptes. */
-  copierAccounts: number | null;
+  /** Comptes suiveurs du Copieur, le maître exclu ; `null` tant que le Copieur n'a pas chargé ses comptes. */
+  copierFollowers: number | null;
   cryptoMarkets: number;
+}
+
+/** Les comptes suiveurs du Copieur : le maître n'en est pas un. */
+export function followerCount(accounts: readonly { role: 'maitre' | 'suiveur' }[]): number {
+  return accounts.filter((account) => account.role === 'suiveur').length;
 }
 
 /** Accord du nombre selon la langue : « 0 lien » en français, « 0 links » et « 0 enlaces » ailleurs. */
@@ -47,9 +52,9 @@ export function railQuantity(id: TabId, snap: RailSnapshot): string | null {
         return count(snap.agentReportsUnread, tr('rapport non lu', 'unread report', 'informe sin leer'), tr('rapports non lus', 'unread reports', 'informes sin leer'));
       return snap.agentRunning ? tr('Orchestrateur en service', 'Orchestrator running', 'Orquestador en servicio') : tr('En veille', 'Idle', 'En espera');
     case 'copieur':
-      if (snap.copierAccounts === null) return null;
-      return snap.copierAccounts > 0
-        ? count(snap.copierAccounts, tr('compte suiveur', 'follower account', 'cuenta seguidora'), tr('comptes suiveurs', 'follower accounts', 'cuentas seguidoras'))
+      if (snap.copierFollowers === null) return null;
+      return snap.copierFollowers > 0
+        ? count(snap.copierFollowers, tr('compte suiveur', 'follower account', 'cuenta seguidora'), tr('comptes suiveurs', 'follower accounts', 'cuentas seguidoras'))
         : tr('Aucun suiveur', 'No follower', 'Sin seguidor');
     case 'crypto':
       return snap.cryptoMarkets > 0

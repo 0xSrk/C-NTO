@@ -23,7 +23,7 @@ import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
 import { chooseLocale, LOCALES, tr, useI18n } from '@/i18n';
-import { railQuantity, type RailSnapshot } from './railQuantity';
+import { followerCount, railQuantity, type RailSnapshot } from './railQuantity';
 import { LAYER_CARTOUCHE, LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
 import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
@@ -88,7 +88,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const linkCount = useLinks((l) => l.links.length);
   const calendarEntries = useCalendar((c) => c.entries);
   const copierReady = useCopier((c) => c.ready);
-  const copierAccounts = useCopier((c) => c.accounts.length);
+  const copierFollowers = useCopier((c) => followerCount(c.accounts));
   const cryptoMarkets = useCrypto((c) => c.watchlist.length);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
@@ -164,7 +164,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     links: linkCount,
     agentRunning: orchestrator.running,
     agentReportsUnread: reportsUnread,
-    copierAccounts: copierReady ? copierAccounts : null,
+    copierFollowers: copierReady ? copierFollowers : null,
     cryptoMarkets,
   };
   const chooseFace = (next: ClockFace) => {
