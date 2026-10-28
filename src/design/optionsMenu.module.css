@@ -43,6 +43,20 @@
   background: var(--ice);
   box-shadow: none;
 }
+/* Pour les lecteurs d'écran seulement, tel que la ligne s'écrit : Chromium nomme le bouton d'après le texte rendu, et les
+   capitales du bouton d'action (text-transform) passeraient dans le nom. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  text-transform: none;
+}
 .chevron {
   display: block;
   flex: none;
@@ -178,6 +192,16 @@
   height: 16px;
   --k: var(--text-1);
 }
+/* Le pont (composant 1) est large et bas : dans le carré de 16 px il tombait à 4 px de haut, son trait à 0,09 px. Il
+   prend 24 px, débordant dans l'écart, et son trait relevé rend ≈ 0,5 px, comme les emblèmes du rail. */
+.lead[data-glyph='bridge'] .glyph {
+  flex: none;
+  width: 24px;
+  height: 8px;
+}
+.lead[data-glyph='bridge'] :global(.g1-1) {
+  stroke-width: 2.6px;
+}
 .label {
   min-width: 0;
   overflow: hidden;
@@ -193,7 +217,8 @@
   color: var(--text-2);
   white-space: nowrap;
 }
-/* La couleur de l'option : son composant et sa lecture la portent, jamais son nom. */
+/* La couleur de l'option : son composant et sa lecture la portent, jamais son nom ; sans composant ni lecture, un point
+   de la couleur, celui du bouton (une suppression, à la braise). */
 .item.gold .glyph {
   --k: var(--gold);
 }

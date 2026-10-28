@@ -16,6 +16,8 @@ export interface OptionItem {
   tone?: OptionTone;
   /** Ce que l'option lit, à droite (« actif », « hors ligne »…). Une option qui lit un état le montre aussi sur le bouton. */
   state?: string;
+  /** Le libellé dit déjà l'état (« Synchronisation… » pendant qu'elle court) : le nom du bouton ne le répète pas. */
+  stateInLabel?: boolean;
   /** Interrupteur : l'option se coche et le menu reste ouvert. */
   checked?: boolean;
   disabled?: boolean;
@@ -28,7 +30,7 @@ export interface OptionItem {
 /**
  * Bouton « Options » d'un module (4.1), en haut à droite : ses états se lisent sur le bouton par leur code couleur, et le
  * menu se déroule sous lui, fluide — chaque option glisse à son tour. Clavier : Entrée, Espace ou ↓ ouvrent sur la
- * première option ; ↑ ↓ Début Fin parcourent ; Échap referme et rend la main au bouton ; Tab referme.
+ * première option, ↑ sur la dernière ; ↑ ↓ Début Fin parcourent ; Échap referme et rend la main au bouton ; Tab referme.
  */
 export function OptionsMenu({ items, label, className }: { items: OptionItem[]; label?: string; className?: string }) {
   useI18n((st) => st.locale);
@@ -37,8 +39,13 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  /** L'option qui prend le focus à l'ouverture : la première, ou la dernière quand ↑ ouvre le menu. */
+  const openAt = useRef(0);
   const name = label ?? tr('Options', 'Options', 'Opciones');
   const marks = items.filter((item) => item.state !== undefined);
+  /** Ce que les points montrent, dit dans le nom du bouton : une ponctuation par paire, dans la typographie de la langue
+   *  (« Options — Pont NinjaTrader : inactif ; Dates estimées : masquées ») ; l'état que dit déjà le libellé se tait. */
+  const said = marks.map((item) => (item.stateInLabel ? item.label : `${item.label}${tr(' : ', ': ', ': ')}${item.state}`)).join(tr(' ; ', '; ', '; '));
 
   const entries = () => [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
   const focusAt = (index: number) => {
@@ -61,16 +68,23 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
     return () => document.removeEventListener('pointerdown', onDown);
   }, [open]);
 
-  // À l'ouverture, la première option prend le focus, après le rendu du menu.
+  // À l'ouverture, la première option prend le focus (la dernière si ↑ a ouvert), après le rendu du menu.
   useEffect(() => {
-    if (open) focusAt(0);
+    if (!open) return;
+    focusAt(openAt.current);
+    openAt.current = 0;
   }, [open]);
 
   const onButtonKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      if (!open) setOpen(true);
-      else focusAt(event.key === 'ArrowDown' ? 0 : -1);
+      const at = event.key === 'ArrowDown' ? 0 : -1;
+      // Menu déjà ouvert, le focus y va tout de suite : rien ne reste pour l'ouverture suivante, qui repart de la première.
+      if (open) focusAt(at);
+      else {
+        openAt.current = at;
+        setOpen(true);
+      }
     }
   };
 
@@ -118,11 +132,15 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
       >
         {name}
         {marks.length > 0 ? (
-          <span className={s.marks} aria-hidden>
-            {marks.map((item) => (
-              <i key={item.id} className={cx(s.mark, item.tone && s[item.tone])} data-tone={item.tone ?? 'neutral'} />
-            ))}
-          </span>
+          <>
+            <span className={s.marks} aria-hidden>
+              {marks.map((item) => (
+                <i key={item.id} className={cx(s.mark, item.tone && s[item.tone])} data-tone={item.tone ?? 'neutral'} />
+              ))}
+            </span>
+            {/* Ce que les points montrent se dit aussi : le nom du bouton porte chaque état, sans ouvrir le menu. */}
+            <span className={s.srOnly}>{` — ${said}`}</span>
+          </>
         ) : null}
         <svg className={s.chevron} width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
           <path d="M1 2.75l3 3 3-3" />
@@ -142,8 +160,15 @@ export function OptionsMenu({ items, label, className }: { items: OptionItem[]; 
               tabIndex={-1}
               onClick={() => choose(item)}
             >
-              <span className={s.lead} aria-hidden>
-                {item.checked !== undefined ? <i className={cx(s.check, item.checked && s.checked)} /> : item.glyph ? <Glyph name={item.glyph} className={s.glyph} /> : null}
+              {/* En tête : la coche, ou le composant ; sans composant, une option qui a une couleur la porte en point. */}
+              <span className={s.lead} aria-hidden data-glyph={item.checked === undefined ? item.glyph : undefined}>
+                {item.checked !== undefined ? (
+                  <i className={cx(s.check, item.checked && s.checked)} />
+                ) : item.glyph ? (
+                  <Glyph name={item.glyph} className={s.glyph} />
+                ) : item.tone ? (
+                  <i className={cx(s.mark, s[item.tone])} data-tone={item.tone} />
+                ) : null}
               </span>
               <span className={s.label}>{item.label}</span>
               {item.state !== undefined ? <span className={s.state}>{item.state}</span> : null}

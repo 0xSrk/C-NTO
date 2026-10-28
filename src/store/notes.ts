@@ -49,10 +49,10 @@ Ce coffre fonctionne comme **Obsidian** : des notes en Markdown, reliées par de
 ## Rituel de séance
 
 1. Avant l'ouverture : relire [[Plan de trading]] et le calendrier du jour.
-2. Après la séance : créer la note du jour depuis **Métrique** (bouton *Journal*).
+2. Après la séance : créer la note de la séance depuis **Métrique › Séances** (bouton *Note du jour*).
 3. Le week-end : revue hebdomadaire → [[Revue hebdomadaire]].
 
-> La note du jour se crée en un clic : bouton **Note du jour**.
+> La note du jour se crée depuis les options de Note : **Options › Note du jour**.
 `;
 
 const PLAN_BODY = `# Plan de trading
@@ -82,10 +82,10 @@ This vault works like **Obsidian**: Markdown notes linked with \`[[double bracke
 ## Session ritual
 
 1. Before the open: reread [[Trading plan]] and today's calendar.
-2. After the session: create the daily note from **Metrics** (*Journal* button).
+2. After the session: create the session's note from **Metrics › Sessions** (*Daily note* button).
 3. On the weekend: weekly review → [[Weekly review]].
 
-> The daily note is one click: **Note of the day** button.
+> The daily note is created from Note's options: **Options › Daily note**.
 `;
 
 const WELCOME_BODY_ES = `# Bienvenida a la caja
@@ -100,10 +100,10 @@ Esta caja funciona como **Obsidian**: notas Markdown unidas por enlaces \`[[dobl
 ## Ritual de sesión
 
 1. Antes de la apertura: releer [[Plan de trading]] y el calendario del día.
-2. Después de la sesión: crear la nota del día desde **Métrica** (botón *Diario*).
+2. Después de la sesión: crear la nota de la sesión desde **Métrica › Sesiones** (botón *Nota del día*).
 3. El fin de semana: revisión semanal → [[Revisión semanal]].
 
-> La nota del día se crea en un clic: botón **Nota del día**.
+> La nota del día se crea desde las opciones de Nota: **Opciones › Nota del día**.
 `;
 
 const PLAN_BODY_EN = `# Trading plan

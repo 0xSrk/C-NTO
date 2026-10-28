@@ -234,3 +234,25 @@ describe('R3.7d la case du jour se dit dans la langue du desk', () => {
     expect(css).toMatch(/\.day\.today \.dayNum::after\s*\{[^}]*content:\s*' · ' attr\(data-today\)/);
   });
 });
+
+describe('OROS4.26 un filtre du Calendrier se voit hors du menu', () => {
+  it('les dates estimées masquées le disent sur le bouton Options : un point, et son nom ; affichées, plus rien', async () => {
+    const node = await calendrier();
+    const trigger = node.querySelector<HTMLButtonElement>('[data-options] button[aria-haspopup="menu"]')!;
+    const marks = () => [...trigger.querySelectorAll('[data-tone]')].length;
+    const before = marks();
+    expect(trigger.textContent).not.toMatch(/Dates estimées/);
+    act(() => trigger.click());
+    const option = [...node.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')].find((b) => b.textContent?.includes('Dates estimées'))!;
+    expect(option.getAttribute('aria-checked')).toBe('true');
+    act(() => option.click());
+    expect(option.getAttribute('aria-checked')).toBe('false');
+    // le menu lit l'état, le bouton porte un point de plus et le dit
+    expect(option.textContent).toContain('masquées');
+    expect(marks()).toBe(before + 1);
+    expect(trigger.textContent).toContain('Dates estimées : masquées');
+    act(() => option.click());
+    expect(marks()).toBe(before);
+    expect(trigger.textContent).not.toMatch(/Dates estimées/);
+  });
+});

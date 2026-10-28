@@ -11,10 +11,11 @@ export type SealKind = 'positive' | 'negative';
 
 const PARTS = ['rings', 'horizon', 'filaments', 'inscription'] as const;
 type Part = (typeof PARTS)[number];
-interface Shape {
+export interface SealShape {
   d: string;
   evenOdd: boolean;
 }
+type Shape = SealShape;
 
 /** Fraction de la hauteur où passe l'horizon (y = −12,8 dans la boîte −370 → 370). */
 export const SEAL_HORIZON = (370 - 12.8) / 740;
@@ -33,6 +34,11 @@ function parse(svg: string): Record<Part, Shape[]> {
 }
 
 const SHAPES: Record<SealKind, Record<Part, Shape[]>> = { positive: parse(positive), negative: parse(negative) };
+
+/** Les tracés du master, groupe par groupe : l'ouverture du verrou les rallume par-dessus le sceau (`src/app/unlockCircuit.ts`). */
+export function sealShapes(kind: SealKind): Readonly<Record<Part, readonly SealShape[]>> {
+  return SHAPES[kind];
+}
 
 export function Seal({ kind = 'negative', className, label }: { kind?: SealKind; className?: string; label?: string }) {
   const shapes = SHAPES[kind];

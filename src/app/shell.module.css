@@ -88,26 +88,14 @@
   -webkit-app-region: no-drag;
 }
 
-/* Imprimés en haut à droite (4.1) : le losange du secteur S.01, puis la version, qui ouvre le journal. */
+/* En haut à droite (4.1) : la version seule, qui ouvre le journal. */
 .versionCell {
   display: flex;
   align-items: center;
-  gap: 12px;
   height: 100%;
-  padding: 0 14px 0 12px;
+  padding: 0 14px;
   border-left: 1px solid var(--line-0);
   border-right: 1px solid var(--line-0);
-}
-/* Le losange du secteur S.01 (cartouche SK-SEC-S01), encre acier sur la nuit. */
-.sector {
-  display: flex;
-  align-items: center;
-  --k: var(--text-1);
-  --p: var(--bg-0);
-}
-.sector > span {
-  width: 60px;
-  height: 27px;
 }
 .titleVersion {
   display: inline-flex;
@@ -176,6 +164,9 @@
   -webkit-app-region: no-drag;
 }
 
+/* Le rail se mesure lui-même (conteneur de taille) : sa hauteur se lit en px CSS du rail sous le zoom natif du desk
+   (setZoomFactor, que voit aussi une requête @media) comme sous le zoom CSS de la racine du repli navigateur (qu'elle ne
+   voit pas), bande du kill switch comprise. */
 .rail {
   grid-area: rail;
   background: var(--bg-0);
@@ -187,83 +178,94 @@
   overflow: hidden;
   padding: 20px 12px 16px;
   gap: 16px;
+  container: rail / size;
 }
 
+/* S'il faut défiler, la barre, fine, passe dans la marge droite du rail : les cartouches gardent la largeur du compte. */
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
   min-height: 0;
   overflow: auto;
+  margin-right: -12px;
+  scrollbar-width: thin;
 }
 
-/* Onglet gravé (4.1) : emblème, nom et contenu, numéro du raccourci ; l'encre au repos est gravée dans la nuit. */
+/* Onglet en cartouche (4.1, décision de l'ADMIN, 2026-10-27) : un filet d'un pixel à l'ivoire très bas, le coin chanfreiné
+   de la Ligne V2, un fond à peine levé ; l'emblème en tête, le nom et dessous ce que le module contient ; le numéro du
+   raccourci en code, au coin, sous le chanfrein. Elle ne s'écrase jamais (flex: none) : à l'étroit, la nav défile. */
 .navItem {
   position: relative;
   isolation: isolate;
+  flex: none;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
   column-gap: 12px;
-  min-height: 44px;
-  padding: 6px 12px 6px 14px;
+  width: min(100cqw, 100%);
+  min-height: 48px;
+  padding: 7px 12px;
   border: 0;
-  color: var(--text-2);
+  color: var(--text-1);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
-  text-shadow: 0 -1px 0 color-mix(in srgb, var(--bg-void) 90%, transparent);
   transition: color 240ms linear;
 }
-/* La lumière de l'onglet ouvert : un filament d'or au bord, qui se déplie ; une lueur blanche, douce, qui monte. */
+/* Deux calques découpés au chanfrein : le filet (::before), puis le fond (::after), retiré d'un pixel. */
 .navItem::before {
   content: '';
   position: absolute;
   pointer-events: none;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  background: var(--gold);
-  box-shadow:
-    0 0 6px color-mix(in srgb, var(--gold) 70%, transparent),
-    0 0 16px color-mix(in srgb, var(--gold) 28%, transparent);
-  opacity: 0;
-  transform: scaleY(0.3);
-  transition: opacity 280ms linear, transform 460ms var(--ease-out);
+  inset: 0;
+  z-index: -2;
+  background: color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
+  clip-path: var(--chamfer);
+  transition: background-color 280ms var(--ease-out);
 }
+/* Le chanfrein du fond, retiré d'un pixel : 10 − (2 − √2) ≈ 9,4 px ; le filet du biais garde son pixel. */
 .navItem::after {
   content: '';
   position: absolute;
   pointer-events: none;
-  inset: 0;
+  inset: 1px;
   z-index: -1;
-  background: radial-gradient(140% 120% at 0% 50%, color-mix(in srgb, var(--ivory) 8%, transparent), transparent 72%);
-  opacity: 0;
-  transition: opacity 360ms var(--ease-out);
+  background: color-mix(in srgb, var(--ivory) 1.5%, var(--bg-0));
+  clip-path: polygon(0 0, calc(100% - 9.4px) 0, 100% 9.4px, 100% 100%, 0 100%);
+  transition: background-color 280ms var(--ease-out);
 }
+/* L'onglet ouvert : le filet s'éclaircit et la lumière zénithale se pose sur son arête haute ; le fond se lève à peine,
+   éclairé d'en haut ; l'emblème passe à l'or. La nuit reste. */
 .navItem.on {
   color: var(--text-0);
 }
 .navItem.on::before {
-  opacity: 1;
-  transform: none;
+  background:
+    linear-gradient(90deg, transparent 4%, color-mix(in srgb, var(--ivory) 70%, transparent) 50%, transparent 96%) top / 100% 1px no-repeat,
+    color-mix(in srgb, var(--ivory) 18%, var(--bg-0));
 }
 .navItem.on::after {
-  opacity: 1;
+  background:
+    linear-gradient(color-mix(in srgb, var(--ivory) 6%, transparent), transparent 60%),
+    color-mix(in srgb, var(--ivory) 2%, var(--bg-0));
 }
+/* Au passage du pointeur, la lumière monte sur le filet et le fond ; rien ne bouge. */
 @media (hover: hover) {
   .navItem:hover {
-    color: var(--text-1);
-  }
-  .navItem.on:hover {
     color: var(--text-0);
   }
-  .navItem:hover::after {
-    opacity: 0.45;
+  .navItem:hover::before {
+    background-color: color-mix(in srgb, var(--ivory) 12%, var(--bg-0));
   }
-  .navItem.on:hover::after {
-    opacity: 1;
+  .navItem.on:hover::before {
+    background-color: color-mix(in srgb, var(--ivory) 24%, var(--bg-0));
+  }
+  .navItem:hover::after {
+    background-color: color-mix(in srgb, var(--ivory) 2.5%, var(--bg-0));
+  }
+  .navItem:hover .navIndex {
+    color: var(--text-1);
   }
   .navItem:hover .navEmblem {
     opacity: 1;
@@ -271,6 +273,16 @@
   .navItem.on:hover .navEmblem {
     --k: var(--gold);
   }
+}
+/* Le focus clavier : le filet de la cartouche passe à l'or et suit son chanfrein. L'anneau du desk, tracé 2 px au-dehors,
+   serait rogné par la nav qui défile ; il devient transparent pour la cartouche seule, et les couleurs forcées (contraste
+   élevé), qui effacent le filet, le redessinent. Après le survol : le focus l'emporte. */
+.navItem:focus-visible {
+  outline-color: transparent;
+}
+.navItem:focus-visible::before,
+.navItem.on:focus-visible::before {
+  background: var(--gold);
 }
 /* L'emblème du module (composant de la planche), seul en tête ; à l'or quand le module est ouvert. */
 .navEmblem {
@@ -310,9 +322,19 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+}
+/* Le nom et, quand l'orchestrateur tourne, le badge LIEN sur la même ligne. La ligne laisse au numéro du coin sa place
+   (14 + 13,2 px depuis le bord, moins les 12 px de marge) et un peu d'air : trop longue, le nom cède, jamais le badge. */
+.navHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding-right: 20px;
 }
 .navLabel {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -325,7 +347,7 @@
   font-size: 10px;
   font-weight: 500;
   line-height: 1.3;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-2);
   display: -webkit-box;
@@ -337,21 +359,28 @@
 .navQtyPart {
   white-space: nowrap;
 }
-/* Le numéro du raccourci (Ctrl+1…9), au bout de l'onglet. */
+/* Le numéro du raccourci (Ctrl+1…9) : un code discret au coin de la cartouche, sous le chanfrein. */
 .navIndex {
+  position: absolute;
+  top: 6px;
+  right: 14px;
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.08em;
+  line-height: 12px;
+  letter-spacing: 0.06em;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
+  transition: color 240ms linear;
 }
 .navItem.on .navQty,
 .navItem.on .navIndex {
   color: var(--text-1);
 }
 .lienBadge {
+  flex: none;
   font-family: var(--font-mono);
   font-size: 10px;
+  line-height: 1;
   letter-spacing: 0.12em;
   color: var(--gold);
 }
@@ -373,56 +402,151 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-/* Compte actif, à même le rail, sans carte : un intitulé à pointillés, un voyant, le nom, la source. */
+/* Le compte (4.1, décision de l'ADMIN, 2026-10-27) : la cartouche des onglets, sans intitulé. Un compartiment, séparé du
+   nom par un filet d'un pixel comme une étiquette du Lab, porte sa micro ; puis le nom, plus petit, et la source. */
 .account {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 12px 0 14px;
-}
-.railLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-2);
-}
-.railLabel > i {
-  flex: 1;
-  height: 3px;
-  background: var(--rule-dots);
-}
-.accountLine {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: auto auto;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 12px;
+  row-gap: 2px;
+  min-height: 48px;
+  padding: 8px 12px 8px 0;
+}
+.account::before {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  inset: 0;
+  z-index: -2;
+  background: color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
+  clip-path: var(--chamfer);
+}
+.account::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  inset: 1px;
+  z-index: -1;
+  background: color-mix(in srgb, var(--ivory) 1.5%, var(--bg-0));
+  clip-path: polygon(0 0, calc(100% - 9.4px) 0, 100% 9.4px, 100% 100%, 0 100%);
+}
+.accountMark {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  margin-block: -8px;
+  display: grid;
+  place-items: center;
+  border-right: 1px solid color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
+}
+/* La micro du compte : le pont (composant 1) dont la borne ⊗ devient le coffre (composant 124), le voyant au cœur du
+   coffre. Chaque composant montre la part de son dessin qui sert, et leurs traits se rejoignent : le pont jusqu'au bout
+   de sa ligne (89,91 / 125,42 de sa largeur), le coffre depuis le bord gauche de son carré (47,16 / 215,44). */
+.accountArt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 40px;
+  height: 26px;
+  --k: var(--text-1);
+}
+.accountBridge {
+  display: flex;
+  flex: none;
+  width: 19.69px;
+  height: 7.86px;
+  overflow: hidden;
+  opacity: 0.85;
+}
+.accountBridge > span {
+  width: 27.47px;
+  height: 7.86px;
+}
+.accountVault {
+  display: flex;
+  flex: none;
+  width: 20.31px;
+  height: 26px;
+  overflow: hidden;
+  opacity: 0.85;
+}
+.accountVault > span {
+  width: 26px;
+  height: 26px;
+  margin-left: -5.69px;
+}
+/* Un même trait pour les deux composants : ≈ 0,6 px rendu, la graisse des emblèmes du rail. */
+.accountBridge :global(.g1-1) {
+  stroke-width: 2.75px;
+}
+.accountVault :global(.g124-1),
+.accountVault :global(.g124-2) {
+  stroke-width: 5px;
+}
+/* Le voyant au cœur du coffre : 19,69 − 5,69 + 13 − 3 = 24 ; 13 − 3 = 10. */
+.accountArt .voyant {
+  position: absolute;
+  left: 24px;
+  top: 10px;
 }
 .accountName {
-  font-size: 14px;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  min-width: 0;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.3;
   color: var(--text-0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .accountSource {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
   min-width: 0;
-  margin-left: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 10px;
+  line-height: 1.3;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
+}
+
+/* Le rail court (fenêtre minimale, zoom relevé) : à 704 px de haut et moins, marges ôtées, le rail ordinaire ne tiendrait
+   plus neuf cartouches dont deux quantités sur deux lignes. Les cartouches passent à 44 px, 4 px entre deux, le compte
+   les suit et le pied se resserre ; à 1180 × 720 au zoom 100 %, les neuf et le compte tiennent sans défiler. Le sceau
+   garde ses 76 px. */
+@container rail (max-height: 704px) {
+  .nav {
+    gap: 4px;
+  }
+  .navItem {
+    min-height: 44px;
+    padding-block: 4px;
+  }
+  .railFoot {
+    gap: 12px;
+  }
+  .account {
+    min-height: 44px;
+    padding-block: 6px;
+  }
+  .accountMark {
+    margin-block: -6px;
+  }
 }
 
 /* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit du rail, le même qu'au verrou — encre
@@ -432,8 +556,6 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line-0);
 }
 .sealMark {
   display: block;
@@ -534,17 +656,19 @@
   position: relative;
   z-index: 3;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
+  gap: 10px 18px;
   flex-shrink: 0;
   min-height: 60px;
   padding: 16px 40px 0;
 }
+/* Le numéro et le nom ne cèdent jamais : à l'étroit, le relevé s'abrège et les actions passent à la ligne. */
 .modulePlate {
   display: flex;
+  flex: none;
   align-items: baseline;
   gap: 12px;
-  min-width: 0;
   margin: 0;
   font-weight: 600;
 }
@@ -776,48 +900,45 @@
 .zoomBtn,
 .zoomPct {
   color: var(--text-2);
-  padding: 0 3px;
   font: inherit;
   letter-spacing: inherit;
+  transition: color 200ms linear, background-color 260ms var(--ease-out);
 }
 .zoomBtn:disabled {
   opacity: 0.35;
 }
-/* Le bouton « + — » de la planche (composant 68) : chaque bouton montre sa moitié du dessin. */
+/* « − 95 % + » (4.1) : un seul cadre fin, la valeur au milieu, deux carrés égaux pour − et + ; traits de 1,2 px. Le cadre
+   compte ses filets (border-box) : 22 px de haut, 20 dedans, et chaque geste est un carré de 20 × 20. */
 .zoomPad {
   display: inline-flex;
-  align-items: center;
-  margin-left: 4px;
-  --k: var(--text-1);
+  align-items: stretch;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--ivory) 11%, transparent);
 }
-.zoomPad .zoomBtn {
+.zoomBtn {
   display: inline-flex;
   align-items: center;
-  height: 24px;
+  justify-content: center;
+  width: 20px;
 }
-.zoomPlus,
-.zoomMinus {
-  display: block;
-  overflow: hidden;
-  height: 7px;
+.zoomPct {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-left: 1px solid var(--line-0);
+  border-right: 1px solid var(--line-0);
+  font-variant-numeric: tabular-nums;
 }
-.zoomPlus {
-  width: 7px;
-}
-.zoomMinus {
-  width: 31px;
-}
-.zoomPlus > span,
-.zoomMinus > span {
-  display: block;
-  width: 40px;
-  height: 7px;
-}
-.zoomMinus > span {
-  margin-left: -9px;
+@media (hover: hover) {
+  .zoomBtn:hover:not(:disabled),
+  .zoomPct:hover {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 6%, transparent);
+  }
 }
 .zoomMode {
-  margin-right: 4px;
+  margin-right: 5px;
+  color: var(--text-3);
 }
 .zoomHint {
   color: var(--text-2);

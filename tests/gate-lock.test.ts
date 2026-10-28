@@ -7,14 +7,17 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { Gate } from '@/app/Gate';
+import { opens } from '@/engine/gate';
 import { SEAL_HORIZON } from '@/design/Seal';
+import { SEAT_ALPHABET, SEAT_DOMINO } from '@/app/seatGlyphs';
+import { reducedTimeline, unlockTimeline } from '@/app/unlockCircuit';
 import { GLYPH_ID } from '@/design/micro/assets';
 
 // La phrase reste celle du moteur (tests/desk-gate.test.ts) ; ici, une doublure : seule « la phrase » ouvre.
 vi.mock('@/engine/gate', () => ({ opens: vi.fn(async (phrase: string) => phrase === 'la phrase') }));
 
 // Le shell du desk, présent ou non selon le test : « Coller » et « Fermer CΛNTO » passent par lui.
-const shell = vi.hoisted(() => ({ desk: undefined as undefined | { window: { close: () => void; paste?: () => void } } }));
+const shell = vi.hoisted(() => ({ desk: undefined as undefined | { window: { close: () => void; paste?: () => Promise<boolean> | void; pasteClose?: () => void } } }));
 vi.mock('@/lib/desk', () => ({
   get desk() {
     return shell.desk;
@@ -46,12 +49,30 @@ function type(input: HTMLInputElement, text: string) {
   });
 }
 
+/** Sous horloge simulée : avance jusqu'à `ms` après `start`, plus un pas de l'horloge du verrou (30 ms). */
+function advanceTo(start: number, ms: number) {
+  act(() => vi.advanceTimersByTime(Math.max(0, start + ms + 31 - performance.now())));
+}
+
+/** Sous horloge simulée : la soumission, puis la réponse du moteur (des microtâches). */
+async function submitFake(form: HTMLFormElement) {
+  await act(async () => {
+    form.requestSubmit();
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
 /** Entrée dans le champ : la soumission implicite du formulaire, puis la réponse du moteur. */
 async function enter(form: HTMLFormElement) {
   await act(async () => {
     form.requestSubmit();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
+}
+
+/** Le libellé visible de « Coller » (OROS4.50) : les deux libellés gardent la même case, l'autre est caché. */
+function pasteLabel(button: HTMLButtonElement): string | null {
+  return button.querySelector('span:not([aria-hidden="true"])')?.textContent ?? null;
 }
 
 beforeEach(() => {
@@ -66,7 +87,9 @@ afterEach(() => {
   root = null;
   host = null;
   shell.desk = undefined;
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const css = readFileSync('src/app/gate.module.css', 'utf8').replace(/\r\n/g, '\n');
@@ -116,7 +139,7 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     const el = mount();
     const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
     const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
-    expect(button.textContent).toBe('Coller');
+    expect(pasteLabel(button)).toBe('Coller');
     expect(button.type).toBe('button');
     input.blur();
     act(() => button.click());
@@ -154,26 +177,47 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(mount().querySelector('button[data-part="close-canto"]')).toBeNull();
   });
 
-  it('OROS4.6 l’ouverture part du sceau : la fiche se retire, le sceau glisse au centre et se plie dans son horizon, le mot se lève de la ligne', () => {
+  it('OROS4.18 l’ouverture se lit dans la feuille par étapes cumulées : la fiche s’efface, la ligne s’éclaire, le mot se déplie, le voile se lève', () => {
     const el = mount();
     const gate = el.querySelector<HTMLElement>('[role="dialog"]')!;
-    for (const name of ['--glide-s', '--fold-at', '--fold-s', '--word-at', '--draw']) expect(gate.style.getPropertyValue(name), name).toMatch(/^\d+(\.\d+)?s$/);
-    expect(css).toMatch(/\.forming \.stack,\n\.opening \.stack \{[^}]*opacity: 0;/);
-    expect(css).toMatch(/\.forming \.sealw,\n\.opening \.sealw \{[^}]*translate: var\(--glide, 0px\) 0;[^}]*scale: 1 0\.004;/);
-    expect(css).toMatch(/\.sealw \{[^}]*transition:[^}]*translate var\(--glide-s[^}]*scale var\(--fold-s[^}]*var\(--fold-at/);
-    expect(css).toMatch(/\.unlock \.live \{[^}]*animation: seal-settle var\(--draw[^;]*var\(--word-at/);
-    // la ligne s'éclaire et sa LED d'or s'allume quand le sceau s'y plie
-    expect(css).toMatch(/\.forming \.horizon::after \{\s*opacity: 1;/);
+    for (const name of ['--fold-at', '--word-at', '--draw', '--fade-s']) expect(gate.style.getPropertyValue(name), name).toMatch(/^\d+(\.\d+)?s$/);
+    expect(gate.style.getPropertyValue('--spin')).toBe(`${SEAT_DOMINO.spin}ms`);
+    // la phrase admise, la fiche s'efface autour de ses glyphes ; le sceau baisse en attendant la lumière
+    expect(css).toMatch(/\.admitted \.heading,\n\.admitted \.fh,\n\.admitted \.fieldHead,\n\.admitted \.row,\n\.admitted \.paste \{[^}]*opacity: 0;/);
+    expect(css).toMatch(/\.admitted \.fiche,\n\.admitted \.inputRow input \{[^}]*border-color: transparent;/);
+    expect(css).toMatch(/\.admitted \.sealSvg \{[^}]*opacity: 0\.34;/);
+    expect(css).toMatch(/\.charged \.sealSvg \{[^}]*opacity: 1;/);
+    // le circuit mène le sceau à l'horloge de sa lumière : la feuille ne l'anime plus
+    expect(css).toMatch(/\.sealw \{[^}]*transform: translateY\(calc\(50% - var\(--hz\)\)\);/);
+    expect(css).not.toMatch(/\.sealw \{[^}]*transition/);
+    expect(css).not.toMatch(/^\.gliding \.sealw/m);
+    expect(css).toMatch(/\.gliding \.horizon \{[^}]*background-color: color-mix/);
+    // le mot se déplie de la ligne, comme le sceau s'y est plié
+    expect(css).toMatch(/\.unlock \.live \{[^}]*animation: word-unfold var\(--draw[^;]*var\(--word-at/);
+    expect(css).toMatch(/@keyframes word-unfold \{\s*from \{[^}]*clip-path: inset\(50% 0 50% 0\);/);
+    expect(css).toMatch(/\.spreading \.unlock \{\s*opacity: 1;/);
+    // le voile se lève sur le desk : plus de couture ni de masque
+    expect(css).toMatch(/\.revealing \{[^}]*background-color: transparent;/);
+    expect(css).not.toMatch(/\.seam|mask-image|--axis|@property --gap/);
+    // les glyphes gardent la place des points du champ masqué : même police, même chasse, même marge
+    expect(css).toMatch(/\.glyphs \{[^}]*padding-left: 14px;[^}]*font-family: var\(--font-mono\);[^}]*font-size: 14px;/);
+    expect(css).toMatch(/\.cell \{[^}]*width: 1ch;[^}]*margin-right: 0\.22em;/);
+    expect(css).toMatch(/\.inputRow input \{[^}]*padding: 0 14px;[^}]*font-size: 14px;[^}]*letter-spacing: 0\.22em;/);
+    expect(css).toMatch(/\.turn \{[^}]*animation: glyph-fall var\(--spin/);
   });
 
-  it('OROS4.6 le canal « Coller » : nommé au preload, gardé par trusted(e), seulement pour la fenêtre au premier plan ; la lecture du presse-papiers reste refusée au renderer', () => {
+  it('OROS4.6 le canal « Coller » : nommé au preload, gardé par trusted(e), seulement pour la fenêtre au premier plan ; OROS4.28 juste après un geste réel ; la lecture du presse-papiers reste refusée au renderer', () => {
     const preload = readFileSync('electron/preload.ts', 'utf8');
     const main = readFileSync('electron/main.ts', 'utf8');
-    expect(preload).toContain("paste: () => ipcRenderer.send('window:paste'),");
-    const handler = main.slice(main.indexOf("ipcMain.on('window:paste'"), main.indexOf('});', main.indexOf("ipcMain.on('window:paste'")));
-    expect(handler).toMatch(/if \(!trusted\(e\)\) return;/);
-    expect(handler).toMatch(/if \(!w \|\| !w\.isFocused\(\)\) return;/);
-    expect(handler).toMatch(/e\.sender\.paste\(\);/);
+    // OROS4.38 le process principal dit s'il a collé
+    expect(preload).toContain("paste: () => ipcRenderer.invoke('window:paste') as Promise<boolean>,");
+    const handler = main.slice(main.indexOf("ipcMain.handle('window:paste'"), main.indexOf('});', main.indexOf("ipcMain.handle('window:paste'")));
+    expect(handler).toMatch(/if \(!trusted\(e\)\) return false;/);
+    expect(handler).toMatch(/if \(!w \|\| !w\.isFocused\(\)\) return false;/);
+    expect(handler).toMatch(/e\.sender\.paste\(\);\s*return true;/);
+    // OROS4.28 juste après un geste réel de l'opérateur, vu par le process principal, et un collage par geste ; OROS4.36 le
+    // garde vit dans electron/paste-gate.ts, éprouvé à l'horloge factice par tests/paste-gate.test.ts
+    expect(handler).toMatch(/if \(!pasteGate\.allow\(e\.sender\.id\)\) return false;\s*e\.sender\.paste\(\);/);
     expect(main).toContain("const PERMISSIONS_ALLOWED = new Set(['clipboard-sanitized-write']);");
   });
 
@@ -200,5 +244,488 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     type(input, 'la phrase');
     await enter(form);
     expect(onAdmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.18 admise, la phrase se défait en glyphes au pas du code d’accolades ; il n’en reste que sa longueur', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const onAdmit = vi.fn();
+    const onReveal = vi.fn();
+    const onOpen = vi.fn();
+    const el = mount({ onAdmit, onReveal, onOpen });
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    type(input, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    // le desk se monte dessous tout de suite ; l'horloge de l'ouverture part deux images plus tard, sur un fil libre
+    expect(onAdmit).toHaveBeenCalledTimes(1);
+    const gate = el.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(gate.className).not.toMatch(/admitted/);
+    act(() => vi.advanceTimersByTime(40));
+    const start = performance.now();
+    expect(gate.className).toMatch(/admitted/);
+    expect(input.value).toBe('');
+    expect(el.querySelector('[role="status"]')?.textContent).toBe('Ouvert');
+    const row = el.querySelector<HTMLElement>('[data-part="unlock-glyphs"]')!;
+    const cells = () => [...row.querySelectorAll<HTMLElement>('[data-phase]')];
+    // une case par caractère, aucune ne dit la phrase : en attente, le point du champ masqué
+    expect(cells()).toHaveLength([...'la phrase'].length);
+    expect(row.textContent).not.toMatch(/[la phrse]/);
+    advanceTo(start, 100);
+    const tl = unlockTimeline(9);
+    const phases = cells().map((c) => c.dataset.phase);
+    // au pas du geste : 85 ms d'écart, 340 ms de vie, sur les lettres du Lab
+    expect(phases.slice(0, 2)).toEqual(['turn', 'turn']);
+    expect(phases.slice(3)).toEqual(Array(6).fill('wait'));
+    for (const c of cells().filter((c) => c.dataset.phase === 'turn')) expect(SEAT_ALPHABET).toContain(c.textContent as (typeof SEAT_ALPHABET)[number]);
+    for (const c of cells().filter((c) => c.dataset.phase === 'wait')) expect(c.textContent).toBe('•');
+    advanceTo(start, tl.sets[0]!);
+    expect(cells()[0]!.dataset.phase).toBe('set');
+    expect(cells()[8]!.dataset.phase).toBe('wait');
+    // les étapes se posent dans l'ordre, puis le voile se lève et le verrou s'en va
+    advanceTo(start, tl.gold);
+    expect(gate.className).toMatch(/charged/);
+    expect(gate.className).not.toMatch(/gliding/);
+    expect(cells().every((c) => c.dataset.phase === 'set')).toBe(true);
+    advanceTo(start, tl.spread);
+    expect(gate.className).toMatch(/gliding/);
+    expect(gate.className).toMatch(/spreading/);
+    expect(el.querySelector('[aria-label="Desk Unlocked"]')?.className).toMatch(/live/);
+    expect(onReveal).not.toHaveBeenCalled();
+    advanceTo(start, tl.reveal);
+    expect(onReveal).toHaveBeenCalledTimes(1);
+    expect(gate.className).toMatch(/revealing/);
+    expect(onOpen).not.toHaveBeenCalled();
+    advanceTo(start, tl.end);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onAdmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.31 admise, la phrase quitte le champ tout de suite : les points de la rangée de glyphes la remplacent avant même le départ de l’horloge', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    // OROS4.54 l'instant qui compte est celui où le desk se monte dessous : son rendu est lourd, la phrase doit être
+    // partie avant lui
+    let atAdmit: { value: string; html: string; inert: boolean; row: boolean } | null = null;
+    const el = mount({
+      onAdmit: () => {
+        atAdmit = { value: input.value, html: el.innerHTML, inert: form.hasAttribute('inert'), row: !!el.querySelector('[data-part="unlock-glyphs"]') };
+      },
+    });
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    type(input, 'la phrase');
+    await submitFake(form);
+    expect(atAdmit).not.toBeNull();
+    expect(atAdmit!.value).toBe('');
+    expect(atAdmit!.html).not.toContain('la phrase');
+    expect(atAdmit!.inert).toBe(true);
+    expect(atAdmit!.row).toBe(true);
+    // aucune image n'est encore passée : le champ est vide, la fiche fermée à la saisie
+    expect(input.value).toBe('');
+    expect(el.innerHTML).not.toContain('la phrase');
+    expect(form.hasAttribute('inert')).toBe(true);
+    // à la place des points du champ, ceux de la rangée de glyphes, en attente : il ne reste que la longueur
+    const row = el.querySelector<HTMLElement>('[data-part="unlock-glyphs"]');
+    expect(row).not.toBeNull();
+    const cells = [...row!.querySelectorAll<HTMLElement>('[data-phase]')];
+    expect(cells).toHaveLength([...'la phrase'].length);
+    expect(cells.every((c) => c.dataset.phase === 'wait' && c.textContent === '•')).toBe(true);
+    // l'horloge, elle, part deux images plus tard
+    expect(el.querySelector('[role="dialog"]')!.className).not.toMatch(/admitted/);
+  });
+
+  it('OROS4.52 une phrase plus longue que le champ : la rangée s’arrête aux points qu’il montre, sans déborder sur « Coller »', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    // la mesure du champ : 8,4 px pour un caractère de la police mono, 3,08 px d'interlettre, 330 px utiles
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+      return (this.isConnected ? null : { font: '', measureText: () => ({ width: 8.4 }) }) as never;
+    });
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    Object.defineProperty(input, 'clientWidth', { configurable: true, get: () => 330 });
+    input.style.letterSpacing = '3.08px';
+    const phrase = 'abcdefghijklmnopqrstuvwxyz012345';
+    vi.mocked(opens).mockImplementationOnce(async (p: string) => p === phrase);
+    type(input, phrase);
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    const cells = el.querySelectorAll('[data-part="unlock-glyphs"] [data-phase]');
+    expect(cells).toHaveLength(28);
+  });
+
+  it('OROS4.57 le champ rétrécit pendant l’ouverture (le zoom de l’opérateur, rendu au montage du desk) : la rangée se remesure et ne déborde toujours pas', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+      return (this.isConnected ? null : { font: '', measureText: () => ({ width: 8.4 }) }) as never;
+    });
+    // jsdom n'a pas de ResizeObserver : une doublure qui rappelle chaque observateur quand le test le dit, et une première
+    // fois à l'image suivante, comme le navigateur
+    const watchers = new Set<() => void>();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        private readonly call: () => void;
+        constructor(callback: ResizeObserverCallback) {
+          this.call = () => callback([], this as unknown as ResizeObserver);
+        }
+        observe() {
+          watchers.add(this.call);
+          requestAnimationFrame(() => watchers.has(this.call) && this.call());
+        }
+        unobserve() {}
+        disconnect() {
+          watchers.delete(this.call);
+        }
+      },
+    );
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    let width = 330;
+    Object.defineProperty(input, 'clientWidth', { configurable: true, get: () => width });
+    input.style.letterSpacing = '3.08px';
+    const phrase = 'abcdefghijklmnopqrstuvwxyz012345';
+    vi.mocked(opens).mockImplementationOnce(async (p: string) => p === phrase);
+    type(input, phrase);
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    const shown = () => el.querySelectorAll('[data-part="unlock-glyphs"] [data-phase]').length;
+    expect(shown()).toBe(28);
+    // le desk monté pose un zoom plus fort : 290 px utiles, 25 points
+    width = 290;
+    act(() => watchers.forEach((call) => call()));
+    expect(shown()).toBe(25);
+    act(() => vi.advanceTimersByTime(600));
+    expect(shown()).toBe(25);
+    // plus large, la rangée ne dépasse jamais la longueur admise
+    width = 400;
+    act(() => watchers.forEach((call) => call()));
+    expect(shown()).toBe(28);
+  });
+
+  it('OROS4.32 l’état du verrou se dit hors de la fiche : admise, la fiche devient inerte, et « Ouvert » s’annonce quand même', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const el = mount();
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    const regions = el.querySelectorAll<HTMLElement>('[role="status"]');
+    expect(regions).toHaveLength(1);
+    const region = regions[0]!;
+    // la région vivante n'est ni dans la fiche ni sous un parent inerte
+    expect(region.closest('form')).toBeNull();
+    expect(region.textContent).toBe('Fermé');
+    // le mot visible de la fiche ne double pas l'annonce
+    const word = form.querySelector<HTMLElement>('[class*="state"]:not([class*="stateLine"])')!;
+    expect(word.textContent).toBe('Fermé');
+    expect(word.getAttribute('aria-hidden')).toBe('true');
+    expect(css).toMatch(/\.srOnly \{[^}]*clip: rect\(0 0 0 0\);[^}]*text-transform: none;/);
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    await submitFake(form);
+    expect(form.hasAttribute('inert')).toBe(true);
+    expect(region.closest('[inert]')).toBeNull();
+    expect(region.textContent).toBe('Ouvert');
+  });
+
+  it('OROS4.18 une touche ou un clic abrège : le voile se lève aussitôt sur le desk monté', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const onReveal = vi.fn();
+    const onOpen = vi.fn();
+    const el = mount({ onReveal, onOpen });
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    act(() => vi.advanceTimersByTime(200));
+    expect(onReveal).not.toHaveBeenCalled();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+    // tout est posé d'un coup : les glyphes en pastilles, le voile qui se lève
+    expect([...el.querySelectorAll<HTMLElement>('[data-phase]')].every((c) => c.dataset.phase === 'set')).toBe(true);
+    expect(el.querySelector('[role="dialog"]')!.className).toMatch(/revealing/);
+    const tl = unlockTimeline(9);
+    const pressed = performance.now();
+    advanceTo(pressed, tl.end - tl.reveal - 60);
+    expect(onOpen).not.toHaveBeenCalled();
+    advanceTo(pressed, tl.end - tl.reveal);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    // un second geste ne relance rien
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousedown', { detail: 1 }));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.33 le geste qui a ouvert n’abrège pas : ni le second clic d’un double-clic sur « Ouvrir », ni Entrée tenue ; OROS4.51 un geste neuf, aussitôt', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const onReveal = vi.fn();
+    const el = mount({ onReveal });
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    const admittedAt = performance.now();
+    // le second clic d'un double-clic (puis le troisième d'un triple), 120 puis 250 ms après le premier
+    for (const [ms, detail] of [
+      [120, 2],
+      [250, 3],
+    ] as const) {
+      advanceTo(admittedAt, ms);
+      act(() => {
+        window.dispatchEvent(new MouseEvent('mousedown', { detail }));
+      });
+    }
+    expect(onReveal).not.toHaveBeenCalled();
+    // Entrée tenue : la répétition de la touche
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true }));
+    });
+    expect(onReveal).not.toHaveBeenCalled();
+    expect(el.querySelector('[role="dialog"]')!.className).not.toMatch(/revealing/);
+    // un geste neuf, lui, abrège, même tout de suite après l'ouverture
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.51 un clic neuf juste après Entrée abrège aussitôt : rien n’est retenu pendant une fenêtre de grâce', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const onReveal = vi.fn();
+    const el = mount({ onReveal });
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    act(() => vi.advanceTimersByTime(120));
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousedown', { detail: 1 }));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.56 au doigt et au stylet, l’abrègement part du contact : un doigt qui glisse n’a jamais de mousedown', async () => {
+    // L'horloge des événements (`timeStamp`) suit Date dans jsdom.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] });
+    for (const pointerType of ['touch', 'pen']) {
+      const onReveal = vi.fn();
+      const el = mount({ onReveal });
+      type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+      await submitFake(el.querySelector<HTMLFormElement>('form')!);
+      act(() => vi.advanceTimersByTime(1000));
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointerdown', { pointerType, bubbles: true }));
+      });
+      expect(onReveal, pointerType).toHaveBeenCalledTimes(1);
+      act(() => root?.unmount());
+      host?.remove();
+    }
+  });
+
+  it('OROS4.56 le second toucher d’un double toucher sur « Ouvrir » reste un écho ; un toucher neuf abrège', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] });
+    const onReveal = vi.fn();
+    const el = mount({ onReveal });
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    const open = el.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    const tapped = performance.now();
+    act(() => {
+      open.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+    });
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    // le second toucher, 250 ms après le premier, sur la fiche devenue inerte : son `mousedown` de compatibilité compte
+    // deux clics
+    advanceTo(tapped, 250);
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+      window.dispatchEvent(new MouseEvent('mousedown', { detail: 2, bubbles: true }));
+    });
+    expect(onReveal).not.toHaveBeenCalled();
+    // un toucher neuf, plus tard
+    advanceTo(tapped, 900);
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.38 un collage refusé se dit : le bouton montre le raccourci, l’annonce le dit, le champ garde le focus', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const paste = vi.fn(async () => false);
+    shell.desk = { window: { close: () => undefined, paste } };
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
+    const status = () => el.querySelector('[role="status"]')!.textContent;
+    const said = () => el.querySelector('[data-part="paste-hint"]')!.textContent;
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    act(() => vi.advanceTimersByTime(40));
+    expect(paste).toHaveBeenCalledTimes(1);
+    expect(pasteLabel(button)).toBe('Ctrl+V');
+    // OROS4.49 le rappel a sa propre région vivante : l'état du verrou reste où il est
+    expect(said()).toBe('Collez avec Ctrl+V');
+    expect(status()).toBe('Fermé');
+    expect(document.activeElement).toBe(input);
+    // le rappel s'efface de lui-même, ou dès que le champ change, sans rien annoncer de plus
+    act(() => vi.advanceTimersByTime(3000));
+    expect(pasteLabel(button)).toBe('Coller');
+    expect(said()).toBe('');
+    expect(status()).toBe('Fermé');
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(pasteLabel(button)).toBe('Ctrl+V');
+    type(input, 'la phrase');
+    expect(pasteLabel(button)).toBe('Coller');
+    // un collage accepté ne dit rien ; un shell plus ancien, qui ne répond pas, non plus
+    paste.mockResolvedValueOnce(true);
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(pasteLabel(button)).toBe('Coller');
+    shell.desk.window.paste = vi.fn(() => undefined);
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(pasteLabel(button)).toBe('Coller');
+  });
+
+  it('OROS4.49 le rappel de collage ne masque jamais l’état : la soumission l’efface, un refus répété se redit', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    shell.desk = { window: { close: () => undefined, paste: async () => false } };
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
+    const region = el.querySelector<HTMLElement>('[data-part="paste-hint"]')!;
+    const status = el.querySelector<HTMLElement>('[role="status"]')!;
+    // la région du rappel est vivante, entière, et hors de la fiche qui devient inerte
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(region.getAttribute('aria-atomic')).toBe('true');
+    expect(region.closest('form')).toBeNull();
+    expect(region.textContent).toBe('');
+    const refuse = async () => {
+      await act(async () => {
+        button.click();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      act(() => vi.advanceTimersByTime(40));
+    };
+    await refuse();
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    // un second refus, dans les 3 s : la région se vide puis se redit, pour être entendue à nouveau
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(region.textContent).toBe('');
+    act(() => vi.advanceTimersByTime(40));
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    // une phrase fausse, soumise pendant le rappel : « Refusé » se dit aussitôt, le rappel se tait
+    type(input, 'canto');
+    await refuse();
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    await submitFake(form);
+    expect(status.textContent).toBe('Refusé');
+    expect(region.textContent).toBe('');
+    expect(pasteLabel(button)).toBe('Coller');
+    // la bonne, soumise pendant le rappel : « Ouvert » aussitôt
+    type(input, 'la phrase');
+    await refuse();
+    expect(region.textContent).toBe('Collez avec Ctrl+V');
+    await submitFake(form);
+    expect(status.textContent).toBe('Ouvert');
+    expect(region.textContent).toBe('');
+    expect(pasteLabel(button)).toBe('Coller');
+  });
+
+  it('OROS4.50 « Coller » garde sa largeur quand il montre le raccourci : les deux libellés partagent la même case', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    shell.desk = { window: { close: () => undefined, paste: async () => false } };
+    const el = mount();
+    const button = el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!;
+    const labels = () => [...button.querySelectorAll<HTMLElement>(':scope > span')].map((span) => [span.textContent, span.getAttribute('aria-hidden') === 'true']);
+    expect(labels()).toEqual([
+      ['Coller', false],
+      ['Ctrl+V', true],
+    ]);
+    await act(async () => {
+      button.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(labels()).toEqual([
+      ['Coller', true],
+      ['Ctrl+V', false],
+    ]);
+    // la case unique tient le plus long des deux ; celui qui ne sert pas est caché, et hors du nom du bouton
+    expect(css).toMatch(/\.paste \{[^}]*display: inline-grid;/);
+    expect(css).toMatch(/\.paste > span \{\s*grid-area: 1 \/ 1;/);
+    expect(css).toMatch(/\.paste > \[aria-hidden='true'\] \{\s*visibility: hidden;/);
+  });
+
+  it('OROS4.37 la phrase admise, le verrou ferme le canal « Coller » du process principal, une fois', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const pasteClose = vi.fn();
+    shell.desk = { window: { close: () => undefined, paste: async () => true, pasteClose } };
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    // une phrase refusée ne le ferme pas : il faut pouvoir coller la bonne
+    type(input, 'canto');
+    await submitFake(form);
+    expect(pasteClose).not.toHaveBeenCalled();
+    type(input, 'la phrase');
+    await submitFake(form);
+    expect(pasteClose).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(600));
+    expect(pasteClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('OROS4.34 un collage qui répond après l’admission n’entre plus dans le champ', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    let release: (text: string) => void = () => undefined;
+    const readText = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          release = resolve;
+        }),
+    );
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText } });
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    // « Coller » : l'invite de permission du navigateur reste ouverte…
+    act(() => el.querySelector<HTMLButtonElement>('button[data-part="paste"]')!.click());
+    expect(readText).toHaveBeenCalledTimes(1);
+    // … l'opérateur tape la phrase et valide…
+    type(input, 'la phrase');
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    // … puis accepte l'invite : le presse-papiers ne revient pas dans la fiche fermée
+    await act(async () => {
+      release('presse-papiers-secret');
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(input.value).toBe('');
+    expect(el.innerHTML).not.toContain('presse-papiers-secret');
+  });
+
+  it('OROS4.18 mouvement réduit : ni glyphes ni circuit ; le mot paraît, puis le voile se lève', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener: () => undefined, removeEventListener: () => undefined }) });
+    try {
+      const onReveal = vi.fn();
+      const onOpen = vi.fn();
+      const el = mount({ onReveal, onOpen });
+      type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+      await submitFake(el.querySelector<HTMLFormElement>('form')!);
+      act(() => vi.advanceTimersByTime(40));
+      expect(el.querySelector('[data-part="unlock-glyphs"]')).toBeNull();
+      expect(el.querySelector('canvas')).toBeNull();
+      expect(el.querySelector('[role="dialog"]')!.className).toMatch(/reduced/);
+      const start = performance.now();
+      const tl = reducedTimeline();
+      advanceTo(start, tl.reveal - 40);
+      expect(onReveal).not.toHaveBeenCalled();
+      advanceTo(start, tl.reveal);
+      expect(onReveal).toHaveBeenCalledTimes(1);
+      advanceTo(start, tl.end);
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    } finally {
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    }
   });
 });

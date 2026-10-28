@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BraceCode, Button, Led, cx } from '@/design/primitives';
-import { Cartouche, Glyph } from '@/design/Micro';
+import { Glyph } from '@/design/Micro';
 import { Seal } from '@/design/Seal';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
@@ -183,7 +183,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   return (
     <div className={cx(s.shell, revealed ? s.intro : s.pending)} inert={inert}>
       <div className={s.texture} aria-hidden />
-      <header className={s.title}>
+      {/* Les trois lignes du châssis : le circuit de l'ouverture les trace là où elles sont (src/app/unlockCircuit.ts). */}
+      <header className={s.title} data-chassis="title">
         <div className={s.brand}>
           <span className={s.brandMark}>
             <Wordmark width={84} ticks survol />
@@ -202,11 +203,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
-          {/* Imprimés en haut à droite (4.1) : le losange du secteur S.01 (cartouche SK-SEC-S01), puis la version, qui ouvre le journal. */}
+          {/* En haut à droite (4.1), la version seule, qui ouvre le journal : plus aucune micro à côté. */}
           <div className={s.versionCell}>
-            <span className={s.sector} role="img" aria-label={tr('Secteur S.01 · Marchés', 'Sector S.01 · Markets', 'Sector S.01 · Mercados')}>
-              <Cartouche id="sectorS01" />
-            </span>
             <span className={s.titleVersion}>
               <ChangelogJournal version={appVersion} />
             </span>
@@ -246,23 +244,30 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       {/* Niveau 3 : le kill switch est engagé ; la bande reste jusqu'au redémarrage du desk. */}
       {kill.engaged && <KillBand shortcut={kill.shortcut} />}
 
-      <aside className={s.rail}>
-        {/* Les modules gravés à même le rail, sans catégorie : chacun son emblème, son nom, ce qu'il contient. */}
+      <aside className={s.rail} data-chassis="rail">
+        {/* Les modules en cartouches, sans catégorie : chacun son emblème, son nom, ce qu'il contient, son code au coin. */}
         <nav className={s.nav} aria-label={tr('Modules', 'Modules', 'Módulos')}>
           {TABS.map((item) => (
             <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
           ))}
         </nav>
         <div className={s.railFoot}>
-          <div className={s.account}>
-            <span className={s.railLabel}>
-              {tr('COMPTE ACTIF', 'ACTIVE ACCOUNT', 'CUENTA ACTIVA')}
-              <i aria-hidden />
+          {/* Le compte (4.1) : une cartouche du Lab, sans intitulé. Sa micro assemble le pont (composant 1), dont la
+              borne devient le coffre (composant 124), et le voyant au cœur du coffre ; puis le nom et la source. L'état
+              du pont se dit une fois, par le voyant ; l'infobulle vit sur la micro, pas sur le groupe qui le redisait. */}
+          <div className={s.account} role="group" aria-label={tr('Compte actif', 'Active account', 'Cuenta activa')}>
+            <span className={s.accountMark} data-part="account-mark" title={linkLabel}>
+              <span className={s.accountArt}>
+                <span className={s.accountBridge}>
+                  <Glyph name="bridge" />
+                </span>
+                <span className={s.accountVault}>
+                  <Glyph name="vault" />
+                </span>
+                <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
+              </span>
             </span>
-            <div className={s.accountLine} title={linkLabel}>
-              <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
-              <span className={s.accountName}>{accountLine}</span>
-            </div>
+            <span className={s.accountName}>{accountLine}</span>
             <span className={s.accountSource}>{source}</span>
           </div>
           {/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit, le même qu'au verrou, puis les langues. */}
@@ -305,7 +310,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
       </main>
 
-      <footer className={s.status}>
+      <footer className={s.status} data-chassis="status">
         <div className={s.statusLeft}>
           <span className={s.statusLive}>
             <Led on={nt?.link === 'live'}>{tr('PONT NT8', 'NT8 BRIDGE', 'PUENTE NT8')}</Led>
@@ -355,18 +360,21 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 }
 
 /**
- * Un onglet du rail (4.1) : l'emblème du module en tête (composant de la planche), le nom et ce que le module contient,
- * le numéro du raccourci au bout. L'onglet ouvert s'allume : un filament d'or au bord, une lueur blanche, l'emblème à l'or.
+ * Un onglet du rail (4.1) : une cartouche — filet d'un pixel, coin chanfreiné, fond à peine levé. L'emblème du module en
+ * tête (composant de la planche), le nom et, dessous, ce que le module contient ; le numéro du raccourci en code, au coin,
+ * sous le chanfrein. L'onglet ouvert s'allume : filet plus clair, lumière zénithale au sommet, l'emblème à l'or.
  */
 function RailButton({ itemId, index, label, qty, on, link, onClick }: { itemId: TabId; index: string; label: string; qty?: string | null; on: boolean; link?: boolean; onClick: () => void }) {
   return (
     <button type="button" className={cx(s.navItem, on && s.on)} onClick={onClick} title={`${label} — Ctrl+${index.slice(-1)}`} aria-current={on ? 'page' : undefined} data-tab={itemId}>
       <Glyph name={itemId} className={s.navEmblem} />
       <span className={s.navText}>
-        <span className={s.navLabel}>{label}</span>
+        <span className={s.navHead}>
+          <span className={s.navLabel}>{label}</span>
+          {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
+        </span>
         {qty ? <RailQty text={qty} /> : null}
       </span>
-      {link ? <span className={s.lienBadge}>{tr('LIEN', 'LINK', 'ENLACE')}</span> : null}
       <span className={s.navIndex} data-part="rail-index" aria-hidden>
         {index}
       </span>

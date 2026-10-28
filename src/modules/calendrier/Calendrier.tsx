@@ -429,15 +429,24 @@ export default function Calendrier() {
           </>
         }
         options={[
-          { id: 'estimees', label: tr('Dates estimées', 'Estimated dates', 'Fechas estimadas'), checked: showEstimated, onSelect: () => setShowEstimated(!showEstimated) },
+          // Masquées, les dates estimées le disent sur le bouton : la grille perd des publications, l'en-tête le montre.
+          {
+            id: 'estimees',
+            label: tr('Dates estimées', 'Estimated dates', 'Fechas estimadas'),
+            checked: showEstimated,
+            state: showEstimated ? undefined : tr('masquées', 'hidden', 'ocultas'),
+            onSelect: () => setShowEstimated(!showEstimated),
+          },
           {
             id: 'synchro',
             group: true,
             label: syncing ? tr('Synchronisation…', 'Syncing…', 'Sincronizando…') : tr('Synchroniser les sources', 'Sync the sources', 'Sincronizar las fuentes'),
             glyph: 'sync',
             disabled: syncing,
-            // La synchro dit son état sur le bouton : or pendant qu'elle court, braise si une source a manqué.
+            // La synchro dit son état sur le bouton : or pendant qu'elle court, braise si une source a manqué. Pendant
+            // qu'elle court, « Synchronisation… » le dit déjà : le nom du bouton ne répète pas « en cours ».
             state: syncing ? tr('en cours', 'running', 'en curso') : lastError ? tr('partiel', 'partial', 'parcial') : sources.length ? tr('à jour', 'up to date', 'al día') : tr('hors ligne', 'offline', 'sin conexión'),
+            stateInLabel: syncing,
             tone: syncing ? 'gold' : lastError ? 'ember' : undefined,
             onSelect: () => void sync(),
           },

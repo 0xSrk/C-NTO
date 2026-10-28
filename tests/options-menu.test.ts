@@ -101,6 +101,52 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     expect(menu.getAttribute('data-open')).toBe('false');
   });
 
+  it('OROS4.23 ↑ sur le bouton ouvre le menu sur sa dernière option, ↓ sur la première', () => {
+    const { trigger, menu, entries } = mount([
+      { id: 'a', label: 'Première', onSelect: () => undefined },
+      { id: 'b', label: 'Milieu', onSelect: () => undefined },
+      { id: 'c', label: 'Dernière', onSelect: () => undefined },
+    ]);
+    key(trigger, 'ArrowUp');
+    expect(menu.getAttribute('data-open')).toBe('true');
+    expect(document.activeElement).toBe(entries()[2]);
+    key(menu, 'Escape');
+    expect(document.activeElement).toBe(trigger);
+    key(trigger, 'ArrowDown');
+    expect(document.activeElement).toBe(entries()[0]);
+    key(menu, 'Escape');
+    // un clic ouvre toujours sur la première
+    act(() => trigger.click());
+    expect(document.activeElement).toBe(entries()[0]);
+  });
+
+  it('OROS4.42 un ↑ menu déjà ouvert ne colle pas à l’ouverture suivante : Entrée, Espace ou un clic rouvrent sur la première', () => {
+    const { trigger, menu, entries } = mount([
+      { id: 'a', label: 'Première', onSelect: () => undefined },
+      { id: 'b', label: 'Milieu', onSelect: () => undefined },
+      { id: 'c', label: 'Dernière', onSelect: () => undefined },
+    ]);
+    act(() => trigger.click()); // ouvert à la souris : la première
+    expect(document.activeElement).toBe(entries()[0]);
+    // Dans Chromium : un clic sur le filet entre deux groupes, puis Maj+Tab, rendent le focus au bouton, menu ouvert.
+    act(() => trigger.focus());
+    key(trigger, 'ArrowUp'); // menu déjà ouvert : la dernière
+    expect(document.activeElement).toBe(entries()[2]);
+    key(menu, 'Escape');
+    expect(menu.getAttribute('data-open')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+    // Entrée sur un bouton se dit par son clic : il rouvre sur la première, pas sur la dernière du ↑ d'avant.
+    act(() => trigger.click());
+    expect(document.activeElement).toBe(entries()[0]);
+    // ↓ menu ouvert garde son sens, et ne colle pas davantage.
+    act(() => trigger.focus());
+    key(trigger, 'ArrowDown');
+    expect(document.activeElement).toBe(entries()[0]);
+    key(menu, 'Escape');
+    key(trigger, 'ArrowUp'); // fermé : ↑ ouvre sur la dernière, comme le veut le motif
+    expect(document.activeElement).toBe(entries()[2]);
+  });
+
   it('le code couleur se lit sur le bouton : un point par état lu, à la couleur de l’état ; les filets séparent les groupes', () => {
     const { trigger, menu } = mount([
       { id: 'pont', label: 'Pont', state: 'actif', tone: 'mint', onSelect: () => undefined },
@@ -111,6 +157,91 @@ describe('OROS4.4 le bouton Options d’un module', () => {
     expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(1);
     expect(menu.textContent).toContain('actif');
     expect(menu.textContent).toContain('hors ligne');
+  });
+
+  it('OROS4.22 ce que les points montrent se dit aussi : le nom du bouton porte chaque état lu, sans ouvrir le menu', () => {
+    const { trigger } = mount([
+      { id: 'pont', label: 'Pont NinjaTrader', state: 'actif', tone: 'mint', onSelect: () => undefined },
+      { id: 'sync', label: 'Synchro', state: 'hors ligne', onSelect: () => undefined },
+      { id: 'plain', label: 'Sans état', onSelect: () => undefined },
+    ]);
+    // les points restent muets ; une ligne cachée les dit, dans l'ordre du menu
+    expect(trigger.querySelector('[data-tone]')!.parentElement!.getAttribute('aria-hidden')).toBe('true');
+    const said = trigger.querySelector('[class*="srOnly"]');
+    expect(said?.textContent).toBe(' — Pont NinjaTrader : actif ; Synchro : hors ligne');
+    expect(trigger.textContent).toBe('Options — Pont NinjaTrader : actif ; Synchro : hors ligne');
+    // sans état lu, le bouton se nomme « Options », seul
+    act(() => root?.unmount());
+    host?.remove();
+    const bare = mount([{ id: 'a', label: 'Action', onSelect: () => undefined }]);
+    expect(bare.trigger.textContent).toBe('Options');
+  });
+
+  it('OROS4.43 le nom du bouton se lit comme il s’écrit : sans les capitales du bouton, une ponctuation par paire dans chaque langue ; l’état que dit déjà le libellé ne se répète pas', () => {
+    // jsdom calcule textContent sans text-transform ; Chromium nomme le bouton d'après le texte rendu. Sans cette ligne, la
+    // ligne cachée prenait les capitales du bouton d'action : « OPTIONS · DATES ESTIMÉES · MASQUÉES · SYNCHRONISER… ».
+    expect(rule('.srOnly')).toMatch(/text-transform: none;/);
+    // « — » entre le bouton et ses états, « : » entre un libellé et son état, « ; » entre deux options ; l'espace avant
+    // les deux-points et le point-virgule en français seulement. Pendant la synchro, « Synchronisation… » suffit.
+    const cases: [string, string, [string, string][]][] = [
+      ['fr', 'Options — Pont NinjaTrader : inactif ; Dates estimées : masquées ; Synchronisation…', [['Pont NinjaTrader', 'inactif'], ['Dates estimées', 'masquées'], ['Synchronisation…', 'en cours']]],
+      ['en', 'Options — NinjaTrader bridge: inactive; Estimated dates: hidden; Syncing…', [['NinjaTrader bridge', 'inactive'], ['Estimated dates', 'hidden'], ['Syncing…', 'running']]],
+      ['es', 'Opciones — Puente NinjaTrader: inactivo; Fechas estimadas: ocultas; Sincronizando…', [['Puente NinjaTrader', 'inactivo'], ['Fechas estimadas', 'ocultas'], ['Sincronizando…', 'en curso']]],
+    ];
+    for (const [locale, name, [bridge, dates, sync]] of cases) {
+      act(() => useI18n.setState({ locale: locale as 'fr' | 'en' | 'es' }));
+      const { trigger } = mount([
+        { id: 'pont', label: bridge![0], state: bridge![1], glyph: 'bridge', onSelect: () => undefined },
+        { id: 'estimees', label: dates![0], state: dates![1], checked: false, onSelect: () => undefined },
+        { id: 'synchro', label: sync![0], state: sync![1], stateInLabel: true, tone: 'gold', group: true, disabled: true, onSelect: () => undefined },
+      ]);
+      expect(trigger.textContent, locale).toBe(name);
+      // trois états, trois points : le point de la synchro reste, seul son mot se tait
+      expect(trigger.querySelectorAll('[data-tone]'), locale).toHaveLength(3);
+      act(() => root?.unmount());
+      host?.remove();
+      root = null;
+    }
+    // Le Calendrier le dit pendant que sa synchro court.
+    expect(readFileSync('src/modules/calendrier/Calendrier.tsx', 'utf8')).toMatch(/label: syncing \? tr\('Synchronisation…'[\s\S]*stateInLabel: syncing,/);
+  });
+
+  it('OROS4.24 une option sans composant ni lecture porte sa couleur en point : « Supprimer la série » se lit à la braise', () => {
+    const { trigger, entries } = mount([
+      { id: 'demo', label: 'Régénérer la démo', onSelect: () => undefined },
+      { id: 'supprimer', label: 'Supprimer la série', tone: 'ember', group: true, onSelect: () => undefined },
+    ]);
+    act(() => trigger.click());
+    const [plain, remove] = entries();
+    expect(plain!.querySelector('[data-tone]')).toBeNull();
+    const dot = remove!.querySelector<HTMLElement>('[data-tone="ember"]');
+    expect(dot).not.toBeNull();
+    expect(dot!.className).toMatch(/mark/);
+    expect(dot!.className).toMatch(/ember/);
+    expect(dot!.parentElement!.getAttribute('aria-hidden')).toBe('true');
+    // le nom, lui, reste à l'encre de toutes les options ; le point prend la braise du bouton
+    expect(rule('.mark.ember')).toMatch(/background: var\(--ember\)/);
+    expect(css).not.toMatch(/\.item\.ember \.label|\.item\.ember \{/);
+    // le Visual pose la suppression d'une série importée à la braise
+    const visual = readFileSync('src/modules/visual/Visual.tsx', 'utf8');
+    expect(visual).toMatch(/id: 'supprimer'[^}]*tone: 'ember'/);
+  });
+
+  it('OROS4.25 le pont se lit dans le menu : 24 px de large, son trait relevé à un demi-pixel rendu', async () => {
+    const { COMPONENTS } = await import('@/design/micro/assets');
+    const { trigger, entries } = mount([{ id: 'pont', label: 'Pont NinjaTrader', glyph: 'bridge', state: 'actif', tone: 'mint', onSelect: () => undefined }]);
+    act(() => trigger.click());
+    const lead = entries()[0]!.querySelector<HTMLElement>('[data-glyph]')!;
+    expect(lead.getAttribute('data-glyph')).toBe('bridge');
+    expect(lead.querySelector(`svg.skg-${GLYPH_ID.bridge}`)).not.toBeNull();
+    const box = rule(".lead[data-glyph='bridge'] .glyph");
+    const width = Number(/width: ([\d.]+)px/.exec(box)?.[1]);
+    expect(width).toBe(24);
+    const [, , vw] = /viewBox="([^"]+)"/.exec(COMPONENTS[GLYPH_ID.bridge]!)![1]!.split(' ').map(Number);
+    const raised = Number(/stroke-width: ([\d.]+)px/.exec(rule(".lead[data-glyph='bridge'] :global(.g1-1)"))?.[1]);
+    const rendered = (raised * width) / vw!;
+    expect(rendered).toBeGreaterThanOrEqual(0.4);
+    expect(rendered).toBeLessThanOrEqual(0.75);
   });
 
   it('parle la langue du desk', () => {

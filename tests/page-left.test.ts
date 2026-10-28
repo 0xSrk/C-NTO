@@ -64,6 +64,20 @@ describe('départ de la page du desk', () => {
     expect(deskUrlAllowed('https://example.com/', 'http://localhost:5173/', INDEX)).toBe(false);
   });
 
+  it('OROS4.55 en développement, la règle compare l’origine du serveur Vite, pas un préfixe : un autre hôte ou un autre port ne passent plus', () => {
+    for (const dev of ['http://127.0.0.1:5173', 'http://127.0.0.1:5173/']) {
+      expect(deskUrlAllowed('http://127.0.0.1:5173/', dev, INDEX), dev).toBe(true);
+      expect(deskUrlAllowed('http://127.0.0.1:5173/?lang=en#x', dev, INDEX), dev).toBe(true);
+      // ce qu'un préfixe de chaîne laissait passer
+      expect(deskUrlAllowed('http://127.0.0.1:5173@ailleurs.example/', dev, INDEX), dev).toBe(false);
+      expect(deskUrlAllowed('http://127.0.0.1:51730/', dev, INDEX), dev).toBe(false);
+      expect(deskUrlAllowed('http://127.0.0.1:5173.ailleurs.example/', dev, INDEX), dev).toBe(false);
+      expect(deskUrlAllowed('http://personne@127.0.0.1:5173/', dev, INDEX), dev).toBe(false);
+      expect(deskUrlAllowed('https://127.0.0.1:5173/', dev, INDEX), dev).toBe(false);
+      expect(deskUrlAllowed('pas une adresse', dev, INDEX), dev).toBe(false);
+    }
+  });
+
   it('electron/main.ts : will-navigate et le départ de la page lisent la même règle ; la fenêtre ferme les abonnements sans éteindre l’interrupteur', () => {
     const main = readFileSync('electron/main.ts', 'utf8');
     const create = main.slice(main.indexOf('function createWindow('), main.indexOf('const chromiumLang'));

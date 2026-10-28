@@ -50,7 +50,7 @@ const rule = (css: string, selector: string) => {
 };
 
 describe('OROS2.11 composants de la planche dans le châssis', () => {
-  it('OROS4.2 chaque module du rail porte son emblème en tête, seul ; l’onglet ouvert l’allume à l’or, le numéro du raccourci au bout', () => {
+  it('OROS4.2 chaque module du rail porte son emblème en tête, seul ; l’onglet ouvert l’allume à l’or ; OROS4.19 le numéro du raccourci au coin', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     for (const tab of TABS) {
       const item = el.querySelector<HTMLElement>(`nav button[data-tab="${tab.id}"]`);
@@ -63,9 +63,75 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
       expect(index?.textContent, tab.id).toBe(tab.index);
       expect(emblem!.compareDocumentPosition(index!) & Node.DOCUMENT_POSITION_FOLLOWING, tab.id).toBeTruthy();
     }
-    expect(rule(shellCss, '.navItem')).toMatch(/grid-template-columns: 20px minmax\(0, 1fr\) auto/);
+    expect(rule(shellCss, '.navItem')).toMatch(/grid-template-columns: 20px minmax\(0, 1fr\);/);
+    // le code du raccourci sort de la grille : il se pose au coin, sous le chanfrein, et laisse au nom toute la largeur
+    expect(rule(shellCss, '.navIndex')).toMatch(/position: absolute;\s*top: 6px;\s*right: 14px;/);
     expect(rule(shellCss, '.navEmblem')).toMatch(/--k: var\(--text-1\)/);
     expect(rule(shellCss, '.navItem.on .navEmblem')).toMatch(/--k: var\(--gold\)/);
+  });
+
+  it('OROS4.19a l’orchestrateur en service : le badge LIEN se pose sur la ligne du nom, le numéro reste au coin', async () => {
+    const { useAgent } = await import('@/store/agent');
+    const orchestrator = useAgent.getState().orchestrator;
+    useAgent.setState({ orchestrator: { ...orchestrator, running: true } });
+    try {
+      const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+      const agent = el.querySelector<HTMLElement>('nav button[data-tab="agent"]')!;
+      const badge = [...agent.querySelectorAll('span')].find((span) => span.textContent === 'LIEN')!;
+      expect(badge).toBeDefined();
+      // le badge suit le nom dans sa ligne ; la grille de l'onglet ne garde que l'emblème et le texte
+      const head = badge.parentElement!;
+      expect(head.className).toMatch(/navHead/);
+      expect(head.firstElementChild?.textContent).toBe('Agent IA');
+      expect(badge.parentElement!.closest('[class*="navText"]')).not.toBeNull();
+      expect([...agent.children].filter((child) => !/navIndex|srOnly/.test(child.className))).toHaveLength(2);
+      expect(rule(shellCss, '.navHead')).toMatch(/display: flex;\s*align-items: baseline;/);
+    } finally {
+      useAgent.setState({ orchestrator });
+    }
+  });
+
+  it('OROS4.41 le numéro du coin garde sa place : la ligne du nom et du badge s’arrête avant lui ; trop longue, le nom cède, jamais le badge', () => {
+    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`(?:^|[\\s;{])${prop}: ([\\d.-]+)px`).exec(body)?.[1] ?? 'NaN');
+    // Le numéro, hors du flux : deux chiffres de Geist Mono (chasse de 0,6 em), espacés de 0,06 em, à 14 px du bord droit,
+    // soit 27,2 px depuis le bord de la cartouche (mesuré dans Chromium : 13,2 px de large).
+    const index = rule(shellCss, '.navIndex');
+    const spacing = Number(/letter-spacing: ([\d.]+)em/.exec(index)?.[1]);
+    const footprint = px(index, 'right') + 2 * px(index, 'font-size') * (0.6 + spacing);
+    expect(footprint).toBeCloseTo(27.2, 1);
+    // La ligne du nom finit à la marge de la cartouche plus sa réserve. Sans réserve, elle allait jusqu'à 12 px du bord,
+    // sous le numéro : ENLACE le chevauchait de 6,9 px quand une barre classique ramenait la cartouche à 180 px.
+    const margin = Number(/padding: [\d.]+px ([\d.]+)px/.exec(rule(shellCss, '.navItem'))?.[1]);
+    const reserve = px(rule(shellCss, '.navHead'), 'padding-right') || 0;
+    expect(margin + reserve - footprint).toBeGreaterThanOrEqual(4);
+    // Trop longue, la ligne fait céder le nom, à l'ellipse ; le badge garde sa place.
+    expect(rule(shellCss, '.navLabel')).toMatch(/flex: 0 1 auto;[\s\S]*min-width: 0;[\s\S]*text-overflow: ellipsis;/);
+    expect(rule(shellCss, '.lienBadge')).toMatch(/flex: none;/);
+  });
+
+  it('OROS4.44 le focus clavier d’une cartouche se voit en entier : son filet passe à l’or, au chanfrein, et l’anneau rogné par la nav devient transparent pour elle seule', async () => {
+    const { cssRules } = await import('./helpers/cssRules');
+    const rules = cssRules(shellCss);
+    const find = (selector: string) => rules.find((r) => r.at.length === 0 && r.selector.split(',').map((s) => s.trim()).includes(selector));
+    // L'anneau du desk se trace 2 px hors du bouton ; la nav (overflow: auto) le coupait, il n'en restait que des traits.
+    const tokens = readFileSync('src/design/tokens.css', 'utf8');
+    expect(tokens).toMatch(/:focus-visible \{\s*outline: 1px solid var\(--gold\);\s*outline-offset: 2px;/);
+    expect(rule(shellCss, '.nav')).toMatch(/overflow: auto;/);
+    // Transparent plutôt que retiré : en couleurs forcées (contraste élevé), le filet s'efface et le système redessine l'anneau.
+    expect(find('.navItem:focus-visible')?.body).toMatch(/outline-color: transparent/);
+    expect(find('.navItem:focus-visible')?.body).not.toMatch(/outline: none/);
+    // Le filet (::before, découpé au chanfrein) prend l'or, l'onglet ouvert compris.
+    for (const selector of ['.navItem:focus-visible::before', '.navItem.on:focus-visible::before']) {
+      expect(find(selector)?.body, selector).toMatch(/background: var\(--gold\)/);
+    }
+    expect(rule(shellCss, '.navItem::before')).toMatch(/clip-path: var\(--chamfer\)/);
+    // Le focus vient après le survol, à spécificité égale : une cartouche sous le pointeur garde son filet d'or.
+    const at = (selector: string) => rules.findIndex((r) => r.selector.split(',').map((s) => s.trim()).includes(selector));
+    expect(at('.navItem.on:focus-visible::before')).toBeGreaterThan(at('.navItem.on:hover::before'));
+    expect(at('.navItem:focus-visible::before')).toBeGreaterThan(at('.navItem:hover::before'));
+    // Rien d'autre ne perd l'anneau du desk dans le châssis.
+    const dropped = rules.filter((r) => /outline:\s*none|outline-color:\s*transparent/.test(r.body)).map((r) => r.selector);
+    expect(dropped).toEqual(['.navItem:focus-visible']);
   });
 
   it('OROS4.14 chaque emblème du rail et chaque couche d’en-tête pèse le même trait : entre 0,4 et 0,75 px rendu', async () => {
@@ -101,6 +167,68 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     for (const [layer, glyph] of Object.entries(LAYER_GLYPH)) check(GLYPH_ID[glyph], 18, '.layerGlyph', `couche ${layer}`);
   });
 
+  it('OROS4.20 le compte se pose dans sa cartouche : la micro assemble le pont (1) et le coffre (124), le voyant au cœur ; plus d’intitulé visible', async () => {
+    const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+    const account = el.querySelector<HTMLElement>('aside [role="group"][aria-label="Compte actif"]');
+    expect(account).not.toBeNull();
+    // la ligne « COMPTE ACTIF ····· » est retirée : le nom de l'encart ne vit plus que pour les lecteurs d'écran
+    expect(account!.textContent).not.toMatch(/COMPTE ACTIF/i);
+    const mark = account!.querySelector<HTMLElement>('[data-part="account-mark"]')!;
+    expect(mark).not.toBeNull();
+    expect(account!.firstElementChild).toBe(mark);
+    const bridge = mark.querySelector(`svg.skg-${GLYPH_ID.bridge}`);
+    const vault = mark.querySelector(`svg.skg-${GLYPH_ID.vault}`);
+    expect(bridge).not.toBeNull();
+    expect(vault).not.toBeNull();
+    // le pont entre par la gauche dans le coffre ; le voyant, au cœur, garde son rôle et son libellé
+    expect(bridge!.compareDocumentPosition(vault!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const voyant = mark.querySelector<HTMLElement>('[role="img"][class*="voyant"]');
+    expect(voyant?.getAttribute('aria-label')).toBe('Hors ligne · import CSV');
+    // le nom puis la source, après la micro
+    const name = account!.querySelector('[class*="accountName"]');
+    expect(name?.textContent).toMatch(/^Tous les comptes · \d+$/);
+    expect(mark.compareDocumentPosition(name!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rule(shellCss, '.accountName')).toMatch(/font-size: 12px/);
+    // la cartouche du compte parle la langue des onglets : filet découpé au chanfrein, fond retiré d'un pixel
+    expect(rule(shellCss, '.account::before')).toMatch(/clip-path: var\(--chamfer\)/);
+    expect(rule(shellCss, '.account::after')).toMatch(/inset: 1px/);
+    expect(shellCss).not.toMatch(/\.railLabel|\.accountLine/);
+    // chaque composant montre la part de son dessin qui sert : le pont jusqu'au bout de sa ligne, le coffre depuis son carré
+    const { COMPONENTS } = await import('@/design/micro/assets');
+    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`${prop}: ([\\d.-]+)px`).exec(body)?.[1] ?? 'NaN');
+    const bridgeWin = rule(shellCss, '.accountBridge');
+    const bridgeGlyph = rule(shellCss, '.accountBridge > span');
+    const vaultWin = rule(shellCss, '.accountVault');
+    const vaultGlyph = rule(shellCss, '.accountVault > span');
+    expect(COMPONENTS[1]).toContain('<line class="g1-1" x1="89.91" y1="17.94" x2="13.75" y2="17.94"/>');
+    expect(COMPONENTS[124]).toContain('<rect class="g124-1" x="47.16" y="47.16" width="121.12" height="121.12"/>');
+    expect(px(bridgeWin, 'width') / px(bridgeGlyph, 'width')).toBeCloseTo(89.91 / 125.42, 3);
+    expect(-px(vaultGlyph, 'margin-left') / px(vaultGlyph, 'width')).toBeCloseTo(47.16 / 215.44, 3);
+    expect(px(bridgeWin, 'width') + px(vaultWin, 'width')).toBeCloseTo(40, 2);
+    // un même trait : ≈ 0,6 px rendu pour les deux, entre 0,4 et 0,75 px comme les emblèmes du rail
+    const stroke = (selector: string) => px(rule(shellCss, selector), 'stroke-width');
+    const bridgeStroke = stroke('.accountBridge :global(.g1-1)') * (px(bridgeGlyph, 'width') / 125.42);
+    const vaultStroke = Number.parseFloat(/stroke-width: ([\d.]+)px/.exec(shellCss.slice(shellCss.indexOf('.accountVault :global(.g124-1),')))![1]!) * (px(vaultGlyph, 'width') / 215.44);
+    for (const rendered of [bridgeStroke, vaultStroke]) {
+      expect(rendered).toBeGreaterThanOrEqual(0.4);
+      expect(rendered).toBeLessThanOrEqual(0.75);
+    }
+  });
+
+  it('OROS4.45 le compte dit l’état du pont une fois : par son voyant ; l’infobulle vit sur la micro, plus sur le groupe', () => {
+    const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
+    const account = el.querySelector<HTMLElement>('aside [role="group"][aria-label="Compte actif"]')!;
+    const mark = account.querySelector<HTMLElement>('[data-part="account-mark"]')!;
+    const voyant = mark.querySelector<HTMLElement>('[role="img"][class*="voyant"]')!;
+    // Le title du groupe devenait sa description : Chromium lisait « Hors ligne · import CSV » deux fois de suite.
+    expect(account.hasAttribute('title')).toBe(false);
+    expect(account.querySelectorAll('[title]')).toHaveLength(1);
+    expect(mark.getAttribute('title')).toBe(voyant.getAttribute('aria-label'));
+    expect(voyant.getAttribute('aria-label')).toBe('Hors ligne · import CSV');
+    // le nom et la source restent du texte, sans infobulle
+    expect(account.querySelector('[class*="accountName"]')?.hasAttribute('title')).toBe(false);
+  });
+
   it('OROS4.11 la quantité du rail n’est jamais coupée : elle passe à la ligne, deux lignes au plus, entre ses parties', async () => {
     const { useNotes } = await import('@/store/notes');
     const { useLinks } = await import('@/store/links');
@@ -128,15 +256,41 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(body).toMatch(/-webkit-line-clamp: 2/);
   });
 
-  it('le zoom de la barre de titre est le bouton « + — » de la planche : le plus et la barre restent deux boutons', () => {
+  it('OROS4.17 le zoom de la barre de titre : « − valeur + » dans un cadre, deux traits nets, plus le composant coupé en deux', () => {
     const el = mount(createElement(ZoomControls));
-    const plus = el.querySelector<HTMLButtonElement>('button[aria-label="Augmenter le zoom"]');
-    const minus = el.querySelector<HTMLButtonElement>('button[aria-label="Réduire le zoom"]');
-    expect(plus?.querySelector(`svg.skg-${GLYPH_ID.zoom}`)).not.toBeNull();
-    expect(minus?.querySelector(`svg.skg-${GLYPH_ID.zoom}`)).not.toBeNull();
-    expect(plus!.closest('[role="group"]')).toBe(minus!.closest('[role="group"]'));
+    const group = el.querySelector<HTMLElement>('[role="group"]')!;
+    const buttons = [...group.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Réduire le zoom', 'Basculer auto / manuel', 'Augmenter le zoom']);
+    const [minus, pct, plus] = buttons;
+    // le moins est un trait, le plus une croix ; aucun composant de la planche ne s'y découpe
+    expect(minus!.querySelector('svg path')?.getAttribute('d')).toBe('M1 5 H9');
+    expect(plus!.querySelector('svg path')?.getAttribute('d')).toBe('M1 5 H9 M5 1 V9');
+    expect(group.querySelector(`svg.skg-${GLYPH_ID.zoom}`)).toBeNull();
     // le pourcentage reste lisible et bascule auto / manuel
-    expect(el.querySelector('button[aria-label="Basculer auto / manuel"]')?.textContent).toMatch(/AUTO|FIXE/);
+    expect(pct!.textContent).toMatch(/AUTO|FIXE/);
+    // un cadre fin (les carrés : OROS4.46)
+    expect(rule(shellCss, '.zoomPad')).toMatch(/height: 22px/);
+    expect(shellCss).not.toMatch(/\.zoomPlus|\.zoomMinus/);
+  });
+
+  it('OROS4.46 les deux gestes du zoom sont de vrais carrés : leur côté est la hauteur du cadre, ses filets ôtés', async () => {
+    const { cssRules } = await import('./helpers/cssRules');
+    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`(?:^|[\\s;{])${prop}: ([\\d.]+)px`).exec(body)?.[1] ?? 'NaN');
+    // Le desk compte les filets dans la boîte : le cadre de 22 px ne laisse que 20 px de haut à ses boutons, étirés.
+    // Comparer la hauteur du cadre à la largeur du bouton donnait des « carrés » de 22 × 20 (mesurés dans Chromium).
+    expect(readFileSync('src/design/tokens.css', 'utf8')).toMatch(/\*,\s*\*::before,\s*\*::after\s*\{\s*box-sizing: border-box;/);
+    const pad = rule(shellCss, '.zoomPad');
+    expect(pad).toMatch(/align-items: stretch;/);
+    const filet = Number(/border: ([\d.]+)px solid/.exec(pad)?.[1]);
+    const inner = px(pad, 'height') - 2 * filet;
+    const btn = rule(shellCss, '.zoomBtn');
+    expect(px(btn, 'width')).toBe(inner);
+    // rien sur le bouton ne fausse le carré : ni marge intérieure, ni filet, ni hauteur à lui, dans aucune de ses règles
+    const own = cssRules(shellCss).filter((r) => r.selector.split(',').some((sel) => /^\.zoomBtn(?::not\(:disabled\))?$/.test(sel.trim())));
+    expect(own.length).toBeGreaterThanOrEqual(2);
+    for (const r of own) expect(r.props.filter((prop) => /^(padding|border|height|min-height|box-sizing)/.test(prop)), r.selector).toEqual([]);
+    // sur la grille de 4 px du desk, les filets à part
+    expect(inner % 4).toBe(0);
   });
 
   it('l’en-tête de panneau pose son code entre repères d’angle ; chaque panneau a ses croix de calage aux quatre coins', () => {

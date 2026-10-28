@@ -11,6 +11,7 @@ import { LlmKeySeals } from './llm-key-seals';
 import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
 import { ORCH_RESPONSE_ID_MAX, Orchestrator } from './orchestrator';
 import { deskUrlAllowed, onPageLeft } from './page-left';
+import { createPasteGate, isAutoRepeat, reopenOnNewDocument } from './paste-gate';
 import { DeskRelay, MCP_CLIENT_ID, mcpRelay } from './desk-relay';
 import { McpGateway } from './mcp-server';
 import { syncOfficialCalendar } from './calendar';
@@ -243,6 +244,9 @@ for (const host of dataHosts) {
   if (host.includes('://') || host.includes('/') || host.includes(':')) throw new Error(`Hôte de données invalide : ${host}`);
 }
 
+/** « Coller » du verrou : seulement juste après un geste réel de l'opérateur, relevé par `input-event` (`./paste-gate`). */
+const pasteGate = createPasteGate();
+
 /** Préférence zoom envoyée par le renderer (persistée dans IndexedDB). */
 let zoomUser = 1;
 let zoomAuto = true;
@@ -390,6 +394,14 @@ function createWindow(opts: { fromLauncher?: boolean } = {}): void {
     win?.webContents.setBackgroundThrottling(true);
     win?.webContents.send('zoom:changed', zoomSnapshot(win));
   });
+  // Les gestes réels de l'opérateur (souris, clavier, toucher), vus ici et non dans la page : « Coller » n'est honoré que
+  // juste après l'un d'eux.
+  const deskContents = win.webContents;
+  deskContents.on('input-event', (_event, input) => {
+    pasteGate.gesture(deskContents.id, input.type, isAutoRepeat(input));
+  });
+  // Fermé une fois le verrou passé, « Coller » ne se rouvre qu'avec un document neuf, donc un verrou neuf.
+  reopenOnNewDocument(deskContents, pasteGate, deskContents.id);
   const indexFile = path.join(__dirname, '..', 'dist', 'index.html');
   const indexUrl = pathToFileURL(indexFile).href;
   /** Seule règle de navigation de la fenêtre du desk : `will-navigate` et le départ de la page la lisent tous deux. */
@@ -589,13 +601,26 @@ ipcMain.on('window:close', (e) => {
   if (!trusted(e)) return;
   (BrowserWindow.fromWebContents(e.sender) ?? win)?.close();
 });
-// « Coller » : le presse-papiers entre dans le champ qui a le focus, comme Ctrl+V. Le renderer ne le lit jamais lui-même
-// (la permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle.
-ipcMain.on('window:paste', (e) => {
-  if (!trusted(e)) return;
+// « Coller » : le presse-papiers entre dans le champ qui a le focus, comme Ctrl+V ; la réponse dit si c'est fait, pour que
+// le verrou montre le raccourci quand le collage est refusé. Le renderer ne lit pas le presse-papiers lui-même (la
+// permission clipboard-read reste refusée) ; seule une fenêtre au premier plan, donc sous la main de l'opérateur, colle,
+// et seulement juste après un geste réel de l'opérateur, vu par le process principal : un collage par appui. Le garde ne
+// sait pas ce que visait le geste : du code de la page pourrait encore profiter d'un geste de l'opérateur pour coller dans
+// un champ à lui, d'où la fermeture du canal une fois le verrou passé (`./paste-gate`).
+ipcMain.handle('window:paste', (e) => {
+  if (!trusted(e)) return false;
   const w = BrowserWindow.fromWebContents(e.sender);
-  if (!w || !w.isFocused()) return;
+  if (!w || !w.isFocused()) return false;
+  if (!pasteGate.allow(e.sender.id)) return false;
   e.sender.paste();
+  return true;
+});
+// Le verrou passé, « Coller » n'a plus d'appelant : le canal se ferme pour la page, qui ne peut pas le rouvrir ; seul un
+// document neuf, donc un verrou neuf, le rouvre (`did-navigate`, non le départ d'une navigation, qu'elle pourrait
+// interrompre). Pendant la séance, aucun geste de l'opérateur ne peut plus servir à coller.
+ipcMain.on('window:paste-close', (e) => {
+  if (!trusted(e)) return;
+  pasteGate.close(e.sender.id);
 });
 
 ipcMain.handle('app:version', (e) => (trusted(e) ? app.getVersion() : ''));
