@@ -89,6 +89,7 @@ afterEach(() => {
   shell.desk = undefined;
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const css = readFileSync('src/app/gate.module.css', 'utf8').replace(/\r\n/g, '\n');
@@ -347,6 +348,54 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     await submitFake(el.querySelector<HTMLFormElement>('form')!);
     const cells = el.querySelectorAll('[data-part="unlock-glyphs"] [data-phase]');
     expect(cells).toHaveLength(28);
+  });
+
+  it('OROS4.57 le champ rétrécit pendant l’ouverture (le zoom de l’opérateur, rendu au montage du desk) : la rangée se remesure et ne déborde toujours pas', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+      return (this.isConnected ? null : { font: '', measureText: () => ({ width: 8.4 }) }) as never;
+    });
+    // jsdom n'a pas de ResizeObserver : une doublure qui rappelle chaque observateur quand le test le dit, et une première
+    // fois à l'image suivante, comme le navigateur
+    const watchers = new Set<() => void>();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        private readonly call: () => void;
+        constructor(callback: ResizeObserverCallback) {
+          this.call = () => callback([], this as unknown as ResizeObserver);
+        }
+        observe() {
+          watchers.add(this.call);
+          requestAnimationFrame(() => watchers.has(this.call) && this.call());
+        }
+        unobserve() {}
+        disconnect() {
+          watchers.delete(this.call);
+        }
+      },
+    );
+    const el = mount();
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    let width = 330;
+    Object.defineProperty(input, 'clientWidth', { configurable: true, get: () => width });
+    input.style.letterSpacing = '3.08px';
+    const phrase = 'abcdefghijklmnopqrstuvwxyz012345';
+    vi.mocked(opens).mockImplementationOnce(async (p: string) => p === phrase);
+    type(input, phrase);
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    const shown = () => el.querySelectorAll('[data-part="unlock-glyphs"] [data-phase]').length;
+    expect(shown()).toBe(28);
+    // le desk monté pose un zoom plus fort : 290 px utiles, 25 points
+    width = 290;
+    act(() => watchers.forEach((call) => call()));
+    expect(shown()).toBe(25);
+    act(() => vi.advanceTimersByTime(600));
+    expect(shown()).toBe(25);
+    // plus large, la rangée ne dépasse jamais la longueur admise
+    width = 400;
+    act(() => watchers.forEach((call) => call()));
+    expect(shown()).toBe(28);
   });
 
   it('OROS4.32 l’état du verrou se dit hors de la fiche : admise, la fiche devient inerte, et « Ouvert » s’annonce quand même', async () => {

@@ -80,6 +80,8 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const [busy, setBusy] = useState(false);
   /** La longueur de la phrase admise, seule chose qui en reste : la rangée de glyphes la remplace dans le champ. */
   const [cells, setCells] = useState<number | null>(null);
+  /** Les points que le champ montre encore : le zoom de l'opérateur, rendu au montage du desk, peut le rétrécir. */
+  const [room, setRoom] = useState<number | null>(null);
   /** Le plan de l'ouverture, deux images après l'admission. */
   const [unlock, setUnlock] = useState<UnlockTimeline | null>(null);
   const [t, setT] = useState(0);
@@ -114,6 +116,15 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     window.addEventListener('pointerdown', note);
     return () => window.removeEventListener('pointerdown', note);
   }, []);
+  // Admise, la phrase : le champ se remesure à chaque changement de taille, et la rangée de glyphes s'arrête à ce qu'il
+  // montre avant d'être peinte. Le plan de l'ouverture garde la longueur admise.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!admitted || reduced || !input || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => flushSync(() => setRoom(fieldCapacity(input))));
+    observer.observe(input);
+    return () => observer.disconnect();
+  }, [admitted, reduced]);
   const hint = (on: boolean) => {
     window.clearTimeout(hintTimer.current);
     setPasteHint(on);
@@ -292,8 +303,8 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const pasteKey = shortcutLabel('CommandOrControl+V');
   const past = (moment: number | undefined) => unlock !== null && moment !== undefined && t >= moment;
   // Les glyphes de la phrase, au temps de l'ouverture : en attente (avant l'horloge aussi), le point du champ ; puis les
-  // lettres du Lab ; posés, la pastille d'où part leur piste.
-  const glyphs = cells !== null && !reduced ? glyphsAt(BULLET.repeat(cells), unlock ? t : -1, UNLOCK_GLYPHS) : null;
+  // lettres du Lab ; posés, la pastille d'où part leur piste. Autant que le champ en montre encore.
+  const glyphs = cells !== null && !reduced ? glyphsAt(BULLET.repeat(cells), unlock ? t : -1, UNLOCK_GLYPHS).slice(0, room ?? cells) : null;
 
   return (
     <div
