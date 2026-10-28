@@ -1,12 +1,13 @@
 /**
  * Le garde du collage du verrou (`window:paste`), tenu par le process principal.
  *
- * « Coller » fait entrer le presse-papiers dans le champ qui a le focus, comme Ctrl+V ; le renderer ne lit jamais le
- * presse-papiers lui-même (la permission `clipboard-read` reste refusée). Le garde ne colle que juste après un geste réel
- * de l'opérateur, vu par le process principal sur `input-event` : un appui de souris, de touche ou du doigt donne un
- * jeton, que son relâchement garde vif tant qu'il n'a pas servi. Un appui ne vaut qu'un collage. Il ne sait pas quel élément le geste visait : du code de la page pourrait encore
- * profiter d'un geste de l'opérateur. Le canal se ferme donc une fois le verrou passé, son seul appelant (`close`), et ne
- * se rouvre qu'avec un document neuf, donc un verrou neuf (`reset`, par `reopenOnNewDocument`).
+ * « Coller » fait entrer le presse-papiers dans le champ qui a le focus, comme Ctrl+V ; le renderer ne lit pas le
+ * presse-papiers lui-même (la permission `clipboard-read` reste refusée). Le garde ne colle que juste après un geste
+ * réel de l'opérateur, vu par le process principal sur `input-event` : un appui de souris, de touche ou du doigt donne
+ * un jeton, que son relâchement garde vif tant qu'il n'a pas servi. Un appui ne vaut qu'un collage. Il ne sait pas quel
+ * élément le geste visait : du code de la page pourrait encore profiter d'un geste de l'opérateur. Le canal se ferme
+ * donc une fois le verrou passé, son seul appelant (`close`), et ne se rouvre qu'avec un document neuf, donc un verrou
+ * neuf (`reset`, par `reopenOnNewDocument`).
  */
 
 /** « Coller » n'est honoré que dans ce délai après un geste réel (ms). */
