@@ -28,6 +28,8 @@ const LAST_FRAME = Math.floor((UNLOCK_GLYPHS.spin - 1) / UNLOCK_GLYPHS.frame);
 
 /** Le rappel du raccourci, après un collage refusé (ms). */
 const PASTE_HINT_MS = 3000;
+/** Deux touchers plus proches font un double toucher (ms) : le délai du double-clic par défaut sous Windows. */
+const DOUBLE_TAP_MS = 500;
 
 /** Deux images plus tard : le rendu demandé avant est posé et peint. */
 function afterFrames(run: () => void) {
@@ -64,7 +66,7 @@ function UnlockMark({ active }: { active: boolean }) {
  * pas du code d'accolades, les glyphes se posent en pastilles et leurs pistes rejoignent le sceau, dont la lumière
  * rallume les lignes ; le point d'or s'allume au centre, le sceau glisse et se plie dans son horizon, le circuit
  * s'étend jusqu'aux bords, trace les lignes du châssis, et le voile se lève sur le desk déjà monté
- * (`src/app/unlockCircuit.ts`). Une touche ou un clic abrège.
+ * (`src/app/unlockCircuit.ts`). Une touche, un clic ou un toucher abrège.
  */
 export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onReveal: () => void; onOpen: () => void }) {
   useI18n((st) => st.locale);
@@ -92,6 +94,8 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** La phrase est admise : plus de seconde soumission, même avant que l'ouverture ne parte. */
   const admittedRef = useRef(false);
+  /** Le dernier toucher (doigt, stylet), relevé dès le verrou : celui qui a ouvert précède l'ouverture. */
+  const tapRef = useRef(Number.NEGATIVE_INFINITY);
   const admitRef = useRef(onAdmit);
   const revealRef = useRef(onReveal);
   const openRef = useRef(onOpen);
@@ -103,6 +107,13 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const live = unlock !== null;
 
   useEffect(() => () => window.clearTimeout(hintTimer.current), []);
+  useEffect(() => {
+    const note = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') tapRef.current = event.timeStamp;
+    };
+    window.addEventListener('pointerdown', note);
+    return () => window.removeEventListener('pointerdown', note);
+  }, []);
   const hint = (on: boolean) => {
     window.clearTimeout(hintTimer.current);
     setPasteHint(on);
@@ -160,9 +171,9 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
               status: document.querySelector('[data-chassis="status"]')?.getBoundingClientRect() ?? null,
             }),
           });
-    // Une touche ou un clic abrège : le voile se lève aussitôt sur le desk déjà monté. Seuls les échos du geste qui a
-    // ouvert ne comptent pas : la répétition d'une touche tenue, le second clic d'un double-clic sur « Ouvrir » (son
-    // `detail` compte les clics) ; tout geste neuf abrège, même aussitôt.
+    // Une touche, un clic ou un toucher abrège : le voile se lève aussitôt sur le desk déjà monté. Seuls les échos du
+    // geste qui a ouvert ne comptent pas : la répétition d'une touche tenue, le second clic d'un double-clic sur
+    // « Ouvrir » (son `detail` compte les clics) ; tout geste neuf abrège, même aussitôt.
     const abridge = (event: Event) => {
       if (event instanceof KeyboardEvent && event.repeat) return;
       if (event instanceof MouseEvent && event.detail > 1) return;
@@ -172,13 +183,25 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
       offset += tl.reveal - at;
       tick();
     };
+    // Au doigt et au stylet, le geste compte dès le contact : leur `mousedown` n'arrive qu'au lever d'un toucher, et
+    // jamais pour un doigt qui glisse. Le second toucher d'un double toucher sur « Ouvrir » reste un écho, comme le
+    // second clic d'un double-clic.
+    let tapAt = tapRef.current;
+    const tap = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse') return;
+      const echo = event.timeStamp - tapAt < DOUBLE_TAP_MS;
+      tapAt = event.timeStamp;
+      if (!echo) abridge(event);
+    };
     window.addEventListener('mousedown', abridge);
     window.addEventListener('keydown', abridge);
+    window.addEventListener('pointerdown', tap);
     return () => {
       window.clearInterval(id);
       stop();
       window.removeEventListener('mousedown', abridge);
       window.removeEventListener('keydown', abridge);
+      window.removeEventListener('pointerdown', tap);
     };
   }, [unlock, reduced]);
 

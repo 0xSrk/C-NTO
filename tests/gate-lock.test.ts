@@ -444,6 +444,51 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
+  it('OROS4.56 au doigt et au stylet, l’abrègement part du contact : un doigt qui glisse n’a jamais de mousedown', async () => {
+    // L'horloge des événements (`timeStamp`) suit Date dans jsdom.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] });
+    for (const pointerType of ['touch', 'pen']) {
+      const onReveal = vi.fn();
+      const el = mount({ onReveal });
+      type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+      await submitFake(el.querySelector<HTMLFormElement>('form')!);
+      act(() => vi.advanceTimersByTime(1000));
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointerdown', { pointerType, bubbles: true }));
+      });
+      expect(onReveal, pointerType).toHaveBeenCalledTimes(1);
+      act(() => root?.unmount());
+      host?.remove();
+    }
+  });
+
+  it('OROS4.56 le second toucher d’un double toucher sur « Ouvrir » reste un écho ; un toucher neuf abrège', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] });
+    const onReveal = vi.fn();
+    const el = mount({ onReveal });
+    type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+    const open = el.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    const tapped = performance.now();
+    act(() => {
+      open.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+    });
+    await submitFake(el.querySelector<HTMLFormElement>('form')!);
+    // le second toucher, 250 ms après le premier, sur la fiche devenue inerte : son `mousedown` de compatibilité compte
+    // deux clics
+    advanceTo(tapped, 250);
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+      window.dispatchEvent(new MouseEvent('mousedown', { detail: 2, bubbles: true }));
+    });
+    expect(onReveal).not.toHaveBeenCalled();
+    // un toucher neuf, plus tard
+    advanceTo(tapped, 900);
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+    });
+    expect(onReveal).toHaveBeenCalledTimes(1);
+  });
+
   it('OROS4.38 un collage refusé se dit : le bouton montre le raccourci, l’annonce le dit, le champ garde le focus', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
     const paste = vi.fn(async () => false);
