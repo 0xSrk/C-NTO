@@ -107,3 +107,24 @@ describe('LAB1 centre de contrôle du Lab : privé, sans secret, sans se marcher
     expect(lines[0]).toMatch(/^- \d{2}:\d{2}:\d{2}Z · claude · agent-cloud · agent mis à jour → v2, en pause \(PR #125\)$/);
   });
 });
+
+describe("LAB3 le centre reste sur le poste de l'ADMIN : absent, rien ne le crée en passant", () => {
+  it('sans init, chaque commande refuse sans rien créer et dit quoi faire, sur le poste comme depuis le cloud', () => {
+    const { dir, run } = centre();
+    for (const args of [
+      ['etat'],
+      ['verrou', 'release', '--agent', 'claude'],
+      ['libere', 'release', '--agent', 'claude'],
+      ['message', '--de', 'claude', '--pour', 'hermes', '--sujet', 'Release à signer'],
+      ['boite', 'claude'],
+      ['journal', '--agent', 'claude', '--zone', 'release', '--action', 'brouillon contrôlé'],
+    ]) {
+      const r = run(...args);
+      const what = args.join(' ');
+      expect(r.status, what).not.toBe(0);
+      expect(r.stderr, what).toContain('node scripts/centre.mjs init');
+      expect(r.stderr, what).toContain("Depuis une session dans le cloud, le centre n'est pas joignable");
+      expect(existsSync(dir), what).toBe(false);
+    }
+  });
+});

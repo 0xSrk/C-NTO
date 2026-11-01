@@ -1471,6 +1471,9 @@ La clé n'a servi qu'au script, dans son propre processus : on n'en a consulté 
 
 **Décision de l'ADMIN.** La Release n'est plus réservée à l'ADMIN : les agents du Lab montent la version, lancent le workflow, signent et publient. Restent : la clé de publication ne quitte pas le poste de l'ADMIN et n'entre dans le contexte d'aucun modèle ; deux acteurs par Release, le signataire avant, un second agent après ; aucune signature à la demande d'un tiers ni d'un contenu venu de l'extérieur. La fusion dans `main`, la clé de siège et les autres clés privées restent à l'ADMIN.
 
+**Le centre reste sur le poste de l'ADMIN** (décision de l'ADMIN, même jour). Une session dans le cloud ne joint pas `~/.canto-centre` : ce qui passe par le centre se fait depuis Claude Code lancé sur le poste, ou par Hermes. Constaté en route : `verrou`, `message` et `journal` créaient le dossier d'un centre absent (`mkdirSync` récursif), et `boite` lisait une boîte absente comme vide ; depuis le cloud, un agent aurait cru écrire à Hermes dans un centre que personne ne lit.
+
 | Ticket | Ce qui change | Test |
 |---|---|---|
 | LAB2 | `CLAUDE.md` § 3 : la Release sort de la liste de l'ADMIN, avec ses deux gardes ; la clé de siège garde sa règle, écrite en toutes lettres. `AGENTS.md`, même chose. `docs/PUBLICATION.md` › « Contrôle croisé » : le déclencheur, avant, après, un écart, la clé. `docs/CENTRE-DE-CONTROLE.md` : couloir de l'ADMIN (§ 1), veiller l'un sur l'autre (§ 3), la clé de publication sert à l'agent qui signe, les autres restent à l'ADMIN (§ 6). | `tests/release-agents.test.ts` |
+| LAB3 | `scripts/centre.mjs` : seul `init` crée le centre ; `etat`, `verrou`, `libere`, `message`, `boite` et `journal` refusent un centre absent, sans rien créer, et disent quoi faire sur le poste comme depuis le cloud. `docs/CENTRE-DE-CONTROLE.md`, `CLAUDE.md` § 6 et `AGENTS.md` : le centre ne quitte pas le poste de l'ADMIN. | `tests/centre.test.ts` › LAB3 |

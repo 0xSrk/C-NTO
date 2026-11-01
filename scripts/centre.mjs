@@ -77,6 +77,18 @@ function centreDir() {
   return dir;
 }
 
+/**
+ * Le centre tel qu'il existe. Seul `init` le crée : les autres commandes refusent un centre absent plutôt que d'en créer
+ * un en passant, là où personne ne le lit (une session dans le cloud, un autre poste).
+ */
+function liveCentre() {
+  const dir = centreDir();
+  if (!existsSync(dir)) {
+    fail(`${dir} n'existe pas. Sur le poste de l'ADMIN : node scripts/centre.mjs init. Depuis une session dans le cloud, le centre n'est pas joignable : n'en crée pas, passe par l'ADMIN.`);
+  }
+  return dir;
+}
+
 function agentArg(name = '--agent') {
   const agent = flag(name);
   if (!agent || !AGENTS.includes(agent)) fail(`${name} : ${AGENTS.join(', ')}`);
@@ -155,7 +167,7 @@ function lock() {
   const motif = text('--motif');
   const hours = Number(flag('--heures') ?? DEFAULT_HOURS);
   if (!Number.isFinite(hours) || hours <= 0 || hours > 72) fail('--heures : de 0 à 72');
-  const dir = path.join(centreDir(), 'verrous');
+  const dir = path.join(liveCentre(), 'verrous');
   mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${zone}.verrou`);
   const t = now();
@@ -181,7 +193,7 @@ function unlock() {
   const zone = args[1];
   if (!zone || !ZONE.test(zone)) fail('libere <zone>');
   const agent = agentArg();
-  const file = path.join(centreDir(), 'verrous', `${zone}.verrou`);
+  const file = path.join(liveCentre(), 'verrous', `${zone}.verrou`);
   if (!existsSync(file)) fail(`${zone} : aucun verrou`);
   const held = readLock(file);
   if (held && held.agent !== agent && agent !== 'admin') fail(`${zone} : tenu par ${held.agent}, seul lui ou l'admin le libère`);
@@ -206,7 +218,7 @@ function message() {
   const priority = flag('--priorite') ?? 'P2';
   if (!PRIORITIES.includes(priority)) fail(`--priorite : ${PRIORITIES.join(', ')}`);
   const t = now();
-  const dir = path.join(centreDir(), 'boites', to);
+  const dir = path.join(liveCentre(), 'boites', to);
   mkdirSync(dir, { recursive: true });
   const name = `${stamp(t)}-${from}-${slug(subject)}.md`;
   writeFileSync(path.join(dir, name), `---\nde: ${from}\npour: ${to}\ndate: ${iso(t)}\npriorite: ${priority}\nsujet: ${subject.replace(/\n/g, ' ')}\netat: ouvert\n---\n\n${body}\n`, { encoding: 'utf8', flag: 'wx' });
@@ -216,13 +228,13 @@ function message() {
 function inbox() {
   const agent = args[1];
   if (!agent || !AGENTS.includes(agent)) fail(`boite <${AGENTS.join('|')}>`);
-  const dir = path.join(centreDir(), 'boites', agent);
+  const dir = path.join(liveCentre(), 'boites', agent);
   const done = flag('--traite');
   if (done) {
     if (path.basename(done) !== done || !done.endsWith('.md')) fail('--traite <fichier.md> de la boîte');
     const from = path.join(dir, done);
     if (!existsSync(from)) fail(`${done} : introuvable dans boites/${agent}`);
-    const archive = path.join(centreDir(), 'archives', agent);
+    const archive = path.join(liveCentre(), 'archives', agent);
     mkdirSync(archive, { recursive: true });
     renameSync(from, path.join(archive, done));
     console.log(`Traité : ${done} → archives/${agent}/`);
@@ -248,7 +260,7 @@ function journal() {
   const result = text('--resultat');
   const link = text('--lien');
   const t = now();
-  const dir = path.join(centreDir(), 'journal');
+  const dir = path.join(liveCentre(), 'journal');
   mkdirSync(dir, { recursive: true });
   const line = `- ${iso(t).slice(11)} · ${agent} · ${zone} · ${action.replace(/\n/g, ' ')}${result ? ` → ${result.replace(/\n/g, ' ')}` : ''}${link ? ` (${link})` : ''}\n`;
   appendFileSync(path.join(dir, `${day(t)}.md`), line, 'utf8');
@@ -256,8 +268,7 @@ function journal() {
 }
 
 function state() {
-  const dir = centreDir();
-  if (!existsSync(dir)) fail(`${dir} n'existe pas : node scripts/centre.mjs init`);
+  const dir = liveCentre();
   const t = now().getTime();
   const locks = existsSync(path.join(dir, 'verrous')) ? readdirSync(path.join(dir, 'verrous')).filter((f) => f.endsWith('.verrou')) : [];
   console.log(`Centre : ${dir}`);

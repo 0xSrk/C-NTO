@@ -9,6 +9,8 @@ Il a deux parties :
 - **Le protocole** : ce document, public, dans le dépôt. Il ne contient aucune donnée vivante.
 - **Le centre vivant** : un dossier privé sur le poste de l'ADMIN, `~/.canto-centre` (ou `$CANTO_CENTRE`), **jamais dans le dépôt**. Le dépôt est public : rien de ce qui est dans le centre n'en sort.
 
+Le centre ne quitte pas le poste de l'ADMIN (décision de l'ADMIN, 2026-11-01). Ce qui passe par lui se fait depuis ce poste : Hermes, et Claude Code lancé sur le poste. Une session dans le cloud ne le joint pas : elle n'en crée pas, travaille sur le dépôt et passe par l'ADMIN.
+
 `scripts/centre.mjs` est le seul outil qui écrit dans le centre. Il pose les verrous de façon atomique, horodate tout et refuse tout texte qui ressemble à un secret.
 
 ---
@@ -115,4 +117,4 @@ node scripts/centre.mjs boite <agent> [--traite <fichier>]
 node scripts/centre.mjs journal --agent <agent> --zone <zone> --action "…" [--resultat "…"] [--lien "…"]
 ```
 
-Le centre se crée par `init`, qui ne réécrit jamais un fichier existant. Les tests (`tests/centre.test.ts`) tiennent l'exclusivité des verrous, la garde des secrets, le refus d'un centre dans le dépôt, les boîtes et le journal.
+Le centre se crée par `init`, qui ne réécrit jamais un fichier existant. Les autres commandes refusent un centre absent : rien ne le crée en passant, là où personne ne le lirait. Les tests (`tests/centre.test.ts`) tiennent l'exclusivité des verrous, la garde des secrets, le refus d'un centre dans le dépôt, les boîtes et le journal.

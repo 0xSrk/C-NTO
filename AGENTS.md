@@ -20,4 +20,4 @@ Toute session d'agent sur ce dépôt, quel que soit l'outil, suit les règles de
 
 ## Centre de contrôle
 
-Plusieurs agents travaillent sur CΛNTO. Avant d'agir, lis le centre de contrôle (`node scripts/centre.mjs etat`, puis ta boîte), réserve une zone partagée avant d'y toucher et consigne ce que tu as fait : `docs/CENTRE-DE-CONTROLE.md`. Le centre est privé, hors du dépôt public ; aucun secret n'y entre, et rien n'en sort.
+Plusieurs agents travaillent sur CΛNTO. Avant d'agir, lis le centre de contrôle (`node scripts/centre.mjs etat`, puis ta boîte), réserve une zone partagée avant d'y toucher et consigne ce que tu as fait : `docs/CENTRE-DE-CONTROLE.md`. Le centre est privé, hors du dépôt public ; aucun secret n'y entre, et rien n'en sort. Il reste sur le poste de l'ADMIN : depuis le cloud, il n'est pas joignable ; n'en crée pas, passe par l'ADMIN.

@@ -72,7 +72,7 @@ Repris de `docs/AGENT-HARDENING.md` § 0, toujours en vigueur.
 - Pont NinjaTrader : `docs/PONT-NINJATRADER.md`.
 - Siège nominatif : `docs/SIEGE-NOMINATIF.md`.
 - Agent cloud et dossier des rapports de l'onglet Agent IA : `docs/AGENT-CLOUD.md`.
-- Coordination entre agents (Claude Code, Hermes) et l'ADMIN : `docs/CENTRE-DE-CONTROLE.md`. Le centre vivant est privé, hors du dépôt (`node scripts/centre.mjs etat`) : à lire en début de session, avant toute action dans une zone partagée.
+- Coordination entre agents (Claude Code, Hermes) et l'ADMIN : `docs/CENTRE-DE-CONTROLE.md`. Le centre vivant est privé, hors du dépôt (`node scripts/centre.mjs etat`) : à lire en début de session, avant toute action dans une zone partagée. Il reste sur le poste de l'ADMIN : une session dans le cloud ne le joint pas, n'en crée aucun et passe par l'ADMIN.
 
 ## Commandes
 
