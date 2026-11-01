@@ -128,11 +128,12 @@ export default function Copieur() {
               <Stat
                 small
                 label={tr('Maîtres · suiveurs', 'Masters · followers', 'Maestros · seguidores')}
-                value={`${masters.length} · ${followers.length}`}
-                hint={plural(followers.filter((f) => f.enabled).length, tr('suiveur actif', 'active follower', 'seguidor activo'), tr('suiveurs actifs', 'active followers', 'seguidores activos'))}
+                value={ready ? `${masters.length} · ${followers.length}` : '—'}
+                hint={ready ? plural(followers.filter((f) => f.enabled).length, tr('suiveur actif', 'active follower', 'seguidor activo'), tr('suiveurs actifs', 'active followers', 'seguidores activos')) : undefined}
                 tone="ice"
               />
-              <Stat small label={tr('Fills routés', 'Routed fills', 'Fills enrutados')} value={String(host?.routed ?? 0)} hint={tr('depuis l’ouverture', 'since launch', 'desde la apertura')} tone="gold" />
+              {/* Zéro n'est pas l'absence (Système 5) : sans le process principal, ou avant le chargement, rien n'est connu. */}
+              <Stat small label={tr('Fills routés', 'Routed fills', 'Fills enrutados')} value={host ? String(host.routed) : '—'} hint={tr('depuis l’ouverture', 'since launch', 'desde la apertura')} tone="gold" />
               <Stat
                 small
                 label={tr('Dernier refus', 'Last refusal', 'Último rechazo')}

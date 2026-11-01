@@ -312,7 +312,9 @@ export function Dashboard({
                 ]}
               />
             ) : (
-              <Gauge min={0} max={100} value={gauge.used * 100} ticks={[{ value: 0, label: '0' }, { value: 100, label: '100 %' }]} />
+              // Sans plan suivi, aucune borne : la jauge n'a rien à mesurer et le dit (« — »), au lieu de rapporter le
+              // drawdown à un capital nominal ; le drawdown sur clôtures reste écrit au-dessus (Système 5).
+              <Gauge min={0} max={100} value={null} ticks={[{ value: 0, label: '0' }, { value: 100, label: '100 %' }]} />
             )}
             {gauge.kind === 'plan' ? (
               <div className={s.pair}>

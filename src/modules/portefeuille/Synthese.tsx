@@ -56,6 +56,17 @@ export function windowDrawdown(series: readonly { date: string; equity: number }
   return { current, worst };
 }
 
+/**
+ * Le levier brut tel qu'il est connu (Système 5 : zéro n'est pas l'absence). `null` sans valeur nette positive (aucune
+ * poche, ou une valeur nette nulle), ou quand aucune ligne n'est valorisée alors qu'une poche reste inconnue (pont hors
+ * ligne) : le zéro serait faux. Des liquidités seules font un vrai zéro.
+ */
+export function knownLeverage(expo: Pick<Exposure, 'grossLeverage' | 'byInstrument' | 'notes'>): number | null {
+  if (expo.grossLeverage === null) return null;
+  if (expo.byInstrument.length === 0 && expo.notes.length > 0) return null;
+  return expo.grossLeverage;
+}
+
 export function Synthese({
   discrete,
   base,
@@ -134,7 +145,7 @@ export function Synthese({
   const gaugeMax = Math.max(5, currentPct * 100, worstPct * 100);
   const alerts = valuations.filter((row) => row.kind === 'propfirm' && row.prop?.alert);
   const props = valuations.filter((row) => row.kind === 'propfirm' && row.prop);
-  const leverage = expo.grossLeverage ?? 0;
+  const leverage = knownLeverage(expo);
   const pocketName = (id: string) => pockets.find((row) => row.id === id)?.name ?? id;
   const top = expo.byInstrument[0];
 
@@ -203,7 +214,7 @@ export function Synthese({
             </span>
             <span className={s.hint}>{discrete ? '•••••' : `${fmtInt(expo.totalNotional)} NOT.`}</span>
           </div>
-          <span className={s.kValue}>{discrete ? '•••••' : `${fmtNum(leverage, 2)}×`}</span>
+          <span className={s.kValue}>{discrete ? '•••••' : leverage === null ? '—' : `${fmtNum(leverage, 2)}×`}</span>
           <Jauge
             min={0}
             max={5}

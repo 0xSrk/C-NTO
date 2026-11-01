@@ -799,6 +799,10 @@
 .jaugeScale span:first-child {
   transform: none;
 }
+/* Rien n'est connu (Système 5) : ni remplissage ni curseur, « — » au milieu de l'échelle ; zéro n'est pas l'absence. */
+.jaugeNone {
+  left: 50%;
+}
 
 .etiquette {
   font-family: var(--font-mono);

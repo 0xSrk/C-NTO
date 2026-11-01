@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { BRACE_HEIGHT, BRACE_WIDTH, braceBarsPath, sessionBraceBars } from '@/lib/braceCode';
 import { code128Path } from '@/lib/code128';
-import { useI18n } from '@/i18n';
+import { tr, useI18n } from '@/i18n';
 import { decimalMark, montantAria, montantParts, type MontantParts } from '@/lib/format';
 import { APP_VERSION } from '@/lib/version';
 import s from './primitives.module.css';
@@ -290,21 +290,28 @@ export function Jauge({
 }: {
   min: number;
   max: number;
-  value: number;
+  /**
+   * `null` : rien n'est connu. La jauge le dessine absent — ni remplissage ni curseur, « — » au milieu de l'échelle,
+   * et un nom accessible qui le dit — et jamais comme un zéro (Système 5). L'échelle, le repère et la hachure restent :
+   * ils appartiennent à l'instrument, pas à la valeur.
+   */
+  value: number | null;
   marker?: number | null;
   markerColor?: string;
   hatchFrom?: number | null;
   ticks: { value: number; label: string; color?: string }[];
 }) {
+  useI18n((st) => st.locale);
   const span = max - min || 1;
   const pct = (n: number) => `${Math.min(100, Math.max(0, ((n - min) / span) * 100))}%`;
+  const known = value !== null && Number.isFinite(value) ? value : null;
   return (
-    <div className={s.jauge}>
+    <div className={s.jauge} {...(known === null ? { role: 'img', 'aria-label': tr('Aucune valeur connue', 'No known value', 'Ningún valor conocido') } : {})}>
       <div className={s.jaugeTrack}>
         {hatchFrom != null && <span className={s.jaugeHatch} style={{ left: pct(hatchFrom) }} />}
-        <span className={s.jaugeFill} style={{ width: pct(value) }} />
+        {known === null ? null : <span className={s.jaugeFill} style={{ width: pct(known) }} />}
         {marker != null && Number.isFinite(marker) && <span className={s.jaugeMark} style={{ left: pct(marker), background: markerColor }} />}
-        <span className={s.jaugeCursor} style={{ left: pct(value) }} aria-hidden />
+        {known === null ? null : <span className={s.jaugeCursor} style={{ left: pct(known) }} aria-hidden />}
       </div>
       <div className={s.jaugeScale}>
         {ticks.map((tick) => (
@@ -312,6 +319,7 @@ export function Jauge({
             {tick.label}
           </span>
         ))}
+        {known === null ? <span className={s.jaugeNone}>—</span> : null}
       </div>
     </div>
   );
