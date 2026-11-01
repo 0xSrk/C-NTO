@@ -9,6 +9,8 @@ Il a deux parties :
 - **Le protocole** : ce document, public, dans le dépôt. Il ne contient aucune donnée vivante.
 - **Le centre vivant** : un dossier privé sur le poste de l'ADMIN, `~/.canto-centre` (ou `$CANTO_CENTRE`), **jamais dans le dépôt**. Le dépôt est public : rien de ce qui est dans le centre n'en sort.
 
+Le centre ne quitte pas le poste de l'ADMIN (décision de l'ADMIN, 2026-11-01). Ce qui passe par lui se fait depuis ce poste : Hermes, et Claude Code lancé sur le poste. Une session dans le cloud ne le joint pas : elle n'en crée pas, travaille sur le dépôt et passe par l'ADMIN.
+
 `scripts/centre.mjs` est le seul outil qui écrit dans le centre. Il pose les verrous de façon atomique, horodate tout et refuse tout texte qui ressemble à un secret.
 
 ---
@@ -19,9 +21,11 @@ Il a deux parties :
 |---|---|
 | **Claude Code** | Le code du dépôt : branches, PR, tests, documentation du dépôt. Le pilotage du desk ouvert, à la demande de l'ADMIN. |
 | **Hermes** | Le poste et la messagerie : veille, rappels, relais avec les testeurs, tâches de l'ADMIN hors du dépôt. |
-| **ADMIN** | Les décisions, la fusion dans `main`, la version, le tag, la Release, les signatures et les clés (`CLAUDE.md` § 3). |
+| **ADMIN** | Les décisions, la fusion dans `main`, les clés (création, rotation, garde), sauf l'usage de la clé de publication pour signer une Release (`CLAUDE.md` § 3). |
 
 Une tâche qui traverse un couloir passe par un message dans la boîte de son propriétaire. Personne n'entre de lui-même dans le couloir d'un autre.
+
+La Release n'est plus un couloir de l'ADMIN (décision du 2026-11-01) : les agents se la partagent par la zone `release`, l'un signe, l'autre contrôle (`CLAUDE.md` § 3, `docs/PUBLICATION.md` › « Contrôle croisé »).
 
 ## 2. Le dossier
 
@@ -35,7 +39,7 @@ Une tâche qui traverse un couloir passe par un message dans la boîte de son pr
 ├── boites/
 │   ├── claude/          un fichier par message, en tête : de, pour, date, priorité, sujet, état
 │   ├── hermes/
-│   └── admin/           ce qui attend l'ADMIN : décisions, fusions, signatures
+│   └── admin/           ce qui attend l'ADMIN : décisions, fusions, clés
 ├── journal/AAAA-MM-JJ.md   une ligne par action, en ajout seul
 └── archives/<agent>/    les messages traités
 ```
@@ -66,6 +70,7 @@ sequenceDiagram
 - **Réserver.** Un verrou par zone. Il expire de lui-même (4 h par défaut, `--heures` pour ajuster). Son agent le prolonge en le reposant. Un verrou tenu par un autre ne se force pas : on lui écrit. Un verrou périmé ne se reprend qu'avec `--reprendre`, après avoir écrit à son agent.
 - **Consigner.** Chaque action d'une zone partagée laisse une ligne au journal, avec son résultat et son lien (PR, commit, Release).
 - **Libérer.** Le verrou se lève dès la fin. Seul son agent, ou l'ADMIN, le lève.
+- **Veiller l'un sur l'autre.** Chaque agent relit ce que l'autre consigne. Un écart à un invariant de `CLAUDE.md` § 5, à la garde d'une clé ou au contrôle croisé d'une Release part à l'ADMIN en P0, sans attendre.
 
 ## 4. Zones
 
@@ -98,7 +103,7 @@ Un message par fichier, dans la boîte de son destinataire. Son en-tête porte `
 - **Aucun secret dans le centre.** Ni clé d'API, ni jeton, ni clé privée, ni ligne de siège `SIEGE1.`, ni mot de passe ou code de déverrouillage. On écrit **où** il se trouve, jamais sa valeur. `scripts/centre.mjs` refuse un texte qui en a la forme. Cette garde rattrape une erreur ; elle ne remplace pas la règle.
 - **Rien du centre ne sort.** Ni dans le dépôt, ni dans un commit, une PR, une issue ou un commentaire. La documentation du dépôt reste générique. Le script refuse un centre placé dans le dépôt.
 - **Les personnes.** Un testeur se nomme par son pseudonyme, jamais par une donnée personnelle (nom civil, adresse, téléphone, compte de courtage).
-- **Les clés restent à l'ADMIN.** Une clé privée de publication ou de siège ne passe par aucune session d'agent, Hermes compris (`CLAUDE.md` § 3). Si l'ADMIN en décide autrement, il l'écrit dans `critique.md`, avec la date.
+- **Les clés.** La clé de publication sert, sur le poste de l'ADMIN, à l'agent qui signe une Release (décision de l'ADMIN, 2026-11-01) : seuls les scripts du dépôt la lisent (`docs/PUBLICATION.md` › « Contrôle croisé »), et elle n'entre ni dans le centre ni dans le contexte d'un modèle (`CLAUDE.md` § 3). Les autres clés privées, celle de siège comprise, restent à l'ADMIN et ne passent par aucune session d'agent, Hermes compris. Si l'ADMIN en décide autrement, il l'écrit dans `critique.md`, avec la date.
 
 ## 7. Commandes
 
@@ -112,4 +117,4 @@ node scripts/centre.mjs boite <agent> [--traite <fichier>]
 node scripts/centre.mjs journal --agent <agent> --zone <zone> --action "…" [--resultat "…"] [--lien "…"]
 ```
 
-Le centre se crée par `init`, qui ne réécrit jamais un fichier existant. Les tests (`tests/centre.test.ts`) tiennent l'exclusivité des verrous, la garde des secrets, le refus d'un centre dans le dépôt, les boîtes et le journal.
+Le centre se crée par `init`, qui ne réécrit jamais un fichier existant. Les autres commandes refusent un centre absent : rien ne le crée en passant, là où personne ne le lirait. Les tests (`tests/centre.test.ts`) tiennent l'exclusivité des verrous, la garde des secrets, le refus d'un centre dans le dépôt, les boîtes et le journal.
