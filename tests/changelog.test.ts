@@ -43,9 +43,9 @@ describe('journal des versions', () => {
     expect(versions).toEqual(sorted);
   });
 
-  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.7.0', () => {
-    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0']);
-    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0']);
+  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.8.0', () => {
+    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0']);
+    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0']);
     expect(entryFor('3.1.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.date).toBe('2026-09-29');
@@ -91,6 +91,12 @@ describe('journal des versions', () => {
     expect(entryFor('3.7.0')?.highlights.es).toHaveLength(4);
     // R3.7b la 3.7.0 se publie sans l'agent cloud, destiné à la version suivante (décision de l'ADMIN, 2026-10-26).
     for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.7.0')?.highlights[lang].join(' ')).not.toMatch(/agent cloud|cloud agent|agente en la nube|Managed Agents/i);
+    // R3.8b la 3.8.0 porte le Système 4.1 et l'ouverture par un circuit ; la 3.7.0, jamais publiée, la suit dans le journal.
+    expect(entryFor('3.8.0')?.kind).toBe('fonctionnalite');
+    expect(entryFor('3.8.0')?.date).toBe('2026-11-01');
+    for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.8.0')?.highlights[lang]).toHaveLength(5);
+    expect(entryFor('3.8.0')?.highlights.en.join(' ')).toMatch(/Visual system 4\.1/);
+    expect(entryFor('3.8.0')?.highlights.en.join(' ')).toMatch(/Hover is a dimmed light again/);
     expect(entryFor('3.0.1')).toBeNull();
   });
 

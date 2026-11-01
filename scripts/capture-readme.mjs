@@ -61,8 +61,19 @@ export async function unlock(page, phrase, out) {
   await input.fill(phrase);
   await page.mouse.move(1595, 980);
   await page.getByRole('button', { name: /open/i }).click();
-  // Le mot se pose sur l'horizon en 850 ms et tient jusqu'à 1 400 ms, avant la couture.
-  await page.waitForTimeout(1100);
+  // L'ouverture (4.1) : glyphes, pistes, lumière du sceau, point d'or ; le circuit s'étend autour de « DESK UNLOCKED »
+  // à l'étape `spreading` de la feuille, avant que les lignes du châssis ne se tracent. La plaque la saisit quand le
+  // mot a fini de se déplier (son animation `word-unfold`, 120 + 380 ms après le début de l'étape).
+  await page.waitForFunction(
+    () => {
+      const gate = document.querySelector('[aria-labelledby="gate-title"]');
+      const word = gate?.querySelector('[aria-label="Desk Unlocked"]');
+      const animations = word?.getAnimations() ?? [];
+      return [...(gate?.classList ?? [])].some((k) => k.includes('spreading')) && animations.length > 0 && animations.every((a) => a.playState === 'finished');
+    },
+    undefined,
+    { polling: 'raf', timeout: 15_000 },
+  );
   await page.screenshot({ path: path.join(out, 'unlock.png') });
   await page.locator('aside').waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(3000);
@@ -70,10 +81,11 @@ export async function unlock(page, phrase, out) {
 
 /** Toutes les plaques, desk ouvert. */
 export async function capture(page, out) {
-  const nav = (label) => page.locator('aside').getByRole('button', { name: new RegExp(`^\\d\\d ${label}`, 'i') }).first();
+  // Chaque cartouche du rail porte l'identifiant de son module (4.1 : le numéro est au coin, plus en tête du nom).
+  const nav = (id) => page.locator(`aside button[data-tab="${id}"]`);
   const tab = (label) => page.getByRole('tab', { name: new RegExp(label, 'i') });
 
-  await page.getByRole('button', { name: 'LOAD A DEMO DATASET' }).click();
+  await page.getByRole('button', { name: 'Demo dataset', exact: true }).click();
   await page.getByText(/net p&l/i).first().waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: 'ALL', exact: true }).first().click();
   await page.waitForTimeout(1800);
@@ -95,7 +107,9 @@ export async function capture(page, out) {
   // Réglages › Discipline : la plaque est le cadre de la section, au même rapport 16:10 que les autres.
   await tab('Dashboard').click();
   await page.waitForTimeout(800);
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  // Les réglages du desk sont dans le menu Options du module (4.1).
+  await page.locator('[data-options] > button').first().click();
+  await page.getByRole('menuitem', { name: 'Desk settings', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByText(/A rule set to 0/).first().evaluate((el) => el.scrollIntoView({ block: 'start' }));
   for (const [label, value] of [['Max daily loss ($)', 500], ['Trades per day', 6], ['Catalyst window (min)', 10], ['Allowed instruments', 'NQ, MNQ']]) {
@@ -111,19 +125,19 @@ export async function capture(page, out) {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
 
-  await nav('Visual').click();
+  await nav('visual').click();
   await page.waitForTimeout(3000);
   await shot(page, out, 'visual.png');
 
-  await nav('Calendar').click();
+  await nav('calendrier').click();
   await page.waitForTimeout(2500);
   await shot(page, out, 'calendrier.png');
 
-  await nav('Note').click();
+  await nav('note').click();
   await page.waitForTimeout(2000);
   await shot(page, out, 'note.png');
 
-  await nav('Portfolio').click();
+  await nav('portefeuille').click();
   await page.waitForTimeout(1500);
   for (const pocket of [
     { name: 'Apex 50K', kind: 'propfirm', account: 'Apex-PA-50K', plan: 'apex-50' },
@@ -162,18 +176,18 @@ export async function capture(page, out) {
   await page.waitForTimeout(1500);
   await shot(page, out, 'portefeuille.png');
 
-  await nav('AI Agent').click();
+  await nav('agent').click();
   await page.waitForTimeout(1500);
   // L'onglet s'ouvre sur A · Rapports, vide hors du shell Electron : la plaque montre B · Conversation.
   await tab('Conversation').click();
   await page.waitForTimeout(1500);
   await shot(page, out, 'agent.png');
 
-  await nav('Bot').click();
+  await nav('bot').click();
   await page.waitForTimeout(2000);
   await shot(page, out, 'bot.png');
 
-  await nav('Copier').click();
+  await nav('copieur').click();
   await page.waitForTimeout(1500);
   for (const [name, account, role] of [['Master Sim', 'Sim101', 'maitre'], ['Eval A', 'Sim102', 'suiveur'], ['Eval B', 'Sim103', 'suiveur']]) {
     await page.getByPlaceholder('Name (Apex 50K #2…)').fill(name);

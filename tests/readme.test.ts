@@ -26,7 +26,8 @@ describe('README', () => {
   it('R3.7c le README suit le desk 3.7 : système 4.0, licences de polices livrées, plaques servies, onglet Agent IA réagencé', () => {
     // Le système visuel décrit est celui du desk (l'historique des versions garde le 3.4).
     const visual = readme.slice(readme.indexOf('### Visual system'), readme.indexOf('<a id="develop">'));
-    expect(visual).toContain('System 4.0 « ΟΡΟΣ »');
+    // R3.8c le système décrit est la révision 4.1, celle du desk 3.8.
+    expect(visual).toContain('System 4.1 « ΟΡΟΣ »');
     expect(visual).not.toMatch(/System 3\.4|Archivo|JetBrains Mono|#E5263D/);
     // Chaque fichier de licence de police cité est livré.
     const licences = [...readme.matchAll(/`((?:src|electron)\/[^`]*OFL-[^`]+\.txt)`/g)].map((m) => m[1]!);
@@ -40,5 +41,23 @@ describe('README', () => {
     expect(readme).toContain('<a id="lab-reports"></a>');
     // Le dépôt est public, et le bouton de mise à jour n'est plus ambre.
     expect(readme).not.toMatch(/repository is private|turns amber/);
+  });
+
+  it('R3.8c le README suit le desk 3.8 : Système 4.1, rail en cartouches, menu Options, verrou ouvert par un circuit', () => {
+    // « What's new » reprend mot pour mot les cinq points anglais du journal 3.8.0.
+    const journal = JSON.parse(readFileSync('src/engine/changelog/changelog.json', 'utf8')) as { entries: { version: string; highlights: { en: string[] } }[] };
+    const entry = journal.entries.find((e) => e.version === '3.8.0');
+    expect(entry?.highlights.en).toHaveLength(5);
+    const news = readme.slice(readme.indexOf("## What's new in 3.8.0"), readme.indexOf('<a id="install"></a>'));
+    for (const point of entry?.highlights.en ?? []) expect(news).toContain(point);
+    expect(readme).toContain('badge/design-System%204.1%20ΟΡΟΣ');
+    // Ce que le 4.1 a retiré n'est plus décrit : catégories du rail, survol inerte, plaque TIME ENGINE, accroches d'en-tête,
+    // outils de Métrique hors du menu Options.
+    expect(readme).not.toMatch(/under \*In design\*|The \*\*rail\*\* is a manifest|nothing reacts to hover|TIME ENGINE|ULTIMATE JOURNAL|A tool row holds/);
+    expect(readme).not.toMatch(/Metrics › NinjaTrader bridge|Metrics › \*\*Settings\*\*/);
+    expect(readme).toContain('Metrics › Options › NinjaTrader bridge');
+    // Les deux plaques du premier lancement : la fiche d'accès et « DESK UNLOCKED » au cœur du circuit.
+    expect(readme).toMatch(/access sheet: the phrase, its state, <b>Paste<\/b> and <b>Open<\/b>/);
+    expect(readme).toMatch(/the circuit spreads around it and traces the chassis/);
   });
 });
