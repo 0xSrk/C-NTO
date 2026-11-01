@@ -514,7 +514,7 @@
   padding: 40px 20px;
   text-align: center;
   color: var(--text-2);
-  border: 1px dashed var(--line-2);
+  border: 1px solid var(--line-1);
   min-height: 184px;
   position: relative;
   background: var(--bg-1);

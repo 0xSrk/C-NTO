@@ -438,7 +438,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-3);
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
   padding: 4px 0;
 }
 .ringStats b {
@@ -626,7 +626,7 @@
   grid-template-columns: 1fr auto;
   gap: 8px;
   padding: 6px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
   font-size: 12px;
 }
 .cascadeRules dt {

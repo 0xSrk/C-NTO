@@ -35,7 +35,7 @@
   align-items: baseline;
   width: 100%;
   padding: 4px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
   font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;

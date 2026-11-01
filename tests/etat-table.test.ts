@@ -37,20 +37,23 @@ const DASH = /\bdashed\b|\bdotted\b|stroke-dasharray|strokeDasharray|setLineDash
  * Le cliquet, hors de la table. Chaque trait tireté ou pointillé y figure, une règle CSS par son sélecteur
  * (« fichier › sélecteur »), un fichier de code par son compte (« fichier ×n »). Les deux listes ne font que décroître :
  * un porteur rendu à la table en sort, son plafond baisse avec lui, et aucun ne s'y ajoute (un trait nouveau passe par la
- * table). Le décor ne dit aucun état : OROS5.2 le vide.
+ * table). Le décor ne dit aucun état : OROS5.2 l'a vidé, le tireté ne dit plus qu'un état.
  */
-const DECOR: readonly string[] = [
-  'src/design/primitives.module.css › .empty',
-  'src/modules/agent/agent.module.css › .toolItem',
-  'src/modules/bot/bot.module.css › .guard',
-  'src/modules/calendrier/calendrier.module.css › .markerCompact',
-  'src/modules/calendrier/calendrier.module.css › .histRow',
-  'src/modules/copieur/copieur.module.css › .preview',
-  'src/modules/copieur/copieur.module.css › .bridgeRow',
-  'src/modules/crypto/crypto.module.css › .marketRow',
-  'src/modules/metrique/metrique.module.css › .ringStats li',
-  'src/modules/metrique/metrique.module.css › .cascadeRules > div',
-  'src/modules/visual/visual.module.css › .tradeRow',
+const DECOR: readonly string[] = [];
+
+/** OROS5.2 : ce qui décorait au tireté (dix séparateurs et l'état vide) passe au filet plein `--line-1`. */
+const DECOR_RENDU: readonly (readonly [path: string, selector: string, side: 'border' | 'border-top' | 'border-bottom'])[] = [
+  ['src/design/primitives.module.css', '.empty', 'border'],
+  ['src/modules/agent/agent.module.css', '.toolItem', 'border-bottom'],
+  ['src/modules/bot/bot.module.css', '.guard', 'border-bottom'],
+  ['src/modules/calendrier/calendrier.module.css', '.markerCompact', 'border-bottom'],
+  ['src/modules/calendrier/calendrier.module.css', '.histRow', 'border-bottom'],
+  ['src/modules/copieur/copieur.module.css', '.preview', 'border-top'],
+  ['src/modules/copieur/copieur.module.css', '.bridgeRow', 'border-bottom'],
+  ['src/modules/crypto/crypto.module.css', '.marketRow', 'border-bottom'],
+  ['src/modules/metrique/metrique.module.css', '.ringStats li', 'border-bottom'],
+  ['src/modules/metrique/metrique.module.css', '.cascadeRules > div', 'border-bottom'],
+  ['src/modules/visual/visual.module.css', '.tradeRow', 'border-bottom'],
 ];
 
 /** Les porteurs qui disent un état hors de la table (elle les reprendra), ou tracent une série, un repère, un master. */
@@ -83,7 +86,7 @@ const PORTEURS: Readonly<Record<string, string>> = {
 };
 
 /** Le plafond de chaque liste : il baisse avec elle et ne se relève jamais. */
-const PLAFOND = { decor: 11, porteurs: 25 };
+const PLAFOND = { decor: 0, porteurs: 25 };
 
 /** tokens.css tel que la décision 4 le fige (fins de ligne ramenées à LF). */
 const TOKENS_SHA256 = '6f1d2accfe2f3dd99f5ca6be447396dcb9bc5494548fe51cf3449089c9e31a81';
@@ -204,6 +207,24 @@ describe('OROS5.1 la table d’états du desk', () => {
     expect(DECOR).toHaveLength(PLAFOND.decor);
     expect(Object.keys(PORTEURS)).toHaveLength(PLAFOND.porteurs);
     for (const [where, dit] of Object.entries(PORTEURS)) expect(dit, where).toMatch(/^(?:état|tracé) · /);
+  });
+
+  it('OROS5.2 le tireté ne décore plus : le cliquet du décor est vide, chaque séparateur passe au filet plein --line-1', () => {
+    expect(DECOR).toEqual([]);
+    for (const [path, selector, side] of DECOR_RENDU) {
+      const rule = cssRules(readFileSync(path, 'utf8')).find((r) => r.selector.replace(/\s+/g, ' ') === selector);
+      expect(rule, `${path} › ${selector}`).toBeDefined();
+      const value = rule!.body
+        .split(';')
+        .map((d) => d.split(':'))
+        .find(([name]) => name?.trim() === side)
+        ?.slice(1)
+        .join(':')
+        .trim();
+      // Le même filet, à la même place : seul le motif s'en va.
+      expect(value, `${path} › ${selector}`).toBe('1px solid var(--line-1)');
+      expect(new RegExp(DASH.source).test(rule!.body), `${path} › ${selector}`).toBe(false);
+    }
   });
 
   it('aucun jeton : tokens.css ne change pas', () => {
