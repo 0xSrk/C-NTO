@@ -504,6 +504,34 @@
           "Kill switch: la banda de nivel 3 aparece aunque el AddOn de NinjaTrader no esté conectado. DOMPurify pasa a 3.4.17, por encima de los avisos críticos."
         ]
       }
+    },
+    {
+      "version": "3.8.0",
+      "date": "2026-11-01",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Système visuel 4.1 : le desk s’allège. Le rail perd ses catégories ; chaque module y est une cartouche, emblème en tête, raccourci au coin, et l’onglet ouvert s’éclaire. Le compte a sa cartouche, le sceau du Lab signe le pied du rail. La version, en haut à droite, ouvre le journal des versions.",
+          "En-têtes sans code ni accroche ; les outils secondaires de Métrique, Calendrier, Visual, Note et Portefeuille passent dans un menu Options, en haut à droite, dont les points disent l’état. Le survol redevient une lumière tamisée, qui ne déplace rien. Plus de plaques HUD, sauf celle du kill switch.",
+          "Verrou : une fiche plus large, « Coller » accolé au champ, « Fermer CΛNTO ». À l’ouverture, la phrase se défait en glyphes dont les pistes rallument le sceau ; il se plie dans son horizon, et le circuit trace les lignes du desk. Une touche, un clic ou un toucher abrège ; le mouvement réduit est respecté.",
+          "Agent IA s’ouvre sur A · Rapports, puis B · Conversation et C · Options. Les rapports sont les analyses que le Lab écrit avec son agent cloud ; seul le desk du Lab le pilote et, pour l’instant, les relève : ailleurs, le dossier reste vide. Rien du desk ne part vers le cloud.",
+          "En anglais et en espagnol : 7D · 30D · 90D, « today » et « hoy » au Calendrier, titres des catalyseurs traduits au Bot ; en anglais, point décimal et « $750 ». Le rail ne compte que les suiveurs du Copieur et se tait sur Crypto éteint. La mise à jour, ses notes et le calendrier officiel partent sans cookie."
+        ],
+        "en": [
+          "Visual system 4.1: a lighter desk. The rail loses its categories; each module is a cartouche, emblem first and shortcut in the corner, and the open tab lights up. The account has its own cartouche, the Lab’s seal signs the foot of the rail. The version, top right, opens the version journal.",
+          "Headers with no code or tagline; the secondary tools of Metrics, Calendar, Visual, Note and Portfolio move into an Options menu at the top right, whose dots show their state. Hover is a dimmed light again and moves nothing. No more HUD plates, except the kill switch’s.",
+          "Lock: a wider card, “Paste” beside the field, “Close CΛNTO”. On opening, the phrase breaks into glyphs whose tracks relight the seal; it folds into its horizon, and the circuit draws the desk’s lines. A key, a click or a touch skips it; reduced motion is respected.",
+          "AI Agent opens on A · Reports, then B · Conversation and C · Options. The reports are the analyses the Lab writes with its cloud agent; only the Lab’s own desk drives it and, for now, pulls them: elsewhere, the folder stays empty. Nothing from the desk goes to the cloud.",
+          "In English and Spanish: 7D · 30D · 90D, “today” and “hoy” in Calendar, catalyst titles translated in Bot; in English, a decimal point and “$750”. The rail counts only the Copier’s followers and says nothing of Crypto while off. Updates, their notes and the official calendar go out without cookies."
+        ],
+        "es": [
+          "Sistema visual 4.1: el desk se aligera. El raíl pierde sus categorías; cada módulo es un cartucho, emblema delante y atajo en la esquina, y la pestaña abierta se ilumina. La cuenta tiene su cartucho, el sello del Lab firma el pie del raíl. La versión, arriba a la derecha, abre el diario de versiones.",
+          "Encabezados sin código ni lema; las herramientas secundarias de Métrica, Calendario, Visual, Nota y Cartera pasan a un menú Opciones, arriba a la derecha, cuyos puntos dicen su estado. Al pasar el ratón vuelve una luz tenue, que no mueve nada. Ya no hay placas HUD, salvo la del kill switch.",
+          "Bloqueo: una ficha más ancha, «Pegar» junto al campo, «Cerrar CΛNTO». Al abrir, la frase se deshace en glifos cuyas pistas reencienden el sello; este se pliega en su horizonte, y el circuito traza las líneas del desk. Una tecla, un clic o un toque lo abrevia; se respeta el movimiento reducido.",
+          "Agente IA se abre en A · Informes, luego B · Conversación y C · Opciones. Los informes son los análisis que el Lab escribe con su agente en la nube; solo el desk del Lab lo maneja y, por ahora, los recoge: en los demás, la carpeta queda vacía. Nada del desk sale hacia la nube.",
+          "En inglés y en español: 7D · 30D · 90D, «today» y «hoy» en el Calendario, títulos de catalizadores traducidos en el Bot; en inglés, punto decimal y «$750». El raíl solo cuenta las seguidoras del Copiador y calla sobre Cripto apagado. La actualización, sus notas y el calendario oficial salen sin cookies."
+        ]
+      }
     }
   ]
 }

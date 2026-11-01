@@ -2,7 +2,7 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.7.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.8.0 · DESK OUTPUT`**
 
 # CΛNTO
 
@@ -19,7 +19,7 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 <br/><br/>
 
-[![Version](https://img.shields.io/badge/version-3.7.0-CCB066?style=flat-square)](#versions)
+[![Version](https://img.shields.io/badge/version-3.8.0-CCB066?style=flat-square)](#versions)
 [![Tests](https://img.shields.io/badge/tests-2602%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
@@ -89,19 +89,20 @@ It reads the whole desk and your rules, prepares the brief and the debrief, and 
 ---
 
 <a id="whats-new"></a>
-<a id="whats-new-in-370"></a>
+<a id="whats-new-in-380"></a>
 
-## What's new in 3.7.0
+## What's new in 3.8.0
 
 > [!NOTE]
-> **v3.7.0 · 2026-10-26.** The same four points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish).
+> **v3.8.0 · 2026-11-01.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish). 3.7.0 was not published on its own: its entry follows this one in the journal, and three of its sentences no longer hold. Hover is a light again; the HUD plates are gone, in the desk and the launcher, except the kill switch's; the launcher no longer prints version readings.
 
-- **Visual system 4.0 « ΟΡΟΣ ».** Visual system 4.0 « ΟΡΟΣ »: the Lab’s night, ivory and gold. Gold marks what is alive (the LED, the last price, “now”); red now marks level 3 only, and nothing reacts to hover any more.
-- **The Lab’s signature, seal and a single barcode.** The Lab’s signature in every detail: HUD plates bound to the desk’s real state, cartouches, module emblems and Ligne V2 components; the Horizon seal strikes at start-up and closes the lock, and the status bar keeps the chassis black, signed with an eleven-bar code between braces.
-- **The AUBE launcher, rebuilt.** AUBE launcher rebuilt: the horizon draws itself, the gold LED settles on the tip of the Λ, version readings print; on launch, everything folds back onto the horizon. A key press skips it; reduced motion is respected.
-- **Kill switch and DOMPurify.** Kill switch: the level-3 band shows even when the NinjaTrader AddOn is not connected. DOMPurify moves to 3.4.17, past the critical advisories.
+- **Visual system 4.1, a lighter desk.** Visual system 4.1: a lighter desk. The rail loses its categories; each module is a cartouche, emblem first and shortcut in the corner, and the open tab lights up. The account has its own cartouche, the Lab’s seal signs the foot of the rail. The version, top right, opens the version journal.
+- **Headers, Options menu and light.** Headers with no code or tagline; the secondary tools of Metrics, Calendar, Visual, Note and Portfolio move into an Options menu at the top right, whose dots show their state. Hover is a dimmed light again and moves nothing. No more HUD plates, except the kill switch’s.
+- **The lock opens by a circuit.** Lock: a wider card, “Paste” beside the field, “Close CΛNTO”. On opening, the phrase breaks into glyphs whose tracks relight the seal; it folds into its horizon, and the circuit draws the desk’s lines. A key, a click or a touch skips it; reduced motion is respected.
+- **AI Agent and the Lab’s reports.** AI Agent opens on A · Reports, then B · Conversation and C · Options. The reports are the analyses the Lab writes with its cloud agent; only the Lab’s own desk drives it and, for now, pulls them: elsewhere, the folder stays empty. Nothing from the desk goes to the cloud.
+- **Languages, rail and network.** In English and Spanish: 7D · 30D · 90D, “today” and “hoy” in Calendar, catalyst titles translated in Bot; in English, a decimal point and “$750”. The rail counts only the Copier’s followers and says nothing of Crypto while off. Updates, their notes and the official calendar go out without cookies.
 
-NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.7.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.7.0).
+NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.8.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.8.0).
 
 ---
 
@@ -113,9 +114,9 @@ NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.7.0](https://g
 
 | Platform | Download | Runs on |
 |---|---|---|
-| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
-| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-win-arm64-portable.exe) | Windows 10 and 11 |
-| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.7.0/CANTO-3.7.0-linux-arm64.deb) | x64 and ARM64 |
+| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
+| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-arm64-portable.exe) | Windows 10 and 11 |
+| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-arm64.deb) | x64 and ARM64 |
 
 The installers need neither Node.js nor a clone of the repository. Each Release lists every file in `SHA256SUMS.txt`, signed with the Lab's Ed25519 key: the desk's built-in update refuses an installer whose signature is missing, foreign, or bound to another version ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
 
@@ -140,7 +141,7 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-1. Run `CANTO-3.7.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.7.0-win-x64-portable.exe`.
+1. Run `CANTO-3.8.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.8.0-win-x64-portable.exe`.
 2. NinjaTrader 8 — real time, AddOn, CSV folder: [the bridge](#ninjatrader-8-bridge).
 
 **Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log`, and a start-up error is shown in a dialog rather than closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it. Check *Windows Security › App & browser control*, or use the source install below.
@@ -152,8 +153,8 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-- **AppImage** (no system install): `chmod +x CANTO-3.7.0-linux-x86_64.AppImage && ./CANTO-3.7.0-linux-x86_64.AppImage`
-- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.7.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
+- **AppImage** (no system install): `chmod +x CANTO-3.8.0-linux-x86_64.AppImage && ./CANTO-3.8.0-linux-x86_64.AppImage`
+- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.8.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
 - **NinjaTrader**: as on macOS, the Linux desk imports the CSV files the AddOn writes on Windows ([the bridge](#ninjatrader-8-bridge)); real time, orders and the Copier need the desk on the NinjaTrader machine.
 
 Without a GPU (remote session, no `/dev/dri`), Chromium can leave the window black and quit. The desk then switches to software rendering on its own, including at the next launch. Force it with `CANTO_DISABLE_GPU=1`.
@@ -728,7 +729,7 @@ docs/                DESIGN · PONT-NINJATRADER · PROTOCOLE-AGENT · THESE-AGEN
 
 ### Visual system
 
-System 4.0 « ΟΡΟΣ » — **[docs/DESIGN.md](docs/DESIGN.md)**. The Lab's night, ivory and gold: night `#07080C` for the chassis, floor `#0D0E12`, plate `#14151A`, ivory ink `#F5F2EA`, labels at 4.5:1 or more. Gold `#CCB066` marks what is alive — the LED, the last price, “now”; signal red `#E10600` marks level 3 only, and nothing reacts to hover. The line tells the state: solid in service, dashed planned or in design, dotted beyond the horizon. Instrument Sans for display and interface, Geist Mono capitals for labels, IBM Plex Sans for the name and the Greek, Doto for one readout per screen. A plate is never decoration: each shows a real state of the desk. The Horizon seal strikes at start-up and closes the lock; one barcode on the chassis, eleven bars between braces, ends the status bar. Chrome: title bar 44 · rail 220 · status 28.
+System 4.0 « ΟΡΟΣ » — **[docs/DESIGN.md](docs/DESIGN.md)**. The Lab's night, ivory and gold: night `#07080C` for the chassis, floor `#0D0E12`, plate `#14151A`, ivory ink `#F5F2EA`, labels at 4.5:1 or more. Gold `#CCB066` marks what is alive — the LED, the last price, “now”; signal red `#E10600` marks level 3 only, and nothing reacts to hover. The line tells the state: solid in service, dashed planned or in design, dotted beyond the horizon. Instrument Sans for display and interface, Geist Mono capitals for labels, IBM Plex Sans for the name and the Greek, Doto for one readout per screen. A plate is never decoration: each shows a real state of the desk. The Horizon seal strikes at start-up and closes the lock; the chassis carries one barcode, an eleven-bar code between braces, just before `[ SIΞRRΛSKΛ ]` at the end of the status bar. Chrome: title bar 44 · rail 220 · status 28.
 
 ---
 
@@ -779,7 +780,8 @@ Installers land in `release/`, each built on its own OS.
 
 The journal inside the desk lists every release in French, English and Spanish.
 
-- **3.7.0** — Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; the status bar in the chassis black, signed with an eleven-bar code between braces; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected; DOMPurify 3.4.17. (2026-10-26)
+- **3.8.0** — Visual system 4.1: a lighter desk, the rail and the account in cartouches, the secondary tools in an Options menu, hover as a dim light; the lock opens by a circuit; AI Agent opens on the Lab’s reports; English and Spanish labels and decimals; updates without cookies. (2026-11-01)
+- <a id="whats-new-in-370"></a>**3.7.0** — Not published on its own: shipped in 3.8.0. Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; the status bar in the chassis black, signed with an eleven-bar code between braces; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected; DOMPurify 3.4.17. (2026-10-26)
 - <a id="whats-new-in-360"></a>**3.6.0** — Optional crypto tab `09 · CRY`, off until you consent in a main-process dialog: live markets with their CVD and the desk's indicators, the Binance market temperature, local alerts, ten `crypto_*` tools for the agent and MCP clients. Network in the main process only, to pinned exchange hosts. (2026-10-13)
 - <a id="whats-new-in-350"></a>**3.5.0** — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. The session in progress, discipline rules, Visual following the bridge. The agent reads your rules and day loss, prepares the brief and the debrief, and the desk refuses its proposed orders when they break your rules; the Copier's follower floor reads the same dated buffer. (2026-10-06)
 - **3.4.0** — The agent reads the whole desk and proposes Sim orders that you confirm. Local MCP gateway. AddOn 2.2.0 and the desk prove themselves to each other, the Copier follows positions, updates are signed by the Lab. (2026-10-06)
@@ -853,6 +855,6 @@ A model reached through an API and run as a service, a desk fitted to one trader
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.7.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.8.0 · DESK OUTPUT`**
 
 </div>
