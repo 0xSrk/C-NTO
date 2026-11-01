@@ -386,16 +386,28 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     await submitFake(el.querySelector<HTMLFormElement>('form')!);
     const shown = () => el.querySelectorAll('[data-part="unlock-glyphs"] [data-phase]').length;
     expect(shown()).toBe(28);
-    // le desk monté pose un zoom plus fort : 290 px utiles, 25 points
-    width = 290;
-    act(() => watchers.forEach((call) => call()));
-    expect(shown()).toBe(25);
+    // OROS4.59 comme le navigateur : le rappel tombe hors de toute tâche de React, et ce que le DOM porte à son retour,
+    // ses microtâches passées, est ce qui est peint. Dans `act`, le rendu attendait la sortie d'`act` : le test passait
+    // sans `flushSync`.
+    const resize = async (to: number) => {
+      width = to;
+      const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+      env.IS_REACT_ACT_ENVIRONMENT = false;
+      try {
+        watchers.forEach((call) => call());
+        await Promise.resolve();
+        await Promise.resolve();
+        return shown();
+      } finally {
+        env.IS_REACT_ACT_ENVIRONMENT = true;
+      }
+    };
+    // le desk monté pose un zoom plus fort : 290 px utiles, 25 points, dès l'image où le champ rétrécit
+    expect(await resize(290)).toBe(25);
     act(() => vi.advanceTimersByTime(600));
     expect(shown()).toBe(25);
     // plus large, la rangée ne dépasse jamais la longueur admise
-    width = 400;
-    act(() => watchers.forEach((call) => call()));
-    expect(shown()).toBe(28);
+    expect(await resize(400)).toBe(28);
   });
 
   it('OROS4.32 l’état du verrou se dit hors de la fiche : admise, la fiche devient inerte, et « Ouvert » s’annonce quand même', async () => {
