@@ -7,7 +7,7 @@ import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr } from '@/lib/time';
-import { trEventTitle } from '@/modules/calendrier/eventTitles';
+import { trEventTitle } from '@/lib/eventTitles';
 import { BOT_TEMPLATES, deriveGuards, useBots, type BotRule } from '@/store/bots';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';

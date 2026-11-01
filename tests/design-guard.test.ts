@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLATES } from '@/design/micro/assets';
@@ -211,6 +211,57 @@ describe('garde du système visuel', () => {
       for (const [, name] of names!.matchAll(/`(--[a-z0-9-]+)`/g)) {
         expect(token(css, name!).toLowerCase(), name).toBe(value!.toLowerCase());
       }
+    }
+  });
+
+  it('OROS5.4 le design et le châssis ne lisent aucun module : les tables du trait, de l’impact et des titres vivent dans src/lib', () => {
+    // La fiche (src/app/objects) et la frise (src/app/Frise*) naîtront ici ; src/lib reçoit les tables qu'elles liront.
+    const scoped = [
+      ...walk('src/design'),
+      ...walk('src/lib'),
+      ...(existsSync('src/app/objects') ? walk('src/app/objects') : []),
+      ...walk('src/app').filter((path) => /^app\/frise/i.test(posix('src', path))),
+    ];
+    const readsModule = /(?:from\s+|import\(\s*)['"](?:@\/modules\/|(?:\.\.\/)+modules\/)/;
+    expect(scoped.filter((path) => readsModule.test(readFileSync(path, 'utf8'))).map((path) => posix('.', path))).toEqual([]);
+    // Le Calendrier les lit dans src/lib ; il ne les définit plus.
+    const calendar = readFileSync('src/modules/calendrier/Calendrier.tsx', 'utf8');
+    expect(calendar).toMatch(/from '@\/lib\/calendarMarks'/);
+    expect(calendar).toMatch(/from '@\/lib\/eventTitles'/);
+    expect(calendar).not.toMatch(/function trEventDesc|const EVENT_DESC/);
+    expect(readFileSync('src/modules/calendrier/calState.ts', 'utf8')).not.toMatch(/export function (?:strokeOf|impactBars|horizonEnd)/);
+    expect(existsSync('src/modules/calendrier/eventTitles.ts')).toBe(false);
+  });
+
+  it('OROS5.4 chaque titre embarqué a ses trois langues', async () => {
+    const { calendarBundle } = await import('@/engine/calendar-bundle');
+    const { generateNasdaqEvents } = await import('@/engine/calendar');
+    const { eventTitleLanguages, trEventTitle } = await import('@/lib/eventTitles');
+    const { useI18n } = await import('@/i18n');
+    // Les titres que le desk écrit lui-même, en français : le calendrier moteur et les sources de l'instantané. Ceux de la
+    // BEA sont les noms de la source, en anglais : ils ne sont pas restés en français.
+    const titles = new Set<string>();
+    for (const e of calendarBundle.events) if (e.origin !== 'bea') titles.add(e.title);
+    for (const year of [2026, 2027]) for (const e of generateNasdaqEvents(year)) titles.add(e.title);
+    expect(titles.size).toBeGreaterThan(20);
+    const missing = [...titles].filter((title) => {
+      const row = eventTitleLanguages(title);
+      return !row || row[0] !== title || !row[1] || !row[2];
+    });
+    expect(missing).toEqual([]);
+    const said = (title: string) =>
+      (['fr', 'en', 'es'] as const).map((locale) => {
+        useI18n.setState({ locale });
+        return trEventTitle(title);
+      });
+    try {
+      expect(said('Stocks pétrole EIA')).toEqual(['Stocks pétrole EIA', 'EIA crude oil inventories', 'Inventarios de petróleo EIA']);
+      expect(said('Décision de politique monétaire BCE')).toEqual(['Décision de politique monétaire BCE', 'ECB monetary policy decision', 'Decisión de política monetaria del BCE']);
+      expect(said('Adjudication 52-Week Bill')).toEqual(['Adjudication 52-Week Bill', '52-Week Bill auction', 'Subasta 52-Week Bill']);
+      // Un rappel saisi reste tel quel.
+      expect(said('Appeler le courtier')).toEqual(['Appeler le courtier', 'Appeler le courtier', 'Appeler le courtier']);
+    } finally {
+      useI18n.setState({ locale: 'fr' });
     }
   });
 
