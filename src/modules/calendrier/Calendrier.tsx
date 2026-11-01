@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import e from '@/design/etat.module.css';
 import { Glyph } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
 import { Button, Panel, Segmented, Tag, cx } from '@/design/primitives';
@@ -668,7 +669,10 @@ function Impact({ level }: { level: number }) {
   );
 }
 
-/** Légendes du calendrier : le trait dit l'état (L.01), la forme dit l'impact (L.02). */
+/** L.01 renvoie à la table d'états du desk (`src/design/etat.module.css`) : le trait d'une publication en est un état. */
+const STROKE_ETAT: Record<Stroke, string | undefined> = { publie: e.plein, prevu: e.tirete, horizon: e.pointille };
+
+/** Légendes du calendrier : le trait dit l'état (L.01, tiré de la table d'états), la forme dit l'impact (L.02). */
 function CalLegend() {
   useI18n((s) => s.locale);
   const strokes: Record<Stroke, string> = {
@@ -691,7 +695,7 @@ function CalLegend() {
         </header>
         {STROKES.map((stroke) => (
           <div key={stroke} className={s.legendRow}>
-            <i className={s.swatch} data-stroke={stroke} aria-hidden />
+            <i className={cx(s.swatch, STROKE_ETAT[stroke])} data-stroke={stroke} aria-hidden />
             <span>{strokes[stroke]}</span>
           </div>
         ))}

@@ -14,8 +14,19 @@ Quatre axes, repris de la Ligne V2 :
 
 - **Forme → catégorie.** Triangle : un signal. Plaque : l’artefact. Fiche : un document. Disque : le siège.
 - **Code → identité.** `SK-ART-002-{version}`, en clair et en Code 128.
-- **Trait → état.** Plein : publié, en service. Tireté : prévu, proposé, en conception. Pointillé : au-delà de l’horizon.
+- **Trait → état.** Plein : publié, en service. Tireté : prévu, proposé, en conception. Pointillé : au-delà de l’horizon. Éteint : fermé. La table d’états, ci-dessous, en fait la règle.
 - **Couleur → autorité.** Ivoire selon le fond, or pour ce qui vit, glacier pour la technique, rouge pour le niveau 3.
+
+**Table d’états** (Système 5 « Fiche et Frise », décision de l’ADMIN, 2026-11-01) : une seule, `src/design/etat.module.css`, tenue par `tests/etat-table.test.ts`. Le trait dit l’état, et lui seul ; une classe par état, un état par classe.
+
+| État | Classe | Trait | Dit |
+| --- | --- | --- | --- |
+| Plein | `.plein` | contour plein | en service, publié, décidé |
+| Tireté | `.tirete` | contour plein et halo tireté à 3 px | prévu, proposé, hypothèse, en attente |
+| Pointillé | `.pointille` | contour plein et halo pointillé à 3 px | au-delà de l’horizon |
+| Éteint | `.eteint` | filet graphite `--line-2`, sans motif | fermé, en pause, désarmé, désactivé, hors service, en panne |
+
+Le halo est le second contour de la Ligne V2 (pl. 02), posé à 3 px hors de la boîte : il ne déplace rien, n’intercepte rien, et n’existe que pour ce qui n’est pas encore en service. Ce n’est pas la lueur de la LED : ni ombre, ni flou, ni animation. Le contour prend l’encre de la zone (`--k`), qui dit l’autorité, jamais l’état ; l’éteint garde son graphite. La légende L.01 du Calendrier est tirée de la table. Hors de la table, chaque trait tireté ou pointillé figure au cliquet du test : le décor, qui ne dit aucun état, et les porteurs qui disent un état hors de la table ou tracent une série, chacun nommé ; les listes ne font que décroître, et aucun jeton n’est ajouté.
 
 ## 01. Matières
 
