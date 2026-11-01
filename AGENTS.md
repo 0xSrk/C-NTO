@@ -15,7 +15,8 @@ Toute session d'agent sur ce dépôt, quel que soit l'outil, suit les règles de
   - Avant de pousser : `npm run check`.
   - Si `electron/` change : `npm run electron:compile`.
 - **Interdits.** Aucune dépendance npm nouvelle, aucun jeton de design nouveau, aucun invariant de `CLAUDE.md` § 5 affaibli.
-- **Réservé à l'ADMIN.** L'agent ne soumet jamais d'ordre. La version, la Release, la fusion dans `main`, les clés et la compilation de l'AddOn NinjaTrader appartiennent à l'ADMIN.
+- **Réservé à l'ADMIN.** L'agent ne soumet jamais d'ordre. La fusion dans `main`, les clés et la compilation de l'AddOn NinjaTrader appartiennent à l'ADMIN.
+- **La Release.** Elle n'est plus réservée à l'ADMIN (2026-11-01) : les agents du Lab montent la version, signent et publient, sous contrôle croisé, sans que la clé de publication quitte le poste de l'ADMIN ni entre dans le contexte d'un modèle (`CLAUDE.md` § 3, `docs/PUBLICATION.md` › « Contrôle croisé »).
 
 ## Centre de contrôle
 

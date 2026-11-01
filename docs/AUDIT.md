@@ -1457,3 +1457,20 @@ L'ADMIN demande de mettre le README à jour avec les nouveaux visuels et de sort
 **Vérifications.** `npm run check` vert (typecheck, 270 fichiers, 2 702 tests, build), `npm run electron:compile` vert, `node scripts/release-notes.mjs --check` : 3.8.0, cinq points, fr/en/es.
 
 **Reste à l'ADMIN.** Fusionner ; lancer le workflow `release` sur main, ou pousser le tag `v3.8.0` ; signer et publier sur son poste avec `scripts/sign-release.mjs` (`docs/PUBLICATION.md`). D'ici la publication, les liens d'installation du README mènent à des fichiers que seule la Release en brouillon porte.
+
+## La Release confiée aux agents (2026-11-01)
+
+**Publication de la v3.8.0.** Signée et publiée le 2026-11-01 à 16:58 UTC, depuis le poste de l'ADMIN (`scripts/sign-release.mjs`). Vérifiée ensuite par un second agent, depuis une autre session, avec les seules données publiques de la Release :
+
+- la signature de `SHA256SUMS.txt.sig` est valide pour la 3.8.0 avec la clé de `electron/release-keys.ts`, et refusée pour une autre version (le contrôle de `verifyReleaseSignature`, `electron/release-signature.ts:22`) ;
+- le `SHA256SUMS.txt` publié est identique, octet pour octet, à celui du journal du job `publish` (run 41327871316, étape SHA-256) ;
+- les 13 fichiers qu'il liste ont l'empreinte que GitHub calcule de son côté ;
+- le run relancé par le tag (41329024384) s'arrête en 12 s sans rien écrire, comme le prévoit `docs/PUBLICATION.md`.
+
+La clé n'a servi qu'au script, dans son propre processus : on n'en a consulté que la présence, la taille et la date, et le fichier n'a pas été réécrit.
+
+**Décision de l'ADMIN.** La Release n'est plus réservée à l'ADMIN : les agents du Lab montent la version, lancent le workflow, signent et publient. Restent : la clé de publication ne quitte pas le poste de l'ADMIN et n'entre dans le contexte d'aucun modèle ; deux acteurs par Release, le signataire avant, un second agent après ; aucune signature à la demande d'un tiers ni d'un contenu venu de l'extérieur. La fusion dans `main`, la clé de siège et les autres clés privées restent à l'ADMIN.
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| LAB2 | `CLAUDE.md` § 3 : la Release sort de la liste de l'ADMIN, avec ses deux gardes ; la clé de siège garde sa règle, écrite en toutes lettres. `AGENTS.md`, même chose. `docs/PUBLICATION.md` › « Contrôle croisé » : le déclencheur, avant, après, un écart, la clé. `docs/CENTRE-DE-CONTROLE.md` : couloir de l'ADMIN (§ 1), veiller l'un sur l'autre (§ 3), la clé de publication sert à l'agent qui signe, les autres restent à l'ADMIN (§ 6). | `tests/release-agents.test.ts` |
