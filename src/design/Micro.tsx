@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CARTOUCHES, COMPONENTS, GLYPH_ID, PLATES } from './micro/assets';
+import { CARTOUCHES, COMPONENTS as MASTERS, GLYPH_ID as MASTER_ID, PLATES } from './micro/assets';
+import { DRAWN, DRAWN_ID } from './micro/drawn';
 import { cx } from './primitives';
 import s from './micro.module.css';
 
@@ -8,6 +9,13 @@ import s from './micro.module.css';
  * decoded cartouches. Each one names a function or reads a state; none decorates. Ink is --k, paper is --p: each
  * zone sets them. The only code of the desk stays the strip's Code 128, bottom right.
  */
+
+/**
+ * One library of glyphs (Système 5, ADMIN decision 5, 2026-11-01): the plate's masters (`assets.ts`, generated outside
+ * the repository) and the components drawn in the repository (`drawn.ts`), merged. The whole desk reads them from here.
+ */
+export const COMPONENTS: Readonly<Record<number, string>> = { ...MASTERS, ...DRAWN };
+export const GLYPH_ID = { ...MASTER_ID, ...DRAWN_ID } as const;
 export type GlyphName = keyof typeof GLYPH_ID;
 export type PlateId = keyof typeof PLATES;
 export type CartoucheId = keyof typeof CARTOUCHES;

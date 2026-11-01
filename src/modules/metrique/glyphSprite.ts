@@ -1,4 +1,4 @@
-import { COMPONENTS, GLYPH_ID } from '@/design/micro/assets';
+import { COMPONENTS, GLYPH_ID } from '@/design/Micro';
 
 /**
  * Un composant de la planche pour un canevas : le même SVG que `<Glyph>`, rendu autonome (espace de noms, taille en
