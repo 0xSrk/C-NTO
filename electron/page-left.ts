@@ -14,7 +14,20 @@ export interface PageEvents {
  * requête ou son ancre. Toute autre URL (lien https d'une note ou d'une réponse de l'agent, autre fichier) est refusée.
  */
 export function deskUrlAllowed(url: string, devUrl: string | undefined, indexUrl: string): boolean {
-  return devUrl ? url.startsWith(devUrl) : url === indexUrl || url.startsWith(`${indexUrl}#`) || url.startsWith(`${indexUrl}?`);
+  return devUrl ? sameOrigin(url, devUrl) : url === indexUrl || url.startsWith(`${indexUrl}#`) || url.startsWith(`${indexUrl}?`);
+}
+
+/**
+ * Même origine que le serveur de développement (schéma, hôte, port), sans identifiants : un préfixe de chaîne laissait
+ * passer `http://127.0.0.1:5173@ailleurs/` ou le port 51730, et `did-navigate` y aurait rouvert « Coller ».
+ */
+function sameOrigin(url: string, base: string): boolean {
+  try {
+    const target = new URL(url);
+    return target.origin !== 'null' && target.origin === new URL(base).origin && !target.username && !target.password;
+  } catch {
+    return false;
+  }
 }
 
 /**

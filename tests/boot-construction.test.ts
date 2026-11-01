@@ -67,10 +67,12 @@ describe('Boot 3.2.2 — construction du logotype', () => {
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
-  it('OROS4.6 plus de circuit : la LED est au logotype, et l’ouverture du verrou part du sceau', () => {
+  it('OROS4.6 plus de circuit au chargement : la LED est au logotype ; OROS4.18 le verrou a le sien, celui de l’ouverture', () => {
     expect(existsSync('src/app/bootCircuit.ts')).toBe(false);
-    expect(readFileSync('src/app/Boot.tsx', 'utf8')).not.toMatch(/<Sigil/);
-    expect(readFileSync('src/app/Gate.tsx', 'utf8')).not.toMatch(/runBootCircuit|<canvas/);
+    expect(readFileSync('src/app/Boot.tsx', 'utf8')).not.toMatch(/<Sigil|<canvas/);
+    const gate = readFileSync('src/app/Gate.tsx', 'utf8');
+    expect(gate).not.toMatch(/runBootCircuit/);
+    expect(gate).toMatch(/runUnlockCircuit\(canvas,/);
   });
 
   it('OROS4.9 le nom du Lab se dit une fois, en caractères, dans la ligne du Lab ; plus de pied décoratif', () => {

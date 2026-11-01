@@ -15,7 +15,10 @@ const rule = (selector: string) => {
 describe('OROS4.5 la plaque réduite à la marque du Lab', () => {
   it('le pied du rail porte le sceau du Lab, gravé, puis les langues ; plus de cartouche ni de version', () => {
     const foot = between(shell, '<div className={s.railFoot}>', '</aside>');
-    expect(foot.indexOf('COMPTE ACTIF')).toBeLessThan(foot.indexOf('<Seal'));
+    // OROS4.20 le compte, dans sa cartouche, précède le sceau ; son intitulé visible est retiré
+    expect(foot).not.toContain('COMPTE ACTIF');
+    expect(foot.indexOf('data-part="account-mark"')).toBeGreaterThan(-1);
+    expect(foot.indexOf('data-part="account-mark"')).toBeLessThan(foot.indexOf('<Seal'));
     expect(foot).toMatch(/<Seal kind="negative" className=\{s\.sealMarkSvg\} label="SIΞRRΛSKΛ Lab" \/>/);
     expect(foot.indexOf('<Seal')).toBeLessThan(foot.indexOf('role="radiogroup"'));
     expect(foot).not.toContain('<Cartouche');
@@ -32,8 +35,11 @@ describe('OROS4.5 la plaque réduite à la marque du Lab', () => {
     expect(css).not.toMatch(/border-radius: 3px/);
   });
 
-  it('le compte actif se pose à même le rail, sans carte', () => {
+  it('OROS4.20 le compte se pose dans une cartouche du Lab ; le sceau le suit sans filet', () => {
+    // la cartouche est dessinée par ses deux calques découpés au chanfrein, jamais par un cadre arrondi ni une ombre
     const account = rule('.account');
-    expect(account).not.toMatch(/background|border|box-shadow/);
+    expect(account).not.toMatch(/border-radius|box-shadow/);
+    expect(rule('.account::before')).toMatch(/clip-path: var\(--chamfer\)/);
+    expect(rule('.signature')).not.toMatch(/border-top/);
   });
 });

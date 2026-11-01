@@ -6,7 +6,7 @@ const css = readFileSync('src/app/shell.module.css', 'utf8');
 const between = (text: string, from: string, to: string) => text.slice(text.indexOf(from), text.indexOf(to, text.indexOf(from)));
 
 describe('rail 3.2.2', () => {
-  it('le compte actif est posé à même le rail, avec son voyant', () => {
+  it('le compte garde son voyant, OROS4.20 au cœur de sa micro', () => {
     expect(shell).not.toContain('accountCard');
     expect(css).not.toMatch(/\.accountCard\b/);
     for (const state of ['voyantOn', 'voyantVeille', 'voyantOff']) expect(css).toContain(`.${state}`);

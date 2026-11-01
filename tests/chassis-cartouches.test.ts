@@ -74,19 +74,16 @@ describe('OROS2.10 cartouches du châssis', () => {
     expect(useI18n.getState().locale).toBe('en');
   });
 
-  it('la barre de titre porte le losange du secteur S.01, puis la version, avant la cellule de mise à jour', () => {
+  it('OROS4.17 la barre de titre ne porte plus de micro : la version seule, avant la cellule de mise à jour', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
-    const sector = el.querySelector<HTMLElement>('header [role="img"][aria-label^="Secteur S.01"]');
-    expect(sector).not.toBeNull();
-    expect(sector!.querySelector('svg.lbl-losange')).not.toBeNull();
+    // la demande était « Supprimer », pas « S'imprimer » : plus de losange du secteur à gauche de la version
+    expect(el.querySelector('header [role="img"][aria-label^="Secteur S.01"]')).toBeNull();
+    expect(el.querySelector('header svg.lbl-losange')).toBeNull();
     const header = shellSource.slice(shellSource.indexOf('<header'), shellSource.indexOf('</header>'));
-    expect(header.indexOf('<Cartouche id="sectorS01"')).toBeGreaterThan(-1);
-    // à gauche de la version, la micro du secteur ; puis la cellule de mise à jour
-    expect(header.indexOf('<Cartouche id="sectorS01"')).toBeLessThan(header.indexOf('<ChangelogJournal'));
+    expect(header).not.toMatch(/<Cartouche\b/);
+    expect(header.indexOf('<ChangelogJournal')).toBeGreaterThan(-1);
     expect(header.indexOf('<ChangelogJournal')).toBeLessThan(header.indexOf('<UpdateButton />'));
-    const cell = rule('.sector');
-    expect(cell).toMatch(/--k: var\(--text-1\)/);
-    expect(cell).toMatch(/--p: var\(--bg-0\)/);
+    expect(rule('.sector')).toBe('');
   });
 
   it('OROS4.3 chaque en-tête de module dit sa couche du Lab par son seul composant, lu dans une table centrale ; rien sous le titre', () => {
@@ -111,6 +108,18 @@ describe('OROS2.10 cartouches du châssis', () => {
     const header = shellSource.slice(shellSource.indexOf('export function ModuleHeader'), shellSource.indexOf('export function ModuleContent'));
     expect(header).toMatch(/MODULE_LAYERS\[tab\]/);
     expect(header).not.toMatch(/tagline|def\.code|<Cartouche/);
+  });
+
+  it('OROS4.21 le numéro et le nom du module ne cèdent jamais : à l’étroit, les actions passent à la ligne de l’en-tête', () => {
+    const plate = rule('.modulePlate');
+    expect(plate).toMatch(/flex: none;/);
+    expect(plate).not.toMatch(/min-width: 0/);
+    const head = rule('.moduleHead');
+    expect(head).toMatch(/flex-wrap: wrap;/);
+    expect(head).toMatch(/gap: 10px 18px;/);
+    // le relevé, lui, s'abrège ; les actions gardent leur bord droit sur leur ligne
+    expect(rule('.moduleMeta')).toMatch(/min-width: 0;[^}]*text-overflow: ellipsis;/);
+    expect(rule('.moduleActions')).toMatch(/flex-wrap: wrap;[^}]*justify-content: flex-end;[^}]*margin-left: auto;/);
   });
 
   it('la bande du kill switch : cartouche SK-SIG-3 rouge, titre, sous-titre, plaque critique à droite, 66 px', () => {
