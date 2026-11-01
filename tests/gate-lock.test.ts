@@ -538,6 +538,44 @@ describe('OROS2.8 le sceau ferme le verrou', () => {
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
+  // Chromium envoie le `mousedown` de compatibilité d'un toucher à son lever, et ne lui compte deux clics que si le second
+  // contact tombe à moins de 20 px du premier et à moins d'environ 400 ms de son lever ; sinon `detail` vaut 1. Un stylet
+  // l'envoie dès le contact.
+  for (const [label, pointerType, second, lift] of [
+    ['un doigt, 455 ms après le premier (410 ms après son lever)', 'touch', 455, 500],
+    ['un doigt, 300 ms après le premier, 25 px plus loin sur « Ouvrir »', 'touch', 300, 345],
+    ['un stylet, 300 ms après le premier, 25 px plus loin', 'pen', 300, 300],
+  ] as const) {
+    it(`OROS4.58 le mousedown de compatibilité d’un doigt ou d’un stylet ne compte pas : ${label}, le second reste un écho`, async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] });
+      const onReveal = vi.fn();
+      const el = mount({ onReveal });
+      type(el.querySelector<HTMLInputElement>('input[type="password"]')!, 'la phrase');
+      const open = el.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      const tapped = performance.now();
+      act(() => {
+        open.dispatchEvent(new PointerEvent('pointerdown', { pointerType, bubbles: true }));
+      });
+      await submitFake(el.querySelector<HTMLFormElement>('form')!);
+      act(() => vi.advanceTimersByTime(tapped + second - performance.now()));
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointerdown', { pointerType, bubbles: true }));
+      });
+      act(() => vi.advanceTimersByTime(tapped + lift - performance.now()));
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointerup', { pointerType, bubbles: true }));
+        window.dispatchEvent(new MouseEvent('mousedown', { detail: 1, bubbles: true }));
+      });
+      expect(onReveal).not.toHaveBeenCalled();
+      // la souris, elle, abrège toujours au clic neuf
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', bubbles: true }));
+        window.dispatchEvent(new MouseEvent('mousedown', { detail: 1, bubbles: true }));
+      });
+      expect(onReveal).toHaveBeenCalledTimes(1);
+    });
+  }
+
   it('OROS4.38 un collage refusé se dit : le bouton montre le raccourci, l’annonce le dit, le champ garde le focus', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
     const paste = vi.fn(async () => false);

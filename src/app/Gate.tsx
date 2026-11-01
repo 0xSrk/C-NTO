@@ -98,6 +98,8 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   const admittedRef = useRef(false);
   /** Le dernier toucher (doigt, stylet), relevé dès le verrou : celui qui a ouvert précède l'ouverture. */
   const tapRef = useRef(Number.NEGATIVE_INFINITY);
+  /** Le pointeur du dernier appui : le `mousedown` qui suit un doigt ou un stylet n'est que son écho. */
+  const pointerRef = useRef('mouse');
   const admitRef = useRef(onAdmit);
   const revealRef = useRef(onReveal);
   const openRef = useRef(onOpen);
@@ -111,6 +113,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   useEffect(() => () => window.clearTimeout(hintTimer.current), []);
   useEffect(() => {
     const note = (event: PointerEvent) => {
+      pointerRef.current = event.pointerType;
       if (event.pointerType !== 'mouse') tapRef.current = event.timeStamp;
     };
     window.addEventListener('pointerdown', note);
@@ -188,15 +191,17 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     const abridge = (event: Event) => {
       if (event instanceof KeyboardEvent && event.repeat) return;
       if (event instanceof MouseEvent && event.detail > 1) return;
+      if (event.type === 'mousedown' && pointerRef.current !== 'mouse') return;
       const at = clock();
       if (at >= tl.reveal) return;
       abridged = true;
       offset += tl.reveal - at;
       tick();
     };
-    // Au doigt et au stylet, le geste compte dès le contact : leur `mousedown` n'arrive qu'au lever d'un toucher, et
-    // jamais pour un doigt qui glisse. Le second toucher d'un double toucher sur « Ouvrir » reste un écho, comme le
-    // second clic d'un double-clic.
+    // Au doigt et au stylet, le geste compte dès le contact, et lui seul : leur `mousedown` de compatibilité n'arrive
+    // qu'au lever d'un toucher, jamais pour un doigt qui glisse, et Chromium n'y compte deux touchers que s'ils sont
+    // tout proches (20 px, 400 ms). Le second toucher d'un double toucher sur « Ouvrir » reste un écho, comme le second
+    // clic d'un double-clic.
     let tapAt = tapRef.current;
     const tap = (event: PointerEvent) => {
       if (event.pointerType === 'mouse') return;
