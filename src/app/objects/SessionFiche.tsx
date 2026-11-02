@@ -18,6 +18,7 @@ import { catalystTitle, etClock, typeWord, type IndexSources } from './index';
 import { EgoGraph, fmtR, IdentityGrid, RScaleBar, type EgoLabel } from './Instruments';
 import { useHoverLight, type LightProps } from './useHoverLight';
 import s from './fiche.module.css';
+import { AroundOf } from './AroundOf';
 
 /**
  * La fiche Séance (OROS5.26, Système 5 « Fiche et Frise » ; reprise du prototype d1, corrigée par le juge Ligne V2 et
@@ -252,6 +253,10 @@ export function SessionFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
 
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')} meta={plural(live, tr('lien', 'link', 'enlace'), tr('liens', 'links', 'enlaces'))}>
           <LinksByPredicate target={target} ctx={ctx} now={now} renderItem={renderItem} light={light} />
+        </FicheSection>
+
+        <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
+          <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
 
         <FicheSection part="drifts" title={tr('Écarts', 'Deviations', 'Desvíos')} meta={plural(findings.length, tr('rejoué', 'replayed', 'repetido'), tr('rejoués', 'replayed', 'repetidos'))}>

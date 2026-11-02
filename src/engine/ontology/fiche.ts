@@ -535,3 +535,27 @@ export function tradeBeads(pnls: readonly number[], max: number | null): BeadRow
   }
   return { beads, free, bound, width: Math.max(0, x - BEAD_GAP) };
 }
+
+/* ─── « Autour de… » : les voisins d'un ensemble (OROS5.31) ─────────────────────────────────────────────────── */
+
+/**
+ * Les voisins d'un ensemble d'objets, groupés comme ceux d'un objet (`groupNeighbors`) : chaque voisin compte une fois
+ * par groupe, quel que soit le nombre de membres qui le touchent, et un membre n'est pas son propre voisin. Les rejetés
+ * restent comptés à part. C'est ce qu'« Autour de… » propose depuis un ensemble : les sauts s'enchaînent.
+ */
+export function setNeighborGroups(members: readonly EntityRef[], links: readonly Link[]): NeighborGroup[] {
+  const inside = new Set(members.map(entityKey));
+  const seen = new Set<string>();
+  const out: Neighbor[] = [];
+  for (const member of members) {
+    for (const n of neighborsOf(member, links)) {
+      const key = entityKey(n.ref);
+      if (inside.has(key)) continue;
+      const id = `${n.side}:${n.link.predicate}:${n.ref.type}|${n.link.kind === 'rejete' ? 'r' : 'v'}|${key}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(n);
+    }
+  }
+  return groupNeighbors(out);
+}

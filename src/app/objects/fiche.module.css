@@ -1169,3 +1169,101 @@
 .rowMuted {
   color: var(--text-2);
 }
+
+/* ─── « Autour de… » à tous les prédicats (OROS5.31) : le chemin au glacier, l'ensemble, M.036, les sauts ─────────── */
+.around {
+  display: flex;
+  flex-direction: column;
+}
+/* Le chemin, dans l'ordre du saut : chaque nœud, puis le prédicat suivi au glacier ; il finit sur l'ensemble affiché. */
+.path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--line-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-1);
+}
+.pathTools {
+  display: inline-flex;
+  gap: 4px;
+}
+.pathTool {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--light-line);
+  font: inherit;
+  color: var(--text-1);
+  transition: border-color 260ms var(--ease-out), color 200ms linear;
+}
+.pathTool:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 1px;
+}
+@media (hover: hover) {
+  .pathTool:hover {
+    border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
+    color: var(--text-0);
+  }
+}
+.pathNode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-1);
+  --k: var(--text-1);
+}
+/* L'ensemble affiché : la fin du chemin, à l'ivoire. */
+.pathLast {
+  color: var(--text-0);
+  --k: var(--text-0);
+}
+.pathGlyph {
+  width: 14px;
+  height: 12px;
+}
+.pathEdge {
+  color: var(--ice);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.setMembers {
+  display: flex;
+  flex-direction: column;
+}
+.setRow {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+}
+.setMore,
+.setFoot {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.predicates {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+.predicatesHead {
+  margin: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.predicateRow {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+.predicateNote {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+}

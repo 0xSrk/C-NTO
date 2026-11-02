@@ -9,6 +9,7 @@ import { IdentityGrid } from './Instruments';
 import { noteAuthor, openInNote } from './NoteFiche';
 import { sampleWord } from './sample';
 import s from './fiche.module.css';
+import { AroundOf } from './AroundOf';
 
 /**
  * La fiche Stratégie (OROS5.28, correction du juge Palantir) : une note étiquetée `strategie`, que des séances appliquent
@@ -67,6 +68,10 @@ export function StrategyFiche({ target, ctx, now }: { target: EntityRef; ctx: In
         </FicheSection>
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')}>
           <LinksByPredicate target={target} ctx={ctx} now={now} />
+        </FicheSection>
+
+        <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
+          <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance

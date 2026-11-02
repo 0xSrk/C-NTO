@@ -14,6 +14,7 @@ import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { catalystSourceWord, copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, MissingFiche, openDayAction, Properties, Provenance, type FicheAction } from './Fiche';
 import { catalystWindow, dayWithYear, STROKE_ETAT, type IndexSources } from './index';
+import { AroundOf } from './AroundOf';
 import { IdentityGrid, Mirror } from './Instruments';
 import { sampleWord } from './sample';
 import s from './fiche.module.css';
@@ -162,11 +163,27 @@ export function CatalystFiche({ target, ctx, now }: { target: EntityRef; ctx: In
         />
 
         <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
-          <p className={s.scopeLine}>{scope}</p>
-          <p className={s.aroundLine}>
-            <span className={s.predicate}>{tr('pendant', 'during', 'durante')}</span> {plural(during.size, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {plural(reading.inside.trades, 'trade', 'trades')}
-          </p>
-          <Mirror inside={reading.inside} outside={reading.outside} leftTitle={tr('pendant', 'during', 'durante')} rightTitle={tr('hors', 'outside', 'fuera')} leftSample={sampleWord(sampleOf(reading.inside.trades))} rightSample={sampleWord(sampleOf(reading.outside.trades))} />
+          {/* La famille d'abord : les séances « pendant » l'une de ses publications, face au reste ; puis chaque prédicat. */}
+          <AroundOf
+            target={target}
+            ctx={ctx}
+            now={now}
+            extra={[
+              {
+                id: 'family',
+                label: tr(`la famille, ${plural(family.length, 'publication')}`, `the family, ${plural(family.length, 'release')}`, `la familia, ${plural(family.length, 'publicación', 'publicaciones')}`),
+                edge: { kind: 'edge', predicate: 'pendant', side: 'in', note: tr('la famille', 'the family', 'la familia') },
+                type: 'session',
+                members: [...during].map((id) => ({ type: 'session' as const, id })),
+              },
+            ]}
+          >
+            <p className={s.scopeLine}>{scope}</p>
+            <p className={s.aroundLine}>
+              <span className={s.predicate}>{tr('pendant', 'during', 'durante')}</span> {plural(during.size, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {plural(reading.inside.trades, 'trade', 'trades')}
+            </p>
+            <Mirror inside={reading.inside} outside={reading.outside} leftTitle={tr('pendant', 'during', 'durante')} rightTitle={tr('hors', 'outside', 'fuera')} leftSample={sampleWord(sampleOf(reading.inside.trades))} rightSample={sampleWord(sampleOf(reading.outside.trades))} />
+          </AroundOf>
         </FicheSection>
 
         <FicheSection part="properties" title={tr('Propriétés', 'Properties', 'Propiedades')}>

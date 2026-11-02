@@ -6,6 +6,7 @@ import { useObjects } from '@/store/objects';
 import { copyAction, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, ObjectLink, Properties, Provenance, stamped, type FicheAction, type PropertyRow } from './Fiche';
 import { isStrategyNote, type IndexSources } from './index';
 import s from './fiche.module.css';
+import { AroundOf } from './AroundOf';
 
 /**
  * La fiche Note (OROS5.28, correction du juge Palantir) : la note est un objet, sa source et son auteur dits, ses liens
@@ -74,6 +75,10 @@ export function NoteFiche({ target, ctx, now }: { target: EntityRef; ctx: IndexS
         </FicheSection>
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')}>
           <LinksByPredicate target={target} ctx={ctx} now={now} />
+        </FicheSection>
+
+        <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
+          <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance lines={[`${tr('Note', 'Note', 'Nota')} · ${source} · ${noteAuthor(note)}`, ...linkProvenance(target, ctx.links)]} />

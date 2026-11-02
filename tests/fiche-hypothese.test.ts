@@ -175,9 +175,10 @@ describe('OROS5.30 l’auteur de chaque lien, et la décision d’une hypothèse
     /**
      * Les gestes permis : naviguer (ouvrir un objet, fermer, revenir, passer au voisin, sauter vers un module et sa vue,
      * poser le jour ou la séance qu'un module montre, la note active de Note, le filtre de compte de Métrique, ouvrir ou
-     * fermer l'omnibar), dire qu'une copie est faite (le toast) ; écrire : Promouvoir et Rejeter une hypothèse, seulement.
+     * fermer l'omnibar, afficher ou retirer l'ensemble d'« Autour de… » — OROS5.31), dire qu'une copie est faite (le
+     * toast) ; écrire : Promouvoir et Rejeter une hypothèse, seulement.
      */
-    const NAVIGATION = new Set(['openObject', 'close', 'back', 'step', 'jumpTo', 'setTab', 'focusOnDate', 'focusSession', 'setActive', 'setMetricAccount', 'setOmnibar', 'toast']);
+    const NAVIGATION = new Set(['openObject', 'close', 'back', 'step', 'jumpTo', 'setTab', 'focusOnDate', 'focusSession', 'setActive', 'setMetricAccount', 'setOmnibar', 'openSet', 'clearSet', 'toast']);
     const WRITES = new Set(['promote', 'reject']);
     const used = new Map<string, Set<string>>();
     const note = (file: string, name: string) => used.set(name, (used.get(name) ?? new Set()).add(file));

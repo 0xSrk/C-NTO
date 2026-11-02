@@ -215,7 +215,7 @@ describe('OROS5.27 la fiche Compte', () => {
     mount();
     open(APEX);
     expect(drawer().querySelector('h2')!.textContent).toBe(`Compte · ${APEX}`);
-    expect([...drawer().querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'bornes', 'guard', 'plan', 'bridge', 'links', 'provenance']);
+    expect([...drawer().querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'bornes', 'guard', 'plan', 'bridge', 'links', 'around', 'provenance']);
     const ident = section('identity');
     expect(ident.querySelector('[data-sim]')!.textContent).toBe('hors Sim');
     // la marge du jour : le plan en cours sur la dernière séance réelle du compte

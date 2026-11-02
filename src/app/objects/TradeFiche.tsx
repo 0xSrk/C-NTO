@@ -11,6 +11,7 @@ import { copyAction, FicheHead, FicheSection, ficheTitle, LinksByPredicate, link
 import { etClock, objectLabel, shortDay, type IndexSources } from './index';
 import { fmtR, IdentityGrid, RScaleBar } from './Instruments';
 import s from './fiche.module.css';
+import { AroundOf } from './AroundOf';
 
 /**
  * La fiche Trade (OROS5.28, correction du juge Palantir) : un trade est un objet, plus une ligne. M.057 met son P&L net au
@@ -90,6 +91,10 @@ export function TradeFiche({ target, ctx, now }: { target: EntityRef; ctx: Index
         </FicheSection>
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')}>
           <LinksByPredicate target={target} ctx={ctx} now={now} />
+        </FicheSection>
+
+        <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
+          <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance

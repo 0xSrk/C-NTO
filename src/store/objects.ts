@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { entityKey, type EntityRef } from '@/engine/ontology/schema';
+import { entityKey, type EntityRef, type EntityType, type Predicate } from '@/engine/ontology/schema';
 import { useUi, type TabId } from './ui';
 
 /**
@@ -18,7 +18,24 @@ import { useUi, type TabId } from './ui';
 /** Retour arrière défait au plus vingt-quatre sauts ; le plus ancien s'oublie. */
 export const JUMP_HISTORY_MAX = 24;
 
-/** Ce que Retour arrière rend : le module, sa vue, la fiche, le fil, et la liste où ↑ ↓ reprennent. */
+/**
+ * Une étape du chemin d'un « Autour de… » (OROS5.31) : un nœud (l'objet d'où l'on part, puis chaque ensemble), ou
+ * l'arête du prédicat suivi, dans son sens. Le chemin s'écrit dans l'ordre du saut et finit sur l'ensemble affiché.
+ */
+export type PathStep =
+  | { kind: 'node'; type: EntityType; count: number; ref?: EntityRef }
+  | { kind: 'edge'; predicate: Predicate; side: 'out' | 'in'; note?: string };
+
+/** L'ensemble qu'affiche un « Autour de… » : les objets d'un même type, atteints depuis `from` par le chemin. */
+export interface ObjectSet {
+  /** L'objet de la fiche d'où partent les sauts. */
+  from: EntityRef;
+  path: readonly PathStep[];
+  type: EntityType;
+  members: readonly EntityRef[];
+}
+
+/** Ce que Retour arrière rend : le module, sa vue, la fiche, le fil, l'ensemble d'« Autour de… », et la liste où ↑ ↓ reprennent. */
 export interface JumpSnapshot {
   tab: TabId;
   /** La vue que le module avait confiée au store (un sous-onglet), `null` s'il n'en confie aucune. */
@@ -26,6 +43,8 @@ export interface JumpSnapshot {
   open: EntityRef | null;
   jumpedFrom: EntityRef | null;
   siblings: readonly EntityRef[];
+  /** L'ensemble d'« Autour de… » affiché avant le saut (OROS5.31) ; absent ou `null` : sans ensemble. */
+  set?: ObjectSet | null;
 }
 
 export interface OpenOptions {
@@ -63,6 +82,12 @@ export interface ObjectsState {
   focusStamp: number;
   /** L'omnibar (Ctrl+J) est ouverte : elle ne fait que naviguer (OROS5.17). */
   omnibar: boolean;
+  /** L'ensemble qu'« Autour de… » affiche dans la fiche de son objet (OROS5.31) ; `null` sans ensemble. */
+  set: ObjectSet | null;
+  /** Affiche un ensemble d'« Autour de… » : un saut, que Retour arrière défait ; rend `false` sous le verrou. */
+  openSet: (set: ObjectSet) => boolean;
+  /** Retire l'ensemble affiché, sans saut. */
+  clearSet: () => void;
   /** Ouvre un objet ; rend `false` sous le verrou. */
   openObject: (ref: EntityRef, opts?: OpenOptions) => boolean;
   /** Remplace l'objet ouvert par son voisin de liste (↑ ↓), sans fermer ; `null` au bord, sans liste ou sous le verrou. */
@@ -103,9 +128,9 @@ function withView(views: ObjectsState['views'], tab: TabId, view: string | null 
 export const useObjects = create<ObjectsState>((set, get) => {
   /** L'état que rendra Retour arrière, pris avant un saut. */
   const snapshot = (): JumpSnapshot => {
-    const { open, jumpedFrom, siblings, views } = get();
+    const { open, jumpedFrom, siblings, views, set: shown } = get();
     const tab = useUi.getState().tab;
-    return { tab, view: views[tab] ?? null, open, jumpedFrom, siblings };
+    return { tab, view: views[tab] ?? null, open, jumpedFrom, siblings, set: shown };
   };
   const remember = (): readonly JumpSnapshot[] => [...get().history, snapshot()].slice(-JUMP_HISTORY_MAX);
 
@@ -120,6 +145,7 @@ export const useObjects = create<ObjectsState>((set, get) => {
     stamp: 0,
     focusStamp: 0,
     omnibar: false,
+    set: null,
 
     openObject(ref, opts = {}) {
       const state = get();
@@ -138,6 +164,8 @@ export const useObjects = create<ObjectsState>((set, get) => {
       set({
         history: opts.jump ? remember() : state.history,
         open: target,
+        // L'ensemble d'« Autour de… » appartient à la fiche qui l'affiche : un autre objet ouvre sans lui.
+        set: null,
         jumpedFrom: opts.jump ? state.open : null,
         // Un saut garde la ligne de la première ouverture : Échap rend le focus à la ligne d'où tout est parti.
         origin: opts.origin !== undefined ? opts.origin : state.origin,
@@ -154,14 +182,14 @@ export const useObjects = create<ObjectsState>((set, get) => {
       const i = siblings.findIndex((ref) => sameRef(ref, open));
       const next = i < 0 ? undefined : siblings[i + delta];
       if (!next) return null;
-      set({ open: next, jumpedFrom: null, stamp: stamp + 1, ...(origin !== undefined ? { origin } : {}) });
+      set({ open: next, jumpedFrom: null, set: null, stamp: stamp + 1, ...(origin !== undefined ? { origin } : {}) });
       return next;
     },
 
     close(restoreFocus = true) {
       const { open, origin, locked } = get();
       if (locked || !open) return false;
-      set({ open: null, jumpedFrom: null, origin: null, siblings: [] });
+      set({ open: null, jumpedFrom: null, origin: null, siblings: [], set: null });
       if (restoreFocus && origin?.isConnected) origin.focus();
       return true;
     },
@@ -175,6 +203,7 @@ export const useObjects = create<ObjectsState>((set, get) => {
         jumpedFrom: null,
         origin: null,
         siblings: [],
+        set: null,
         views: opts.view != null ? withView(state.views, tab, opts.view) : state.views,
       });
       if (useUi.getState().tab !== tab) useUi.getState().setTab(tab);
@@ -190,11 +219,23 @@ export const useObjects = create<ObjectsState>((set, get) => {
         open: last.open,
         jumpedFrom: last.jumpedFrom,
         siblings: last.siblings,
+        set: last.set ?? null,
         views: withView(state.views, last.tab, last.view),
         stamp: state.stamp + 1,
       });
       if (useUi.getState().tab !== last.tab) useUi.getState().setTab(last.tab);
       return true;
+    },
+
+    openSet(next) {
+      const state = get();
+      if (state.locked) return false;
+      set({ history: remember(), set: next });
+      return true;
+    },
+
+    clearSet() {
+      if (get().set !== null) set({ set: null });
     },
 
     setView(tab, view) {

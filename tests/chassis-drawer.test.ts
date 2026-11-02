@@ -189,11 +189,12 @@ describe('OROS5.16 la fiche, troisième colonne du châssis', () => {
     // l'identifiant en clair ; la clé interne ne sert qu'au geste « copier »
     expect(head.querySelector('h2')!.textContent).toBe('Séance · 14.10 · Apex-PA-50K');
     expect(drawer.textContent).not.toContain(S1.id);
-    expect(drawer.textContent).not.toMatch(/ses_7f3a…|…/);
+    // aucune clé tronquée : le seul « … » de la fiche est celui du titre « Autour de… » (OROS5.31)
+    expect(drawer.textContent!.replaceAll('Autour de…', '')).not.toMatch(/ses_7f3a…|…/);
     // trois actions au plus, puis la fermeture
     expect([...head.querySelectorAll('button')].map((b) => b.dataset.action)).toEqual(['calendar', 'visual', 'copy', 'close']);
     // les sections du cadre, dans l'ordre ; la fiche Séance (OROS5.26) pose M.057 en tête et ses écarts rejoués
-    expect([...drawer.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'drifts', 'properties', 'provenance']);
+    expect([...drawer.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'around', 'drifts', 'properties', 'provenance']);
     expect(drawer.querySelector('[data-section="identity"]')!.textContent).toContain('2 trades · 0/2 gagnants');
     const props = [...drawer.querySelectorAll('[data-section="properties"] dt')].map((dt) => dt.textContent);
     expect(props.slice(0, 2)).toEqual(['Éval.', 'Note de séance']);

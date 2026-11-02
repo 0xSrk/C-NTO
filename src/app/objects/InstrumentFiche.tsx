@@ -10,6 +10,7 @@ import { shortDay, type IndexSources } from './index';
 import { IdentityGrid } from './Instruments';
 import { sampleWord } from './sample';
 import s from './fiche.module.css';
+import { AroundOf } from './AroundOf';
 
 /**
  * La fiche Instrument (OROS5.28, correction du juge Palantir) : le symbole du registre du desk, ses séances, ses trades et
@@ -60,6 +61,10 @@ export function InstrumentFiche({ target, ctx, now }: { target: EntityRef; ctx: 
         </FicheSection>
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')}>
           <LinksByPredicate target={target} ctx={ctx} now={now} />
+        </FicheSection>
+
+        <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
+          <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance

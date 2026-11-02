@@ -33,6 +33,7 @@ export {
   rDomain,
   releaseLabel,
   rScale,
+  setNeighborGroups,
   tradeBeads,
   tradeReleaseDistance,
 } from './fiche';

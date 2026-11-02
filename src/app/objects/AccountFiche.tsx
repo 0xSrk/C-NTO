@@ -23,6 +23,7 @@ import { copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, LinksByPredi
 import { shortDay, type EtatStroke, type IndexSources } from './index';
 import { BoundsDisk, IdentityGrid, TradeBeads, tradesOfMax, type BoundsReading } from './Instruments';
 import s from './fiche.module.css';
+import { AroundOf } from './AroundOf';
 
 /**
  * La fiche Compte (OROS5.27, Système 5 « Fiche et Frise » ; reprise de d1, d2 et d4, le bloquant de l'audit levé). Le
@@ -361,6 +362,10 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
 
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')}>
           <LinksByPredicate target={target} ctx={ctx} now={now} />
+        </FicheSection>
+
+        <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
+          <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
 
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>

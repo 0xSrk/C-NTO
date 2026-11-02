@@ -176,7 +176,7 @@ describe('OROS5.26 la fiche Séance', () => {
     open();
     const fiche = drawer();
     expect(fiche.dataset.drawer).toBe('session');
-    expect([...fiche.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'drifts', 'properties', 'provenance']);
+    expect([...fiche.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'around', 'drifts', 'properties', 'provenance']);
     // M.057 : le P&L net au numéral, le compte en lien (C.065), la date, les instruments, les étiquettes, les trades, la commission
     const ident = fiche.querySelector<HTMLElement>('[data-section="identity"]')!;
     expect(ident.querySelector('[data-ident="numeral"] b')!.textContent).toBe('−247,62');
@@ -221,7 +221,8 @@ describe('OROS5.26 la fiche Séance', () => {
     open();
     expect(drawer().querySelector('h2')!.textContent).toBe('Séance · 14.10 · Apex-PA-50K');
     expect(drawer().textContent).not.toContain(S1.id);
-    expect(drawer().textContent).not.toMatch(/ses_|…/);
+    // aucune clé tronquée : le seul « … » est celui du titre « Autour de… » (OROS5.31)
+    expect(drawer().textContent!.replaceAll('Autour de…', '')).not.toMatch(/ses_|…/);
     expect([...drawer().querySelectorAll<HTMLElement>('header button')].map((b) => b.dataset.action)).toEqual(['calendar', 'visual', 'copy', 'close']);
     await act(async () => drawer().querySelector<HTMLButtonElement>('[data-action="copy"]')!.click());
     expect(writeText).toHaveBeenCalledWith(S1.id);
