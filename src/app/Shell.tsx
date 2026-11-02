@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
-import { BraceCode, Button, Led, cx } from '@/design/primitives';
+import { BraceCode, Button, cx } from '@/design/primitives';
 import { Glyph } from '@/design/Micro';
 import { Seal } from '@/design/Seal';
 import { Wordmark } from '@/design/Wordmark';
@@ -8,8 +8,7 @@ import { OptionsMenu, type OptionItem } from '@/design/OptionsMenu';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
-import { cmeSession } from '@/lib/cmeClosed';
-import { dateKeyLocal, ET_ZONE, etDateKey, globexState, type GlobexState } from '@/lib/time';
+import { dateKeyLocal, ET_ZONE, etDateKey } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
@@ -34,6 +33,7 @@ import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
 import { Omnibar } from './objects/Omnibar';
 import { matchShortcut } from './shortcuts';
 import { ShortcutHelp, useShortcutHelp } from './ShortcutHelp';
+import { StatusBornes } from './StatusBornes';
 import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -66,19 +66,13 @@ function moveZone(step: 1 | -1): void {
   next.target.focus();
 }
 
-function globexLabel(state: GlobexState): string {
-  if (state === 'FERMÉ') return tr('FERMÉ', 'CLOSED', 'CERRADO');
-  if (state === 'FERMÉ · FÉRIÉ') return tr('FERMÉ · FÉRIÉ', 'CLOSED · HOLIDAY', 'CERRADO · FESTIVO');
-  return state;
-}
-
 type ClockFace = '24' | '12';
 
-const CLOCKS = [
-  { zone: 'Asia/Tokyo', code: 'TYO', city: ['Tokyo', 'Tokyo', 'Tokio'] },
-  { zone: 'Europe/Paris', code: 'PAR', city: ['Paris', 'Paris', 'París'] },
-  { zone: 'America/New_York', code: 'NYC', city: ['New York', 'New York', 'Nueva York'] },
-] as const;
+/**
+ * L'horloge de la barre d'état : New York seule (Système 5, décision 7 de l'ADMIN). Tokyo, Paris et le libellé de séance
+ * « CME GLOBEX · ETH » cèdent leur place à la ligne de la journée ; l'ET est l'heure de la frise et des fiches.
+ */
+const NEW_YORK = { zone: ET_ZONE, code: 'NYC', city: ['New York', 'New York', 'Nueva York'] } as const;
 
 /** Date de séance (New York), même ordre dans les trois langues : jour, quantième, mois. */
 function sessionStamp(ms: number, localeTag: string): string {
@@ -218,8 +212,6 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       : tr('Hors ligne · import CSV', 'Offline · CSV import', 'Fuera de línea · importación CSV');
 
   const localeTag = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR';
-  const session = cmeSession(etDateKey(now));
-  const phase = globexState(now, session.closed, session.earlyCloseMinute);
   const sessionDate = sessionStamp(now, localeTag);
   const hour = (zone: string) =>
     new Intl.DateTimeFormat(localeTag, {
@@ -230,7 +222,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     }).format(now);
   const moduleName = (activeCopy?.label ?? '').toLocaleUpperCase(localeTag);
   const third = crumb && crumb.tab === tab ? crumb.label : '';
-  const reported = nt?.accountNames?.filter(Boolean) ?? [];
+  // L'« aujourd'hui » du rail et du Calendrier reste la date locale (décision 7) : la journée CME n'est que celle de la frise.
   const todayKey = dateKeyLocal(new Date(now));
   /** Bordereau du rail : ce que chaque module contient, lu dans les stores du démarrage. */
   const snapshot: RailSnapshot = {
@@ -389,26 +381,20 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       <ObjectDrawer />
 
       <footer className={s.status} data-chassis="status">
+        {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. */}
         <div className={s.statusLeft}>
-          <span className={s.statusLive}>
-            <Led on={nt?.link === 'live'}>{tr('PONT NT8', 'NT8 BRIDGE', 'PUENTE NT8')}</Led>
-            {' · '}
-            {nt?.link === 'live' ? 'LIVE' : tr('HORS LIGNE', 'OFFLINE', 'FUERA DE LÍNEA')}
-          </span>
-          {reported.length > 0 ? <span>{reported.join(' · ')}</span> : null}
-          {nt?.heartbeatLatencyMs != null ? <span>{tr('LATENCE', 'LATENCY', 'LATENCIA')} {nt.heartbeatLatencyMs} MS</span> : null}
-          <i className={s.statusSep} aria-hidden />
-          <span className={s.session}>CME GLOBEX · {globexLabel(phase)}</span>
-          <time className={s.sessionDate} dateTime={etDateKey(now)}>
-            {sessionDate}
-          </time>
-          <span className={s.clocks} role="group" aria-label={tr('Heures Tokyo, Paris, New York', 'Tokyo, Paris, New York times', 'Horas Tokio, París, Nueva York')}>
-            {CLOCKS.map((city) => (
-              <span key={city.code} className={s.clock} title={tr(city.city[0], city.city[1], city.city[2])}>
-                <b>{hour(city.zone)}</b>
-                {city.code}
-              </span>
-            ))}
+          <StatusBornes />
+        </div>
+        <div className={s.statusRight}>
+          {/* New York reste (décision 7) : la date et l'heure de la séance, sur 24 ou 12 h. */}
+          <span className={s.clocks} role="group" aria-label={tr('Heure de New York', 'New York time', 'Hora de Nueva York')}>
+            <time className={s.sessionDate} dateTime={etDateKey(now)}>
+              {sessionDate}
+            </time>
+            <span className={s.clock} title={tr(NEW_YORK.city[0], NEW_YORK.city[1], NEW_YORK.city[2])}>
+              <b>{hour(NEW_YORK.zone)}</b>
+              {NEW_YORK.code}
+            </span>
             <span className={s.clockFace}>
               <button type="button" className={face === '24' ? s.on : undefined} aria-pressed={face === '24'} onClick={() => chooseFace('24')}>
                 24
@@ -418,8 +404,6 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               </button>
             </span>
           </span>
-        </div>
-        <div className={s.statusRight}>
           <span className={s.sigEnd}>
             <SeatMark>
               <BraceCode />

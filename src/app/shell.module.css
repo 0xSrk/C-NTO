@@ -776,7 +776,10 @@
 }
 
 /* La barre d'état est du noir du châssis, comme la barre de titre : la bande d'étiquette ivoire de la 3.7.0 est
-   retirée (décision de l'ADMIN, 2026-10-26). Ses jetons sont ceux du desk ; l'or y redevient l'or. */
+   retirée (décision de l'ADMIN, 2026-10-26). Ses jetons sont ceux du desk ; l'or y redevient l'or. Au Système 5
+   (décision 7), elle devient la ligne de la journée : le pont, les bornes, la réponse du temps ; New York et la signature
+   à droite. Elle se mesure elle-même : à l'étroit, les noms des bornes passent à leur forme courte, puis à leur seul
+   signe (le nom accessible et l'infobulle les gardent entiers). */
 .status {
   grid-area: status;
   height: 28px;
@@ -792,6 +795,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
+  container: status / inline-size;
 }
 .statusLeft,
 .statusRight {
@@ -799,6 +803,7 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
+  height: 100%;
 }
 .statusLeft {
   flex: 1;
@@ -810,9 +815,20 @@
   background: var(--line-2);
   flex: none;
 }
-.session,
-.sessionDate,
-.clocks,
+/* Les comptes que rapporte le pont et sa latence restent lisibles, jamais dans une ellipse. */
+.statusKeep {
+  flex: none;
+  white-space: nowrap;
+}
+.statusAge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: pre;
+}
+.statusWords {
+  white-space: pre;
+}
 /* Le nom d'un siège peut céder à l'ellipse ; les barres et [ SIΞRRΛSKΛ ] ne rétrécissent pas. */
 .sigEnd {
   flex: 0 1 auto;
@@ -820,11 +836,95 @@
 }
 .sessionDate {
   color: var(--text-0);
+  white-space: nowrap;
 }
 .clocks {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: none;
+}
+
+/* ─── Les bornes de la journée (OROS5.22) : une cellule par borne réglée, chacune ouvre sa coupe ─── */
+.bornes {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  height: 100%;
+}
+/* Une borne : le signal (niveau 2 ou 3), le signe de la borne, son nom, sa valeur, la source de sa limite. Au graphite ;
+   la plus proche de sa limite à l'ivoire. */
+.borne {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 2px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  white-space: nowrap;
+  color: var(--text-2);
+  --k: currentColor;
+  transition: color 200ms linear;
+}
+.borneNear {
+  color: var(--text-0);
+}
+.borneValue {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.borneSource {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.borneShort {
+  display: none;
+}
+.borneSignal {
+  flex: none;
+}
+.borneSignal > span {
+  width: 12px;
+  height: 12px;
+}
+.borneGlyph {
+  width: 12px;
+  height: 12px;
+}
+.borneMargin {
+  width: 18px;
+  height: 6px;
+}
+.borneStale {
+  width: 15px;
+  height: 4px;
+}
+.borneMatrix {
+  flex: none;
+}
+@media (hover: hover) {
+  .borne:hover {
+    color: var(--text-0);
+  }
+}
+@container status (max-width: 1480px) {
+  .borneLong,
+  .statusWord {
+    display: none;
+  }
+  .borneShort {
+    display: inline;
+  }
+}
+@container status (max-width: 1240px) {
+  .borneName,
+  .sessionDate {
+    display: none;
+  }
 }
 .clock {
   display: inline-flex;
@@ -859,6 +959,13 @@
 .statusLive {
   color: var(--text-1);
   font-weight: 500;
+}
+/* Le pont et l'âge de sa lecture, d'un seul tenant. */
+.statusLive {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  white-space: pre;
 }
 
 .versionBtn {

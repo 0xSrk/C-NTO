@@ -4,6 +4,9 @@ import { uid } from '@/lib/id';
 /** `copieur` : `08 · CPY` sur le rail depuis la 3.3.0. `crypto` : `09 · CRY`, éteint par défaut. */
 export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur' | 'portefeuille' | 'crypto';
 
+/** Les fenêtres de Métrique qu'un autre lieu du desk peut demander : les Réglages du desk. */
+export type MetriqueModal = 'reglages';
+
 export interface Toast {
   id: string;
   text: string;
@@ -29,6 +32,12 @@ interface UiState {
   /** Date choisie dans le calendrier, ouverte depuis un autre module */
   focusDate: string | null;
   focusOnDate: (d: string | null) => void;
+  /**
+   * Une fenêtre d'un module, demandée d'ailleurs (la barre d'état ouvre les Réglages du desk) : le module la prend à son
+   * montage et l'ouvre. Navigation seule : la fenêtre n'écrit que sur le geste de l'opérateur, comme ouverte du module.
+   */
+  modalRequest: { tab: 'metrique'; modal: MetriqueModal } | null;
+  requestModal: (tab: 'metrique', modal: MetriqueModal) => void;
   /** Dialogue de confirmation (remplace window.confirm) */
   pendingConfirm: { title: string; text?: string; danger?: boolean; resolve: (ok: boolean) => void } | null;
   confirm: (title: string, text?: string, danger?: boolean) => Promise<boolean>;
@@ -53,6 +62,8 @@ export const useUi = create<UiState>((set, get) => ({
   focusSession: (id) => set({ focusSessionId: id }),
   focusDate: null,
   focusOnDate: (d) => set({ focusDate: d }),
+  modalRequest: null,
+  requestModal: (tab, modal) => set({ modalRequest: { tab, modal } }),
   pendingConfirm: null,
   confirm(title, text, danger = true) {
     get().pendingConfirm?.resolve(false);

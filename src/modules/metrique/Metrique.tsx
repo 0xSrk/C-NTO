@@ -56,6 +56,13 @@ export default function Metrique() {
   const metricAccount = useUi((u) => u.metricAccount);
   const setMetricAccount = useUi((u) => u.setMetricAccount);
   const [modal, setModal] = useState<null | 'import' | 'manuel' | 'reglages' | 'pont'>(null);
+  // Une fenêtre demandée d'ailleurs (la barre d'état, OROS5.22) : prise une fois, ouverte comme depuis les options.
+  const modalRequest = useUi((u) => u.modalRequest);
+  useEffect(() => {
+    if (modalRequest?.tab !== 'metrique') return;
+    setModal(modalRequest.modal);
+    useUi.setState({ modalRequest: null });
+  }, [modalRequest]);
   const [book, setBook] = useState<OrderBookView | null>(null);
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
