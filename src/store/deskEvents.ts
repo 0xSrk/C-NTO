@@ -8,7 +8,7 @@ import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { evaluatePlan, findPlan, planMargin } from '@/engine/propfirm';
 import { tr } from '@/i18n';
-import { desk } from '@/lib/desk';
+import { desk, type NtBridgeStatus } from '@/lib/desk';
 import { addDays, etDateKey } from '@/lib/time';
 import { useBridge } from './bridge';
 import { useJournal } from './journal';
@@ -53,8 +53,7 @@ function trackedPlan(): { input: PropBufferInput; key: string } | null {
   if (!plan) return null;
   const { sessions, trades } = useJournal.getState();
   const ev = evaluatePlan(plan, sessions, trades, planAccount || undefined);
-  const nt = useBridge.getState().nt;
-  const live = nt?.link === 'live' ? nt.accounts.filter((a) => !planAccount || a.name === planAccount) : [];
+  const live = liveAccounts(planAccount);
   const unrealized = live.reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
   // Marge datée de la jauge K.04 : la garde de l'agent et l'alerte la lisent comme l'écran (décision 2 de l'ADMIN).
   const dated = planMargin(ev);
@@ -105,11 +104,26 @@ function propWatcher(): { check: () => void; dispose: () => void } {
   };
 }
 
+/** Nom de compte replié, comme le process principal le lit : casse et espaces ignorés (`heldPosition`, electron/agent-orders.ts). */
+const foldAccountName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Comptes du pont vivant que désigne `account` ('' = tous) ; aucun hors pont. Le nom exact d'abord, sinon le nom
+ * replié : la règle de `heldPosition` dans le process principal, pour que la marge et la perte du jour transmises à
+ * la garde portent le latent du compte qu'elle juge (A18).
+ */
+function liveAccounts(account: string): NtBridgeStatus['accounts'] {
+  const nt = useBridge.getState().nt;
+  if (nt?.link !== 'live') return [];
+  if (!account) return nt.accounts;
+  const folded = foldAccountName(account);
+  const match = nt.accounts.find((a) => a.name === account) ?? nt.accounts.find((a) => foldAccountName(a.name) === folded);
+  return match ? [match] : [];
+}
+
 /** Latent du compte suivi ('' = tous), d'après le pont vivant ; 0 hors pont. */
 function liveUnrealized(account: string): number {
-  const nt = useBridge.getState().nt;
-  if (nt?.link !== 'live') return 0;
-  return nt.accounts.filter((a) => !account || a.name === account).reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
+  return liveAccounts(account).reduce((sum, a) => sum + (Number.isFinite(a.unrealizedPnl) ? a.unrealizedPnl : 0), 0);
 }
 
 /** Perte de la journée CME sur le compte suivi, face à la limite retenue : `null` sans règle ni limite du plan. */

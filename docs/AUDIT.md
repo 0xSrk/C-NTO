@@ -1477,3 +1477,13 @@ La clé n'a servi qu'au script, dans son propre processus : on n'en a consulté 
 |---|---|---|
 | LAB2 | `CLAUDE.md` § 3 : la Release sort de la liste de l'ADMIN, avec ses deux gardes ; la clé de siège garde sa règle, écrite en toutes lettres. `AGENTS.md`, même chose. `docs/PUBLICATION.md` › « Contrôle croisé » : le déclencheur, avant, après, un écart, la clé. `docs/CENTRE-DE-CONTROLE.md` : couloir de l'ADMIN (§ 1), veiller l'un sur l'autre (§ 3), la clé de publication sert à l'agent qui signe, les autres restent à l'ADMIN (§ 6). | `tests/release-agents.test.ts` |
 | LAB3 | `scripts/centre.mjs` : seul `init` crée le centre ; `etat`, `verrou`, `libere`, `message`, `boite` et `journal` refusent un centre absent, sans rien créer, et disent quoi faire sur le poste comme depuis le cloud. `docs/CENTRE-DE-CONTROLE.md`, `CLAUDE.md` § 6 et `AGENTS.md` : le centre ne quitte pas le poste de l'ADMIN. | `tests/centre.test.ts` › LAB3 |
+
+## A18 · Le latent du pont lu comme la garde (2026-11-02)
+
+Constaté pendant la vague « Fiche et Frise » (lot 2). Le renderer lisait le latent du pont au nom exact du compte suivi : `src/store/deskEvents.ts:57` dans `trackedPlan`, et `:112` dans `liveUnrealized`. Le process principal, lui, reconnaît un compte d'abord par son nom exact, puis par son nom replié, sans tenir compte de la casse ni des espaces (`heldPosition`, `electron/agent-orders.ts:128`).
+
+Un compte du pont nommé « simapex1 », face à un plan suivi sur « SimApex1 », voyait donc son latent compter pour zéro. Le défaut touchait ce que le renderer transmet à la garde à chaque `propose_order` : la marge (`trackedPropShare`) et la perte du jour (`dailyLossReached`, `traderRuleFor`). La garde pouvait laisser passer une ouverture qu'elle aurait refusée.
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| A18 | `liveAccounts` lit les comptes du pont vivant comme `heldPosition` : le nom exact d'abord, sinon le nom replié. `trackedPlan` et `liveUnrealized` passent par lui. La garde devient plus stricte, elle ne s'affaiblit pas (`CLAUDE.md` § 5). | `tests/latent-pont-replie.test.ts` |
