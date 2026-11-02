@@ -31,6 +31,7 @@ import { LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers
 import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
 import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
+import { Omnibar } from './objects/Omnibar';
 import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -126,8 +127,22 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         if (next) setTab(next.id);
         return;
       }
+      if (inert || e.defaultPrevented) return;
+      // L'omnibar (OROS5.17) : Ctrl+J, jamais Ctrl+K, voisin du kill switch Ctrl+Maj+K. Ni sous le verrou, ni par-dessus
+      // un dialogue ; d'un champ, oui, comme toute fenêtre de navigation.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'j') {
+        const objects = useObjects.getState();
+        if (objects.omnibar) {
+          e.preventDefault();
+          objects.setOmnibar(false);
+        } else if (!document.querySelector('[role="dialog"][aria-modal="true"]')) {
+          e.preventDefault();
+          objects.setOmnibar(true);
+        }
+        return;
+      }
       // La fiche (OROS5.16) : rien sous le verrou, ni dans un champ, ni sous un dialogue ouvert.
-      if (inert || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
@@ -386,6 +401,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       </footer>
 
       <ConfirmDialog />
+      <Omnibar />
     </div>
   );
 }

@@ -61,6 +61,8 @@ export interface ObjectsState {
   stamp: number;
   /** Chaque demande de focus pour la fiche (une ouverture sans ligne d'origine). */
   focusStamp: number;
+  /** L'omnibar (Ctrl+J) est ouverte : elle ne fait que naviguer (OROS5.17). */
+  omnibar: boolean;
   /** Ouvre un objet ; rend `false` sous le verrou. */
   openObject: (ref: EntityRef, opts?: OpenOptions) => boolean;
   /** Remplace l'objet ouvert par son voisin de liste (↑ ↓), sans fermer ; `null` au bord, sans liste ou sous le verrou. */
@@ -73,6 +75,8 @@ export interface ObjectsState {
   back: () => boolean;
   /** La vue d'un module, qu'il confie au store (`null` : il la reprend). Son propre état : le verrou n'y touche pas. */
   setView: (tab: TabId, view: string | null) => void;
+  /** Ouvre ou ferme l'omnibar ; rend `false` sous le verrou. */
+  setOmnibar: (open: boolean) => boolean;
   setLocked: (locked: boolean) => void;
 }
 
@@ -115,6 +119,7 @@ export const useObjects = create<ObjectsState>((set, get) => {
     locked: false,
     stamp: 0,
     focusStamp: 0,
+    omnibar: false,
 
     openObject(ref, opts = {}) {
       const state = get();
@@ -195,6 +200,12 @@ export const useObjects = create<ObjectsState>((set, get) => {
     setView(tab, view) {
       if ((get().views[tab] ?? null) === view) return;
       set({ views: withView(get().views, tab, view) });
+    },
+
+    setOmnibar(open) {
+      if (get().locked) return false;
+      if (get().omnibar !== open) set({ omnibar: open });
+      return true;
     },
 
     setLocked(locked) {

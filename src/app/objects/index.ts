@@ -7,7 +7,7 @@ import { catalystSource, yearsSpanned } from '@/engine/macroMerge';
 import { noteTradingDay, type EntityRef, type EntityType, type Link } from '@/engine/ontology';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n, type Locale } from '@/i18n';
-import { strokeOf, type Stroke } from '@/lib/calendarMarks';
+import { publicationInstant, strokeOf, type Stroke } from '@/lib/calendarMarks';
 import { trEventTitle } from '@/lib/eventTitles';
 import { fmtInt, fmtUsd } from '@/lib/format';
 import { addDays, dateKeyLocal, dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
@@ -59,6 +59,8 @@ export interface OmniItem {
   stroke: EtatStroke;
   /** La date de l'objet (`YYYY-MM-DD`) : le tri par proximité. */
   date?: string;
+  /** L'instant de l'objet dans sa journée (ms) : deux objets du même jour se rangent dans l'ordre du temps. */
+  at?: number;
   /** Le texte cherché, normalisé (sans accents, en minuscules). */
   hay: string;
   target: OmniTarget;
@@ -312,6 +314,7 @@ export function buildObjectIndex(src: IndexSources, now: number, locale: Locale 
       tone: toneOf(t.pnl),
       stroke: 'plein',
       date: day,
+      at: t.entryTime,
       hay: normalize(`${dateHay(day)} ${t.instrument} ${t.direction} ${account} ${t.strategy ?? ''} ${(t.tags ?? []).join(' ')} ${etClock(t.entryTime)}`),
       target: { kind: 'object', ref: { type: 'trade', id: t.id } },
     });
@@ -374,6 +377,7 @@ export function buildObjectIndex(src: IndexSources, now: number, locale: Locale 
       meta: `${dayWithYear(e.date, now, locale)}${e.timeET ? ` · ${e.timeET} ET` : ''}`,
       stroke: STROKE_ETAT[strokeOf(e, now)],
       date: e.date,
+      at: publicationInstant(e),
       hay: normalize(`${title} ${e.title} ${e.category} ${dateHay(e.date)}`),
       target: { kind: 'object', ref: { type: 'evenement', id: e.id } },
     });
@@ -423,7 +427,8 @@ export interface OmniGroupResult {
 
 /**
  * La recherche : chaque mot doit répondre (accents et casse ignorés). Une date tapée (« 14.10 ») classe les objets datés
- * par proximité de ce jour, sinon d'aujourd'hui ; un objet sans date passe après. Sans rien de tapé, les modules seuls.
+ * par proximité de ce jour, sinon d'aujourd'hui, ceux d'un même jour dans l'ordre du temps ; un objet sans date passe
+ * après. Sans rien de tapé, les modules seuls.
  */
 export function searchObjectIndex(index: readonly OmniItem[], query: string, now: number, locale: Locale = useI18n.getState().locale): OmniGroupResult[] {
   const words = normalize(query).split(/\s+/).filter(Boolean);
@@ -434,7 +439,7 @@ export function searchObjectIndex(index: readonly OmniItem[], query: string, now
   const asked = words.map((word) => parseDayQuery(word, yearOf(now), locale)).find((day): day is string => !!day) ?? etDateKey(now);
   const first = words[0]!;
   const rank = (a: OmniItem, b: OmniItem): number => {
-    if (a.date && b.date) return dayDistance(a.date, asked) - dayDistance(b.date, asked) || b.date.localeCompare(a.date);
+    if (a.date && b.date) return dayDistance(a.date, asked) - dayDistance(b.date, asked) || b.date.localeCompare(a.date) || (a.at ?? 0) - (b.at ?? 0);
     if (a.date || b.date) return a.date ? -1 : 1;
     return Number(!normalize(a.title).startsWith(first)) - Number(!normalize(b.title).startsWith(first));
   };
