@@ -233,7 +233,8 @@ describe('OROS5.6 · la pureté du moteur reste tenue', () => {
     const types: string[] = [];
     for (const file of walk('src/engine')) {
       const src = readFileSync(file, 'utf8');
-      for (const m of src.matchAll(FOREIGN)) (m[1] ? types : values).push(`${file}: ${m[0].trim()}`);
+      // Sous Windows, `path.join` rend des `\` : le cliquet compare des chemins POSIX.
+      for (const m of src.matchAll(FOREIGN)) (m[1] ? types : values).push(`${file.split(/[/\\]/).join('/')}: ${m[0].trim()}`);
     }
     expect(values).toEqual([]);
     // Un seul import de type, effacé à la compilation, reste au HEAD : la configuration de l'agent (cliquet).
