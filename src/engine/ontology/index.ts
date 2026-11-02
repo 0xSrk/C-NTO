@@ -19,12 +19,15 @@ export {
   mirror,
   neighborsOf,
   orderGroups,
+  pendantEvents,
   planReading,
   R_CEIL,
   R_FLOOR,
   R_PAD,
   rDomain,
+  releaseLabel,
   rScale,
+  tradeReleaseDistance,
 } from './fiche';
 export type { EgoBox, EgoHalf, EgoNode, EgoRay, MirrorSide, Neighbor, NeighborGroup, PlanReading, RDomain, RScale, RScaleInput, Side } from './fiche';
 export { NOTE_STATUTS, bodyWithoutHeader, parseNoteHeader, slugifyTitle, writeNoteStatut } from './header';

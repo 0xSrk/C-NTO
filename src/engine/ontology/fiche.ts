@@ -5,6 +5,7 @@
  * jamais une aiguille à zéro ; chaque repère vient d'une donnée ou d'une constante nommée.
  */
 import { computeTradeStats } from '@/engine/metrics';
+import { releaseDistance, type ContextEvent, type ReleaseDistance } from '@/engine/metricsContext';
 import type { PlanMargin, PropEvaluation } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
 import { sampleOf, type ClaimConfidence } from './confidence';
@@ -129,6 +130,35 @@ export function authorCounts(list: readonly Neighbor[]): Record<LinkAuthor, numb
   const out = zeroAuthors();
   for (const n of list) out[n.link.by] += 1;
   return out;
+}
+
+/* ─── Trade ↔ publication, à la minute ─────────────────────────────────────────────────────────────────────── */
+
+/** Les événements qu'un objet a « pendant » : ses liens vivants (structurels, affirmés), dans l'ordre reçu. */
+export function pendantEvents<T extends { id: string }>(ref: EntityRef, links: readonly Link[], events: readonly T[]): T[] {
+  const key = entityKey(ref);
+  const ids = new Set<string>();
+  for (const link of links) {
+    if (link.predicate !== 'pendant' || link.to.type !== 'evenement' || entityKey(link.from) !== key) continue;
+    if (link.kind !== 'structurel' && link.kind !== 'affirme') continue;
+    ids.add(link.to.id);
+  }
+  return events.filter((event) => ids.has(event.id));
+}
+
+/**
+ * La distance d'un trade à sa publication, lue sur ses liens « pendant » : la publication liée la plus proche de
+ * l'entrée, à `RELEASE_REACH_MIN` au plus, par le calcul même d'Analyse (`releaseDistance`). Hors fenêtre, `null`.
+ */
+export function tradeReleaseDistance(trade: Pick<Trade, 'id' | 'entryTime'>, links: readonly Link[], events: readonly (ContextEvent & { id: string })[]): ReleaseDistance | null {
+  return releaseDistance(trade.entryTime, pendantEvents({ type: 'trade', id: trade.id }, links, events));
+}
+
+/** « CPI +69 min », à la minute, sans ellipse ; « — » sans publication dans la fenêtre. */
+export function releaseLabel(distance: Pick<ReleaseDistance, 'minutes' | 'family'> | null): string {
+  if (!distance || !Number.isFinite(distance.minutes)) return '—';
+  const m = Math.round(distance.minutes);
+  return `${distance.family} ${m < 0 ? '−' : '+'}${Math.abs(m)} min`;
 }
 
 /* ─── M.016 · graphe d'ego ─────────────────────────────────────────────────────────────────────────────────── */
