@@ -254,7 +254,7 @@ describe('OROS5.22 · les bornes du jour dans la barre d’état', () => {
     expect(css).toMatch(/\.statusKeep \{\s*flex: none;\s*white-space: nowrap;\s*\}/);
   });
 
-  it('aucune écriture : chaque cellule ouvre sa coupe (un saut, que Retour arrière défait) et rien d’autre', () => {
+  it('aucune écriture : chaque cellule ouvre la fiche du compte suivi (OROS5.27), ou sa coupe quand les bornes suivent tous les comptes ; un saut, que Retour arrière défait, et rien d’autre', () => {
     const writes = {
       settings: vi.fn(async () => undefined),
       agent: vi.fn(async () => undefined),
@@ -269,6 +269,18 @@ describe('OROS5.22 · les bornes du jour dans la barre d’état', () => {
     useLinks.setState({ promote: writes.promote, affirm: writes.affirm });
     mount();
     const click = (key: string) => act(() => cell(key)!.click());
+    // un compte suivi : chaque cellule ouvre sa fiche Compte, la cellule gardée pour Échap ; Retour arrière la referme
+    for (const key of ['loss', 'trades', 'margin']) {
+      click(key);
+      expect(useObjects.getState().open, key).toEqual({ type: 'compte', id: APEX });
+      expect(useObjects.getState().origin, key).toBe(cell(key));
+      expect(useObjects.getState().history, key).toHaveLength(1);
+      act(() => void useObjects.getState().back());
+      expect(useObjects.getState().open, key).toBeNull();
+    }
+    expect(useUi.getState().tab).toBe('note');
+    // tous les comptes agrégés : la coupe existante de Métrique, comme avant
+    act(() => bench('live', ''));
     click('loss');
     expect(useUi.getState().tab).toBe('metrique');
     expect(useObjects.getState().views.metrique).toBe('bord');

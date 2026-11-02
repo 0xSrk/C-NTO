@@ -35,13 +35,24 @@ export function sharedReplay(input: BornesReplayInput): BornesReplay {
  * de règles ; chaque statut du pont et chaque tic de 15 s ne relisent que le vif : le latent, l'âge, le canal et
  * l'horloge du catalyseur.
  */
-export function useDayBornes(): DayBornes {
+/**
+ * Le rejeu partagé lui-même (OROS5.27) : le plan suivi rejoué sur tout l'historique (`evaluatePlan`, `planMargin`), sa
+ * dernière journée, ses journées lues. La fiche Compte y lit la lecture du plan (`planReading`) sans rien rejouer.
+ */
+export function useBornesReplay(): BornesReplay {
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
   const rules = useSettings((st) => st.settings.traderRules);
   const planId = useSettings((st) => st.settings.planId);
   const planAccount = useSettings((st) => st.settings.planAccount);
   const userPlans = useSettings((st) => st.settings.userPlans);
+  // `userPlans` : un plan saisi change ce que rend `findPlan`.
+  const plan = useMemo(() => findPlan(planId) ?? null, [planId, userPlans]);
+  return useMemo(() => sharedReplay({ sessions, trades, account: planAccount, plan, rules }), [sessions, trades, planAccount, plan, rules]);
+}
+
+export function useDayBornes(): DayBornes {
+  const replay = useBornesReplay();
   const nt = useBridge((b) => b.nt);
   const killLatched = useKillLatch((k) => k.engaged);
   const official = useMacro((m) => m.events);
@@ -52,9 +63,6 @@ export function useDayBornes(): DayBornes {
     const id = setInterval(() => setTick(Date.now()), BORNES_TICK_MS);
     return () => clearInterval(id);
   }, []);
-  // `userPlans` : un plan saisi change ce que rend `findPlan`.
-  const plan = useMemo(() => findPlan(planId) ?? null, [planId, userPlans]);
-  const replay = useMemo(() => sharedReplay({ sessions, trades, account: planAccount, plan, rules }), [sessions, trades, planAccount, plan, rules]);
   // Chaque statut du pont relit aussi l'heure : l'âge d'une valeur vive est juste entre deux tics.
   const now = Math.max(tick, Date.now());
   const year = Number(etDateKey(now).slice(0, 4));

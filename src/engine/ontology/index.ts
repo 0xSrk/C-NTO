@@ -2,6 +2,12 @@ export { claimConfidence, eventTypeOf, sampleOf, APPROX_RISK_TICKS, SAMPLE_FAIBL
 export type { ClaimConfidence, ClaimEvent } from './confidence';
 export {
   authorCounts,
+  BEAD_GAP,
+  BEAD_MAX,
+  BEAD_MIN,
+  BEAD_SLOT,
+  boundCircles,
+  bounds,
   dayMargin,
   EGO_COMPACT_BELOW,
   EGO_COMPACT_HEIGHT,
@@ -27,9 +33,10 @@ export {
   rDomain,
   releaseLabel,
   rScale,
+  tradeBeads,
   tradeReleaseDistance,
 } from './fiche';
-export type { EgoBox, EgoHalf, EgoNode, EgoRay, MirrorSide, Neighbor, NeighborGroup, PlanReading, RDomain, RScale, RScaleInput, Side } from './fiche';
+export type { Bead, BeadRow, BoundCircle, BoundKey, Bounds, BoundsInput, EgoBox, EgoHalf, EgoNode, EgoRay, MirrorSide, Neighbor, NeighborGroup, PlanReading, RDomain, RScale, RScaleInput, Side } from './fiche';
 export { NOTE_STATUTS, bodyWithoutHeader, parseNoteHeader, slugifyTitle, writeNoteStatut } from './header';
 export type { NoteHeader, NoteStatut } from './header';
 export { mergeHypotheses, recomputeOntology, ONTOLOGY_WORKER_NOTES, ONTOLOGY_WORKER_TRADES } from './recompute';

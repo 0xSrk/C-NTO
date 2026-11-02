@@ -19,6 +19,7 @@ import { useCrypto } from '@/store/crypto';
 import { useLinks } from '@/store/links';
 import { useNotes } from '@/store/notes';
 import { useObjects } from '@/store/objects';
+import { useSettings } from '@/store/settings';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
 import { FriseDrawer } from './Frise';
@@ -98,6 +99,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const setTab = useUi((u) => u.setTab);
   const crumb = useUi((u) => u.crumb);
   const metricAccount = useUi((u) => u.metricAccount);
+  const planAccount = useSettings((st) => st.settings.planAccount);
   const toasts = useUi((u) => u.toasts);
   const dismiss = useUi((u) => u.dismiss);
   const sessions = useJournal((j) => j.sessions);
@@ -197,6 +199,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const accountLine = metricAccount
     ? metricAccount
     : tr(`Tous les comptes · ${accounts.length}`, `All accounts · ${accounts.length}`, `Todas las cuentas · ${accounts.length}`);
+  const accountTarget = metricAccount || planAccount || (accounts.length === 1 ? accounts[0]! : null);
   const bridgeUp = nt?.link === 'live' || isBridgeLive(bridgeStatus);
   const source = bridgeUp ? 'NinjaTrader 8' : tr('Import CSV', 'CSV import', 'Importación CSV');
   const live = useMemo(() => {
@@ -341,7 +344,21 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
                 <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
               </span>
             </span>
-            <span className={s.accountName}>{accountLine}</span>
+            {/* La cartouche est l'entrée de la fiche Compte (OROS5.27, décision 11) : le compte filtré, sinon le compte suivi,
+                sinon le seul compte du journal. Sans compte à nommer, le nom reste un texte. */}
+            {accountTarget ? (
+              <button
+                type="button"
+                className={cx(s.accountName, s.accountOpen)}
+                data-account-open={accountTarget}
+                aria-label={tr(`Ouvrir la fiche du compte ${accountTarget}`, `Open the ${accountTarget} account record`, `Abrir la ficha de la cuenta ${accountTarget}`)}
+                onClick={(event) => void useObjects.getState().openObject({ type: 'compte', id: accountTarget }, { jump: true, focus: true, origin: event.currentTarget })}
+              >
+                {accountLine}
+              </button>
+            ) : (
+              <span className={s.accountName}>{accountLine}</span>
+            )}
             <span className={s.accountSource}>{source}</span>
           </div>
           {/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit, le même qu'au verrou, puis les langues. */}

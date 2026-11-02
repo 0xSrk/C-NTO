@@ -17,18 +17,27 @@ import s from './shell.module.css';
  * Faute de valeur, « — », jamais 0 ; rien de réglé, « Bornes à régler ». La borne la plus proche passe à l'ivoire, les
  * autres restent au graphite ; à 75 % de la limite, C.012 ; au-delà, le niveau 3 par la primitive Signal.
  *
- * Chaque cellule porte son nom accessible complet et ouvre sa coupe existante (Métrique) ; rien n'écrit : la barre lit,
+ * Chaque cellule porte son nom accessible complet et ouvre la fiche Compte du compte suivi (OROS5.27), ou sa coupe de
+ * Métrique quand les bornes suivent tous les comptes ; rien n'écrit : la barre lit,
  * la garde reste au process principal. 28 px, pas un de plus.
  */
 
 export type BorneCellKey = 'loss' | 'trades' | 'margin' | 'settings';
 
-/** Où une cellule mène : la coupe existante de Métrique, ou les Réglages du desk. */
+/**
+ * Où une cellule mène : la fiche Compte du compte que les bornes suivent (OROS5.27, décision 11) ; sans compte suivi (tous
+ * les comptes agrégés), la coupe existante de Métrique ; rien de réglé, les Réglages du desk.
+ */
 export interface BorneTarget {
   tab: 'metrique';
   view?: 'bord' | 'prop';
   modal?: 'reglages';
+  /** Le compte suivi : la cellule ouvre sa fiche. */
+  account?: string;
 }
+
+/** La fiche Compte du compte borné, ou la coupe de Métrique quand les bornes suivent tous les comptes. */
+const borneTarget = (account: string | null, view: 'bord' | 'prop'): BorneTarget => (account ? { tab: 'metrique', view, account } : { tab: 'metrique', view });
 
 export interface BorneCell {
   key: BorneCellKey;
@@ -112,7 +121,7 @@ function lossCell(b: DayBornes): BorneCell | null {
     source: loss.source ?? 'trader',
     stale: b.day.stale || dated !== null,
     label: parts.join(', '),
-    target: { tab: 'metrique', view: 'bord' },
+    target: borneTarget(loss.account, 'bord'),
   };
 }
 
@@ -140,7 +149,7 @@ function tradesCell(b: DayBornes): BorneCell | null {
     matrix: { count: trades.count, max: trades.max },
     stale: b.day.stale || dated !== null,
     label: parts.join(', '),
-    target: { tab: 'metrique', view: 'bord' },
+    target: borneTarget(b.loss.account, 'bord'),
   };
 }
 
@@ -176,7 +185,7 @@ function marginCell(b: DayBornes): BorneCell | null {
     stale: margin.otherDay || b.day.stale,
     off: !margin.inService,
     label: parts.join(', '),
-    target: { tab: 'metrique', view: 'prop' },
+    target: borneTarget(margin.account, 'prop'),
   };
 }
 
@@ -216,8 +225,12 @@ export function bridgeLabel(b: DayBornes, link: string | null): string {
     : tr(`Pont NT8 en direct, comptes lus il y a ${age}`, `NT8 bridge live, accounts read ${age} ago`, `Puente NT8 en directo, cuentas leídas hace ${age}`);
 }
 
-/** Ouvre ce qu'une cellule montre : un saut vers la coupe de Métrique, que Retour arrière défait. Rien sous le verrou. */
-export function openBorne(target: BorneTarget): boolean {
+/**
+ * Ouvre ce qu'une cellule montre, par un saut que Retour arrière défait : la fiche Compte du compte suivi (le focus passe à
+ * la fiche, Échap le rend à la cellule), ou la coupe de Métrique. Rien sous le verrou.
+ */
+export function openBorne(target: BorneTarget, origin?: HTMLElement | null): boolean {
+  if (target.account) return useObjects.getState().openObject({ type: 'compte', id: target.account }, { jump: true, focus: true, origin: origin ?? null });
   if (!useObjects.getState().jumpTo(target.tab, target.view ? { view: target.view } : {})) return false;
   if (target.modal) useUi.getState().requestModal(target.tab, target.modal);
   return true;
@@ -257,7 +270,7 @@ function Cell({ cell }: { cell: BorneCell }) {
       data-nearest={cell.nearest ? '' : undefined}
       aria-label={cell.label}
       title={cell.label}
-      onClick={() => openBorne(cell.target)}
+      onClick={(event) => openBorne(cell.target, event.currentTarget)}
     >
       {!cell.off && cell.level === 3 ? <Signal level={3} className={s.borneSignal} /> : !cell.off && cell.level === 2 ? <Signal level={2} className={s.borneSignal} /> : null}
       {cell.key === 'trades' && cell.matrix ? <TradesMatrix count={cell.matrix.count} max={cell.matrix.max} className={s.borneMatrix} /> : null}

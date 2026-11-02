@@ -117,10 +117,18 @@ export function mirrorProposal(input: Pick<MirrorInput, 'account' | 'instrument'
   };
 }
 
+/** L'instrument de lecture d'une ouverture fictive sans instrument connu : la garde ne lit pas l'instrument lui-même. */
+const UNKNOWN_INSTRUMENT = 'instrument';
+
 export function guardMirror(input: MirrorInput): GuardMirror {
   const raw = mirrorProposal(input);
-  const parsed = parseProposal(raw);
-  const proposal = parsed.ok ? parsed.proposal : raw;
+  // Sans instrument connu (ni position au pont, ni trade au journal), l'instrument vient de chaque proposition (OROS5.27) :
+  // la lecture ne refuse pas l'ordre fictif pour lui, elle se lit à la proposition ; la règle des instruments autorisés
+  // aussi. Le reste se lit par la garde même, sur une lecture de l'ordre qui ne nomme pas d'instrument.
+  const unknown = !raw.instrument.trim();
+  const parsed = parseProposal(unknown ? { ...raw, instrument: UNKNOWN_INSTRUMENT } : raw);
+  const proposal = parsed.ok ? (unknown ? { ...parsed.proposal, instrument: '' } : parsed.proposal) : raw;
+  const traderRules = unknown ? input.traderRules.filter((r) => r.rule !== 'instrument_not_allowed') : input.traderRules;
   const snap: AgentOrderSnapshot = {
     now: input.now,
     link: input.link,
@@ -129,7 +137,7 @@ export function guardMirror(input: MirrorInput): GuardMirror {
     recent: input.recent ?? [],
     busy: input.pending,
     propShare: input.propShare,
-    traderRule: input.traderRules[0] ?? null,
+    traderRule: traderRules[0] ?? null,
   };
   const verdict: GuardMirror['verdict'] = parsed.ok ? guardProposal(proposal, input.policy, snap) : { ok: false, reason: 'invalid', detail: parsed.detail };
   const resulting = input.position + signedQty(proposal);
@@ -139,11 +147,11 @@ export function guardMirror(input: MirrorInput): GuardMirror {
     if (key === 'prop_buffer') return { kind: 'margin', share: input.propShare, floor: AGENT_PROP_FLOOR };
     if (key === 'quantity') return { kind: 'bound', max: input.policy.maxQty, unit: 'contracts' };
     if (key === 'rate') return { kind: 'bound', max: input.policy.perMinute, unit: 'perMinute' };
-    if (key === 'trader_rule') return { kind: 'rules', rules: input.traderRules };
+    if (key === 'trader_rule') return { kind: 'rules', rules: traderRules };
     return undefined;
   };
 
-  const gates: MirrorGate[] = [parsed.ok ? { key: 'invalid', state: 'pass' } : { key: 'invalid', state: 'refuse', detail: parsed.detail }];
+  const gates: MirrorGate[] = [parsed.ok ? { key: 'invalid', state: unknown ? 'proposal' : 'pass' } : { key: 'invalid', state: 'refuse', detail: parsed.detail }];
   let policy = input.policy;
   let s = snap;
   let stopped = false;
@@ -225,6 +233,7 @@ export function gateWords(gate: MirrorGate): string {
   if (gate.reduction) return tr('réduction de risque : passe toujours', 'risk reduction: always passes', 'reducción de riesgo: siempre pasa');
   switch (gate.key) {
     case 'invalid':
+      if (gate.state === 'proposal') return tr('lue à chaque proposition : l’instrument vient de la proposition', 'read on each proposal: the instrument comes with the proposal', 'leída en cada propuesta: el instrumento viene con la propuesta');
       return gate.state === 'refuse' ? tr(`proposition illisible : ${gate.detail ?? ''}`, `unreadable proposal: ${gate.detail ?? ''}`, `propuesta ilegible: ${gate.detail ?? ''}`) : tr('proposition lisible', 'readable proposal', 'propuesta legible');
     case 'disabled':
       return gate.state === 'refuse' ? tr('ordres de l’agent désactivés', 'agent orders turned off', 'órdenes del agente desactivadas') : tr('ordres de l’agent activés', 'agent orders turned on', 'órdenes del agente activadas');

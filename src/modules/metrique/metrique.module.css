@@ -656,3 +656,15 @@
   color: var(--text-3);
   line-height: 1.45;
 }
+
+/* Firme prop : les gestes du plan suivi, où la fiche Compte mène (OROS5.27) ; le focus s'y pose, jamais sur un bouton. */
+.planTarget {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  outline: none;
+}
+.planTarget:focus-visible {
+  box-shadow: 0 0 0 1px var(--line-3);
+}

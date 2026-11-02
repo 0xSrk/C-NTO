@@ -419,3 +419,119 @@ export function planReading(ev: Pick<PropEvaluation, 'status' | 'passedOn' | 'fa
 export function dayMargin(reading: PlanReading): number | null {
   return reading.kind === 'current' ? reading.margin : null;
 }
+
+/* ─── M.011 · bornes emboîtées d'un compte (OROS5.27, géométrie versée au moteur) ──────────────────────────── */
+
+export interface BoundsInput {
+  /** Drawdown maximal du plan : le demi-disque. */
+  maxDrawdown: number;
+  /** Ce qui reste avant le plancher (la marge) ; `null` : inconnu. */
+  toDrawdown: number | null;
+  /** Ce qui reste avant la perte du jour ; `null` : aucune limite, ou inconnu. */
+  toDailyLoss: number | null;
+}
+
+export type BoundKey = 'drawdown' | 'daily';
+
+export interface Bounds {
+  /** Diamètre relatif (0..1) de chaque cercle tangent au plancher : ce qui reste, à l'échelle du drawdown maximal. */
+  drawdown: number | null;
+  daily: number | null;
+  /** La borne qui mord la première : le plus petit des cercles ; `null` sans cercle. */
+  first: BoundKey | null;
+}
+
+/**
+ * Deux cercles tangents au même point du plancher, dans le demi-disque du drawdown maximal : le diamètre de chacun est
+ * ce qui reste avant sa borne, à l'échelle du drawdown maximal (borné à [0, 1]). Le plus petit mord le premier ; à
+ * égalité, la marge. Sans drawdown maximal, pas de figure.
+ */
+export function bounds(input: BoundsInput): Bounds | null {
+  if (!(input.maxDrawdown > 0)) return null;
+  const share = (v: number | null) => (v === null || !Number.isFinite(v) ? null : Math.min(1, Math.max(0, v / input.maxDrawdown)));
+  const drawdown = share(input.toDrawdown);
+  const daily = share(input.toDailyLoss);
+  const first: BoundKey | null = drawdown === null ? (daily === null ? null : 'daily') : daily === null ? 'drawdown' : daily < drawdown ? 'daily' : 'drawdown';
+  return { drawdown, daily, first };
+}
+
+export interface BoundCircle {
+  key: BoundKey;
+  share: number;
+  cx: number;
+  cy: number;
+  r: number;
+}
+
+/**
+ * Les cercles de M.011 dans la figure : le plancher est la verticale `x0`, le demi-disque a le rayon `R` ; un cercle de
+ * part `share` a pour diamètre `share × R` et touche le plancher en (x0, y0). Le plus grand d'abord : le petit se lit
+ * dessus.
+ */
+export function boundCircles(b: Bounds, x0: number, y0: number, R: number): BoundCircle[] {
+  const out: BoundCircle[] = [];
+  for (const key of ['drawdown', 'daily'] as const) {
+    const share = b[key];
+    if (share === null) continue;
+    const r = (share * R) / 2;
+    out.push({ key, share, cx: x0 + r, cy: y0, r });
+  }
+  return out.sort((a, b) => b.r - a.r);
+}
+
+/* ─── M.065 · le chapelet des trades du jour, jusqu'au maximum (OROS5.27) ─────────────────────────────────────── */
+
+export interface Bead {
+  pnl: number;
+  win: boolean;
+  /** Position et largeur dans la rangée (px) : la largeur suit |P&L|, du plus petit au plus grand trade du jour. */
+  x: number;
+  w: number;
+  /** Pris au-delà du maximum de trades. */
+  over: boolean;
+}
+
+export interface BeadRow {
+  beads: Bead[];
+  /** Les places encore libres jusqu'au maximum. */
+  free: { x: number; w: number }[];
+  /** La borne : l'abscisse du maximum, entre la dernière place permise et la première au-delà ; `null` sans maximum. */
+  bound: number | null;
+  /** Largeur utile de la rangée. */
+  width: number;
+}
+
+export const BEAD_MIN = 6;
+export const BEAD_MAX = 18;
+export const BEAD_GAP = 4;
+export const BEAD_SLOT = 10;
+
+/**
+ * Le chapelet : un trade par perle, dans l'ordre des entrées, sa largeur entre `BEAD_MIN` et `BEAD_MAX` selon |P&L| ;
+ * puis les places libres jusqu'au maximum, et la borne au maximum. Un P&L inconnu n'est pas une perle.
+ */
+export function tradeBeads(pnls: readonly number[], max: number | null): BeadRow {
+  const known = pnls.filter((v) => Number.isFinite(v));
+  const peak = Math.max(0, ...known.map((v) => Math.abs(v)));
+  const cap = max !== null && Number.isFinite(max) && max > 0 ? Math.floor(max) : null;
+  const beads: Bead[] = [];
+  let x = 0;
+  let bound: number | null = null;
+  known.forEach((pnl, i) => {
+    if (cap !== null && i === cap) {
+      bound = x - BEAD_GAP / 2;
+    }
+    const w = peak > 0 ? BEAD_MIN + (BEAD_MAX - BEAD_MIN) * (Math.abs(pnl) / peak) : BEAD_MIN;
+    beads.push({ pnl, win: pnl > 0, x, w, over: cap !== null && i >= cap });
+    x += w + BEAD_GAP;
+  });
+  const free: { x: number; w: number }[] = [];
+  if (cap !== null) {
+    for (let i = known.length; i < cap; i++) {
+      free.push({ x, w: BEAD_SLOT });
+      x += BEAD_SLOT + BEAD_GAP;
+    }
+    if (bound === null) bound = x - BEAD_GAP / 2;
+  }
+  return { beads, free, bound, width: Math.max(0, x - BEAD_GAP) };
+}

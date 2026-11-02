@@ -3,9 +3,9 @@ import { COMPONENTS, GLYPH_ID, type GlyphName } from '@/design/Micro';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
 import e from '@/design/etat.module.css';
 import { cx } from '@/design/primitives';
-import { egoBox, egoFrame, egoLayout, rScale, type EgoNode, type EgoRay, type RDomain } from '@/engine/ontology';
+import { boundCircles, bounds, egoBox, egoFrame, egoLayout, rScale, tradeBeads, type EgoNode, type EgoRay, type RDomain } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
-import { fmtRatio } from '@/lib/format';
+import { fmtInt, fmtRatio, fmtUsd } from '@/lib/format';
 import type { LightProps } from './useHoverLight';
 import s from './fiche.module.css';
 
@@ -312,4 +312,127 @@ export function RScaleBar({ risk, realizedR, plannedRr, domain }: { risk: number
       </text>
     </svg>
   );
+}
+
+/* ─── M.065 · le chapelet des trades du jour, jusqu'au maximum ─────────────────────────────────────────────────── */
+
+const BEADS_H = 22;
+
+/**
+ * Les trades de la journée lue, un par perle, dans l'ordre des entrées (`tradeBeads`) : la largeur suit |P&L|, pleine
+ * pour un gain, creuse pour une perte ; puis les places libres jusqu'au maximum, au tireté de la table d'états (prévues,
+ * pas encore prises) ; la borne au maximum, un trait. Sans maximum, les perles seules.
+ */
+export function TradeBeads({ pnls, max, label }: { pnls: readonly number[]; max: number | null; label: string }) {
+  const row = tradeBeads(pnls, max);
+  const width = Math.max(row.width, 1) + 2;
+  return (
+    <svg className={s.beads} viewBox={`-1 0 ${width} ${BEADS_H}`} width={width} height={BEADS_H} role="img" aria-label={label} data-figure="M.065">
+      {row.beads.map((bead, i) => (
+        <rect key={`b${i}`} x={bead.x} y={5} width={bead.w} height={12} className={cx(s.bead, bead.win ? s.beadWin : s.beadLoss, bead.over && s.beadOver)} data-bead={bead.win ? 'win' : 'loss'} />
+      ))}
+      {row.free.map((slot, i) => (
+        <rect key={`f${i}`} x={slot.x + 0.5} y={5.5} width={slot.w - 1} height={11} className={cx(s.beadFree, e.tirete)} data-bead="free" />
+      ))}
+      {row.bound !== null ? <line x1={row.bound} x2={row.bound} y1={1} y2={BEADS_H - 1} className={s.beadBound} data-bead="bound" /> : null}
+    </svg>
+  );
+}
+
+/* ─── M.011 · les bornes emboîtées : perte du jour et marge, tangentes au plancher, dans le drawdown maximal ───────── */
+
+const BW = 368;
+const BH = 150;
+const BR = 64;
+const BX = 104;
+const BY = 75;
+
+export interface BoundsReading {
+  maxDrawdown: number | null;
+  /** La marge lue (en direct quand le latent négatif est retranché, datée sinon) et sa date. */
+  margin: number | null;
+  marginDate: string | null;
+  marginLive: boolean;
+  /** Ce qui reste avant la perte du jour ; `null` sans limite ou sans lecture. */
+  daily: number | null;
+  /** Le plancher : `mobile` (C.125 au trait) tant qu'il suit, `fixed` (C.126 plein) une fois verrouillé. */
+  floorKind: 'mobile' | 'fixed' | null;
+  /** Plan clos (objectif atteint, compte invalidé) : les cercles au filet graphite, avec la date. */
+  closed: { status: 'objectif' | 'echec'; date: string | null } | null;
+}
+
+/**
+ * M.011 : le demi-disque du drawdown maximal, posé sur le plancher ; deux cercles tangents au plancher, la marge et ce
+ * qui reste de la perte du jour, chacun de diamètre ce qui reste à l'échelle du drawdown maximal (`bounds`,
+ * `boundCircles`, au moteur). Le plus petit mord le premier : il passe à l'ivoire. Le plancher dit s'il bouge (C.125 au
+ * trait) ou s'il est fixé (C.126 plein) ; un plan clos passe sa marge au filet graphite de la table d'états, avec sa date,
+ * et la perte du jour, qui peut venir de la règle du trader, reste en service.
+ */
+export function BoundsDisk({ reading, day }: { reading: BoundsReading; day: (date: string) => string }) {
+  useI18n((st) => st.locale);
+  const b = reading.maxDrawdown !== null ? bounds({ maxDrawdown: reading.maxDrawdown, toDrawdown: reading.margin, toDailyLoss: reading.daily }) : null;
+  const circles = b ? boundCircles(b, BX, BY, BR) : [];
+  const closed = reading.closed !== null;
+  // La borne qui mord la première, parmi celles en service : plan clos, la perte du jour seule.
+  const first_ = closed ? (b?.daily != null ? 'daily' : null) : (b?.first ?? null);
+  const lx = BX + BR + 28;
+  const marginKey = reading.closed
+    ? reading.closed.status === 'objectif'
+      ? tr('OBJECTIF ATTEINT', 'TARGET REACHED', 'OBJETIVO ALCANZADO')
+      : tr('COMPTE INVALIDÉ', 'ACCOUNT FAILED', 'CUENTA INVALIDADA')
+    : reading.marginLive
+      ? tr('MARGE · EN DIRECT', 'MARGIN · LIVE', 'MARGEN · EN DIRECTO')
+      : tr('MARGE AU PLANCHER', 'MARGIN TO FLOOR', 'MARGEN AL SUELO');
+  const marginValue = `${reading.margin !== null ? fmtUsd(reading.margin) : '—'}${reading.marginDate ? ` · ${day(reading.marginDate)}` : ''}`;
+  const label = [
+    `${tr('Drawdown maximal', 'Maximum drawdown', 'Drawdown máximo')} ${reading.maxDrawdown !== null ? fmtUsd(reading.maxDrawdown) : '—'}`,
+    `${marginKey.toLocaleLowerCase()} ${marginValue}`,
+    `${tr('perte du jour, reste', 'day loss, left', 'pérdida del día, quedan')} ${reading.daily !== null ? fmtUsd(reading.daily) : '—'}`,
+    reading.floorKind === 'fixed' ? tr('plancher fixé', 'floor locked', 'suelo fijado') : reading.floorKind === 'mobile' ? tr('plancher qui suit encore', 'floor still trailing', 'suelo que aún sigue') : '',
+    b?.first === 'daily' ? tr('la perte du jour mord la première', 'the day loss bites first', 'la pérdida del día muerde primero') : b?.first === 'drawdown' ? tr('la marge mord la première', 'the margin bites first', 'el margen muerde primero') : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return (
+    <figure className={s.boundsFig} data-figure="M.011">
+      <svg viewBox={`0 0 ${BW} ${BH}`} className={s.boundsSvg} role="img" aria-label={label}>
+        <line x1={BX} x2={BX} y1={BY - BR - 4} y2={BY + BR + 4} className={s.bFloor} />
+        <path d={`M${BX} ${BY - BR}A${BR} ${BR} 0 0 1 ${BX} ${BY + BR}`} className={cx(s.bOuter, b === null && s.bAbsent)} />
+        {circles.map((c) => {
+          // Un plan clos éteint sa marge ; la perte du jour, qui peut venir de la règle du trader, reste en service.
+          const off = closed && c.key === 'drawdown';
+          const first = !off && first_ === c.key;
+          return <path key={c.key} d={circlePath(c.cx, c.cy, c.r)} className={cx(s.bCircle, off ? e.eteint : e.plein, first && s.bFirst)} data-bound={c.key} data-first={first ? '' : undefined} />;
+        })}
+        <circle cx={BX} cy={BY} r="2" className={s.bPoint} />
+        {reading.floorKind ? <FigureGlyph name={reading.floorKind === 'fixed' ? 'borne' : 'floorTrailing'} x={BX - 14} y={BY - 12} size={12} className={s.bFloorGlyph} /> : null}
+        <text x={BX - 8} y={BY + 14} textAnchor="end" className={s.bKey}>
+          {tr('PLANCHER', 'FLOOR', 'SUELO')}
+        </text>
+        <text x={lx} y={BY - 40} className={s.bKey}>
+          {tr('DD MAX', 'MAX DD', 'DD MÁX')}
+        </text>
+        <text x={lx} y={BY - 27} className={s.bVal}>
+          {reading.maxDrawdown !== null ? fmtUsd(reading.maxDrawdown) : '—'}
+        </text>
+        <text x={lx} y={BY - 4} className={s.bKey}>
+          {marginKey}
+        </text>
+        <text x={lx} y={BY + 9} className={cx(s.bVal, closed && s.bValClosed, first_ === 'drawdown' && s.bValFirst)} data-bound-value="drawdown">
+          {marginValue}
+        </text>
+        <text x={lx} y={BY + 32} className={s.bKey}>
+          {tr('PERTE DU JOUR · RESTE', 'DAY LOSS · LEFT', 'PÉRDIDA DEL DÍA · RESTA')}
+        </text>
+        <text x={lx} y={BY + 45} className={cx(s.bVal, first_ === 'daily' && s.bValFirst)} data-bound-value="daily">
+          {reading.daily !== null ? fmtUsd(reading.daily) : '—'}
+        </text>
+      </svg>
+    </figure>
+  );
+}
+
+/** Le nombre de trades sur leur maximum, en mots : « 3 / 6 », « 3 » sans maximum. */
+export function tradesOfMax(count: number | null, max: number | null): string {
+  return `${count === null ? '—' : fmtInt(count)}${max !== null ? ` / ${fmtInt(max)}` : ''}`;
 }

@@ -15,6 +15,7 @@ import { previousObject, useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { matchShortcut } from '../shortcuts';
 import { etClock, isStrategyNote, objectLabel, STROKE_ETAT, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
+import { AccountFiche } from './AccountFiche';
 import { SessionFiche } from './SessionFiche';
 import type { LightProps } from './useHoverLight';
 import s from './fiche.module.css';
@@ -171,7 +172,7 @@ export function FicheHead({ type, title, actions }: { type: EntityType; title: s
   );
 }
 
-export function FicheSection({ title, meta, children, part }: { title: string; meta?: ReactNode; children: ReactNode; part: string }) {
+export function FicheSection({ title, meta, children, part }: { title: ReactNode; meta?: ReactNode; children: ReactNode; part: string }) {
   return (
     <section className={s.section} data-section={part}>
       <header className={s.sectionHead}>
@@ -512,23 +513,6 @@ function describe(target: EntityRef, ctx: IndexSources, now: number): Described 
         actions: [],
       };
     }
-    case 'compte': {
-      const name = target.id.trim();
-      const own = ctx.sessions.filter((x) => (x.account?.trim() ?? '') === name);
-      const dates = own.map((x) => x.date).sort();
-      return {
-        found: true,
-        properties: [
-          [capital(typeWord('session', 2)), fmtInt(own.length)],
-          [capital(typeWord('trade', 2)), fmtInt(ctx.trades.filter((t) => (t.account?.trim() ?? '') === name).length)],
-          [tr('Première séance', 'First session', 'Primera sesión'), dates[0] ? longDay(dates[0]) : '—'],
-          [tr('Dernière séance', 'Last session', 'Última sesión'), dates.at(-1) ? longDay(dates.at(-1)!) : '—'],
-        ],
-        // Le compte n'a pas de table (décision 13) : il est le nom que portent les séances et les trades.
-        provenance: [tr('Compte : le nom que portent les séances et les trades, sans table propre', 'Account: the name sessions and trades carry, with no table of its own', 'Cuenta: el nombre que llevan las sesiones y los trades, sin tabla propia'), ...linkLines],
-        actions: [],
-      };
-    }
   }
   return { found: false, properties: [], provenance: linkLines, actions: [copy] };
 }
@@ -548,6 +532,7 @@ export function ObjectFiche({ target }: { target: EntityRef }) {
   const ctx = useIndexSources(now);
   // Les fiches par type se posent sur le même cadre (OROS5.26 à OROS5.29) ; un objet absent du coffre garde la fiche commune.
   if (target.type === 'session' && ctx.sessions.some((x) => x.id === target.id)) return <SessionFiche target={target} ctx={ctx} now={now} />;
+  if (target.type === 'compte' && target.id.trim()) return <AccountFiche target={target} ctx={ctx} now={now} />;
   return <CommonFiche target={target} ctx={ctx} now={now} />;
 }
 

@@ -265,6 +265,12 @@
   width: 16px;
   height: 16px;
 }
+/* Le master fin de l'instrument (C.100), relevé pour 16 px, son dessin intact. */
+.rowGlyph :global(.g100-1),
+.objLinkGlyph :global(.g100-1),
+.headGlyph :global(.g100-1) {
+  stroke-width: 2.6px;
+}
 .rowMain {
   min-width: 0;
   font-size: 13px;
@@ -657,4 +663,313 @@
     opacity: 0.9;
     --k: var(--text-0);
   }
+}
+
+/* ─── La fiche Compte (OROS5.27) ─────────────────────────────────────────────────────────────────────────────── */
+
+/* ΟΡΟΣ : le seul grec du desk, une fois, en IBM Plex Sans, en titre de la section Bornes (décision 6). */
+.oros {
+  font-family: var(--font-name);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: none;
+  color: var(--text-0);
+}
+
+.bornes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+}
+.bornesAway {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.bornesRead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.bornesStale {
+  width: 14px;
+  height: 14px;
+  --k: var(--text-1);
+}
+.borneLine {
+  display: grid;
+  grid-template-columns: 112px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+  border-bottom: 1px solid var(--line-1);
+}
+.borneKey {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.borneVal {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.borneSrc {
+  justify-self: start;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.borneSrcGlyph {
+  justify-self: start;
+  width: 14px;
+  height: 14px;
+}
+
+/* M.065 · le chapelet : une perle par trade, pleine pour un gain, creuse pour une perte ; les places libres au tireté. */
+.beads {
+  justify-self: start;
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  --k: var(--text-1);
+}
+.bead {
+  stroke-width: 1;
+}
+.beadWin {
+  fill: var(--pos);
+  stroke: var(--pos);
+}
+.beadLoss {
+  fill: none;
+  stroke: var(--neg);
+}
+.beadOver {
+  opacity: 0.85;
+}
+.beadFree {
+  fill: none;
+  stroke-width: 1;
+}
+.beadBound {
+  stroke: var(--text-0);
+  stroke-width: 1;
+}
+
+/* M.011 · les bornes emboîtées : le plancher, le demi-disque du drawdown maximal, les cercles tangents. */
+.boundsFig {
+  margin: 8px 0 0;
+}
+.boundsSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  --k: var(--text-1);
+  --p: var(--bg-2);
+}
+.bFloor {
+  stroke: var(--ice);
+  stroke-width: 1;
+}
+.bOuter {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+.bAbsent {
+  stroke: var(--line-1);
+}
+.bCircle {
+  fill: none;
+  stroke-width: 1;
+}
+/* La borne qui mord la première : à l'ivoire. */
+.bFirst {
+  --k: var(--text-0);
+  stroke-width: 1.4;
+}
+.bPoint {
+  fill: var(--ice);
+}
+.bFloorGlyph {
+  --k: var(--ice);
+}
+.bKey {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  fill: var(--text-2);
+}
+.bVal {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  fill: var(--text-1);
+}
+.bValFirst {
+  fill: var(--text-0);
+}
+.bValClosed {
+  fill: var(--text-2);
+}
+.bornesClosed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+/* La garde en miroir : le verdict en tête, les issues au dépliage. */
+.verdict {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+.verdict b {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-0);
+}
+.verdict small {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-1);
+}
+.verdictGlyph {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+.gates summary {
+  padding: 6px 0;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.gates ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gateRow {
+  display: grid;
+  grid-template-columns: 20px 96px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line-1);
+}
+.gateName {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.gateWords {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-0);
+}
+.gateRow[data-state='moot'] .gateWords,
+.gateRow[data-state='unknown'] .gateWords {
+  color: var(--text-2);
+}
+
+/* Le plan suivi en miroir, son effet sur la garde, et le chemin vers l'écriture existante de Firme prop. */
+.planLine {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 10px 0 6px;
+}
+.effect {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0 0 0 28px;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-1);
+}
+.planOpen {
+  align-self: flex-start;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+  transition: color 200ms linear;
+}
+.planOpen span {
+  color: var(--ice);
+}
+@media (hover: hover) {
+  .planOpen:hover {
+    color: var(--text-0);
+  }
+}
+
+/* Le pont et le Copieur. */
+.positions {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.position {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-0);
+}
+.position small {
+  color: var(--text-2);
+}
+.positionStale {
+  color: var(--text-1);
+}
+.copierRole {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-1);
 }
