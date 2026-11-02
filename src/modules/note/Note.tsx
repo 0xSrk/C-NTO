@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconPlus, IconSearch, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { matchShortcut } from '@/app/shortcuts';
 import { Button, Empty, Segmented, Tag, cx } from '@/design/primitives';
 import type { CalEvent } from '@/engine/calendar';
 import { catalystLabel } from '@/engine/macroMerge';
@@ -58,8 +59,9 @@ export default function Note() {
   }, [loadLinks]);
 
   useEffect(() => {
+    // Ctrl+N, lu dans le registre des raccourcis du desk (OROS5.18).
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n' && !e.shiftKey) {
+      if (matchShortcut('note', e)?.id === 'newNote') {
         e.preventDefault();
         create();
       }

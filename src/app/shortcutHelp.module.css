@@ -1,0 +1,55 @@
+/* L'aide des raccourcis (OROS5.18) : une section par portée, la touche en Geist Mono, ce qu'elle fait à l'ivoire.
+   Jetons de tokens.css seulement ; aucun or. */
+
+.help {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.section h3 {
+  margin: 0 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.section dl {
+  margin: 0;
+}
+.row {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-1);
+}
+.row dt {
+  min-width: 0;
+}
+.row kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--line-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.row dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-1);
+}
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-0);
+}

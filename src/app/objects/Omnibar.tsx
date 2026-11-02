@@ -6,6 +6,7 @@ import { tr, useI18n } from '@/i18n';
 import { fmtInt } from '@/lib/format';
 import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
+import { matchShortcut } from '../shortcuts';
 import { EtatMark } from './Fiche';
 import { normalize, omniGroupTitle, searchObjectIndex, useObjectIndex, type OmniGroupResult, type OmniItem } from './index';
 import s from './omnibar.module.css';
@@ -79,24 +80,23 @@ function OmnibarPanel() {
     openObject(item.target.ref, { jump: true, focus: true, origin: before.current, siblings });
   };
 
+  // Les touches de l'omnibar, lues dans le registre des raccourcis (OROS5.18).
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    // Échap, ou Ctrl+J une seconde fois : l'omnibar se ferme et rend le focus.
-    const again = (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'j';
-    if (event.key === 'Escape' || again) {
-      event.preventDefault();
+    const key = matchShortcut('omnibar', event);
+    if (!key) return;
+    event.preventDefault();
+    if (key.id === 'dismiss') {
+      // Échap, ou Ctrl+J une seconde fois : l'omnibar se ferme et rend le focus.
       event.stopPropagation();
       dismiss();
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (flat.length > 0) setActive((current + (event.key === 'ArrowDown' ? 1 : flat.length - 1)) % flat.length);
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
+    } else if (key.id === 'choose') {
+      // ↑ (rang 0) ou ↓ (rang 1), en boucle.
+      if (flat.length > 0) setActive((current + (key.index === 1 ? 1 : flat.length - 1)) % flat.length);
+    } else if (key.id === 'open') {
       const hit = flat[current];
       if (hit) run(hit.item, hit.group);
-    } else if (event.key === 'Tab') {
-      // Une fenêtre : le focus reste au champ.
-      event.preventDefault();
     }
+    // `stay` : une fenêtre, le focus reste au champ.
   };
 
   let n = -1;

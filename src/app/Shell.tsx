@@ -32,6 +32,8 @@ import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
 import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
 import { Omnibar } from './objects/Omnibar';
+import { matchShortcut } from './shortcuts';
+import { ShortcutHelp, useShortcutHelp } from './ShortcutHelp';
 import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -42,6 +44,26 @@ function useClock(everyMs = 1000) {
     return () => clearInterval(t);
   }, [everyMs]);
   return now;
+}
+
+/** Les zones du châssis que F6 parcourt, dans l'ordre : le rail, la zone de travail, la fiche, la barre d'état. */
+const ZONES = ['[data-chassis="rail"]', 'main', 'aside[data-drawer]', '[data-chassis="status"]'] as const;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * F6 (ou Maj+F6) : le focus passe à la zone suivante (ou précédente). La fiche le prend elle-même (↑ ↓ y passent d'un
+ * objet à l'autre) ; une autre zone, sur son premier élément actif ; une zone sans élément actif est sautée.
+ */
+function moveZone(step: 1 | -1): void {
+  const zones = ZONES.map((selector) => document.querySelector<HTMLElement>(selector)).flatMap((zone) => {
+    if (!zone) return [];
+    const target = zone.matches('aside[data-drawer]') ? zone : zone.querySelector<HTMLElement>(FOCUSABLE);
+    return target ? [{ zone, target }] : [];
+  });
+  if (zones.length === 0) return;
+  const here = zones.findIndex(({ zone }) => zone.contains(document.activeElement));
+  const next = zones[here < 0 ? (step > 0 ? 0 : zones.length - 1) : (here + step + zones.length) % zones.length]!;
+  next.target.focus();
 }
 
 function globexLabel(state: GlobexState): string {
@@ -118,43 +140,53 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     useObjects.getState().setLocked(inert);
   }, [inert]);
 
+  // Les touches du châssis, lues dans le registre des raccourcis (OROS5.18) : aucune n'est comparée ici.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const m = /^Digit([1-9])$/.exec(e.code);
-      if ((e.ctrlKey || e.metaKey) && m && !e.shiftKey && !e.altKey) {
+      const hit = matchShortcut('desk', e);
+      if (!hit) return;
+      // Les modules du rail répondent comme avant, verrou compris.
+      if (hit.id === 'module') {
         e.preventDefault();
-        const next = TABS[Number(m[1]) - 1];
+        const next = TABS[hit.index];
         if (next) setTab(next.id);
         return;
       }
+      // Le reste ne répond pas sous le verrou.
       if (inert || e.defaultPrevented) return;
-      // L'omnibar (OROS5.17) : Ctrl+J, jamais Ctrl+K, voisin du kill switch Ctrl+Maj+K. Ni sous le verrou, ni par-dessus
-      // un dialogue ; d'un champ, oui, comme toute fenêtre de navigation.
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'j') {
-        const objects = useObjects.getState();
+      const dialog = !!document.querySelector('[role="dialog"][aria-modal="true"]');
+      const objects = useObjects.getState();
+      // L'omnibar (OROS5.17) : Ctrl+J, jamais Ctrl+K, voisin du kill switch Ctrl+Maj+K. Jamais par-dessus un dialogue ;
+      // d'un champ, oui, comme toute fenêtre de navigation.
+      if (hit.id === 'omnibar') {
         if (objects.omnibar) {
           e.preventDefault();
           objects.setOmnibar(false);
-        } else if (!document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        } else if (!dialog) {
           e.preventDefault();
           objects.setOmnibar(true);
         }
         return;
       }
-      // La fiche (OROS5.16) : rien sous le verrou, ni dans un champ, ni sous un dialogue ouvert.
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const target = e.target as HTMLElement | null;
-      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-      const objects = useObjects.getState();
-      // Échap ferme la fiche et rend le focus à la ligne d'origine.
-      if (e.key === 'Escape' && objects.open) {
+      if (dialog) return;
+      // F6 passe d'une zone du châssis à l'autre, d'un champ comme d'ailleurs : la barre d'état s'atteint ainsi.
+      if (hit.id === 'zones') {
         e.preventDefault();
-        objects.close();
+        moveZone(hit.index === 0 ? 1 : -1);
         return;
       }
-      // Retour arrière défait le dernier saut : le module, sa vue, la fiche et le fil reviennent.
-      if (e.key === 'Backspace' && !e.shiftKey && objects.history.length > 0) {
+      // Le reste : jamais dans un champ, où la touche s'écrit ou édite.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (hit.id === 'help') {
+        e.preventDefault();
+        useShortcutHelp.setState({ open: true });
+      } else if (hit.id === 'close' && objects.open) {
+        // Échap ferme la fiche et rend le focus à la ligne d'origine.
+        e.preventDefault();
+        objects.close();
+      } else if (hit.id === 'back' && objects.history.length > 0) {
+        // Retour arrière défait le dernier saut : le module, sa vue, la fiche et le fil reviennent.
         e.preventDefault();
         objects.back();
       }
@@ -402,6 +434,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
 
       <ConfirmDialog />
       <Omnibar />
+      <ShortcutHelp />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
+import { matchShortcut, SHORTCUTS } from '@/app/shortcuts';
 import { tabCopy, TABS } from '@/app/tabs';
 import { useI18n } from '@/i18n';
 
@@ -19,7 +20,12 @@ describe('rail', () => {
 
   it('le raccourci 9 mène à Crypto', () => {
     expect(TABS[8]?.id).toBe('crypto');
-    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('/^Digit([1-9])$/');
+    // OROS5.18 : les chiffres du rail sont au registre des raccourcis, lus par leur place (Digit1 … Digit9, quelle que
+    // soit la disposition du clavier) ; le châssis ouvre le module de leur rang.
+    const nine = matchShortcut('desk', { key: '9', code: 'Digit9', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false });
+    expect(nine).toMatchObject({ id: 'module', index: 8 });
+    expect(SHORTCUTS.find((shortcut) => shortcut.id === 'module')?.chords.map((chord) => chord.code)).toEqual(TABS.map((tab) => `Digit${tab.index.slice(-1)}`));
+    expect(readFileSync('src/app/Shell.tsx', 'utf8')).toContain('const next = TABS[hit.index];');
   });
 });
 

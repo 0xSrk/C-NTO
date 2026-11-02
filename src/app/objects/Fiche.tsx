@@ -13,6 +13,7 @@ import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { useNotes } from '@/store/notes';
 import { previousObject, useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
+import { matchShortcut } from '../shortcuts';
 import { etClock, isStrategyNote, objectLabel, STROKE_ETAT, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
 import s from './fiche.module.css';
 
@@ -80,10 +81,11 @@ export function ObjectDrawer() {
     ref.current?.focus();
   }, [focusStamp, open]);
   if (!open) return null;
+  // ↑ (rang 0) ou ↓ (rang 1), lus dans le registre des raccourcis (OROS5.18), la fiche ayant le focus.
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    if (step(event.key === 'ArrowDown' ? 1 : -1)) event.preventDefault();
+    if (event.target !== event.currentTarget) return;
+    const key = matchShortcut('fiche', event);
+    if (key?.id === 'neighbor' && step(key.index === 1 ? 1 : -1)) event.preventDefault();
   };
   return (
     <aside ref={ref} className={s.drawer} data-drawer={open.type} tabIndex={-1} aria-label={tr('Fiche de l’objet', 'Object record', 'Ficha del objeto')} onKeyDown={onKeyDown}>
