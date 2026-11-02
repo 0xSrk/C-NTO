@@ -152,6 +152,15 @@ const DAY_REPLAY: PropPlan = {
   source: 'user',
 };
 
+/**
+ * La perte du jour d'un réalisé et d'un latent : seul un latent négatif compte, et la perte n'est jamais négative.
+ * `dayLoss` la calcule ainsi ; les bornes de la journée (`src/engine/bornes.ts`) y ajoutent le latent du pont.
+ */
+export function lossOfDay(realized: number, unrealized?: number): { unrealized: number; loss: number } {
+  const latent = Math.min(0, typeof unrealized === 'number' && Number.isFinite(unrealized) ? unrealized : 0);
+  return { unrealized: latent, loss: Math.max(0, -(realized + latent)) };
+}
+
 /** Perte de la journée CME : réalisé du jour plus latent négatif, et plus-bas du rejeu. */
 export function dayLoss(input: DayLossInput): DayLoss {
   const account = input.account ?? '';
@@ -160,13 +169,13 @@ export function dayLoss(input: DayLossInput): DayLoss {
   const trades = input.trades.filter((t) => ids.has(t.sessionId));
   const realized = sessions.reduce((sum, s) => sum + s.pnl, 0);
   const point = sessions.length ? evaluatePlan(DAY_REPLAY, [...sessions], [...trades]).timeline[0] : undefined;
-  const unrealized = Math.min(0, typeof input.unrealized === 'number' && Number.isFinite(input.unrealized) ? input.unrealized : 0);
+  const { unrealized, loss } = lossOfDay(realized, input.unrealized);
   return {
     day: input.day,
     account: account || null,
     realized,
     unrealized,
-    loss: Math.max(0, -(realized + unrealized)),
+    loss,
     intradayLow: point?.intradayLow ?? 0,
     trades: sessions.reduce((sum, s) => sum + s.tradeCount, 0),
   };

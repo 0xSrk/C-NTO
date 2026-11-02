@@ -1,0 +1,74 @@
+import { useEffect, useMemo, useState } from 'react';
+import { calendarSourcesState, dayBornes, replayBornes, type DayBornes } from '@/engine/bornes';
+import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
+import { majorCatalysts } from '@/engine/discipline';
+import { mergeCalendarEvents } from '@/engine/macroMerge';
+import { findPlan } from '@/engine/propfirm';
+import { etDateKey } from '@/lib/time';
+import { useBridge } from '@/store/bridge';
+import { useJournal } from '@/store/journal';
+import { useMacro } from '@/store/macro';
+import { useSettings } from '@/store/settings';
+import { useKillLatch } from './killState';
+
+/** L'horloge des bornes : l'âge d'une valeur vive et la fenêtre d'un catalyseur avancent avec elle. */
+export const BORNES_TICK_MS = 15_000;
+
+const localYears = new Map<number, CalEvent[]>();
+function localEvents(year: number): CalEvent[] {
+  let rows = localYears.get(year);
+  if (!rows) {
+    rows = generateNasdaqEvents(year);
+    localYears.set(year, rows);
+  }
+  return rows;
+}
+
+/**
+ * Les bornes de la journée, calculées une fois pour tout le desk (OROS5.11) : la barre d'état et la fiche Compte lisent
+ * ce même calcul. Le rejeu (`replayBornes` : le plan sur tout l'historique, la journée lue et ses écarts) ne tourne qu'à
+ * un changement de journal, de plan, de compte suivi ou de règles ; chaque statut du pont et chaque tic de 15 s ne
+ * relisent que le vif : le latent, l'âge, le canal et l'horloge du catalyseur.
+ */
+export function useDayBornes(): DayBornes {
+  const sessions = useJournal((j) => j.sessions);
+  const trades = useJournal((j) => j.trades);
+  const rules = useSettings((st) => st.settings.traderRules);
+  const planId = useSettings((st) => st.settings.planId);
+  const planAccount = useSettings((st) => st.settings.planAccount);
+  const userPlans = useSettings((st) => st.settings.userPlans);
+  const nt = useBridge((b) => b.nt);
+  const killLatched = useKillLatch((k) => k.engaged);
+  const official = useMacro((m) => m.events);
+  const sources = useMacro((m) => m.sources);
+  const lastError = useMacro((m) => m.lastError);
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), BORNES_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+  // `userPlans` : un plan saisi change ce que rend `findPlan`.
+  const plan = useMemo(() => findPlan(planId) ?? null, [planId, userPlans]);
+  const replay = useMemo(() => replayBornes({ sessions, trades, account: planAccount, plan, rules }), [sessions, trades, planAccount, plan, rules]);
+  // Chaque statut du pont relit aussi l'heure : l'âge d'une valeur vive est juste entre deux tics.
+  const now = Math.max(tick, Date.now());
+  const year = Number(etDateKey(now).slice(0, 4));
+  const catalysts = useMemo(() => majorCatalysts(mergeCalendarEvents([...localEvents(year), ...localEvents(year + 1)], official)), [year, official]);
+  const calendarSources = calendarSourcesState(sources, lastError, official.length);
+  return useMemo(
+    () =>
+      dayBornes(replay, {
+        now,
+        link: nt?.link ?? 'absent',
+        accountsAt: nt?.accountsAt ?? null,
+        accounts: nt?.accounts ?? [],
+        catalysts,
+        calendarSources,
+        ordersOpen: nt?.ordersOpen,
+        ordersClosed: nt?.ordersClosed,
+        killLatched,
+        maxContractsPerOrder: nt?.maxContractsPerOrder ?? null,
+      }),
+    [replay, now, nt, catalysts, calendarSources, killLatched],
+  );
+}
