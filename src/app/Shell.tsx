@@ -21,6 +21,7 @@ import { useNotes } from '@/store/notes';
 import { useObjects } from '@/store/objects';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
+import { FriseAnswer } from './FriseAnswer';
 import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
@@ -384,6 +385,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. */}
         <div className={s.statusLeft}>
           <StatusBornes />
+          <i className={s.statusSep} aria-hidden />
+          <FriseAnswer />
         </div>
         <div className={s.statusRight}>
           {/* New York reste (décision 7) : la date et l'heure de la séance, sur 24 ou 12 h. */}

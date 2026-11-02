@@ -40,8 +40,9 @@ export interface BorneCell {
   short: string;
   /** La valeur lue sur sa borne : « 386 / 500 $ », « — / 500 $ » ; datée quand elle n'est pas du jour (« · 30.10 »). */
   value: string;
-  /** La valeur à l'étroit, quand elle a une forme courte (« objectif · 16.04 »). */
+  /** La valeur à l'étroit, quand elle a une forme courte (« objectif · 16.04 »), puis plus étroite (« 16.04 »). */
   valueShort?: string;
+  valueNarrow?: string;
   /** D'où vient la limite de la perte du jour : la règle du trader (C.109) ou le plan. */
   source?: 'trader' | 'plan';
   /** Les trades pris et leur maximum, pour la matrice C.114. */
@@ -170,7 +171,8 @@ function marginCell(b: DayBornes): BorneCell | null {
     name: tr('Marge', 'Margin', 'Margen'),
     short: tr('Marge', 'Margin', 'Margen'),
     value,
-    ...(stateShort ? { valueShort: `${stateShort}${when}` } : {}),
+    // Hors service, l'état cède à l'étroit (« objectif · 16.04 », puis la date seule) : le nom accessible le garde entier.
+    ...(stateShort ? { valueShort: `${stateShort}${when}`, valueNarrow: date ?? stateShort } : {}),
     stale: margin.otherDay || b.day.stale,
     off: !margin.inService,
     label: parts.join(', '),
@@ -271,8 +273,9 @@ function Cell({ cell }: { cell: BorneCell }) {
       {cell.value ? (
         cell.valueShort ? (
           <b className={s.borneValue}>
-            <span className={s.borneLong}>{cell.value}</span>
-            <span className={s.borneShort}>{cell.valueShort}</span>
+            <span className={s.valueLong}>{cell.value}</span>
+            <span className={s.valueShort}>{cell.valueShort}</span>
+            <span className={s.valueNarrow}>{cell.valueNarrow ?? cell.valueShort}</span>
           </b>
         ) : (
           <b className={s.borneValue}>{cell.value}</b>

@@ -16,6 +16,8 @@ import {
   hourAt,
   inForceAt,
   lossLimitInstant,
+  lossReadAt,
+  lossSpells,
   MIN,
   moveCursor,
   nextBoundaries,
@@ -130,17 +132,17 @@ describe('frise : ce qui borne l’heure qui vient — en vigueur, puis à venir
   });
 
   it('la fenêtre de la règle (± 15 min) : à 08:00 elle est à venir ; à 08:30 elle vaut, sa fin ne se redit pas à venir', () => {
-    expect(dayWindows(span, timed, { catalystBlackoutMin: 0 }, null)).toEqual([]);
-    const windows = dayWindows(span, timed, { catalystBlackoutMin: 15 }, null);
+    expect(dayWindows(span, timed, { catalystBlackoutMin: 0 }, [])).toEqual([]);
+    const windows = dayWindows(span, timed, { catalystBlackoutMin: 15 }, []);
     expect(windows).toHaveLength(1);
     const before = et('2026-10-14', '08:00');
-    expect(inForceAt(before, span, plan, windows, { lossAt: null, kill: false })).toEqual([]);
+    expect(inForceAt(before, span, plan, windows, { loss: null, kill: false })).toEqual([]);
     const coming = nextBoundaries(before, span, plan, timed, windows);
     expect(coming.map((b) => b.kind)).toEqual(['windowOpen', 'catalyst', 'windowClose']);
     // chaque borne à venir dit son délai : « 15 min · 08:15 », « 30 min · 08:30 »…
     expect(coming.map((b) => b.delayMs / MIN)).toEqual([15, 30, 45]);
     const on = et('2026-10-14', '08:30');
-    expect(inForceAt(on, span, plan, windows, { lossAt: null, kill: false })).toEqual([{ kind: 'window', since: et('2026-10-14', '08:15'), until: et('2026-10-14', '08:45'), event: windows[0]!.event, minutes: 15 }]);
+    expect(inForceAt(on, span, plan, windows, { loss: null, kill: false })).toEqual([{ kind: 'window', since: et('2026-10-14', '08:15'), until: et('2026-10-14', '08:45'), event: windows[0]!.event, minutes: 15 }]);
     const ahead = nextBoundaries(on, span, plan, timed, windows);
     // Sous le curseur, la publication est la première borne (« maintenant », délai nul) ; la fin de fenêtre est dite en vigueur.
     expect(ahead[0]).toMatchObject({ kind: 'catalyst', delayMs: 0 });
@@ -150,34 +152,39 @@ describe('frise : ce qui borne l’heure qui vient — en vigueur, puis à venir
 
   it('le kill switch vaut d’abord ; la journée fermée et la pause de 17:00 se lisent en vigueur', () => {
     const at = et('2026-10-14', '10:00');
-    expect(inForceAt(at, span, plan, [], { lossAt: null, kill: true })[0]?.kind).toBe('kill');
+    expect(inForceAt(at, span, plan, [], { loss: null, kill: true })[0]?.kind).toBe('kill');
     const sunday = daySpan('2026-10-18');
-    expect(inForceAt(et('2026-10-18', '12:00'), sunday, sessionPlan(sunday), [], { lossAt: null, kill: false })).toEqual([{ kind: 'closed', closed: 'weekend' }]);
-    expect(inForceAt(et('2026-10-14', '17:20'), span, plan, [], { lossAt: null, kill: false })[0]?.kind).toBe('pause');
+    expect(inForceAt(et('2026-10-18', '12:00'), sunday, sessionPlan(sunday), [], { loss: null, kill: false })).toEqual([{ kind: 'closed', closed: 'weekend' }]);
+    expect(inForceAt(et('2026-10-14', '17:20'), span, plan, [], { loss: null, kill: false })[0]?.kind).toBe('pause');
   });
 });
 
 describe('frise : la perte du jour, constatée et jamais prédite', () => {
-  // Le 6 octobre : −300 $ à 10:20, −320 $ à 10:56, +80 $ à 11:40 ; la perte maximale du jour est de 600 $.
+  // Le 6 octobre : −300 $ à 10:20, −320 $ à 10:56, +80 $ à 11:40 ; la perte maximale du jour est de 600 $. La perte relue
+  // passe à 620 $ à 10:56, puis revient à 540 $ à 11:40 : la garde, qui la relit à chaque entrée, rouvre alors les
+  // ouvertures (dailyLossReached, detectRuleBreaches). OROS5.23 : la frise ne la dit en vigueur que tant qu'elle tient.
   const day = '2026-10-06';
   const span = daySpan(day);
   const plan = sessionPlan(span);
   const trades = [trade('a', 's6', et(day, '10:05'), et(day, '10:20'), -300), trade('b', 's6', et(day, '10:40'), et(day, '10:56'), -320), trade('c', 's6', et(day, '11:20'), et(day, '11:40'), 80)];
   const lossAt = lossLimitInstant(trades, span, 600);
 
-  it('le relevé de la journée garde l’instant réel : la sortie qui atteint la limite', () => {
+  it('le relevé de la journée garde l’instant réel, une marque du passé ; la hachure couvre le seul séjour au-delà de la limite', () => {
     expect(lossAt).toBe(et(day, '10:56'));
     expect(lossLimitInstant(trades, span, 0)).toBeNull();
-    const windows = dayWindows(span, [], { catalystBlackoutMin: 15 }, lossAt);
-    expect(windows).toEqual([{ kind: 'afterLimit', from: et(day, '10:56'), to: span.end }]);
+    // OROS5.23, changement voulu : le séjour se ferme à la sortie qui ramène la perte sous la limite (11:40), au lieu de
+    // hachurer le reste de la journée
+    expect(lossSpells(trades, span, 600)).toEqual([{ from: et(day, '10:56'), to: et(day, '11:40') }]);
+    const windows = dayWindows(span, [], { catalystBlackoutMin: 15 }, lossSpells(trades, span, 600));
+    expect(windows).toEqual([{ kind: 'afterLimit', from: et(day, '10:56'), to: et(day, '11:40') }]);
   });
 
   it('le 6 octobre à 10:10, la réponse ne sait rien d’une perte à venir : rien en vigueur, rien de tel à venir', () => {
     const at = et(day, '10:10');
     const known = lossLimitInstant(trades, span, 600, at);
     expect(known).toBeNull();
-    const windows = dayWindows(span, [], { catalystBlackoutMin: 15 }, known);
-    expect(inForceAt(at, span, plan, windows, { lossAt: known, kill: false })).toEqual([]);
+    const windows = dayWindows(span, [], { catalystBlackoutMin: 15 }, lossSpells(trades, span, 600, at), at);
+    expect(inForceAt(at, span, plan, windows, { loss: lossReadAt(trades, span, 600, at), kill: false })).toEqual([]);
     const ahead = nextBoundaries(at, span, plan, [], windows);
     expect(ahead.map((b) => b.kind)).toEqual([]);
     expect(ahead.some((b) => (b.kind as string) === 'afterLimit')).toBe(false);
@@ -187,8 +194,9 @@ describe('frise : la perte du jour, constatée et jamais prédite', () => {
     const at = et(day, '11:10');
     const known = lossLimitInstant(trades, span, 600, at);
     expect(known).toBe(et(day, '10:56'));
-    const windows = dayWindows(span, [], { catalystBlackoutMin: 15 }, known);
-    expect(inForceAt(at, span, plan, windows, { lossAt: known, kill: false })).toEqual([{ kind: 'lossReached', since: et(day, '10:56') }]);
+    expect(lossReadAt(trades, span, 600, at)).toEqual({ loss: 620, limit: 600, reached: true, since: et(day, '10:56') });
+    const windows = dayWindows(span, [], { catalystBlackoutMin: 15 }, lossSpells(trades, span, 600, at), at);
+    expect(inForceAt(at, span, plan, windows, { loss: lossReadAt(trades, span, 600, at), kill: false })).toEqual([{ kind: 'lossReached', since: et(day, '10:56') }]);
     expect(nextBoundaries(at, span, plan, [], windows).map((b) => b.kind)).toEqual(['lunch']);
   });
 
@@ -199,22 +207,50 @@ describe('frise : la perte du jour, constatée et jamais prédite', () => {
     expect(early.windows.filter((w) => w.kind === 'afterLimit')).toEqual([]);
     expect(early.inForce).toEqual([]);
     expect(early.ahead.map((b) => b.kind)).toEqual([]);
-    // au présent, le relevé de la journée : la hachure part de la sortie qui a atteint la limite
+    // au présent, le relevé de la journée : la hachure part de la sortie qui a atteint la limite, et s'arrête à celle qui
+    // l'en a ramenée (OROS5.23)
     const now = hourAt({ ...input, at: input.now });
-    expect(now.windows).toContainEqual({ kind: 'afterLimit', from: et(day, '10:56'), to: span.end });
+    expect(now.windows).toContainEqual({ kind: 'afterLimit', from: et(day, '10:56'), to: et(day, '11:40') });
   });
 
-  it('régression : une perte atteinte n’est pas oubliée — à 11:10 et à 11:30, « atteinte depuis 10:56 » reste en vigueur, jamais à venir', () => {
+  it('régression : une perte atteinte n’est pas oubliée tant qu’elle tient — à 11:10 et à 11:30, « atteinte depuis 10:56 » reste en vigueur, jamais à venir', () => {
     const input = { now: et(day, '16:00'), events: [], trades, rules: { catalystBlackoutMin: 0 }, limit: 600, kill: false };
     for (const time of ['10:56', '11:10', '11:30']) {
       const answer = hourAt({ ...input, at: et(day, time) });
       expect(answer.inForce, time).toContainEqual({ kind: 'lossReached', since: et(day, '10:56') });
       expect(answer.ahead.some((b) => (b.kind as string) === 'afterLimit' || (b.kind as string) === 'lossReached'), time).toBe(false);
-      expect(answer.windows, time).toContainEqual({ kind: 'afterLimit', from: et(day, '10:56'), to: span.end });
+      // la hachure s'arrête à l'instant lu : ce qui a valu, jamais ce qui vaudra (OROS5.23)
+      expect(answer.windows, time).toContainEqual({ kind: 'afterLimit', from: et(day, '10:56'), to: et(day, time) });
     }
     // le kill switch ne se prête pas au passé : il ne vaut qu'au présent et après
     expect(hourAt({ ...input, at: et(day, '11:10'), kill: true }).inForce.map((f) => f.kind)).toEqual(['lossReached']);
     expect(hourAt({ ...input, at: input.now, kill: true }).inForce[0]?.kind).toBe('kill');
+  });
+
+  it('OROS5.23 : reprise sous la limite par un gain, la perte ne vaut plus — la garde laisse repasser une ouverture ; 10:56 reste une marque du passé', () => {
+    const input = { now: et(day, '16:00'), events: [], trades, rules: { catalystBlackoutMin: 0 }, limit: 600, kill: false };
+    for (const time of ['11:40', '11:45', '16:00']) {
+      const answer = hourAt({ ...input, at: et(day, time) });
+      expect(answer.loss, time).toEqual({ loss: 540, limit: 600, reached: false, since: null });
+      expect(answer.inForce.map((f) => f.kind), time).not.toContain('lossReached');
+      expect(answer.lossAt, time).toBe(et(day, '10:56'));
+      expect(answer.windows.filter((w) => w.kind === 'afterLimit'), time).toEqual([{ kind: 'afterLimit', from: et(day, '10:56'), to: et(day, '11:40') }]);
+    }
+    // au présent, le latent négatif du pont compte, comme pour la garde : −80 $ ramène la perte relue à 620 $
+    const live = hourAt({ ...input, now: et(day, '11:45'), at: et(day, '11:45'), unrealized: -80 });
+    expect(live.loss).toEqual({ loss: 620, limit: 600, reached: true, since: null });
+    expect(live.inForce).toEqual([{ kind: 'lossReached', latent: true }]);
+    // un latent positif ne compte pas avant la clôture ; et la frise ne prête pas le latent au passé
+    expect(hourAt({ ...input, now: et(day, '11:45'), at: et(day, '11:45'), unrealized: 500 }).inForce).toEqual([]);
+    expect(hourAt({ ...input, now: et(day, '15:00'), at: et(day, '11:45'), unrealized: -80 }).inForce).toEqual([]);
+    // atteinte de nouveau : un second séjour, daté de sa propre sortie
+    const again = [...trades, trade('d', 's6', et(day, '12:10'), et(day, '12:30'), -100)];
+    const later = hourAt({ ...input, trades: again, at: et(day, '13:00') });
+    expect(later.inForce).toContainEqual({ kind: 'lossReached', since: et(day, '12:30') });
+    expect(later.spells).toEqual([
+      { from: et(day, '10:56'), to: et(day, '11:40') },
+      { from: et(day, '12:30'), to: null },
+    ]);
   });
 });
 

@@ -2,12 +2,16 @@
  * La frise du desk (OROS5.12) : une journée CME de 18:00 à 17:00 ET, ses couloirs, son curseur, ce qui borne l'heure qui
  * vient — en vigueur d'abord, puis à venir avec son délai — et ce que les modules en lisent (étude d'événement, deux
  * semaines de journées). Repris du prototype C · Frise (d3), corrigé : à l'instant du curseur, la frise ne sait que ce
- * qu'on savait alors (`knownAt`), la hachure de la perte du jour comprise, et une perte atteinte reste en vigueur.
+ * qu'on savait alors (`knownAt`), la hachure de la perte du jour comprise.
+ *
+ * La perte du jour se relit comme la garde la relit à chaque entrée (`detectRuleBreaches`, `dailyLossReached`) : elle
+ * n'est en vigueur que tant que la perte relue reste au moins égale à la limite (OROS5.23 ; la question de la garde
+ * reste ouverte devant l'ADMIN). L'instant où elle a été atteinte reste une marque du passé (`lossLimitInstant`).
  * Pur : l'instant est passé en argument, les dates sont celles de New York ; aucun store, aucun DOM.
  */
 import { CATALYST_MIN_IMPACT } from '@/engine/agent/events';
 import type { CalEvent } from '@/engine/calendar';
-import { dailyLimit, detectDrifts, detectRuleBreaches, entryOfTrade, majorCatalysts, type DisciplineFinding, type TraderRules } from '@/engine/discipline';
+import { dailyLimit, detectDrifts, detectRuleBreaches, entryOfTrade, lossOfDay, majorCatalysts, type DisciplineFinding, type TraderRules } from '@/engine/discipline';
 import { familyKey } from '@/engine/macroMerge';
 import { SAMPLE_FAIBLE } from '@/engine/ontology/confidence';
 import type { PropPlan } from '@/engine/propfirm';
@@ -270,30 +274,89 @@ export interface TimeWindow {
   minutes?: number;
 }
 
+/** Les sorties de la journée connues à `knownAt`, dans l'ordre du temps. */
+function dayExits(trades: readonly Trade[], span: DaySpan, knownAt: number): Trade[] {
+  return trades
+    .filter((t) => Number.isFinite(t.pnl) && Number.isFinite(t.exitTime) && t.exitTime >= span.start && t.exitTime <= span.end && t.exitTime <= knownAt)
+    .sort((a, b) => a.exitTime - b.exitTime);
+}
+
 /**
  * Premier instant de la journée où la perte réalisée atteint la limite retenue (règle ou plan) ; `null` sinon. `knownAt`
- * borne les sorties lues : à l'instant du curseur, on ne sait que les sorties déjà faites. Une perte atteinte le reste :
- * c'est la première sortie qui l'a atteinte qui la date.
+ * borne les sorties lues : à l'instant du curseur, on ne sait que les sorties déjà faites. C'est une marque du passé, pas
+ * ce qui vaut : un gain peut ramener ensuite la perte sous la limite (`lossSpells`, `lossReadAt`).
  */
 export function lossLimitInstant(trades: readonly Trade[], span: DaySpan, limit: number | null, knownAt = Number.POSITIVE_INFINITY): number | null {
   if (!limit || !(limit > 0)) return null;
-  const exits = trades
-    .filter((t) => Number.isFinite(t.pnl) && Number.isFinite(t.exitTime) && t.exitTime >= span.start && t.exitTime <= span.end && t.exitTime <= knownAt)
-    .sort((a, b) => a.exitTime - b.exitTime);
   let realized = 0;
-  for (const t of exits) {
+  for (const t of dayExits(trades, span, knownAt)) {
     realized += t.pnl;
     if (-realized >= limit) return t.exitTime;
   }
   return null;
 }
 
+/** Un séjour de la perte réalisée au-delà de sa limite : de la sortie qui l'y porte à celle qui l'en ramène. */
+export interface LossSpell {
+  from: number;
+  /** La sortie qui ramène la perte sous la limite ; `null` : encore atteinte à l'instant lu. */
+  to: number | null;
+}
+
+/**
+ * Les séjours de la perte réalisée au-delà de la limite, relue à chaque sortie connue à `knownAt`. La garde relit la
+ * perte nette à chaque entrée : après un gain qui la ramène sous la limite, une ouverture repasse, et le séjour se ferme.
+ */
+export function lossSpells(trades: readonly Trade[], span: DaySpan, limit: number | null, knownAt = Number.POSITIVE_INFINITY): LossSpell[] {
+  if (!limit || !(limit > 0)) return [];
+  const out: LossSpell[] = [];
+  let realized = 0;
+  let open: LossSpell | null = null;
+  for (const t of dayExits(trades, span, knownAt)) {
+    realized += t.pnl;
+    const reached = -realized >= limit;
+    if (reached && !open) {
+      open = { from: t.exitTime, to: null };
+      out.push(open);
+    } else if (!reached && open) {
+      open.to = t.exitTime;
+      open = null;
+    }
+  }
+  return out;
+}
+
+/** La perte du jour relue à un instant, comme la garde la relit à une entrée. */
+export interface LossRead {
+  /** Le réalisé des sorties faites, plus un latent négatif (`lossOfDay`), en dollars, ≥ 0. */
+  loss: number;
+  limit: number;
+  /** En vigueur : la perte relue est au moins la limite. */
+  reached: boolean;
+  /** Depuis la sortie qui ouvre le séjour en cours ; `null` quand seul le latent porte la perte à la limite. */
+  since: number | null;
+}
+
+/**
+ * La perte du jour relue à l'instant `t` : les sorties faites à `t`, et le latent du compte lu au pont (`unrealized`, au
+ * présent seulement : la frise ne connaît pas le latent du passé). `null` sans limite.
+ */
+export function lossReadAt(trades: readonly Trade[], span: DaySpan, limit: number | null, t: number, unrealized = 0): LossRead | null {
+  if (!limit || !(limit > 0)) return null;
+  const realized = dayExits(trades, span, t).reduce((sum, row) => sum + row.pnl, 0);
+  const { loss } = lossOfDay(realized, unrealized);
+  const reached = loss >= limit;
+  const current = lossSpells(trades, span, limit, t).at(-1);
+  return { loss, limit, reached, since: reached && current && current.to === null ? current.from : null };
+}
+
 /**
  * Les fenêtres de la journée : ± `catalystBlackoutMin` autour de chaque catalyseur majeur (règle du trader, inactive à
- * 0), puis, une fois la perte du jour atteinte, le reste de la journée (hachuré). Une règle inactive ne dessine rien.
- * `lossAt` est la perte connue à l'instant lu : jamais celle d'après le curseur.
+ * 0), puis chaque séjour de la perte du jour au-delà de sa limite (hachuré), de la sortie qui l'y porte à celle qui l'en
+ * ramène ; un séjour encore ouvert s'arrête à l'instant lu (`knownAt`) : la hachure dit ce qui a valu, jamais ce qui
+ * vaudra. Une règle inactive ne dessine rien.
  */
-export function dayWindows(span: DaySpan, timed: readonly TimedEvent[], rules: Pick<TraderRules, 'catalystBlackoutMin'>, lossAt: number | null): TimeWindow[] {
+export function dayWindows(span: DaySpan, timed: readonly TimedEvent[], rules: Pick<TraderRules, 'catalystBlackoutMin'>, spells: readonly LossSpell[], knownAt = Number.POSITIVE_INFINITY): TimeWindow[] {
   const out: TimeWindow[] = [];
   if (rules.catalystBlackoutMin > 0) {
     const half = rules.catalystBlackoutMin * MIN;
@@ -302,7 +365,7 @@ export function dayWindows(span: DaySpan, timed: readonly TimedEvent[], rules: P
       out.push({ kind: 'rule', from: row.at - half, to: row.at + half, at: row.at, event: row.event, minutes: rules.catalystBlackoutMin });
     }
   }
-  if (lossAt !== null) out.push({ kind: 'afterLimit', from: lossAt, to: span.end });
+  for (const spell of spells) out.push({ kind: 'afterLimit', from: spell.from, to: spell.to ?? Math.min(span.end, knownAt) });
   return out;
 }
 
@@ -323,8 +386,9 @@ export function replayDiscipline(trades: readonly Trade[], events: readonly CalE
 
 /**
  * Ce qui vaut à l'instant `t` : le kill switch engagé (la soumission reste fermée jusqu'au redémarrage), la perte du jour
- * déjà atteinte, une fenêtre de règle ouverte, le CME fermé ou la pause de 17:00. Une perte qui n'est atteinte qu'après
- * `t` n'y est pas : à l'instant du curseur, personne ne la savait.
+ * atteinte tant que la perte relue reste au moins égale à la limite (`lossReadAt`), une fenêtre de règle ouverte, le CME
+ * fermé ou la pause de 17:00. Une perte qui n'est atteinte qu'après `t` n'y est pas : à l'instant du curseur, personne ne
+ * la savait ; une perte reprise sous la limite par un gain n'y est plus : la garde laisse repasser une ouverture.
  */
 export type InForceKind = 'kill' | 'lossReached' | 'window' | 'closed' | 'pause';
 
@@ -335,14 +399,16 @@ export interface InForce {
   event?: CalEvent;
   minutes?: number;
   closed?: 'weekend' | 'holiday';
+  /** Perte du jour atteinte par le seul latent négatif du pont : aucune sortie ne la date. */
+  latent?: true;
 }
 
-export function inForceAt(t: number, span: DaySpan, plan: SessionPlan, windows: readonly TimeWindow[], known: { lossAt: number | null; kill: boolean }): InForce[] {
+export function inForceAt(t: number, span: DaySpan, plan: SessionPlan, windows: readonly TimeWindow[], known: { loss: LossRead | null; kill: boolean }): InForce[] {
   const out: InForce[] = [];
   if (known.kill) out.push({ kind: 'kill' });
   if (plan.closed) out.push({ kind: 'closed', closed: plan.closed });
   else if (t > span.end) out.push({ kind: 'pause', since: span.end, until: span.end + 60 * MIN });
-  if (known.lossAt !== null && known.lossAt <= t) out.push({ kind: 'lossReached', since: known.lossAt });
+  if (known.loss?.reached) out.push(known.loss.since !== null ? { kind: 'lossReached', since: known.loss.since } : { kind: 'lossReached', latent: true });
   for (const w of windows) {
     if (w.kind === 'rule' && w.from <= t && t < w.to) out.push({ kind: 'window', since: w.from, until: w.to, event: w.event, minutes: w.minutes });
   }
@@ -423,14 +489,23 @@ export interface HourInput {
   limit: number | null;
   /** Kill switch engagé (le verrou du renderer). */
   kill: boolean;
+  /**
+   * Latent du compte lu au pont (le compte suivi, lu comme la garde) : il n'entre dans la perte relue qu'au présent, comme
+   * le kill switch. Seul un latent négatif compte (`lossOfDay`).
+   */
+  unrealized?: number;
 }
 
 export interface HourAnswer {
   span: DaySpan;
   plan: SessionPlan;
   timed: TimedEvent[];
-  /** La perte du jour connue à l'instant lu (`knownAt`) : `null` tant qu'aucune sortie faite ne l'a atteinte. */
+  /** La première atteinte connue à l'instant lu (`knownAt`) : une marque du passé, `null` tant qu'aucune sortie ne l'a faite. */
   lossAt: number | null;
+  /** Les séjours de la perte au-delà de sa limite, connus à l'instant lu. */
+  spells: LossSpell[];
+  /** La perte du jour relue à l'instant lu, comme la garde la relit ; `null` sans limite. */
+  loss: LossRead | null;
   /** Les fenêtres telles qu'on les savait à l'instant lu : la hachure ne part que d'une perte déjà constatée. */
   windows: TimeWindow[];
   /** Ce qui vaut à l'instant lu, d'abord. */
@@ -440,19 +515,22 @@ export interface HourAnswer {
 }
 
 /**
- * La réponse de la frise à l'instant lu, d'un seul calcul : la journée CME, ses publications, la perte connue à cet
+ * La réponse de la frise à l'instant lu, d'un seul calcul : la journée CME, ses publications, la perte relue à cet
  * instant, les fenêtres qui en découlent, ce qui vaut, puis ce qui vient. Aucune part ne lit une sortie postérieure au
- * curseur : la hachure de la perte ne précède jamais le moment où on l'a sue.
+ * curseur : la hachure de la perte ne précède jamais le moment où on l'a sue, et ne s'étend pas au-delà.
  */
 export function hourAt(input: HourInput): HourAnswer {
   const span = daySpan(cmeDay(input.at));
   const plan = sessionPlan(span);
   const { timed } = dayEvents(input.events, span);
+  const present = input.at >= input.now - MIN;
   const lossAt = lossLimitInstant(input.trades, span, input.limit, input.at);
-  const windows = dayWindows(span, timed, input.rules, lossAt);
-  const inForce = inForceAt(input.at, span, plan, windows, { lossAt, kill: input.kill && input.at >= input.now - MIN });
+  const spells = lossSpells(input.trades, span, input.limit, input.at);
+  const loss = lossReadAt(input.trades, span, input.limit, input.at, present ? (input.unrealized ?? 0) : 0);
+  const windows = dayWindows(span, timed, input.rules, spells, input.at);
+  const inForce = inForceAt(input.at, span, plan, windows, { loss, kill: input.kill && present });
   const ahead = nextBoundaries(input.at, span, plan, timed, windows);
-  return { span, plan, timed, lossAt, windows, inForce, ahead };
+  return { span, plan, timed, lossAt, spells, loss, windows, inForce, ahead };
 }
 
 /* ─── Étude d'événement ─── */

@@ -881,7 +881,9 @@
   align-items: center;
   gap: 4px;
 }
-.borneShort {
+.borneShort,
+.valueShort,
+.valueNarrow {
   display: none;
 }
 .borneSignal {
@@ -911,12 +913,66 @@
     color: var(--text-0);
   }
 }
-@container status (max-width: 1480px) {
+/* ─── La réponse du temps (OROS5.23) : au bout de la ligne, ce qui vaut ou ce qui vient, puis sa source ─── */
+.answer {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 14px;
+  color: var(--text-1);
+  --k: var(--text-1);
+}
+.answerSignal {
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.answerSignal > span {
+  width: 12px;
+  height: 12px;
+}
+.answerDelay {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-0);
+}
+.answerDot,
+.answerSource {
+  color: var(--text-2);
+}
+.answerShort {
+  display: none;
+}
+.answerSource {
+  --k: var(--text-2);
+}
+/* C.054, une source incomplète : le calendrier local, estimé ; il reste seul à l'étroit. */
+.answerGlyph {
+  width: 10px;
+  height: 10px;
+  margin: 0 5px 0 8px;
+  vertical-align: -1px;
+}
+@container status (max-width: 1800px) {
   .borneLong,
-  .statusWord {
+  .valueLong,
+  .answerSourceText {
     display: none;
   }
-  .borneShort {
+  .borneShort,
+  .valueShort {
+    display: inline;
+  }
+}
+@container status (max-width: 1480px) {
+  .statusWord,
+  .valueShort,
+  .answerLong {
+    display: none;
+  }
+  .valueNarrow,
+  .answerShort {
     display: inline;
   }
 }
