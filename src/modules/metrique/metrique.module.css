@@ -105,6 +105,91 @@
   gap: 4px;
   flex-wrap: wrap;
 }
+/* ─── B · Séances (OROS5.33, décision 12) : le glyphe C.094 en tête de ligne ouvre la fiche, la ligne garde l'édition ─── */
+.dateCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.openFiche {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 22px;
+  margin: -4px 0 -4px -4px;
+  --k: var(--text-2);
+  transition: color 200ms linear;
+}
+/* La séance ouverte dans la fiche : son glyphe passe à l'or, comme l'objet ouvert partout (décision 1). */
+.openFiche[aria-current='true'] {
+  --k: var(--gold);
+}
+.openGlyph {
+  width: 18px;
+  height: 15px;
+}
+@media (hover: hover) {
+  .openFiche:hover {
+    --k: var(--text-0);
+  }
+  .openFiche[aria-current='true']:hover {
+    --k: var(--gold);
+  }
+}
+/* Ce que la grille abrège à l'étroit, et sa forme longue. */
+.short {
+  display: none;
+}
+/* La grille se mesure elle-même : sous 1 000 px, elle resserre ses cellules, dit la date court et abrège deux en-têtes,
+   sans couper Éval. ni Source ; sous 800 px, son corps descend d'un point. */
+.grille {
+  container: grille / inline-size;
+}
+@container grille (max-width: 1000px) {
+  .grilleTable th,
+  .grilleTable td {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .grilleTable .long {
+    display: none;
+  }
+  .grilleTable .short {
+    display: inline;
+  }
+  .grilleTable .dateCell {
+    gap: 6px;
+  }
+  .grilleTable .accountCell {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@container grille (max-width: 800px) {
+  .grilleTable th,
+  .grilleTable td {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+  .grilleTable td {
+    font-size: 12px;
+  }
+  .grilleTable td:global(.num) {
+    font-size: 11px;
+  }
+}
+/* Trop étroit pour la grille et l'édition côte à côte (fiche ouverte, petite fenêtre) : l'édition passe sous la grille,
+   qui prend toute la zone. */
+@container main (max-width: 1340px) {
+  .seancesSplit {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: auto;
+  }
+}
 .stars {
   display: inline-flex;
   gap: 2px;
