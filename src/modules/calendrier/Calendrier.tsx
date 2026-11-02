@@ -15,6 +15,7 @@ import { addDays, dateKeyLocal, dateTimeFormatter, etDateKey, ET_ZONE, formatDat
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
+import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { horizonDay, LENS_PATH, nowIndex } from './calState';
@@ -267,6 +268,8 @@ export default function Calendrier() {
   const loadMacro = useMacro((m) => m.load);
   const syncMacro = useMacro((m) => m.sync);
   const nowAt = useNow();
+  // Une fiche ouverte prend la place de la colonne du Jour (OROS5.16) : jamais deux colonnes à droite.
+  const ficheOpen = useObjects((o) => o.open !== null);
 
   useEffect(() => {
     void loadMacro().then(() => syncMacro());
@@ -408,7 +411,7 @@ export default function Calendrier() {
         ]}
       />
       <ModuleContent>
-        <div className={s.layout}>
+        <div className={cx(s.layout, ficheOpen && s.solo)}>
           <div className={s.main}>
             <div className={s.toolbar}>
               <Button size="sm" variant="ghost" onClick={() => shift(-1)} aria-label={tr('Mois précédent', 'Previous month', 'Mes anterior')}>
@@ -571,8 +574,9 @@ export default function Calendrier() {
             )}
           </div>
 
-          {/* Système 4.1 : la colonne s'ouvre sur la légende, sans plaque — la séance est dite par la barre d'état, la synchro par la barre d'outils, les catalyseurs par le jour. */}
-          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} onHelp={setHelpCat} />
+          {/* Système 4.1 : la colonne s'ouvre sur la légende, sans plaque — la séance est dite par la barre d'état, la synchro par la barre d'outils, les catalyseurs par le jour.
+              Une fiche ouverte la remplace : elle est la colonne de droite du châssis. */}
+          {ficheOpen ? null : <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} onHelp={setHelpCat} />}
         </div>
       </ModuleContent>
 

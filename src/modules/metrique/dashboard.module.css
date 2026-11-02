@@ -566,3 +566,23 @@
   .span12 { grid-column: 1 / -1; }
   .plateTop { grid-template-columns: 1fr; }
 }
+
+/* La zone de travail se mesure elle-même (OROS5.16, le châssis en fait un conteneur) : sous 1 100 px — fiche ouverte, ou
+   fenêtre étroite —, A.01 prend toute la largeur et la bande K passe dessous, ses quatre cartes sur une ligne. */
+@container main (max-width: 1100px) {
+  .span7,
+  .span5,
+  .span8,
+  .span4,
+  .span12 { grid-column: 1 / -1; }
+  .grid { grid-template-rows: minmax(206px, auto) auto minmax(258px, auto) auto; }
+  .kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: auto;
+  }
+  .tile:nth-child(n) {
+    border-right: 1px solid var(--line-1);
+    border-bottom: none;
+  }
+  .tile:last-child { border-right: none; }
+}

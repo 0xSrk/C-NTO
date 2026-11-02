@@ -1,0 +1,553 @@
+import { useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { Glyph, type GlyphName } from '@/design/Micro';
+import { TYPE_GLYPH } from '@/design/micro/meaning';
+import e from '@/design/etat.module.css';
+import { cx, Montant } from '@/design/primitives';
+import { getInstrument, hasInstrument } from '@/engine/instruments';
+import { authorCounts, entityKey, groupNeighbors, kindCounts, neighborsOf, noteTradingDay, orderGroups, parseNoteHeader, slugifyTitle, type EntityRef, type EntityType, type Link, type LinkKind, type Predicate } from '@/engine/ontology';
+import { tr, useI18n } from '@/i18n';
+import { publicationInstant, strokeOf } from '@/lib/calendarMarks';
+import { trEventTitle } from '@/lib/eventTitles';
+import { fmtInt, fmtPrice, fmtUsd, plural } from '@/lib/format';
+import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
+import { useNotes } from '@/store/notes';
+import { previousObject, useObjects } from '@/store/objects';
+import { useUi } from '@/store/ui';
+import { etClock, isStrategyNote, objectLabel, STROKE_ETAT, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
+import s from './fiche.module.css';
+
+/**
+ * La fiche d'objet (OROS5.16, Système 5 « Fiche et Frise » ; repris du prototype d1) : la troisième colonne du châssis,
+ * 400 px à droite de la zone de travail, la même pour tous les objets. Le cadre commun : un en-tête (le glyphe du type, à
+ * l'or pour l'objet ouvert, l'identifiant en clair, trois actions au plus), puis les Propriétés, les Liens par prédicat
+ * et la Provenance. Les fiches propres à chaque type s'y posent ensuite (OROS5.26 à OROS5.29).
+ *
+ * La fiche lit et navigue : elle n'écrit rien. Une action ouvre un module, un autre objet, ou copie l'identifiant.
+ */
+
+const capital = (text: string) => text.charAt(0).toLocaleUpperCase() + text.slice(1);
+
+/** Le nom d'un prédicat, dans la langue du desk. */
+export function predicateLabel(predicate: Predicate): string {
+  switch (predicate) {
+    case 'pendant':
+      return tr('pendant', 'during', 'durante');
+    case 'de-la-seance':
+      return tr('de la séance', 'of the session', 'de la sesión');
+    case 'applique':
+      return tr('applique', 'applies', 'aplica');
+    case 'mentionne':
+      return tr('mentionne', 'mentions', 'menciona');
+    case 'soutient':
+      return tr('soutient', 'supports', 'respalda');
+    case 'contredit':
+      return tr('contredit', 'contradicts', 'contradice');
+    case 'raffine':
+      return tr('raffine', 'refines', 'refina');
+    case 'partie-de':
+      return tr('partie de', 'part of', 'parte de');
+    case 'cause':
+      return tr('cause', 'causes', 'causa');
+    case 'relie':
+      return tr('relie', 'relates', 'relaciona');
+  }
+}
+
+/** Le trait d'un lien, dans la table d'états : structurel ou affirmé, en service ; hypothèse, tiretée ; rejeté, éteint. */
+export const LINK_ETAT: Readonly<Record<LinkKind, EtatStroke>> = { structurel: 'plein', affirme: 'plein', hypothese: 'tirete', rejete: 'eteint' };
+
+/** L'échantillon d'un trait de la table d'états, en tête d'une ligne : l'état, jamais une couleur. */
+export function EtatMark({ stroke, className }: { stroke: EtatStroke; className?: string }) {
+  return <i className={cx(s.etat, e[stroke], className)} data-etat={stroke} aria-hidden />;
+}
+
+/* ─── Le tiroir ─────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * La troisième colonne du châssis : posée tant qu'un objet est ouvert, enfant du châssis (hors de `main`), inerte avec lui
+ * sous le verrou. Elle entre par l'opacité. ↑ ↓, la fiche ayant le focus, passent à l'objet voisin de la liste d'origine.
+ */
+export function ObjectDrawer() {
+  useI18n((st) => st.locale);
+  const open = useObjects((o) => o.open);
+  const focusStamp = useObjects((o) => o.focusStamp);
+  const step = useObjects((o) => o.step);
+  const ref = useRef<HTMLElement>(null);
+  const handled = useRef(focusStamp);
+  useEffect(() => {
+    if (focusStamp === handled.current) return;
+    handled.current = focusStamp;
+    ref.current?.focus();
+  }, [focusStamp, open]);
+  if (!open) return null;
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    if (step(event.key === 'ArrowDown' ? 1 : -1)) event.preventDefault();
+  };
+  return (
+    <aside ref={ref} className={s.drawer} data-drawer={open.type} tabIndex={-1} aria-label={tr('Fiche de l’objet', 'Object record', 'Ficha del objeto')} onKeyDown={onKeyDown}>
+      <ObjectFiche key={entityKey(open)} target={open} />
+    </aside>
+  );
+}
+
+/** Le fil d'Ariane jusqu'à l'objet : l'objet d'où vient le dernier saut, en lien (Retour arrière), puis l'objet ouvert. */
+export function ObjectCrumb({ slash }: { slash?: string }) {
+  useI18n((st) => st.locale);
+  const open = useObjects((o) => o.open);
+  const previous = useObjects((o) => previousObject(o));
+  const back = useObjects((o) => o.back);
+  const stamp = useObjects((o) => o.stamp);
+  const now = useMemo(() => Date.now(), [stamp]);
+  const ctx = useIndexSources(now);
+  if (!open) return null;
+  const name = (ref: EntityRef) => objectLabel(ref, ctx, now) ?? typeWord(ref.type);
+  return (
+    <>
+      <span className={slash}>/</span>
+      {previous ? (
+        <>
+          <button type="button" className={s.crumbLink} onClick={() => back()} title={tr('Revenir à cet objet · Retour arrière', 'Back to this object · Backspace', 'Volver a este objeto · Retroceso')}>
+            {name(previous)}
+          </button>
+          <span className={s.crumbStep} aria-hidden>
+            ›
+          </span>
+        </>
+      ) : null}
+      <button type="button" className={s.crumbObject} data-crumb="object" onClick={() => document.querySelector<HTMLElement>('[data-drawer]')?.focus()} title={tr('Aller à la fiche', 'Go to the record', 'Ir a la ficha')}>
+        {name(open)}
+      </button>
+    </>
+  );
+}
+
+/* ─── Le cadre commun ───────────────────────────────────────────────────────────────────────────────────────── */
+
+export interface FicheAction {
+  id: string;
+  label: string;
+  /** Le composant de la planche qui dit l'action (l'emblème du module qu'elle ouvre) ; sans lui, la copie. */
+  glyph?: GlyphName;
+  run: () => void;
+}
+
+/** Trois actions au plus : la fiche n'est pas une barre d'outils. */
+export const FICHE_ACTIONS_MAX = 3;
+
+/** L'en-tête : le glyphe du type, à l'or pour l'objet ouvert ; l'identifiant en clair ; les actions ; la fermeture. */
+export function FicheHead({ type, title, actions }: { type: EntityType; title: string; actions: readonly FicheAction[] }) {
+  const close = useObjects((o) => o.close);
+  return (
+    <header className={s.head}>
+      <Glyph name={TYPE_GLYPH[type]} className={s.headGlyph} label={capital(typeWord(type))} />
+      <h2 className={s.headTitle} data-fiche="title">
+        {title}
+      </h2>
+      <span className={s.headActions}>
+        {actions.slice(0, FICHE_ACTIONS_MAX).map((action) => (
+          <button key={action.id} type="button" className={s.iconBtn} onClick={action.run} title={action.label} aria-label={action.label} data-action={action.id}>
+            {action.glyph ? (
+              <Glyph name={action.glyph} className={s.iconGlyph} />
+            ) : (
+              <svg viewBox="0 0 12 12" className={s.iconSvg} aria-hidden>
+                <path d="M4 1.5h6.5V8M1.5 4H8v6.5H1.5z" />
+              </svg>
+            )}
+          </button>
+        ))}
+        <button type="button" className={s.iconBtn} onClick={() => close()} title={tr('Fermer · Échap', 'Close · Esc', 'Cerrar · Esc')} aria-label={tr('Fermer la fiche', 'Close the record', 'Cerrar la ficha')} data-action="close">
+          <svg viewBox="0 0 12 12" className={s.iconSvg} aria-hidden>
+            <path d="M2 2l8 8M10 2l-8 8" />
+          </svg>
+        </button>
+      </span>
+    </header>
+  );
+}
+
+export function FicheSection({ title, meta, children, part }: { title: string; meta?: ReactNode; children: ReactNode; part: string }) {
+  return (
+    <section className={s.section} data-section={part}>
+      <header className={s.sectionHead}>
+        <h3>{title}</h3>
+        {meta != null ? <span>{meta}</span> : null}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+export type PropertyRow = readonly [label: string, value: ReactNode];
+
+/** Les propriétés : un libellé, une valeur ; une valeur absente se lit « — », jamais zéro. */
+export function Properties({ rows }: { rows: readonly PropertyRow[] }) {
+  return (
+    <dl className={s.props}>
+      {rows.map(([label, value]) => (
+        <div key={label} className={s.prop}>
+          <dt>{label}</dt>
+          <dd>{value ?? '—'}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** L'instant d'un objet, pour ranger ses voisins dans l'ordre du temps ; sans instant, il passe en dernier. */
+export function objectInstant(ref: EntityRef, ctx: IndexSources): number | undefined {
+  switch (ref.type) {
+    case 'trade':
+      return ctx.trades.find((t) => t.id === ref.id)?.entryTime;
+    case 'session': {
+      const date = ctx.sessions.find((x) => x.id === ref.id)?.date;
+      return date ? Date.parse(`${date}T12:00:00Z`) : undefined;
+    }
+    case 'evenement': {
+      const event = ctx.catalysts.find((x) => x.id === ref.id);
+      return event ? publicationInstant(event) : undefined;
+    }
+    case 'note':
+    case 'strategie':
+      return ctx.notes.find((x) => x.id === ref.id)?.updatedAt;
+    default:
+      return undefined;
+  }
+}
+
+/** Les liens de l'objet, par prédicat, sens et type, dans l'ordre de lecture du moteur, chaque groupe dans l'ordre du temps ; chacun ouvre son objet. */
+export function LinksByPredicate({ target, ctx, now }: { target: EntityRef; ctx: IndexSources; now: number }) {
+  useI18n((st) => st.locale);
+  const openObject = useObjects((o) => o.openObject);
+  const neighbors = useMemo(() => neighborsOf(target, ctx.links), [target, ctx.links]);
+  const groups = useMemo(() => orderGroups(groupNeighbors(neighbors), (ref) => objectInstant(ref, ctx)), [neighbors, ctx]);
+  const live = groups.filter((group) => group.count > 0);
+  if (live.length === 0) return <p className={s.empty}>{tr('Aucun lien.', 'No link.', 'Ningún enlace.')}</p>;
+  return (
+    <div className={s.links}>
+      {live.map((group) => (
+        <div key={group.id} className={s.group} data-group={group.id}>
+          <div className={s.groupHead}>
+            <span className={s.predicate}>
+              {group.side === 'out' ? '→' : '←'} {predicateLabel(group.predicate)}
+            </span>
+            <span className={s.groupName}>{capital(typeWord(group.type, group.count))}</span>
+            <span className={s.groupCount}>{fmtInt(group.count)}</span>
+          </div>
+          {group.items.map((n) => {
+            const label = objectLabel(n.ref, ctx, now);
+            return (
+              <button key={n.link.id} type="button" className={s.row} data-link={n.link.kind} onClick={() => openObject(n.ref, { jump: true })} title={tr('Ouvrir sa fiche', 'Open its record', 'Abrir su ficha')}>
+                <EtatMark stroke={LINK_ETAT[n.link.kind]} />
+                <Glyph name={TYPE_GLYPH[n.ref.type]} className={s.rowGlyph} />
+                <span className={cx(s.rowMain, !label && s.rowMissing)}>{label ?? tr('Absent du coffre', 'Missing from the vault', 'Ausente de la caja')}</span>
+                <span className={s.rowGo} aria-hidden>
+                  →
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Provenance({ lines }: { lines: readonly ReactNode[] }) {
+  return (
+    <ul className={s.prov}>
+      {lines.map((line, i) => (
+        <li key={i}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** La provenance des liens : leur genre, puis leur auteur. */
+function linkProvenance(target: EntityRef, links: readonly Link[]): string[] {
+  const neighbors = neighborsOf(target, links);
+  if (neighbors.length === 0) return [tr('Aucun lien au coffre.', 'No link in the vault.', 'Ningún enlace en la caja.')];
+  const kinds = kindCounts(neighbors);
+  const by = authorCounts(neighbors);
+  return [
+    tr(
+      `Liens : ${fmtInt(kinds.structurel)} structurels, calculés par le moteur · ${fmtInt(kinds.affirme)} affirmés · ${fmtInt(kinds.hypothese)} hypothèses · ${fmtInt(kinds.rejete)} rejetés`,
+      `Links: ${fmtInt(kinds.structurel)} structural, computed by the engine · ${fmtInt(kinds.affirme)} affirmed · ${fmtInt(kinds.hypothese)} hypotheses · ${fmtInt(kinds.rejete)} rejected`,
+      `Enlaces: ${fmtInt(kinds.structurel)} estructurales, calculados por el motor · ${fmtInt(kinds.affirme)} afirmados · ${fmtInt(kinds.hypothese)} hipótesis · ${fmtInt(kinds.rejete)} rechazados`,
+    ),
+    tr(
+      `Auteurs : moteur ${fmtInt(by.moteur)} · vous ${fmtInt(by.utilisateur)} · agent ${fmtInt(by.agent)}`,
+      `Authors: engine ${fmtInt(by.moteur)} · you ${fmtInt(by.utilisateur)} · agent ${fmtInt(by.agent)}`,
+      `Autores: motor ${fmtInt(by.moteur)} · usted ${fmtInt(by.utilisateur)} · agente ${fmtInt(by.agent)}`,
+    ),
+  ];
+}
+
+/* ─── Ce que chaque type dit dans le cadre ──────────────────────────────────────────────────────────────────── */
+
+interface Described {
+  /** L'objet est au coffre. */
+  found: boolean;
+  properties: PropertyRow[];
+  provenance: string[];
+  actions: FicheAction[];
+}
+
+/** Le jour, avec le jour de la semaine, dans la langue du desk. */
+const longDay = (date: string) => (/^\d{4}-\d{2}-\d{2}$/.test(date) ? formatDateFr(date, { weekday: true }) : date);
+
+/** L'instant d'une écriture au coffre, à l'heure du poste. */
+function stamped(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '—';
+  return `${formatDateFr(dateKeyLocal(new Date(ms)), { short: true })} ${formatTimeLocal(ms)}`;
+}
+
+function sourceWord(source: string): string {
+  if (source === 'ninjatrader') return 'NinjaTrader';
+  if (source === 'csv') return tr('import CSV', 'CSV import', 'importación CSV');
+  if (source === 'manuel') return tr('saisie manuelle', 'manual entry', 'entrada manual');
+  if (source === 'demo') return tr('démonstration', 'demo', 'demostración');
+  return source;
+}
+
+const signedClass = (v: number) => (v > 0 ? s.pos : v < 0 ? s.neg : undefined);
+
+/** Un objet voisin, en lien : son glyphe et son nom ; il ouvre sa fiche par un saut. */
+function ObjectLink({ to, label }: { to: EntityRef; label: string }) {
+  const openObject = useObjects((o) => o.openObject);
+  return (
+    <button type="button" className={s.objLink} onClick={() => openObject(to, { jump: true })} title={tr('Ouvrir sa fiche', 'Open its record', 'Abrir su ficha')}>
+      <Glyph name={TYPE_GLYPH[to.type]} className={s.objLinkGlyph} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function describe(target: EntityRef, ctx: IndexSources, now: number): Described {
+  const objects = useObjects.getState();
+  const ui = useUi.getState();
+  const copy: FicheAction = {
+    id: 'copy',
+    label: tr('Copier l’identifiant interne', 'Copy the internal identifier', 'Copiar el identificador interno'),
+    run: () => {
+      void navigator.clipboard?.writeText(target.id).then(
+        () => useUi.getState().toast(tr('Identifiant copié', 'Identifier copied', 'Identificador copiado'), 'ok'),
+        () => undefined,
+      );
+    },
+  };
+  const openDay = (date: string): FicheAction => ({
+    id: 'calendar',
+    glyph: 'calendrier',
+    label: tr('Ouvrir le jour au Calendrier', 'Open the day in the Calendar', 'Abrir el día en el Calendario'),
+    run: () => {
+      ui.focusOnDate(date);
+      objects.jumpTo('calendrier');
+    },
+  });
+  const linkLines = linkProvenance(target, ctx.links);
+
+  switch (target.type) {
+    case 'session': {
+      const session = ctx.sessions.find((x) => x.id === target.id);
+      if (!session) break;
+      const own = ctx.trades.filter((t) => t.sessionId === session.id);
+      const wins = own.filter((t) => t.pnl > 0).length;
+      const count = own.length || session.tradeCount;
+      return {
+        found: true,
+        properties: [
+          [tr('Jour', 'Day', 'Día'), longDay(session.date)],
+          [tr('Compte', 'Account', 'Cuenta'), session.account?.trim() ? <ObjectLink to={{ type: 'compte', id: session.account.trim() }} label={session.account.trim()} /> : tr('sans compte', 'no account', 'sin cuenta')],
+          [tr('Instruments', 'Instruments', 'Instrumentos'), session.instruments.join(' · ') || '—'],
+          [tr('P&L net', 'Net P&L', 'P&L neto'), <Montant key="net" value={session.pnl} className={signedClass(session.pnl)} />],
+          [tr('Trades', 'Trades', 'Trades'), own.length ? `${fmtInt(count)} · ${fmtInt(wins)} ${tr('gagnants', 'winners', 'ganadores')}` : fmtInt(count)],
+          [tr('Commission', 'Commission', 'Comisión'), fmtUsd(-Math.abs(session.commission), { cents: true }).replace(/^-/, '−')],
+          [tr('Étiquettes', 'Tags', 'Etiquetas'), session.tags.length ? session.tags.join(' · ') : '—'],
+          [tr('Éval.', 'Rating', 'Eval.'), session.rating ? `${session.rating} / 5` : '—'],
+          [tr('Note de séance', 'Session note', 'Nota de sesión'), session.note ? <span className={s.quote}>{session.note}</span> : '—'],
+        ],
+        provenance: [`${capital(typeWord('session'))} · ${sourceWord(session.source)} · ${tr('écrite au coffre', 'written to the vault', 'escrita en la caja')} ${stamped(session.createdAt)}`, ...linkLines],
+        actions: [
+          openDay(session.date),
+          {
+            id: 'visual',
+            glyph: 'visual',
+            label: tr('Projeter dans Visual', 'Project in Visual', 'Proyectar en Visual'),
+            run: () => {
+              ui.focusSession(session.id);
+              objects.jumpTo('visual');
+            },
+          },
+          copy,
+        ],
+      };
+    }
+    case 'trade': {
+      const trade = ctx.trades.find((x) => x.id === target.id);
+      if (!trade) break;
+      const session = ctx.sessions.find((x) => x.id === trade.sessionId);
+      return {
+        found: true,
+        properties: [
+          [tr('Séance', 'Session', 'Sesión'), session ? <ObjectLink to={{ type: 'session', id: session.id }} label={objectLabel({ type: 'session', id: session.id }, ctx, now) ?? session.date} /> : '—'],
+          [tr('Sens · quantité', 'Side · quantity', 'Sentido · cantidad'), `${trade.direction === 'long' ? 'Long' : 'Short'} ${fmtInt(trade.qty)} ${trade.instrument}`],
+          [tr('Entrée', 'Entry', 'Entrada'), `${etClock(trade.entryTime)} ET · ${fmtPrice(trade.entryPrice)}`],
+          [tr('Sortie', 'Exit', 'Salida'), Number.isFinite(trade.exitTime) ? `${etClock(trade.exitTime)} ET · ${fmtPrice(trade.exitPrice)}` : '—'],
+          [tr('P&L net', 'Net P&L', 'P&L neto'), <Montant key="net" value={trade.pnl} className={signedClass(trade.pnl)} />],
+          [tr('Compte', 'Account', 'Cuenta'), trade.account?.trim() || '—'],
+          [tr('Stratégie', 'Strategy', 'Estrategia'), trade.strategy?.trim() || '—'],
+          [tr('Étiquettes', 'Tags', 'Etiquetas'), trade.tags?.length ? trade.tags.join(' · ') : '—'],
+        ],
+        provenance: [
+          trade.executionIds?.length
+            ? tr(`Trade · ${fmtInt(trade.executionIds.length)} exécutions du pont`, `Trade · ${fmtInt(trade.executionIds.length)} bridge executions`, `Trade · ${fmtInt(trade.executionIds.length)} ejecuciones del puente`)
+            : `${capital(typeWord('trade'))} · ${sourceWord(session?.source ?? '')}`,
+          ...linkLines,
+        ],
+        actions: [...(session ? [openDay(session.date)] : []), copy],
+      };
+    }
+    case 'note':
+    case 'strategie': {
+      const note = ctx.notes.find((x) => x.id === target.id);
+      if (!note) break;
+      const day = noteTradingDay({ id: note.id, title: note.title, body: note.body, tags: note.tags });
+      const header = parseNoteHeader(note.body);
+      const author = note.by === 'agent' ? (note.adoptedAt != null ? tr('agent · adoptée', 'agent · adopted', 'agente · adoptada') : tr('agent · non adoptée', 'agent · not adopted', 'agente · no adoptada')) : tr('vous', 'you', 'usted');
+      const rows: PropertyRow[] = [
+        [tr('Auteur', 'Author', 'Autor'), author],
+        [tr('Étiquettes', 'Tags', 'Etiquetas'), note.tags.length ? note.tags.map((tag) => `#${tag}`).join(' ') : '—'],
+        [tr('Jour de séance', 'Session day', 'Día de sesión'), day ? longDay(day) : '—'],
+        [tr('Modifiée', 'Updated', 'Modificada'), stamped(note.updatedAt)],
+      ];
+      if (target.type === 'strategie') rows.push([tr('Alias', 'Alias', 'Alias'), isStrategyNote(note) ? `#${header.tag ?? slugifyTitle(note.title)}` : '—']);
+      return {
+        found: true,
+        properties: rows,
+        provenance: [`${capital(typeWord(target.type))} · ${tr('coffre de notes', 'note vault', 'caja de notas')} · ${author}`, ...linkLines],
+        actions: [
+          {
+            id: 'note',
+            glyph: 'note',
+            label: tr('Ouvrir dans Note', 'Open in Note', 'Abrir en Nota'),
+            run: () => {
+              useNotes.getState().setActive(note.id);
+              objects.jumpTo('note');
+            },
+          },
+          copy,
+        ],
+      };
+    }
+    case 'evenement': {
+      const event = ctx.catalysts.find((x) => x.id === target.id);
+      if (!event) break;
+      const stroke = strokeOf(event, now);
+      // Un repère local estimé dont l'heure est passée n'a rien publié : il est passé.
+      const released = event.actual != null && event.actual !== '' ? true : !event.estimated;
+      const state =
+        stroke === 'publie'
+          ? released
+            ? tr('publiée', 'released', 'publicada')
+            : tr('passée', 'past', 'pasada')
+          : stroke === 'prevu'
+            ? tr('à venir', 'upcoming', 'por venir')
+            : tr('au-delà de l’horizon', 'beyond the horizon', 'más allá del horizonte');
+      return {
+        found: true,
+        properties: [
+          [tr('Jour', 'Day', 'Día'), longDay(event.date)],
+          [tr('Heure', 'Time', 'Hora'), event.timeET ? `${event.timeET} ET` : tr('journée', 'all day', 'jornada')],
+          [tr('Impact', 'Impact', 'Impacto'), `${event.impact} / 3`],
+          [
+            tr('État', 'State', 'Estado'),
+            <span key="state" className={s.stateCell}>
+              <EtatMark stroke={STROKE_ETAT[stroke]} />
+              {event.estimated ? `${state} · ${tr('date estimée', 'estimated date', 'fecha estimada')}` : state}
+            </span>,
+          ],
+          [tr('Attendu', 'Forecast', 'Esperado'), event.forecast || '—'],
+          [tr('Précédent', 'Previous', 'Anterior'), event.previous || '—'],
+          [tr('Publié', 'Actual', 'Publicado'), event.actual || '—'],
+        ],
+        provenance: [`${trEventTitle(event.title)} · ${catalystSourceWord(event.source, event.origin)}`, ...linkLines],
+        actions: [openDay(event.date), copy],
+      };
+    }
+    case 'instrument': {
+      const symbol = target.id.trim().toUpperCase();
+      const spec = hasInstrument(symbol) ? getInstrument(symbol) : null;
+      const sessions = ctx.sessions.filter((x) => x.instruments.some((i) => i.trim().toUpperCase() === symbol)).length;
+      const trades = ctx.trades.filter((t) => t.instrument.trim().toUpperCase() === symbol).length;
+      return {
+        found: true,
+        properties: [
+          [tr('Nom', 'Name', 'Nombre'), spec?.name ?? '—'],
+          [tr('Place', 'Exchange', 'Mercado'), spec?.exchange ?? '—'],
+          [capital(typeWord('session', 2)), fmtInt(sessions)],
+          [capital(typeWord('trade', 2)), fmtInt(trades)],
+        ],
+        provenance: [spec ? tr('Instrument du registre du desk', 'Instrument from the desk registry', 'Instrumento del registro del desk') : tr('Symbole hors du registre du desk', 'Symbol outside the desk registry', 'Símbolo fuera del registro del desk'), ...linkLines],
+        actions: [],
+      };
+    }
+    case 'compte': {
+      const name = target.id.trim();
+      const own = ctx.sessions.filter((x) => (x.account?.trim() ?? '') === name);
+      const dates = own.map((x) => x.date).sort();
+      return {
+        found: true,
+        properties: [
+          [capital(typeWord('session', 2)), fmtInt(own.length)],
+          [capital(typeWord('trade', 2)), fmtInt(ctx.trades.filter((t) => (t.account?.trim() ?? '') === name).length)],
+          [tr('Première séance', 'First session', 'Primera sesión'), dates[0] ? longDay(dates[0]) : '—'],
+          [tr('Dernière séance', 'Last session', 'Última sesión'), dates.at(-1) ? longDay(dates.at(-1)!) : '—'],
+        ],
+        // Le compte n'a pas de table (décision 13) : il est le nom que portent les séances et les trades.
+        provenance: [tr('Compte : le nom que portent les séances et les trades, sans table propre', 'Account: the name sessions and trades carry, with no table of its own', 'Cuenta: el nombre que llevan las sesiones y los trades, sin tabla propia'), ...linkLines],
+        actions: [],
+      };
+    }
+  }
+  return { found: false, properties: [], provenance: linkLines, actions: [copy] };
+}
+
+/** La source d'une publication, dans la langue du desk. */
+function catalystSourceWord(source: string | undefined, origin: string | undefined): string {
+  if (!source || source === 'local') return tr('repère local du desk', 'desk local marker', 'hito local del desk');
+  if (source === 'bundle') return `${tr('calendrier embarqué', 'embedded calendar', 'calendario embebido')}${origin ? ` · ${origin.toUpperCase()}` : ''}`;
+  return source.toUpperCase();
+}
+
+/** Une fiche : le cadre commun, rempli de ce que le type de l'objet dit. */
+export function ObjectFiche({ target }: { target: EntityRef }) {
+  useI18n((st) => st.locale);
+  const stamp = useObjects((o) => o.stamp);
+  const now = useMemo(() => Date.now(), [stamp]);
+  const ctx = useIndexSources(now);
+  const view = describe(target, ctx, now);
+  const label = objectLabel(target, ctx, now);
+  const title = `${capital(typeWord(target.type))} · ${label ?? '—'}`;
+  return (
+    <>
+      <FicheHead type={target.type} title={title} actions={view.found ? view.actions : []} />
+      <div className={s.body}>
+        {view.found ? (
+          <FicheSection part="properties" title={tr('Propriétés', 'Properties', 'Propiedades')}>
+            <Properties rows={view.properties} />
+          </FicheSection>
+        ) : (
+          <p className={s.empty}>{tr('Cet objet n’est plus au coffre.', 'This object is no longer in the vault.', 'Este objeto ya no está en la caja.')}</p>
+        )}
+        <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')} meta={plural(neighborsOf(target, ctx.links).filter((n) => n.link.kind !== 'rejete').length, tr('lien', 'link', 'enlace'), tr('liens', 'links', 'enlaces'))}>
+          <LinksByPredicate target={target} ctx={ctx} now={now} />
+        </FicheSection>
+        <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
+          <Provenance lines={view.provenance} />
+        </FicheSection>
+      </div>
+    </>
+  );
+}

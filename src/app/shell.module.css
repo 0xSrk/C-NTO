@@ -12,6 +12,16 @@
     'status status';
   background: transparent;
 }
+/* Un objet ouvert (OROS5.16) : la fiche est la troisième colonne du châssis, 400 px (mesure locale, décision 4) ; la zone
+   de travail se range à sa gauche, rien n'est caché ni recouvert. */
+.shell.withDrawer {
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) 400px;
+  grid-template-areas:
+    'title title title'
+    'band band band'
+    'rail main drawer'
+    'status status status';
+}
 
 .texture {
   position: fixed;
@@ -615,6 +625,8 @@
   }
 }
 
+/* La zone de travail se mesure elle-même (OROS5.16) : un module range ses panneaux sur la largeur qu'elle a, fiche
+   ouverte ou fenêtre étroite (le Tableau de bord sous 1 100 px). */
 .main {
   grid-area: main;
   position: relative;
@@ -625,6 +637,7 @@
   gap: 18px;
   background: transparent;
   overflow: hidden;
+  container: main / inline-size;
 }
 
 :global(.canto-plus) {

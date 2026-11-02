@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Glyph } from '@/design/Micro';
 import { Button, Segmented } from '@/design/primitives';
@@ -21,6 +21,7 @@ import { useCalendar } from '@/store/calendar';
 import { useCopier } from '@/store/copier';
 import { useCrypto } from '@/store/crypto';
 import { useNotes } from '@/store/notes';
+import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { Analyse } from './Analyse';
 import { BridgeModal } from './BridgeModal';
@@ -38,6 +39,8 @@ import { INCOMPLETE_BOOK, ordersPanel, watchOrders } from './liveOrders';
 import type { OrderBookView } from '@/engine/execution/orderBook';
 
 type View = 'bord' | 'seances' | 'analyse' | 'prop' | 'mc';
+const VIEWS: readonly View[] = ['bord', 'seances', 'analyse', 'prop', 'mc'];
+const isView = (value: string | undefined): value is View => (VIEWS as readonly (string | undefined)[]).includes(value);
 
 function shortDay(date: string): string {
   return `${date.slice(8, 10)}.${date.slice(5, 7)}`;
@@ -45,7 +48,10 @@ function shortDay(date: string): string {
 
 export default function Metrique() {
   useI18n((s) => s.locale);
-  const [view, setView] = useState<View>('bord');
+  // La vue est confiée au store des objets (OROS5.16) : Retour arrière la rend avec le module, la fiche et le fil.
+  const stored = useObjects((o) => o.views.metrique);
+  const view: View = isView(stored) ? stored : 'bord';
+  const setView = useCallback((next: View) => useObjects.getState().setView('metrique', next), []);
   const [range, setRange] = useState<MetricRange>('30j');
   const metricAccount = useUi((u) => u.metricAccount);
   const setMetricAccount = useUi((u) => u.setMetricAccount);

@@ -202,3 +202,13 @@ export const useObjects = create<ObjectsState>((set, get) => {
     },
   };
 });
+
+/**
+ * La vue d'un module vit tant qu'on y reste : quitter son onglet l'oublie, comme un module qui se démonte reprend sa vue
+ * par défaut. Retour arrière la rend, depuis l'état pris avant le saut ; `jumpTo` pose celle qu'il demande.
+ */
+useUi.subscribe((state, prev) => {
+  if (state.tab === prev.tab) return;
+  const { views } = useObjects.getState();
+  if (views[prev.tab] !== undefined) useObjects.setState({ views: withView(views, prev.tab, null) });
+});

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import { BraceCode, Button, Led, cx } from '@/design/primitives';
 import { Glyph } from '@/design/Micro';
 import { Seal } from '@/design/Seal';
@@ -19,6 +19,7 @@ import { useCopier } from '@/store/copier';
 import { useCrypto } from '@/store/crypto';
 import { useLinks } from '@/store/links';
 import { useNotes } from '@/store/notes';
+import { useObjects } from '@/store/objects';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
 import { SeatMark } from './SeatMark';
@@ -29,6 +30,7 @@ import { followerCount, railQuantity, type RailSnapshot } from './railQuantity';
 import { LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
 import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
+import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
 import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -93,6 +95,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const copierFollowers = useCopier((c) => followerCount(c.accounts));
   const cryptoEnabled = useCrypto((c) => c.enabled);
   const cryptoMarkets = useCrypto((c) => c.watchlist.length);
+  const openRef = useObjects((o) => o.open);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
@@ -109,6 +112,11 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     void desk.version().then(setAppVersion);
   }, []);
 
+  // Le verrou du châssis tient aussi la fiche et ses sauts : sous lui, rien ne répond (src/store/objects.ts).
+  useLayoutEffect(() => {
+    useObjects.getState().setLocked(inert);
+  }, [inert]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const m = /^Digit([1-9])$/.exec(e.code);
@@ -116,11 +124,29 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         e.preventDefault();
         const next = TABS[Number(m[1]) - 1];
         if (next) setTab(next.id);
+        return;
+      }
+      // La fiche (OROS5.16) : rien sous le verrou, ni dans un champ, ni sous un dialogue ouvert.
+      if (inert || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      const objects = useObjects.getState();
+      // Échap ferme la fiche et rend le focus à la ligne d'origine.
+      if (e.key === 'Escape' && objects.open) {
+        e.preventDefault();
+        objects.close();
+        return;
+      }
+      // Retour arrière défait le dernier saut : le module, sa vue, la fiche et le fil reviennent.
+      if (e.key === 'Backspace' && !e.shiftKey && objects.history.length > 0) {
+        e.preventDefault();
+        objects.back();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setTab]);
+  }, [setTab, inert]);
 
   const accounts = useMemo(() => [...new Set(sessions.map((row) => row.account).filter((name): name is string => !!name))].sort(), [sessions]);
   const accountLine = metricAccount
@@ -181,7 +207,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   };
 
   return (
-    <div className={cx(s.shell, revealed ? s.intro : s.pending)} inert={inert}>
+    <div className={cx(s.shell, revealed ? s.intro : s.pending, openRef && s.withDrawer)} inert={inert}>
       <div className={s.texture} aria-hidden />
       {/* Les trois lignes du châssis : le circuit de l'ouverture les trace là où elles sont (src/app/unlockCircuit.ts). */}
       <header className={s.title} data-chassis="title">
@@ -200,6 +226,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
                 <span>{third}</span>
               </>
             ) : null}
+            {/* Le fil va jusqu'à l'objet ouvert, et porte celui d'où vient le dernier saut. */}
+            {openRef ? <ObjectCrumb slash={s.slash} /> : null}
           </span>
         </div>
         <div className={s.titleRight}>
@@ -309,6 +337,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           ))}
         </div>
       </main>
+
+      {/* La fiche d'objet : la troisième colonne du châssis, hors de la zone de travail, inerte avec lui sous le verrou. */}
+      <ObjectDrawer />
 
       <footer className={s.status} data-chassis="status">
         <div className={s.statusLeft}>

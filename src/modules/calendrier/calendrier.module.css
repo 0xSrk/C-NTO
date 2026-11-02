@@ -5,6 +5,10 @@
   height: 100%;
   min-height: 0;
 }
+/* Une fiche ouverte prend la place de la colonne du Jour (OROS5.16) : la grille garde toute la zone de travail. */
+.layout.solo {
+  grid-template-columns: minmax(0, 1fr);
+}
 .main {
   display: flex;
   flex-direction: column;
