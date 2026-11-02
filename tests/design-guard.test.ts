@@ -201,6 +201,29 @@ describe('garde du système visuel', () => {
     expect(writes.map((path) => posix('src', path))).toEqual([]);
   });
 
+  it('OROS5.21 la plaque vissée quitte A.01 et B.01 : ni vis, ni languette, ni dégradé, ni rayon, ni ombre ; le filet d’un pixel reste', () => {
+    // aucune PlaqueVissee dans les modules ; sans emploi, la primitive sort, avec ses règles
+    const reads = (dir: string) => walk(dir).filter((path) => /PlaqueVissee/.test(readFileSync(path, 'utf8'))).map((path) => posix('.', path));
+    expect(reads('src/modules')).toEqual([]);
+    expect(reads('src')).toEqual([]);
+    const primitives = cssRules(readFileSync('src/design/primitives.module.css', 'utf8')).flatMap((rule) => rule.selector.split(/\s*,\s*/));
+    for (const gone of ['.plaque', '.trame', '.vis', '.visTl', '.visTr', '.visBl', '.visBr', '.languette', '.plaqueBody']) expect(primitives, gone).not.toContain(gone);
+    // A.01 et B.01 gardent leur plaque : une section au filet d'un pixel, à plat, sans or
+    const plates = [
+      ['src/modules/metrique/Dashboard.tsx', 'src/modules/metrique/dashboard.module.css', 'A.01'],
+      ['src/modules/portefeuille/Synthese.tsx', 'src/modules/portefeuille/synthese.module.css', 'B.01'],
+    ] as const;
+    for (const [source, sheet, code] of plates) {
+      const tsx = readFileSync(source, 'utf8');
+      const open = tsx.indexOf('<section className={`${s.plaque} ${s.span7}`}>');
+      expect(open, source).toBeGreaterThan(-1);
+      expect(tsx.indexOf(`${code} /`, open), source).toBeGreaterThan(open);
+      const body = cssRules(readFileSync(sheet, 'utf8')).find((rule) => rule.selector === '.plaque' && rule.at.length === 0)?.body ?? '';
+      expect(body, sheet).toMatch(/border: 1px solid var\(--line-1\);/);
+      expect(body, sheet).not.toMatch(/radius|shadow|gradient|--lab|--gold|#[0-9a-f]{3,6}/i);
+    }
+  });
+
   it('DESIGN.md décrit le Système 4.1 avec les valeurs exactes de tokens.css', () => {
     const doc = readFileSync('docs/DESIGN.md', 'utf8');
     const css = readFileSync('src/design/tokens.css', 'utf8');

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Barcode, Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee, Regle } from '@/design/primitives';
+import { Barcode, Button, Empty, Etiquette, Jauge, Lecteur, Montant, Regle } from '@/design/primitives';
 import { findPlan } from '@/engine/propfirm';
 import type { Bilan, BilanPreset } from '@/engine/portfolio/bilan';
 import type { Exposure } from '@/engine/portfolio/exposure';
@@ -157,7 +157,8 @@ export function Synthese({
       <span className={`canto-plus ${s.plusR}`} aria-hidden>
         +
       </span>
-      <PlaqueVissee className={s.span7}>
+      {/* B.01 : la plaque du lecteur réduite à son filet d'un pixel (Système 5) ; ni vis, ni languette, ni dégradé, ni ombre. */}
+      <section className={`${s.plaque} ${s.span7}`}>
         <div className={s.plate}>
           <div className={s.plateLabel}>
             <span className={s.code}>B.01 / {tr('VALEUR NETTE CONSOLIDÉE', 'CONSOLIDATED NET VALUE', 'VALOR NETO CONSOLIDADO')}</span>
@@ -186,7 +187,7 @@ export function Synthese({
             ))}
           </div>
         </div>
-      </PlaqueVissee>
+      </section>
 
       <section className={`${s.card} ${s.kpis} ${s.span5}`}>
         <div className={s.tile}>

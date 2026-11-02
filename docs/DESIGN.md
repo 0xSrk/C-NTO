@@ -70,7 +70,7 @@ Encre, encre douce et or d’encre se lisent à 4,5:1 au moins sur l’ivoire (g
 | Perte | `--ember` | `#E0735F` |
 | Glacier · la technique | `--ice` | `#9DB4FF` |
 
-`--pos` vaut `--mint`, `--neg` vaut `--ember`. `--lab` vaut `--gold` : la languette du Lab prend l’or ; elle n’est pas un état et n’entre pas dans les modules. `--ice` dit la technique (outils, liens, indicateurs) ; `--violet` et `--amber` restent catégoriels (types de liens des notes, impact du calendrier, séries), en attendant que la forme les remplace.
+`--pos` vaut `--mint`, `--neg` vaut `--ember`. `--lab` vaut `--gold` : la languette du Lab prenait l’or ; elle quitte la plaque d’A.01 et de B.01 au Système 5 (décision 1 de l’ADMIN, 2026-11-01 : l’or dit ce que tient l’opérateur), et le jeton reste sans emploi, hors des modules (`tokens.css` ne change pas dans cette vague). `--ice` dit la technique (outils, liens, indicateurs) ; `--violet` et `--amber` restent catégoriels (types de liens des notes, impact du calendrier, séries), en attendant que la forme les remplace.
 
 Trois niveaux de signal, dits par la forme du triangle :
 
@@ -83,7 +83,7 @@ Une LED est un point de 5 px et son halo, or, jamais animée, jamais décorative
 ## 03. Textures
 
 - Grain et balayage : un calque fixe, sous les plaques opaques, sans `mix-blend-mode` ni `feTurbulence`. Grain PNG 180×180 dans `src/design/textures/`. Balayage `repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px)`.
-- Trame T.03 : intérieur du lecteur seulement.
+- Trame T.03 : sortie avec la plaque vissée (Système 5) ; la plaque du lecteur, à A.01 et B.01, ne garde que son filet d’un pixel, sans vis, languette, dégradé, rayon ni ombre.
 - Hachure `--hatch-neg` : drawdown et zone au-delà d’une borne.
 - Règle pointillée `--rule-dots` : libellé ···· valeur.
 

@@ -681,48 +681,6 @@
   opacity: 0.6;
 }
 
-.plaque {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(#1a1b20 0%, #141519 100%);
-  border: 1px solid #2b2e34;
-  box-shadow: rgba(255, 255, 255, 0.06) 0 1px 0 inset, rgba(0, 0, 0, 0.6) 0 -1px 0 inset, rgba(0, 0, 0, 0.35) 0 2px 0;
-  border-radius: 2px;
-  padding: 20px 30px 18px;
-}
-.trame {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(237, 235, 228, 0.08) 1px, transparent 1.6px);
-  background-size: 6px 6px;
-  mask-image: linear-gradient(100deg, transparent 20%, #000 75%);
-  pointer-events: none;
-}
-.vis {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #2e3036, #08090a 70%);
-  box-shadow: rgba(255, 255, 255, 0.06) 0 1px 0;
-}
-.visTl { left: 9px; top: 9px; }
-.visTr { right: 9px; top: 9px; }
-.visBl { left: 9px; bottom: 9px; }
-.visBr { right: 9px; bottom: 9px; }
-.languette {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 22px;
-  height: 4px;
-  margin-left: -11px;
-  background: var(--lab);
-}
-.plaqueBody {
-  position: relative;
-}
-
 .led {
   display: inline-flex;
   align-items: center;

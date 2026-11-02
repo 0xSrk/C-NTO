@@ -1,6 +1,6 @@
 import { useMemo, type ComponentProps } from 'react';
 import { Glyph, Signal } from '@/design/Micro';
-import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
+import { Button, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, ratioIntervals, rollingBands, sessionWinRateSeries } from '@/engine/inference';
 import { aggregatePoints } from '@/engine/tradeUnits';
@@ -165,7 +165,8 @@ export function Dashboard({
       <span className={`canto-plus ${s.plusR}`} aria-hidden>
         +
       </span>
-      <PlaqueVissee className={s.span7}>
+      {/* A.01 : la plaque du lecteur réduite à son filet d'un pixel (Système 5) ; ni vis, ni languette, ni dégradé, ni ombre. */}
+      <section className={`${s.plaque} ${s.span7}`}>
         <div className={s.plateBody}>
           <div className={s.plateTop}>
             <div>
@@ -209,7 +210,7 @@ export function Dashboard({
             </span>
           </div>
         </div>
-      </PlaqueVissee>
+      </section>
 
       <section className={`${s.card} ${s.kpis} ${s.span5}`}>
         <div className={s.tile} data-k="K.01">

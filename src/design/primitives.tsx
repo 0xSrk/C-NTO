@@ -207,7 +207,7 @@ export function Montant({ value, decimals = 2, discrete, sign = true, className 
   );
 }
 
-/** Lecteur Doto — un seul par écran, posé sur une plaque vissée. */
+/** Lecteur Doto — un seul par écran, posé sur sa plaque au filet d'un pixel (la plaque vissée sort au Système 5). */
 export function Lecteur({ value, decimals = 2, discrete, sign = true }: { value: number; decimals?: number; discrete?: boolean; sign?: boolean }) {
   useI18n((st) => st.locale);
   const parts = montantParts(value, decimals, { sign });
@@ -250,21 +250,6 @@ function MontantInner({ parts }: { parts: MontantParts }) {
         {parts.decimals}
       </span>
     </>
-  );
-}
-
-/** Plaque du lecteur : quatre vis, trame, languette du Lab. */
-export function PlaqueVissee({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <section className={cx(s.plaque, className)}>
-      <span className={s.trame} aria-hidden />
-      <i className={cx(s.vis, s.visTl)} aria-hidden />
-      <i className={cx(s.vis, s.visTr)} aria-hidden />
-      <i className={cx(s.vis, s.visBl)} aria-hidden />
-      <i className={cx(s.vis, s.visBr)} aria-hidden />
-      <i className={s.languette} aria-hidden />
-      <div className={s.plaqueBody}>{children}</div>
-    </section>
   );
 }
 

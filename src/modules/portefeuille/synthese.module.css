@@ -19,6 +19,14 @@
   border-radius: 2px;
   min-width: 0;
 }
+/* B.01 : la plaque du lecteur ne garde que son filet d'un pixel (Système 5, OROS5.21) ; la plaque vissée sort, avec ses
+   vis, sa languette d'or, sa trame, son dégradé, son rayon et son ombre. */
+.plaque {
+  overflow: hidden;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  padding: 20px 30px 18px;
+}
 .kpis {
   display: grid;
   grid-template-columns: 1fr 1fr;
