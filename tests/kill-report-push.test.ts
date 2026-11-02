@@ -159,7 +159,7 @@ describe('OROS5.20 le rapport d’une coupure faite au clavier arrive au rendere
     expect(Object.keys(last!).sort()).toEqual(['accounts', 'at', 'results', 'sent']);
     expect(JSON.stringify(last)).not.toMatch(/jeton|policy|maxContracts/);
     expect(lines(mountBand())).toEqual(['SimApex2 sans réponse · aplatir dans NinjaTrader', 'Ordres d’aplatir partis à 14:32:07 ET · 1 / 2 aplatis']);
-    // une valeur hors usage du compte d'aplatissement n'efface pas le rapport : elle n'est pas gardée
+    // un nombre de positions fermées négatif ou infini n'efface pas le rapport : il n'est pas gardé
     expect(parseKillReport({ ...report(), results: [{ account: 'Sim101', ok: true, closed: -3 }] })?.results).toEqual([{ account: 'Sim101', ok: true }]);
     expect(parseKillReport({ ...report(), results: [{ account: 'Sim101', ok: true, closed: Number.POSITIVE_INFINITY }] })?.results).toEqual([{ account: 'Sim101', ok: true }]);
   });

@@ -37,8 +37,8 @@ const plainObject = (v: unknown): v is Record<string, unknown> => v !== null && 
 /**
  * La forme d'un rapport de coupure reçu du process principal (poussé par `ntbridge:kill-report` ou redemandé), validée
  * à la réception : `null` pour un rapport mal formé, que ni le store ni la bande ne lisent. Seuls les champs connus
- * sont recopiés ; rien d'autre n'entre dans le renderer. Un compte d'aplatissement hors usage n'est pas gardé (la bande
- * ne le lit pas) plutôt que d'effacer le rapport.
+ * sont recopiés ; rien d'autre n'entre dans le renderer. Un nombre de positions fermées (`closed`) négatif ou non fini
+ * n'est pas gardé (la bande ne le lit pas), plutôt que d'effacer le rapport.
  */
 export function parseKillReport(raw: unknown): LastKill | null {
   if (!plainObject(raw)) return null;
