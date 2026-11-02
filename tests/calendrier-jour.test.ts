@@ -170,6 +170,9 @@ describe('OROS5.29 la vue du Jour', () => {
 
 describe('OROS5.29 la fiche Catalyseur', () => {
   it('08:30 ET au numéral, l’heure du poste dessous ; l’impact, l’état par le trait, les occurrences, « Autour de… » et M.036', async () => {
+    // OROS5.32 : le périmètre de la lecture est celui des puces de la sélection partagée ; la lecture sur tout l'historique
+    // que tient ce test est la puce Période à TOUT (trente jours au démarrage écarteraient la séance du 10.09).
+    useUi.setState({ metricRange: 'tout', metricAccount: null, metricInstrument: null });
     const node = await mount(createElement(ObjectDrawer));
     act(() => void useObjects.getState().openObject({ type: 'evenement', id: CPI }));
     const fiche = node.querySelector<HTMLElement>('aside[data-drawer] div[data-fiche="evenement"]')!;

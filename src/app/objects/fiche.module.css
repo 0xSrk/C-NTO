@@ -982,15 +982,6 @@
 }
 
 /* ─── La fiche Catalyseur (OROS5.29) : « Autour de… », M.036, les occurrences ─────────────────────────────────── */
-/* Le périmètre de la lecture, écrit en clair. */
-.scopeLine {
-  margin: 10px 0 0;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-2);
-}
 .aroundLine {
   margin: 6px 0 8px;
   font-size: 13px;
@@ -1266,4 +1257,85 @@
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-2);
+}
+
+/* ─── La sélection partagée (OROS5.32) : le compte, la période et l'instrument en puces qu'on change sur place ───── */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+/* Une puce : le contour fin des puces du desk ; restreinte (un compte, une période, un instrument), son contour monte. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--chip-h);
+  border: 1px solid color-mix(in srgb, var(--ivory) 11%, transparent);
+  color: var(--text-1);
+  --k: var(--text-2);
+  transition:
+    border-color 260ms var(--ease-out),
+    color 200ms linear;
+}
+.chipOn {
+  border-color: color-mix(in srgb, var(--ivory) 46%, transparent);
+  color: var(--text-0);
+  --k: var(--text-1);
+}
+.chip:focus-within {
+  border-color: var(--text-0);
+}
+.chipGlyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+}
+/* La liste de la puce, à même la puce : sa valeur en code, sa flèche au bout ; elle prend la largeur de sa valeur. */
+.chipSelect {
+  field-sizing: content;
+  height: 100%;
+  padding: 0 24px 0 8px;
+  border: 0;
+  background-color: transparent;
+  background-position: right 9px center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: inherit;
+}
+@media (hover: hover) {
+  .chip:hover {
+    border-color: color-mix(in srgb, var(--ivory) 32%, transparent);
+    color: var(--text-0);
+  }
+  .chipSelect:hover:not(:disabled) {
+    box-shadow: none;
+  }
+}
+/* n / N : ce que la sélection garde, sur ce que le panneau montre. */
+.setCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+/* Hors de la sélection : à sa place, atténué à 35 % ; rien ne disparaît. */
+.out {
+  opacity: 0.35;
+  transition: opacity 220ms linear;
+}
+/* La tête d'un ensemble ou d'une lecture : les puces de son périmètre, puis n / N au bout, à droite même à la ligne. */
+.selectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 0;
+}
+.selectionHead > .setCount {
+  margin-left: auto;
 }

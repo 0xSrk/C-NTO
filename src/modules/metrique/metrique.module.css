@@ -258,6 +258,11 @@
 .rowChecked td {
   background: rgba(196, 30, 58, 0.04);
 }
+/* Hors de la sélection partagée (OROS5.32) : la séance reste dans la liste, à sa place, atténuée à 35 %. */
+.rowOut td {
+  opacity: 0.35;
+  transition: opacity 220ms linear;
+}
 .selCount {
   font-family: var(--font-mono);
   font-size: 11px;

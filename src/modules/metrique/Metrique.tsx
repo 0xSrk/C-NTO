@@ -1,9 +1,11 @@
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { InstrumentChip, rangeLabel } from '@/app/objects/Selection';
 import { Glyph } from '@/design/Micro';
 import { Button, Segmented } from '@/design/primitives';
 import { exportTradesCsv } from '@/engine/import';
 import { findPlan } from '@/engine/propfirm';
+import { journalAccounts, journalInstruments, METRIC_RANGES } from '@/engine/selection';
 import { desk, openTextFile, saveTextFile } from '@/lib/desk';
 import { exportVault, restoreVault } from '@/store/db';
 import { useLinks } from '@/store/links';
@@ -33,7 +35,7 @@ import { PropFirmView } from './PropFirmView';
 import { Sessions } from './Sessions';
 import { SettingsModal } from './SettingsModal';
 import d from './dashboard.module.css';
-import { filterJournal, rangeFrom, scopeFor, type MetricRange } from './range';
+import { byInstrument, filterJournal, rangeFrom, scopeFor } from './range';
 import { liveSession } from './liveSession';
 import { INCOMPLETE_BOOK, ordersPanel, watchOrders } from './liveOrders';
 import type { OrderBookView } from '@/engine/execution/orderBook';
@@ -52,9 +54,12 @@ export default function Metrique() {
   const stored = useObjects((o) => o.views.metrique);
   const view: View = isView(stored) ? stored : 'bord';
   const setView = useCallback((next: View) => useObjects.getState().setView('metrique', next), []);
-  const [range, setRange] = useState<MetricRange>('30j');
+  // La sélection partagée (OROS5.32) : la période, le compte et l'instrument vivent au store, où « Autour de… » les lit.
+  const range = useUi((u) => u.metricRange);
+  const setRange = useUi((u) => u.setMetricRange);
   const metricAccount = useUi((u) => u.metricAccount);
   const setMetricAccount = useUi((u) => u.setMetricAccount);
+  const instrument = useUi((u) => u.metricInstrument);
   const [modal, setModal] = useState<null | 'import' | 'manuel' | 'reglages' | 'pont'>(null);
   // Une fenêtre demandée d'ailleurs (la barre d'état, OROS5.22) : prise une fois, ouverte comme depuis les options.
   const modalRequest = useUi((u) => u.modalRequest);
@@ -171,24 +176,34 @@ export default function Metrique() {
     );
   };
 
-  const accounts = useMemo(() => [...new Set(sessions.map((row) => row.account).filter((name): name is string => !!name))].sort(), [sessions]);
+  const accounts = useMemo(() => journalAccounts(sessions), [sessions]);
+  const instruments = useMemo(() => journalInstruments(sessions, trades), [sessions, trades]);
   useEffect(() => {
     if (metricAccount && !accounts.includes(metricAccount)) setMetricAccount(null);
   }, [accounts, metricAccount, setMetricAccount]);
+  useEffect(() => {
+    if (instrument && !instruments.includes(instrument)) useUi.getState().setMetricInstrument(null);
+  }, [instruments, instrument]);
   const asOf = etDateKey(Date.now());
   const filtered = useMemo(() => filterJournal(sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
+  // La puce Instrument : K et A.01 se recalculent sur sa part ; A.02, A.03 et A.04 gardent le compte et la période, et
+  // allument la sélection (rien ne disparaît).
+  const selected = useMemo(() => (instrument ? byInstrument(filtered, instrument) : filtered), [filtered, instrument]);
   const ordered = useMemo(() => [...filtered.sessions].sort((a, b) => a.date.localeCompare(b.date)), [filtered.sessions]);
   // Tout l'historique du compte filtré : la marge d'un plan suivi ne dépend pas de la période.
   const history = useMemo(() => scopeFor('prop', sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
   const scope = useMemo(() => (view === 'analyse' || view === 'prop' || view === 'mc' ? scopeFor(view, sessions, trades, range, asOf, metricAccount) : null), [view, sessions, trades, range, asOf, metricAccount]);
-  // Ce que l'onglet fait des filtres de l'en-tête, seulement quand il s'en écarte : le cas ordinaire se tait (4.1).
+  // Ce que l'onglet fait des filtres de l'en-tête, seulement quand il s'en écarte : le cas ordinaire se tait (4.1). Les
+  // Séances lisent la sélection partagée comme le Tableau de bord, en atténuant ce qui en sort (OROS5.32) : elles se taisent.
   const scopeNote =
-    view === 'seances'
-      ? tr('Filtres propres à l’onglet', 'Tab’s own filters', 'Filtros propios de la pestaña')
-      : view === 'prop'
-        ? tr('Période ignorée : le plancher dépend de tout l’historique du compte', 'Range ignored: the floor depends on the account’s whole history', 'Período ignorado: el suelo depende de todo el historial de la cuenta')
-        : view === 'mc' && !metricAccount
-          ? tr('Compte obligatoire : choisissez-en un en haut', 'Account required: pick one above', 'Cuenta obligatoria: elija una arriba')
+    view === 'prop'
+      ? instrument
+        ? tr('Période et instrument ignorés : le plancher dépend de tout l’historique du compte', 'Range and instrument ignored: the floor depends on the account’s whole history', 'Período e instrumento ignorados: el suelo depende de todo el historial de la cuenta')
+        : tr('Période ignorée : le plancher dépend de tout l’historique du compte', 'Range ignored: the floor depends on the account’s whole history', 'Período ignorado: el suelo depende de todo el historial de la cuenta')
+      : view === 'mc' && !metricAccount
+        ? tr('Compte obligatoire : choisissez-en un en haut', 'Account required: pick one above', 'Cuenta obligatoria: elija una arriba')
+        : (view === 'analyse' || view === 'mc') && instrument
+          ? tr('Instrument ignoré : l’onglet lit tous les instruments', 'Instrument ignored: the tab reads every instrument', 'Instrumento ignorado: la pestaña lee todos los instrumentos')
           : null;
   const span = ordered.length > 0 ? `${shortDay(ordered[0]?.date ?? '')} → ${shortDay(ordered[ordered.length - 1]?.date ?? '')}` : '—';
   const crumbs: Record<View, string> = {
@@ -217,16 +232,7 @@ export default function Metrique() {
         ]}
         actions={
           <>
-            <Segmented
-              value={range}
-              onChange={setRange}
-              options={[
-                { value: '7j', label: tr('7J', '7D', '7D') },
-                { value: '30j', label: tr('30J', '30D', '30D') },
-                { value: '90j', label: tr('90J', '90D', '90D') },
-                { value: 'tout', label: tr('TOUT', 'ALL', 'TODO') },
-              ]}
-            />
+            <Segmented value={range} onChange={setRange} options={METRIC_RANGES.map((value) => ({ value, label: rangeLabel(value) }))} />
             <select className={d.account} aria-label={tr('Compte', 'Account', 'Cuenta')} value={metricAccount ?? ''} onChange={(event) => setMetricAccount(event.target.value || null)}>
               <option value="">{tr(`Tous les comptes · ${accounts.length}`, `All accounts · ${accounts.length}`, `Todas las cuentas · ${accounts.length}`)}</option>
               {accounts.map((name) => (
@@ -235,6 +241,8 @@ export default function Metrique() {
                 </option>
               ))}
             </select>
+            {/* La puce Instrument de la sélection partagée : dès que le journal en compte deux, ou qu'une est posée. */}
+            {instruments.length > 1 || instrument ? <InstrumentChip sessions={sessions} trades={trades} /> : null}
             <Button variant="chamfer" onClick={() => setModal('import')}>
               {tr('Importer un CSV', 'Import a CSV', 'Importar un CSV')}
               <Glyph name="arrowImport" className={d.btnGlyph} />
@@ -320,8 +328,9 @@ export default function Metrique() {
         )}
         {view === 'bord' && (
           <Dashboard
-            sessions={filtered.sessions}
-            trades={filtered.trades}
+            sessions={selected.sessions}
+            trades={selected.trades}
+            context={filtered}
             range={range}
             period={{ from: rangeFrom(range, asOf), to: asOf }}
             history={history}

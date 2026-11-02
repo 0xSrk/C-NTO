@@ -4,6 +4,7 @@ import { cx, Montant } from '@/design/primitives';
 import type { CalEvent } from '@/engine/calendar';
 import { catalystSource, familyKey } from '@/engine/macroMerge';
 import { mirror, sampleOf, type EntityRef } from '@/engine/ontology';
+import { selectJournal } from '@/engine/selection';
 import { tr, useI18n } from '@/i18n';
 import { strokeOf, type Stroke } from '@/lib/calendarMarks';
 import { trEventTitle } from '@/lib/eventTitles';
@@ -17,6 +18,7 @@ import { catalystWindow, dayWithYear, STROKE_ETAT, type IndexSources } from './i
 import { AroundOf } from './AroundOf';
 import { IdentityGrid, Mirror } from './Instruments';
 import { sampleWord } from './sample';
+import { SelectionChips, SetCount, useSelection } from './Selection';
 import s from './fiche.module.css';
 
 /**
@@ -26,7 +28,7 @@ import s from './fiche.module.css';
  *   au-delà de l'horizon), la période et les instruments ;
  * - ses occurrences, de la famille (`familyKey`), du début du journal à deux mois, chacune son trait et la séance du jour ;
  * - « Autour de… » : les séances liées « pendant » à la famille, et M.036 qui les met face au reste (`mirror`, au moteur),
- *   l'échantillon de chaque côté ;
+ *   l'échantillon de chaque côté, dans le périmètre des puces de la sélection partagée (OROS5.32) ;
  * - l'attendu, le précédent et le publié ; les liens ; la provenance.
  * Elle ne fait que lire.
  */
@@ -110,7 +112,11 @@ export function CatalystFiche({ target, ctx, now }: { target: EntityRef; ctx: In
     }
     return out;
   }, [family, event, ctx.links]);
-  const reading = useMemo(() => mirror(ctx.sessions, ctx.trades, during), [ctx.sessions, ctx.trades, during]);
+  // Le périmètre de la lecture : les puces de la sélection partagée (compte, période, instrument), qu'on change sur place.
+  const selection = useSelection();
+  const asOf = etDateKey(now);
+  const perimeter = useMemo(() => selectJournal(ctx.sessions, ctx.trades, selection, asOf), [ctx.sessions, ctx.trades, selection, asOf]);
+  const reading = useMemo(() => mirror(perimeter.sessions, perimeter.trades, during), [perimeter, during]);
   if (!event) return <MissingFiche target={target} ctx={ctx} now={now} />;
   const stroke = strokeOf(event, now);
   const local = localOf(event);
@@ -135,7 +141,6 @@ export function CatalystFiche({ target, ctx, now }: { target: EntityRef; ctx: In
       : []),
     copyAction(target),
   ];
-  const scope = tr('tous les comptes · tout l’historique · tous instruments', 'all accounts · whole history · all instruments', 'todas las cuentas · todo el historial · todos los instrumentos');
   return (
     <>
       <FicheHead type="evenement" title={ficheTitle(target, { ...ctx, catalysts: ctx.catalysts.some((x) => x.id === event.id) ? ctx.catalysts : [...ctx.catalysts, event] }, now)} actions={actions} />
@@ -178,9 +183,12 @@ export function CatalystFiche({ target, ctx, now }: { target: EntityRef; ctx: In
               },
             ]}
           >
-            <p className={s.scopeLine}>{scope}</p>
+            <div className={s.selectionHead} data-selection="">
+              <SelectionChips sessions={ctx.sessions} trades={ctx.trades} />
+              <SetCount n={reading.inside.sessions} total={during.size} kind="session" />
+            </div>
             <p className={s.aroundLine}>
-              <span className={s.predicate}>{tr('pendant', 'during', 'durante')}</span> {plural(during.size, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {plural(reading.inside.trades, 'trade', 'trades')}
+              <span className={s.predicate}>{tr('pendant', 'during', 'durante')}</span> {plural(reading.inside.sessions, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {plural(reading.inside.trades, 'trade', 'trades')}
             </p>
             <Mirror inside={reading.inside} outside={reading.outside} leftTitle={tr('pendant', 'during', 'durante')} rightTitle={tr('hors', 'outside', 'fuera')} leftSample={sampleWord(sampleOf(reading.inside.trades))} rightSample={sampleWord(sampleOf(reading.outside.trades))} />
           </AroundOf>

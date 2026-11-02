@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ColorType, createChart, CrosshairMode, LineStyle, type AutoscaleInfo, type IChartApi, type ISeriesApi, type SeriesPartialOptions, type Time, type UTCTimestamp, type WhitespaceData } from 'lightweight-charts';
+import { SetCount } from '@/app/objects/Selection';
 import { Montant, Segmented } from '@/design/primitives';
 import { equityCurve, type EquityCurveData, type EquityGrain, type EquityStep } from '@/engine/equityCurve';
 import type { Session, Trade } from '@/engine/types';
@@ -88,6 +89,21 @@ const GLYPHS: readonly [GlyphKey, number][] = [
 
 const floorLabel = (floor: number) => (floor > 0 ? `${tr('PLANCHER', 'FLOOR', 'SUELO')} −${fmtInt(floor)}` : '');
 
+const ALL_STEPS = () => true;
+
+/**
+ * Les pas qu'allume la puce Instrument (OROS5.32) : au grain séance, chaque journée où l'instrument a un trade ; au grain
+ * trade, chacun de ses trades. Le départ n'en est jamais. `null` sans puce.
+ */
+export function litSteps(curve: EquityCurveData, sessions: readonly Session[], trades: readonly Trade[], instrument: string | null): { on: boolean[]; count: number } | null {
+  if (!instrument) return null;
+  const dateOf = new Map(sessions.map((row) => [row.id, row.date]));
+  const days = new Set<string>();
+  for (const row of trades) if (row.instrument === instrument) days.add(dateOf.get(row.sessionId) ?? '');
+  const on = curve.steps.map((step) => !step.origin && (curve.grain === 'trade' ? step.instrument === instrument : days.has(step.date)));
+  return { on, count: on.filter(Boolean).length };
+}
+
 /** Repères du volet principal : le plus haut et le creux du plus grand drawdown, au trait. */
 function marksOf(curve: EquityCurveData): Marks {
   let high = NONE;
@@ -121,11 +137,17 @@ export function EquityCard({
   trades,
   className,
   floor,
+  lit,
   onStep,
 }: {
   sessions: Session[];
   trades: Trade[];
   className?: string;
+  /**
+   * La puce Instrument de la sélection partagée (OROS5.32) : ses pas s'allument sur la courbe du compte, les autres
+   * restent, atténués. Au grain séance, les journées où l'instrument a un trade ; au grain trade, ses trades.
+   */
+  lit?: string | null;
   /** Drawdown maximal du plan suivi pour le compte filtré : la borne du volet sous l'eau. Absent : aucune borne inventée. */
   floor?: number | null;
   /**
@@ -150,6 +172,7 @@ export function EquityCard({
   grainRef.current = grain;
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
+  const selectionRef = useRef<((index: number) => boolean) | null>(null);
 
   useEffect(() => {
     const el = host.current;
@@ -246,6 +269,8 @@ export function EquityCard({
         for (const [key, px] of GLYPHS) sprites[key] = glyphImage(key, colors.line, colors.paper, Math.ceil(px * dpr), repaint, Math.max(1, 0.6 * dpr));
         for (const trait of refs.current.traits) trait.applyOptions({ glyph: lookup });
         draw(refs.current, curveRef.current);
+        const selected = selectionRef.current;
+        for (const trait of refs.current.traits) trait.applyOptions({ selecting: selected != null, inSelection: selected ?? ALL_STEPS });
       } catch {
         if (!disposed) setFault(true);
       }
@@ -317,6 +342,15 @@ export function EquityCard({
     for (const trait of refs.current?.traits ?? []) trait.applyOptions({ focus: hover ?? NONE });
   }, [hover]);
 
+  // La sélection allumée : les pas de l'instrument, un par journée qui en a un trade, ou un par trade de l'instrument.
+  const lighting = useMemo(() => litSteps(curve, sessions, trades, lit ?? null), [curve, sessions, trades, lit]);
+  const selection = useMemo(() => (lighting ? (index: number) => lighting.on[index] ?? false : null), [lighting]);
+  selectionRef.current = selection;
+  useEffect(() => {
+    for (const trait of refs.current?.traits ?? []) trait.applyOptions({ selecting: selection != null, inSelection: selection ?? ALL_STEPS });
+  }, [selection]);
+  const counted = curve.steps.filter((row) => !row.origin).length;
+
   const last = curve.steps.length - 1;
   const step = curve.steps[hover ?? last];
   return (
@@ -326,14 +360,17 @@ export function EquityCard({
           <span className={s.code}>A.02 </span>
           <span className={s.kName}>{tr('Courbe d’équité', 'Equity curve', 'Curva de equidad')}</span>
         </span>
-        <Segmented<EquityGrain>
-          value={grain}
-          onChange={setGrain}
-          options={[
-            { value: 'session', label: tr('Séance', 'Session', 'Sesión') },
-            { value: 'trade', label: tr('Trade', 'Trade', 'Trade') },
-          ]}
-        />
+        <span className={s.cardTools}>
+          <SetCount n={lighting ? lighting.count : counted} total={counted} kind={grain === 'trade' ? 'trade' : 'session'} className={s.count} />
+          <Segmented<EquityGrain>
+            value={grain}
+            onChange={setGrain}
+            options={[
+              { value: 'session', label: tr('Séance', 'Session', 'Sesión') },
+              { value: 'trade', label: tr('Trade', 'Trade', 'Trade') },
+            ]}
+          />
+        </span>
       </div>
       {step ? (
         <div className={s.eqRead} aria-live="off">

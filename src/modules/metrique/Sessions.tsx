@@ -1,12 +1,14 @@
 import { Fragment, memo, useCallback, useDeferredValue, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { IconTrash } from '@/app/icons';
+import { SetCount, useSelection } from '@/app/objects/Selection';
 import { Button, Empty, Panel, Tag, cx, tableClass } from '@/design/primitives';
 import { findPlan } from '@/engine/propfirm';
 import { TRADE_LEVEL_KEYS, readTradeLevel, sigmaWidths, tradeRisk, type RiskSource, type TradeLevelIssue, type TradeLevelKey } from '@/engine/riskConsole';
+import { selectionIndex } from '@/engine/selection';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtNum, fmtPct, fmtPrice, fmtRatio, fmtUsd, plural, signClass } from '@/lib/format';
-import { formatDuration, formatDateFr, formatTimeLocal } from '@/lib/time';
+import { etDateKey, formatDuration, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { db } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useNotes } from '@/store/notes';
@@ -55,6 +57,13 @@ export function Sessions() {
     }
     return m;
   }, [trades]);
+
+  // La sélection partagée (OROS5.32) : le compte, la période et l'instrument des puces. Rien ne disparaît : une séance
+  // qui en sort reste dans la liste, atténuée à 35 %, et le panneau dit n / N.
+  const selection = useSelection();
+  const asOf = etDateKey(Date.now());
+  const kept = useMemo(() => selectionIndex(sessions, trades, selection, asOf).sessions, [sessions, trades, selection, asOf]);
+  const keptShown = useMemo(() => list.filter((x) => kept.has(x.id)).length, [list, kept]);
 
   /** Taux de réussite par séance, calculé une fois par jeu de trades (pas à chaque rendu de ligne). */
   const winRateBySession = useMemo(() => {
@@ -147,7 +156,7 @@ export function Sessions() {
     <div className={cx(s.split, s.splitWide)}>
       <Panel
         title={tr('Séances', 'Sessions', 'Sesiones')}
-        sub={plural(list.length, tr('affichée', 'shown', 'mostrada'), tr('affichées', 'shown', 'mostradas'))}
+        sub={<SetCount n={keptShown} total={list.length} kind="session" />}
         tight
         actions={
           <>
@@ -204,7 +213,7 @@ export function Sessions() {
             </thead>
             <tbody>
               {list.map((x) => (
-                <SessionRow key={x.id} session={x} winRate={winRateBySession.get(x.id) ?? null} selected={selected === x.id} checked={checked.has(x.id)} onSelect={setSelected} onToggle={toggleOne} />
+                <SessionRow key={x.id} session={x} winRate={winRateBySession.get(x.id) ?? null} selected={selected === x.id} checked={checked.has(x.id)} out={!kept.has(x.id)} onSelect={setSelected} onToggle={toggleOne} />
               ))}
             </tbody>
           </table>
@@ -239,6 +248,7 @@ const SessionRow = memo(function SessionRow({
   winRate,
   selected,
   checked,
+  out,
   onSelect,
   onToggle,
 }: {
@@ -246,12 +256,14 @@ const SessionRow = memo(function SessionRow({
   winRate: number | null;
   selected: boolean;
   checked: boolean;
+  /** Hors de la sélection partagée : la ligne reste, atténuée à 35 % (OROS5.32). */
+  out: boolean;
   onSelect: (id: string) => void;
   onToggle: (id: string, e: MouseEvent) => void;
 }) {
   useI18n((s) => s.locale);
   return (
-    <tr className={cx('clickable', selected && 'selected', checked && s.rowChecked)} onClick={() => onSelect(x.id)} tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect(x.id)}>
+    <tr className={cx('clickable', selected && 'selected', checked && s.rowChecked, out && s.rowOut)} data-out={out ? '' : undefined} onClick={() => onSelect(x.id)} tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect(x.id)}>
       <td className={s.checkCol} onClick={(e) => e.stopPropagation()}>
         <input type="checkbox" checked={checked} onChange={() => undefined} onClick={(e) => onToggle(x.id, e)} aria-label={`${tr('Sélectionner', 'Select', 'Seleccionar')} ${x.date}`} />
       </td>

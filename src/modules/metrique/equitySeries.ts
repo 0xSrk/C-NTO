@@ -1,4 +1,5 @@
 import { customSeriesDefaultOptions, type AutoscaleInfo, type CustomData, type CustomSeriesOptions, type ICustomSeriesPaneRenderer, type ICustomSeriesPaneView, type PaneRendererCustomData, type PriceToCoordinateConverter, type Time } from 'lightweight-charts';
+import { OUT_OF_SELECTION } from '@/engine/selection';
 import { hatch, leader, lens, rulerTick, signaturePixel, trame, type Dot, type Pt } from './equityPaint';
 
 /**
@@ -62,6 +63,13 @@ export interface TraitOptions extends CustomSeriesOptions {
   /** Drawdown maximal du plan suivi (> 0) : la borne du volet sous l'eau ; 0 sans plan. */
   floor: number;
   floorLabel: string;
+  /**
+   * La puce Instrument est posée (OROS5.32) ; `inSelection` dit si un pas lui appartient. La courbe reste celle du compte
+   * et de la période : les pas de la sélection s'allument d'un carré, les autres restent à leur place, leur fil atténué à
+   * 35 %. Une fonction, pas un tableau : `applyOptions` fusionne les objets en profondeur.
+   */
+  selecting: boolean;
+  inSelection: (index: number) => boolean;
 }
 
 type Scope = Parameters<Parameters<Parameters<ICustomSeriesPaneRenderer['draw']>[0]['useBitmapCoordinateSpace']>[0]>[0];
@@ -70,6 +78,7 @@ type Bars = PaneRendererCustomData<Time, EquityRow>['bars'];
 const NO_MARKS: Marks = { high: NONE, highLabel: '', trough: NONE, troughLabel: '' };
 const NO_INK: Ink = { line: 'gray', pos: 'gray', neg: 'gray', red: 'gray', faint: 'gray', label: 'gray', zero: 'gray', paper: 'transparent', mono: 'monospace' };
 const NO_GLYPH: GlyphSource = () => null;
+const ALL_STEPS = () => true;
 
 /**
  * Échelle du volet sous l'eau avec la borne du plan : la plage des données, étendue jusqu'au plancher (−`floor`) pour
@@ -332,7 +341,7 @@ abstract class TraitView implements ICustomSeriesPaneView<Time, EquityRow, Trait
   }
 
   defaultOptions(): TraitOptions {
-    return { ...customSeriesDefaultOptions, ink: NO_INK, marks: NO_MARKS, focus: NONE, glyph: NO_GLYPH, floor: 0, floorLabel: '' };
+    return { ...customSeriesDefaultOptions, ink: NO_INK, marks: NO_MARKS, focus: NONE, glyph: NO_GLYPH, floor: 0, floorLabel: '', selecting: false, inSelection: ALL_STEPS };
   }
 
   renderer(): ICustomSeriesPaneRenderer {
@@ -408,6 +417,13 @@ export class EquityTrait extends TraitView {
     glowLine(ctx, pts, ink.neg, lineWidth, 6 * h);
     ctx.restore();
 
+    // La sélection s'allume sur la courbe du compte : un carré plein sur chacun de ses pas.
+    if (this.options.selecting) {
+      const size = Math.max(3, Math.round(3 * h));
+      ctx.fillStyle = ink.line;
+      for (const p of pts) if (this.options.inSelection(p.index)) ctx.fillRect(Math.round(p.x - size / 2), Math.round(p.y - size / 2), size, size);
+    }
+
     const last = this.data?.bars[this.data.bars.length - 1]?.time;
     const at = (index: number | undefined) => (index === undefined || index === NONE ? undefined : pts.find((p) => p.index === index));
     // Repères de la planche : ⊕ la cible au plus haut, ⊗ la mire au creux du plus grand drawdown.
@@ -430,7 +446,7 @@ export class StemTrait extends TraitView {
 
   protected paint(scope: Scope, bars: Bars, conv: PriceToCoordinateConverter): void {
     const ctx = scope.context;
-    const { ink, focus } = this.options;
+    const { ink, focus, selecting, inSelection } = this.options;
     const h = scope.horizontalPixelRatio;
     const v = scope.verticalPixelRatio;
     const zero = conv(0);
@@ -445,9 +461,11 @@ export class StemTrait extends TraitView {
       const x = Math.round(bar.x * h);
       const top = Math.round(y * v);
       const lit = bar.time === focus;
-      ctx.globalAlpha = lit ? 1 : 0.78;
+      // Hors de la sélection : le pas reste à sa place, atténué à 35 %, sans lueur.
+      const out = selecting && !inSelection(bar.time);
+      ctx.globalAlpha = lit ? 1 : out ? 0.78 * OUT_OF_SELECTION : 0.78;
       ctx.shadowColor = color;
-      ctx.shadowBlur = (lit ? 6 : 3) * h;
+      ctx.shadowBlur = out ? 0 : (lit ? 6 : 3) * h;
       ctx.fillStyle = color;
       ctx.fillRect(x, Math.min(top, base), 1, Math.abs(top - base));
       ctx.fillRect(x - Math.floor(cap / 2), top - Math.floor(cap / 2), cap, cap);

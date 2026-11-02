@@ -3,13 +3,16 @@ import { Glyph } from '@/design/Micro';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
 import { cx } from '@/design/primitives';
 import { entityKey, groupNeighbors, mirror, neighborsOf, sampleOf, setNeighborGroups, type EntityRef, type NeighborGroup } from '@/engine/ontology';
+import { selectJournal } from '@/engine/selection';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, plural } from '@/lib/format';
+import { etDateKey } from '@/lib/time';
 import { sameRef, useObjects, type ObjectSet, type PathStep } from '@/store/objects';
 import { capital, objectInstant, predicateLabel } from './Fiche';
 import { objectLabel, typeWord, type IndexSources } from './index';
 import { Mirror } from './Instruments';
 import { sampleWord } from './sample';
+import { SelectionChips, SetCount, useSelection } from './Selection';
 import s from './fiche.module.css';
 
 /**
@@ -19,7 +22,16 @@ import s from './fiche.module.css';
  * qu'il atteint ; depuis un ensemble, ses propres prédicats sont proposés (`setNeighborGroups`) : les sauts s'enchaînent.
  * Le chemin s'écrit au glacier, dans l'ordre du saut, et finit sur l'ensemble affiché ; chaque saut est un saut du store
  * (`openSet`), que Retour arrière défait. M.036 met l'ensemble face au reste, l'échantillon de chaque côté. Rien n'écrit.
+ *
+ * L'ensemble est une sélection partagée (OROS5.32) : un ensemble de séances ou de trades porte en tête les puces de son
+ * périmètre (compte, période, instrument), celles de Métrique, qu'on change sur place, et n / N. Ce qui sort du périmètre
+ * reste dans la liste, atténué à 35 % ; M.036 lit l'ensemble face au reste du périmètre.
  */
+
+/** Un objet que le périmètre peut garder : une séance ou un trade du journal. */
+function scopedType(type: EntityRef['type']): type is 'session' | 'trade' {
+  return type === 'session' || type === 'trade';
+}
 
 /** Au-delà, l'ensemble se lit par ↑ ↓ depuis sa première ligne : la fiche n'en écrit qu'autant. */
 export const SET_ROWS_MAX = 24;
@@ -104,7 +116,12 @@ export function AroundOf({ target, ctx, now, extra, children }: { target: Entity
     return raw.filter((g) => g.count > 0).map((g) => ({ ...g, items: [...g.items].sort((a, b) => (objectInstant(a.ref, ctx) ?? Infinity) - (objectInstant(b.ref, ctx) ?? Infinity) || a.ref.id.localeCompare(b.ref.id)) }));
   }, [shown, target, ctx]);
   const sessions = useMemo(() => (shown ? setSessions(shown, ctx) : null), [shown, ctx]);
-  const reading = useMemo(() => (sessions ? mirror(ctx.sessions, ctx.trades, sessions) : null), [sessions, ctx.sessions, ctx.trades]);
+  // Le périmètre : la sélection partagée appliquée au journal ; ce qu'il garde s'allume, le reste s'atténue.
+  const selection = useSelection();
+  const asOf = etDateKey(now);
+  const perimeter = useMemo(() => selectJournal(ctx.sessions, ctx.trades, selection, asOf), [ctx.sessions, ctx.trades, selection, asOf]);
+  const kept = useMemo(() => ({ session: new Set(perimeter.sessions.map((x) => x.id)), trade: new Set(perimeter.trades.map((x) => x.id)) }), [perimeter]);
+  const reading = useMemo(() => (sessions ? mirror(perimeter.sessions, perimeter.trades, sessions) : null), [sessions, perimeter]);
   const base: PathStep[] = shown ? [...shown.path] : [{ kind: 'node', type: target.type, count: 1, ref: target }];
   const jump = (edge: PathStep & { kind: 'edge' }, type: EntityRef['type'], members: readonly EntityRef[]) =>
     openSet({ from: target, type, members, path: [...base, edge, { kind: 'node', type, count: members.length }] });
@@ -116,13 +133,29 @@ export function AroundOf({ target, ctx, now, extra, children }: { target: Entity
     }),
   ];
   const memberRefs = shown ? [...shown.members] : [];
+  const scoped = !!shown && scopedType(shown.type);
+  const inside = (ref: EntityRef) => !scopedType(ref.type) || kept[ref.type].has(ref.id);
   return (
     <div className={s.around} data-around={shown ? 'set' : 'object'}>
       {shown ? <SetPath set={shown} ctx={ctx} now={now} /> : null}
+      {shown && scoped ? (
+        <div className={s.selectionHead} data-selection="">
+          <SelectionChips sessions={ctx.sessions} trades={ctx.trades} />
+          <SetCount n={memberRefs.filter(inside).length} total={memberRefs.length} kind={shown.type === 'trade' ? 'trade' : 'session'} />
+        </div>
+      ) : null}
       {shown ? (
         <div className={s.setMembers} data-set={shown.type}>
           {memberRefs.slice(0, SET_ROWS_MAX).map((ref) => (
-            <button key={entityKey(ref)} type="button" className={cx(s.row, s.setRow)} data-member={entityKey(ref)} onClick={(event) => openObject(ref, { jump: true, origin: event.currentTarget, siblings: memberRefs })} title={tr('Ouvrir sa fiche', 'Open its record', 'Abrir su ficha')}>
+            <button
+              key={entityKey(ref)}
+              type="button"
+              className={cx(s.row, s.setRow, !inside(ref) && s.out)}
+              data-member={entityKey(ref)}
+              data-out={inside(ref) ? undefined : ''}
+              onClick={(event) => openObject(ref, { jump: true, origin: event.currentTarget, siblings: memberRefs })}
+              title={tr('Ouvrir sa fiche', 'Open its record', 'Abrir su ficha')}
+            >
               <Glyph name={TYPE_GLYPH[ref.type]} className={s.rowGlyph} />
               <span className={s.rowMain}>{objectLabel(ref, ctx, now) ?? tr('Absent du coffre', 'Missing from the vault', 'Ausente de la caja')}</span>
               <span className={s.rowGo} aria-hidden>

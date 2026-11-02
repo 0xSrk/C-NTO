@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { MetricRange, Selection } from '@/engine/selection';
 import { cursorOnTab, CURSOR_TABS } from '@/lib/frise';
 import { uid } from '@/lib/id';
 
@@ -18,9 +19,19 @@ export interface Toast {
 interface UiState {
   tab: TabId;
   setTab: (t: TabId) => void;
-  /** Filtre de comptes de Métrique. `null` = tous les comptes. */
+  /**
+   * La sélection partagée (OROS5.32) : le compte, la période et l'instrument, que portent les puces de Métrique et celles
+   * d'« Autour de… ». Une puce changée ici change partout. En mémoire seulement.
+   */
+  /** Filtre de comptes de Métrique, puce Compte. `null` = tous les comptes. */
   metricAccount: string | null;
   setMetricAccount: (account: string | null) => void;
+  /** La puce Période ; trente jours au démarrage. */
+  metricRange: MetricRange;
+  setMetricRange: (range: MetricRange) => void;
+  /** La puce Instrument. `null` = tous les instruments. */
+  metricInstrument: string | null;
+  setMetricInstrument: (instrument: string | null) => void;
   /** Troisième segment du fil d'Ariane, ignoré s'il ne concerne pas l'onglet actif. */
   crumb: { tab: TabId; label: string } | null;
   setCrumb: (tab: TabId, label: string) => void;
@@ -55,12 +66,21 @@ interface UiState {
   resolveConfirm: (ok: boolean) => void;
 }
 
+/** La sélection partagée telle que la lisent les puces et les panneaux (OROS5.32). */
+export function selectionOf(state: { metricAccount: string | null; metricRange: MetricRange; metricInstrument: string | null }): Selection {
+  return { account: state.metricAccount, range: state.metricRange, instrument: state.metricInstrument };
+}
+
 export const useUi = create<UiState>((set, get) => ({
   tab: 'metrique',
   // Le curseur ne vit que là où on le lit : ouvrir un module hors de Métrique et du Calendrier le rend au présent.
   setTab: (tab) => set({ tab, timeCursor: cursorOnTab(tab, get().timeCursor) }),
   metricAccount: null,
   setMetricAccount: (metricAccount) => set({ metricAccount }),
+  metricRange: '30j',
+  setMetricRange: (metricRange) => set({ metricRange }),
+  metricInstrument: null,
+  setMetricInstrument: (metricInstrument) => set({ metricInstrument }),
   crumb: null,
   setCrumb: (tab, label) => set({ crumb: { tab, label } }),
   toasts: [],

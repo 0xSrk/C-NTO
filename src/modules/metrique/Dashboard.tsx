@@ -1,4 +1,5 @@
 import { useMemo, type ComponentProps } from 'react';
+import { SetCount } from '@/app/objects/Selection';
 import { Glyph, Signal } from '@/design/Micro';
 import { Button, cx, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
@@ -51,6 +52,7 @@ function rangeTitle(range: MetricRange): string {
 export function Dashboard({
   sessions,
   trades,
+  context,
   range,
   period,
   history,
@@ -59,8 +61,14 @@ export function Dashboard({
   onDemo,
   onSessions,
 }: {
+  /** La sélection partagée (OROS5.32) : le compte, la période et la puce Instrument. K, A.01 et A.05 la lisent. */
   sessions: Session[];
   trades: Trade[];
+  /**
+   * Le compte et la période, tous instruments : A.02, A.03 et A.04 le montrent et y allument la sélection, le reste
+   * atténué à 35 % (rien ne disparaît). Absent : la sélection elle-même.
+   */
+  context?: { sessions: Session[]; trades: Trade[] };
   range: MetricRange;
   /** Bornes de la période affichée : la base des ratios annualisés. `from` nul : depuis la première séance. */
   period: { from: string | null; to: string };
@@ -102,27 +110,36 @@ export function Dashboard({
   const borneLevel = borneSignal(gauge);
   const breakeven = breakevenWinRate(stats.payoffRatio);
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
-  const last = ordered.slice(-5).reverse();
+  // La sélection partagée (OROS5.32) : la puce Instrument recalcule K et A.01 ; A.02, A.03 et A.04 gardent le compte et
+  // la période et allument ce qu'elle garde, le reste à sa place, atténué.
+  const instrument = useUi((st) => st.metricInstrument);
+  const setInstrument = useUi((st) => st.setMetricInstrument);
+  const contextSessions = context?.sessions ?? sessions;
+  const contextTrades = context?.trades ?? trades;
+  const contextOrdered = useMemo(() => [...contextSessions].sort((a, b) => a.date.localeCompare(b.date)), [contextSessions]);
+  const contextStats = useMemo(() => (context ? computeTradeStats(context.trades) : stats), [context, stats]);
+  const kept = useMemo(() => new Set(sessions.map((row) => row.id)), [sessions]);
+  const last = contextOrdered.slice(-5).reverse();
   // Chaque séance est un objet (OROS5.26) : une ligne de A.04 et un pas de A.02 ouvrent sa fiche ; ↑ ↓ passent à la voisine.
   const openObject = useObjects((o) => o.openObject);
   const openId = useObjects((o) => (o.open?.type === 'session' ? o.open.id : null));
   const lastRefs = useMemo<EntityRef[]>(() => last.map((row) => ({ type: 'session', id: row.id })), [last]);
-  const orderedRefs = useMemo<EntityRef[]>(() => ordered.map((row) => ({ type: 'session', id: row.id })), [ordered]);
+  const orderedRefs = useMemo<EntityRef[]>(() => contextOrdered.map((row) => ({ type: 'session', id: row.id })), [contextOrdered]);
   const bySession = useMemo(() => {
     const map = new Map<string, Trade[]>();
-    for (const trade of trades) {
+    for (const trade of contextTrades) {
       const list = map.get(trade.sessionId);
       if (list) list.push(trade);
       else map.set(trade.sessionId, [trade]);
     }
     return map;
-  }, [trades]);
+  }, [contextTrades]);
   const peak = Math.max(...ordered.map((row) => Math.abs(row.pnl)), 1);
-  const instruments = stats.byInstrument.filter((row) => row.count > 0);
+  const instruments = contextStats.byInstrument.filter((row) => row.count > 0);
   const instrumentPoints = useMemo(() => {
     const map = new Map<string, ReturnType<typeof aggregatePoints>>();
     const groups = new Map<string, Trade[]>();
-    for (const trade of trades) {
+    for (const trade of contextTrades) {
       if (!Number.isFinite(trade.pnl)) continue;
       const list = groups.get(trade.instrument);
       if (list) list.push(trade);
@@ -130,7 +147,7 @@ export function Dashboard({
     }
     for (const [key, list] of groups) map.set(key, aggregatePoints(list));
     return map;
-  }, [trades]);
+  }, [contextTrades]);
   const best = ordered.reduce<Session | null>((win, row) => (!win || row.pnl > win.pnl ? row : win), null);
   const names = [...new Set(ordered.flatMap((row) => row.instruments))].slice(0, 3);
   const winSessions = ordered.filter((row) => row.pnl > 0).length;
@@ -160,7 +177,7 @@ export function Dashboard({
     );
   }
 
-  if (ordered.length === 0) {
+  if (contextOrdered.length === 0) {
     return <Empty title={tr('Aucune séance sur cette période', 'No session in this range', 'Ninguna sesión en este período')} text={tr('Élargissez la période ou le compte.', 'Widen the range or the account.', 'Amplíe el período o la cuenta.')} />;
   }
 
@@ -178,8 +195,12 @@ export function Dashboard({
           <div className={s.plateTop}>
             <div>
               <div className={s.plateLabel}>
-                <span className={s.code}>A.01 / {tr('NET P&L', 'NET P&L', 'P&L NETO')} · {rangeTitle(range)}</span>
+                <span className={s.code}>
+                  A.01 / {tr('NET P&L', 'NET P&L', 'P&L NETO')} · {rangeTitle(range)}
+                  {instrument ? ` · ${instrument}` : ''}
+                </span>
                 <span className={s.hint}>{tr('APRÈS COMMISSIONS', 'AFTER COMMISSIONS', 'DESPUÉS DE COMISIONES')} · USD</span>
+                <SetCount n={stats.count} total={contextStats.count} kind="trade" className={s.count} />
               </div>
               <Lecteur value={stats.netPnl} />
             </div>
@@ -363,12 +384,13 @@ export function Dashboard({
 
       <EquityCard
         className={s.span8}
-        sessions={ordered}
-        trades={trades}
+        sessions={contextOrdered}
+        trades={contextTrades}
         floor={limit}
+        lit={instrument}
         onStep={(step, origin) => {
           // Un pas est une journée : sa séance, la première du jour quand plusieurs comptes y ont tradé.
-          const day = ordered.find((row) => row.date === step.date);
+          const day = contextOrdered.find((row) => row.date === step.date);
           if (day) openObject({ type: 'session', id: day.id }, { origin, siblings: orderedRefs });
         }}
       />
@@ -379,27 +401,44 @@ export function Dashboard({
             <span className={s.code}>A.03 </span>
             <span className={s.kName}>{tr('Par instrument', 'By instrument', 'Por instrumento')}</span>
           </span>
-          <span className={s.hint}>{tr('NET · POINTS', 'NET · POINTS', 'NETO · PUNTOS')}</span>
+          <span className={s.cardTools}>
+            <SetCount n={stats.count} total={contextStats.count} kind="trade" className={s.count} />
+            <span className={s.hint}>{tr('NET · POINTS', 'NET · POINTS', 'NETO · PUNTOS')}</span>
+          </span>
         </div>
         <div>
-          {instruments.slice(0, 6).map((row) => (
-            <div key={row.key} className={s.inst}>
-              <span className={s.root}>{row.key}</span>
-              <span className={s.hint}>
-                {fmtInt(row.count)} TR · {fmtPct(stats.count ? row.count / stats.count : 0, 1)}
-              </span>
-              <span className={s.hint} style={{ gridColumn: '1 / -1', justifySelf: 'end' }}>
-                <Montant value={row.pnl} />
-                {' · '}
-                {fmtPoints(instrumentPoints.get(row.key)?.points)}
-              </span>
-              <div className={s.share}>
-                <i style={{ width: `${stats.count ? (row.count / stats.count) * 100 : 0}%` }} />
-              </div>
-            </div>
-          ))}
+          {/* Chaque instrument pose ou retire la puce Instrument de la sélection partagée ; les autres restent, atténués. */}
+          {instruments.slice(0, 6).map((row) => {
+            const on = instrument === row.key;
+            const out = instrument != null && !on;
+            return (
+              <button
+                key={row.key}
+                type="button"
+                className={cx(s.inst, s.instRow, on && s.instOn, out && s.out)}
+                data-instrument={row.key}
+                data-out={out ? '' : undefined}
+                aria-pressed={on}
+                title={on ? tr('Retirer la puce Instrument', 'Remove the Instrument chip', 'Quitar el chip Instrumento') : tr('Poser la puce Instrument', 'Set the Instrument chip', 'Poner el chip Instrumento')}
+                onClick={() => setInstrument(on ? null : row.key)}
+              >
+                <span className={s.root}>{row.key}</span>
+                <span className={s.hint}>
+                  {fmtInt(row.count)} TR · {fmtPct(contextStats.count ? row.count / contextStats.count : 0, 1)}
+                </span>
+                <span className={s.hint} style={{ gridColumn: '1 / -1', justifySelf: 'end' }}>
+                  <Montant value={row.pnl} />
+                  {' · '}
+                  {fmtPoints(instrumentPoints.get(row.key)?.points)}
+                </span>
+                <span className={s.share}>
+                  <i style={{ width: `${contextStats.count ? (row.count / contextStats.count) * 100 : 0}%` }} />
+                </span>
+              </button>
+            );
+          })}
         </div>
-        <span className={s.hint}>{tr('RÉPARTITION DES', 'SPLIT OF', 'REPARTO DE')} {fmtInt(stats.count)} {tr('TRADES', 'TRADES', 'TRADES')}</span>
+        <span className={s.hint}>{tr('RÉPARTITION DES', 'SPLIT OF', 'REPARTO DE')} {fmtInt(contextStats.count)} {tr('TRADES', 'TRADES', 'TRADES')}</span>
       </section>
 
       <section className={`${s.card} ${s.span12}`}>
@@ -408,10 +447,13 @@ export function Dashboard({
             <span className={s.code}>A.04 </span>
             <span className={s.kName}>{tr('Dernières séances', 'Latest sessions', 'Últimas sesiones')}</span>
           </span>
-          <button type="button" className={s.more} onClick={onSessions}>
-            {tr(`Les ${fmtInt(ordered.length)} séances`, `All ${fmtInt(ordered.length)} sessions`, `Las ${fmtInt(ordered.length)} sesiones`)}
-            <Glyph name="arrowNext" className={s.btnGlyph} />
-          </button>
+          <span className={s.cardTools}>
+            <SetCount n={last.filter((row) => kept.has(row.id)).length} total={last.length} kind="session" className={s.count} />
+            <button type="button" className={s.more} onClick={onSessions}>
+              {tr(`Les ${fmtInt(contextOrdered.length)} séances`, `All ${fmtInt(contextOrdered.length)} sessions`, `Las ${fmtInt(contextOrdered.length)} sesiones`)}
+              <Glyph name="arrowNext" className={s.btnGlyph} />
+            </button>
+          </span>
         </div>
         <table className={s.table}>
           <thead>
@@ -433,9 +475,10 @@ export function Dashboard({
               const squares = Math.min(total, 8);
               const tag = row.tags[0]?.trim() || tr('HORS PLAN', 'NO PLAN', 'SIN PLAN');
               const on = openId === row.id;
+              const out = !kept.has(row.id);
               const open = (origin: HTMLElement | null) => openObject({ type: 'session', id: row.id }, { origin, siblings: lastRefs });
               return (
-                <tr key={row.id} className={cx(s.objRow, on && s.objOn)} data-session={row.id} onClick={(event) => open(event.currentTarget.querySelector('button'))}>
+                <tr key={row.id} className={cx(s.objRow, on && s.objOn, out && s.out)} data-session={row.id} data-out={out ? '' : undefined} onClick={(event) => open(event.currentTarget.querySelector('button'))}>
                   <td>
                     {/* La séance C.094 : le glyphe et le jour, un bouton qui ouvre sa fiche ; la ligne entière y mène aussi. */}
                     <button
