@@ -21,6 +21,7 @@ import { useNotes } from '@/store/notes';
 import { useObjects } from '@/store/objects';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
+import { FriseDrawer } from './Frise';
 import { FriseAnswer } from './FriseAnswer';
 import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
@@ -114,6 +115,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const cryptoEnabled = useCrypto((c) => c.enabled);
   const cryptoMarkets = useCrypto((c) => c.watchlist.length);
   const openRef = useObjects((o) => o.open);
+  const friseOpen = useUi((u) => u.friseOpen);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
@@ -354,7 +356,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
       </aside>
 
-      <main className={s.main}>
+      {/* Le tiroir de la frise déplié recouvre le bas de la zone de travail : les messages montent au-dessus de lui. */}
+      <main className={s.main} data-frise-open={friseOpen ? '' : undefined}>
         {children}
         <div className={s.toasts} role="status" aria-live="polite">
           {toasts.map((toast) => (
@@ -382,6 +385,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       <ObjectDrawer />
 
       <footer className={s.status} data-chassis="status">
+        {/* Le tiroir de la frise (OROS5.24), déplié par la réponse au-dessus de la barre ; premier de la zone pour F6. */}
+        <FriseDrawer className={s.friseDrawer} />
         {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. */}
         <div className={s.statusLeft}>
           <StatusBornes />

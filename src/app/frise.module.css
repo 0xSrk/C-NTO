@@ -1,0 +1,221 @@
+/* ─── Le tiroir de la frise (OROS5.24, Système 5 « Fiche et Frise ») ───────────────────────────────────────────────────
+   64 px au-dessus de la barre d'état, mesure locale (décision 4) : quatre couloirs de 12 px et l'axe de 16 px. La nuit du
+   châssis, les noms des couloirs dans la gouttière, l'axe à nuit comprimée. Le trait de chaque marque vient de la table
+   d'états (src/design/etat.module.css) ; l'encre de la zone (--k) est l'acier, l'or ne dit que maintenant, puis le curseur
+   tiré (décision 1). Aucun jeton : tokens.css ne change pas. */
+
+.drawer {
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr);
+  height: 64px;
+  background: var(--bg-0);
+  border-top: 1px solid var(--line-0);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  --k: var(--text-1);
+  --p: var(--bg-0);
+  animation: enter var(--t-med) linear both;
+}
+/* Le tiroir entre par l'opacité, rien ne bouge ; mouvement réduit, il paraît. */
+@keyframes enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    animation: none;
+  }
+}
+
+/* La gouttière : le nom de chaque couloir, son signe en tête ; puis la journée lue et, tiré, « Présent ». */
+.gutter {
+  display: grid;
+  grid-template-rows: repeat(4, 12px) 16px;
+  padding: 0 8px 0 14px;
+  border-right: 1px solid var(--line-0);
+  min-width: 0;
+}
+.laneName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 12px;
+  --k: var(--text-2);
+}
+.laneGlyph {
+  width: 9px;
+  height: 9px;
+  flex: none;
+}
+.day {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+  border-top: 1px solid var(--line-0);
+  color: var(--text-1);
+}
+.dayHeld {
+  color: var(--gold);
+}
+.present {
+  height: 12px;
+  padding: 0 3px;
+  border: 1px solid var(--light-line);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--text-1);
+  line-height: 10px;
+  transition: color 200ms linear, border-color 260ms var(--ease-out);
+}
+@media (hover: hover) {
+  .present:hover {
+    color: var(--text-0);
+    border-color: var(--text-2);
+  }
+}
+
+/* L'axe, que l'on tire : les couloirs dessus, les heures dessous. L'anneau du focus se pose en dedans. */
+.slider {
+  position: relative;
+  min-width: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+.slider:focus-visible {
+  outline-offset: -2px;
+}
+.slider[aria-readonly='true'] {
+  cursor: default;
+}
+.lanes {
+  position: absolute;
+  inset: 0 0 16px 0;
+  overflow: hidden;
+}
+.svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.laneRule {
+  stroke: var(--line-0);
+  stroke-width: 1;
+}
+
+/* Séance : un filet, le RTH plus épais ; l'état par la table. */
+.phase {
+  stroke-width: 1;
+}
+.phaseRth {
+  stroke-width: 2.5;
+}
+/* Catalyseurs : la tige, puis les barres L.02 de l'impact (allumées à l'encre, éteintes au filet). */
+.stem {
+  stroke-width: 1;
+}
+.barOn {
+  fill: var(--k);
+}
+.barOff {
+  fill: var(--line-2);
+}
+/* Fenêtres : ± la règle, un cadre ; la hachure du jeton de la perte pour chaque séjour au-delà de la limite. */
+.window {
+  fill: color-mix(in srgb, var(--k) 8%, transparent);
+  stroke-width: 1;
+}
+.hatch {
+  position: absolute;
+  height: 8px;
+  background: var(--hatch-neg);
+}
+/* Desk : le trade, de l'entrée à la sortie. */
+.trade {
+  stroke-width: 1.5;
+  stroke-linecap: butt;
+}
+
+/* Les signes de la planche posés sur leur instant, centrés. */
+.mark {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.markGlyph {
+  width: 7px;
+  height: 9px;
+}
+.driftGlyph {
+  width: 9px;
+  height: 7px;
+}
+.laneText {
+  position: absolute;
+  left: 6px;
+  line-height: 12px;
+  color: var(--text-2);
+}
+
+/* Maintenant, à l'or ; tiré, le curseur prend l'or et maintenant passe au graphite. */
+.now,
+.cursor {
+  stroke: var(--gold);
+  stroke-width: 1;
+}
+.nowGhost {
+  stroke: var(--text-2);
+  stroke-width: 1;
+}
+
+/* L'axe des heures : la nuit au tiers, la journée aux deux tiers ; l'heure lue à la tête de la ligne. */
+.axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  border-top: 1px solid var(--line-0);
+}
+.tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 3px;
+  background: var(--line-2);
+}
+.hour {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  line-height: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.head {
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  padding: 0 3px;
+  line-height: 10px;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-0);
+  color: var(--text-0);
+}
+.headHeld {
+  color: var(--gold);
+}

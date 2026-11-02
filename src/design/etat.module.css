@@ -40,3 +40,35 @@
 .eteint {
   border: 1px solid var(--line-2);
 }
+
+/* Les marques tracées (le tiroir de la frise, OROS5.24) : la même classe dit le même état, par le trait du tracé. Un tracé
+   n'a pas de halo : le tireté et le pointillé sont son trait même ; l'éteint garde son graphite. Seuls les tracés SVG sont
+   visés : une boîte HTML de la même classe garde son contour et son halo, et rien ne s'hérite. */
+line.plein,
+rect.plein,
+path.plein {
+  stroke: var(--k);
+  stroke-dasharray: none;
+}
+
+line.tirete,
+rect.tirete,
+path.tirete {
+  stroke: var(--k);
+  stroke-dasharray: 3 2;
+}
+
+line.pointille,
+rect.pointille,
+path.pointille {
+  stroke: var(--k);
+  stroke-dasharray: 0.01 2.6;
+  stroke-linecap: round;
+}
+
+line.eteint,
+rect.eteint,
+path.eteint {
+  stroke: var(--line-2);
+  stroke-dasharray: none;
+}

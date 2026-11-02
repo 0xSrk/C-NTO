@@ -913,16 +913,44 @@
     color: var(--text-0);
   }
 }
+/* ─── Le tiroir de la frise (OROS5.24) : au-dessus de la barre, sur la largeur de la zone de travail ; la fiche ouverte
+   garde sa colonne. Il recouvre le bas de la zone sans la pousser : la grille du châssis ne change pas. ─── */
+.friseDrawer {
+  position: absolute;
+  left: var(--rail-w);
+  right: 0;
+  bottom: 100%;
+  z-index: 3;
+}
+.withDrawer .friseDrawer {
+  right: 400px;
+}
+
 /* ─── La réponse du temps (OROS5.23) : au bout de la ligne, ce qui vaut ou ce qui vient, puis sa source ─── */
 .answer {
+  display: block;
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
   line-height: 14px;
   color: var(--text-1);
   --k: var(--text-1);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .answer:hover {
+    color: var(--text-0);
+  }
+}
+/* Le curseur tiré : l'instant qu'il tient, à l'or (décision 1 : l'or dit ce que tient l'opérateur). */
+.answerAt {
+  color: var(--gold);
 }
 .answerSignal {
   vertical-align: middle;
@@ -1161,6 +1189,9 @@
   gap: 8px;
   width: min(420px, calc(100% - 80px));
   pointer-events: none;
+}
+.main[data-frise-open] .toasts {
+  bottom: 80px;
 }
 .toast {
   pointer-events: auto;

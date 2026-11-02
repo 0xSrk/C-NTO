@@ -4,6 +4,7 @@ import { calendarSourcesState, type CalendarSources } from '@/engine/bornes';
 import type { CalEvent } from '@/engine/calendar';
 import { dailyLimit } from '@/engine/discipline';
 import { findPlan } from '@/engine/propfirm';
+import type { Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { cmeSession } from '@/lib/cmeClosed';
 import { trEventTitle } from '@/lib/eventTitles';
@@ -11,8 +12,10 @@ import { catalystSource } from '@/engine/macroMerge';
 import { addDays, dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
 import { daySpan, hourAt, isWeekday, MIN, nextCatalyst, type Boundary, type HourAnswer, type InForce, type InForceKind } from '@/lib/frise';
 import { useJournal } from '@/store/journal';
+import { useObjects } from '@/store/objects';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
+import { useUi } from '@/store/ui';
 import { useKillSwitch } from './killState';
 import { etClock, shortDay } from './objects/index';
 import { BORNES_TICK_MS, useDayBornes } from './useDayBornes';
@@ -79,7 +82,7 @@ export function sourceText(source: FriseSource): string {
 }
 
 /** Le jour de la semaine et la date d'un instant, à New York, comme la barre d'état les écrit : « dim 01.11 », « Sun 11/01 ». */
-function etDay(ms: number): string {
+export function etDay(ms: number): string {
   const weekday = dateTimeFormatter({ weekday: 'short', timeZone: ET_ZONE }).format(ms).replace(/\./g, '');
   return `${weekday} ${shortDay(etDateKey(ms))}`;
 }
@@ -217,15 +220,31 @@ function useTick(): number {
   return Math.max(tick, Date.now());
 }
 
+/** Ce que lit la frise à l'instant lu : la réponse, sa ligne, et ce dont le tiroir dessine ses couloirs. */
+export interface HourRead {
+  answer: HourAnswer;
+  line: FriseLine;
+  /** L'instant lu : le curseur tiré, sinon maintenant. */
+  at: number;
+  now: number;
+  /** Le curseur est tiré (Métrique et le Calendrier seuls). */
+  pulled: boolean;
+  events: CalEvent[];
+  /** Les trades du compte suivi, comme la garde les lit (`limitAccount`). */
+  own: Trade[];
+}
+
 /**
- * La réponse de la frise à l'instant lu, depuis les stores du desk : la source unique du catalyseur, les trades du compte
- * suivi (comme la garde : `limitAccount`), la limite du jour retenue, le kill switch, et le latent négatif du pont tel
- * que la garde le lit (les bornes du jour : nom exact du compte suivi).
+ * La réponse de la frise à l'instant lu — le curseur tiré, sinon maintenant (OROS5.24) —, depuis les stores du desk : la
+ * source unique du catalyseur, les trades du compte suivi (comme la garde : `limitAccount`), la limite du jour retenue,
+ * le kill switch, et le latent négatif du pont tel que la garde le lit (les bornes du jour : nom exact du compte suivi).
  */
-export function useHourAnswer(): { answer: HourAnswer; line: FriseLine; at: number } {
+export function useHourAnswer(): HourRead {
   useI18n((st) => st.locale);
   const now = useTick();
-  const events = useFriseEvents(now);
+  const cursor = useUi((u) => u.timeCursor);
+  const at = cursor ?? now;
+  const events = useFriseEvents(at);
   const trades = useJournal((j) => j.trades);
   const planAccount = useSettings((st) => st.settings.planAccount);
   const planId = useSettings((st) => st.settings.planId);
@@ -240,17 +259,43 @@ export function useHourAnswer(): { answer: HourAnswer; line: FriseLine; at: numb
   // `userPlans` : un plan saisi change ce que rend `findPlan`.
   const limit = useMemo(() => dailyLimit(rules, findPlan(planId))?.amount ?? null, [rules, planId, userPlans]);
   const unrealized = bornes.day.live ? (bornes.loss.unrealized ?? 0) : 0;
-  const at = now;
   const answer = useMemo(() => hourAt({ at, now, events, trades: own, rules, limit, kill, unrealized }), [at, now, events, own, rules, limit, kill, unrealized]);
   const line = friseLine(answer, { at, events, sources: calendarSourcesState(sources, lastError, official.length) });
-  return { answer, line, at };
+  return { answer, line, at, now, pulled: cursor !== null, events, own };
 }
 
-/** La réponse, au bout de la ligne de la journée : ce qui vaut, ou ce qui vient et son délai, puis sa source. */
+/** L'identifiant de la réponse : Échap, le tiroir replié, lui rend le focus. */
+export const FRISE_ANSWER_ID = 'frise-answer';
+export const FRISE_DRAWER_ID = 'frise-drawer';
+
+/**
+ * La réponse, au bout de la ligne de la journée : ce qui vaut, ou ce qui vient et son délai, puis sa source. Elle déplie
+ * le tiroir de la frise (OROS5.24) : un clic, ou sa touche (Entrée, Espace), ouvre ou replie ; rien sous le verrou. Le
+ * curseur tiré, elle dit l'instant qu'il tient, à l'or.
+ */
 export function FriseAnswer() {
-  const { answer, line } = useHourAnswer();
+  const { answer, line, at, pulled } = useHourAnswer();
+  const open = useUi((u) => u.friseOpen);
+  const toggle = () => {
+    if (useObjects.getState().locked) return;
+    useUi.getState().setFriseOpen(!open);
+  };
+  const held = pulled ? `${etDay(at)} ${etClock(at)}` : null;
   return (
-    <span className={s.answer} data-status="answer" data-answer={line.kind} data-day={answer.span.day} aria-label={line.label} title={line.label}>
+    <button
+      type="button"
+      id={FRISE_ANSWER_ID}
+      className={s.answer}
+      data-status="answer"
+      data-answer={line.kind}
+      data-day={answer.span.day}
+      aria-label={held ? `${held} · ${line.label}` : line.label}
+      title={line.label}
+      aria-expanded={open}
+      aria-controls={FRISE_DRAWER_ID}
+      onClick={toggle}
+    >
+      {held ? <span className={s.answerAt}>{held} · </span> : null}
       {line.kind === 'kill' ? <Signal level={3} className={s.answerSignal} /> : null}
       {line.delay ? <b className={s.answerDelay}>{line.delay}</b> : null}
       {line.delay ? <span className={s.answerDot}> · </span> : null}
@@ -267,6 +312,6 @@ export function FriseAnswer() {
           </span>
         </span>
       ) : null}
-    </span>
+    </button>
   );
 }

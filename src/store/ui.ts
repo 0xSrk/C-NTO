@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { cursorOnTab, CURSOR_TABS } from '@/lib/frise';
 import { uid } from '@/lib/id';
 
 /** `copieur` : `08 · CPY` sur le rail depuis la 3.3.0. `crypto` : `09 · CRY`, éteint par défaut. */
@@ -38,6 +39,16 @@ interface UiState {
    */
   modalRequest: { tab: 'metrique'; modal: MetriqueModal } | null;
   requestModal: (tab: 'metrique', modal: MetriqueModal) => void;
+  /**
+   * Le curseur de temps de la frise (OROS5.24) : l'instant tiré, `null` pour le présent. En mémoire seulement. Il ne vit que
+   * dans Métrique et le Calendrier (`CURSOR_TABS`), qui le lisent : ailleurs il reste au présent, et quitter ces modules
+   * l'y rend.
+   */
+  timeCursor: number | null;
+  setTimeCursor: (ms: number | null) => void;
+  /** Le tiroir de la frise est déplié au-dessus de la barre d'état. En mémoire. */
+  friseOpen: boolean;
+  setFriseOpen: (open: boolean) => void;
   /** Dialogue de confirmation (remplace window.confirm) */
   pendingConfirm: { title: string; text?: string; danger?: boolean; resolve: (ok: boolean) => void } | null;
   confirm: (title: string, text?: string, danger?: boolean) => Promise<boolean>;
@@ -46,7 +57,8 @@ interface UiState {
 
 export const useUi = create<UiState>((set, get) => ({
   tab: 'metrique',
-  setTab: (tab) => set({ tab }),
+  // Le curseur ne vit que là où on le lit : ouvrir un module hors de Métrique et du Calendrier le rend au présent.
+  setTab: (tab) => set({ tab, timeCursor: cursorOnTab(tab, get().timeCursor) }),
   metricAccount: null,
   setMetricAccount: (metricAccount) => set({ metricAccount }),
   crumb: null,
@@ -64,6 +76,10 @@ export const useUi = create<UiState>((set, get) => ({
   focusOnDate: (d) => set({ focusDate: d }),
   modalRequest: null,
   requestModal: (tab, modal) => set({ modalRequest: { tab, modal } }),
+  timeCursor: null,
+  setTimeCursor: (ms) => set({ timeCursor: ms === null || !Number.isFinite(ms) || !(CURSOR_TABS as readonly string[]).includes(get().tab) ? null : ms }),
+  friseOpen: false,
+  setFriseOpen: (friseOpen) => set({ friseOpen }),
   pendingConfirm: null,
   confirm(title, text, danger = true) {
     get().pendingConfirm?.resolve(false);

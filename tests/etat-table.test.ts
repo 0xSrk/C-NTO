@@ -139,9 +139,10 @@ describe('OROS5.1 la table d’états du desk', () => {
     const classes = new Set<string>();
     for (const rule of sheet()) {
       for (const part of selectorsOf(rule.selector)) {
-        // Une règle de la table ne vise qu'une de ses classes, ou le halo de l'une d'elles.
-        expect(part, rule.selector).toMatch(/^\.[a-z]+(?:::after)?$/);
-        classes.add(part.replace('::after', '').slice(1));
+        // Une règle de la table ne vise qu'une de ses classes : une boîte HTML, le halo de l'une d'elles, ou, depuis
+        // OROS5.24, un tracé SVG de la même classe (les marques de la frise) ; la table n'est pas dupliquée.
+        expect(part, rule.selector).toMatch(/^(?:\.[a-z]+(?:::after)?|(?:line|rect|path)\.[a-z]+)$/);
+        classes.add(part.replace('::after', '').replace(/^(?:line|rect|path)/, '').slice(1));
       }
     }
     expect([...classes].sort()).toEqual(Object.keys(ETATS).sort());
@@ -185,8 +186,22 @@ describe('OROS5.1 la table d’états du desk', () => {
     }
     expect(decl('.eteint', 'border')).toBe('1px solid var(--line-2)');
     expect(decl('.eteint::after', 'content')).toBeUndefined();
+    // OROS5.24 : la même table pour les marques tracées (SVG) — le trait du tracé dit l'état, sans halo ; un trait par
+    // état, le même pour une ligne, un rectangle ou un chemin.
+    const traced = (etat: Etat, prop: string) => {
+      const values = ['line', 'rect', 'path'].map((tag) => decl(`${tag}.${etat}`, prop));
+      expect(new Set(values).size, `${etat} ${prop}`).toBe(1);
+      return values[0];
+    };
+    for (const etat of ['plein', 'tirete', 'pointille'] as const) expect(traced(etat, 'stroke'), etat).toBe('var(--k)');
+    expect(traced('plein', 'stroke-dasharray')).toBe('none');
+    expect(traced('tirete', 'stroke-dasharray')).toMatch(/^\d+(?:\.\d+)? \d+(?:\.\d+)?$/);
+    expect(traced('pointille', 'stroke-dasharray')).toMatch(/^0\.0\d+ \d+(?:\.\d+)?$/);
+    expect(traced('pointille', 'stroke-linecap')).toBe('round');
+    expect(traced('eteint', 'stroke')).toBe('var(--line-2)');
+    expect(traced('eteint', 'stroke-dasharray')).toBe('none');
     const body = sheet()
-      .filter((rule) => selectorsOf(rule.selector).some((part) => part.startsWith('.eteint')))
+      .filter((rule) => selectorsOf(rule.selector).some((part) => part.includes('.eteint')))
       .map((rule) => rule.body)
       .join('\n');
     // Éteint : ni motif, ni l'encre de la zone (l'autorité), ni halo.
