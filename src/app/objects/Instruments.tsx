@@ -2,7 +2,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { COMPONENTS, GLYPH_ID, type GlyphName } from '@/design/Micro';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
 import e from '@/design/etat.module.css';
-import { cx } from '@/design/primitives';
+import { cx, Montant } from '@/design/primitives';
 import { boundCircles, bounds, egoBox, egoFrame, egoLayout, rScale, tradeBeads, type EgoNode, type EgoRay, type RDomain } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtRatio, fmtUsd } from '@/lib/format';
@@ -435,4 +435,52 @@ export function BoundsDisk({ reading, day }: { reading: BoundsReading; day: (dat
 /** Le nombre de trades sur leur maximum, en mots : « 3 / 6 », « 3 » sans maximum. */
 export function tradesOfMax(count: number | null, max: number | null): string {
   return `${count === null ? '—' : fmtInt(count)}${max !== null ? ` / ${fmtInt(max)}` : ''}`;
+}
+
+/* ─── M.036 · la lecture miroir : l'ensemble à gauche, le reste à droite, les libellés au centre ─────────────────── */
+
+export interface MirrorReading {
+  sessions: number;
+  trades: number;
+  winRate: number | null;
+  net: number;
+  perSession: number | null;
+}
+
+/**
+ * M.036 : un ensemble de séances face aux autres séances du même périmètre (`mirror`, au moteur) ; le pied dit
+ * l'échantillon de chaque côté, aux seuils du moteur : un côté insuffisant ne pèse pas comme l'autre.
+ */
+export function Mirror({ inside, outside, leftTitle, rightTitle, leftSample, rightSample }: { inside: MirrorReading; outside: MirrorReading; leftTitle: string; rightTitle: string; leftSample: string; rightSample: string }) {
+  useI18n((st) => st.locale);
+  const signed = (v: number) => <Montant value={v} className={v > 0 ? s.pos : v < 0 ? s.neg : undefined} />;
+  const pct = (v: number | null) => (v === null ? '—' : `${fmtInt(Math.round(v * 100))} %`);
+  const rows: { key: string; label: string; l: ReactNode; r: ReactNode }[] = [
+    { key: 'sessions', label: tr('Séances', 'Sessions', 'Sesiones'), l: fmtInt(inside.sessions), r: fmtInt(outside.sessions) },
+    { key: 'trades', label: tr('Trades', 'Trades', 'Trades'), l: fmtInt(inside.trades), r: fmtInt(outside.trades) },
+    { key: 'winRate', label: tr('Réussite', 'Win rate', 'Acierto'), l: pct(inside.winRate), r: pct(outside.winRate) },
+    { key: 'net', label: tr('P&L net', 'Net P&L', 'P&L neto'), l: signed(inside.net), r: signed(outside.net) },
+    { key: 'perSession', label: tr('Moy. / séance', 'Avg / session', 'Media / sesión'), l: inside.perSession === null ? '—' : signed(inside.perSession), r: outside.perSession === null ? '—' : signed(outside.perSession) },
+  ];
+  return (
+    <div className={s.mirror} role="group" aria-label={`${leftTitle} | ${rightTitle}`} data-figure="M.036">
+      <div className={s.mirrorHead}>
+        <span>{leftTitle}</span>
+        <i aria-hidden />
+        <span>{rightTitle}</span>
+      </div>
+      {rows.map((row) => (
+        <div key={row.key} className={s.mirrorRow} data-mirror={row.key}>
+          <span className={s.mirrorL}>{row.l}</span>
+          <span className={s.mirrorLabel}>{row.label}</span>
+          <span className={s.mirrorR}>{row.r}</span>
+        </div>
+      ))}
+      <div className={cx(s.mirrorRow, s.mirrorFoot)} data-mirror="sample">
+        <span className={s.mirrorL}>{leftSample}</span>
+        <span className={s.mirrorLabel}>{tr('échantillon', 'sample', 'muestra')}</span>
+        <span className={s.mirrorR}>{rightSample}</span>
+      </div>
+    </div>
+  );
 }

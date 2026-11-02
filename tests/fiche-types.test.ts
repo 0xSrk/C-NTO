@@ -236,8 +236,9 @@ describe('OROS5.28 une fiche par type', () => {
     act(() => drawer().querySelector<HTMLButtonElement>('[data-group="in:applique:session"] button')!.click());
     expect(drawer().querySelector('div[data-fiche]')!.getAttribute('data-fiche')).toBe('session');
     const source = readFileSync('src/app/objects/Fiche.tsx', 'utf8');
-    const describeBody = source.slice(source.indexOf('function describe('), source.indexOf("/** La source d'une publication"));
-    expect(describeBody.length).toBeGreaterThan(100);
+    // `describe` ne dit plus ces types (OROS5.28) ; OROS5.29 le retire tout entier
+    const at = source.indexOf('function describe(');
+    const describeBody = at < 0 ? '' : source.slice(at, source.indexOf("/** La source d'une publication"));
     for (const type of ['trade', 'note', 'strategie', 'instrument', 'session', 'compte']) expect(describeBody, type).not.toContain(`case '${type}'`);
     expect(source).not.toMatch(/OtherFiche|TradeRow/);
   });

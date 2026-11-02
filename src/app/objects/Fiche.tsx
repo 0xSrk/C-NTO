@@ -5,15 +5,15 @@ import e from '@/design/etat.module.css';
 import { cx } from '@/design/primitives';
 import { authorCounts, entityKey, groupNeighbors, kindCounts, neighborsOf, orderGroups, type EntityRef, type EntityType, type Link, type LinkKind, type Neighbor, type NeighborGroup, type Predicate } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
-import { publicationInstant, strokeOf } from '@/lib/calendarMarks';
-import { trEventTitle } from '@/lib/eventTitles';
+import { publicationInstant } from '@/lib/calendarMarks';
 import { fmtInt, plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { previousObject, useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { matchShortcut } from '../shortcuts';
-import { objectLabel, STROKE_ETAT, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
+import { objectLabel, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
 import { AccountFiche } from './AccountFiche';
+import { CatalystFiche } from './CatalystFiche';
 import { InstrumentFiche } from './InstrumentFiche';
 import { NoteFiche } from './NoteFiche';
 import { SessionFiche } from './SessionFiche';
@@ -310,18 +310,7 @@ export function linkProvenance(target: EntityRef, links: readonly Link[]): strin
   ];
 }
 
-/* ─── Ce que chaque type dit dans le cadre ──────────────────────────────────────────────────────────────────── */
-
-interface Described {
-  /** L'objet est au coffre. */
-  found: boolean;
-  properties: PropertyRow[];
-  provenance: string[];
-  actions: FicheAction[];
-}
-
-/** Le jour, avec le jour de la semaine, dans la langue du desk. */
-const longDay = (date: string) => (/^\d{4}-\d{2}-\d{2}$/.test(date) ? formatDateFr(date, { weekday: true }) : date);
+/* ─── Ce que les fiches par type partagent ──────────────────────────────────────────────────────────────────── */
 
 /** L'instant d'une écriture au coffre, à l'heure du poste. */
 export function stamped(ms: number): string {
@@ -398,53 +387,8 @@ export function ficheTitle(target: EntityRef, ctx: IndexSources, now: number): s
   return `${capital(typeWord(target.type))} · ${objectLabel(target, ctx, now) ?? '—'}`;
 }
 
-function describe(target: EntityRef, ctx: IndexSources, now: number): Described {
-  const copy = copyAction(target);
-  const openDay = openDayAction;
-  const linkLines = linkProvenance(target, ctx.links);
-
-  switch (target.type) {
-    case 'evenement': {
-      const event = ctx.catalysts.find((x) => x.id === target.id);
-      if (!event) break;
-      const stroke = strokeOf(event, now);
-      // Un repère local estimé dont l'heure est passée n'a rien publié : il est passé.
-      const released = event.actual != null && event.actual !== '' ? true : !event.estimated;
-      const state =
-        stroke === 'publie'
-          ? released
-            ? tr('publiée', 'released', 'publicada')
-            : tr('passée', 'past', 'pasada')
-          : stroke === 'prevu'
-            ? tr('à venir', 'upcoming', 'por venir')
-            : tr('au-delà de l’horizon', 'beyond the horizon', 'más allá del horizonte');
-      return {
-        found: true,
-        properties: [
-          [tr('Jour', 'Day', 'Día'), longDay(event.date)],
-          [tr('Heure', 'Time', 'Hora'), event.timeET ? `${event.timeET} ET` : tr('journée', 'all day', 'jornada')],
-          [tr('Impact', 'Impact', 'Impacto'), `${event.impact} / 3`],
-          [
-            tr('État', 'State', 'Estado'),
-            <span key="state" className={s.stateCell}>
-              <EtatMark stroke={STROKE_ETAT[stroke]} />
-              {event.estimated ? `${state} · ${tr('date estimée', 'estimated date', 'fecha estimada')}` : state}
-            </span>,
-          ],
-          [tr('Attendu', 'Forecast', 'Esperado'), event.forecast || '—'],
-          [tr('Précédent', 'Previous', 'Anterior'), event.previous || '—'],
-          [tr('Publié', 'Actual', 'Publicado'), event.actual || '—'],
-        ],
-        provenance: [`${trEventTitle(event.title)} · ${catalystSourceWord(event.source, event.origin)}`, ...linkLines],
-        actions: [openDay(event.date), copy],
-      };
-    }
-  }
-  return { found: false, properties: [], provenance: linkLines, actions: [copy] };
-}
-
 /** La source d'une publication, dans la langue du desk. */
-function catalystSourceWord(source: string | undefined, origin: string | undefined): string {
+export function catalystSourceWord(source: string | undefined, origin: string | undefined): string {
   if (!source || source === 'local') return tr('repère local du desk', 'desk local marker', 'hito local del desk');
   if (source === 'bundle') return `${tr('calendrier embarqué', 'embedded calendar', 'calendario embebido')}${origin ? ` · ${origin.toUpperCase()}` : ''}`;
   return source.toUpperCase();
@@ -456,36 +400,44 @@ export function ObjectFiche({ target }: { target: EntityRef }) {
   const stamp = useObjects((o) => o.stamp);
   const now = useMemo(() => Date.now(), [stamp]);
   const ctx = useIndexSources(now);
-  // Les fiches par type se posent sur le même cadre (OROS5.26 à OROS5.29) ; un objet absent du coffre garde la fiche commune.
-  if (target.type === 'session' && ctx.sessions.some((x) => x.id === target.id)) return <SessionFiche target={target} ctx={ctx} now={now} />;
-  if (target.type === 'compte' && target.id.trim()) return <AccountFiche target={target} ctx={ctx} now={now} />;
-  if (target.type === 'trade' && ctx.trades.some((x) => x.id === target.id)) return <TradeFiche target={target} ctx={ctx} now={now} />;
-  if (target.type === 'note' && ctx.notes.some((x) => x.id === target.id)) return <NoteFiche target={target} ctx={ctx} now={now} />;
-  if (target.type === 'strategie' && ctx.notes.some((x) => x.id === target.id)) return <StrategyFiche target={target} ctx={ctx} now={now} />;
-  if (target.type === 'instrument' && target.id.trim()) return <InstrumentFiche target={target} ctx={ctx} now={now} />;
-  return <CommonFiche target={target} ctx={ctx} now={now} />;
+  // Une fiche par type, sur le même cadre (OROS5.26 à OROS5.29) ; un objet absent du coffre garde le cadre seul.
+  switch (target.type) {
+    case 'session':
+      if (ctx.sessions.some((x) => x.id === target.id)) return <SessionFiche target={target} ctx={ctx} now={now} />;
+      break;
+    case 'compte':
+      if (target.id.trim()) return <AccountFiche target={target} ctx={ctx} now={now} />;
+      break;
+    case 'trade':
+      if (ctx.trades.some((x) => x.id === target.id)) return <TradeFiche target={target} ctx={ctx} now={now} />;
+      break;
+    case 'note':
+      if (ctx.notes.some((x) => x.id === target.id)) return <NoteFiche target={target} ctx={ctx} now={now} />;
+      break;
+    case 'strategie':
+      if (ctx.notes.some((x) => x.id === target.id)) return <StrategyFiche target={target} ctx={ctx} now={now} />;
+      break;
+    case 'instrument':
+      if (target.id.trim()) return <InstrumentFiche target={target} ctx={ctx} now={now} />;
+      break;
+    case 'evenement':
+      return <CatalystFiche target={target} ctx={ctx} now={now} />;
+  }
+  return <MissingFiche target={target} ctx={ctx} now={now} />;
 }
 
-/** La fiche commune : le cadre rempli de ce que `describe` dit du type, ou l'objet absent du coffre. */
-function CommonFiche({ target, ctx, now }: { target: EntityRef; ctx: IndexSources; now: number }) {
-  const view = describe(target, ctx, now);
-  const title = ficheTitle(target, ctx, now);
+/** Un objet qui n'est plus au coffre (un lien vers une séance supprimée) : le cadre seul, ses liens et leur provenance. */
+export function MissingFiche({ target, ctx, now }: { target: EntityRef; ctx: IndexSources; now: number }) {
   return (
     <>
-      <FicheHead type={target.type} title={title} actions={view.found ? view.actions : []} />
-      <div className={s.body} data-fiche="common">
-        {view.found ? (
-          <FicheSection part="properties" title={tr('Propriétés', 'Properties', 'Propiedades')}>
-            <Properties rows={view.properties} />
-          </FicheSection>
-        ) : (
-          <p className={s.empty}>{tr('Cet objet n’est plus au coffre.', 'This object is no longer in the vault.', 'Este objeto ya no está en la caja.')}</p>
-        )}
+      <FicheHead type={target.type} title={ficheTitle(target, ctx, now)} actions={[copyAction(target)]} />
+      <div className={s.body} data-fiche="missing">
+        <p className={s.empty}>{tr('Cet objet n’est plus au coffre.', 'This object is no longer in the vault.', 'Este objeto ya no está en la caja.')}</p>
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')} meta={plural(neighborsOf(target, ctx.links).filter((n) => n.link.kind !== 'rejete').length, tr('lien', 'link', 'enlace'), tr('liens', 'links', 'enlaces'))}>
           <LinksByPredicate target={target} ctx={ctx} now={now} />
         </FicheSection>
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
-          <Provenance lines={view.provenance} />
+          <Provenance lines={linkProvenance(target, ctx.links)} />
         </FicheSection>
       </div>
     </>

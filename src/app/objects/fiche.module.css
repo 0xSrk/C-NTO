@@ -177,11 +177,6 @@
 .quote {
   color: var(--text-1);
 }
-.stateCell {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
 
 /* Un objet voisin dans une propriété : son glyphe, son nom, la flèche au glacier. */
 .objLink {
@@ -984,4 +979,120 @@
   display: flex;
   align-items: center;
   padding: 12px 0 4px;
+}
+
+/* ─── La fiche Catalyseur (OROS5.29) : « Autour de… », M.036, les occurrences ─────────────────────────────────── */
+/* Le périmètre de la lecture, écrit en clair. */
+.scopeLine {
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.aroundLine {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  color: var(--text-0);
+}
+/* M.036 · la lecture miroir : l'ensemble à gauche, le reste à droite, les libellés au centre. */
+.mirror {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-1);
+}
+.mirrorHead,
+.mirrorRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+}
+.mirrorHead {
+  padding: 8px 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ice);
+}
+.mirrorHead span:first-child {
+  text-align: right;
+}
+.mirrorHead i {
+  justify-self: center;
+  width: 1px;
+  height: 10px;
+  background: var(--line-2);
+}
+.mirrorRow {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line-1);
+  font-size: 13px;
+  color: var(--text-0);
+}
+.mirrorL {
+  text-align: right;
+}
+.mirrorR {
+  text-align: left;
+}
+.mirrorLabel {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.mirrorFoot {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-1);
+}
+
+.occRow {
+  grid-template-columns: 20px 64px minmax(0, 1fr) auto;
+  min-height: 34px;
+}
+/* L'occurrence ouverte : à l'ivoire, sans or (l'or reste au glyphe de l'en-tête). */
+.occOn {
+  background-color: var(--bg-3);
+}
+.occDate {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.occText {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-1);
+}
+.occSession {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  --k: var(--text-1);
+  transition: color 200ms linear;
+}
+.occGlyph {
+  width: 16px;
+  height: 13px;
+}
+.occNone {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+@media (hover: hover) {
+  .occSession:hover {
+    --k: var(--text-0);
+  }
 }
