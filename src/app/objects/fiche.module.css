@@ -265,11 +265,16 @@
   width: 16px;
   height: 16px;
 }
-/* Le master fin de l'instrument (C.100), relevé pour 16 px, son dessin intact. */
+/* Les masters fins de l'instrument (C.100) et de la note (C.091), relevés pour 16 px, leur dessin intact. */
 .rowGlyph :global(.g100-1),
 .objLinkGlyph :global(.g100-1),
 .headGlyph :global(.g100-1) {
   stroke-width: 2.6px;
+}
+.rowGlyph :global(.g91-1),
+.objLinkGlyph :global(.g91-1),
+.headGlyph :global(.g91-1) {
+  stroke-width: 2.4px;
 }
 .rowMain {
   min-width: 0;
@@ -972,4 +977,11 @@
   margin: 10px 0 0;
   font-size: 12px;
   color: var(--text-1);
+}
+
+/* ─── Les fiches Trade, Note, Stratégie, Instrument (OROS5.28) ─────────────────────────────────────────────────── */
+.rLine {
+  display: flex;
+  align-items: center;
+  padding: 12px 0 4px;
 }

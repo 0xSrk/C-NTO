@@ -2,21 +2,23 @@ import { useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from '
 import { Glyph, type GlyphName } from '@/design/Micro';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
 import e from '@/design/etat.module.css';
-import { cx, Montant } from '@/design/primitives';
-import { getInstrument, hasInstrument } from '@/engine/instruments';
-import { authorCounts, entityKey, groupNeighbors, kindCounts, neighborsOf, noteTradingDay, orderGroups, parseNoteHeader, slugifyTitle, type EntityRef, type EntityType, type Link, type LinkKind, type Neighbor, type NeighborGroup, type Predicate } from '@/engine/ontology';
+import { cx } from '@/design/primitives';
+import { authorCounts, entityKey, groupNeighbors, kindCounts, neighborsOf, orderGroups, type EntityRef, type EntityType, type Link, type LinkKind, type Neighbor, type NeighborGroup, type Predicate } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
 import { publicationInstant, strokeOf } from '@/lib/calendarMarks';
 import { trEventTitle } from '@/lib/eventTitles';
-import { fmtInt, fmtPrice, plural } from '@/lib/format';
+import { fmtInt, plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
-import { useNotes } from '@/store/notes';
 import { previousObject, useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { matchShortcut } from '../shortcuts';
-import { etClock, isStrategyNote, objectLabel, STROKE_ETAT, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
+import { objectLabel, STROKE_ETAT, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
 import { AccountFiche } from './AccountFiche';
+import { InstrumentFiche } from './InstrumentFiche';
+import { NoteFiche } from './NoteFiche';
 import { SessionFiche } from './SessionFiche';
+import { StrategyFiche } from './StrategyFiche';
+import { TradeFiche } from './TradeFiche';
 import type { LightProps } from './useHoverLight';
 import s from './fiche.module.css';
 
@@ -335,7 +337,6 @@ export function sourceWord(source: string): string {
   return source;
 }
 
-const signedClass = (v: number) => (v > 0 ? s.pos : v < 0 ? s.neg : undefined);
 
 /** Un objet voisin, en lien : son glyphe et son nom ; il ouvre sa fiche par un saut. */
 export function ObjectLink({ to, label, className }: { to: EntityRef; label: string; className?: string }) {
@@ -398,69 +399,11 @@ export function ficheTitle(target: EntityRef, ctx: IndexSources, now: number): s
 }
 
 function describe(target: EntityRef, ctx: IndexSources, now: number): Described {
-  const objects = useObjects.getState();
   const copy = copyAction(target);
   const openDay = openDayAction;
   const linkLines = linkProvenance(target, ctx.links);
 
   switch (target.type) {
-    case 'trade': {
-      const trade = ctx.trades.find((x) => x.id === target.id);
-      if (!trade) break;
-      const session = ctx.sessions.find((x) => x.id === trade.sessionId);
-      return {
-        found: true,
-        properties: [
-          [tr('Séance', 'Session', 'Sesión'), session ? <ObjectLink to={{ type: 'session', id: session.id }} label={objectLabel({ type: 'session', id: session.id }, ctx, now) ?? session.date} /> : '—'],
-          [tr('Sens · quantité', 'Side · quantity', 'Sentido · cantidad'), `${trade.direction === 'long' ? 'Long' : 'Short'} ${fmtInt(trade.qty)} ${trade.instrument}`],
-          [tr('Entrée', 'Entry', 'Entrada'), `${etClock(trade.entryTime)} ET · ${fmtPrice(trade.entryPrice)}`],
-          [tr('Sortie', 'Exit', 'Salida'), Number.isFinite(trade.exitTime) ? `${etClock(trade.exitTime)} ET · ${fmtPrice(trade.exitPrice)}` : '—'],
-          [tr('P&L net', 'Net P&L', 'P&L neto'), <Montant key="net" value={trade.pnl} className={signedClass(trade.pnl)} />],
-          [tr('Compte', 'Account', 'Cuenta'), trade.account?.trim() || '—'],
-          [tr('Stratégie', 'Strategy', 'Estrategia'), trade.strategy?.trim() || '—'],
-          [tr('Étiquettes', 'Tags', 'Etiquetas'), trade.tags?.length ? trade.tags.join(' · ') : '—'],
-        ],
-        provenance: [
-          trade.executionIds?.length
-            ? tr(`Trade · ${fmtInt(trade.executionIds.length)} exécutions du pont`, `Trade · ${fmtInt(trade.executionIds.length)} bridge executions`, `Trade · ${fmtInt(trade.executionIds.length)} ejecuciones del puente`)
-            : `${capital(typeWord('trade'))} · ${sourceWord(session?.source ?? '')}`,
-          ...linkLines,
-        ],
-        actions: [...(session ? [openDay(session.date)] : []), copy],
-      };
-    }
-    case 'note':
-    case 'strategie': {
-      const note = ctx.notes.find((x) => x.id === target.id);
-      if (!note) break;
-      const day = noteTradingDay({ id: note.id, title: note.title, body: note.body, tags: note.tags });
-      const header = parseNoteHeader(note.body);
-      const author = note.by === 'agent' ? (note.adoptedAt != null ? tr('agent · adoptée', 'agent · adopted', 'agente · adoptada') : tr('agent · non adoptée', 'agent · not adopted', 'agente · no adoptada')) : tr('vous', 'you', 'usted');
-      const rows: PropertyRow[] = [
-        [tr('Auteur', 'Author', 'Autor'), author],
-        [tr('Étiquettes', 'Tags', 'Etiquetas'), note.tags.length ? note.tags.map((tag) => `#${tag}`).join(' ') : '—'],
-        [tr('Jour de séance', 'Session day', 'Día de sesión'), day ? longDay(day) : '—'],
-        [tr('Modifiée', 'Updated', 'Modificada'), stamped(note.updatedAt)],
-      ];
-      if (target.type === 'strategie') rows.push([tr('Alias', 'Alias', 'Alias'), isStrategyNote(note) ? `#${header.tag ?? slugifyTitle(note.title)}` : '—']);
-      return {
-        found: true,
-        properties: rows,
-        provenance: [`${capital(typeWord(target.type))} · ${tr('coffre de notes', 'note vault', 'caja de notas')} · ${author}`, ...linkLines],
-        actions: [
-          {
-            id: 'note',
-            glyph: 'note',
-            label: tr('Ouvrir dans Note', 'Open in Note', 'Abrir en Nota'),
-            run: () => {
-              useNotes.getState().setActive(note.id);
-              objects.jumpTo('note');
-            },
-          },
-          copy,
-        ],
-      };
-    }
     case 'evenement': {
       const event = ctx.catalysts.find((x) => x.id === target.id);
       if (!event) break;
@@ -496,23 +439,6 @@ function describe(target: EntityRef, ctx: IndexSources, now: number): Described 
         actions: [openDay(event.date), copy],
       };
     }
-    case 'instrument': {
-      const symbol = target.id.trim().toUpperCase();
-      const spec = hasInstrument(symbol) ? getInstrument(symbol) : null;
-      const sessions = ctx.sessions.filter((x) => x.instruments.some((i) => i.trim().toUpperCase() === symbol)).length;
-      const trades = ctx.trades.filter((t) => t.instrument.trim().toUpperCase() === symbol).length;
-      return {
-        found: true,
-        properties: [
-          [tr('Nom', 'Name', 'Nombre'), spec?.name ?? '—'],
-          [tr('Place', 'Exchange', 'Mercado'), spec?.exchange ?? '—'],
-          [capital(typeWord('session', 2)), fmtInt(sessions)],
-          [capital(typeWord('trade', 2)), fmtInt(trades)],
-        ],
-        provenance: [spec ? tr('Instrument du registre du desk', 'Instrument from the desk registry', 'Instrumento del registro del desk') : tr('Symbole hors du registre du desk', 'Symbol outside the desk registry', 'Símbolo fuera del registro del desk'), ...linkLines],
-        actions: [],
-      };
-    }
   }
   return { found: false, properties: [], provenance: linkLines, actions: [copy] };
 }
@@ -533,6 +459,10 @@ export function ObjectFiche({ target }: { target: EntityRef }) {
   // Les fiches par type se posent sur le même cadre (OROS5.26 à OROS5.29) ; un objet absent du coffre garde la fiche commune.
   if (target.type === 'session' && ctx.sessions.some((x) => x.id === target.id)) return <SessionFiche target={target} ctx={ctx} now={now} />;
   if (target.type === 'compte' && target.id.trim()) return <AccountFiche target={target} ctx={ctx} now={now} />;
+  if (target.type === 'trade' && ctx.trades.some((x) => x.id === target.id)) return <TradeFiche target={target} ctx={ctx} now={now} />;
+  if (target.type === 'note' && ctx.notes.some((x) => x.id === target.id)) return <NoteFiche target={target} ctx={ctx} now={now} />;
+  if (target.type === 'strategie' && ctx.notes.some((x) => x.id === target.id)) return <StrategyFiche target={target} ctx={ctx} now={now} />;
+  if (target.type === 'instrument' && target.id.trim()) return <InstrumentFiche target={target} ctx={ctx} now={now} />;
   return <CommonFiche target={target} ctx={ctx} now={now} />;
 }
 
@@ -543,7 +473,7 @@ function CommonFiche({ target, ctx, now }: { target: EntityRef; ctx: IndexSource
   return (
     <>
       <FicheHead type={target.type} title={title} actions={view.found ? view.actions : []} />
-      <div className={s.body}>
+      <div className={s.body} data-fiche="common">
         {view.found ? (
           <FicheSection part="properties" title={tr('Propriétés', 'Properties', 'Propiedades')}>
             <Properties rows={view.properties} />

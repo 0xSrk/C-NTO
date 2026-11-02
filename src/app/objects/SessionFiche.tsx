@@ -212,7 +212,7 @@ export function SessionFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
   return (
     <>
       <FicheHead type="session" title={ficheTitle(target, ctx, now)} actions={sessionActions(target, session)} />
-      <div className={s.body}>
+      <div className={s.body} data-fiche="session">
         <IdentityGrid
           label={tr('Identité de la séance', 'Session identity', 'Identidad de la sesión')}
           lead={account ? <ObjectLink to={{ type: 'compte', id: account }} label={account} className={s.identLink} /> : <span className={s.identText}>{tr('sans compte', 'no account', 'sin cuenta')}</span>}

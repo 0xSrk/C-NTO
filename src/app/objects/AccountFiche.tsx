@@ -241,7 +241,7 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
   return (
     <>
       <FicheHead type="compte" title={ficheTitle(target, ctx, now)} actions={actions} />
-      <div className={s.body}>
+      <div className={s.body} data-fiche="compte">
         <IdentityGrid
           label={tr('Identité du compte', 'Account identity', 'Identidad de la cuenta')}
           lead={<span className={s.identText} data-sim={sim ? 'sim' : 'hors'}>{sim ? 'Sim' : tr('hors Sim', 'not Sim', 'fuera de Sim')}</span>}
