@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { DeskEventKind } from '@/engine/agent/catalog';
 import { DeskEventLog, dueCatalysts, fillData, linkTransition, orderData, propBufferAlert, propLiveBuffer, type DeskEvent, type PropBufferInput } from '@/engine/agent/events';
 import { dailyLossAlert, ThresholdWatch, type DailyLossInput } from '@/engine/agent/events';
+import { sameAccount } from '@/engine/accounts';
 import { AGENT_TRADER_RULES, type AgentTraderRuleBlock } from '@/engine/agent/orders';
 import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, majorCatalysts, tradingDayNow, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
@@ -232,21 +233,67 @@ function ruleDetail(finding: DisciplineFinding): string {
 }
 
 /**
- * Règle du trader qu'une ouverture proposée par l'agent enfreindrait à `now` : perte du jour atteinte, fenêtre
- * d'un catalyseur majeur, instrument hors de la liste (décision 1 de l'ADMIN, 2026-10-06). Même lecture que la
- * veille discipline au fill d'entrée (`detectRuleBreaches`) ; le process principal la relit et refuse l'ouverture.
+ * Règles du trader qu'une ouverture proposée par l'agent enfreindrait à `now`, toutes, dans l'ordre de la garde
+ * (`AGENT_TRADER_RULES`) : perte du jour atteinte, fenêtre d'un catalyseur majeur, instrument hors de la liste
+ * (décision 1 de l'ADMIN, 2026-10-06). Même lecture que la veille discipline au fill d'entrée (`detectRuleBreaches`).
  */
-export function traderRuleFor(proposal: { account: string; instrument: string; qty: number }, now = Date.now()): AgentTraderRuleBlock | null {
+export function traderRuleBlocks(proposal: { account: string; instrument: string; qty: number }, now = Date.now()): AgentTraderRuleBlock[] {
   const { traderRules, planId, planAccount } = useSettings.getState().settings;
   const { trades } = useJournal.getState();
   const limit = dailyLimit(traderRules, findPlan(planId));
   const entry: DisciplineEntry = { id: 'proposition', account: proposal.account, instrument: proposal.instrument, qty: proposal.qty, time: now };
   const findings = detectRuleBreaches([entry], { rules: traderRules, closed: trades, catalysts: catalystsAround(now), limit, limitAccount: planAccount, unrealized: liveUnrealized(planAccount) });
+  const out: AgentTraderRuleBlock[] = [];
   for (const rule of AGENT_TRADER_RULES) {
     const found = findings.find((f) => f.kind === rule);
-    if (found) return { rule, detail: ruleDetail(found) };
+    if (found) out.push({ rule, detail: ruleDetail(found) });
   }
-  return null;
+  return out;
+}
+
+/**
+ * Règle du trader qu'une ouverture proposée par l'agent enfreindrait à `now` : la première de `traderRuleBlocks`.
+ * Le process principal la relit (`parseTraderRule`) et refuse l'ouverture.
+ */
+export function traderRuleFor(proposal: { account: string; instrument: string; qty: number }, now = Date.now()): AgentTraderRuleBlock | null {
+  return traderRuleBlocks(proposal, now)[0] ?? null;
+}
+
+/* ─── Ce que le renderer transmet à la garde du process principal à chaque proposition (OROS5.9) ─── */
+
+function clip(v: unknown, max: number): string {
+  return typeof v === 'string' ? v.trim().slice(0, max) : '';
+}
+
+/** Le compte du plan suivi, s'il est celui que désigne `account` (règle de la garde, `sameAccount`) ; sinon `account`. */
+function trackedName(account: string): string {
+  const { planAccount } = useSettings.getState().settings;
+  return planAccount && sameAccount(planAccount, account) ? planAccount : account;
+}
+
+/**
+ * Marge du plan suivi pour le compte proposé, telle que le renderer la transmet au process principal. Le process
+ * principal lit le pont sans tenir compte de la casse ni des espaces (`SimAPEX1` y désigne `SimApex1`) : le compte du
+ * plan est reconnu de même (`sameAccount`), sinon la garde de marge sauterait.
+ */
+export function propShareFor(account: string): number | null {
+  return trackedPropShare(trackedName(account));
+}
+
+/** La proposition telle que la règle du trader la lit : compte reconnu comme pour la marge, noms bornés, quantité finie. */
+function ruleProposal(args: Record<string, unknown>): { account: string; instrument: string; qty: number } {
+  const qty = typeof args.qty === 'number' && Number.isFinite(args.qty) ? args.qty : 0;
+  return { account: trackedName(clip(args.account, 128)), instrument: clip(args.instrument, 64), qty };
+}
+
+/** Règle du trader que l'ouverture enfreindrait, telle que le renderer la transmet au process principal. */
+export function traderRuleOf(args: Record<string, unknown>, now = Date.now()): AgentTraderRuleBlock | null {
+  return traderRuleFor(ruleProposal(args), now);
+}
+
+/** Toutes les règles que l'ouverture enfreindrait, du même calcul que `traderRuleOf` : le miroir de la garde les lit. */
+export function traderRulesOf(args: Record<string, unknown>, now = Date.now()): AgentTraderRuleBlock[] {
+  return traderRuleBlocks(ruleProposal(args), now);
 }
 
 const localYears = new Map<number, CalEvent[]>();

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { AGENT_ORDER_DEFAULTS, AGENT_RATE_WINDOW_MS, AGENT_REASON_MAX } from '@/engine/agent/orders';
 import { desk, type AgentOrderOrigin, type AgentOrderOutcome, type AgentOrderStatus } from '@/lib/desk';
-import { recordDeskEvent, trackedPropShare, traderRuleFor } from './deskEvents';
-import { useSettings } from './settings';
+// Ce que le renderer transmet à la garde du process principal vit dans `deskEvents` (OROS5.9) : le miroir de la garde le relit.
+import { propShareFor, recordDeskEvent, traderRuleOf } from './deskEvents';
 
 /** Statut hors desk (navigateur) ou avant la première lecture : désactivé. */
 export const AGENT_ORDERS_OFF: AgentOrderStatus = { ...AGENT_ORDER_DEFAULTS, enabled: false, pending: false };
@@ -34,26 +34,6 @@ interface AgentOrdersState {
 
 function text(v: unknown, max: number): string {
   return typeof v === 'string' ? v.trim().slice(0, max) : '';
-}
-
-const fold = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
-
-/**
- * Marge du plan suivi pour le compte proposé. Le process principal lit le pont sans tenir compte de la casse
- * ni des espaces (`SimAPEX1` y désigne `SimApex1`) : le compte du plan est reconnu de même, sinon la garde
- * de marge sauterait.
- */
-function propShareFor(account: string): number | null {
-  const { planAccount } = useSettings.getState().settings;
-  return trackedPropShare(planAccount && fold(planAccount) === fold(account) ? planAccount : account);
-}
-
-/** Règle du trader que l'ouverture enfreindrait ; le compte du plan est reconnu comme pour la marge. */
-function traderRuleOf(args: Record<string, unknown>) {
-  const { planAccount } = useSettings.getState().settings;
-  const account = text(args.account, 128);
-  const qty = typeof args.qty === 'number' && Number.isFinite(args.qty) ? args.qty : 0;
-  return traderRuleFor({ account: planAccount && fold(planAccount) === fold(account) ? planAccount : account, instrument: text(args.instrument, 64), qty });
 }
 
 /** Données de l'événement `agent_order` : bornées, sans rien que l'agent n'ait déjà vu. */
