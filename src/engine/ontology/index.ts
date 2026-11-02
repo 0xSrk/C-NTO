@@ -1,5 +1,32 @@
 export { claimConfidence, eventTypeOf, sampleOf, APPROX_RISK_TICKS, SAMPLE_FAIBLE, SAMPLE_MOYEN, SAMPLE_SOLIDE } from './confidence';
 export type { ClaimConfidence, ClaimEvent } from './confidence';
+export {
+  authorCounts,
+  dayMargin,
+  EGO_COMPACT_BELOW,
+  EGO_COMPACT_HEIGHT,
+  EGO_FULL_HEIGHT,
+  EGO_MAX_RAYS,
+  EGO_WIDTH,
+  egoBox,
+  egoFrame,
+  egoHalfOf,
+  egoLayout,
+  egoNodes,
+  GROUP_ORDER,
+  groupNeighbors,
+  kindCounts,
+  mirror,
+  neighborsOf,
+  orderGroups,
+  planReading,
+  R_CEIL,
+  R_FLOOR,
+  R_PAD,
+  rDomain,
+  rScale,
+} from './fiche';
+export type { EgoBox, EgoHalf, EgoNode, EgoRay, MirrorSide, Neighbor, NeighborGroup, PlanReading, RDomain, RScale, RScaleInput, Side } from './fiche';
 export { NOTE_STATUTS, bodyWithoutHeader, parseNoteHeader, slugifyTitle, writeNoteStatut } from './header';
 export type { NoteHeader, NoteStatut } from './header';
 export { mergeHypotheses, recomputeOntology, ONTOLOGY_WORKER_NOTES, ONTOLOGY_WORKER_TRADES } from './recompute';
