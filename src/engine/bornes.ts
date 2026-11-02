@@ -172,8 +172,8 @@ export interface DayRead {
   /** Au-delà de `BRIDGE_MAX_AGE_MS`, une valeur vive est périmée : C.013. */
   stale: boolean;
   /**
-   * Le compte suivi au pont, et comment il a été reconnu (`matchAccount`). La garde ne lit le latent que d'un nom
-   * exact : reconnu par le seul nom replié, son latent n'entre ni dans la garde ni dans ces bornes, et la provenance le dit.
+   * Le compte suivi au pont, et comment il a été reconnu (`matchAccount`) : nom exact, sinon replié. Depuis A18, la garde
+   * lit le latent de l'un comme de l'autre, et ces bornes aussi ; la provenance dit lequel.
    */
   bridgeAccount: AccountMatch | null;
   /** Le latent du pont entre dans la perte du jour et la marge. */
@@ -280,10 +280,18 @@ export interface DayBornes {
 
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-/** Latent du compte suivi ('' = tous) d'après le pont vivant, lu comme la garde (`trackedPlan`, `liveUnrealized`) : nom exact. */
+/** Le compte suivi au pont, lu comme la garde (`liveAccounts`, A18) : le nom exact d'abord, sinon le nom replié. */
+function trackedRows(replay: BornesReplay, live: BornesLive): BornesLive['accounts'] {
+  if (!replay.account) return live.accounts;
+  const match = matchAccount(live.accounts.map((row) => row.name), replay.account);
+  const row = match ? live.accounts.find((r) => r.name === match.name) : undefined;
+  return row ? [row] : [];
+}
+
+/** Latent du compte suivi ('' = tous) d'après le pont vivant, lu comme la garde (`trackedPlan`, `liveUnrealized`). */
 function unrealizedOf(replay: BornesReplay, live: BornesLive): number {
   if (live.link !== 'live') return 0;
-  return live.accounts.filter((row) => !replay.account || row.name === replay.account).reduce((sum, row) => sum + (finite(row.unrealizedPnl) ? row.unrealizedPnl : 0), 0);
+  return trackedRows(replay, live).reduce((sum, row) => sum + (finite(row.unrealizedPnl) ? row.unrealizedPnl : 0), 0);
 }
 
 function readDay(replay: BornesReplay, live: BornesLive): DayRead {
@@ -292,7 +300,7 @@ function readDay(replay: BornesReplay, live: BornesLive): DayRead {
   const at = finite(live.accountsAt) ? live.accountsAt : null;
   const ageMs = isLive && at !== null ? Math.max(0, live.now - at) : null;
   const bridgeAccount = replay.account ? matchAccount(live.accounts.map((row) => row.name), replay.account) : null;
-  const unrealizedRead = isLive && (!replay.account || bridgeAccount?.by === 'exact');
+  const unrealizedRead = isLive && (!replay.account || bridgeAccount !== null);
   const base = { tradingDay, ageMs, bridgeAccount, unrealizedRead };
   if (isLive || replay.hasDay(tradingDay)) return { ...base, key: tradingDay, today: true, live: isLive, stale: isLive && (ageMs === null || ageMs > BRIDGE_MAX_AGE_MS) };
   return { ...base, key: replay.lastDay, today: false, live: false, ageMs: null, stale: false };

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { DeskEventKind } from '@/engine/agent/catalog';
 import { DeskEventLog, dueCatalysts, fillData, linkTransition, orderData, propBufferAlert, propLiveBuffer, type DeskEvent, type PropBufferInput } from '@/engine/agent/events';
 import { dailyLossAlert, ThresholdWatch, type DailyLossInput } from '@/engine/agent/events';
-import { sameAccount } from '@/engine/accounts';
+import { matchAccount, sameAccount } from '@/engine/accounts';
 import { AGENT_TRADER_RULES, type AgentTraderRuleBlock } from '@/engine/agent/orders';
 import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, majorCatalysts, tradingDayNow, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
@@ -105,21 +105,18 @@ function propWatcher(): { check: () => void; dispose: () => void } {
   };
 }
 
-/** Nom de compte replié, comme le process principal le lit : casse et espaces ignorés (`heldPosition`, electron/agent-orders.ts). */
-const foldAccountName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
-
 /**
  * Comptes du pont vivant que désigne `account` ('' = tous) ; aucun hors pont. Le nom exact d'abord, sinon le nom
- * replié : la règle de `heldPosition` dans le process principal, pour que la marge et la perte du jour transmises à
- * la garde portent le latent du compte qu'elle juge (A18).
+ * replié (`matchAccount`) : la règle de `heldPosition` dans le process principal, pour que la marge et la perte du jour
+ * transmises à la garde portent le latent du compte qu'elle juge (A18). Les bornes du jour lisent de même.
  */
 function liveAccounts(account: string): NtBridgeStatus['accounts'] {
   const nt = useBridge.getState().nt;
   if (nt?.link !== 'live') return [];
   if (!account) return nt.accounts;
-  const folded = foldAccountName(account);
-  const match = nt.accounts.find((a) => a.name === account) ?? nt.accounts.find((a) => foldAccountName(a.name) === folded);
-  return match ? [match] : [];
+  const match = matchAccount(nt.accounts.map((a) => a.name), account);
+  const row = match ? nt.accounts.find((a) => a.name === match.name) : undefined;
+  return row ? [row] : [];
 }
 
 /** Latent du compte suivi ('' = tous), d'après le pont vivant ; 0 hors pont. */

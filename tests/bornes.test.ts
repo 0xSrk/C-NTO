@@ -75,11 +75,14 @@ function bornesFromStores(now = NOW): DayBornes {
   return dayBornes(replay, live);
 }
 
-/** Le latent que lit la garde (`trackedPlan`, `liveUnrealized`) : pont vivant, nom exact du compte suivi, ou tous. */
+/** Le latent que lit la garde (`trackedPlan`, `liveUnrealized`, A18) : pont vivant, compte suivi au nom exact sinon replié, ou tous. */
 function guardUnrealized(planAccount: string): number {
   const status = useBridge.getState().nt;
   if (status?.link !== 'live') return 0;
-  return status.accounts.filter((a) => !planAccount || a.name === planAccount).reduce((sum, a) => sum + a.unrealizedPnl, 0);
+  if (!planAccount) return status.accounts.reduce((sum, a) => sum + a.unrealizedPnl, 0);
+  const fold = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+  const row = status.accounts.find((a) => a.name === planAccount) ?? status.accounts.find((a) => fold(a.name) === fold(planAccount));
+  return row?.unrealizedPnl ?? 0;
 }
 
 function bench(state: 'offline' | 'warn' | 'breach' | 'kill', planAccount = APEX) {
@@ -152,14 +155,18 @@ describe('OROS5.11 · valeurs croisées avec la garde (trackedPropShare), K.04 e
     expect(bornesFromStores().day).toMatchObject({ ageMs: BRIDGE_MAX_AGE_MS + 1, stale: true });
   });
 
-  it('provenance : un compte du pont reconnu par le seul nom replié n’entre pas dans le latent, comme pour la garde', () => {
+  it('provenance : un compte du pont reconnu par le seul nom replié entre dans le latent, comme pour la garde (A18)', () => {
     useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: 'apex-50', planAccount: 'SimApex1', traderRules: RULES } });
     useJournal.setState({ sessions: [session('a', TODAY, -100, 1, 'SimApex1')], trades: [] });
     useBridge.setState({ nt: nt({}, { SIMAPEX1: -500 }) });
     const b = bornesFromStores();
-    expect(b.day).toMatchObject({ bridgeAccount: { name: 'SIMAPEX1', by: 'folded' }, unrealizedRead: false });
+    expect(b.day).toMatchObject({ bridgeAccount: { name: 'SIMAPEX1', by: 'folded' }, unrealizedRead: true });
     expect(b.margin.share!).toBeCloseTo(trackedPropShare('SimApex1')!, 12);
-    expect(b.loss.value).toBe(100);
+    expect(b.loss.value).toBe(600);
+    // Le nom exact passe d'abord, comme pour la garde : un compte replié voisin ne s'y ajoute pas.
+    useBridge.setState({ nt: nt({}, { SIMAPEX1: -500, SimApex1: -50 }) });
+    expect(bornesFromStores().day).toMatchObject({ bridgeAccount: { name: 'SimApex1', by: 'exact' }, unrealizedRead: true });
+    expect(bornesFromStores().loss.value).toBe(150);
     useBridge.setState({ nt: nt({}, { SimApex1: -500 }) });
     expect(bornesFromStores().day).toMatchObject({ bridgeAccount: { name: 'SimApex1', by: 'exact' }, unrealizedRead: true });
     expect(bornesFromStores().loss.value).toBe(600);
