@@ -1040,10 +1040,14 @@
   --k: var(--text-0);
   --p: var(--bg-0);
 }
-/* La cartouche SK-SIG-3 : le seul rouge de la bande (.skl.is-signal). */
+/* C.123, le cercle barré du niveau 3, par la primitive Signal (classe sig-l3) : avec les filets, le seul rouge de la
+   bande (Système 5, décision 8 de l'ADMIN). La cartouche SK-SIG-3 et la plaque critique figée en anglais sont sorties. */
 .bandSignal {
-  width: 85px;
-  height: 46px;
+  flex: none;
+}
+.bandSignal > span {
+  width: 28px;
+  height: 28px;
 }
 .bandText {
   display: flex;
@@ -1072,11 +1076,60 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* La plaque critique : ce qui est fermé, et jusqu'à quand. */
-.bandPlate {
-  width: 118px;
-  height: 54px;
+/* Le rapport de coupure, à droite, derrière un filet : le geste qui reste à faire en tête, à l'ivoire, marqué de C.042
+   (ce qui n'a pas eu lieu, sans rouge) ; puis les ordres d'aplatir et n / N, au gris du sous-titre. */
+.bandReport {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
   margin-left: auto;
+  padding-left: 18px;
+  border-left: 1px solid var(--signal-line);
+}
+.bandReport p {
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bandGesture {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-0);
+  --k: var(--text-0);
+}
+.bandGesture > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bandGesture b {
+  font-weight: 600;
+}
+.bandRefused {
+  width: 14px;
+  height: 14px;
+}
+.bandCut {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.bandCut b {
+  font-weight: 600;
+  color: var(--text-1);
 }
 
 .pending .main { visibility: hidden; }

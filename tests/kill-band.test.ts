@@ -6,10 +6,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { KillBand } from '@/app/KillBand';
 import { killEngaged, useKillLatch } from '@/app/killState';
 import { Shell } from '@/app/Shell';
+import { useI18n } from '@/i18n';
 import type { NtBridgeStatus } from '@/lib/desk';
-import { useBridge } from '@/store/bridge';
+import { useBridge, type LastKill } from '@/store/bridge';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -33,8 +35,9 @@ afterEach(() => {
   host?.remove();
   root = null;
   host = null;
-  useBridge.setState({ nt: null });
+  useBridge.setState({ nt: null, lastKill: null });
   useKillLatch.setState({ engaged: false });
+  useI18n.setState({ locale: 'fr' });
 });
 
 function mountShell() {
@@ -96,5 +99,135 @@ describe('OROS3.1 bande du kill switch', () => {
     expect(look).toMatch(/grid-area: band/);
     // niveau 3 : jamais animée
     expect(look).not.toMatch(/animation|transition/);
+  });
+});
+
+/** 14:32:07 à New York le 2 novembre 2026 (heure normale de l'Est, UTC−5). */
+const CUT_AT = Date.UTC(2026, 10, 2, 19, 32, 7);
+const cut = (patch: Partial<LastKill> = {}): LastKill => ({
+  at: CUT_AT,
+  accounts: ['Sim101', 'SimApex2'],
+  sent: true,
+  results: [
+    { account: 'Sim101', ok: true, closed: 1 },
+    { account: 'SimApex2', ok: false, error: 'délai dépassé' },
+  ],
+  ...patch,
+});
+function mountBand(report: LastKill | null) {
+  useBridge.setState({ lastKill: report });
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => root!.render(createElement(KillBand)));
+  return host.querySelector<HTMLElement>('[role="alert"]')!;
+}
+function unmountBand() {
+  act(() => root?.unmount());
+  host?.remove();
+  root = null;
+  host = null;
+}
+/** Les lignes du rapport de coupure, dans l'ordre du document. */
+const reportLines = (alert: HTMLElement) => [...alert.querySelectorAll<HTMLElement>('[data-kill]')].map((node) => [node.dataset.kill, node.textContent ?? ''] as const);
+
+describe('OROS5.19 le rapport de coupure se lit dans l’ordre de l’action (décision 8)', () => {
+  it('le compte qui demande un geste en tête, à l’ivoire, avec C.042 ; puis les ordres d’aplatir partis à hh:mm:ss et n / N', () => {
+    const alert = mountBand(cut());
+    const lines = reportLines(alert);
+    expect(lines.map(([kind]) => kind)).toEqual(['gesture', 'cut']);
+    expect(lines[0]![1]).toBe('SimApex2 sans réponse · aplatir dans NinjaTrader');
+    expect(lines[1]![1]).toBe('Ordres d’aplatir partis à 14:32:07 ET · 1 / 2 aplatis');
+    // C.042, la croix creuse : ce qui n'a pas eu lieu, sans rouge
+    const gesture = alert.querySelector<HTMLElement>('[data-kill="gesture"]')!;
+    const refused = gesture.querySelector('svg.skg-42');
+    expect(refused).not.toBeNull();
+    expect(refused!.closest('[role="img"]')?.getAttribute('aria-label')).toBe('non aplati');
+    expect(gesture.querySelector('b')?.textContent).toBe('SimApex2');
+    // après le titre de la bande, jamais avant
+    const title = alert.querySelector('b')!;
+    expect(title.textContent).toBe('Kill switch engagé');
+    expect(title.compareDocumentPosition(gesture) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // à l'ivoire, comme le titre ; la ligne des ordres reste au gris du sous-titre
+    const css = readFileSync('src/app/shell.module.css', 'utf8').replace(/\r\n/g, '\n');
+    const rule = (selector: string) => {
+      const at = css.search(new RegExp(`^${selector.replace(/[.]/g, '\\.')} \\{`, 'm'));
+      return at < 0 ? '' : css.slice(at, css.indexOf('}', at));
+    };
+    expect(rule('.bandGesture')).toMatch(/(^|[\s;{])color: var\(--text-0\)/);
+    expect(rule('.bandGesture')).toMatch(/--k: var\(--text-0\)/);
+    expect(rule('.bandCut')).toMatch(/(^|[\s;{])color: var\(--text-2\)/);
+    expect(rule('.bandReport')).not.toMatch(/animation|transition/);
+  });
+
+  it('chaque compte qui reste à aplatir est nommé, groupé par raison ; tout aplati, aucun geste n’est demandé', () => {
+    const three = cut({
+      accounts: ['Sim101', 'SimApex2', 'SimApex3', 'Sim104'],
+      results: [
+        { account: 'Sim101', ok: true, closed: 2 },
+        { account: 'SimApex2', ok: false, error: 'délai dépassé' },
+        { account: 'SimApex3', ok: false, error: 'délai dépassé' },
+        { account: 'Sim104', ok: false, error: 'compte non connecté' },
+      ],
+    });
+    expect(reportLines(mountBand(three))).toEqual([
+      ['gesture', 'SimApex2, SimApex3 sans réponse · Sim104 compte non connecté · aplatir dans NinjaTrader'],
+      ['cut', 'Ordres d’aplatir partis à 14:32:07 ET · 1 / 4 aplatis'],
+    ]);
+    unmountBand();
+    const done = cut({ results: [{ account: 'Sim101', ok: true, closed: 1 }, { account: 'SimApex2', ok: true, closed: 0 }] });
+    expect(reportLines(mountBand(done))).toEqual([['cut', 'Ordres d’aplatir partis à 14:32:07 ET · 2 / 2 aplatis']]);
+  });
+
+  it('pont hors ligne : aucun ordre n’est dit parti ; aucun compte connu : la bande renvoie vers NinjaTrader', () => {
+    const offline = cut({ accounts: ['SimApex2'], sent: false, results: [{ account: 'SimApex2', ok: false, error: 'pont indisponible' }] });
+    expect(reportLines(mountBand(offline))).toEqual([
+      ['gesture', 'SimApex2 pont hors ligne · aplatir dans NinjaTrader'],
+      ['cut', 'Aucun ordre d’aplatir parti · coupure à 14:32:07 ET · 0 / 1 aplatis'],
+    ]);
+    unmountBand();
+    const none = cut({ accounts: [], results: [] });
+    expect(reportLines(mountBand(none))).toEqual([
+      ['gesture', 'Aucun compte autorisé connu du pont · vérifier dans NinjaTrader'],
+      ['cut', 'Aucun ordre d’aplatir parti · coupure à 14:32:07 ET'],
+    ]);
+    unmountBand();
+    // une raison que le desk ne connaît pas se lit telle que l'AddOn l'a dite
+    const raw = cut({ results: [{ account: 'Sim101', ok: true, closed: 1 }, { account: 'SimApex2', ok: false, error: 'Account locked' }] });
+    expect(reportLines(mountBand(raw))[0]).toEqual(['gesture', 'SimApex2 Account locked · aplatir dans NinjaTrader']);
+  });
+
+  it('sans rapport encore : la bande dit la coupure et n’invente aucun compte', () => {
+    const alert = mountBand(null);
+    expect(alert.textContent).toContain('Kill switch engagé');
+    expect(reportLines(alert)).toEqual([]);
+    expect(alert.querySelector('svg.skg-42')).toBeNull();
+  });
+
+  it('trois langues', () => {
+    const said = (['fr', 'en', 'es'] as const).map((locale) => {
+      useI18n.setState({ locale });
+      const lines = reportLines(mountBand(cut())).map(([, text]) => text);
+      const title = host!.querySelector('[role="alert"] b')?.textContent;
+      unmountBand();
+      return [title, ...lines];
+    });
+    expect(said).toEqual([
+      ['Kill switch engagé', 'SimApex2 sans réponse · aplatir dans NinjaTrader', 'Ordres d’aplatir partis à 14:32:07 ET · 1 / 2 aplatis'],
+      ['Kill switch engaged', 'SimApex2 no answer · flatten in NinjaTrader', 'Flatten orders sent at 14:32:07 ET · 1 / 2 flattened'],
+      ['Kill switch activado', 'SimApex2 sin respuesta · cerrar en NinjaTrader', 'Órdenes de cierre enviadas a las 14:32:07 ET · 1 / 2 cerradas'],
+    ]);
+  });
+
+  it('la soumission reste fermée jusqu’au redémarrage : le rapport ne rouvre rien, la bande reste', () => {
+    useBridge.setState({ nt: status({ ordersOpen: false }) });
+    const el = mountShell();
+    act(() => useBridge.setState({ lastKill: cut() }));
+    // le pont revient, canal toujours fermé : la bande reste et garde son rapport
+    act(() => useBridge.setState({ nt: status({ link: 'live', ordersOpen: false, ordersClosed: true }) }));
+    const alert = band(el);
+    expect(alert).not.toBeNull();
+    expect(alert!.textContent).toContain('Soumission fermée jusqu’au redémarrage du desk');
+    expect(reportLines(alert!).map(([kind]) => kind)).toEqual(['gesture', 'cut']);
   });
 });

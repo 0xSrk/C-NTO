@@ -122,24 +122,32 @@ describe('OROS2.10 cartouches du châssis', () => {
     expect(rule('.moduleActions')).toMatch(/flex-wrap: wrap;[^}]*justify-content: flex-end;[^}]*margin-left: auto;/);
   });
 
-  it('la bande du kill switch : cartouche SK-SIG-3 rouge, titre, sous-titre, plaque critique à droite, 66 px', () => {
+  it('OROS5.19 la bande du kill switch : C.123 par la primitive Signal, titre, sous-titre, filet --signal ; ni cartouche SK-SIG-3 ni plaque critique (décision 8)', () => {
     const el = mount(createElement(KillBand));
     const band = el.querySelector<HTMLElement>('[role="alert"]');
     expect(band).not.toBeNull();
-    const triangle = band!.querySelector('svg.lbl-triangle');
-    expect(triangle?.getAttribute('class')).toMatch(/\bis-signal\b/);
+    // la dernière étiquette sort : ni la cartouche SK-SIG-3, ni la plaque critique figée en anglais
+    expect(band!.querySelector('svg.skl, svg.lbl-triangle')).toBeNull();
+    expect(band!.querySelector('svg.mg, svg.mg-critical')).toBeNull();
+    expect(band!.textContent).not.toMatch(/SUBMISSION CLOSED|ORDERS: HALTED|CRITICAL|SK-SIG-3/);
+    const killSource = readFileSync('src/app/KillBand.tsx', 'utf8');
+    expect(killSource).not.toMatch(/<Cartouche\b|<Plate\b|signal3|critical/);
+    // C.123, le cercle barré du niveau 3, par la primitive Signal : son seul rouge, avec le filet
+    const signal = band!.querySelector<HTMLElement>('[data-level="3"]');
+    expect(signal?.classList.contains('sig-l3')).toBe(true);
+    expect(signal!.querySelector('svg.skg-123')).not.toBeNull();
     expect(band!.textContent).toContain('Kill switch engagé');
     expect(band!.textContent).toContain('Soumission fermée jusqu’au redémarrage du desk');
     expect(band!.textContent).toContain('Ctrl+Shift+K');
-    const plate = band!.querySelector('svg.mg-critical');
-    expect(plate).not.toBeNull();
-    // l'ordre de la bande : signal, texte, plaque
-    expect(triangle!.compareDocumentPosition(plate!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // l'ordre de la bande : le signal, puis le texte
+    expect(signal!.compareDocumentPosition(band!.querySelector('b')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const look = rule('.band');
     expect(look).toMatch(/height: 66px/);
     expect(look).toMatch(/border-top: 2px solid var\(--signal\)/);
     expect(look).toMatch(/--k: var\(--text-0\)/);
-    expect(rule('.bandPlate')).toMatch(/margin-left: auto/);
+    // le cercle barré à la mesure de la bande, plus la boîte de 85 × 46 de la cartouche ; la plaque n'a plus de règle
+    expect(rule('.bandSignal > span')).toMatch(/width: 28px;[^}]*height: 28px;/);
+    expect(rule('.bandPlate')).toBe('');
     // le rouge marque, il n'écrit pas : le texte de la bande reste ivoire
     expect(look).toMatch(/(^|[\s;{])color: var\(--text-0\)/);
   });

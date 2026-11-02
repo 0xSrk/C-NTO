@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Bar } from '@/engine/bars';
-import { killSwitchSummary } from '@/engine/execution/killSwitch';
+import { killSwitchSummary, type KillSwitchReport } from '@/engine/execution/killSwitch';
 import { FORMAT_LABEL } from '@/engine/import';
 import { QuoteBook } from '@/engine/marketdata/quotes';
 import { tr } from '@/i18n';
@@ -24,11 +24,16 @@ export interface BridgeLogEntry {
   error?: string;
 }
 
+/** Le dernier rapport de coupure du kill switch, daté du départ des ordres d'aplatir (epoch ms). Lecture seule. */
+export type LastKill = KillSwitchReport & { at: number };
+
 interface BridgeState {
   ready: boolean;
   available: boolean;
   status: BridgeStatus | null;
   nt: NtBridgeStatus | null;
+  /** Rapport de la dernière coupure : la bande de niveau 3 le lit ; `null` tant qu'aucun n'est connu. */
+  lastKill: LastKill | null;
   log: BridgeLogEntry[];
   busy: boolean;
   /** Vrai si l'écriture de bridge.json n'a pas pu restreindre les ACL Windows. */
@@ -80,6 +85,7 @@ export const useBridge = create<BridgeState>((set, get) => ({
   available: !!desk,
   status: null,
   nt: null,
+  lastKill: null,
   log: [],
   busy: false,
   aclUnrestricted: false,
@@ -251,8 +257,10 @@ export const useBridge = create<BridgeState>((set, get) => ({
   async killSwitch() {
     const api = desk?.ntbridge;
     if (!api) return;
+    // Les ordres d'aplatir partent dès que le process principal reçoit l'appel : le rapport est daté de cet instant.
+    const at = Date.now();
     const report = await api.killSwitch();
-    set({ nt: (await api.status()) ?? get().nt });
+    set({ nt: (await api.status()) ?? get().nt, lastKill: { ...report, at } });
     const { tone, text } = killSwitchSummary(report);
     useUi.getState().toast(text, tone);
   },

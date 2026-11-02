@@ -20,7 +20,7 @@ export const TYPE_GLYPH = {
 
 /** Les états et les gardes qu'un glyphe dit, chacun le sien ; le nom du glyphe dit le sens. */
 export const STATE_GLYPHS = [
-  'refused', // C.042 : refus de la garde ou de l'opérateur, hypothèse rejetée — sans rouge
+  'refused', // C.042 : ce qui n'a pas eu lieu — refus de la garde ou de l'opérateur, hypothèse rejetée, compte que le kill switch n'a pas aplati — sans rouge
   'stale', // C.013 : une valeur vive lue au-delà de son âge
   'partial', // C.054 : une source incomplète
   'drift', // C.024 : un écart de discipline
