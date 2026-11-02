@@ -3,7 +3,7 @@ import { COMPONENTS, GLYPH_ID, type GlyphName } from '@/design/Micro';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
 import e from '@/design/etat.module.css';
 import { cx, Montant } from '@/design/primitives';
-import { boundCircles, bounds, egoBox, egoFrame, egoLayout, rScale, tradeBeads, type EgoNode, type EgoRay, type RDomain } from '@/engine/ontology';
+import { boundCircles, bounds, egoBox, egoFrame, egoLayout, rScale, tradeBeads, type EgoNode, type EgoRay, type Link, type LinkAuthor, type RDomain } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtRatio, fmtUsd } from '@/lib/format';
 import type { LightProps } from './useHoverLight';
@@ -482,5 +482,25 @@ export function Mirror({ inside, outside, leftTitle, rightTitle, leftSample, rig
         <span className={s.mirrorR}>{rightSample}</span>
       </div>
     </div>
+  );
+}
+
+/* ─── L'auteur d'un lien (OROS5.30) ─────────────────────────────────────────────────────────────────────────────── */
+
+/** Qui a écrit un lien : le moteur (structurel, hypothèse), vous (affirmé, rejeté), ou l'agent. */
+export function authorWord(by: LinkAuthor): string {
+  if (by === 'moteur') return tr('moteur', 'engine', 'motor');
+  if (by === 'agent') return tr('agent', 'agent', 'agente');
+  return tr('vous', 'you', 'usted');
+}
+
+/** L'auteur d'un lien sur sa ligne, et, pour une hypothèse, son score : le genre est dit par le trait de la ligne. */
+export function LinkMeta({ link }: { link: Pick<Link, 'by' | 'kind' | 'score'> }) {
+  useI18n((st) => st.locale);
+  return (
+    <span className={s.linkMeta} data-author={link.by}>
+      {link.kind === 'hypothese' && link.score != null ? <span className={s.linkScore}>{fmtRatio(link.score, 2)}</span> : null}
+      {authorWord(link.by)}
+    </span>
   );
 }

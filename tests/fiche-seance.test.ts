@@ -354,12 +354,13 @@ describe('OROS5.26 la fiche Séance', () => {
     useLinks.setState({ promote: writes.promote, reject: writes.reject, affirm: writes.affirm, remove: writes.remove, recompute: writes.recompute });
     mount(createElement(ObjectDrawer));
     open();
-    // chaque bouton de la fiche, sauf la fermeture et la copie : chacun ouvre un objet ou un module
-    const buttons = [...drawer().querySelectorAll<HTMLElement>('button, g[role="button"]')].filter((b) => !['close', 'copy'].includes(b.dataset.action ?? ''));
-    expect(buttons.length).toBeGreaterThan(8);
-    for (const index of buttons.keys()) {
+    // chaque bouton de la fiche, sauf la fermeture, la copie et la décision d'une hypothèse (OROS5.30, le seul chemin
+    // d'écriture, par links.promote et links.reject) : chacun ouvre un objet ou un module
+    const navigation = () => [...drawer().querySelectorAll<HTMLElement>('button, g[role="button"]')].filter((b) => !['close', 'copy'].includes(b.dataset.action ?? '') && !b.dataset.decide);
+    expect(navigation().length).toBeGreaterThan(8);
+    for (const index of navigation().keys()) {
       act(() => void useObjects.getState().openObject(S1, { siblings: [S1, S2] }));
-      act(() => void [...drawer().querySelectorAll<HTMLElement>('button, g[role="button"]')].filter((b) => !['close', 'copy'].includes(b.dataset.action ?? ''))[index]!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+      act(() => void navigation()[index]!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
       act(() => useUi.setState({ tab: 'metrique' }));
     }
     for (const [name, fn] of Object.entries(writes)) expect(fn, name).not.toHaveBeenCalled();

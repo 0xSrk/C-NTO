@@ -208,9 +208,13 @@ describe('OROS5.16 la fiche, troisième colonne du châssis', () => {
     expect(groups[0]!.textContent).toContain('de la séance');
     expect(groups[1]!.textContent).toContain('≈ Inflation CPI · 14.10');
     // le trait de chaque lien vient de la table d'états
-    const marks = [...drawer.querySelectorAll<HTMLElement>('[data-link] [data-etat]')];
+    const marks = [...drawer.querySelectorAll<HTMLElement>('[data-group] [data-link] [data-etat]')];
     expect(marks).toHaveLength(3);
     for (const mark of marks) expect(mark.classList.contains(e.plein!)).toBe(true);
+    // le rejeté est compté et masqué (OROS5.30), au filet graphite
+    const rejected = drawer.querySelector<HTMLDetailsElement>('details[data-rejected="1"]')!;
+    expect(rejected.open).toBe(false);
+    expect(rejected.querySelector('[data-etat]')!.classList.contains(e.eteint!)).toBe(true);
     // la provenance : la source de la séance, le genre et l'auteur des liens (le rejeté compris)
     const prov = drawer.querySelector('[data-section="provenance"]')!.textContent!;
     expect(prov).toContain('NinjaTrader');

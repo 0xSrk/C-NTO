@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { generateDemoJournal } from '@/engine/demo';
+import { generateDemoJournal, generateDemoOntology } from '@/engine/demo';
 import { DEFAULT_FUTURE } from '@/engine/instruments';
 import { CSV_WORKER_MIN_LINES, csvLineCount, detectFormat, importCsvAuto, type ImportOptions, type ImportResult } from '@/engine/import';
 import { importExecutionsCsv, openLotKey, type OpenLot } from '@/engine/import/executions';
@@ -13,6 +13,7 @@ import { stampTradeTags } from '@/engine/tradeUnits';
 import { uid } from '@/lib/id';
 import { db, type ImportedExecution, type StoredOpenLot } from './db';
 import { withJournalLock } from './lock';
+import { useNotes } from './notes';
 import { scheduleOntologyRecompute } from './ontology-schedule';
 import { useUi } from './ui';
 
@@ -77,11 +78,16 @@ export const useJournal = create<JournalState>((set, get) => ({
     const count = Math.min(140, room);
     if (count <= 0) return 0;
     const { sessions, trades } = generateDemoJournal({ sessions: count });
-    await db.transaction('rw', [db.sessions, db.trades], async () => {
+    // Décision 14 : deux notes que le moteur rapproche (une hypothèse) et un lien écrit par l'agent ; aucun ordre.
+    const ontology = generateDemoOntology({ sessions });
+    await db.transaction('rw', [db.sessions, db.trades, db.notes, db.links], async () => {
       await db.sessions.bulkAdd(sessions);
       await db.trades.bulkAdd(trades);
+      await db.notes.bulkPut(ontology.notes);
+      await db.links.bulkPut(ontology.links);
     });
     await get().load();
+    await useNotes.getState().load();
     scheduleOntologyRecompute();
     return sessions.length;
   },

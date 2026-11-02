@@ -3,6 +3,7 @@ import { gaussian, mulberry32 } from '@/lib/rng';
 import { dateKeyLocal, zonedToUtc, ET_ZONE } from '@/lib/time';
 import { summarizeTrades } from './metrics';
 import { getInstrument } from './instruments';
+import { linkId, type Link } from './ontology/schema';
 import type { Instrument, Session, Trade } from './types';
 
 const STRATEGIES = ['ORB 15m', 'VWAP reclaim', 'Liquidity sweep', 'Trend pullback', 'Range fade'];
@@ -110,4 +111,51 @@ export function generateDemoJournal(opts: { sessions?: number; seed?: number; en
     trades.push(...dayTrades);
   }
   return { sessions, trades };
+}
+
+/** Une note du jeu de démonstration, telle que le coffre de notes la range. */
+export interface DemoNote {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  /** `agent` : écrite par un agent IA, non adoptée. */
+  by?: 'agent';
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Ce que le jeu de démonstration ajoute à l'ontologie (OROS5.30, décision 14 de l'ADMIN) : deux notes que le moteur
+ * rapproche — l'hypothèse naît de la similarité du moteur au recalcul, elle n'est pas posée à la main — et un lien écrit
+ * par l'agent, de sa lecture vers la dernière séance en dérive. Aucune trace d'ordre : ni proposition, ni garde, ni
+ * dialogue. Pur et déterministe à `now` près ; le journal n'est pas touché (son tirage reste celui de
+ * `generateDemoJournal`).
+ */
+export function generateDemoOntology(journal: { sessions: readonly Session[] }, now = Date.now()): { notes: DemoNote[]; links: Link[] } {
+  const rule: DemoNote = {
+    id: uid('n'),
+    title: 'Règle anti-revanche',
+    body: 'Après une perte, aucune entrée pendant vingt minutes. La revanche après une perte et le sizing relevé font les séances en dérive.\n\n#discipline',
+    tags: ['discipline'],
+    createdAt: now - 2,
+    updatedAt: now - 2,
+  };
+  const reading: DemoNote = {
+    id: uid('n'),
+    title: 'Revanche après une perte : lecture de l’agent',
+    body: 'Les séances en dérive commencent par une entrée de revanche après une perte, puis un sizing relevé. La règle des vingt minutes les aurait évitées.\n\n#discipline',
+    tags: ['discipline'],
+    by: 'agent',
+    createdAt: now - 1,
+    updatedAt: now - 1,
+  };
+  const drifted = [...journal.sessions].filter((s) => s.tags.includes('sur-trading')).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const links: Link[] = [];
+  if (drifted) {
+    const from = { type: 'note' as const, id: reading.id };
+    const to = { type: 'session' as const, id: drifted.id };
+    links.push({ id: linkId(from, 'relie', to), from, to, predicate: 'relie', kind: 'affirme', by: 'agent', createdAt: now, updatedAt: now });
+  }
+  return { notes: [rule, reading], links };
 }

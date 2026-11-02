@@ -8,6 +8,7 @@ import { tr, useI18n } from '@/i18n';
 import { publicationInstant } from '@/lib/calendarMarks';
 import { fmtInt, plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
+import { useLinks } from '@/store/links';
 import { previousObject, useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { matchShortcut } from '../shortcuts';
@@ -19,6 +20,7 @@ import { NoteFiche } from './NoteFiche';
 import { SessionFiche } from './SessionFiche';
 import { StrategyFiche } from './StrategyFiche';
 import { TradeFiche } from './TradeFiche';
+import { LinkMeta } from './Instruments';
 import type { LightProps } from './useHoverLight';
 import s from './fiche.module.css';
 
@@ -244,10 +246,16 @@ export function LinksByPredicate({
 }) {
   useI18n((st) => st.locale);
   const openObject = useObjects((o) => o.openObject);
+  // Le seul chemin d'écriture de la fiche (décision 12) : Promouvoir ou Rejeter une hypothèse, par le store des liens.
+  const promote = useLinks((l) => l.promote);
+  const reject = useLinks((l) => l.reject);
   const neighbors = useMemo(() => neighborsOf(target, ctx.links), [target, ctx.links]);
   const groups = useMemo(() => orderGroups(groupNeighbors(neighbors), (ref) => objectInstant(ref, ctx)), [neighbors, ctx]);
   const live = groups.filter((group) => group.count > 0);
-  if (live.length === 0) return <p className={s.empty}>{tr('Aucun lien.', 'No link.', 'Ningún enlace.')}</p>;
+  const rejected = useMemo(() => neighbors.filter((n) => n.link.kind === 'rejete'), [neighbors]);
+  const open = (n: Neighbor) => openObject(n.ref, { jump: true });
+  const name = (n: Neighbor) => objectLabel(n.ref, ctx, now);
+  if (live.length === 0 && rejected.length === 0) return <p className={s.empty}>{tr('Aucun lien.', 'No link.', 'Ningún enlace.')}</p>;
   return (
     <div className={s.links}>
       {live.map((group) => (
@@ -262,20 +270,58 @@ export function LinksByPredicate({
           {group.items.map((n) => {
             const own = renderItem?.(n, group);
             if (own !== undefined) return own;
-            const label = objectLabel(n.ref, ctx, now);
-            return (
-              <button key={n.link.id} type="button" className={s.row} data-link={n.link.kind} onClick={() => openObject(n.ref, { jump: true })} title={tr('Ouvrir sa fiche', 'Open its record', 'Abrir su ficha')} {...light?.(entityKey(n.ref))}>
+            const label = name(n);
+            const row = (
+              <button key={n.link.id} type="button" className={cx(s.row, s.linkRow)} data-link={n.link.kind} data-by={n.link.by} onClick={() => open(n)} title={tr('Ouvrir sa fiche', 'Open its record', 'Abrir su ficha')} {...light?.(entityKey(n.ref))}>
                 <EtatMark stroke={LINK_ETAT[n.link.kind]} />
                 <Glyph name={TYPE_GLYPH[n.ref.type]} className={s.rowGlyph} />
                 <span className={cx(s.rowMain, !label && s.rowMissing)}>{label ?? tr('Absent du coffre', 'Missing from the vault', 'Ausente de la caja')}</span>
+                <LinkMeta link={n.link} />
                 <span className={s.rowGo} aria-hidden>
                   →
                 </span>
               </button>
             );
+            if (n.link.kind !== 'hypothese') return row;
+            // Une hypothèse se décide ici : Promouvoir l'affirme sous son prédicat, Rejeter la range parmi les rejetées.
+            return (
+              <div key={n.link.id} className={s.hypothesis} data-hypothesis={n.link.id}>
+                {row}
+                <span className={s.decide} role="group" aria-label={tr('Décider de l’hypothèse', 'Decide on the hypothesis', 'Decidir la hipótesis')}>
+                  <button type="button" className={s.decideBtn} data-decide="promote" onClick={() => void promote(n.link.id, n.link.predicate)}>
+                    {tr('Promouvoir', 'Promote', 'Promover')}
+                  </button>
+                  <button type="button" className={s.decideBtn} data-decide="reject" onClick={() => void reject(n.link.id)}>
+                    {tr('Rejeter', 'Reject', 'Rechazar')}
+                  </button>
+                </span>
+              </div>
+            );
           })}
         </div>
       ))}
+      {/* Les hypothèses rejetées ne sont pas des voisins : comptées, masquées par défaut, sous C.042. */}
+      {rejected.length > 0 ? (
+        <details className={s.rejected} data-rejected={rejected.length}>
+          <summary>
+            <Glyph name="refused" className={s.rejectedGlyph} />
+            {plural(rejected.length, tr('lien rejeté', 'rejected link', 'enlace rechazado'), tr('liens rejetés', 'rejected links', 'enlaces rechazados'))} · {tr('masqués', 'hidden', 'ocultos')}
+          </summary>
+          {rejected.map((n) => (
+            <button key={n.link.id} type="button" className={cx(s.row, s.linkRow, s.rowMuted)} data-link="rejete" data-by={n.link.by} onClick={() => open(n)} title={tr('Ouvrir sa fiche', 'Open its record', 'Abrir su ficha')}>
+              <EtatMark stroke={LINK_ETAT.rejete} />
+              <Glyph name={TYPE_GLYPH[n.ref.type]} className={s.rowGlyph} />
+              <span className={s.rowMain}>
+                {predicateLabel(n.link.predicate)} · {name(n) ?? tr('Absent du coffre', 'Missing from the vault', 'Ausente de la caja')}
+              </span>
+              <LinkMeta link={n.link} />
+              <span className={s.rowGo} aria-hidden>
+                →
+              </span>
+            </button>
+          ))}
+        </details>
+      ) : null}
     </div>
   );
 }

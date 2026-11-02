@@ -1096,3 +1096,76 @@
     --k: var(--text-0);
   }
 }
+
+/* ─── L'auteur de chaque lien, et la décision d'une hypothèse (OROS5.30) ───────────────────────────────────────── */
+.linkRow {
+  grid-template-columns: 20px 16px minmax(0, 1fr) auto auto;
+}
+/* Qui a écrit le lien : moteur, vous, agent ; le genre est dit par le trait. */
+.linkMeta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.linkScore {
+  color: var(--ice);
+}
+/* Une hypothèse : sa ligne, puis ses deux décisions, sous elle. */
+.hypothesis {
+  display: flex;
+  flex-direction: column;
+}
+.decide {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0 8px 44px;
+}
+.decideBtn {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--light-line);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+  transition: border-color 260ms var(--ease-out), background-color 260ms var(--ease-out), color 200ms linear;
+}
+.decideBtn:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 1px;
+}
+@media (hover: hover) {
+  .decideBtn:hover {
+    border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+    color: var(--text-0);
+  }
+}
+/* Les liens rejetés : comptés, masqués par défaut, sous C.042. */
+.rejected summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 6px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.rejectedGlyph {
+  width: 14px;
+  height: 14px;
+  --k: var(--text-2);
+}
+.rowMuted {
+  color: var(--text-2);
+}
