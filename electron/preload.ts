@@ -58,6 +58,9 @@ contextBridge.exposeInMainWorld('canto', {
     setMaxContracts: (n: number) => ipcRenderer.invoke('ntbridge:max-contracts', n),
     order: (payload: unknown) => ipcRenderer.invoke('ntbridge:order', payload),
     killSwitch: () => ipcRenderer.invoke('ntbridge:killswitch'),
+    // Le rapport de coupure du kill switch, en lecture seule : redemandé, puis poussé à chaque coupure (raccourci global compris).
+    lastKill: () => ipcRenderer.invoke('ntbridge:last-kill'),
+    onKillReport: (cb: (report: unknown) => void) => subscribe('ntbridge:kill-report', cb),
     orders: () => ipcRenderer.invoke('ntbridge:orders'),
     onOrder: (cb: (change: unknown) => void) => subscribe('ntbridge:order-state', cb),
     onStatus: (cb: (status: unknown) => void) => subscribe('ntbridge:status', cb),

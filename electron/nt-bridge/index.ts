@@ -35,6 +35,18 @@ export interface NtPublicStatus extends NtBridgeStatus {
 
 export const KILL_SWITCH_SHORTCUT = 'CommandOrControl+Shift+K';
 
+/**
+ * Rapport d'une coupure, daté du départ des ordres d'aplatir (epoch ms) : les comptes visés, l'envoi, les réponses de
+ * l'AddOn. Rien d'autre n'y entre, ni jeton ni politique. Le process principal le garde jusqu'au redémarrage, comme le
+ * canal fermé, et le pousse au renderer en lecture seule (`ntbridge:kill-report`, Système 5, décision 8 de l'ADMIN).
+ */
+export interface KillCutReport {
+  at: number;
+  accounts: string[];
+  sent: boolean;
+  results: KillSwitchOutcome[];
+}
+
 export function newSessionToken(): string {
   return randomBytes(18).toString('base64url');
 }
@@ -222,6 +234,7 @@ export class NtBridgeHost {
   private win: BrowserWindow | null = null;
   private fileBridge: NinjaBridge | null = null;
   private exportFolder: () => string;
+  private lastKill: KillCutReport | null = null;
 
   constructor(
     private readonly userDataDir: string,
@@ -378,10 +391,26 @@ export class NtBridgeHost {
     return sent;
   }
 
-  /** Kill switch puis réponses de l'AddOn, pour un message qui ne dit « aplati » que sur confirmation. */
-  async killSwitchReport(): Promise<{ accounts: string[]; sent: boolean; results: KillSwitchOutcome[] }> {
+  /**
+   * Kill switch puis réponses de l'AddOn, pour un message qui ne dit « aplati » que sur confirmation. Le rapport, daté du
+   * départ des ordres d'aplatir, est gardé pour le renderer qui le redemande (`lastKillReport`) et lui est poussé : la
+   * bande de niveau 3 dit alors quel compte reste à aplatir, que la coupure vienne du raccourci global ou du renderer.
+   */
+  async killSwitchReport(): Promise<KillCutReport> {
+    const at = Date.now();
     const { accounts, sent, settled } = this.killSwitch();
-    return { accounts, sent, results: await settled };
+    const report: KillCutReport = { at, accounts, sent, results: await settled };
+    // Deux coupures qui se croisent : seule la plus récente reste le dernier rapport.
+    if (!this.lastKill || this.lastKill.at <= at) {
+      this.lastKill = report;
+      this.send('ntbridge:kill-report', report);
+    }
+    return report;
+  }
+
+  /** Le dernier rapport de coupure (lecture seule) ; `null` avant toute coupure depuis le démarrage du desk. */
+  lastKillReport(): KillCutReport | null {
+    return this.lastKill;
   }
 
   configureCopier(raw: unknown): boolean {

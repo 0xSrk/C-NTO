@@ -546,7 +546,8 @@ app.whenReady().then(() => {
   agentCloud.start();
   void ntBridge.start();
   const shortcut = globalShortcut.register(KILL_SWITCH_SHORTCUT, () => {
-    // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont.
+    // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont, qui garde le rapport et le
+    // pousse au renderer en lecture seule (`ntbridge:kill-report`) : la bande dit quel compte reste à aplatir.
     void ntBridge?.killSwitchReport();
   });
   if (!shortcut) mainLog('warn', `raccourci kill switch non enregistré (${KILL_SWITCH_SHORTCUT})`);
@@ -803,6 +804,8 @@ ipcMain.handle('ntbridge:max-contracts', async (e, n: unknown) => {
 });
 ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
 ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitchReport() : { accounts: [], sent: false, results: [] }));
+// Le dernier rapport de coupure, redemandé par le renderer (chargement, rechargement) : lecture seule, sans argument.
+ipcMain.handle('ntbridge:last-kill', (e) => (trusted(e) ? ntBridge?.lastKillReport() ?? null : null));
 
 ipcMain.handle('copier:status', (e) => (trusted(e) && ntBridge ? ntBridge.copierStatus() : null));
 ipcMain.handle('copier:configure', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.configureCopier(payload) : false));

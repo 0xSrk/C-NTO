@@ -249,6 +249,13 @@ export interface NtBridgeApi {
   setMaxContracts: (n: number) => Promise<NtBridgeStatus | null>;
   order: (payload: { op: 'submit' | 'cancel' | 'flatten'; [key: string]: unknown }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number; closed?: number }>;
   killSwitch: () => Promise<KillSwitchReport>;
+  /**
+   * Dernier rapport de coupure du kill switch, gardé par le process principal (lecture seule) ; `null` avant toute coupure.
+   * Sa forme se valide à la réception (`parseKillReport`, `src/store/bridge.ts`) : le renderer ne le lit qu'à travers elle.
+   */
+  lastKill?: () => Promise<unknown>;
+  /** Rapport d'une coupure, poussé par le process principal dès les réponses de l'AddOn, raccourci global compris. */
+  onKillReport?: (cb: (report: unknown) => void) => () => void;
   onStatus: (cb: (status: NtBridgeStatus) => void) => () => void;
   onExecution: (cb: (payload: NtExecutionPayload) => void) => () => void;
   /** Livre des ordres en cours tenu par le process principal (lecture seule). */
