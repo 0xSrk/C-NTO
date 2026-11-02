@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CalendarEventRow } from '@/engine/calendarEvents';
 import type { Link } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
 import type { Note } from '@/store/db';
@@ -106,7 +105,7 @@ function token(canvas: HTMLCanvasElement, name: string, fallback: string): strin
 }
 
 /** Graphe de force : nœuds = notes, arêtes = liens [[wiki]] et liens typés. */
-export function Graph({ notes, activeId, onOpen, links = [], events = [] }: { notes: Note[]; activeId: string | null; onOpen: (id: string) => void; links?: Link[]; events?: CalendarEventRow[] }) {
+export function Graph({ notes, activeId, onOpen, links = [], events = [] }: { notes: Note[]; activeId: string | null; onOpen: (id: string) => void; links?: Link[]; events?: readonly { id: string; title: string }[] }) {
   useI18n((st) => st.locale);
   const ref = useRef<HTMLCanvasElement>(null);
   const [entities, setEntities] = useState(false);

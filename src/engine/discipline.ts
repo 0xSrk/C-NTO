@@ -306,6 +306,8 @@ export interface MajorCatalyst {
   timeET: string;
   /** Vide = tous les instruments. */
   instruments: string[];
+  /** Date déduite d'une récurrence, pas encore publiée (un estimé, « ≈ ») : la source unique la marque (OROS5.13). */
+  estimated?: boolean;
 }
 
 /** Catalyseurs majeurs avec heure, triés ; un événement sans heure (fenêtre de résultats) n'a pas de fenêtre. */
@@ -315,7 +317,7 @@ export function majorCatalysts(events: readonly CalEvent[], minImpact = CATALYST
     if (e.impact < minImpact) continue;
     const at = catalystInstant(e);
     if (at === null || !e.timeET) continue;
-    out.push({ at, title: e.title, date: e.date, timeET: e.timeET, instruments: e.instruments ?? [] });
+    out.push({ at, title: e.title, date: e.date, timeET: e.timeET, instruments: e.instruments ?? [], estimated: e.estimated });
   }
   return out.sort((a, b) => a.at - b.at);
 }

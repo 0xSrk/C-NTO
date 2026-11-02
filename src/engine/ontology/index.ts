@@ -37,6 +37,6 @@ export { ENTITY_TYPES, LINK_AUTHORS, LINK_KINDS, PREDICATES, canonicalPair, enti
 export type { EntityRef, EntityType, Link, LinkAuthor, LinkKind, Predicate } from './schema';
 export { COSINE_WEIGHT, JACCARD_WEIGHT, SUGGEST_MIN, SUGGEST_TOP_K, TITLE_TF_WEIGHT, buildCorpus, similarity, suggestLinks, tokenize } from './similarity';
 export type { Corpus, SuggestOptions } from './similarity';
-export { deriveStructuralLinks, mentionedSymbols, mentionsAccount, noteTradingDay, reconcileStructural } from './structural';
+export { deriveStructuralLinks, mentionedSymbols, mentionsAccount, noteTradingDay, ontologyDays, ontologyEvents, reconcileStructural } from './structural';
 export type { OntologyEvent, OntologyNote, StructuralInput } from './structural';
 export { proseOf, splitCode } from './text';

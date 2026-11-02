@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calendarSourcesState, dayBornes, replayBornes, type DayBornes } from '@/engine/bornes';
-import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { majorCatalysts } from '@/engine/discipline';
-import { mergeCalendarEvents } from '@/engine/macroMerge';
+import { catalystSource } from '@/engine/macroMerge';
 import { findPlan } from '@/engine/propfirm';
 import { etDateKey } from '@/lib/time';
 import { useBridge } from '@/store/bridge';
@@ -13,16 +12,6 @@ import { useKillLatch } from './killState';
 
 /** L'horloge des bornes : l'âge d'une valeur vive et la fenêtre d'un catalyseur avancent avec elle. */
 export const BORNES_TICK_MS = 15_000;
-
-const localYears = new Map<number, CalEvent[]>();
-function localEvents(year: number): CalEvent[] {
-  let rows = localYears.get(year);
-  if (!rows) {
-    rows = generateNasdaqEvents(year);
-    localYears.set(year, rows);
-  }
-  return rows;
-}
 
 /**
  * Les bornes de la journée, calculées une fois pour tout le desk (OROS5.11) : la barre d'état et la fiche Compte lisent
@@ -53,7 +42,8 @@ export function useDayBornes(): DayBornes {
   // Chaque statut du pont relit aussi l'heure : l'âge d'une valeur vive est juste entre deux tics.
   const now = Math.max(tick, Date.now());
   const year = Number(etDateKey(now).slice(0, 4));
-  const catalysts = useMemo(() => majorCatalysts(mergeCalendarEvents([...localEvents(year), ...localEvents(year + 1)], official)), [year, official]);
+  // La source unique du catalyseur (OROS5.13) : celle du Calendrier et de l'ontologie, estimés marqués.
+  const catalysts = useMemo(() => majorCatalysts(catalystSource(official, [year, year + 1])), [year, official]);
   const calendarSources = calendarSourcesState(sources, lastError, official.length);
   return useMemo(
     () =>

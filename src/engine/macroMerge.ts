@@ -1,4 +1,4 @@
-import type { CalEvent, EventCategory } from '@/engine/calendar';
+import { generateNasdaqEvents, type CalEvent, type EventCategory } from '@/engine/calendar';
 import type { CalendarEventRow, CalendarSourceId } from '@/engine/calendarEvents';
 
 /** Famille stable : deux sources qui parlent du même chiffre le même jour. */
@@ -156,6 +156,57 @@ export function mergeCalendarEvents(local: CalEvent[], rows: CalendarEventRow[])
   const ids = new Set(kept.map((e) => e.id));
   const added = live.filter((e) => !ids.has(e.id));
   return [...kept, ...added].sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
+}
+
+/* ─── Une seule source du catalyseur (OROS5.13, décision 13) ─── */
+
+const localYears = new Map<number, CalEvent[]>();
+
+/** Les repères locaux d'une année (`generateNasdaqEvents`), calculés une fois. */
+export function localCalendar(year: number): CalEvent[] {
+  let rows = localYears.get(year);
+  if (!rows) {
+    rows = generateNasdaqEvents(year);
+    localYears.set(year, rows);
+  }
+  return rows;
+}
+
+/** Les années d'une suite de journées `YYYY-MM-DD`, de la plus ancienne à la plus récente, sans trou. */
+export function yearsSpanned(dates: Iterable<string>): number[] {
+  let lo = Number.POSITIVE_INFINITY;
+  let hi = Number.NEGATIVE_INFINITY;
+  for (const date of dates) {
+    const year = Number(date.slice(0, 4));
+    if (!Number.isInteger(year) || year < 1970 || year > 9999) continue;
+    lo = Math.min(lo, year);
+    hi = Math.max(hi, year);
+  }
+  const out: number[] = [];
+  for (let year = lo; year <= hi; year++) out.push(year);
+  return out;
+}
+
+/**
+ * La source unique du catalyseur : les repères locaux des années données, fusionnés aux lignes officielles par
+ * `mergeCalendarEvents`, comme le Calendrier. Une ligne officielle remplace l'estimé local du même jour et de la même
+ * famille, et les sources officielles d'un même chiffre n'en font qu'une (`mergeOfficialRows`) : un catalyseur est un
+ * seul objet. Un repère local le dit (`source: 'local'`), et un estimé le reste (`estimated`).
+ */
+export function catalystSource(rows: readonly CalendarEventRow[], years: Iterable<number>): CalEvent[] {
+  const local = [...new Set(years)].sort((a, b) => a - b).flatMap((year) => localCalendar(year));
+  return mergeCalendarEvents(local, [...rows]).map((event) => (event.source ? event : { ...event, source: 'local' as const }));
+}
+
+/** « ≈ » devant une date estimée (C.054) : déduite d'une récurrence, pas encore publiée ; rien pour une date publiée. */
+export function estimateMark(event: Pick<CalEvent, 'estimated'>): '≈' | '' {
+  return event.estimated ? '≈' : '';
+}
+
+/** Le nom d'un catalyseur tel que le desk l'écrit : « ≈ Inflation CPI » pour un estimé. */
+export function catalystLabel(event: Pick<CalEvent, 'title' | 'estimated'>): string {
+  const mark = estimateMark(event);
+  return mark ? `${mark} ${event.title}` : event.title;
 }
 
 /** Surprise : actual vs forecast (numérique si possible). */
