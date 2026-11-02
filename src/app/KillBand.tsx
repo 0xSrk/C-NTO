@@ -26,8 +26,9 @@ const REASONS: Readonly<Record<string, readonly [fr: string, en: string, es: str
   'compte non connecté': ['compte non connecté', 'account not connected', 'cuenta no conectada'],
 };
 
-/** Pourquoi un compte n'est pas dit aplati : sans réponse de l'AddOn, ou la raison qu'il a donnée. */
+/** Pourquoi un compte n'est pas dit aplati : sans réponse de l'AddOn, la raison qu'il a donnée, ou « non confirmé » s'il n'en a dit aucune. */
 export function killReason(error: string | undefined): string {
+  if (error !== undefined && !error.trim()) return tr('non confirmé', 'not confirmed', 'sin confirmar');
   const known = error === undefined ? REASONS['délai dépassé'] : REASONS[error];
   return known ? tr(known[0], known[1], known[2]) : (error ?? '');
 }

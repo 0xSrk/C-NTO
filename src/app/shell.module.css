@@ -1049,11 +1049,12 @@
   width: 28px;
   height: 28px;
 }
+/* Le titre et le sous-titre gardent leur largeur, raccourci compris : à l'étroit, c'est le rapport qui cède la place. */
 .bandText {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;
+  flex: none;
 }
 .bandText b {
   font-family: var(--font-mono);
@@ -1091,13 +1092,21 @@
 .bandReport p {
   margin: 0;
   min-width: 0;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+/* À l'étroit (fenêtre minimale, zoom relevé), chaque ligne du rapport passe à la ligne au lieu de s'abréger, deux lignes au
+   plus, dans la hauteur de la bande : chaque compte reste nommé. */
+.bandGesture > span:last-child,
+.bandCut {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
 }
 .bandGesture {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12px;
@@ -1105,11 +1114,6 @@
   line-height: 1.2;
   color: var(--text-0);
   --k: var(--text-0);
-}
-.bandGesture > span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .bandGesture b {
   font-weight: 600;
@@ -1130,6 +1134,7 @@
 .bandCut b {
   font-weight: 600;
   color: var(--text-1);
+  white-space: nowrap;
 }
 
 .pending .main { visibility: hidden; }

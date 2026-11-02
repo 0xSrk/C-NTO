@@ -12,6 +12,7 @@ import { Shell } from '@/app/Shell';
 import { useI18n } from '@/i18n';
 import type { NtBridgeStatus } from '@/lib/desk';
 import { useBridge, type LastKill } from '@/store/bridge';
+import { cssRules } from './helpers/cssRules';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -102,6 +103,15 @@ describe('OROS3.1 bande du kill switch', () => {
   });
 });
 
+/** Les déclarations d'un sélecteur dans la feuille du châssis, toutes règles confondues (hors blocs @). */
+function declared(selector: string): string {
+  const css = readFileSync('src/app/shell.module.css', 'utf8').replace(/\r\n/g, '\n');
+  return cssRules(css)
+    .filter((rule) => rule.at.length === 0 && rule.selector.split(/\s*,\s*/).includes(selector))
+    .map((rule) => rule.body)
+    .join(';');
+}
+
 /** 14:32:07 à New York le 2 novembre 2026 (heure normale de l'Est, UTC−5). */
 const CUT_AT = Date.UTC(2026, 10, 2, 19, 32, 7);
 const cut = (patch: Partial<LastKill> = {}): LastKill => ({
@@ -149,15 +159,10 @@ describe('OROS5.19 le rapport de coupure se lit dans l’ordre de l’action (d�
     expect(title.textContent).toBe('Kill switch engagé');
     expect(title.compareDocumentPosition(gesture) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // à l'ivoire, comme le titre ; la ligne des ordres reste au gris du sous-titre
-    const css = readFileSync('src/app/shell.module.css', 'utf8').replace(/\r\n/g, '\n');
-    const rule = (selector: string) => {
-      const at = css.search(new RegExp(`^${selector.replace(/[.]/g, '\\.')} \\{`, 'm'));
-      return at < 0 ? '' : css.slice(at, css.indexOf('}', at));
-    };
-    expect(rule('.bandGesture')).toMatch(/(^|[\s;{])color: var\(--text-0\)/);
-    expect(rule('.bandGesture')).toMatch(/--k: var\(--text-0\)/);
-    expect(rule('.bandCut')).toMatch(/(^|[\s;{])color: var\(--text-2\)/);
-    expect(rule('.bandReport')).not.toMatch(/animation|transition/);
+    expect(declared('.bandGesture')).toMatch(/(^|[\s;{])color: var\(--text-0\)/);
+    expect(declared('.bandGesture')).toMatch(/--k: var\(--text-0\)/);
+    expect(declared('.bandCut')).toMatch(/(^|[\s;{])color: var\(--text-2\)/);
+    expect(declared('.bandReport')).not.toMatch(/animation|transition/);
   });
 
   it('chaque compte qui reste à aplatir est nommé, groupé par raison ; tout aplati, aucun geste n’est demandé', () => {
@@ -195,6 +200,26 @@ describe('OROS5.19 le rapport de coupure se lit dans l’ordre de l’action (d�
     // une raison que le desk ne connaît pas se lit telle que l'AddOn l'a dite
     const raw = cut({ results: [{ account: 'Sim101', ok: true, closed: 1 }, { account: 'SimApex2', ok: false, error: 'Account locked' }] });
     expect(reportLines(mountBand(raw))[0]).toEqual(['gesture', 'SimApex2 Account locked · aplatir dans NinjaTrader']);
+    unmountBand();
+    // une raison vide : l'AddOn a répondu sans rien dire, l'aplatissement n'est pas confirmé
+    const blank = cut({ results: [{ account: 'Sim101', ok: true, closed: 1 }, { account: 'SimApex2', ok: false, error: '  ' }] });
+    expect(reportLines(mountBand(blank))[0]).toEqual(['gesture', 'SimApex2 non confirmé · aplatir dans NinjaTrader']);
+  });
+
+  it('à l’étroit (fenêtre minimale, zoom relevé), le sous-titre et son raccourci restent entiers ; chaque ligne du rapport passe à la ligne, deux au plus', () => {
+    const body = declared;
+    // le titre et le sous-titre gardent leur largeur : le rapport cède la place
+    expect(body('.bandText')).toMatch(/flex: none/);
+    expect(body('.bandReport')).toMatch(/min-width: 0/);
+    // le geste et la ligne des ordres passent à la ligne au lieu de s'abréger, deux lignes au plus, dans les 66 px de la bande
+    for (const line of ['.bandGesture > span:last-child', '.bandCut']) {
+      expect(body(line), line).toMatch(/-webkit-line-clamp: 2/);
+      expect(body(line), line).toMatch(/display: -webkit-box/);
+    }
+    expect(body('.bandReport p')).not.toMatch(/white-space: nowrap|text-overflow/);
+    // n / N ne se coupe jamais
+    expect(body('.bandCut b')).toMatch(/white-space: nowrap/);
+    expect(body('.bandGesture')).toMatch(/align-items: flex-start/);
   });
 
   it('sans rapport encore : la bande dit la coupure et n’invente aucun compte', () => {
