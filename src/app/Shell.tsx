@@ -33,6 +33,7 @@ import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
 import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
 import { Omnibar } from './objects/Omnibar';
+import { RailGates } from './RailGates';
 import { matchShortcut } from './shortcuts';
 import { ShortcutHelp, useShortcutHelp } from './ShortcutHelp';
 import { StatusBornes } from './StatusBornes';
@@ -321,6 +322,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
           ))}
         </nav>
+        {/* Les portes du process principal, en lecture, sous les cartouches (OROS5.25, décision 11) : compactées à l'étroit,
+            elles ne déplacent ni le compte ni le sceau, qui restent au pied du rail. */}
+        <RailGates />
         <div className={s.railFoot}>
           {/* Le compte (4.1) : une cartouche du Lab, sans intitulé. Sa micro assemble le pont (composant 1), dont la
               borne devient le coffre (composant 124), et le voyant au cœur du coffre ; puis le nom et la source. L'état
@@ -523,7 +527,7 @@ export function ModuleHeader({ tab, actions, options, crumb = '', meta, cells }:
   const layer = MODULE_LAYERS[tab];
   return (
     <div className={s.moduleHead}>
-      <h1 className={s.modulePlate}>
+      <h1 className={s.modulePlate} data-plate={tab}>
         <span className={s.moduleNum} aria-hidden>
           {def.index}
         </span>

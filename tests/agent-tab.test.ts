@@ -91,6 +91,7 @@ import { useCrypto } from '@/store/crypto';
 import { db } from '@/store/db';
 import { deskEventLog } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
+import { useObjects } from '@/store/objects';
 import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
 
 let root: Root | null = null;
@@ -131,6 +132,8 @@ beforeEach(() => {
   useJournal.setState({ sessions: [], trades: [] });
   useAgent.setState({ messages: [], streaming: false, streamText: '', pendingTool: null, error: null, notice: null });
   useI18n.setState({ locale: 'fr' });
+  // La vue de l'onglet est confiée au store des objets (OROS5.25) : chaque test repart de l'ouverture, sur les rapports.
+  useObjects.setState(useObjects.getInitialState(), true);
 });
 
 afterEach(() => {
@@ -521,14 +524,19 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     expect(fake.puts).toEqual([]);
   });
 
-  it('LAB3 la vue Options s’ouvre sur une bande d’état du desk : modèle, passerelles, écriture, ordres ; plus d’agent cloud', async () => {
+  it('LAB3 la vue Options s’ouvre sur une bande d’état du desk : modèle et passerelles ; plus d’agent cloud', async () => {
     const node = await mount();
+    const options = panel(node, 'options')!;
     const strip = node.querySelector('dl[aria-label="État des services de l’agent"]');
-    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Modèle', 'Passerelle MCP', 'Orchestrateur', 'Écriture des agents', 'Ordres de l’agent']);
-    expect(panel(node, 'options')?.textContent).not.toContain('Agent cloud · Anthropic');
-    expect(strip?.textContent).toContain('lecture seule');
-    expect(strip?.textContent).toContain('désactivés');
-    expect(panel(node, 'options')?.contains(strip ?? null)).toBe(true);
+    // OROS5.25 : l'écriture des agents et les ordres de l'agent se lisent une fois, aux portes du rail ; la bande ne les
+    // redit plus (réécrit : elle les disait jusqu'ici).
+    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Modèle', 'Passerelle MCP', 'Orchestrateur']);
+    expect(strip?.textContent).not.toMatch(/lecture seule|désactivés|autorisé/);
+    expect(options.textContent).not.toContain('Agent cloud · Anthropic');
+    expect(options.contains(strip ?? null)).toBe(true);
+    // les portes mènent aux sections qui les règlent, dans cette vue : la passerelle MCP, les ordres proposés
+    expect(options.querySelector('[data-gate-target="agentWrite"]')).toBe(section(node, 'Agents externes · MCP'));
+    expect(options.querySelector('[data-gate-target="agentOrders"]')?.contains(section(node, 'Ordres proposés par l’agent'))).toBe(true);
   });
 
   it('CLD17 la conversation descend au dernier message quand on l’ouvre (elle était cachée au montage)', async () => {

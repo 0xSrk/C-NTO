@@ -5,8 +5,8 @@ import { uid } from '@/lib/id';
 /** `copieur` : `08 · CPY` sur le rail depuis la 3.3.0. `crypto` : `09 · CRY`, éteint par défaut. */
 export type TabId = 'metrique' | 'visual' | 'calendrier' | 'note' | 'agent' | 'bot' | 'copieur' | 'portefeuille' | 'crypto';
 
-/** Les fenêtres de Métrique qu'un autre lieu du desk peut demander : les Réglages du desk. */
-export type MetriqueModal = 'reglages';
+/** Les fenêtres de Métrique qu'un autre lieu du desk peut demander : les Réglages du desk, le pont NinjaTrader. */
+export type MetriqueModal = 'reglages' | 'pont';
 
 export interface Toast {
   id: string;

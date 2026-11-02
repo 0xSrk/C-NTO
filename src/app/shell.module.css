@@ -541,11 +541,13 @@
    garde ses 76 px. */
 @container rail (max-height: 704px) {
   .nav {
-    gap: 4px;
+    gap: 3px;
   }
+  /* Les cartouches se resserrent d'un cran (OROS5.25) : à 1180 × 720 au zoom 100 %, la ligne des portes tient sous elles,
+     orchestrateur en service compris, sans faire défiler les cartouches ni bouger le compte et le sceau. */
   .navItem {
-    min-height: 44px;
-    padding-block: 4px;
+    min-height: 40px;
+    padding-block: 3px;
   }
   .railFoot {
     gap: 12px;
@@ -557,6 +559,110 @@
   .accountMark {
     margin-block: -6px;
   }
+}
+
+/* ─── Les portes du rail (OROS5.25, décision 11) : sous les cartouches, en lecture, l'écrou de la garde (C.070) et son
+   trait de la table d'états ; à l'étroit, une ligne d'écrous. L'or ne dit qu'une décision qui attend l'opérateur. ─── */
+.gates {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  min-width: 0;
+}
+.gatesLine {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  height: 16px;
+  padding: 0 4px;
+}
+/* Une porte en ligne : l'écrou en tête, le nom, l'état dessous en code, comme ce que contient une cartouche. */
+.gate {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-rows: 16px 12px;
+  align-items: center;
+  column-gap: 8px;
+  height: 30px;
+  padding: 1px 4px;
+  font: inherit;
+  text-align: left;
+  color: var(--text-1);
+  --k: var(--text-2);
+  transition: color 200ms linear;
+}
+.gatesLine .gate {
+  grid-template-columns: 16px;
+  grid-template-rows: 16px;
+  height: 16px;
+  padding: 0;
+}
+.gate[data-state='open'] {
+  color: var(--text-0);
+  --k: var(--text-0);
+}
+.gate[data-state='pending'] {
+  color: var(--text-0);
+  --k: var(--gold);
+}
+@media (hover: hover) {
+  .gate:hover {
+    color: var(--text-0);
+  }
+}
+.gateNut {
+  grid-row: 1 / -1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.gateGlyph {
+  width: 9px;
+  height: 11px;
+}
+.gateName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+}
+.gateWord,
+.registry {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.gateWord {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 12px;
+  /* Sans approche : « fermés jusqu’au redémarrage » tient entier dans sa colonne (162 px sur 163, tests/rail-gates). */
+  letter-spacing: 0;
+}
+.registry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  padding: 0 4px;
+}
+.registry b {
+  font-weight: 500;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.gatesLine .registry {
+  margin-left: auto;
+  padding: 0;
 }
 
 /* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit du rail, le même qu'au verrou — encre

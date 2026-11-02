@@ -1,4 +1,4 @@
-import { memo, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Glyph } from '@/design/Micro';
@@ -17,10 +17,10 @@ import { count } from '@/app/railQuantity';
 import type { TitleCell } from '@/app/Shell';
 import type { AgentCloudStatus } from '@/lib/desk';
 import { useAgentCloud } from '@/store/agentCloud';
-import { useAgentOrders } from '@/store/agentOrders';
 import { useCrypto } from '@/store/crypto';
 import { dailyLossReached, useDeskEvents } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
+import { useObjects } from '@/store/objects';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
@@ -76,6 +76,8 @@ const NEAR_BOTTOM_PX = 40;
 
 /** Sous-onglets de l'agent : le dossier des rapports d'abord, la conversation, puis toutes les options. */
 export type AgentView = 'rapports' | 'conversation' | 'options' | 'lab';
+const AGENT_VIEWS: readonly AgentView[] = ['rapports', 'conversation', 'options', 'lab'];
+const isAgentView = (value: string | undefined): value is AgentView => (AGENT_VIEWS as readonly (string | undefined)[]).includes(value);
 
 const clock = (ms: number | null | undefined) => (ms ? dateTimeFormatter({ day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(ms) : '—');
 
@@ -144,11 +146,14 @@ export default function Agent() {
   const updateAgent = useSettings((st) => st.updateAgent);
   const update = useSettings((st) => st.update);
   const toast = useUi((u) => u.toast);
-  const [view, setView] = useState<AgentView>('rapports');
+  // La vue est confiée au store des objets (OROS5.25), comme celle de Métrique : une porte du rail ouvre les Options, et
+  // Retour arrière la rend. Sans vue confiée, l'onglet s'ouvre toujours sur les rapports (CLD8, CLD17 ; décision 14).
+  const stored = useObjects((o) => o.views.agent);
+  const view: AgentView = isAgentView(stored) ? stored : 'rapports';
+  const setView = useCallback((next: AgentView) => useObjects.getState().setView('agent', next), []);
   const cloudStatus = useAgentCloud((c) => c.status);
   const pullCloud = useAgentCloud((c) => c.pull);
   const openCloudFolder = useAgentCloud((c) => c.openFolder);
-  const ordersStatus = useAgentOrders((a) => a.status);
   const [draft, setDraft] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [seen, setSeen] = useState<RoutineSeen>({});
@@ -189,7 +194,7 @@ export default function Agent() {
   const labSeat = cloudStatus?.lab === true;
   useEffect(() => {
     if (view === 'lab' && !labSeat) setView('rapports');
-  }, [view, labSeat]);
+  }, [view, labSeat, setView]);
 
   // Un nouvel envoi ramène toujours en bas.
   useEffect(() => {
@@ -424,12 +429,7 @@ export default function Agent() {
                     orchestrator.running ? tr(`en service · ${orchestrator.clients} lien(s)`, `running · ${orchestrator.clients} link(s)`, `en servicio · ${orchestrator.clients} enlace(s)`) : tr('en veille', 'idle', 'en espera'),
                     orchestrator.running,
                   ],
-                  [tr('Écriture des agents', 'Agents writing', 'Escritura de los agentes'), allowWrite ? tr('autorisée', 'allowed', 'autorizada') : tr('lecture seule', 'read only', 'solo lectura'), false],
-                  [
-                    tr('Ordres de l’agent', 'Agent orders', 'Órdenes del agente'),
-                    ordersStatus.pending ? tr('en attente du trader', 'waiting for the trader', 'esperando al trader') : ordersStatus.enabled ? tr('autorisés · Sim', 'allowed · Sim', 'autorizadas · Sim') : tr('désactivés', 'off', 'desactivadas'),
-                    ordersStatus.enabled,
-                  ],
+                  // L'écriture des agents et les ordres de l'agent se lisent une fois, aux portes du rail (OROS5.25).
                 ] as const
               ).map(([label, value, live]) => (
                 <div key={label}>
@@ -561,7 +561,8 @@ export default function Agent() {
               </Field>
             </div>
 
-            <div className={s.section}>
+            {/* La porte « écriture des agents » du rail mène ici : le focus se pose sur la section, jamais sur l'interrupteur. */}
+            <div className={s.section} data-gate-target="agentWrite">
               <div className={s.sectionTitle}>
                 <span>{tr('Agents externes · MCP', 'External agents · MCP', 'Agentes externos · MCP')}</span>
                 <Tag tone={mcp.running ? 'mint' : undefined} dot live={mcp.running}>
@@ -773,7 +774,10 @@ export default function Agent() {
               )}
             </div>
 
-            <AgentOrdersPanel available={isDesk && !!desk?.agentOrders} />
+            {/* La porte « ordres de l'agent » du rail mène ici : le focus se pose sur la section, jamais sur Autoriser. */}
+            <div data-gate-target="agentOrders">
+              <AgentOrdersPanel available={isDesk && !!desk?.agentOrders} />
+            </div>
 
             <div className={s.section}>
               <div className={s.sectionTitle}>
