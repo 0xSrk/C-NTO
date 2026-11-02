@@ -1,6 +1,6 @@
 import { useMemo, type ComponentProps } from 'react';
 import { Glyph, Signal } from '@/design/Micro';
-import { Button, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
+import { Button, cx, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, ratioIntervals, rollingBands, sessionWinRateSeries } from '@/engine/inference';
 import { aggregatePoints } from '@/engine/tradeUnits';
@@ -9,6 +9,8 @@ import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
 import { fmtInt, fmtPct, fmtPoints, fmtRatio, fmtUsd, plural } from '@/lib/format';
 import { dateTimeFormatter, parseDateKey } from '@/lib/time';
+import type { EntityRef } from '@/engine/ontology';
+import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './dashboard.module.css';
@@ -101,6 +103,11 @@ export function Dashboard({
   const breakeven = breakevenWinRate(stats.payoffRatio);
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
   const last = ordered.slice(-5).reverse();
+  // Chaque séance est un objet (OROS5.26) : une ligne de A.04 et un pas de A.02 ouvrent sa fiche ; ↑ ↓ passent à la voisine.
+  const openObject = useObjects((o) => o.openObject);
+  const openId = useObjects((o) => (o.open?.type === 'session' ? o.open.id : null));
+  const lastRefs = useMemo<EntityRef[]>(() => last.map((row) => ({ type: 'session', id: row.id })), [last]);
+  const orderedRefs = useMemo<EntityRef[]>(() => ordered.map((row) => ({ type: 'session', id: row.id })), [ordered]);
   const bySession = useMemo(() => {
     const map = new Map<string, Trade[]>();
     for (const trade of trades) {
@@ -354,7 +361,17 @@ export function Dashboard({
         </div>
       </section>
 
-      <EquityCard className={s.span8} sessions={ordered} trades={trades} floor={limit} />
+      <EquityCard
+        className={s.span8}
+        sessions={ordered}
+        trades={trades}
+        floor={limit}
+        onStep={(step, origin) => {
+          // Un pas est une journée : sa séance, la première du jour quand plusieurs comptes y ont tradé.
+          const day = ordered.find((row) => row.date === step.date);
+          if (day) openObject({ type: 'session', id: day.id }, { origin, siblings: orderedRefs });
+        }}
+      />
 
       <section className={`${s.card} ${s.pad} ${s.span4}`}>
         <div className={s.cardHead}>
@@ -415,13 +432,28 @@ export function Dashboard({
               const total = mine.length || row.tradeCount;
               const squares = Math.min(total, 8);
               const tag = row.tags[0]?.trim() || tr('HORS PLAN', 'NO PLAN', 'SIN PLAN');
+              const on = openId === row.id;
+              const open = (origin: HTMLElement | null) => openObject({ type: 'session', id: row.id }, { origin, siblings: lastRefs });
               return (
-                <tr key={row.id}>
+                <tr key={row.id} className={cx(s.objRow, on && s.objOn)} data-session={row.id} onClick={(event) => open(event.currentTarget.querySelector('button'))}>
                   <td>
-                    <span className={s.day}>
-                      {shortDay(row.date)}
-                      <span>{weekday(row.date)}</span>
-                    </span>
+                    {/* La séance C.094 : le glyphe et le jour, un bouton qui ouvre sa fiche ; la ligne entière y mène aussi. */}
+                    <button
+                      type="button"
+                      className={s.objOpen}
+                      aria-current={on ? 'true' : undefined}
+                      aria-label={tr(`Ouvrir la fiche de la séance du ${shortDay(row.date)}`, `Open the record of the ${shortDay(row.date)} session`, `Abrir la ficha de la sesión del ${shortDay(row.date)}`)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        open(event.currentTarget);
+                      }}
+                    >
+                      <Glyph name="session" className={s.objGlyph} />
+                      <span className={s.day}>
+                        {shortDay(row.date)}
+                        <span>{weekday(row.date)}</span>
+                      </span>
+                    </button>
                   </td>
                   <td>{row.instruments.join(' · ') || '—'}</td>
                   <td>{fmtInt(total)}</td>

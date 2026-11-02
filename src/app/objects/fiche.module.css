@@ -337,3 +337,324 @@
     color: var(--text-0);
   }
 }
+
+/* ─── Les instruments de la fiche (OROS5.26) : M.057, M.016, M.022 ─────────────────────────────────────────────────── */
+.nowrap { white-space: nowrap; }
+
+/* M.057 · la grille en croix : un filet sous la rangée du haut, un filet entre les deux colonnes. Au numéral la valeur
+   qui décide ; le haut situe l'objet (gauche) et le date (droite). */
+.ident {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  grid-template-rows: 34px auto auto;
+}
+.identLead,
+.identNum {
+  border-right: 1px solid var(--line-2);
+}
+.identLead,
+.identWhen {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.identWhen {
+  justify-content: flex-end;
+  padding-left: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+/* Ce qui situe l'objet : du texte Geist Mono, et un lien quand c'est un objet (C.065 puis le nom). */
+.identText,
+.identLink {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-0);
+}
+.identLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 0 8px 0 0;
+  text-align: left;
+  --k: var(--text-1);
+  transition: color 200ms linear;
+}
+.identLink::after {
+  content: '→';
+  flex: none;
+  color: var(--ice);
+  letter-spacing: 0;
+}
+@media (hover: hover) {
+  .identLink:hover {
+    --k: var(--text-0);
+  }
+}
+.identNum {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 12px 12px 0;
+}
+.identNum b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-stretch: var(--num-stretch);
+  line-height: 0.9;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+.identNumL b { font-size: 44px; }
+.identNumM b { font-size: 38px; }
+.identNumS b { font-size: 30px; }
+.identNum > span,
+.identUnit {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.identAside {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 0 12px 14px;
+}
+.identStrong {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-0);
+}
+.identState {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.identPnl {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  font-stretch: var(--num-stretch);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+/* Le pied justifié du pack : une part à gauche, une à droite, par ligne. */
+.identFoot {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  gap: 4px 16px;
+  margin: 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.identFoot > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.identFoot > span:nth-child(2n) {
+  text-align: right;
+}
+
+/* M.016 · le graphe d'ego : un rayon par lien, au glacier, son trait tiré de la table d'états (plein ou tireté). */
+.ego {
+  margin: 0;
+}
+.egoSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  --k: var(--text-1);
+  --p: var(--bg-2);
+}
+.ray {
+  --k: var(--ice);
+  stroke-width: 1;
+  opacity: 0.72;
+  vector-effect: non-scaling-stroke;
+  transition: opacity 160ms linear;
+}
+.egoCore {
+  fill: var(--bg-2);
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+.egoCoreGlyph {
+  --k: var(--text-0);
+}
+.egoHalo {
+  fill: var(--bg-2);
+  stroke: none;
+}
+.egoRing {
+  fill: none;
+  stroke-width: 1;
+  opacity: 0.35;
+  transition: opacity 260ms var(--ease-out);
+}
+.egoHypo {
+  fill: none;
+  stroke-width: 1;
+}
+.egoOpen {
+  cursor: pointer;
+  outline: none;
+}
+.egoOpen:focus-visible .egoRing {
+  opacity: 1;
+  --k: var(--text-0);
+}
+.egoLabel {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  fill: var(--text-0);
+}
+.egoLabel .pos { fill: var(--pos); }
+.egoLabel .neg { fill: var(--neg); }
+.egoLabel .egoSep { fill: var(--text-2); }
+.egoMeta,
+.egoCount,
+.egoScore {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.egoMeta { fill: var(--text-2); }
+.egoCount { fill: var(--text-0); }
+.egoScore { fill: var(--ice); }
+
+/* La ligne d'un trade de la séance : l'entrée et la sortie (ET), le sens, la distance à la publication, M.022, le P&L. */
+.tradeRow {
+  grid-template-columns: 20px 16px minmax(0, 1fr) 112px auto;
+  min-height: 42px;
+}
+.tradeTime {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tradeTime b {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-0);
+  white-space: nowrap;
+}
+.tradeTime small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+/* La distance à la publication, à la minute : jamais coupée ni mise en ellipse. */
+.release {
+  color: var(--ice);
+  white-space: nowrap;
+}
+.tradePnl {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* M.022 · l'échelle en R, sur l'axe de la fiche : le stop en simple trait, l'objectif C.085, le réalisé en barre. */
+.rScale {
+  display: block;
+  width: 112px;
+  height: 28px;
+  overflow: visible;
+}
+.rAxis,
+.rStop {
+  stroke: var(--ice);
+  stroke-width: 1;
+}
+.rEntry {
+  stroke: var(--text-1);
+  stroke-width: 1;
+}
+.rTarget {
+  --k: var(--text-1);
+}
+.rReal.pos { fill: var(--pos); }
+.rReal.neg { fill: var(--neg); }
+.rTick {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-2);
+}
+.rTickReal { fill: var(--text-0); }
+.rAbsent {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+/* Un écart rejoué : son nom et son heure, puis ce qui s'est passé, en entier. */
+.findingName {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-0);
+}
+.findingText {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-1);
+}
+
+/* La lecture liée (décision 2) : le nœud et sa ligne s'allument ensemble par `data-lit`, que seul `useHoverLight` pose.
+   De la lumière seulement, et seulement là où le pointeur survole. */
+@media (hover: hover) {
+  .row[data-lit] {
+    background-color: color-mix(in srgb, var(--ivory) 4%, transparent);
+    --k: var(--text-0);
+  }
+  .ray[data-lit] {
+    opacity: 1;
+  }
+  .egoNode[data-lit] .egoRing {
+    opacity: 0.9;
+    --k: var(--text-0);
+  }
+}

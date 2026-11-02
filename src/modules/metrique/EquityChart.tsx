@@ -121,12 +121,18 @@ export function EquityCard({
   trades,
   className,
   floor,
+  onStep,
 }: {
   sessions: Session[];
   trades: Trade[];
   className?: string;
   /** Drawdown maximal du plan suivi pour le compte filtré : la borne du volet sous l'eau. Absent : aucune borne inventée. */
   floor?: number | null;
+  /**
+   * Un pas cliqué (OROS5.26) : chaque pas est une séance, qui ouvre sa fiche. La bibliothèque ne compte pas un glisser
+   * pour un clic (au-delà de 5 px) : glisser déplace toujours la courbe.
+   */
+  onStep?: (step: EquityStep, origin: HTMLElement | null) => void;
 }) {
   const locale = useI18n((st) => st.locale);
   const [grain, setGrain] = useState<EquityGrain>('session');
@@ -142,6 +148,8 @@ export function EquityCard({
   curveRef.current = curve;
   const grainRef = useRef(grain);
   grainRef.current = grain;
+  const onStepRef = useRef(onStep);
+  onStepRef.current = onStep;
 
   useEffect(() => {
     const el = host.current;
@@ -218,6 +226,12 @@ export function EquityCard({
           }
           const index = curveRef.current.steps.findIndex((step) => step.time === (param.time as number));
           setHover(index >= 0 ? index : null);
+        });
+        // Le clic, hors glisser : le pas ouvre la fiche de sa séance ; le départ n'est pas une séance.
+        chart.subscribeClick?.((param) => {
+          if (param.time === undefined) return;
+          const step = curveRef.current.steps.find((row) => row.time === (param.time as number));
+          if (step && !step.origin) onStepRef.current?.(step, el);
         });
         refs.current = { chart, traits: [equity, pnl, drawdown], drawn: null, rows: [], floor: floorNow };
         // Composants de la planche (⊕ ⊗ borne) : images du master, encrées en ivoire, à la densité de l'écran ; le trait

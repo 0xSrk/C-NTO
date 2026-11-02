@@ -426,6 +426,46 @@
   color: var(--text-2);
   font-weight: 500;
 }
+/* A.04 (OROS5.26) : chaque ligne est une séance, C.094 en tête, qui ouvre sa fiche ; l'objet ouvert garde son glyphe à l'or
+   et le filet de 2 px à gauche (décision 1 : l'or dit ce que tient l'opérateur). */
+.objRow {
+  cursor: pointer;
+  --k: var(--text-1);
+}
+.objRow td {
+  transition: background-color 200ms linear;
+}
+.objOpen {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.objOpen:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+.objGlyph {
+  width: 18px;
+  height: 15px;
+}
+.objOn td {
+  background-color: var(--bg-3);
+}
+.objOn td:first-child {
+  box-shadow: inset var(--active-line) 0 0 var(--gold);
+}
+.objOn .objGlyph {
+  --k: var(--gold);
+}
+@media (hover: hover) {
+  .objRow:hover td {
+    background-color: color-mix(in srgb, var(--ivory) 2.5%, transparent);
+  }
+  .objRow:hover {
+    --k: var(--text-0);
+  }
+}
 .squares {
   display: inline-flex;
   gap: 3px;

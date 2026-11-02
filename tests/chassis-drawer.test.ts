@@ -192,17 +192,19 @@ describe('OROS5.16 la fiche, troisième colonne du châssis', () => {
     expect(drawer.textContent).not.toMatch(/ses_7f3a…|…/);
     // trois actions au plus, puis la fermeture
     expect([...head.querySelectorAll('button')].map((b) => b.dataset.action)).toEqual(['calendar', 'visual', 'copy', 'close']);
-    // les sections du cadre, dans l'ordre
-    expect([...drawer.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['properties', 'links', 'provenance']);
+    // les sections du cadre, dans l'ordre ; la fiche Séance (OROS5.26) pose M.057 en tête et ses écarts rejoués
+    expect([...drawer.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'drifts', 'properties', 'provenance']);
+    expect(drawer.querySelector('[data-section="identity"]')!.textContent).toContain('2 trades · 0/2 gagnants');
     const props = [...drawer.querySelectorAll('[data-section="properties"] dt')].map((dt) => dt.textContent);
-    expect(props.slice(0, 5)).toEqual(['Jour', 'Compte', 'Instruments', 'P&L net', 'Trades']);
-    expect(drawer.querySelector('[data-section="properties"]')!.textContent).toContain('2 · 0 gagnants');
+    expect(props.slice(0, 2)).toEqual(['Éval.', 'Note de séance']);
     // les liens par prédicat : les trades de la séance, puis le catalyseur « pendant » ; le rejeté n'est pas un voisin
     const groups = [...drawer.querySelectorAll<HTMLElement>('[data-group]')];
     expect(groups.map((g) => g.dataset.group)).toEqual(['in:de-la-seance:trade', 'out:pendant:evenement']);
     expect(groups.map((g) => g.querySelectorAll('button').length)).toEqual([2, 1]);
-    // chaque groupe dans l'ordre du temps, l'heure de New York (13:38 UTC : 09:38 ET)
-    expect([...groups[0]!.querySelectorAll('button')].map((b) => b.textContent?.replace('→', '').trim())).toEqual(['NQ L 2 · 14.10 09:38 ET', 'NQ L 2 · 14.10 10:05 ET']);
+    // chaque groupe dans l'ordre du temps, l'heure de New York (13:38 UTC : 09:38 ET) ; un trade de la séance dit son entrée
+    // et sa sortie sur sa ligne (OROS5.26)
+    expect([...groups[0]!.querySelectorAll<HTMLElement>('button')].map((b) => b.dataset.trade)).toEqual(['t2', 't1']);
+    expect([...groups[0]!.querySelectorAll('button b')].map((b) => b.textContent)).toEqual(['09:38 → 09:48 ET', '10:05 → 10:15 ET']);
     expect(groups[0]!.textContent).toContain('de la séance');
     expect(groups[1]!.textContent).toContain('≈ Inflation CPI · 14.10');
     // le trait de chaque lien vient de la table d'états

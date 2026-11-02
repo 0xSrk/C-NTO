@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLATES } from '@/design/micro/assets';
-import { cssRules, hoverOffenses } from './helpers/cssRules';
+import { cssRules, HOVER_LIGHT, hoverOffenses } from './helpers/cssRules';
 
 const TEXT = new Set(['.ts', '.tsx', '.css', '.html', '.js', '.mjs', '.cjs', '.svg']);
 
@@ -150,6 +150,34 @@ describe('garde du système visuel', () => {
     expect(offenders).toEqual([]);
     // Les boutons d'action portent la règle : sans elle, la garde ne garderait rien.
     expect(hovers).toBeGreaterThan(0);
+  });
+
+  it('OROS5.26 la lecture liée passe par un seul crochet : aucun écouteur du pointeur hors de useHoverLight dans src/app/objects, et [data-lit] ne change que la lumière, sous @media (hover: hover)', () => {
+    const listeners = /\bon(?:Mouse|Pointer)(?:Enter|Leave|Over|Out|Move)\b/;
+    const offenders = walk('src/app/objects')
+      .filter((path) => posix('.', path) !== 'src/app/objects/useHoverLight.ts')
+      .filter((path) => listeners.test(readFileSync(path, 'utf8')))
+      .map((path) => posix('.', path));
+    expect(offenders).toEqual([]);
+    // Le crochet existe et pose les deux écouteurs ; il ne pose que `data-lit`.
+    const hook = readFileSync('src/app/objects/useHoverLight.ts', 'utf8');
+    expect(hook).toMatch(/onMouseEnter/);
+    expect(hook).toMatch(/'data-lit'/);
+    expect(hook.match(/'data-[a-z-]+'/g)?.filter((attr) => attr !== "'data-lit'") ?? []).toEqual([]);
+    // Partout où une feuille règle `[data-lit]`, c'est sous `@media (hover: hover)`, et de la lumière seulement.
+    const lit: string[] = [];
+    const wrong: string[] = [];
+    for (const path of walk('src').filter((p) => p.endsWith('.css'))) {
+      for (const rule of cssRules(readFileSync(path, 'utf8'))) {
+        if (!/\[data-lit\]/.test(rule.selector)) continue;
+        const at = `${posix('src', path)} ${rule.selector}`;
+        lit.push(at);
+        if (!rule.at.some((head) => /^@media\s*\(hover:\s*hover\)/.test(head))) wrong.push(`${at} : hors de @media (hover: hover)`);
+        for (const prop of rule.props) if (!HOVER_LIGHT.has(prop)) wrong.push(`${at} : ${prop}`);
+      }
+    }
+    expect(wrong).toEqual([]);
+    expect(lit.length).toBeGreaterThan(0);
   });
 
   it('OROS4.1 chaque bouton d’action a son contour : un filet fin et sa lumière blanche, jamais transparent', () => {
