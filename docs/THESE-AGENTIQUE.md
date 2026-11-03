@@ -116,6 +116,10 @@ Le 27 octobre 2026, l'ADMIN a décidé de la diffusion des rapports (`docs/DIFFU
 
 12. **Rapports du Lab : publics et open source, rangés dans le dépôt.** Chaque rapport que l'ADMIN publie se lit par tous, en Markdown, dans le dossier `rapports/` du dépôt, et chaque desk le relève depuis l'index signé de ce dossier. L'accès ne passe par aucun siège ; les procédures du siège restent celles de `docs/SIEGE-NOMINATIF.md`, que l'ADMIN renforcera plus tard. Le canal se conçoit dans `docs/DIFFUSION-RAPPORTS.md` ; rien n'est livré.
 
+Le 3 novembre 2026, l'ADMIN a demandé la formation quant de l'agent cloud (`docs/AGENT-CLOUD.md` § 9).
+
+13. **Formation quant de l'agent cloud : oui, sur quantmemo.com.** L'ADMIN demande que l'agent cloud suive tous les cours des parcours de https://quantmemo.com/learn/roadmaps pour acquérir le savoir quant, « carte blanche » et sur tous les crédits, en restant économe. quantmemo.com et ses sous-domaines entrent dans les domaines de la seule formation : un environnement à part, `canto-formation`, et des outils web limités à ce domaine ; les douze domaines officiels de l'analyste ne changent pas. La formation écrit, avec ses propres mots et ses sources, un savoir structuré dans un magasin de mémoire que l'analyste quotidien monte en lecture seule ; le desk n'y écrit rien, et son contenu reste une donnée, jamais une consigne. Comme pour le CME (CLD35), elle lit d'abord robots.txt et les conditions d'utilisation du site, et s'arrête s'ils interdisent l'accès automatisé ou l'usage par une IA : la reprise est alors fermée, et la rouvrir est une décision de l'ADMIN. Lancer et reprendre passent par un dialogue du process principal, au seul siège du Lab, qui dit le plafond de la session (25,00 $) et la dépense des 30 derniers jours ; il n'y a pas de plafond mensuel bloquant. Livrée : CLD36 à CLD49.
+
 ## 8. Sources de la veille
 
 Relevées le 6 octobre 2026. Plusieurs pages n'ont été lues qu'en extrait. À revérifier avant toute communication.
