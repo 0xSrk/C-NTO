@@ -407,15 +407,14 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect(lost.calls).not.toContain('createMemoryStore');
     expect(vi.mocked(lost.listMemoryStores).mock.calls).toEqual([[{ page: undefined }], [{ page: 'page_2' }]]);
 
-    // 404 : rien n'est recréé, ni l'agent ni le déploiement ne sont touchés ; le savoir existe peut-être sous une autre clé.
-    const hidden = installer({}, { getMemoryStore: async () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404 · not_found_error')) });
+    // 404 sur le magasin connu : cherché, puis recréé (CLD51). Un 404 de l'API des magasins elle-même arrête l'étape, sans rien recréer.
+    const hidden = installer({}, { getMemoryStore: async () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404 · not_found_error')), listMemoryStores: async () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404 · not_found_error')) });
     const gone = harness({ api: hidden, answers: [0, 0] });
-    await gone.host.provision();
-    hidden.calls.length = 0;
+    (gone.host as unknown as { config: { memoryStoreId: string } }).config.memoryStoreId = MEMSTORE;
     const status = await gone.host.provision();
     expect(status.error).toBe('Mémoire · Magasin de savoir introuvable avec cette clé (autre organisation, autre espace de travail) : rien n’a été recréé.');
-    expect(hidden.calls).toEqual(['updateEnvironment', 'getMemoryStore']);
-    expect(saved(gone.dir)).toMatchObject({ memoryStoreId: MEMSTORE, deploymentId: DEPL });
+    expect(hidden.calls).toEqual(['createEnvironment', 'getMemoryStore', 'listMemoryStores']);
+    expect(saved(gone.dir)).toMatchObject({ memoryStoreId: MEMSTORE, agentId: null });
     for (const [locale, label] of [
       ['en', 'Memory · Knowledge store not found with this key (another organization or workspace): nothing was recreated.'],
       ['es', 'Memoria · Almacén de saber no encontrado con esta clave (otra organización u otro espacio de trabajo): no se ha recreado nada.'],
@@ -471,6 +470,37 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     // Un identifiant hors forme tombe à la relecture.
     writeFileSync(file, JSON.stringify({ v: 1, memoryStoreId: 'mem_011CZkZ9X2dpNyB7HsEFoRfW' }));
     expect(cloudHarness(dirs, { dir: probe.dir }).host.status().memoryStoreId).toBeNull();
+  });
+
+  it('CLD51 un magasin connu devenu introuvable (supprimé, autre organisation) ne bloque plus l’installation : cherché, puis recréé, et le déploiement le monte', async () => {
+    const NEW = 'memstore_011CZkZ9X2dpNyB7HsEFoNEW';
+    const notFound = () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404 · not_found_error'));
+    // Supprimé dans la Console : la mise à jour aboutit, l'agent et le déploiement sont réécrits avec le magasin neuf.
+    const api = installer({}, { getMemoryStore: notFound, createMemoryStore: async () => ({ ...MEMORY_STORE, id: NEW }) });
+    const h = harness({ api, answers: [0, 0] });
+    await h.host.provision();
+    (h.host as unknown as { config: { memoryStoreId: string } }).config.memoryStoreId = MEMSTORE;
+    api.calls.length = 0;
+    const status = await h.host.provision();
+    expect(status).toMatchObject({ error: null, memoryStoreId: NEW });
+    expect(api.calls).toEqual(['updateEnvironment', 'getMemoryStore', 'listMemoryStores', 'createMemoryStore', 'updateAgent', 'updateDeployment']);
+    expect(vi.mocked(api.updateDeployment).mock.calls.at(-1)?.[1]).toMatchObject({ resources: [{ type: 'memory_store', memory_store_id: NEW, access: 'read_only' }] });
+    expect(saved(h.dir)).toMatchObject({ memoryStoreId: NEW, deploymentId: DEPL });
+    expect(h.logs).toContain('agent cloud · magasin introuvable avec cette clé : cherché, sinon recréé');
+    // Clé d'une autre organisation, déploiement quitté : le magasin du desk de cette organisation est repris, rien n'est doublé.
+    const OTHER = { ...MEMORY_STORE, id: 'memstore_011CZkZ9X2dpNyB7HsEFoOTH' };
+    const moved = installer({}, { getMemoryStore: notFound, listMemoryStores: async () => ({ stores: [OTHER], nextPage: null }) });
+    const m = harness({ api: moved, answers: [0] });
+    (m.host as unknown as { config: { memoryStoreId: string } }).config.memoryStoreId = MEMSTORE;
+    expect(await m.host.provision()).toMatchObject({ error: null, memoryStoreId: OTHER.id });
+    expect(moved.calls).not.toContain('createMemoryStore');
+    expect(moved.calls).toContain('createDeployment');
+    // Toute autre erreur sur le magasin connu remonte, sans rien recréer.
+    const down = installer({}, { getMemoryStore: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529 · overloaded_error')) });
+    const d = harness({ api: down, answers: [0] });
+    (d.host as unknown as { config: { memoryStoreId: string } }).config.memoryStoreId = MEMSTORE;
+    expect((await d.host.provision()).error).toBe('Mémoire · HTTP 529 · overloaded_error');
+    expect(down.calls).toEqual(['createEnvironment', 'getMemoryStore']);
   });
 
   it('LAB2 sans siège du Lab, ce desk lit : chaque commande de pilotage est refusée, rien ne part vers l’API, rien n’est écrit', async () => {

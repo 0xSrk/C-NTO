@@ -1115,17 +1115,26 @@ export class AgentCloudHost {
   }
 
   /**
-   * Le magasin de savoir du desk. Connu : relu ; archivé (aucune session ne peut plus l'attacher), recréé ; un 404 remonte
-   * et rien n'est recréé, car le savoir existe peut-être sous une autre clé. Inconnu : retrouvé par sa métadonnée et son nom
-   * (réponse de création perdue en route), sinon créé.
+   * Le magasin de savoir du desk. Connu : relu ; archivé (aucune session ne peut plus l'attacher), recréé. Introuvable (404 :
+   * supprimé dans la Console, ou invisible avec cette clé), il est traité comme inconnu (CLD51) : un magasin ne facture rien,
+   * le déploiement ne peut plus le monter, et l'ancien, s'il existe sous une autre clé, n'est pas touché. Inconnu : retrouvé
+   * par sa métadonnée et son nom (réponse de création perdue, magasin d'une installation précédente), sinon créé.
    */
   private async memoryStore(): Promise<MemoryStoreView> {
     const id = this.config.memoryStoreId;
     if (id) {
-      const view = await this.api.getMemoryStore(id);
-      if (!view.archived) return view;
-      this.deps.log('agent cloud · magasin archivé : recréé');
-      return this.api.createMemoryStore(cloudMemoryStoreBody());
+      let view: MemoryStoreView | null = null;
+      try {
+        view = await this.api.getMemoryStore(id);
+      } catch (error) {
+        if (!(error instanceof CloudApiError && error.status === 404)) throw error;
+        this.deps.log('agent cloud · magasin introuvable avec cette clé : cherché, sinon recréé');
+      }
+      if (view && !view.archived) return view;
+      if (view) {
+        this.deps.log('agent cloud · magasin archivé : recréé');
+        return this.api.createMemoryStore(cloudMemoryStoreBody());
+      }
     }
     let page: string | undefined;
     for (let i = 0; i < MEMORY_STORE_PAGES; i += 1) {
