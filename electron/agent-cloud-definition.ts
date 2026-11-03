@@ -53,7 +53,8 @@ export const OFFICIAL_DOMAINS = [
   'ecb.europa.eu',
 ] as const;
 
-const LANGUAGE: Record<AppLocale, string> = {
+/** La dernière ligne de la consigne : la langue du rapport, celle du desk. */
+export const LANGUAGE: Record<AppLocale, string> = {
   fr: 'Rédige le rapport en français.',
   en: 'Write the report in English.',
   es: 'Redacta el informe en español.',
@@ -113,7 +114,7 @@ export function cloudSystemPrompt(locale: AppLocale): string {
 }
 
 /** La langue du rapport, dite au correcteur : il ne lit pas la consigne de l'agent. */
-const REPORT_LANGUAGE: Record<AppLocale, string> = { fr: 'en français', en: 'en anglais', es: 'en espagnol' };
+export const REPORT_LANGUAGE: Record<AppLocale, string> = { fr: 'en français', en: 'en anglais', es: 'en espagnol' };
 
 export function outcomeRubric(locale: AppLocale): string {
   return [
