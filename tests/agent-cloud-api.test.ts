@@ -54,6 +54,7 @@ describe('agent cloud · client Managed Agents', () => {
       lastRunAt: Date.parse('2026-10-26T06:00:04Z'),
       budgetCents: 300,
       tagged: false,
+      memoryStoreId: null,
     });
   });
 

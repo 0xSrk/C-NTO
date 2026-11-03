@@ -550,7 +550,7 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
       managed: true,
       memoryStoreId: null,
       schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
-      deployment: { name: 'd', state: 'active', pausedReason: null, cron: null, timezone: null, nextRunAt: Date.parse('2026-10-28T06:00:00Z'), lastRunAt: null, budgetCents: 300, agentVersion: 1 },
+      deployment: { name: 'd', state: 'active', pausedReason: null, cron: null, timezone: null, nextRunAt: Date.parse('2026-10-28T06:00:00Z'), lastRunAt: null, budgetCents: 300, agentVersion: 1, memoryStoreId: null },
       pulling: false,
       busy: null,
       lastPullAt: Date.parse('2026-10-27T08:15:00Z'),

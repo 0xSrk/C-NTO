@@ -45,7 +45,7 @@ import { CloudOptions } from '@/modules/agent/CloudOptions';
 import { useI18n } from '@/i18n';
 import { resetAgentCloudForTests, useAgentCloud } from '@/store/agentCloud';
 
-const DEPLOYMENT = { name: 'canto-rapport-quotidien', state: 'active' as const, pausedReason: null, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', nextRunAt: 1, lastRunAt: null, budgetCents: 300, agentVersion: 2 };
+const DEPLOYMENT = { name: 'canto-rapport-quotidien', state: 'active' as const, pausedReason: null, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', nextRunAt: 1, lastRunAt: null, budgetCents: 300, agentVersion: 2, memoryStoreId: null };
 const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   available: true,
   lab: true,

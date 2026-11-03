@@ -197,9 +197,10 @@ describe('agent cloud · formation quant', () => {
       expect(JSON.stringify(body)).not.toMatch(/propose_order|copy\.order|ntbridge/);
     }
 
-    // L'analyste ne change pas : ses douze domaines officiels, sans quantmemo (CLD35).
+    // L'analyste ne change pas : ses douze domaines officiels, sans quantmemo (CLD35). Sa consigne nomme le site d'où vient
+    // le savoir qu'il lit dans le magasin (CLD47), mais ni son réseau ni ses outils web ne l'ouvrent.
     expect(OFFICIAL_DOMAINS).toHaveLength(12);
     expect(JSON.stringify(cloudEnvironmentBody())).not.toContain('quantmemo');
-    expect(JSON.stringify(cloudAgentBody('fr'))).not.toContain('quantmemo');
+    expect(JSON.stringify(cloudAgentBody('fr').tools)).not.toContain('quantmemo');
   });
 });

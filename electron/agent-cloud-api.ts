@@ -68,6 +68,8 @@ export interface DeploymentView {
   budgetCents: number | null;
   /** Posé par le desk (`metadata.canto` = `agent-cloud`) : un déploiement qu'il peut reprendre plutôt que doubler. */
   tagged: boolean;
+  /** Le magasin de mémoire monté en lecture seule dans chaque session du déploiement ; `null` sans montage. */
+  memoryStoreId: string | null;
 }
 
 export type SessionStatus = 'idle' | 'running' | 'rescheduling' | 'terminated';
@@ -220,6 +222,7 @@ export function parseDeployment(raw: unknown): DeploymentView {
   const pausedError = paused && isRecord(paused.error) ? str(paused.error.type, 80) : null;
   const agent = isRecord(raw.agent) ? raw.agent : null;
   const budget = isRecord(raw.budget) ? raw.budget : null;
+  const mount = Array.isArray(raw.resources) ? raw.resources.filter(isRecord).find((r) => r.type === 'memory_store' && r.access === 'read_only') : undefined;
   return {
     id,
     name: cleanText(raw.name, 256),
@@ -235,6 +238,7 @@ export function parseDeployment(raw: unknown): DeploymentView {
     lastRunAt: schedule ? instant(schedule.last_run_at) : null,
     budgetCents: budget ? cents(budget.max_list_cost) : null,
     tagged: isRecord(raw.metadata) && raw.metadata.canto === 'agent-cloud',
+    memoryStoreId: mount ? apiId(mount.memory_store_id, 'memstore') : null,
   };
 }
 

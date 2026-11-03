@@ -84,6 +84,8 @@ export interface CloudDeploymentState {
   lastRunAt: number | null;
   budgetCents: number | null;
   agentVersion: number | null;
+  /** Le magasin de savoir que le déploiement monte en lecture seule ; `null` : non monté. */
+  memoryStoreId: string | null;
 }
 
 export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | 'stop' | null;
@@ -369,6 +371,7 @@ function deploymentState(view: DeploymentView): CloudDeploymentState {
     lastRunAt: view.lastRunAt,
     budgetCents: view.budgetCents,
     agentVersion: view.agentVersion,
+    memoryStoreId: view.memoryStoreId,
   };
 }
 
@@ -1071,7 +1074,7 @@ export class AgentCloudHost {
         this.config.agentVersion = agent.version;
         this.persist();
         step = 'deployment';
-        const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone, locale });
+        const plan = cloudDeploymentBody({ agentId: agent.id, environmentId: env.id, cron, timezone, locale, memoryStoreId: store.id });
         // Un déploiement du desk déjà là (réponse perdue en route, déploiement quitté puis suspendu) est repris, jamais doublé.
         const known = existing ? this.config.deploymentId : ((await this.api.listDeployments(agent.id)).find((d) => d.tagged && !d.archived && d.name === DEPLOYMENT_NAME)?.id ?? null);
         // Un déploiement ne se supprime pas : un 404 dit qu'une autre clé le voit peut-être encore, et qu'il facture. Il n'est

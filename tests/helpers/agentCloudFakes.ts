@@ -31,6 +31,7 @@ export const DEPLOYMENT: DeploymentView = {
   lastRunAt: NOW - 3_600_000,
   budgetCents: 300,
   tagged: true,
+  memoryStoreId: null,
 };
 
 /** Le magasin de savoir du desk, tel que l'API le rend. */

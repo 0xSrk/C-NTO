@@ -187,6 +187,8 @@ export interface CloudDeploymentState {
   lastRunAt: number | null;
   budgetCents: number | null;
   agentVersion: number | null;
+  /** Le magasin de savoir monté en lecture seule par le déploiement ; `null` : non monté. */
+  memoryStoreId: string | null;
 }
 
 /** La progression de la formation, lue dans le magasin sans modèle. */
