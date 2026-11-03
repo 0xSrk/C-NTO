@@ -547,6 +547,68 @@ describe('agent cloud · hôte du process principal', () => {
     expect(JSON.parse(readFileSync(path.join(moving.dir, AGENT_CLOUD_FILE), 'utf8')).formation).toMatchObject({ environmentId: null, readerId: null, coordinatorId: null, sessionId: null, result: null, history: formation.history });
   });
 
+  it('CLD52 une session de formation introuvable (404 : supprimée, autre organisation) est oubliée : relevé, Former, Arrêter et l’espace de travail se débloquent', async () => {
+    const notFound = () => Promise.reject(new CloudApiError(404, 'not_found_error', 'HTTP 404 · not_found_error'));
+    const formation = { sessionId: sid(40), startedAt: NOW - 3_600_000, settled: false, history: [{ id: sid(40), startedAt: NOW - 3_600_000, costCents: 640 }] };
+    const write = (dir: string) => writeFileSync(path.join(dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE, formation }));
+    const saved = (dir: string) => JSON.parse(readFileSync(path.join(dir, AGENT_CLOUD_FILE), 'utf8'));
+    const lost = 'Session de formation introuvable avec cette clé (supprimée, ou d’une autre organisation) : elle est oubliée. Si elle existe encore ailleurs, son plafond la borne : vérifiez-la dans sa Console.';
+
+    // Le relevé : réglée « introuvable », la dépense relevée gardée, sans erreur qui accuserait le déploiement.
+    const probe = harness();
+    write(probe.dir);
+    const api = fakeApi({ getSession: notFound });
+    const h = harness({ api, dir: probe.dir });
+    const status = await h.host.pull();
+    expect(api.calls).toEqual(['getSession']);
+    expect(status).toMatchObject({ error: null, training: { state: 'ended', report: 'lost', sessionId: sid(40), costCents: 640, detail: 'HTTP 404', spent30dCents: 640 } });
+    expect(saved(probe.dir).formation).toMatchObject({ settled: true, result: { report: 'lost', reportId: null, capped: false }, history: [{ id: sid(40), costCents: 640 }] });
+    expect(h.logs).toContain('agent cloud · session de formation introuvable avec cette clé : oubliée');
+    // Plus rien ne retient l'espace de travail ; un fichier relu garde le constat.
+    expect(await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ', error: null });
+
+    // Former : la session connue introuvable est oubliée et c'est dit, sans dialogue ; le clic suivant ouvre le dialogue.
+    const t = harness();
+    write(t.dir);
+    const trainApi = fakeApi({ getSession: notFound });
+    const tr = harness({ api: trainApi, dir: t.dir });
+    expect((await tr.host.train()).error).toBe(lost);
+    expect(trainApi.calls).toEqual(['getSession']);
+    expect(tr.dialogs).toEqual([]);
+    expect(tr.host.status().training).toMatchObject({ state: 'ended', report: 'lost' });
+    await tr.host.train();
+    expect(tr.dialogs).toHaveLength(1);
+    expect(tr.dialogs[0]?.message).toBe('Reprendre la formation ?');
+
+    // Arrêter : de même, sans dialogue.
+    const s = harness();
+    write(s.dir);
+    const stopApi = fakeApi({ interruptSession: notFound });
+    const st = harness({ api: stopApi, dir: s.dir });
+    expect((await st.host.stopTraining()).error).toBe(lost);
+    expect(saved(s.dir).formation).toMatchObject({ settled: true, result: { report: 'lost' } });
+    // En anglais et en espagnol.
+    for (const [locale, text] of [
+      ['en', 'Training session not found with this key (deleted, or in another organization): it is forgotten. If it still exists elsewhere, its cap bounds it: check it in its Console.'],
+      ['es', 'Sesión de formación no encontrada con esta clave (eliminada, o de otra organización): se olvida. Si aún existe en otro lugar, su límite la acota: verifíquela en su Consola.'],
+    ] as const) {
+      const d = harness();
+      write(d.dir);
+      expect((await harness({ api: fakeApi({ getSession: notFound }), dir: d.dir, locale }).host.train()).error).toBe(text);
+    }
+
+    // Une autre panne garde la session : elle sera relue.
+    const k = harness();
+    write(k.dir);
+    const busy = harness({ api: fakeApi({ getSession: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529 · overloaded_error')) }), dir: k.dir });
+    expect(await busy.host.pull()).toMatchObject({ error: 'HTTP 529 · overloaded_error', training: { state: 'running' } });
+    // Un 404 d'une autre lecture de la formation n'accuse pas le déploiement : la réponse de l'API est dite.
+    const other = harness();
+    writeFileSync(path.join(other.dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE }));
+    const o = harness({ api: fakeApi({ listStoreSessions: notFound }), dir: other.dir });
+    expect((await o.host.train()).error).toBe('HTTP 404 · not_found_error');
+  });
+
   it('CLD46 la progression vient de la liste des mémoires ; un accès interdit ferme la reprise', async () => {
     const STATE = 'mem_011CZkZ9X2dpNyB7HsEFoSTA';
     const etat = (over: Record<string, unknown> = {}) =>

@@ -272,6 +272,8 @@ describe('agent cloud · Options › Agent cloud', () => {
     expect(ended.text).toContain('Savoir montéLecture seule');
     expect((await plate(ready({ state: 'ended', sessions: 1, capped: true, report: 'missing' }))).text).toContain('FormationÀ son plafond');
     expect((await plate(ready({ state: 'ended', sessions: 1, report: 'missing', detail: 'outcome interrupted' }))).text).toContain('FormationArrêtée');
+    // CLD52 : une session oubliée parce que la clé ne la voit plus le dit, au lieu de « Terminée sans rapport ».
+    expect((await plate(ready({ state: 'ended', sessions: 1, report: 'lost', detail: 'HTTP 404' }))).text).toContain('FormationIntrouvable avec cette clé');
     expect((await plate(ready({ state: 'settling', sessions: 1 }))).text).toContain('FormationEn attente du rapport');
     const idle = await plate(ready());
     expect(idle.text).toContain('Formation—');

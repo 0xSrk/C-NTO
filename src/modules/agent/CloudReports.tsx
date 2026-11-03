@@ -79,6 +79,7 @@ export function trainingLabel(training: Training | null): string {
     case 'refused':
       return tr('Accès refusé', 'Access refused', 'Acceso rechazado');
     case 'ended':
+      if (training.report === 'lost') return tr('Introuvable avec cette clé', 'Not found with this key', 'No encontrada con esta clave');
       if (training.capped) return tr('À son plafond', 'At its cap', 'En su límite');
       if (training.report !== 'filed' && training.detail?.includes('interrupted')) return tr('Arrêtée', 'Stopped', 'Detenida');
       return training.report === 'filed' ? tr('Terminée', 'Finished', 'Terminada') : tr('Terminée sans rapport', 'Finished without a report', 'Terminada sin informe');

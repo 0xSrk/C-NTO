@@ -215,7 +215,7 @@ export interface CloudTrainingState {
   costCents: number | null;
   budgetCents: number | null;
   capped: boolean;
-  report: 'filed' | 'missing' | 'invalid' | 'too_large' | 'archived' | null;
+  report: 'filed' | 'missing' | 'invalid' | 'too_large' | 'archived' | 'lost' | null;
   reportId: string | null;
   detail: string | null;
   progress: CloudTrainingProgress | null;

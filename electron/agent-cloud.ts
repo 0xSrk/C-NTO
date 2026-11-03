@@ -91,8 +91,8 @@ export interface CloudDeploymentState {
 export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | 'stop' | null;
 type ProvisionStep = 'environment' | 'memory' | 'agent' | 'deployment' | 'pause' | 'resume' | 'formation-environment' | 'reader' | 'coordinator' | 'session';
 
-/** Ce que le relevé a tiré de la dernière session de formation réglée (CLD45). */
-export type CloudTrainingReport = 'filed' | 'missing' | 'invalid' | 'too_large' | 'archived';
+/** Ce que le relevé a tiré de la dernière session de formation réglée (CLD45) ; `lost` : introuvable avec la clé (CLD52). */
+export type CloudTrainingReport = 'filed' | 'missing' | 'invalid' | 'too_large' | 'archived' | 'lost';
 
 /** La progression lue dans le magasin, sans modèle (CLD46). */
 export interface CloudTrainingProgress {
@@ -238,7 +238,7 @@ interface TrainingResult {
   detail: string;
 }
 
-const TRAINING_REPORTS: readonly CloudTrainingReport[] = ['filed', 'missing', 'invalid', 'too_large', 'archived'];
+const TRAINING_REPORTS: readonly CloudTrainingReport[] = ['filed', 'missing', 'invalid', 'too_large', 'archived', 'lost'];
 
 interface CloudConfig {
   key: string | null;
@@ -916,7 +916,8 @@ export class AgentCloudHost {
     try {
       await work();
     } catch (error) {
-      this.actionError = this.explain(error);
+      // Un 404 pendant une commande de formation ne vise pas le déploiement : la réponse de l'API est dite telle quelle (CLD52).
+      this.actionError = (kind === 'train' || kind === 'stop') && error instanceof CloudApiError && error.status === 404 ? error.message : this.explain(error);
       this.deps.log(`agent cloud · ${kind} en échec : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
     } finally {
       this.busy = null;
@@ -1206,7 +1207,11 @@ export class AgentCloudHost {
         // Une session connue qui tourne, ou au repos mais pas encore relevée : rien ne part tant qu'elle n'est pas réglée.
         try {
           await this.api.getSession(f.sessionId);
-        } catch {
+        } catch (error) {
+          if (error instanceof CloudApiError && error.status === 404) {
+            this.loseTraining(f.sessionId);
+            return;
+          }
           this.actionError = this.t('Session de formation non relue : rien n’est lancé.', 'Training session not read: nothing is started.', 'Sesión de formación no leída: no se lanza nada.');
           return;
         }
@@ -1401,10 +1406,38 @@ export class AgentCloudHost {
     const id = this.config.formation.sessionId;
     if (!this.config.key || !id || !this.trainingActive()) return this.status();
     return this.control('stop', async () => {
-      await this.api.interruptSession(id);
+      try {
+        await this.api.interruptSession(id);
+      } catch (error) {
+        if (!(error instanceof CloudApiError && error.status === 404)) throw error;
+        this.loseTraining(id);
+        return;
+      }
       this.deps.log('agent cloud · formation arrêtée');
       this.reschedule(1_000);
     });
+  }
+
+  /**
+   * La session de formation connue est introuvable avec cette clé (404 : supprimée dans la Console, ou d'une autre
+   * organisation après un changement de clé) : elle est réglée « introuvable », sa dépense relevée reste dans l'historique,
+   * et plus rien ne la retient (relevé, lancement, changement d'espace). Si elle existe encore ailleurs, son plafond la borne
+   * (CLD52). `say` : le dire à l'opérateur, qui a fait le geste.
+   */
+  private loseTraining(id: string, say = true): void {
+    const f = this.config.formation;
+    if (f.sessionId !== id || f.settled) return;
+    f.settled = true;
+    f.result = { report: 'lost', reportId: null, capped: false, detail: 'HTTP 404' };
+    this.trainingView = null;
+    this.persist();
+    this.deps.log('agent cloud · session de formation introuvable avec cette clé : oubliée');
+    if (say)
+      this.actionError = this.t(
+        'Session de formation introuvable avec cette clé (supprimée, ou d’une autre organisation) : elle est oubliée. Si elle existe encore ailleurs, son plafond la borne : vérifiez-la dans sa Console.',
+        'Training session not found with this key (deleted, or in another organization): it is forgotten. If it still exists elsewhere, its cap bounds it: check it in its Console.',
+        'Sesión de formación no encontrada con esta clave (eliminada, o de otra organización): se olvida. Si aún existe en otro lugar, su límite la acota: verifíquela en su Consola.',
+      );
   }
 
   /** La session de formation devient celle du desk : écrite tout de suite, avec son entrée d'historique. */
@@ -1740,7 +1773,14 @@ export class AgentCloudHost {
     if (!id || f.settled) return 0;
     // La session de formation a changé pendant le relevé : ce relevé n'écrit rien sur la nouvelle.
     const stale = () => this.config.formation.sessionId !== id || this.config.formation.settled;
-    const session = await this.api.getSession(id);
+    let session: SessionView;
+    try {
+      session = await this.api.getSession(id);
+    } catch (error) {
+      if (!(error instanceof CloudApiError && error.status === 404)) throw error;
+      if (!stale()) this.loseTraining(id, false);
+      return 0;
+    }
     if (stale()) return 0;
     const capped = atCap(session);
     this.trainingView = { id, costCents: session.costCents, budgetCents: session.budgetCents, capped, settling: false };
