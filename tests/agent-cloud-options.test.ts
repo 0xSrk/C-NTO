@@ -63,6 +63,7 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   failures: [],
   reports: 0,
   unread: 0,
+  training: { state: 'idle', sessionId: null, startedAt: null, sessions: 0, solo: false, spent30dCents: 0, unknownCost: 0, costCents: null, budgetCents: null, capped: false, report: null, reportId: null, detail: null, progress: null },
   ...over,
 });
 

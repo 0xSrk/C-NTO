@@ -26,6 +26,13 @@ export const FETCH_MAX_CONTENT_TOKENS = 16_000;
 /** Le correcteur relance l'agent une fois au plus. */
 export const FORMATION_OUTCOME_MAX_ITERATIONS = 2;
 export const FORMATION_START_URL = 'https://quantmemo.com/learn/roadmaps';
+/**
+ * Plafond de chaque session de formation, aux tarifs publics, en cents (25,00 $) : une session à 50 cours en coûte environ
+ * 19 $, et un emballement ne perd qu'un huitième du mois. La reprise passe par une session nouvelle : un plafond bas ne
+ * coûte rien. Aucun plafond mensuel bloquant (« tout cramer ») : le dialogue montre le cumul des 30 derniers jours.
+ */
+export const FORMATION_BUDGET_CENTS = 2500;
+export const FORMATION_SESSION_TITLE = 'CΛNTO · formation quant';
 
 /**
  * Les domaines de la formation, décision de l'ADMIN du 2026-11-03 (« carte blanche ») : quantmemo.com et ses sous-domaines,
@@ -329,5 +336,22 @@ export function coordinatorAgentBody(locale: AppLocale, readerId: string, solo: 
           },
         }),
     metadata: { canto: FORMATION_TAG, role: 'coordinateur' },
+  };
+}
+
+/**
+ * La session de formation, hors déploiement : le coordinateur, son environnement, le magasin en lecture et écriture, le
+ * plafond posé par le desk, le résultat attendu. Rien d'autre que des constantes et des identifiants : rien du desk ne part.
+ */
+export function formationSessionBody(input: { coordinatorId: string; environmentId: string; memoryStoreId: string; locale: AppLocale }): Record<string, unknown> {
+  return {
+    // Un identifiant seul désigne la dernière version du coordinateur, mise à jour juste avant.
+    agent: input.coordinatorId,
+    environment_id: input.environmentId,
+    title: FORMATION_SESSION_TITLE,
+    resources: [{ type: 'memory_store', memory_store_id: input.memoryStoreId, access: 'read_write', instructions: FORMATION_STORE_INSTRUCTIONS }],
+    budget: { type: 'limit', max_list_cost: { amount: String(FORMATION_BUDGET_CENTS), currency: 'USD' } },
+    initial_events: [formationOutcomeEvent(input.locale)],
+    metadata: { canto: FORMATION_TAG },
   };
 }

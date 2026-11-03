@@ -189,6 +189,36 @@ export interface CloudDeploymentState {
   agentVersion: number | null;
 }
 
+/** La progression de la formation, lue dans le magasin sans modèle. */
+export interface CloudTrainingProgress {
+  fiches: number;
+  fichesAtStart: number | null;
+  coursesRead: number | null;
+  coursesKnown: number | null;
+  toVerify: number | null;
+  next: string | null;
+  access: 'autorise' | 'interdit' | 'inconnu' | null;
+  at: number;
+}
+
+/** La formation quant de l'agent cloud : session en cours, dépense, dernier rapport, progression. */
+export interface CloudTrainingState {
+  state: 'idle' | 'running' | 'settling' | 'ended';
+  sessionId: string | null;
+  startedAt: number | null;
+  sessions: number;
+  solo: boolean;
+  spent30dCents: number;
+  unknownCost: number;
+  costCents: number | null;
+  budgetCents: number | null;
+  capped: boolean;
+  report: 'filed' | 'missing' | 'invalid' | 'too_large' | 'archived' | null;
+  reportId: string | null;
+  detail: string | null;
+  progress: CloudTrainingProgress | null;
+}
+
 /** Miroir de `AgentCloudStatus` (`electron/agent-cloud.ts`) ; un test de types tient les deux égaux. La clé n'y figure jamais. */
 export interface AgentCloudStatus {
   available: boolean;
@@ -203,7 +233,7 @@ export interface AgentCloudStatus {
   schedule: CloudSchedule;
   deployment: CloudDeploymentState | null;
   pulling: boolean;
-  busy: 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | null;
+  busy: 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | null;
   lastPullAt: number | null;
   nextPullAt: number | null;
   error: string | null;
@@ -211,6 +241,7 @@ export interface AgentCloudStatus {
   failures: CloudFailure[];
   reports: number;
   unread: number;
+  training: CloudTrainingState;
 }
 
 /**

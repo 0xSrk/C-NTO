@@ -27,6 +27,7 @@ const fake = vi.hoisted(() => {
     failures: [],
     reports: 2,
     unread: 2,
+    training: { state: 'idle', sessionId: null, startedAt: null, sessions: 0, solo: false, spent30dCents: 0, unknownCost: 0, costCents: null, budgetCents: null, capped: false, report: null, reportId: null, detail: null, progress: null },
     ...over,
   });
   const state = {
@@ -158,7 +159,7 @@ describe('agent cloud · store du renderer', () => {
   });
 
   it('le statut ne porte jamais de clé', () => {
-    const keys: (keyof AgentCloudStatus)[] = ['available', 'lab', 'keyStored', 'workspaceId', 'deploymentId', 'managed', 'memoryStoreId', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread'];
+    const keys: (keyof AgentCloudStatus)[] = ['available', 'lab', 'keyStored', 'workspaceId', 'deploymentId', 'managed', 'memoryStoreId', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread', 'training'];
     expect(Object.keys(fake.status()).sort()).toEqual([...keys].sort());
   });
 });

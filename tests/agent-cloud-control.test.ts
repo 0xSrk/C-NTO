@@ -6,7 +6,8 @@ import { CloudApiError, type CloudApi, type DeploymentView } from '../electron/a
 import { AGENT_CLOUD_FILE, PULL_PENDING_MS } from '../electron/agent-cloud';
 import { LAB_SEATS } from '../electron/seat';
 import { BUDGET_CENTS_PER_RUN, CALENDAR_INSTITUTIONS, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudMemoryStoreBody, cloudSystemPrompt, FORMATION_TAG, MAX_PAGES, MEMORY_STORE_NAME, OFFICIAL_DOMAINS, outcomeRubric } from '../electron/agent-cloud-definition';
-import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, KEY, MEMORY_STORE, MEMSTORE, NOW, seal, sid, type HarnessOptions } from './helpers/agentCloudFakes';
+import { FORMATION_BUDGET_CENTS, formationEnvironmentBody, formationSessionBody, READER_AGENT_NAME } from '../electron/agent-cloud-formation';
+import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, KEY, MEMORY_STORE, MEMSTORE, NOW, seal, session, sid, type FakeOverrides, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -421,7 +422,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect(await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: null, error: refused });
     expect(await h.host.setDeployment(DEPL)).toMatchObject({ deploymentId: null, error: refused });
     expect(h.host.setSchedule({ cron: '30 13 * * 1-5', timezone: 'Europe/Paris' })).toMatchObject({ schedule: { cron: '0 7 * * 1-5' }, error: refused });
-    for (const action of [() => h.host.provision(), () => h.host.runNow(), () => h.host.pause(), () => h.host.unpause()]) expect(await action()).toMatchObject({ error: refused });
+    for (const action of [() => h.host.provision(), () => h.host.runNow(), () => h.host.pause(), () => h.host.unpause(), () => h.host.train()]) expect(await action()).toMatchObject({ error: refused });
     expect(api.calls).toEqual([]);
     expect(h.dialogs).toEqual([]);
     expect(existsSync(path.join(h.dir, AGENT_CLOUD_FILE))).toBe(false);
@@ -706,5 +707,145 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect((await h.host.runNow()).busy).toBe('provision');
     release({ response: 2 });
     expect((await first).busy).toBeNull();
+  });
+});
+
+const READER = 'agent_011CZkYpogX7uDKUyvBToREA';
+const COORDINATOR = 'agent_011CZkYpogX7uDKUyvBToCOO';
+const FORMATION_ENV = 'env_011CZkZ9X2dpNyB7HsEFoFRM';
+/** Une session de formation : hors déploiement, plafonnée à 25,00 $. */
+const trainingSession = (n: number, over: Parameters<typeof session>[1] = {}) => session(n, { status: 'running', deploymentId: null, budgetCents: FORMATION_BUDGET_CENTS, costCents: null, createdAt: NOW, updatedAt: NOW, ...over });
+
+/** Faux formateur : environnement, lecteur et coordinateur (selon le nom du corps), session. */
+const trainer = (extra: FakeOverrides = {}) =>
+  fakeApi({
+    createEnvironment: async () => ({ id: FORMATION_ENV }),
+    updateEnvironment: async () => ({ id: FORMATION_ENV }),
+    createAgent: async (body: Record<string, unknown>) => ({ id: body.name === READER_AGENT_NAME ? READER : COORDINATOR, version: 1 }),
+    updateAgent: async (id: string) => ({ id, version: 2 }),
+    createSession: async () => trainingSession(40),
+    ...extra,
+  });
+
+/** Un desk du Lab dont l'installation a créé le magasin ; `formation` : ce que le fichier garde de la formation. */
+function trained(api: ReturnType<typeof fakeApi>, opts: HarnessOptions & { formation?: Record<string, unknown> } = {}) {
+  const probe = cloudHarness(dirs);
+  writeFileSync(path.join(probe.dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE, ...(opts.formation ? { formation: opts.formation } : {}) }));
+  return cloudHarness(dirs, { ...opts, api, dir: probe.dir });
+}
+
+describe('agent cloud · formation quant, par dialogue du process principal', () => {
+  it('CLD41 former l’agent : siège du Lab, Annuler par défaut, plafond dit, une session hors déploiement sur le magasin en lecture et écriture, reprise par une session nouvelle', async () => {
+    // Sans siège : refus, sans appel ni dialogue. Sans magasin : refus sans dialogue.
+    const reader = trained(trainer(), { lab: false, answers: [0] });
+    expect(await reader.host.train()).toMatchObject({ error: 'Pilotage réservé au siège du Lab : ce desk lit les rapports.' });
+    const bare = harness({ api: trainer(), answers: [0] });
+    expect((await bare.host.train()).error).toBe('Installez ou mettez à jour l’agent cloud d’abord : il crée le magasin de savoir.');
+    expect([...reader.api.calls, ...bare.api.calls]).toEqual([]);
+    expect([...reader.dialogs, ...bare.dialogs]).toEqual([]);
+
+    // Le dialogue : Annuler par défaut, le plafond de la session et le cumul des 30 derniers jours, en trois langues.
+    for (const [locale, cap, spent] of [
+      ['fr', 'Plafond de la session : 25,00 $, aux tarifs publics', 'Déjà dépensé en formation sur 30 jours : 0,00 $'],
+      ['en', 'Session cap: $25.00, at list prices', 'Already spent on training over 30 days: $0.00'],
+      ['es', 'Límite de la sesión: 25,00 $, a precios públicos', 'Ya gastado en formación en 30 días: 0,00 $'],
+    ] as const) {
+      const h = trained(trainer(), { locale });
+      await h.host.train();
+      expect(h.dialogs[0]).toMatchObject({ type: 'warning', title: 'CΛNTO', defaultId: 1, cancelId: 1, noLink: true });
+      expect(h.dialogs[0]?.detail).toContain(cap);
+      expect(h.dialogs[0]?.detail).toContain(spent);
+      // Annuler : la seule lecture des sessions du magasin, rien de créé.
+      expect(h.api.calls).toEqual(['listStoreSessions']);
+    }
+    const cancelled = trained(trainer());
+    await cancelled.host.train();
+    expect(cancelled.dialogs[0]).toMatchObject({ message: 'Former l’agent cloud ?', buttons: ['Former', 'Annuler'] });
+    expect(cancelled.dialogs[0]?.detail).toContain('Coordinateur Claude Opus 5.5, lecteurs Claude Sonnet 5.5');
+    expect(cancelled.dialogs[0]?.detail).toContain('quantmemo.com');
+    expect(cancelled.dialogs[0]?.detail).toContain('Les rapports quotidiens gardent leur plafond de 3,00 $ par exécution');
+    expect(cancelled.dialogs[0]?.detail).toContain('Aucune donnée du desk n’est envoyée');
+    expect(cancelled.host.status().training).toMatchObject({ state: 'idle', sessionId: null, sessions: 0 });
+
+    // Lancer : environnement de formation, lecteur, coordinateur, puis la session ; chaque identifiant est écrit.
+    const api = trainer();
+    const h = trained(api, { answers: [0] });
+    const status = await h.host.train();
+    expect(api.calls).toEqual(['listStoreSessions', 'createEnvironment', 'createAgent', 'createAgent', 'createSession']);
+    expect(vi.mocked(api.createEnvironment).mock.calls[0]?.[0]).toEqual(formationEnvironmentBody());
+    expect(vi.mocked(api.listStoreSessions).mock.calls[0]).toEqual([MEMSTORE, { limit: 10 }]);
+    const body = vi.mocked(api.createSession).mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(body).toEqual(formationSessionBody({ coordinatorId: COORDINATOR, environmentId: FORMATION_ENV, memoryStoreId: MEMSTORE, locale: 'fr' }));
+    expect(body).toMatchObject({ agent: COORDINATOR, environment_id: FORMATION_ENV, resources: [{ type: 'memory_store', memory_store_id: MEMSTORE, access: 'read_write' }], budget: { max_list_cost: { amount: '2500', currency: 'USD' } } });
+    expect(body).not.toHaveProperty('deployment_id');
+    expect(status).toMatchObject({ error: null, busy: null, training: { state: 'running', sessionId: sid(40), startedAt: NOW, sessions: 1, solo: false } });
+    expect(saved(h.dir).formation).toMatchObject({ environmentId: FORMATION_ENV, readerId: READER, coordinatorId: COORDINATOR, coordinatorVersion: 1, sessionId: sid(40), startedAt: NOW, settled: false, history: [{ id: sid(40), startedAt: NOW, costCents: null }] });
+    expect(h.logs).toContain('agent cloud · formation lancée');
+
+    // Une formation à la fois : la session connue tourne, le second lancement est refusé sans dialogue.
+    const busy = trained(trainer({ getSession: async () => trainingSession(40) }), { answers: [0], formation: saved(h.dir).formation });
+    expect((await busy.host.train()).error).toBe('Une session de formation est en cours : attendez son rapport, ou arrêtez-la.');
+    expect(busy.api.calls).toEqual(['getSession']);
+    expect(busy.dialogs).toEqual([]);
+    const unread = trained(trainer({ getSession: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529')) }), { answers: [0], formation: saved(h.dir).formation });
+    expect((await unread.host.train()).error).toBe('Session de formation non relue : rien n’est lancé.');
+    expect(unread.dialogs).toEqual([]);
+    // Une session de formation inconnue du desk tourne sur le magasin (réponse perdue, desk plus ancien) : reprise, et rien n'est lancé.
+    const stray = trained(trainer({ listStoreSessions: async () => [session(9, { status: 'running' }), trainingSession(42, { status: 'rescheduling' })] }), { answers: [0] });
+    expect((await stray.host.train()).error).toBe('Une session de formation retrouvée tourne sur le magasin : attendez son rapport, ou arrêtez-la.');
+    expect(stray.api.calls).toEqual(['listStoreSessions']);
+    expect(saved(stray.dir).formation).toMatchObject({ sessionId: sid(42), settled: false, history: [{ id: sid(42) }] });
+
+    // Après une session réglée : « Reprendre », une session NOUVELLE sur le même magasin ; aucun budget n'est relevé.
+    const resumeApi = trainer({ createSession: async () => trainingSession(43) });
+    const resumed = trained(resumeApi, { answers: [0], formation: { ...saved(h.dir).formation, settled: true, history: [{ id: sid(40), startedAt: NOW - 86_400_000, costCents: 1875 }] } });
+    await resumed.host.train();
+    expect(resumed.dialogs[0]).toMatchObject({ message: 'Reprendre la formation ?', buttons: ['Reprendre', 'Annuler'] });
+    expect(resumed.dialogs[0]?.detail).toContain('Déjà dépensé en formation sur 30 jours : 18,75 $');
+    expect(resumeApi.calls).toEqual(['listStoreSessions', 'updateEnvironment', 'updateAgent', 'updateAgent', 'createSession']);
+    expect(vi.mocked(resumeApi.createSession).mock.calls[0]?.[0]).toMatchObject({ resources: [{ memory_store_id: MEMSTORE, access: 'read_write' }] });
+    expect(resumeApi.calls.some((c) => /budget|message|event/i.test(c))).toBe(false);
+    expect(saved(resumed.dir).formation).toMatchObject({ sessionId: sid(43), settled: false, history: [{ id: sid(40) }, { id: sid(43) }] });
+    expect(resumed.host.status().training).toMatchObject({ sessions: 2, spent30dCents: 1875, unknownCost: 1 });
+
+    // Multiagent indisponible pour l'organisation : le coordinateur est recréé seul, c'est écrit, et le dialogue suivant le dit.
+    const multiRefused = new CloudApiError(400, 'invalid_request_error', 'HTTP 400 · invalid_request_error : multiagent: Extra inputs are not permitted');
+    const soloApi = trainer({ createAgent: async (b: Record<string, unknown>) => (b.name === READER_AGENT_NAME ? { id: READER, version: 1 } : 'multiagent' in b ? Promise.reject(multiRefused) : { id: COORDINATOR, version: 1 }) });
+    const solo = trained(soloApi, { answers: [0] });
+    expect(await solo.host.train()).toMatchObject({ error: null, training: { solo: true, sessionId: sid(40) } });
+    const agents = vi.mocked(soloApi.createAgent).mock.calls.map(([b]) => [b.name, 'multiagent' in b]);
+    expect(agents).toEqual([
+      [READER_AGENT_NAME, false],
+      ['CΛNTO · formation quant', true],
+      ['CΛNTO · formation quant', false],
+    ]);
+    expect(saved(solo.dir).formation).toMatchObject({ solo: true });
+    expect(solo.logs).toContain('agent cloud · multiagent indisponible : coordinateur seul');
+    const next = trained(trainer(), { formation: { ...saved(solo.dir).formation, settled: true } });
+    await next.host.train();
+    expect(next.dialogs[0]?.detail).toContain('Claude Opus 5.5 seul (multiagent indisponible pour l’organisation)');
+
+    // Réponse de création perdue : une recherche par le magasin retrouve la session et l'écrit.
+    let listed = 0;
+    const lostApi = trainer({
+      createSession: async () => Promise.reject(new CloudApiError(0, 'timeout', 'Délai dépassé (api.anthropic.com)')),
+      listStoreSessions: async () => (listed++ === 0 ? [] : [trainingSession(44, { createdAt: NOW - 30_000 })]),
+    });
+    const lost = trained(lostApi, { answers: [0] });
+    expect(await lost.host.train()).toMatchObject({ error: null, training: { state: 'running', sessionId: sid(44) } });
+    expect(lostApi.calls).toEqual(['listStoreSessions', 'createEnvironment', 'createAgent', 'createAgent', 'createSession', 'listStoreSessions']);
+    expect(saved(lost.dir).formation).toMatchObject({ sessionId: sid(44), history: [{ id: sid(44) }] });
+    // Introuvable : le desk le dit, et le prochain lancement cherchera d'abord.
+    const missing = trained(trainer({ createSession: async () => Promise.reject(new CloudApiError(503, 'api_error', 'HTTP 503')) }), { answers: [0] });
+    expect((await missing.host.train()).error).toBe('Création de la session non confirmée : le prochain lancement la cherchera avant tout ; la Console la montre.');
+    expect(saved(missing.dir).formation).toMatchObject({ sessionId: null });
+    // Un refus propre de l'API (domaine refusé par le robot d'Anthropic) reste affiché tel quel, à l'étape nommée, sans contournement.
+    const crawler = new CloudApiError(400, 'invalid_request_error', 'HTTP 400 · invalid_request_error : quantmemo.com is a domain Anthropic’s crawler may not access');
+    const refused = trained(trainer({ createAgent: async () => Promise.reject(crawler) }), { answers: [0] });
+    expect((await refused.host.train()).error).toBe(`Lecteur · ${crawler.message}`);
+    expect(refused.api.calls).toEqual(['listStoreSessions', 'createEnvironment', 'createAgent']);
+    // Le plafond déclaré par la session n'est pas celui du dialogue : dit, jamais tu.
+    const odd = trained(trainer({ createSession: async () => trainingSession(45, { budgetCents: 10_000 }) }), { answers: [0] });
+    expect((await odd.host.train()).error).toBe('Plafond déclaré par la session : 100,00 $, et non 25,00 $ : vérifiez-la dans la Console.');
   });
 });

@@ -560,6 +560,7 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
       failures: [],
       reports: 12,
       unread: 3,
+      training: { state: 'idle', sessionId: null, startedAt: null, sessions: 0, solo: false, spent30dCents: 0, unknownCost: 0, costCents: null, budgetCents: null, capped: false, report: null, reportId: null, detail: null, progress: null },
     });
     expect(cells.map((c) => c.label)).toEqual(['Dernier relevé', 'Prochaine exécution', 'Rapports']);
     expect(cells[1]?.plan).toBe(true);

@@ -51,6 +51,7 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   failures: [],
   reports: 2,
   unread: 1,
+  training: { state: 'idle', sessionId: null, startedAt: null, sessions: 0, solo: false, spent30dCents: 0, unknownCost: 0, costCents: null, budgetCents: null, capped: false, report: null, reportId: null, detail: null, progress: null },
   ...over,
 });
 const summary = (id: string, date: string, read: boolean, receivedAt: number): CloudReportSummary => ({ id, date, title: `Brief du ${date}`, summary: 'Deux catalyseurs.', generatedAt: null, receivedAt, read });

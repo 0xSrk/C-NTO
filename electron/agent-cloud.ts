@@ -3,6 +3,7 @@ import path from 'node:path';
 import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
 import { CloudApiError, createCloudApi, isWorkspaceId, type CloudApi, type DeploymentView, type FetchLike, type MemoryStoreView, type SessionView } from './agent-cloud-api';
 import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudMemoryStoreBody, DEPLOYMENT_NAME, MEMORY_STORE_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
+import { coordinatorAgentBody, FORMATION_BUDGET_CENTS, formationEnvironmentBody, formationSessionBody, readerAgentBody } from './agent-cloud-formation';
 import { uiText, type AppLocale } from './locale';
 
 /**
@@ -29,6 +30,12 @@ export const SETTLE_MS = 60_000;
 /** Un rattrapage après une absence avance de dix rapports par relevé, toutes les 3 min tant qu'il en reste. */
 const DOWNLOADS_PER_PULL = 10;
 const COLLECTED_MAX = 500;
+/** Sessions de formation gardées dans l'historique (cumul de la dépense). */
+const FORMATION_HISTORY_MAX = 50;
+/** Fenêtre du cumul de la dépense de formation que le dialogue montre. */
+const FORMATION_SPEND_WINDOW_MS = 30 * 86_400_000;
+/** Une session retrouvée après une réponse de création perdue est née au plus tôt une minute avant l'essai. */
+const CREATE_LOST_SLACK_MS = 60_000;
 const READ_MAX = 1000;
 const LIST_MAX = 400;
 const FAILURES_SHOWN = 5;
@@ -74,8 +81,46 @@ export interface CloudDeploymentState {
   agentVersion: number | null;
 }
 
-export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | null;
-type ProvisionStep = 'environment' | 'memory' | 'agent' | 'deployment' | 'pause' | 'resume';
+export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | null;
+type ProvisionStep = 'environment' | 'memory' | 'agent' | 'deployment' | 'pause' | 'resume' | 'formation-environment' | 'reader' | 'coordinator' | 'session';
+
+/** Ce que le relevé a tiré de la dernière session de formation réglée (CLD45). */
+export type CloudTrainingReport = 'filed' | 'missing' | 'invalid' | 'too_large' | 'archived';
+
+/** La progression lue dans le magasin, sans modèle (CLD46). */
+export interface CloudTrainingProgress {
+  fiches: number;
+  fichesAtStart: number | null;
+  coursesRead: number | null;
+  coursesKnown: number | null;
+  toVerify: number | null;
+  next: string | null;
+  access: 'autorise' | 'interdit' | 'inconnu' | null;
+  at: number;
+}
+
+/** La formation quant, vue du renderer : jamais un secret, toujours présente. */
+export interface CloudTrainingState {
+  /** `running` : la session facture ; `settling` : au repos, rapport pas encore relevé ; `ended` : la dernière est réglée. */
+  state: 'idle' | 'running' | 'settling' | 'ended';
+  sessionId: string | null;
+  startedAt: number | null;
+  /** Sessions de formation lancées (historique). */
+  sessions: number;
+  /** Le coordinateur lit seul : l'organisation n'a pas le type multiagent. */
+  solo: boolean;
+  /** Dépense relevée des sessions de formation des 30 derniers jours, en cents. */
+  spent30dCents: number;
+  /** Sessions des 30 derniers jours dont le coût n'a pas encore été relevé. */
+  unknownCost: number;
+  costCents: number | null;
+  budgetCents: number | null;
+  capped: boolean;
+  report: CloudTrainingReport | null;
+  reportId: string | null;
+  detail: string | null;
+  progress: CloudTrainingProgress | null;
+}
 
 export interface AgentCloudStatus {
   /** Le trousseau du système chiffre : sans lui, aucune clé n'est gardée. */
@@ -103,6 +148,7 @@ export interface AgentCloudStatus {
   failures: CloudFailure[];
   reports: number;
   unread: number;
+  training: CloudTrainingState;
 }
 
 export interface AgentCloudSeal {
@@ -149,6 +195,28 @@ interface Collected {
   detail?: string;
 }
 
+interface TrainingRun {
+  id: string;
+  startedAt: number;
+  /** Coût relevé aux tarifs publics, en cents ; `null` tant que l'API ne l'a pas dit. */
+  costCents: number | null;
+}
+
+/** La formation quant : ses objets chez Anthropic, sa session en cours et son historique (agent-cloud.json, hors du coffre). */
+interface FormationConfig {
+  environmentId: string | null;
+  readerId: string | null;
+  coordinatorId: string | null;
+  coordinatorVersion: number | null;
+  /** Multiagent refusé par l'organisation : le coordinateur est créé sans roster. */
+  solo: boolean;
+  sessionId: string | null;
+  startedAt: number | null;
+  /** La session a été relevée (rapport rangé, ou constat) : elle ne facture plus, la suivante peut partir. */
+  settled: boolean;
+  history: TrainingRun[];
+}
+
 interface CloudConfig {
   key: string | null;
   workspaceId: string | null;
@@ -167,6 +235,7 @@ interface CloudConfig {
    * toutes le sont. Le relevé lit à partir d'elle, de la plus ancienne vers la plus récente : rien ne se perd après une absence.
    */
   floor: string | null;
+  formation: FormationConfig;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -184,6 +253,30 @@ export function isTimezone(v: unknown): v is string {
 /** Une clé API : ASCII imprimable sans espace, de 20 à 512 caractères. */
 export function isApiKeyText(v: unknown): v is string {
   return typeof v === 'string' && /^[\x21-\x7e]{20,512}$/.test(v);
+}
+
+const safeInt = (v: unknown): number | null => (typeof v === 'number' && Number.isSafeInteger(v) ? v : null);
+
+function coerceFormation(raw: unknown): FormationConfig {
+  const r = isRecord(raw) ? raw : {};
+  const history: TrainingRun[] = [];
+  for (const entry of Array.isArray(r.history) ? r.history : []) {
+    if (!isRecord(entry) || !isApiId(entry.id, 'sesn')) continue;
+    const startedAt = safeInt(entry.startedAt);
+    const cost = safeInt(entry.costCents);
+    if (startedAt !== null) history.push({ id: entry.id, startedAt, costCents: cost !== null && cost >= 0 ? cost : null });
+  }
+  return {
+    environmentId: isApiId(r.environmentId, 'env') ? r.environmentId : null,
+    readerId: isApiId(r.readerId, 'agent') ? r.readerId : null,
+    coordinatorId: isApiId(r.coordinatorId, 'agent') ? r.coordinatorId : null,
+    coordinatorVersion: safeInt(r.coordinatorVersion),
+    solo: r.solo === true,
+    sessionId: isApiId(r.sessionId, 'sesn') ? r.sessionId : null,
+    startedAt: safeInt(r.startedAt),
+    settled: r.settled === true,
+    history: history.slice(-FORMATION_HISTORY_MAX),
+  };
 }
 
 function coerceConfig(raw: unknown): CloudConfig {
@@ -210,6 +303,7 @@ function coerceConfig(raw: unknown): CloudConfig {
     read: Array.isArray(r.read) ? r.read.filter((id): id is string => isApiId(id, 'sesn')).slice(-READ_MAX) : [],
     collected,
     floor: typeof r.floor === 'string' && r.floor.length <= 40 && Number.isFinite(Date.parse(r.floor)) ? r.floor : null,
+    formation: coerceFormation(r.formation),
   };
 }
 
@@ -288,7 +382,7 @@ export class AgentCloudHost {
       const entries = Object.entries(c.collected)
         .sort(([, a], [, b]) => b.at - a.at)
         .slice(0, COLLECTED_MAX);
-      const body = { v: 1, key: c.key, workspaceId: c.workspaceId, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, memoryStoreId: c.memoryStoreId, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
+      const body = { v: 1, key: c.key, workspaceId: c.workspaceId, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, memoryStoreId: c.memoryStoreId, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor, formation: { ...c.formation, history: c.formation.history.slice(-FORMATION_HISTORY_MAX) } };
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify(body), { encoding: 'utf8', mode: 0o600 });
       renameSync(tmp, this.file);
@@ -355,6 +449,40 @@ export class AgentCloudHost {
       failures: this.failures(),
       reports: this.reports().size,
       unread: this.unreadCount(),
+      training: this.training(),
+    };
+  }
+
+  /** Une session de formation facture encore, ou n'est pas encore relevée. */
+  protected trainingActive(): boolean {
+    return !!this.config.formation.sessionId && !this.config.formation.settled;
+  }
+
+  /** Le cumul des 30 derniers jours : la dépense relevée, et le nombre de sessions dont le coût reste à relever. */
+  private trainingSpend(): { cents: number; unknown: number } {
+    const since = this.now() - FORMATION_SPEND_WINDOW_MS;
+    const recent = this.config.formation.history.filter((run) => run.startedAt >= since);
+    return { cents: recent.reduce((sum, run) => sum + (run.costCents ?? 0), 0), unknown: recent.filter((run) => run.costCents === null).length };
+  }
+
+  private training(): CloudTrainingState {
+    const f = this.config.formation;
+    const spend = this.trainingSpend();
+    return {
+      state: this.trainingActive() ? 'running' : f.history.length > 0 ? 'ended' : 'idle',
+      sessionId: f.sessionId,
+      startedAt: f.startedAt,
+      sessions: f.history.length,
+      solo: f.solo,
+      spent30dCents: spend.cents,
+      unknownCost: spend.unknown,
+      costCents: null,
+      budgetCents: null,
+      capped: false,
+      report: null,
+      reportId: null,
+      detail: null,
+      progress: null,
     };
   }
 
@@ -913,6 +1041,185 @@ export class AgentCloudHost {
     });
   }
 
+  /**
+   * Former l'agent cloud (demande de l'ADMIN, 2026-11-03) : une session hors déploiement, sur le magasin de savoir en lecture
+   * et écriture, plafonnée par le desk. Siège du Lab, puis dialogue du process principal, Annuler par défaut, qui dit le
+   * plafond de la session et le cumul des 30 derniers jours. Jamais deux formations sur le même magasin. La reprise est
+   * toujours une session nouvelle, qui relit la progression du magasin : aucun plafond n'est relevé.
+   */
+  async train(): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
+    const memoryStoreId = this.config.memoryStoreId;
+    if (!this.config.key || !memoryStoreId)
+      return this.refuse(
+        'Installez ou mettez à jour l’agent cloud d’abord : il crée le magasin de savoir.',
+        'Install or update the cloud agent first: it creates the knowledge store.',
+        'Instale o actualice primero el agente en la nube: crea el almacén de saber.',
+      );
+    return this.control('train', async () => {
+      const f = this.config.formation;
+      if (f.sessionId && !f.settled) {
+        // Une session connue qui tourne, ou au repos mais pas encore relevée : rien ne part tant qu'elle n'est pas réglée.
+        try {
+          await this.api.getSession(f.sessionId);
+        } catch {
+          this.actionError = this.t('Session de formation non relue : rien n’est lancé.', 'Training session not read: nothing is started.', 'Sesión de formación no leída: no se lanza nada.');
+          return;
+        }
+        this.actionError = this.t(
+          'Une session de formation est en cours : attendez son rapport, ou arrêtez-la.',
+          'A training session is in progress: wait for its report, or stop it.',
+          'Hay una sesión de formación en curso: espere su informe, o deténgala.',
+        );
+        return;
+      }
+      // Une session de formation que le desk ne connaît pas (réponse perdue, desk plus ancien) tourne peut-être sur le magasin.
+      const known = new Set(f.history.map((run) => run.id));
+      const stray = (await this.api.listStoreSessions(memoryStoreId, { limit: 10 })).find((s) => s.deploymentId === null && (s.status === 'running' || s.status === 'rescheduling') && !known.has(s.id));
+      if (stray) {
+        this.adoptTraining(stray);
+        this.deps.log('agent cloud · session de formation retrouvée sur le magasin');
+        this.actionError = this.t(
+          'Une session de formation retrouvée tourne sur le magasin : attendez son rapport, ou arrêtez-la.',
+          'A training session was found running on the store: wait for its report, or stop it.',
+          'Se encontró una sesión de formación en curso en el almacén: espere su informe, o deténgala.',
+        );
+        this.reschedule(1_000);
+        return;
+      }
+      const resume = f.history.length > 0;
+      const spend = this.trainingSpend();
+      const cap = this.money(FORMATION_BUDGET_CENTS);
+      const spent = this.money(spend.cents);
+      const daily = this.money(BUDGET_CENTS_PER_RUN);
+      const choice = await this.ask({
+        type: 'warning',
+        title: 'CΛNTO',
+        message: resume ? this.t('Reprendre la formation ?', 'Resume the training?', '¿Reanudar la formación?') : this.t('Former l’agent cloud ?', 'Train the cloud agent?', '¿Formar al agente en la nube?'),
+        detail: [
+          f.solo
+            ? this.t('Claude Opus 5.5 seul (multiagent indisponible pour l’organisation)', 'Claude Opus 5.5 alone (multiagent unavailable for the organization)', 'Claude Opus 5.5 solo (multiagente no disponible para la organización)')
+            : this.t('Coordinateur Claude Opus 5.5, lecteurs Claude Sonnet 5.5', 'Coordinator Claude Opus 5.5, readers Claude Sonnet 5.5', 'Coordinador Claude Opus 5.5, lectores Claude Sonnet 5.5'),
+          this.t('Site lu : quantmemo.com, robots.txt et conditions d’utilisation d’abord', 'Site read: quantmemo.com, robots.txt and terms of use first', 'Sitio leído: quantmemo.com, robots.txt y condiciones de uso primero'),
+          this.t(
+            `Plafond de la session : ${cap}, aux tarifs publics (la dernière requête en cours peut le dépasser de peu)`,
+            `Session cap: ${cap}, at list prices (the request in progress may overshoot it slightly)`,
+            `Límite de la sesión: ${cap}, a precios públicos (la petición en curso puede superarlo un poco)`,
+          ),
+          this.t(`Déjà dépensé en formation sur 30 jours : ${spent}`, `Already spent on training over 30 days: ${spent}`, `Ya gastado en formación en 30 días: ${spent}`) +
+            (spend.unknown > 0
+              ? this.t(` (${spend.unknown} session(s) au coût non relevé)`, ` (${spend.unknown} session(s) with cost not yet read)`, ` (${spend.unknown} sesión(es) con coste no leído)`)
+              : ''),
+          this.t(
+            `Les rapports quotidiens gardent leur plafond de ${daily} par exécution ; crédits épuisés, l’API refuse tout jusqu’au cycle suivant, rapports compris.`,
+            `Daily reports keep their ${daily} cap per run; once credits run out, the API refuses everything until the next cycle, reports included.`,
+            `Los informes diarios conservan su límite de ${daily} por ejecución; agotados los créditos, la API lo rechaza todo hasta el ciclo siguiente, informes incluidos.`,
+          ),
+          this.t(`Magasin : ${MEMORY_STORE_NAME}`, `Store: ${MEMORY_STORE_NAME}`, `Almacén: ${MEMORY_STORE_NAME}`),
+          '',
+          this.t(
+            'Aucune donnée du desk n’est envoyée : la session lit le site et écrit dans le magasin ; le desk relève son rapport.',
+            'No desk data is sent: the session reads the site and writes to the store; the desk pulls its report.',
+            'No se envía ningún dato del desk: la sesión lee el sitio y escribe en el almacén; el desk recoge su informe.',
+          ),
+        ].join('\n'),
+        buttons: [resume ? this.t('Reprendre', 'Resume', 'Reanudar') : this.t('Former', 'Train', 'Formar'), this.t('Annuler', 'Cancel', 'Cancelar')],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice !== 0) return;
+      let step: ProvisionStep = 'formation-environment';
+      try {
+        // Un environnement ou un agent ne facture rien : perdu (404, archivé), il est recréé sans risque. Chaque lancement
+        // met les deux agents à jour (une version nouvelle, gratuite) : la consigne courante s'applique toujours.
+        const lost = (e: CloudApiError) => e.status === 404 || e.status === 409 || (e.status === 400 && /archiv/i.test(e.message));
+        const env = await this.upsert(f.environmentId, (id) => this.api.updateEnvironment(id, formationEnvironmentBody()), () => this.api.createEnvironment(formationEnvironmentBody()), 'environnement de formation', lost);
+        f.environmentId = env.id;
+        this.persist();
+        step = 'reader';
+        const readerBody = readerAgentBody();
+        const reader = await this.upsert(f.readerId, (id) => this.api.updateAgent(id, readerBody), () => this.api.createAgent(readerBody), 'lecteur', lost);
+        f.readerId = reader.id;
+        this.persist();
+        step = 'coordinator';
+        const locale = this.deps.locale();
+        const coordinator = (solo: boolean) => {
+          const body = coordinatorAgentBody(locale, reader.id, solo);
+          return this.upsert(f.coordinatorId, (id) => this.api.updateAgent(id, body), () => this.api.createAgent(body), 'coordinateur', lost);
+        };
+        let agent: { id: string; version: number };
+        try {
+          agent = await coordinator(f.solo);
+        } catch (error) {
+          // L'organisation n'a pas le type multiagent : le coordinateur lit seul (25 cours au plus, la consigne le prévoit).
+          const refused = error instanceof CloudApiError && error.status === 400 && /Extra inputs are not permitted/i.test(error.message) && /multiagent/i.test(error.message);
+          if (f.solo || !refused) throw error;
+          f.solo = true;
+          this.persist();
+          this.deps.log('agent cloud · multiagent indisponible : coordinateur seul');
+          agent = await coordinator(true);
+        }
+        f.coordinatorId = agent.id;
+        f.coordinatorVersion = agent.version;
+        this.persist();
+        step = 'session';
+        const attemptAt = this.now();
+        let created: SessionView;
+        try {
+          created = await this.api.createSession(formationSessionBody({ coordinatorId: agent.id, environmentId: env.id, memoryStoreId, locale }));
+        } catch (error) {
+          const transient = error instanceof CloudApiError && (error.type === 'timeout' || error.type === 'network' || error.status >= 500);
+          if (!transient) throw error;
+          // La réponse s'est perdue en route : la session existe peut-être, et facture. Une seule recherche, par le magasin.
+          let found: SessionView | undefined;
+          try {
+            found = (await this.api.listStoreSessions(memoryStoreId, { limit: 10 })).find((s) => s.deploymentId === null && !known.has(s.id) && (s.createdAt ?? 0) >= attemptAt - CREATE_LOST_SLACK_MS);
+          } catch {
+            /* recherche impossible : le prochain lancement cherchera avant tout */
+          }
+          if (!found) {
+            this.actionError = this.t(
+              'Création de la session non confirmée : le prochain lancement la cherchera avant tout ; la Console la montre.',
+              'Session creation not confirmed: the next launch looks for it first; the Console shows it.',
+              'Creación de la sesión no confirmada: el próximo lanzamiento la buscará antes que nada; la Consola la muestra.',
+            );
+            this.deps.log('agent cloud · création de la session de formation non confirmée');
+            return;
+          }
+          created = found;
+          this.deps.log('agent cloud · session de formation retrouvée après une réponse perdue');
+        }
+        this.adoptTraining(created);
+        this.deps.log('agent cloud · formation lancée');
+        if (created.budgetCents !== FORMATION_BUDGET_CENTS) {
+          const declared = created.budgetCents === null ? this.t('aucun', 'none', 'ninguno') : this.money(created.budgetCents);
+          this.actionError = this.t(
+            `Plafond déclaré par la session : ${declared}, et non ${cap} : vérifiez-la dans la Console.`,
+            `Cap declared by the session: ${declared}, not ${cap}: check it in the Console.`,
+            `Límite declarado por la sesión: ${declared}, y no ${cap}: verifíquela en la Consola.`,
+          );
+        }
+        this.reschedule(PULL_PENDING_MS);
+      } catch (error) {
+        // Un refus de l'API (un domaine que le robot d'Anthropic ne lit pas, par exemple) reste dit tel quel, à son étape.
+        this.actionError = `${this.stepLabel(step)} · ${error instanceof CloudApiError && error.status === 404 ? error.message : this.explain(error)}`;
+        this.deps.log(`agent cloud · formation en échec (${step}) : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
+      }
+    });
+  }
+
+  /** La session de formation devient celle du desk : écrite tout de suite, avec son entrée d'historique. */
+  private adoptTraining(session: SessionView): void {
+    const f = this.config.formation;
+    const startedAt = session.createdAt ?? this.now();
+    f.sessionId = session.id;
+    f.startedAt = startedAt;
+    f.settled = false;
+    if (!f.history.some((run) => run.id === session.id)) f.history = [...f.history, { id: session.id, startedAt, costCents: session.costCents }].slice(-FORMATION_HISTORY_MAX);
+    this.persist();
+  }
+
   /** Suspendre la planification ne coûte rien : pas de dialogue. */
   async pause(): Promise<AgentCloudStatus> {
     if (!this.lab()) return this.refuseLab();
@@ -1010,6 +1317,14 @@ export class AgentCloudHost {
         return this.t('Suspension', 'Pause', 'Suspensión');
       case 'resume':
         return this.t('Reprise', 'Resume', 'Reanudación');
+      case 'formation-environment':
+        return this.t('Environnement de formation', 'Training environment', 'Entorno de formación');
+      case 'reader':
+        return this.t('Lecteur', 'Reader', 'Lector');
+      case 'coordinator':
+        return this.t('Coordinateur', 'Coordinator', 'Coordinador');
+      case 'session':
+        return this.t('Session', 'Session', 'Sesión');
     }
   }
 
