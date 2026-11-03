@@ -31,6 +31,8 @@ const fake = vi.hoisted(() => {
       run: note('run'),
       pause: note('pause'),
       unpause: note('unpause'),
+      train: note('train'),
+      stopTraining: note('stopTraining'),
       openFolder: async () => true,
       onStatus: () => () => undefined,
       onReports: () => () => undefined,

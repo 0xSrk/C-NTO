@@ -19,12 +19,22 @@ describe('agent cloud · câblage IPC', () => {
     const handled = channels(main, /ipcMain\.handle\('(agent-cloud:[a-z-]+)'/g);
     expect(invoked).toEqual(handled);
     expect(handled).toEqual(
-      ['list', 'mark-read', 'open-folder', 'pause', 'provision', 'pull', 'read', 'run', 'set-deployment', 'set-key', 'set-schedule', 'set-workspace', 'status', 'unpause'].map((m) => `agent-cloud:${m}`),
+      ['list', 'mark-read', 'open-folder', 'pause', 'provision', 'pull', 'read', 'run', 'set-deployment', 'set-key', 'set-schedule', 'set-workspace', 'status', 'train', 'train-stop', 'unpause'].map((m) => `agent-cloud:${m}`),
     );
     for (const line of main.split('\n').filter((l) => l.includes("ipcMain.handle('agent-cloud:"))) {
       expect(line, line).toMatch(/\(e(, [a-z]+: unknown)?\) => \(trusted\(e\) && agentCloud/);
     }
     expect(main).not.toMatch(/ipcMain\.on\('agent-cloud:/);
+  });
+
+  it('CLD43 former et arrêter : deux canaux sans argument, derrière trusted(e)', () => {
+    expect(main).toContain("ipcMain.handle('agent-cloud:train', (e) => (trusted(e) && agentCloud ? agentCloud.train() : null));");
+    expect(main).toContain("ipcMain.handle('agent-cloud:train-stop', (e) => (trusted(e) && agentCloud ? agentCloud.stopTraining() : null));");
+    expect(preload).toContain("train: () => ipcRenderer.invoke('agent-cloud:train'),");
+    expect(preload).toContain("stopTraining: () => ipcRenderer.invoke('agent-cloud:train-stop'),");
+    expect(channels(main, /ipcMain\.handle\('(agent-cloud:[a-z-]+)'/g)).toHaveLength(16);
+    // Rien ne vient du renderer : ni argument, ni plafond, ni corps.
+    for (const line of main.split('\n').filter((l) => /ipcMain\.handle\('agent-cloud:train/.test(l))) expect(line).toMatch(/\(e\) => \(trusted\(e\) && agentCloud \? /);
   });
 
   it('la clé, l’espace de travail et le déploiement sont bornés à l’entrée ; aucune URL ne vient du renderer', () => {

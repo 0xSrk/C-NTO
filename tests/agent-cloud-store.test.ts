@@ -63,6 +63,8 @@ const fake = vi.hoisted(() => {
       run: note('run', () => status({ pending: 1 })),
       pause: note('pause', () => status()),
       unpause: note('unpause', () => status()),
+      train: note('train', () => status({ busy: 'train' })),
+      stopTraining: note('stopTraining', () => status({ busy: 'stop' })),
       openFolder: note('openFolder', () => true),
       onStatus: (cb: (s: unknown) => void) => {
         state.listeners.status.push(cb);
@@ -145,11 +147,15 @@ describe('agent cloud · store du renderer', () => {
     await s.provision();
     await s.pause();
     await s.unpause();
+    await s.train();
+    expect(useAgentCloud.getState().status?.busy).toBe('train');
+    await s.stopTraining();
+    expect(useAgentCloud.getState().status?.busy).toBe('stop');
     const before = useAgentCloud.getState().status;
     await s.setDeployment(null);
     expect(useAgentCloud.getState().status).toBe(before);
     expect(await s.openFolder()).toBe(true);
-    expect(fake.calls.map((c) => c[0])).toEqual(['status', 'list', 'pull', 'run', 'setKey', 'setWorkspace', 'setSchedule', 'provision', 'pause', 'unpause', 'setDeployment', 'openFolder']);
+    expect(fake.calls.map((c) => c[0])).toEqual(['status', 'list', 'pull', 'run', 'setKey', 'setWorkspace', 'setSchedule', 'provision', 'pause', 'unpause', 'train', 'stopTraining', 'setDeployment', 'openFolder']);
   });
 
   it('chargé au démarrage du desk, sans étape de démarrage qui attende le réseau', () => {

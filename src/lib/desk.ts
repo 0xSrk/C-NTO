@@ -269,6 +269,10 @@ export interface AgentCloudApi {
   run: () => Promise<AgentCloudStatus | null>;
   pause: () => Promise<AgentCloudStatus | null>;
   unpause: () => Promise<AgentCloudStatus | null>;
+  /** Former l'agent, ou reprendre la formation : siège du Lab et dialogue du process principal, qui dit le plafond. */
+  train: () => Promise<AgentCloudStatus | null>;
+  /** Arrêter la formation en cours (sans dialogue : cela ne coûte rien). */
+  stopTraining: () => Promise<AgentCloudStatus | null>;
   openFolder: () => Promise<boolean>;
   onStatus: (cb: (status: AgentCloudStatus) => void) => () => void;
   onReports: (cb: (list: CloudReportSummary[]) => void) => () => void;
