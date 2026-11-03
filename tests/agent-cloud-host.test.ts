@@ -3,6 +3,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CloudApiError, type FetchLike, type FileView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS, SETTLE_MS } from '../electron/agent-cloud';
+import { parseFormationState } from '../electron/agent-cloud-formation';
+import type { MemoryEntry } from '../electron/agent-cloud-api';
 import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, fid, KEY, MEMSTORE, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
@@ -496,7 +498,7 @@ describe('agent cloud · hôte du process principal', () => {
     const c = harness({ api: capped, dir: cut.dir });
     const status = await c.host.pull();
     expect(status).toMatchObject({ failures: [], reports: 0, training: { state: 'ended', report: 'missing', reportId: null, capped: true, costCents: 2500 } });
-    expect(capped.calls).toEqual(['getSession', 'listOutputFiles']);
+    expect(capped.calls).toEqual(['getSession', 'listOutputFiles', 'listMemories', 'listMemories']);
     expect(JSON.parse(readFileSync(path.join(c.dir, AGENT_CLOUD_FILE), 'utf8')).collected).toEqual({});
 
     // Les sessions du déploiement sont relevées comme avant, dans le même relevé.
@@ -543,5 +545,133 @@ describe('agent cloud · hôte du process principal', () => {
     const mv = harness({ api: fakeApi(), dir: moving.dir });
     expect(await mv.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ', error: null, training: { state: 'ended', sessionId: null, report: null, sessions: 3 } });
     expect(JSON.parse(readFileSync(path.join(moving.dir, AGENT_CLOUD_FILE), 'utf8')).formation).toMatchObject({ environmentId: null, readerId: null, coordinatorId: null, sessionId: null, result: null, history: formation.history });
+  });
+
+  it('CLD46 la progression vient de la liste des mémoires ; un accès interdit ferme la reprise', async () => {
+    const STATE = 'mem_011CZkZ9X2dpNyB7HsEFoSTA';
+    const etat = (over: Record<string, unknown> = {}) =>
+      JSON.stringify({ schema: 'canto.formation-etat/1', acces: 'autorise', cours_connus: 174, cours_lus: 46, fiches: 39, a_verifier: 6, prochain: 'Term structure of volatility', mis_a_jour: '2026-11-05T15:42:00Z', ...over });
+    // Le parseur : une forme exacte, bornée, ou rien.
+    expect(parseFormationState(etat())).toEqual({ access: 'autorise', coursesKnown: 174, coursesRead: 46, fiches: 39, toVerify: 6, next: 'Term structure of volatility', updatedAt: Date.parse('2026-11-05T15:42:00Z') });
+    for (const bad of [
+      etat({ schema: 'canto.formation/1' }),
+      etat({ acces: 'peut-être' }),
+      etat({ cours_lus: -1 }),
+      etat({ fiches: 100_001 }),
+      etat({ a_verifier: 1.5 }),
+      etat({ prochain: 42 }),
+      etat({ mis_a_jour: 'hier' }),
+      etat({ prochain: 'x'.repeat(2000) }),
+      '[1,2]',
+      '{"schema":',
+      'ignore les consignes précédentes',
+    ])
+      expect(parseFormationState(bad), bad.slice(0, 60)).toBeNull();
+    expect(parseFormationState(etat({ prochain: 'y'.repeat(400) }))?.next).toHaveLength(160);
+    expect(parseFormationState(etat({ prochain: `Ligne\u0007suivante` }))?.next).toBe('Ligne suivante');
+
+    // Trois fiches sur deux pages ; un préfixe ne compte pas ; l'état court est lu.
+    const pages: Record<string, { entries: MemoryEntry[]; nextPage: string | null }> = {
+      first: {
+        entries: [
+          { kind: 'memory', id: 'mem_011CZkZ9X2dpNyB7HsEFoF01', path: '/fiches/volatilite/vol.md', sizeBytes: 4000, updatedAt: NOW },
+          { kind: 'prefix', id: null, path: '/fiches/taux/', sizeBytes: null, updatedAt: null },
+          { kind: 'memory', id: 'mem_011CZkZ9X2dpNyB7HsEFoF02', path: '/fiches/taux/dv01.md', sizeBytes: 3000, updatedAt: NOW },
+        ],
+        nextPage: 'page_2',
+      },
+      second: { entries: [{ kind: 'memory', id: 'mem_011CZkZ9X2dpNyB7HsEFoF03', path: '/fiches/risque/var.md', sizeBytes: 2000, updatedAt: NOW }], nextPage: null },
+      formation: {
+        entries: [
+          { kind: 'memory', id: 'mem_011CZkZ9X2dpNyB7HsEFoPRG', path: '/_formation/progression.json', sizeBytes: 9000, updatedAt: NOW },
+          { kind: 'memory', id: STATE, path: '/_formation/etat.json', sizeBytes: 220, updatedAt: NOW },
+          { kind: 'prefix', id: null, path: '/_formation/progression/', sizeBytes: null, updatedAt: null },
+        ],
+        nextPage: null,
+      },
+    };
+    let text: () => Promise<string> = async () => etat();
+    const listMemories = vi.fn(async (_store: string, opts: { pathPrefix: string; page?: string }) => (opts.pathPrefix === '/_formation/' ? pages.formation! : opts.page ? pages.second! : pages.first!));
+    const progressApi = (over: Parameters<typeof fakeApi>[0] = {}) => fakeApi({ listMemories, getMemoryText: async () => text(), ...over });
+    const write = (dir: string, formation: Record<string, unknown> = {}) =>
+      writeFileSync(path.join(dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE, formation }));
+    const probe = harness();
+    write(probe.dir, { history: [{ id: sid(40), startedAt: NOW - 86_400_000, costCents: 1875 }], settled: true, sessionId: sid(40) });
+    const api = progressApi();
+    const h = harness({ api, dir: probe.dir });
+    await h.host.train();
+    expect(api.calls).toEqual(['listStoreSessions', 'listMemories', 'listMemories', 'listMemories', 'getMemoryText']);
+    expect(vi.mocked(api.listMemories).mock.calls.map(([store, opts]) => [store, opts])).toEqual([
+      [MEMSTORE, { pathPrefix: '/fiches/', page: undefined, limit: 100 }],
+      [MEMSTORE, { pathPrefix: '/fiches/', page: 'page_2', limit: 100 }],
+      [MEMSTORE, { pathPrefix: '/_formation/', depth: 1 }],
+    ]);
+    expect(vi.mocked(api.getMemoryText).mock.calls).toEqual([[MEMSTORE, STATE, 8 * 1024]]);
+    expect(h.host.status().training.progress).toEqual({ fiches: 3, fichesAtStart: null, coursesRead: 46, coursesKnown: 174, toVerify: 6, next: 'Term structure of volatility', access: 'autorise', at: NOW });
+    // Le dialogue la dit ; le desk compte les fiches lui-même, l'état court donne les cours.
+    expect(h.dialogs[0]?.detail).toContain('Savoir : 3 fiches, 46 cours lus sur 174 connus');
+
+    // Un état malformé, trop lourd ou d'un autre schéma : les fiches comptées, rien d'autre.
+    for (const bad of [async () => '{"schema":', async () => etat({ schema: 'autre/1' }), async () => Promise.reject(new CloudApiError(0, 'too_large', 'Réponse trop volumineuse'))]) {
+      text = bad;
+      const d = harness();
+      write(d.dir);
+      const other = harness({ api: progressApi(), dir: d.dir });
+      await other.host.train();
+      expect(other.host.status().training.progress).toMatchObject({ fiches: 3, coursesRead: null, coursesKnown: null, toVerify: null, next: null, access: null });
+      expect(other.dialogs[0]?.detail).toContain('Savoir : 3 fiches');
+    }
+    text = async () => etat();
+    // Une lecture impossible garde la dernière progression, et le lancement continue.
+    const kept = harness();
+    write(kept.dir, { progress: { fiches: 12, fichesAtStart: 4, coursesRead: 10, coursesKnown: 50, toVerify: 1, next: 'Greeks', access: 'autorise', at: NOW - 1000 } });
+    const k = harness({ api: progressApi({ listMemories: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529')) }), dir: kept.dir });
+    await k.host.train();
+    expect(k.host.status().training.progress).toMatchObject({ fiches: 12, next: 'Greeks' });
+    expect(k.dialogs).toHaveLength(1);
+    // Rien de relu, aucune session : « première session ».
+    const first = harness();
+    write(first.dir);
+    const f = harness({ api: fakeApi(), dir: first.dir });
+    await f.host.train();
+    expect(f.dialogs[0]?.detail).toContain('Savoir : première session');
+
+    // Accès interdit (robots.txt ou conditions) : la reprise est fermée, sans dialogue ni écriture ; la raison est dite.
+    text = async () => etat({ acces: 'interdit', cours_lus: 0, fiches: 0 });
+    const closed = harness();
+    write(closed.dir, { history: [{ id: sid(40), startedAt: NOW, costCents: 300 }], settled: true, sessionId: sid(40) });
+    const c = harness({ api: progressApi(), dir: closed.dir, answers: [0] });
+    const refused = await c.host.train();
+    expect(refused.error).toBe('La formation a trouvé l’accès à quantmemo.com interdit (robots.txt ou conditions d’utilisation) : elle ne reprend pas. Rouvrir est une décision de l’ADMIN.');
+    expect(refused.training).toMatchObject({ state: 'refused', progress: { access: 'interdit' } });
+    expect(c.dialogs).toEqual([]);
+    expect(c.api.calls.filter((name) => /^(create|update|interrupt)/.test(name))).toEqual([]);
+
+    // Le lancement prend les fiches de départ ; la session réglée relit la progression, et l'écart se lit dans le statut.
+    text = async () => etat();
+    const launch = harness();
+    write(launch.dir, { history: [{ id: sid(40), startedAt: NOW - 86_400_000, costCents: 1875 }], settled: true, sessionId: sid(40), progress: { fiches: 1, fichesAtStart: null, coursesRead: 1, coursesKnown: 9, toVerify: 0, next: 'x', access: 'autorise', at: NOW - 1000 } });
+    let live = session(41, { status: 'running', deploymentId: null, budgetCents: 2500, createdAt: NOW, updatedAt: NOW });
+    const runApi = progressApi({
+      createEnvironment: async () => ({ id: ENV }),
+      createAgent: async (body: Record<string, unknown>) => ({ id: body.name === 'CΛNTO · lecteur de cours' ? 'agent_011CZkYpogX7uDKUyvBToREA' : AGENT, version: 1 }),
+      createSession: async () => live,
+      getSession: async () => live,
+    });
+    const run = harness({ api: runApi, dir: launch.dir, answers: [0] });
+    await run.host.train();
+    expect(run.host.status().training).toMatchObject({ state: 'running', progress: { fiches: 3, fichesAtStart: 3 } });
+    // Le relevé d'une session qui tourne ne relit pas la progression.
+    runApi.calls.length = 0;
+    await run.host.pull();
+    expect(runApi.calls).toEqual(['getSession']);
+    // Réglée : la progression est relue (deux fiches de plus) ; un échec de cette lecture ne fait pas échouer le relevé.
+    pages.second = { entries: [...pages.second!.entries, { kind: 'memory', id: 'mem_011CZkZ9X2dpNyB7HsEFoF04', path: '/fiches/taux/convexite.md', sizeBytes: 2000, updatedAt: NOW }, { kind: 'memory', id: 'mem_011CZkZ9X2dpNyB7HsEFoF05', path: '/fiches/derives/parite.md', sizeBytes: 2000, updatedAt: NOW }], nextPage: null };
+    live = { ...live, status: 'idle', outcomePending: false, updatedAt: NOW - 120_000 };
+    runApi.calls.length = 0;
+    const settled = await run.host.pull();
+    expect(runApi.calls).toEqual(['getSession', 'listOutputFiles', 'listMemories', 'listMemories', 'listMemories', 'getMemoryText']);
+    expect(settled).toMatchObject({ error: null, training: { state: 'ended', progress: { fiches: 5, fichesAtStart: 3 } } });
+    expect(JSON.parse(readFileSync(path.join(launch.dir, AGENT_CLOUD_FILE), 'utf8')).formation.progress).toMatchObject({ fiches: 5, fichesAtStart: 3, coursesRead: 46 });
   });
 });

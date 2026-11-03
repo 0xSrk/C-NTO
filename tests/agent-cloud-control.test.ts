@@ -755,8 +755,8 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
       expect(h.dialogs[0]).toMatchObject({ type: 'warning', title: 'CΛNTO', defaultId: 1, cancelId: 1, noLink: true });
       expect(h.dialogs[0]?.detail).toContain(cap);
       expect(h.dialogs[0]?.detail).toContain(spent);
-      // Annuler : la seule lecture des sessions du magasin, rien de créé.
-      expect(h.api.calls).toEqual(['listStoreSessions']);
+      // Annuler : les seules lectures (sessions du magasin, progression), rien de créé.
+      expect(h.api.calls).toEqual(['listStoreSessions', 'listMemories', 'listMemories']);
     }
     const cancelled = trained(trainer());
     await cancelled.host.train();
@@ -771,7 +771,7 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
     const api = trainer();
     const h = trained(api, { answers: [0] });
     const status = await h.host.train();
-    expect(api.calls).toEqual(['listStoreSessions', 'createEnvironment', 'createAgent', 'createAgent', 'createSession']);
+    expect(api.calls).toEqual(['listStoreSessions', 'listMemories', 'listMemories', 'createEnvironment', 'createAgent', 'createAgent', 'createSession']);
     expect(vi.mocked(api.createEnvironment).mock.calls[0]?.[0]).toEqual(formationEnvironmentBody());
     expect(vi.mocked(api.listStoreSessions).mock.calls[0]).toEqual([MEMSTORE, { limit: 10 }]);
     const body = vi.mocked(api.createSession).mock.calls[0]?.[0] as Record<string, unknown>;
@@ -802,7 +802,7 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
     await resumed.host.train();
     expect(resumed.dialogs[0]).toMatchObject({ message: 'Reprendre la formation ?', buttons: ['Reprendre', 'Annuler'] });
     expect(resumed.dialogs[0]?.detail).toContain('Déjà dépensé en formation sur 30 jours : 18,75 $');
-    expect(resumeApi.calls).toEqual(['listStoreSessions', 'updateEnvironment', 'updateAgent', 'updateAgent', 'createSession']);
+    expect(resumeApi.calls).toEqual(['listStoreSessions', 'listMemories', 'listMemories', 'updateEnvironment', 'updateAgent', 'updateAgent', 'createSession']);
     expect(vi.mocked(resumeApi.createSession).mock.calls[0]?.[0]).toMatchObject({ resources: [{ memory_store_id: MEMSTORE, access: 'read_write' }] });
     expect(resumeApi.calls.some((c) => /budget|message|event/i.test(c))).toBe(false);
     expect(saved(resumed.dir).formation).toMatchObject({ sessionId: sid(43), settled: false, history: [{ id: sid(40) }, { id: sid(43) }] });
@@ -833,7 +833,7 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
     });
     const lost = trained(lostApi, { answers: [0] });
     expect(await lost.host.train()).toMatchObject({ error: null, training: { state: 'running', sessionId: sid(44) } });
-    expect(lostApi.calls).toEqual(['listStoreSessions', 'createEnvironment', 'createAgent', 'createAgent', 'createSession', 'listStoreSessions']);
+    expect(lostApi.calls).toEqual(['listStoreSessions', 'listMemories', 'listMemories', 'createEnvironment', 'createAgent', 'createAgent', 'createSession', 'listStoreSessions']);
     expect(saved(lost.dir).formation).toMatchObject({ sessionId: sid(44), history: [{ id: sid(44) }] });
     // Introuvable : le desk le dit, et le prochain lancement cherchera d'abord.
     const missing = trained(trainer({ createSession: async () => Promise.reject(new CloudApiError(503, 'api_error', 'HTTP 503')) }), { answers: [0] });
@@ -843,7 +843,7 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
     const crawler = new CloudApiError(400, 'invalid_request_error', 'HTTP 400 · invalid_request_error : quantmemo.com is a domain Anthropic’s crawler may not access');
     const refused = trained(trainer({ createAgent: async () => Promise.reject(crawler) }), { answers: [0] });
     expect((await refused.host.train()).error).toBe(`Lecteur · ${crawler.message}`);
-    expect(refused.api.calls).toEqual(['listStoreSessions', 'createEnvironment', 'createAgent']);
+    expect(refused.api.calls).toEqual(['listStoreSessions', 'listMemories', 'listMemories', 'createEnvironment', 'createAgent']);
     // Le plafond déclaré par la session n'est pas celui du dialogue : dit, jamais tu.
     const odd = trained(trainer({ createSession: async () => trainingSession(45, { budgetCents: 10_000 }) }), { answers: [0] });
     expect((await odd.host.train()).error).toBe('Plafond déclaré par la session : 100,00 $, et non 25,00 $ : vérifiez-la dans la Console.');

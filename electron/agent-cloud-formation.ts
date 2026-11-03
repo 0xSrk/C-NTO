@@ -1,4 +1,4 @@
-import { REPORT_FORMAT } from './agent/cloudReport';
+import { cleanText, REPORT_FORMAT } from './agent/cloudReport';
 import { FORMATION_TAG, LANGUAGE, REPORT_LANGUAGE } from './agent-cloud-definition';
 import type { AppLocale } from './locale';
 
@@ -354,4 +354,45 @@ export function formationSessionBody(input: { coordinatorId: string; environment
     initial_events: [formationOutcomeEvent(input.locale)],
     metadata: { canto: FORMATION_TAG },
   };
+}
+
+/** L'état court que le coordinateur tient dans le magasin, et que le desk lit (CLD46). */
+export const FORMATION_STATE_PATH = '/_formation/etat.json';
+export const FORMATION_STATE_SCHEMA = 'canto.formation-etat/1';
+/** L'état court pèse 2 000 octets au plus : au-delà, il n'est pas lu. */
+export const FORMATION_STATE_MAX_BYTES = 2000;
+const STATE_COUNT_MAX = 100_000;
+const ACCESS = ['autorise', 'interdit', 'inconnu'] as const;
+
+export interface FormationState {
+  access: (typeof ACCESS)[number];
+  coursesKnown: number;
+  coursesRead: number;
+  fiches: number;
+  toVerify: number;
+  next: string;
+  updatedAt: number;
+}
+
+/**
+ * Lit `_formation/etat.json`, texte écrit par un modèle qui a lu le web : une forme exacte, bornée, ou rien. Le desk n'en
+ * garde que des nombres, une décision d'accès et un titre d'une ligne ; il ne le suit jamais comme une consigne.
+ */
+export function parseFormationState(text: string): FormationState | null {
+  if (typeof text !== 'string' || new TextEncoder().encode(text).byteLength > FORMATION_STATE_MAX_BYTES) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const count = (v: unknown): number | null => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= STATE_COUNT_MAX ? v : null);
+  const access = ACCESS.find((a) => a === r.acces);
+  const [coursesKnown, coursesRead, fiches, toVerify] = [count(r.cours_connus), count(r.cours_lus), count(r.fiches), count(r.a_verifier)];
+  const updatedAt = typeof r.mis_a_jour === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})$/.test(r.mis_a_jour) ? Date.parse(r.mis_a_jour) : Number.NaN;
+  if (r.schema !== FORMATION_STATE_SCHEMA || !access || coursesKnown === null || coursesRead === null || fiches === null || toVerify === null) return null;
+  if (typeof r.prochain !== 'string' || !Number.isFinite(updatedAt)) return null;
+  return { access, coursesKnown, coursesRead, fiches, toVerify, next: cleanText(r.prochain, 160), updatedAt };
 }

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
 import { CloudApiError, createCloudApi, isWorkspaceId, type CloudApi, type DeploymentView, type FetchLike, type MemoryStoreView, type SessionView } from './agent-cloud-api';
 import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudMemoryStoreBody, DEPLOYMENT_NAME, MEMORY_STORE_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
-import { coordinatorAgentBody, FORMATION_BUDGET_CENTS, formationEnvironmentBody, formationSessionBody, readerAgentBody } from './agent-cloud-formation';
+import { coordinatorAgentBody, FORMATION_BUDGET_CENTS, FORMATION_STATE_PATH, formationEnvironmentBody, formationSessionBody, parseFormationState, readerAgentBody, type FormationState } from './agent-cloud-formation';
 import { uiText, type AppLocale } from './locale';
 
 /**
@@ -36,6 +36,11 @@ const FORMATION_HISTORY_MAX = 50;
 const FORMATION_SPEND_WINDOW_MS = 30 * 86_400_000;
 /** Une session retrouvée après une réponse de création perdue est née au plus tôt une minute avant l'essai. */
 const CREATE_LOST_SLACK_MS = 60_000;
+/** Pages de 100 fiches lues au plus pour compter la progression (2 000 fiches). */
+const PROGRESS_PAGES = 20;
+/** La réponse qui porte l'état court (2 000 octets au plus) tient en 8 Kio. */
+const STATE_JSON_MAX_BYTES = 8 * 1024;
+const ACCESS_VALUES: readonly CloudTrainingProgress['access'][] = ['autorise', 'interdit', 'inconnu'];
 const READ_MAX = 1000;
 const LIST_MAX = 400;
 const FAILURES_SHOWN = 5;
@@ -101,8 +106,11 @@ export interface CloudTrainingProgress {
 
 /** La formation quant, vue du renderer : jamais un secret, toujours présente. */
 export interface CloudTrainingState {
-  /** `running` : la session facture ; `settling` : au repos, rapport pas encore relevé ; `ended` : la dernière est réglée. */
-  state: 'idle' | 'running' | 'settling' | 'ended';
+  /**
+   * `running` : la session facture ; `settling` : au repos, rapport pas encore relevé ; `ended` : la dernière est réglée ;
+   * `refused` : la formation a trouvé l'accès au site interdit, elle ne reprend pas.
+   */
+  state: 'idle' | 'running' | 'settling' | 'ended' | 'refused';
   sessionId: string | null;
   startedAt: number | null;
   /** Sessions de formation lancées (historique). */
@@ -216,6 +224,8 @@ interface FormationConfig {
   settled: boolean;
   /** Ce que le relevé a tiré de la dernière session réglée ; jamais dans `collected` (ce n'est pas un rapport quotidien). */
   result: TrainingResult | null;
+  /** La dernière progression lue dans le magasin (liste des mémoires et état court), sans modèle. */
+  progress: CloudTrainingProgress | null;
   history: TrainingRun[];
 }
 
@@ -287,7 +297,29 @@ function coerceFormation(raw: unknown): FormationConfig {
     startedAt: safeInt(r.startedAt),
     settled: r.settled === true,
     result: coerceResult(r.result),
+    progress: coerceProgress(r.progress),
     history: history.slice(-FORMATION_HISTORY_MAX),
+  };
+}
+
+function coerceProgress(raw: unknown): CloudTrainingProgress | null {
+  if (!isRecord(raw)) return null;
+  const count = (v: unknown): number | null => {
+    const n = safeInt(v);
+    return n !== null && n >= 0 ? n : null;
+  };
+  const fiches = count(raw.fiches);
+  const at = safeInt(raw.at);
+  if (fiches === null || at === null) return null;
+  return {
+    fiches,
+    fichesAtStart: count(raw.fichesAtStart),
+    coursesRead: count(raw.coursesRead),
+    coursesKnown: count(raw.coursesKnown),
+    toVerify: count(raw.toVerify),
+    next: typeof raw.next === 'string' ? raw.next.slice(0, 160) : null,
+    access: ACCESS_VALUES.find((a) => a !== null && a === raw.access) ?? null,
+    at,
   };
 }
 
@@ -494,7 +526,7 @@ export class AgentCloudHost {
     const run = f.sessionId ? f.history.find((r) => r.id === f.sessionId) : undefined;
     const result = active ? null : f.result;
     return {
-      state: active ? (view?.settling ? 'settling' : 'running') : f.history.length > 0 ? 'ended' : 'idle',
+      state: active ? (view?.settling ? 'settling' : 'running') : this.trainingRefused() ? 'refused' : f.history.length > 0 ? 'ended' : 'idle',
       sessionId: f.sessionId,
       startedAt: f.startedAt,
       sessions: f.history.length,
@@ -507,8 +539,72 @@ export class AgentCloudHost {
       report: result?.report ?? null,
       reportId: result?.reportId ?? null,
       detail: result?.detail || null,
-      progress: null,
+      progress: f.progress ? { ...f.progress } : null,
     };
+  }
+
+  /** La formation a trouvé l'accès à quantmemo.com interdit : la reprise est fermée (précédent CLD35). */
+  private trainingRefused(): boolean {
+    return this.config.formation.progress?.access === 'interdit';
+  }
+
+  /**
+   * La progression, lue dans le magasin sans modèle : le nombre de fiches que rend la liste des mémoires (la vérité du
+   * serveur), puis l'état court que tient le coordinateur, par un parseur strict. Lue avant le dialogue et quand une
+   * session se règle, jamais à chaque relevé ; un échec garde la dernière progression. Le desk n'écrit rien dans le magasin.
+   */
+  private async readProgress(): Promise<void> {
+    const store = this.config.memoryStoreId;
+    if (!store) return;
+    try {
+      let fiches = 0;
+      let page: string | undefined;
+      for (let i = 0; i < PROGRESS_PAGES; i += 1) {
+        const result = await this.api.listMemories(store, { pathPrefix: '/fiches/', page, limit: 100 });
+        fiches += result.entries.filter((e) => e.kind === 'memory').length;
+        if (!result.nextPage) break;
+        page = result.nextPage;
+      }
+      const top = await this.api.listMemories(store, { pathPrefix: '/_formation/', depth: 1 });
+      const entry = top.entries.find((e) => e.kind === 'memory' && e.path === FORMATION_STATE_PATH && e.id !== null);
+      let state: FormationState | null = null;
+      if (entry?.id) {
+        try {
+          state = parseFormationState(await this.api.getMemoryText(store, entry.id, STATE_JSON_MAX_BYTES));
+        } catch (error) {
+          // Trop lourd ou illisible : l'état court est ignoré, les fiches comptées restent.
+          if (!(error instanceof CloudApiError && (error.type === 'too_large' || error.type === 'unreadable'))) throw error;
+        }
+      }
+      if (this.config.memoryStoreId !== store) return;
+      this.config.formation.progress = {
+        fiches,
+        fichesAtStart: this.config.formation.progress?.fichesAtStart ?? null,
+        coursesRead: state?.coursesRead ?? null,
+        coursesKnown: state?.coursesKnown ?? null,
+        toVerify: state?.toVerify ?? null,
+        next: state?.next ?? null,
+        access: state?.access ?? null,
+        at: this.now(),
+      };
+      this.persist();
+    } catch (error) {
+      this.deps.log(`agent cloud · progression de la formation non relue : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
+    }
+  }
+
+  /** La ligne du dialogue qui dit le savoir déjà acquis. */
+  private progressLine(): string {
+    const p = this.config.formation.progress;
+    const first = this.config.formation.history.length === 0;
+    if (!p) return first ? this.t('Savoir : première session', 'Knowledge: first session', 'Saber: primera sesión') : this.t('Savoir : progression non relue', 'Knowledge: progress not read', 'Saber: progreso no leído');
+    if (first && p.fiches === 0) return this.t('Savoir : première session', 'Knowledge: first session', 'Saber: primera sesión');
+    const courses = p.coursesRead !== null && p.coursesKnown !== null;
+    return this.t(
+      `Savoir : ${p.fiches} fiches${courses ? `, ${p.coursesRead} cours lus sur ${p.coursesKnown} connus` : ''}`,
+      `Knowledge: ${p.fiches} notes${courses ? `, ${p.coursesRead} courses read of ${p.coursesKnown} known` : ''}`,
+      `Saber: ${p.fiches} fichas${courses ? `, ${p.coursesRead} cursos leídos de ${p.coursesKnown} conocidos` : ''}`,
+    );
   }
 
   /** Le dossier, du plus récent au plus ancien (400 fiches au plus). */
@@ -681,7 +777,7 @@ export class AgentCloudHost {
       this.config.memoryStoreId = null;
       // Les objets de la formation aussi ; son historique (la dépense) reste.
       const f = this.config.formation;
-      this.config.formation = { ...f, environmentId: null, readerId: null, coordinatorId: null, coordinatorVersion: null, sessionId: null, startedAt: null, settled: false, result: null };
+      this.config.formation = { ...f, environmentId: null, readerId: null, coordinatorId: null, coordinatorVersion: null, sessionId: null, startedAt: null, settled: false, result: null, progress: null };
       this.trainingView = null;
     }
     this.authBlocked = false;
@@ -1123,6 +1219,15 @@ export class AgentCloudHost {
         this.reschedule(1_000);
         return;
       }
+      await this.readProgress();
+      if (this.trainingRefused()) {
+        this.actionError = this.t(
+          'La formation a trouvé l’accès à quantmemo.com interdit (robots.txt ou conditions d’utilisation) : elle ne reprend pas. Rouvrir est une décision de l’ADMIN.',
+          'The training found access to quantmemo.com forbidden (robots.txt or terms of use): it does not resume. Reopening is the ADMIN’s decision.',
+          'La formación encontró prohibido el acceso a quantmemo.com (robots.txt o condiciones de uso): no se reanuda. Reabrir es decisión del ADMIN.',
+        );
+        return;
+      }
       const resume = f.history.length > 0;
       const spend = this.trainingSpend();
       const cap = this.money(FORMATION_BUDGET_CENTS);
@@ -1152,6 +1257,7 @@ export class AgentCloudHost {
             `Los informes diarios conservan su límite de ${daily} por ejecución; agotados los créditos, la API lo rechaza todo hasta el ciclo siguiente, informes incluidos.`,
           ),
           this.t(`Magasin : ${MEMORY_STORE_NAME}`, `Store: ${MEMORY_STORE_NAME}`, `Almacén: ${MEMORY_STORE_NAME}`),
+          this.progressLine(),
           '',
           this.t(
             'Aucune donnée du desk n’est envoyée : la session lit le site et écrit dans le magasin ; le desk relève son rapport.',
@@ -1165,6 +1271,11 @@ export class AgentCloudHost {
         noLink: true,
       });
       if (choice !== 0) return;
+      // Les fiches de départ : l'écart après la session dit ce qu'elle a écrit.
+      if (f.progress) {
+        f.progress = { ...f.progress, fichesAtStart: f.progress.fiches };
+        this.persist();
+      }
       let step: ProvisionStep = 'formation-environment';
       try {
         // Un environnement ou un agent ne facture rien : perdu (404, archivé), il est recréé sans risque. Chaque lancement
@@ -1630,6 +1741,8 @@ export class AgentCloudHost {
     f.result = result;
     this.persist();
     this.deps.log(`agent cloud · formation relevée (${result.report}${capped ? ', au plafond' : ''})`);
+    // Ce que la session a écrit se lit dans le magasin ; une lecture impossible ne fait pas échouer le relevé.
+    await this.readProgress();
     return added;
   }
 

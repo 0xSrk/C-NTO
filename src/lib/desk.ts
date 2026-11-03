@@ -203,7 +203,7 @@ export interface CloudTrainingProgress {
 
 /** La formation quant de l'agent cloud : session en cours, dépense, dernier rapport, progression. */
 export interface CloudTrainingState {
-  state: 'idle' | 'running' | 'settling' | 'ended';
+  state: 'idle' | 'running' | 'settling' | 'ended' | 'refused';
   sessionId: string | null;
   startedAt: number | null;
   sessions: number;
