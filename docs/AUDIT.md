@@ -1475,8 +1475,10 @@ La clé n'a servi qu'au script, dans son propre processus : on n'en a consulté 
 
 | Ticket | Ce qui change | Test |
 |---|---|---|
-| LAB2 | `CLAUDE.md` § 3 : la Release sort de la liste de l'ADMIN, avec ses deux gardes ; la clé de siège garde sa règle, écrite en toutes lettres. `AGENTS.md`, même chose. `docs/PUBLICATION.md` › « Contrôle croisé » : le déclencheur, avant, après, un écart, la clé. `docs/CENTRE-DE-CONTROLE.md` : couloir de l'ADMIN (§ 1), veiller l'un sur l'autre (§ 3), la clé de publication sert à l'agent qui signe, les autres restent à l'ADMIN (§ 6). | `tests/release-agents.test.ts` |
-| LAB3 | `scripts/centre.mjs` : seul `init` crée le centre ; `etat`, `verrou`, `libere`, `message`, `boite` et `journal` refusent un centre absent, sans rien créer, et disent quoi faire sur le poste comme depuis le cloud. `docs/CENTRE-DE-CONTROLE.md`, `CLAUDE.md` § 6 et `AGENTS.md` : le centre ne quitte pas le poste de l'ADMIN. | `tests/centre.test.ts` › LAB3 |
+| LAB5 | `CLAUDE.md` § 3 : la Release sort de la liste de l'ADMIN, avec ses deux gardes ; la clé de siège garde sa règle, écrite en toutes lettres. `AGENTS.md`, même chose. `docs/PUBLICATION.md` › « Contrôle croisé » : le déclencheur, avant, après, un écart, la clé. `docs/CENTRE-DE-CONTROLE.md` : couloir de l'ADMIN (§ 1), veiller l'un sur l'autre (§ 3), la clé de publication sert à l'agent qui signe, les autres restent à l'ADMIN (§ 6). | `tests/release-agents.test.ts` |
+| LAB6 | `scripts/centre.mjs` : seul `init` crée le centre ; `etat`, `verrou`, `libere`, `message`, `boite` et `journal` refusent un centre absent, sans rien créer, et disent quoi faire sur le poste comme depuis le cloud. `docs/CENTRE-DE-CONTROLE.md`, `CLAUDE.md` § 6 et `AGENTS.md` : le centre ne quitte pas le poste de l'ADMIN. | `tests/centre.test.ts` › LAB6 |
+
+Renommés LAB5 et LAB6 le 2026-11-03 (LAB7) : LAB2 et LAB3 nommaient déjà le siège du Lab et la vue D · Lab (2026-10-26). Les commits `d766a90` et `cd76600` gardent leur message.
 
 ## A18 · Le latent du pont lu comme la garde (2026-11-02)
 
@@ -1487,3 +1489,11 @@ Un compte du pont nommé « simapex1 », face à un plan suivi sur « SimApex1 �
 | Ticket | Ce qui change | Test |
 |---|---|---|
 | A18 | `liveAccounts` lit les comptes du pont vivant comme `heldPosition` : le nom exact d'abord, sinon le nom replié. `trackedPlan` et `liveUnrealized` passent par lui. La garde devient plus stricte, elle ne s'affaiblit pas (`CLAUDE.md` § 5). | `tests/latent-pont-replie.test.ts` |
+
+## Agent cloud — formation quant (2026-11-03)
+
+Demande de l'ADMIN du 2026-11-03 : former l'agent cloud de CΛNTO sur les parcours de https://quantmemo.com/learn/roadmaps, avec carte blanche et tous les crédits, mais en dépensant avec mesure. Branche `agent/formation-quant`, issue de `main` (`e06b29d`).
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| LAB7 | Les deux tickets du 2026-11-01 reprenaient des noms pris le 2026-10-26 : LAB2 (la Release confiée aux agents) celui du siège du Lab (`docs/AUDIT.md:1203`), LAB3 (le centre reste sur le poste) celui de la vue D · Lab (`docs/AUDIT.md:1204`). Ils deviennent LAB5 et LAB6 (`docs/AUDIT.md:1478-1479`), avec leurs `describe` (`tests/release-agents.test.ts:20`, `tests/centre.test.ts:111`) ; ceux du 2026-10-26 ne changent pas. Le journal du centre privé, sur le poste de l'ADMIN, peut encore citer les anciens noms. | `tests/audit-tickets.test.ts` |
