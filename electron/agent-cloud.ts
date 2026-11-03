@@ -81,7 +81,7 @@ export interface CloudDeploymentState {
   agentVersion: number | null;
 }
 
-export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | null;
+export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | 'stop' | null;
 type ProvisionStep = 'environment' | 'memory' | 'agent' | 'deployment' | 'pause' | 'resume' | 'formation-environment' | 'reader' | 'coordinator' | 'session';
 
 /** Ce que le relevé a tiré de la dernière session de formation réglée (CLD45). */
@@ -1206,6 +1206,21 @@ export class AgentCloudHost {
         this.actionError = `${this.stepLabel(step)} · ${error instanceof CloudApiError && error.status === 404 ? error.message : this.explain(error)}`;
         this.deps.log(`agent cloud · formation en échec (${step}) : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
       }
+    });
+  }
+
+  /**
+   * Arrêter la formation ne coûte rien : pas de dialogue (comme suspendre). Un `user.interrupt` sans fil désigné arrête le
+   * coordinateur et ses lecteurs ; la session passe au repos, et le relevé range son rapport s'il existe.
+   */
+  async stopTraining(): Promise<AgentCloudStatus> {
+    if (!this.lab()) return this.refuseLab();
+    const id = this.config.formation.sessionId;
+    if (!this.config.key || !id || !this.trainingActive()) return this.status();
+    return this.control('stop', async () => {
+      await this.api.interruptSession(id);
+      this.deps.log('agent cloud · formation arrêtée');
+      this.reschedule(1_000);
     });
   }
 

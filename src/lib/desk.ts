@@ -233,7 +233,7 @@ export interface AgentCloudStatus {
   schedule: CloudSchedule;
   deployment: CloudDeploymentState | null;
   pulling: boolean;
-  busy: 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | null;
+  busy: 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | 'train' | 'stop' | null;
   lastPullAt: number | null;
   nextPullAt: number | null;
   error: string | null;

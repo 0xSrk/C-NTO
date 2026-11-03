@@ -422,7 +422,7 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
     expect(await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: null, error: refused });
     expect(await h.host.setDeployment(DEPL)).toMatchObject({ deploymentId: null, error: refused });
     expect(h.host.setSchedule({ cron: '30 13 * * 1-5', timezone: 'Europe/Paris' })).toMatchObject({ schedule: { cron: '0 7 * * 1-5' }, error: refused });
-    for (const action of [() => h.host.provision(), () => h.host.runNow(), () => h.host.pause(), () => h.host.unpause(), () => h.host.train()]) expect(await action()).toMatchObject({ error: refused });
+    for (const action of [() => h.host.provision(), () => h.host.runNow(), () => h.host.pause(), () => h.host.unpause(), () => h.host.train(), () => h.host.stopTraining()]) expect(await action()).toMatchObject({ error: refused });
     expect(api.calls).toEqual([]);
     expect(h.dialogs).toEqual([]);
     expect(existsSync(path.join(h.dir, AGENT_CLOUD_FILE))).toBe(false);
@@ -847,5 +847,31 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
     // Le plafond déclaré par la session n'est pas celui du dialogue : dit, jamais tu.
     const odd = trained(trainer({ createSession: async () => trainingSession(45, { budgetCents: 10_000 }) }), { answers: [0] });
     expect((await odd.host.train()).error).toBe('Plafond déclaré par la session : 100,00 $, et non 25,00 $ : vérifiez-la dans la Console.');
+  });
+
+  it('CLD42 arrêter la formation : un user.interrupt, sans dialogue, au seul siège du Lab', async () => {
+    const running = { environmentId: FORMATION_ENV, readerId: READER, coordinatorId: COORDINATOR, sessionId: sid(40), startedAt: NOW, settled: false, history: [{ id: sid(40), startedAt: NOW, costCents: null }] };
+    // Sans siège : refusé, rien ne part.
+    const reader = trained(trainer({ interruptSession: async () => undefined }), { lab: false, formation: running });
+    expect(await reader.host.stopTraining()).toMatchObject({ error: 'Pilotage réservé au siège du Lab : ce desk lit les rapports.' });
+    expect(reader.api.calls).toEqual([]);
+    // Une session qui tourne : un seul appel, l'interruption de cette session ; aucun dialogue, puisque l'arrêt ne coûte rien.
+    const api = trainer({ interruptSession: async () => undefined });
+    const h = trained(api, { formation: running });
+    const status = await h.host.stopTraining();
+    expect(api.calls).toEqual(['interruptSession']);
+    expect(vi.mocked(api.interruptSession).mock.calls).toEqual([[sid(40)]]);
+    expect(h.dialogs).toEqual([]);
+    expect(status).toMatchObject({ error: null, busy: null, training: { sessionId: sid(40) } });
+    expect(h.logs).toContain('agent cloud · formation arrêtée');
+    // Sans session active (aucune, ou déjà réglée) : rien ne part.
+    for (const formation of [undefined, { ...running, settled: true }]) {
+      const idle = trained(trainer({ interruptSession: async () => undefined }), { formation });
+      expect(await idle.host.stopTraining()).toMatchObject({ error: null });
+      expect(idle.api.calls).toEqual([]);
+    }
+    // Un échec de l'API est dit.
+    const down = trained(trainer({ interruptSession: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529 · overloaded_error')) }), { formation: running });
+    expect((await down.host.stopTraining()).error).toBe('HTTP 529 · overloaded_error');
   });
 });
