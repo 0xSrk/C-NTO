@@ -15,6 +15,7 @@ const fake = vi.hoisted(() => {
     workspaceId: null,
     deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
     managed: true,
+    memoryStoreId: null,
     schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
     deployment: null,
     pulling: false,
@@ -157,7 +158,7 @@ describe('agent cloud · store du renderer', () => {
   });
 
   it('le statut ne porte jamais de clé', () => {
-    const keys: (keyof AgentCloudStatus)[] = ['available', 'lab', 'keyStored', 'workspaceId', 'deploymentId', 'managed', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread'];
+    const keys: (keyof AgentCloudStatus)[] = ['available', 'lab', 'keyStored', 'workspaceId', 'deploymentId', 'managed', 'memoryStoreId', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread'];
     expect(Object.keys(fake.status()).sort()).toEqual([...keys].sort());
   });
 });

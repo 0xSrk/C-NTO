@@ -198,6 +198,8 @@ export interface AgentCloudStatus {
   workspaceId: string | null;
   deploymentId: string | null;
   managed: boolean;
+  /** Magasin de savoir du desk (`memstore_…`) ; ce n'est pas un secret. */
+  memoryStoreId: string | null;
   schedule: CloudSchedule;
   deployment: CloudDeploymentState | null;
   pulling: boolean;

@@ -51,6 +51,7 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   workspaceId: null,
   deploymentId: null,
   managed: false,
+  memoryStoreId: null,
   schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
   deployment: null,
   pulling: false,

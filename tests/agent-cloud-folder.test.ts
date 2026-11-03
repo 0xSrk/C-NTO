@@ -39,6 +39,7 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   workspaceId: null,
   deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
   managed: true,
+  memoryStoreId: null,
   schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
   deployment: { name: 'canto-rapport-quotidien', state: 'active', pausedReason: null, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', nextRunAt: NOW + 86_400_000, lastRunAt: NOW - 3_600_000, budgetCents: 300, agentVersion: 2 },
   pulling: false,

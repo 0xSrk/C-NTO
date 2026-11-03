@@ -1,8 +1,8 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
-import { CloudApiError, createCloudApi, isWorkspaceId, type CloudApi, type DeploymentView, type FetchLike, type SessionView } from './agent-cloud-api';
-import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, DEPLOYMENT_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
+import { CloudApiError, createCloudApi, isWorkspaceId, type CloudApi, type DeploymentView, type FetchLike, type MemoryStoreView, type SessionView } from './agent-cloud-api';
+import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudMemoryStoreBody, DEPLOYMENT_NAME, MEMORY_STORE_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
 import { uiText, type AppLocale } from './locale';
 
 /**
@@ -33,6 +33,8 @@ const READ_MAX = 1000;
 const LIST_MAX = 400;
 const FAILURES_SHOWN = 5;
 const FAILED_RUNS_WINDOW_MS = 7 * 86_400_000;
+/** Pages de magasins lues au plus pour retrouver celui du desk (500 magasins). */
+const MEMORY_STORE_PAGES = 5;
 export const DEFAULT_SCHEDULE: CloudSchedule = { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' };
 
 export interface CloudSchedule {
@@ -73,7 +75,7 @@ export interface CloudDeploymentState {
 }
 
 export type CloudBusy = 'provision' | 'run' | 'pause' | 'unpause' | 'workspace' | null;
-type ProvisionStep = 'environment' | 'agent' | 'deployment' | 'pause' | 'resume';
+type ProvisionStep = 'environment' | 'memory' | 'agent' | 'deployment' | 'pause' | 'resume';
 
 export interface AgentCloudStatus {
   /** Le trousseau du système chiffre : sans lui, aucune clé n'est gardée. */
@@ -86,6 +88,8 @@ export interface AgentCloudStatus {
   deploymentId: string | null;
   /** Le desk a installé ce déploiement (environnement, agent, déploiement) et peut le mettre à jour. */
   managed: boolean;
+  /** Magasin de savoir du desk (`memstore_…`), créé à l'installation ; ce n'est pas un secret. */
+  memoryStoreId: string | null;
   /** Planification voulue, appliquée à la prochaine installation. */
   schedule: CloudSchedule;
   deployment: CloudDeploymentState | null;
@@ -153,6 +157,8 @@ interface CloudConfig {
   agentId: string | null;
   agentVersion: number | null;
   managed: boolean;
+  /** Magasin de savoir, propre à l'espace de travail : la formation y écrit, l'analyste le monte en lecture seule. */
+  memoryStoreId: string | null;
   schedule: CloudSchedule;
   read: string[];
   collected: Record<string, Collected>;
@@ -199,6 +205,7 @@ function coerceConfig(raw: unknown): CloudConfig {
     agentId: isApiId(r.agentId, 'agent') ? r.agentId : null,
     agentVersion: typeof r.agentVersion === 'number' && Number.isSafeInteger(r.agentVersion) ? r.agentVersion : null,
     managed: r.managed === true,
+    memoryStoreId: isApiId(r.memoryStoreId, 'memstore') ? r.memoryStoreId : null,
     schedule,
     read: Array.isArray(r.read) ? r.read.filter((id): id is string => isApiId(id, 'sesn')).slice(-READ_MAX) : [],
     collected,
@@ -281,7 +288,7 @@ export class AgentCloudHost {
       const entries = Object.entries(c.collected)
         .sort(([, a], [, b]) => b.at - a.at)
         .slice(0, COLLECTED_MAX);
-      const body = { v: 1, key: c.key, workspaceId: c.workspaceId, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
+      const body = { v: 1, key: c.key, workspaceId: c.workspaceId, deploymentId: c.deploymentId, environmentId: c.environmentId, agentId: c.agentId, agentVersion: c.agentVersion, managed: c.managed, memoryStoreId: c.memoryStoreId, schedule: c.schedule, read: c.read.slice(-READ_MAX), collected: Object.fromEntries(entries), floor: c.floor };
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify(body), { encoding: 'utf8', mode: 0o600 });
       renameSync(tmp, this.file);
@@ -336,6 +343,7 @@ export class AgentCloudHost {
       workspaceId: this.config.workspaceId,
       deploymentId: this.config.deploymentId,
       managed: this.config.managed,
+      memoryStoreId: this.config.memoryStoreId,
       schedule: { ...this.config.schedule },
       deployment: this.deployment,
       pulling: this.inFlight !== null,
@@ -505,10 +513,12 @@ export class AgentCloudHost {
   private applyWorkspace(next: string | null, keep: boolean): void {
     this.config.workspaceId = next;
     if (!keep) {
-      // L'environnement et l'agent d'une installation commencée restent dans l'ancien espace : la prochaine installation les recrée.
+      // L'environnement, l'agent et le magasin d'une installation commencée restent dans l'ancien espace : la prochaine
+      // installation les recrée (un magasin est propre à son espace de travail).
       this.config.environmentId = null;
       this.config.agentId = null;
       this.config.agentVersion = null;
+      this.config.memoryStoreId = null;
     }
     this.authBlocked = false;
     this.error = null;
@@ -764,6 +774,11 @@ export class AgentCloudHost {
             `Límite aplicado: ${this.money(BUDGET_CENTS_PER_RUN)} por ejecución, a precios públicos`,
           ),
           this.t(`Sources : ${OFFICIAL_DOMAINS.length} domaines officiels (Fed, BLS, BEA, Trésor, EIA, BCE…)`, `Sources: ${OFFICIAL_DOMAINS.length} official domains (Fed, BLS, BEA, Treasury, EIA, ECB…)`, `Fuentes: ${OFFICIAL_DOMAINS.length} dominios oficiales (Fed, BLS, BEA, Tesoro, EIA, BCE…)`),
+          this.t(
+            `Mémoire : ${MEMORY_STORE_NAME} (savoir de la formation, lu en lecture seule par l’analyste)`,
+            `Memory: ${MEMORY_STORE_NAME} (training knowledge, read-only for the analyst)`,
+            `Memoria: ${MEMORY_STORE_NAME} (saber de la formación, en solo lectura para el analista)`,
+          ),
           '',
           this.t(
             'Facturé sur les crédits API de l’organisation de la clé. Aucune donnée du desk n’est envoyée : le desk relève seulement le rapport.',
@@ -783,6 +798,10 @@ export class AgentCloudHost {
         const lost = (e: CloudApiError) => e.status === 404 || e.status === 409 || (e.status === 400 && /archiv/i.test(e.message));
         const env = await this.upsert(this.config.environmentId, (id) => this.api.updateEnvironment(id, cloudEnvironmentBody()), () => this.api.createEnvironment(cloudEnvironmentBody()), 'environnement', lost);
         this.config.environmentId = env.id;
+        this.persist();
+        step = 'memory';
+        const store = await this.memoryStore();
+        this.config.memoryStoreId = store.id;
         this.persist();
         step = 'agent';
         const locale = this.deps.locale();
@@ -819,11 +838,44 @@ export class AgentCloudHost {
                 'Installed, but the pause failed: the deployment is active and scheduled. Pause it.',
                 'Instalado, pero la suspensión falló: el despliegue está activo y planificado. Suspéndalo.',
               )
-            : `${this.stepLabel(step)} · ${this.explain(error, true)}`;
+            : step === 'memory' && error instanceof CloudApiError && error.status === 404
+              ? `${this.stepLabel(step)} · ${this.t(
+                  'Magasin de savoir introuvable avec cette clé (autre organisation, autre espace de travail) : rien n’a été recréé.',
+                  'Knowledge store not found with this key (another organization or workspace): nothing was recreated.',
+                  'Almacén de saber no encontrado con esta clave (otra organización u otro espacio de trabajo): no se ha recreado nada.',
+                )}`
+              : `${this.stepLabel(step)} · ${this.explain(error, true)}`;
         this.deps.log(`agent cloud · installation en échec (${step}) : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
         this.reschedule(1_000);
       }
     });
+  }
+
+  /**
+   * Le magasin de savoir du desk. Connu : relu ; archivé (aucune session ne peut plus l'attacher), recréé ; un 404 remonte
+   * et rien n'est recréé, car le savoir existe peut-être sous une autre clé. Inconnu : retrouvé par sa métadonnée et son nom
+   * (réponse de création perdue en route), sinon créé.
+   */
+  private async memoryStore(): Promise<MemoryStoreView> {
+    const id = this.config.memoryStoreId;
+    if (id) {
+      const view = await this.api.getMemoryStore(id);
+      if (!view.archived) return view;
+      this.deps.log('agent cloud · magasin archivé : recréé');
+      return this.api.createMemoryStore(cloudMemoryStoreBody());
+    }
+    let page: string | undefined;
+    for (let i = 0; i < MEMORY_STORE_PAGES; i += 1) {
+      const result = await this.api.listMemoryStores({ page });
+      const found = result.stores.find((s) => s.tagged && !s.archived && s.name === MEMORY_STORE_NAME);
+      if (found) {
+        this.deps.log('agent cloud · magasin de savoir retrouvé');
+        return found;
+      }
+      if (!result.nextPage) break;
+      page = result.nextPage;
+    }
+    return this.api.createMemoryStore(cloudMemoryStoreBody());
   }
 
   /** Exécution immédiate du déploiement (même en pause) : dialogue, Annuler par défaut. */
@@ -948,6 +1000,8 @@ export class AgentCloudHost {
     switch (step) {
       case 'environment':
         return this.t('Environnement', 'Environment', 'Entorno');
+      case 'memory':
+        return this.t('Mémoire', 'Memory', 'Memoria');
       case 'agent':
         return this.t('Agent', 'Agent', 'Agente');
       case 'deployment':
