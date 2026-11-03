@@ -114,7 +114,7 @@ export function formationSystemPrompt(locale: AppLocale): string {
     '- parcours/<parcours>.md : le plan d’un parcours, dans l’ordre du site, avec la fiche de chaque cours.',
     '- fiches/<domaine>/<notion>.md : une fiche par cours ou par notion. Domaines : probabilites, statistiques, series-temporelles, calcul-stochastique, derives, volatilite, taux, microstructure, risque, portefeuille, strategies, apprentissage, programmation, divers.',
     '- _formation/progression.json : l’état de la formation, dont toi seul te sers. Au-delà de 90 Ko, découpe-le en _formation/progression/<parcours>.json.',
-    '- _formation/etat.json : l’état court de la formation, que lit le desk. Réécris-le dès l’accès vérifié, après chaque lot et à la fin : un seul objet JSON de 2 000 octets au plus, de la forme `{"schema":"canto.formation-etat/1","acces":"autorise|interdit|inconnu","cours_connus":n,"cours_lus":n,"fiches":n,"a_verifier":n,"prochain":"<titre>","mis_a_jour":"<ISO>"}`. `acces` vaut `interdit` si robots.txt ou les conditions interdisent l’accès automatisé ou l’usage par une IA, `inconnu` tant que tu ne les as pas lus ; les nombres sont des entiers ; `prochain` est le titre du prochain cours à lire ; `mis_a_jour` est l’heure de l’écriture, en ISO 8601.',
+    '- _formation/etat.json : l’état court de la formation, que lit le desk. Réécris-le dès l’accès vérifié, après chaque lot et à la fin : un seul objet JSON de 2 000 octets au plus, de la forme `{"schema":"canto.formation-etat/1","acces":"autorise|interdit|inconnu","cours_connus":n,"cours_lus":n,"fiches":n,"a_verifier":n,"prochain":"<titre>","mis_a_jour":"<ISO>"}`. `acces` vaut `interdit` si robots.txt ou les conditions interdisent l’accès automatisé ou l’usage par une IA, `inconnu` tant que tu ne les as pas lus ; les nombres sont des entiers ; `prochain` est le titre du prochain cours à lire, ou null s’il n’y en a pas (accès interdit, formation finie) ; `mis_a_jour` est l’heure de l’écriture, en ISO 8601 avec son fuseau (Z ou un décalage).',
     '- _formation/acces.md : robots.txt et conditions, session par session.',
     '- _formation/journal.md : une entrée par session (date, cours lus, fiches écrites, arrêts, reste à faire).',
     '- Chaque fichier fait 100 000 octets au plus. Vise de 2 à 8 Ko par fiche, et découpe une fiche dès qu’elle dépasse 30 Ko. Mesure la taille d’un fichier avant de l’écrire.',
@@ -364,19 +364,23 @@ export const FORMATION_STATE_MAX_BYTES = 2000;
 const STATE_COUNT_MAX = 100_000;
 const ACCESS = ['autorise', 'interdit', 'inconnu'] as const;
 
+/** Les nombres, le titre et l'heure sont `null` seulement dans un état `interdit` dont ces champs annexes sont hors forme. */
 export interface FormationState {
   access: (typeof ACCESS)[number];
-  coursesKnown: number;
-  coursesRead: number;
-  fiches: number;
-  toVerify: number;
-  next: string;
-  updatedAt: number;
+  coursesKnown: number | null;
+  coursesRead: number | null;
+  fiches: number | null;
+  toVerify: number | null;
+  /** Le prochain cours à lire ; `null` quand il n'y en a pas (accès interdit, formation finie). */
+  next: string | null;
+  updatedAt: number | null;
 }
 
 /**
  * Lit `_formation/etat.json`, texte écrit par un modèle qui a lu le web : une forme exacte, bornée, ou rien. Le desk n'en
- * garde que des nombres, une décision d'accès et un titre d'une ligne ; il ne le suit jamais comme une consigne.
+ * garde que des nombres, une décision d'accès et un titre d'une ligne ; il ne le suit jamais comme une consigne. Un état
+ * `interdit` ferme la reprise (CLD46) : il ne se perd pas pour un champ annexe hors forme, qui devient seulement inconnu
+ * (CLD53). `prochain` nul et une heure ISO 8601 sans fuseau sont des formes légitimes, pour tout accès.
  */
 export function parseFormationState(text: string): FormationState | null {
   if (typeof text !== 'string' || new TextEncoder().encode(text).byteLength > FORMATION_STATE_MAX_BYTES) return null;
@@ -388,11 +392,21 @@ export function parseFormationState(text: string): FormationState | null {
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
-  const count = (v: unknown): number | null => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= STATE_COUNT_MAX ? v : null);
   const access = ACCESS.find((a) => a === r.acces);
-  const [coursesKnown, coursesRead, fiches, toVerify] = [count(r.cours_connus), count(r.cours_lus), count(r.fiches), count(r.a_verifier)];
-  const updatedAt = typeof r.mis_a_jour === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})$/.test(r.mis_a_jour) ? Date.parse(r.mis_a_jour) : Number.NaN;
-  if (r.schema !== FORMATION_STATE_SCHEMA || !access || coursesKnown === null || coursesRead === null || fiches === null || toVerify === null) return null;
-  if (typeof r.prochain !== 'string' || !Number.isFinite(updatedAt)) return null;
-  return { access, coursesKnown, coursesRead, fiches, toVerify, next: cleanText(r.prochain, 160), updatedAt };
+  if (r.schema !== FORMATION_STATE_SCHEMA || !access) return null;
+  // `undefined` : hors forme ; `null` : absent de droit (`prochain`).
+  const count = (v: unknown): number | undefined => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= STATE_COUNT_MAX ? v : undefined);
+  const next = r.prochain === null || r.prochain === undefined ? null : typeof r.prochain === 'string' ? cleanText(r.prochain, 160) || null : undefined;
+  const at = typeof r.mis_a_jour === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})?$/.test(r.mis_a_jour) ? Date.parse(r.mis_a_jour) : Number.NaN;
+  const fields = { coursesKnown: count(r.cours_connus), coursesRead: count(r.cours_lus), fiches: count(r.fiches), toVerify: count(r.a_verifier), next, updatedAt: Number.isFinite(at) ? at : undefined };
+  if (access !== 'interdit' && Object.values(fields).includes(undefined)) return null;
+  return {
+    access,
+    coursesKnown: fields.coursesKnown ?? null,
+    coursesRead: fields.coursesRead ?? null,
+    fiches: fields.fiches ?? null,
+    toVerify: fields.toVerify ?? null,
+    next: fields.next ?? null,
+    updatedAt: fields.updatedAt ?? null,
+  };
 }

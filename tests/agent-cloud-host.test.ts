@@ -609,6 +609,39 @@ describe('agent cloud · hôte du process principal', () => {
     expect((await o.host.train()).error).toBe('HTTP 404 · not_found_error');
   });
 
+  it('CLD53 un accès interdit ne se perd pas pour un champ annexe de l’état court ; « prochain » nul et l’heure sans fuseau sont lus', async () => {
+    const SCHEMA = 'canto.formation-etat/1';
+    const text = (o: Record<string, unknown>) => JSON.stringify({ schema: SCHEMA, ...o });
+    // La voie interdite telle que la consigne la décrit : aucun cours connu, donc aucun « prochain » ; heure locale.
+    const forbidden = text({ acces: 'interdit', cours_connus: 0, cours_lus: 0, fiches: 0, a_verifier: 0, prochain: null, mis_a_jour: '2026-11-05T10:00:00' });
+    expect(parseFormationState(forbidden)).toEqual({ access: 'interdit', coursesKnown: 0, coursesRead: 0, fiches: 0, toVerify: 0, next: null, updatedAt: Date.parse('2026-11-05T10:00:00') });
+    // Interdit avec des champs annexes absents ou hors forme : la décision reste, le reste est inconnu.
+    for (const raw of [text({ acces: 'interdit' }), text({ acces: 'interdit', cours_lus: -1, prochain: 42, mis_a_jour: 'hier' })])
+      expect(parseFormationState(raw)).toEqual({ access: 'interdit', coursesKnown: null, coursesRead: null, fiches: null, toVerify: null, next: null, updatedAt: null });
+    // Les formes légitimes valent pour tout accès : « prochain » nul (formation finie), sortie de Python `isoformat()`.
+    expect(parseFormationState(text({ acces: 'autorise', cours_connus: 9, cours_lus: 9, fiches: 9, a_verifier: 0, prochain: null, mis_a_jour: '2026-11-05T15:42:00.123456' }))).toMatchObject({ access: 'autorise', next: null, updatedAt: Date.parse('2026-11-05T15:42:00.123456') });
+    // Hors de l'interdit, la forme reste exacte : un champ hors forme rejette l'état.
+    expect(parseFormationState(text({ acces: 'autorise', cours_connus: 9, cours_lus: -1, fiches: 9, a_verifier: 0, prochain: 'x', mis_a_jour: '2026-11-05T15:42:00Z' }))).toBeNull();
+    // Sans schéma ou sans décision lisible, rien.
+    expect(parseFormationState(JSON.stringify({ acces: 'interdit' }))).toBeNull();
+    expect(parseFormationState(text({ acces: 'non' }))).toBeNull();
+
+    // Côté hôte : cet état ferme la reprise, sans dialogue ni écriture.
+    const STATE = 'mem_011CZkZ9X2dpNyB7HsEFoSTA';
+    const api = fakeApi({
+      listMemories: async (_store: string, opts: { pathPrefix: string }) => ({ entries: opts.pathPrefix === '/_formation/' ? [{ kind: 'memory' as const, id: STATE, path: '/_formation/etat.json', sizeBytes: 200, updatedAt: NOW }] : [], nextPage: null }),
+      getMemoryText: async () => forbidden,
+    });
+    const probe = harness();
+    writeFileSync(path.join(probe.dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE, formation: { history: [{ id: sid(40), startedAt: NOW, costCents: 80 }], settled: true, sessionId: sid(40) } }));
+    const h = harness({ api, dir: probe.dir, answers: [0] });
+    const status = await h.host.train();
+    expect(status.error).toBe('La formation a trouvé l’accès à quantmemo.com interdit (robots.txt ou conditions d’utilisation) : elle ne reprend pas. Rouvrir est une décision de l’ADMIN.');
+    expect(status.training).toMatchObject({ state: 'refused', progress: { access: 'interdit', fiches: 0, coursesKnown: 0, next: null } });
+    expect(h.dialogs).toEqual([]);
+    expect(api.calls.filter((name) => /^(create|update|interrupt)/.test(name))).toEqual([]);
+  });
+
   it('CLD46 la progression vient de la liste des mémoires ; un accès interdit ferme la reprise', async () => {
     const STATE = 'mem_011CZkZ9X2dpNyB7HsEFoSTA';
     const etat = (over: Record<string, unknown> = {}) =>
