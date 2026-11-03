@@ -1,5 +1,5 @@
 import { REPORT_FORMAT } from './agent/cloudReport';
-import { LANGUAGE, REPORT_LANGUAGE } from './agent-cloud-definition';
+import { FORMATION_TAG, LANGUAGE, REPORT_LANGUAGE } from './agent-cloud-definition';
 import type { AppLocale } from './locale';
 
 /**
@@ -26,6 +26,23 @@ export const FETCH_MAX_CONTENT_TOKENS = 16_000;
 /** Le correcteur relance l'agent une fois au plus. */
 export const FORMATION_OUTCOME_MAX_ITERATIONS = 2;
 export const FORMATION_START_URL = 'https://quantmemo.com/learn/roadmaps';
+
+/**
+ * Les domaines de la formation, décision de l'ADMIN du 2026-11-03 (« carte blanche ») : quantmemo.com et ses sous-domaines,
+ * pour l'environnement et les outils web de l'agent qui se forme, et pour lui seul. `OFFICIAL_DOMAINS` (CLD35) n'est pas
+ * touché : l'analyste lit le savoir dans le magasin, pas sur le site. Dans les outils web, un domaine couvre ses
+ * sous-domaines ; l'environnement liste le domaine et `*.domaine`.
+ */
+export const FORMATION_DOMAINS = ['quantmemo.com'] as const;
+export const FORMATION_ENVIRONMENT_NAME = 'canto-formation';
+export const FORMATION_AGENT_NAME = 'CΛNTO · formation quant';
+export const READER_AGENT_NAME = 'CΛNTO · lecteur de cours';
+/** Accès, plan, relecture des formules et synthèse : c'est là que le raisonnement sert. */
+export const FORMATION_MODEL = 'claude-opus-5-5';
+export const FORMATION_EFFORT = 'high';
+/** La lecture fait l'essentiel des jetons et peu de raisonnement : elle va au modèle moins cher. */
+export const READER_MODEL = 'claude-sonnet-5-5';
+export const READER_EFFORT = 'medium';
 
 /**
  * Consigne du coordinateur (`mission.md` § 1.1), nombres tirés des constantes. Une seule modification : `_formation/etat.json`,
@@ -234,5 +251,83 @@ export function formationOutcomeEvent(locale: AppLocale): Record<string, unknown
     description: `Poursuivre la formation quant de CΛNTO sur les parcours de ${FORMATION_START_URL} à partir de l'état du magasin canto-savoir-quant, y écrire les fiches des cours lus, et déposer le rapport de session dans /mnt/session/outputs/rapport.json, au contrat ${REPORT_FORMAT}, ${REPORT_LANGUAGE[locale]}.`,
     rubric: { type: 'text', content: formationRubric(locale) },
     max_iterations: FORMATION_OUTCOME_MAX_ITERATIONS,
+  };
+}
+
+/** Le bac à sable de la formation, à part de celui de l'analyste : quantmemo.com seulement, ni paquets ni MCP. Il ne facture rien. */
+export function formationEnvironmentBody(): Record<string, unknown> {
+  return {
+    name: FORMATION_ENVIRONMENT_NAME,
+    description: 'Bac à sable de la formation quant CΛNTO : quantmemo.com seulement (décision de l’ADMIN, 2026-11-03), aucun gestionnaire de paquets, aucun serveur MCP.',
+    config: {
+      type: 'cloud',
+      networking: {
+        type: 'limited',
+        allowed_hosts: FORMATION_DOMAINS.flatMap((domain) => [domain, `*.${domain}`]),
+        allow_package_managers: false,
+        allow_mcp_servers: false,
+      },
+    },
+    metadata: { canto: FORMATION_TAG },
+  };
+}
+
+/** Le lecteur de cours : un agent ordinaire (sans multiagent), ses fichiers et la lecture web du seul domaine de la formation. */
+export function readerAgentBody(): Record<string, unknown> {
+  return {
+    name: READER_AGENT_NAME,
+    description:
+      'Lecteur de cours à bas coût. Donne-lui un lot de 3 à 6 cours de quantmemo.com avec leurs URL, le chemin de chaque fiche, les fiches voisines et le budget de pages : il lit, écrit les fiches et rend une ligne par cours.',
+    model: { id: READER_MODEL, effort: READER_EFFORT },
+    system: readerSystemPrompt(),
+    tools: [
+      {
+        type: 'agent_toolset_20260401',
+        // Aucun client ne répond pendant la session : une demande d'autorisation la bloquerait sans fin.
+        default_config: { enabled: false, permission_policy: { type: 'always_allow' } },
+        configs: [
+          ...(['bash', 'read', 'write', 'edit', 'glob', 'grep'] as const).map((name) => ({ name, enabled: true })),
+          { name: 'web_fetch', enabled: true, allowed_domains: [...FORMATION_DOMAINS], max_content_tokens: FETCH_MAX_CONTENT_TOKENS },
+          { name: 'web_search', enabled: false },
+        ],
+      },
+    ],
+    metadata: { canto: FORMATION_TAG, role: 'lecteur' },
+  };
+}
+
+/**
+ * Le coordinateur : Opus 5.5, effort élevé (accès, plan, relecture des formules, synthèse). Son roster ne compte que le
+ * lecteur : pas de copie de soi, qui lirait au tarif d'Opus, ni d'agent défini à la volée, qui tournerait sur Opus avec tous
+ * ses outils. Les workflows sont coupés : la demande est de tenir le coût, et le site doit être ménagé ; pour les rallumer,
+ * `workflows: { type: 'enabled', predefined_agents: [lecteur], inline_agents: { type: 'disabled' } }` et une ligne de
+ * consigne qui dit quand lancer une exécution. `solo` : l'organisation n'a pas le type multiagent, le coordinateur lit seul.
+ */
+export function coordinatorAgentBody(locale: AppLocale, readerId: string, solo: boolean): Record<string, unknown> {
+  return {
+    name: FORMATION_AGENT_NAME,
+    description: 'Formation quant de CΛNTO : suit les parcours de quantmemo.com et écrit le savoir dans le magasin canto-savoir-quant.',
+    model: { id: FORMATION_MODEL, effort: FORMATION_EFFORT },
+    system: formationSystemPrompt(locale),
+    tools: [
+      {
+        type: 'agent_toolset_20260401',
+        default_config: { enabled: true, permission_policy: { type: 'always_allow' } },
+        configs: [
+          { name: 'web_search', enabled: true, allowed_domains: [...FORMATION_DOMAINS] },
+          { name: 'web_fetch', enabled: true, allowed_domains: [...FORMATION_DOMAINS], max_content_tokens: FETCH_MAX_CONTENT_TOKENS },
+        ],
+      },
+    ],
+    ...(solo
+      ? {}
+      : {
+          multiagent: {
+            type: 'multiagent_20261001',
+            subagents: { type: 'enabled', predefined_agents: [readerId], inline_agents: { type: 'disabled' } },
+            workflows: { type: 'disabled' },
+          },
+        }),
+    metadata: { canto: FORMATION_TAG, role: 'coordinateur' },
   };
 }

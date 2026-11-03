@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
+import { cloudAgentBody, cloudEnvironmentBody, FORMATION_TAG, OFFICIAL_DOMAINS } from '../electron/agent-cloud-definition';
 import {
+  coordinatorAgentBody,
   FETCH_MAX_CONTENT_TOKENS,
+  FORMATION_AGENT_NAME,
+  FORMATION_DOMAINS,
+  FORMATION_ENVIRONMENT_NAME,
   FORMATION_MAX_BATCHES,
   FORMATION_MAX_COURSES,
   FORMATION_MAX_COURSES_SOLO,
@@ -13,9 +18,14 @@ import {
   FORMATION_STORE_INSTRUCTIONS,
   formationOutcomeEvent,
   formationRubric,
+  formationEnvironmentBody,
   formationSystemPrompt,
+  READER_AGENT_NAME,
+  readerAgentBody,
   readerSystemPrompt,
 } from '../electron/agent-cloud-formation';
+
+const READER = 'agent_011CZkYpogX7uDKUyvBToREA';
 
 const SECTIONS = ['Accès et conditions', 'Lu', 'Écrit', 'Boîte à outils', 'Reste à faire', 'Coût', 'Contrôle du magasin', 'Signalements'];
 
@@ -120,5 +130,76 @@ describe('agent cloud · formation quant', () => {
 
     // Ni outil d'ordre ni pont, nulle part.
     for (const text of [prompt, reader, formationRubric('fr'), FORMATION_STORE_INSTRUCTIONS, JSON.stringify(formationOutcomeEvent('fr'))]) expect(text).not.toMatch(/propose_order|copy\.order|ntbridge/);
+  });
+
+  it('CLD40 décision de l’ADMIN (2026-11-03) : quantmemo.com et ses sous-domaines, pour la formation seule', () => {
+    expect(FORMATION_DOMAINS).toEqual(['quantmemo.com']);
+    expect([FORMATION_ENVIRONMENT_NAME, FORMATION_AGENT_NAME, READER_AGENT_NAME]).toEqual(['canto-formation', 'CΛNTO · formation quant', 'CΛNTO · lecteur de cours']);
+
+    // L'environnement à part : le domaine et ses sous-domaines, ni paquets ni MCP.
+    const env = formationEnvironmentBody();
+    expect(env).toMatchObject({ name: 'canto-formation', metadata: { canto: FORMATION_TAG } });
+    expect(env.config).toEqual({
+      type: 'cloud',
+      networking: { type: 'limited', allowed_hosts: ['quantmemo.com', '*.quantmemo.com'], allow_package_managers: false, allow_mcp_servers: false },
+    });
+
+    // Le lecteur : Sonnet 5.5, effort moyen ; fichiers et lecture web limitée, sans recherche.
+    const reader = readerAgentBody();
+    expect(reader).toMatchObject({ name: READER_AGENT_NAME, model: { id: 'claude-sonnet-5-5', effort: 'medium' }, system: readerSystemPrompt(), metadata: { canto: FORMATION_TAG, role: 'lecteur' } });
+    expect(reader.tools).toEqual([
+      {
+        type: 'agent_toolset_20260401',
+        default_config: { enabled: false, permission_policy: { type: 'always_allow' } },
+        configs: [
+          { name: 'bash', enabled: true },
+          { name: 'read', enabled: true },
+          { name: 'write', enabled: true },
+          { name: 'edit', enabled: true },
+          { name: 'glob', enabled: true },
+          { name: 'grep', enabled: true },
+          { name: 'web_fetch', enabled: true, allowed_domains: ['quantmemo.com'], max_content_tokens: FETCH_MAX_CONTENT_TOKENS },
+          { name: 'web_search', enabled: false },
+        ],
+      },
+    ]);
+    expect(reader).not.toHaveProperty('multiagent');
+
+    // Le coordinateur : Opus 5.5, effort élevé ; recherche et lecture web limitées au même domaine.
+    const coordinator = coordinatorAgentBody('fr', READER, false);
+    expect(coordinator).toMatchObject({ name: FORMATION_AGENT_NAME, model: { id: 'claude-opus-5-5', effort: 'high' }, system: formationSystemPrompt('fr'), metadata: { canto: FORMATION_TAG, role: 'coordinateur' } });
+    expect(coordinator.tools).toEqual([
+      {
+        type: 'agent_toolset_20260401',
+        default_config: { enabled: true, permission_policy: { type: 'always_allow' } },
+        configs: [
+          { name: 'web_search', enabled: true, allowed_domains: ['quantmemo.com'] },
+          { name: 'web_fetch', enabled: true, allowed_domains: ['quantmemo.com'], max_content_tokens: FETCH_MAX_CONTENT_TOKENS },
+        ],
+      },
+    ]);
+    // Le lecteur seul en liste : pas de copie de soi (elle lirait au tarif d'Opus), pas d'agent défini à la volée, pas de workflow.
+    expect(coordinator.multiagent).toEqual({
+      type: 'multiagent_20261001',
+      subagents: { type: 'enabled', predefined_agents: [READER], inline_agents: { type: 'disabled' } },
+      workflows: { type: 'disabled' },
+    });
+    expect(JSON.stringify(coordinator.multiagent)).not.toContain('self');
+    expect(coordinatorAgentBody('en', READER, true)).not.toHaveProperty('multiagent');
+    expect(coordinatorAgentBody('en', READER, true).system).toBe(formationSystemPrompt('en'));
+    // Les listes du lecteur et du coordinateur sont les mêmes : elles se superposent sans jamais s'élargir.
+    const domains = (body: Record<string, unknown>) => (body.tools as { configs: { allowed_domains?: string[] }[] }[])[0]!.configs.flatMap((c) => c.allowed_domains ?? []);
+    expect(new Set(domains(reader))).toEqual(new Set(domains(coordinator)));
+
+    // Ni serveur MCP, ni outil d'ordre, ni pont.
+    for (const body of [env, reader, coordinator]) {
+      expect(body).not.toHaveProperty('mcp_servers');
+      expect(JSON.stringify(body)).not.toMatch(/propose_order|copy\.order|ntbridge/);
+    }
+
+    // L'analyste ne change pas : ses douze domaines officiels, sans quantmemo (CLD35).
+    expect(OFFICIAL_DOMAINS).toHaveLength(12);
+    expect(JSON.stringify(cloudEnvironmentBody())).not.toContain('quantmemo');
+    expect(JSON.stringify(cloudAgentBody('fr'))).not.toContain('quantmemo');
   });
 });
