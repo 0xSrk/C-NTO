@@ -904,9 +904,51 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
     const refused = trained(trainer({ createAgent: async () => Promise.reject(crawler) }), { answers: [0] });
     expect((await refused.host.train()).error).toBe(`Lecteur · ${crawler.message}`);
     expect(refused.api.calls).toEqual(['listStoreSessions', 'listMemories', 'listMemories', 'createEnvironment', 'createAgent']);
-    // Le plafond déclaré par la session n'est pas celui du dialogue : dit, jamais tu.
-    const odd = trained(trainer({ createSession: async () => trainingSession(45, { budgetCents: 10_000 }) }), { answers: [0] });
-    expect((await odd.host.train()).error).toBe('Plafond déclaré par la session : 100,00 $, et non 25,00 $ : vérifiez-la dans la Console.');
+    // Le plafond déclaré par la session n'est pas celui du dialogue : dit, jamais tu (plus haut ou absent : CLD50).
+    const odd = trained(trainer({ createSession: async () => trainingSession(45, { budgetCents: 1000 }) }), { answers: [0] });
+    expect((await odd.host.train()).error).toBe('Plafond déclaré par la session : 10,00 $, et non 25,00 $ : vérifiez-la dans la Console.');
+    expect(odd.api.calls).not.toContain('interruptSession');
+  });
+
+  it('CLD50 un plafond déclaré absent ou plus haut que celui du dialogue : la session est arrêtée aussitôt, et c’est dit', async () => {
+    // L'opérateur n'a consenti qu'au plafond du dialogue : une session sans plafond lu, ou au-dessus, ne facture pas plus loin.
+    for (const [budgetCents, declared] of [
+      [null, 'aucun'],
+      [10_000, '100,00 $'],
+    ] as const) {
+      const api = trainer({ createSession: async () => trainingSession(45, { budgetCents }), interruptSession: async () => undefined });
+      const h = trained(api, { answers: [0] });
+      const status = await h.host.train();
+      expect(api.calls.slice(-2)).toEqual(['createSession', 'interruptSession']);
+      expect(vi.mocked(api.interruptSession).mock.calls).toEqual([[sid(45)]]);
+      expect(status.error).toBe(`Plafond déclaré par la session : ${declared}, et non 25,00 $ : elle a été arrêtée aussitôt ; vérifiez-la dans la Console.`);
+      // Elle reste celle du desk : le relevé la règlera (au repos, sans rapport).
+      expect(status.training).toMatchObject({ sessionId: sid(45), state: 'running' });
+      expect(saved(h.dir).formation).toMatchObject({ sessionId: sid(45), settled: false, history: [{ id: sid(45) }] });
+      expect(h.logs).toContain('agent cloud · formation arrêtée : plafond déclaré hors du dialogue');
+    }
+    // Retrouvée après une réponse perdue : la même garde.
+    let listed = 0;
+    const lostApi = trainer({
+      createSession: async () => Promise.reject(new CloudApiError(0, 'timeout', 'Délai dépassé (api.anthropic.com)')),
+      listStoreSessions: async () => (listed++ === 0 ? [] : [trainingSession(44, { createdAt: NOW - 30_000, budgetCents: null })]),
+      interruptSession: async () => undefined,
+    });
+    const lost = trained(lostApi, { answers: [0] });
+    expect((await lost.host.train()).error).toContain('elle a été arrêtée aussitôt');
+    expect(vi.mocked(lostApi.interruptSession).mock.calls).toEqual([[sid(44)]]);
+    // L'arrêt échoue : dit, avec le geste qui reste.
+    const down = trained(trainer({ createSession: async () => trainingSession(46, { budgetCents: null }), interruptSession: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529')) }), { answers: [0] });
+    expect((await down.host.train()).error).toBe('Plafond déclaré par la session : aucun, et non 25,00 $ : l’arrêt a échoué ; arrêtez-la (Arrêter la formation) ou dans la Console.');
+    expect(down.host.status().training).toMatchObject({ sessionId: sid(46), state: 'running' });
+    // En anglais et en espagnol.
+    for (const [locale, text] of [
+      ['en', 'Cap declared by the session: none, not $25.00: it was stopped at once; check it in the Console.'],
+      ['es', 'Límite declarado por la sesión: ninguno, y no 25,00 $: se ha detenido enseguida; verifíquela en la Consola.'],
+    ] as const) {
+      const h = trained(trainer({ createSession: async () => trainingSession(45, { budgetCents: null }), interruptSession: async () => undefined }), { answers: [0], locale });
+      expect((await h.host.train()).error).toBe(text);
+    }
   });
 
   it('CLD42 arrêter la formation : un user.interrupt, sans dialogue, au seul siège du Lab', async () => {

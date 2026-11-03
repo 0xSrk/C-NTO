@@ -1344,11 +1344,35 @@ export class AgentCloudHost {
         this.deps.log('agent cloud · formation lancée');
         if (created.budgetCents !== FORMATION_BUDGET_CENTS) {
           const declared = created.budgetCents === null ? this.t('aucun', 'none', 'ninguno') : this.money(created.budgetCents);
-          this.actionError = this.t(
-            `Plafond déclaré par la session : ${declared}, et non ${cap} : vérifiez-la dans la Console.`,
-            `Cap declared by the session: ${declared}, not ${cap}: check it in the Console.`,
-            `Límite declarado por la sesión: ${declared}, y no ${cap}: verifíquela en la Consola.`,
-          );
+          // L'opérateur n'a consenti qu'au plafond du dialogue (CLD50). Absent, illisible ou plus haut : la session est arrêtée
+          // dans le même geste, elle reste celle du desk et le relevé la règle. Plus bas : dans le consentement, seulement dit.
+          if (created.budgetCents === null || created.budgetCents > FORMATION_BUDGET_CENTS) {
+            let stopped = false;
+            try {
+              await this.api.interruptSession(created.id);
+              stopped = true;
+              this.deps.log('agent cloud · formation arrêtée : plafond déclaré hors du dialogue');
+            } catch (error) {
+              this.deps.log(`agent cloud · arrêt de la formation en échec (plafond déclaré hors du dialogue) : ${error instanceof CloudApiError ? `${error.status} ${error.type}` : 'erreur'}`);
+            }
+            this.actionError = stopped
+              ? this.t(
+                  `Plafond déclaré par la session : ${declared}, et non ${cap} : elle a été arrêtée aussitôt ; vérifiez-la dans la Console.`,
+                  `Cap declared by the session: ${declared}, not ${cap}: it was stopped at once; check it in the Console.`,
+                  `Límite declarado por la sesión: ${declared}, y no ${cap}: se ha detenido enseguida; verifíquela en la Consola.`,
+                )
+              : this.t(
+                  `Plafond déclaré par la session : ${declared}, et non ${cap} : l’arrêt a échoué ; arrêtez-la (Arrêter la formation) ou dans la Console.`,
+                  `Cap declared by the session: ${declared}, not ${cap}: stopping it failed; stop it (Stop the training) or in the Console.`,
+                  `Límite declarado por la sesión: ${declared}, y no ${cap}: la detención falló; deténgala (Detener la formación) o en la Consola.`,
+                );
+          } else {
+            this.actionError = this.t(
+              `Plafond déclaré par la session : ${declared}, et non ${cap} : vérifiez-la dans la Console.`,
+              `Cap declared by the session: ${declared}, not ${cap}: check it in the Console.`,
+              `Límite declarado por la sesión: ${declared}, y no ${cap}: verifíquela en la Consola.`,
+            );
+          }
         }
         this.reschedule(PULL_PENDING_MS);
       } catch (error) {

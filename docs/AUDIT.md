@@ -1543,3 +1543,11 @@ Demande de l'ADMIN du 2026-11-03 : former l'agent cloud de CΛNTO sur les parcou
 6. Console › Memory stores › `canto-savoir-quant` : relire `INDEX.md`, `boite-a-outils.md` et quelques fiches ; l'onglet des versions dit ce que la session a écrit.
 7. Si tout va bien, *Reprendre la formation* le lendemain (une session par jour au plus), après le recalage de `FORMATION_MAX_COURSES` sur le coût réel de la première session. Sinon *Suspendre* le déploiement, et dire ce qui ne va pas.
 8. Le rapport quotidien suivant peut citer « Savoir CΛNTO — d'après quantmemo.com : … » dans ses sources.
+
+## Agent cloud — formation quant, relecture adverse (2026-11-03)
+
+La relecture adverse de la branche `agent/formation-quant` (lentilles sécurité, API, comportement) a rendu treize constats. Chacun a été vérifié dans le code avant d'être corrigé, et prouvé par un test rouge sans le correctif.
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| CLD50 | Le dialogue de formation annonce `FORMATION_BUDGET_CENTS` (25,00 $), mais un plafond déclaré autre par la réponse de `POST /v1/sessions` n'était que dit (`electron/agent-cloud.ts:1345`, avant correctif) : la session restait celle du desk et facturait, sans plafond si `budget` manquait ou ne se lisait pas. Désormais, un plafond absent, illisible ou plus haut que celui du dialogue fait partir un `user.interrupt` dans le même geste (`:1349-1352`), y compris pour une session retrouvée après une réponse perdue ; la session reste celle du desk, que le relevé règle. Le message dit l'arrêt, ou son échec et le geste qui reste (« Arrêter la formation », la Console). Un plafond plus bas reste dans le consentement : il est seulement dit, comme avant. | `tests/agent-cloud-control.test.ts` › CLD50, CLD41 |
