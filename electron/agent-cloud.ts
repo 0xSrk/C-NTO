@@ -214,8 +214,19 @@ interface FormationConfig {
   startedAt: number | null;
   /** La session a été relevée (rapport rangé, ou constat) : elle ne facture plus, la suivante peut partir. */
   settled: boolean;
+  /** Ce que le relevé a tiré de la dernière session réglée ; jamais dans `collected` (ce n'est pas un rapport quotidien). */
+  result: TrainingResult | null;
   history: TrainingRun[];
 }
+
+interface TrainingResult {
+  report: CloudTrainingReport;
+  reportId: string | null;
+  capped: boolean;
+  detail: string;
+}
+
+const TRAINING_REPORTS: readonly CloudTrainingReport[] = ['filed', 'missing', 'invalid', 'too_large', 'archived'];
 
 interface CloudConfig {
   key: string | null;
@@ -275,8 +286,16 @@ function coerceFormation(raw: unknown): FormationConfig {
     sessionId: isApiId(r.sessionId, 'sesn') ? r.sessionId : null,
     startedAt: safeInt(r.startedAt),
     settled: r.settled === true,
+    result: coerceResult(r.result),
     history: history.slice(-FORMATION_HISTORY_MAX),
   };
+}
+
+function coerceResult(raw: unknown): TrainingResult | null {
+  if (!isRecord(raw)) return null;
+  const report = TRAINING_REPORTS.find((k) => k === raw.report);
+  if (!report) return null;
+  return { report, reportId: isApiId(raw.reportId, 'sesn') ? raw.reportId : null, capped: raw.capped === true, detail: typeof raw.detail === 'string' ? raw.detail.slice(0, 200) : '' };
 }
 
 function coerceConfig(raw: unknown): CloudConfig {
@@ -344,6 +363,8 @@ export class AgentCloudHost {
   /** Erreur d'une action de l'opérateur (installer, lancer, quitter, saisie refusée) : seul un geste suivant l'efface. */
   protected actionError: string | null = null;
   private pending = 0;
+  /** Dernière lecture de la session de formation en cours (coût, plafond) ; `settling` : au repos, rapport pas encore relevé. */
+  private trainingView: { id: string; costCents: number | null; budgetCents: number | null; capped: boolean; settling: boolean } | null = null;
   private runFailures: CloudFailure[] = [];
   private lastStatus = '';
   private lastList = '';
@@ -468,20 +489,24 @@ export class AgentCloudHost {
   private training(): CloudTrainingState {
     const f = this.config.formation;
     const spend = this.trainingSpend();
+    const active = this.trainingActive();
+    const view = this.trainingView && this.trainingView.id === f.sessionId ? this.trainingView : null;
+    const run = f.sessionId ? f.history.find((r) => r.id === f.sessionId) : undefined;
+    const result = active ? null : f.result;
     return {
-      state: this.trainingActive() ? 'running' : f.history.length > 0 ? 'ended' : 'idle',
+      state: active ? (view?.settling ? 'settling' : 'running') : f.history.length > 0 ? 'ended' : 'idle',
       sessionId: f.sessionId,
       startedAt: f.startedAt,
       sessions: f.history.length,
       solo: f.solo,
       spent30dCents: spend.cents,
       unknownCost: spend.unknown,
-      costCents: null,
-      budgetCents: null,
-      capped: false,
-      report: null,
-      reportId: null,
-      detail: null,
+      costCents: view?.costCents ?? run?.costCents ?? null,
+      budgetCents: view?.budgetCents ?? null,
+      capped: result ? result.capped : (view?.capped ?? false),
+      report: result?.report ?? null,
+      reportId: result?.reportId ?? null,
+      detail: result?.detail || null,
       progress: null,
     };
   }
@@ -583,6 +608,13 @@ export class AgentCloudHost {
       );
     const next = id === '' ? null : id;
     if (next === this.config.workspaceId) return this.status();
+    // Une formation qui facture ne sort jamais de vue : elle tourne dans l'espace actuel.
+    if (this.trainingActive())
+      return this.refuse(
+        'Une formation tourne dans l’espace actuel : attendez sa fin ou arrêtez-la avant de changer d’espace.',
+        'A training runs in the current workspace: wait for it to end, or stop it, before changing workspace.',
+        'Una formación se ejecuta en el espacio actual: espere a que termine o deténgala antes de cambiar de espacio.',
+      );
     const deploymentId = this.config.deploymentId;
     return this.control('workspace', async () => {
       if (deploymentId && this.config.managed) {
@@ -647,6 +679,10 @@ export class AgentCloudHost {
       this.config.agentId = null;
       this.config.agentVersion = null;
       this.config.memoryStoreId = null;
+      // Les objets de la formation aussi ; son historique (la dépense) reste.
+      const f = this.config.formation;
+      this.config.formation = { ...f, environmentId: null, readerId: null, coordinatorId: null, coordinatorVersion: null, sessionId: null, startedAt: null, settled: false, result: null };
+      this.trainingView = null;
     }
     this.authBlocked = false;
     this.error = null;
@@ -1231,6 +1267,7 @@ export class AgentCloudHost {
     f.sessionId = session.id;
     f.startedAt = startedAt;
     f.settled = false;
+    f.result = null;
     if (!f.history.some((run) => run.id === session.id)) f.history = [...f.history, { id: session.id, startedAt, costCents: session.costCents }].slice(-FORMATION_HISTORY_MAX);
     this.persist();
   }
@@ -1288,8 +1325,9 @@ export class AgentCloudHost {
     this.nextPullAt = null;
   }
 
+  /** Une clé, et un déploiement à relever ou une formation qui facture : quitter le déploiement ne sort pas la formation de vue. */
   protected configured(): boolean {
-    return !!this.config.key && !!this.config.deploymentId;
+    return !!this.config.key && (!!this.config.deploymentId || this.trainingActive());
   }
 
   /** Prochain relevé automatique : jamais hors service, ni avec une clé refusée. */
@@ -1298,7 +1336,7 @@ export class AgentCloudHost {
     this.timer = null;
     this.nextPullAt = null;
     if (this.stopped || !this.configured() || this.authBlocked) return;
-    const wait = delay ?? (this.pending > 0 ? PULL_PENDING_MS : PULL_EVERY_MS);
+    const wait = delay ?? (this.pending > 0 || this.trainingActive() ? PULL_PENDING_MS : PULL_EVERY_MS);
     this.nextPullAt = this.now() + wait;
     this.timer = this.timers.setTimeout(() => {
       this.timer = null;
@@ -1373,7 +1411,7 @@ export class AgentCloudHost {
 
   private async pullOnce(): Promise<AgentCloudStatus> {
     const deploymentId = this.config.deploymentId;
-    if (!this.config.key || !deploymentId) {
+    if (!this.config.key || (!deploymentId && !this.trainingActive())) {
       this.error = this.config.key ? null : this.t('Aucune clé API enregistrée.', 'No API key stored.', 'Ninguna clave API guardada.');
       return this.status();
     }
@@ -1382,22 +1420,26 @@ export class AgentCloudHost {
     // Le déploiement a changé pendant le relevé (quitté, remplacé) : ce relevé n'écrit plus rien, et ne replanifie rien.
     const stale = () => this.config.deploymentId !== deploymentId;
     try {
-      const view = await this.api.getDeployment(deploymentId);
-      if (stale()) return this.status();
-      this.deployment = deploymentState(view);
-      const sessions = await this.sessionsToSee(deploymentId);
-      const seen = await this.collect(sessions);
-      if (stale()) return this.status();
-      added = seen.added;
-      this.pending = seen.pending;
-      this.advanceFloor(sessions);
-      try {
-        const since = new Date(this.now() - FAILED_RUNS_WINDOW_MS).toISOString();
-        const runs = await this.api.listFailedRuns(deploymentId, since, FAILURES_SHOWN);
-        this.runFailures = runs.filter((r) => r.errorType).map((r) => ({ at: r.createdAt ?? this.now(), kind: 'run' as const, detail: `${r.errorType}${r.errorMessage ? ` · ${r.errorMessage}` : ''}`.slice(0, 200) }));
-      } catch {
-        /* les échecs de déclenchement sont un plus : le relevé tient sans eux */
+      if (deploymentId) {
+        const view = await this.api.getDeployment(deploymentId);
+        if (stale()) return this.status();
+        this.deployment = deploymentState(view);
+        const sessions = await this.sessionsToSee(deploymentId);
+        const seen = await this.collect(sessions);
+        if (stale()) return this.status();
+        added = seen.added;
+        this.pending = seen.pending;
+        this.advanceFloor(sessions);
+        try {
+          const since = new Date(this.now() - FAILED_RUNS_WINDOW_MS).toISOString();
+          const runs = await this.api.listFailedRuns(deploymentId, since, FAILURES_SHOWN);
+          this.runFailures = runs.filter((r) => r.errorType).map((r) => ({ at: r.createdAt ?? this.now(), kind: 'run' as const, detail: `${r.errorType}${r.errorMessage ? ` · ${r.errorMessage}` : ''}`.slice(0, 200) }));
+        } catch {
+          /* les échecs de déclenchement sont un plus : le relevé tient sans eux */
+        }
+        if (stale()) return this.status();
       }
+      added += await this.pullTraining();
       if (stale()) return this.status();
       this.error = null;
       // Le déploiement répond : une clé refusée un temps (403 d'un mauvais espace de travail) ne bloque plus le relevé.
@@ -1482,56 +1524,113 @@ export class AgentCloudHost {
         continue;
       }
       downloads += 1;
-      const files = await this.api.listOutputFiles(session.id);
-      const file = files.find((f) => f.filename === REPORT_FILE);
-      if (!file) {
-        const cost = session.costCents !== null ? this.money(session.costCents) : null;
-        if (capped) {
-          // Le plafond a coupé l'agent avant qu'il n'écrive : dit tel, avec la dépense et le plafond.
-          this.mark(session.id, false, 'budget', [cost, session.budgetCents !== null ? this.money(session.budgetCents) : null].filter(Boolean).join(' / '));
+      const fetched = await this.fetchReport(session);
+      if (!fetched.ok) {
+        if (fetched.kind === 'missing') {
+          const cost = session.costCents !== null ? this.money(session.costCents) : null;
+          if (capped) {
+            // Le plafond a coupé l'agent avant qu'il n'écrive : dit tel, avec la dépense et le plafond.
+            this.mark(session.id, false, 'budget', [cost, session.budgetCents !== null ? this.money(session.budgetCents) : null].filter(Boolean).join(' / '));
+            continue;
+          }
+          const why = session.outcomePending ? `${session.status} · outcome ouvert` : session.outcomeResult ? `outcome ${session.outcomeResult}` : session.status;
+          this.mark(session.id, false, 'no_report', cost ? `${why} · ${cost}` : why);
           continue;
         }
-        const why = session.outcomePending ? `${session.status} · outcome ouvert` : session.outcomeResult ? `outcome ${session.outcomeResult}` : session.status;
-        this.mark(session.id, false, 'no_report', cost ? `${why} · ${cost}` : why);
+        this.mark(session.id, false, fetched.kind, fetched.detail);
         continue;
       }
-      if (file.sizeBytes > REPORT_MAX_BYTES) {
-        this.mark(session.id, false, 'too_large', `${file.sizeBytes} o`);
-        continue;
-      }
-      let raw: unknown;
-      try {
-        raw = JSON.parse(await this.api.downloadText(file.id, REPORT_MAX_BYTES));
-      } catch (error) {
-        // Clé refusée, quota, panne du serveur ou du réseau : le relevé échoue et la session sera reprise.
-        // Un 4xx propre au fichier (non téléchargeable, disparu) ou un corps illisible la classe.
-        const transient = error instanceof CloudApiError && (error.status === 401 || error.status === 403 || error.status === 429 || error.status >= 500 || ['timeout', 'network', 'no_key'].includes(error.type));
-        if (transient) throw error;
-        const kind = error instanceof CloudApiError && error.type === 'too_large' ? 'too_large' : 'invalid';
-        this.mark(session.id, false, kind, error instanceof CloudApiError && error.status ? `HTTP ${error.status}` : 'json');
-        continue;
-      }
-      const parsed = parseReport(raw);
-      if (!parsed.ok) {
-        this.mark(session.id, false, 'invalid', parsed.reason);
-        continue;
-      }
-      if (!isDateNear(parsed.report.date, session.createdAt ?? this.now())) {
-        this.mark(session.id, false, 'invalid', `date ${parsed.report.date}`);
-        continue;
-      }
-      const report: CloudReport = {
+      this.store(fetched.report);
+      this.mark(session.id, true);
+      added += 1;
+    }
+    return { added, pending };
+  }
+
+  /**
+   * Le `rapport.json` d'une session au repos, lu au contrat : absent, trop lourd, hors contrat, ou la fiche à ranger. Une panne
+   * passagère (clé refusée, quota, serveur, réseau) remonte : le relevé échoue et la session sera reprise.
+   */
+  private async fetchReport(session: SessionView): Promise<{ ok: true; report: CloudReport } | { ok: false; kind: 'missing' | 'too_large' | 'invalid'; detail: string }> {
+    const files = await this.api.listOutputFiles(session.id);
+    const file = files.find((f) => f.filename === REPORT_FILE);
+    if (!file) return { ok: false, kind: 'missing', detail: '' };
+    if (file.sizeBytes > REPORT_MAX_BYTES) return { ok: false, kind: 'too_large', detail: `${file.sizeBytes} o` };
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await this.api.downloadText(file.id, REPORT_MAX_BYTES));
+    } catch (error) {
+      // Clé refusée, quota, panne du serveur ou du réseau : le relevé échoue et la session sera reprise.
+      // Un 4xx propre au fichier (non téléchargeable, disparu) ou un corps illisible la classe.
+      const transient = error instanceof CloudApiError && (error.status === 401 || error.status === 403 || error.status === 429 || error.status >= 500 || ['timeout', 'network', 'no_key'].includes(error.type));
+      if (transient) throw error;
+      const kind = error instanceof CloudApiError && error.type === 'too_large' ? 'too_large' : 'invalid';
+      return { ok: false, kind, detail: error instanceof CloudApiError && error.status ? `HTTP ${error.status}` : 'json' };
+    }
+    const parsed = parseReport(raw);
+    if (!parsed.ok) return { ok: false, kind: 'invalid', detail: parsed.reason };
+    if (!isDateNear(parsed.report.date, session.createdAt ?? this.now())) return { ok: false, kind: 'invalid', detail: `date ${parsed.report.date}` };
+    return {
+      ok: true,
+      report: {
         v: 1,
         id: session.id,
         ...parsed.report,
         receivedAt: this.now(),
         session: { id: session.id, createdAt: session.createdAt, costCents: session.costCents, agentVersion: session.agentVersion },
-      };
-      this.store(report);
-      this.mark(session.id, true);
-      added += 1;
+      },
+    };
+  }
+
+  /**
+   * La session de formation, hors déploiement : son coût suivi à chaque relevé, puis, une fois au repos et ses fichiers
+   * indexés, son rapport rangé, marqué formation. Réglée dans tous les cas (rapport, absence, plafond, archive), mais jamais
+   * notée dans `collected` : un plafond de formation n'est pas un échec du rapport quotidien. Rend le nombre de fiches rangées.
+   */
+  private async pullTraining(): Promise<number> {
+    const f = this.config.formation;
+    const id = f.sessionId;
+    if (!id || f.settled) return 0;
+    // La session de formation a changé pendant le relevé : ce relevé n'écrit rien sur la nouvelle.
+    const stale = () => this.config.formation.sessionId !== id || this.config.formation.settled;
+    const session = await this.api.getSession(id);
+    if (stale()) return 0;
+    const capped = atCap(session);
+    this.trainingView = { id, costCents: session.costCents, budgetCents: session.budgetCents, capped, settling: false };
+    const run = f.history.find((r) => r.id === id);
+    if (run && session.costCents !== null && run.costCents !== session.costCents) {
+      run.costCents = session.costCents;
+      this.persist();
     }
-    return { added, pending };
+    let result: TrainingResult;
+    let added = 0;
+    if (session.archived) {
+      result = { report: 'archived', reportId: null, capped, detail: '' };
+    } else if (session.status === 'running' || session.status === 'rescheduling') {
+      return 0;
+    } else {
+      // Au repos : comme le rapport quotidien, 60 s pour l'index des fichiers, 30 min si un résultat reste ouvert hors plafond.
+      const age = this.now() - (session.updatedAt ?? session.createdAt ?? 0);
+      if (age < (session.outcomePending && !capped ? NO_REPORT_AFTER_MS : SETTLE_MS)) {
+        this.trainingView.settling = true;
+        return 0;
+      }
+      const fetched = await this.fetchReport(session);
+      if (stale()) return 0;
+      if (fetched.ok) {
+        this.store({ ...fetched.report, kind: 'formation' });
+        result = { report: 'filed', reportId: id, capped, detail: '' };
+        added = 1;
+      } else {
+        const why = session.outcomeResult ? `outcome ${session.outcomeResult}` : session.status;
+        result = { report: fetched.kind === 'missing' ? 'missing' : fetched.kind, reportId: null, capped, detail: fetched.kind === 'missing' ? why : fetched.detail };
+      }
+    }
+    f.settled = true;
+    f.result = result;
+    this.persist();
+    this.deps.log(`agent cloud · formation relevée (${result.report}${capped ? ', au plafond' : ''})`);
+    return added;
   }
 
   /** Note la session comme relevée (rapport rangé, ou échec qui ne se rattrapera pas) ; écrit à la fin du relevé. */

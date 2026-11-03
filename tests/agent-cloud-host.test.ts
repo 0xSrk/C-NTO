@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CloudApiError, type FetchLike, type FileView } from '../electron/agent-cloud-api';
 import { AGENT_CLOUD_FILE, AGENT_REPORTS_DIR, NO_REPORT_AFTER_MS, PULL_EVERY_MS, PULL_PENDING_MS, SETTLE_MS } from '../electron/agent-cloud';
-import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, fid, KEY, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
+import { AGENT, cloudHarness, DEPL, DEPLOYMENT, ENV, fakeApi, fid, KEY, MEMSTORE, NOW, reportText as report, seal, session, sid, type FakeCloudApi, type HarnessOptions } from './helpers/agentCloudFakes';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -429,5 +429,119 @@ describe('agent cloud · hôte du process principal', () => {
     expect(() => tampered.host.status()).not.toThrow();
     expect(tampered.host.list().map((r) => r.id)).toEqual([sid(1)]);
     expect(tampered.host.read(sid(3))).toBeNull();
+  });
+
+  it('CLD45 la formation se relève hors déploiement : coût suivi, rapport rangé marqué, plafond sans échec quotidien', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const DAY = 86_400_000;
+    const clock = { now: NOW };
+    const formation = {
+      sessionId: sid(40),
+      startedAt: NOW - 3_600_000,
+      settled: false,
+      history: [
+        { id: sid(30), startedAt: NOW - 31 * DAY, costCents: 2500 },
+        { id: sid(31), startedAt: NOW - 2 * DAY, costCents: 1000 },
+        { id: sid(40), startedAt: NOW - 3_600_000, costCents: null },
+      ],
+    };
+    const write = (dir: string, extra: Record<string, unknown> = {}) =>
+      writeFileSync(path.join(dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE, formation, ...extra }));
+    let current = session(40, { status: 'running', deploymentId: null, costCents: 120, budgetCents: 2500, outcomePending: true, outcomeResult: null, createdAt: NOW - 3_600_000, updatedAt: NOW });
+    const api = fakeApi({
+      getSession: async () => current,
+      listOutputFiles: async (id: string) => (id === sid(40) ? [{ id: fid(40), filename: 'rapport.json', sizeBytes: 300, createdAt: NOW }] : []),
+      downloadText: async () => report('2026-10-27', 'Formation quant · session du 2026-10-27'),
+    });
+    const probe = harness();
+    write(probe.dir);
+    const h = harness({ api, dir: probe.dir, clock });
+    // Sans déploiement (quitté, ou jamais installé) : la formation garde le relevé vivant, toutes les 3 min.
+    h.host.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(api.calls).toEqual(['getSession']);
+    expect(h.host.status()).toMatchObject({ deploymentId: null, error: null, nextPullAt: NOW + PULL_PENDING_MS, training: { state: 'running', costCents: 120, budgetCents: 2500, capped: false } });
+    // Changer d'espace de travail pendant qu'elle facture : refusé, rien n'est oublié.
+    expect(await h.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: null, error: 'Une formation tourne dans l’espace actuel : attendez sa fin ou arrêtez-la avant de changer d’espace.' });
+    // Le coût monte ; le cumul des 30 jours le compte, pas une session de 31 jours.
+    current = { ...current, costCents: 640 };
+    await vi.advanceTimersByTimeAsync(PULL_PENDING_MS);
+    expect(h.host.status().training).toMatchObject({ state: 'running', costCents: 640, spent30dCents: 1640, unknownCost: 0 });
+    // Au repos : on attend que le dernier fichier soit indexé, puis le rapport est rangé, marqué formation.
+    current = { ...current, status: 'idle', outcomePending: false, outcomeResult: 'satisfied', costCents: 1875, updatedAt: clock.now - 10_000 };
+    await vi.advanceTimersByTimeAsync(PULL_PENDING_MS);
+    expect(h.host.status().training).toMatchObject({ state: 'settling', report: null });
+    expect(api.calls).not.toContain('listOutputFiles');
+    clock.now += SETTLE_MS;
+    await vi.advanceTimersByTimeAsync(PULL_PENDING_MS);
+    const ended = h.host.status();
+    expect(ended).toMatchObject({ reports: 1, failures: [], training: { state: 'ended', report: 'filed', reportId: sid(40), costCents: 1875, capped: false, spent30dCents: 2875 } });
+    expect(JSON.parse(readFileSync(path.join(h.dir, AGENT_REPORTS_DIR, `${sid(40)}.json`), 'utf8'))).toMatchObject({ id: sid(40), kind: 'formation', title: 'Formation quant · session du 2026-10-27', session: { costCents: 1875 } });
+    expect(h.host.list()).toEqual([expect.objectContaining({ id: sid(40), kind: 'formation' })]);
+    const file = JSON.parse(readFileSync(path.join(h.dir, AGENT_CLOUD_FILE), 'utf8'));
+    expect(file.collected).toEqual({});
+    expect(file.formation).toMatchObject({ settled: true, result: { report: 'filed', reportId: sid(40), capped: false }, history: [{ id: sid(30) }, { id: sid(31) }, { id: sid(40), costCents: 1875 }] });
+    // Réglée et sans déploiement : plus rien ne facture, le relevé automatique s'arrête.
+    expect(h.host.status().nextPullAt).toBeNull();
+    expect(JSON.stringify(h.host.status())).not.toContain(KEY);
+    expect(h.logs.join('\n')).not.toContain(KEY);
+    h.host.shutdown();
+    vi.useRealTimers();
+
+    // Une autre session coupée à son plafond, sans rapport : un état de la formation, jamais un échec du rapport quotidien.
+    const capped = fakeApi({ getSession: async () => session(41, { status: 'idle', deploymentId: null, costCents: 2500, budgetCents: 2500, outcomePending: true, outcomeResult: null, updatedAt: NOW - 120_000 }) });
+    const cut = harness();
+    write(cut.dir, { formation: { ...formation, sessionId: sid(41), history: [{ id: sid(41), startedAt: NOW - 3_600_000, costCents: null }] } });
+    const c = harness({ api: capped, dir: cut.dir });
+    const status = await c.host.pull();
+    expect(status).toMatchObject({ failures: [], reports: 0, training: { state: 'ended', report: 'missing', reportId: null, capped: true, costCents: 2500 } });
+    expect(capped.calls).toEqual(['getSession', 'listOutputFiles']);
+    expect(JSON.parse(readFileSync(path.join(c.dir, AGENT_CLOUD_FILE), 'utf8')).collected).toEqual({});
+
+    // Les sessions du déploiement sont relevées comme avant, dans le même relevé.
+    const both = fakeApi({
+      getSession: async () => session(42, { status: 'running', deploymentId: null, budgetCents: 2500 }),
+      listSessions: async () => [session(1)],
+      listOutputFiles: async () => [{ id: fid(1), filename: 'rapport.json', sizeBytes: 100, createdAt: NOW }],
+      downloadText: async () => report('2026-10-27'),
+    });
+    const mixed = harness();
+    write(mixed.dir, { deploymentId: DEPL, formation: { ...formation, sessionId: sid(42), history: [{ id: sid(42), startedAt: NOW, costCents: null }] } });
+    const m = harness({ api: both, dir: mixed.dir });
+    expect(await m.host.pull()).toMatchObject({ reports: 1, pending: 0, training: { state: 'running' } });
+    expect(both.calls).toEqual(['getDeployment', 'listSessions', 'listOutputFiles', 'downloadText', 'listFailedRuns', 'getSession']);
+    expect(m.host.list()[0]).not.toHaveProperty('kind');
+
+    // Une panne passagère fait échouer le relevé, la session sera reprise ; rien n'est réglé.
+    write(cut.dir);
+    const down = harness({ api: fakeApi({ getSession: async () => Promise.reject(new CloudApiError(529, 'overloaded_error', 'HTTP 529 · overloaded_error')) }), dir: cut.dir });
+    expect((await down.host.pull())).toMatchObject({ error: 'HTTP 529 · overloaded_error', training: { state: 'running' } });
+
+    // La session de formation change pendant le relevé : rien n'est écrit sur la nouvelle.
+    let release: () => void = () => undefined;
+    const slow = fakeApi({
+      getSession: async () => {
+        await new Promise<void>((resolve) => (release = resolve));
+        return session(40, { status: 'idle', deploymentId: null, costCents: 999, updatedAt: NOW - 600_000 });
+      },
+    });
+    const racing = harness();
+    write(racing.dir);
+    const r = harness({ api: slow, dir: racing.dir });
+    const pulling = r.host.pull();
+    await Promise.resolve();
+    (r.host as unknown as { config: { formation: { sessionId: string } } }).config.formation.sessionId = sid(43);
+    release();
+    await pulling;
+    expect(slow.calls).toEqual(['getSession']);
+    expect(r.host.status().training).toMatchObject({ sessionId: sid(43), state: 'running', costCents: null, report: null });
+
+    // Formation réglée, installation restée dans l'ancien espace : ses objets, sa session et son résultat sont oubliés, la dépense reste.
+    const moving = harness();
+    write(moving.dir, { formation: { ...formation, environmentId: ENV, readerId: AGENT, coordinatorId: 'agent_011CZkYpogX7uDKUyvBToCOO', settled: true, result: { report: 'filed', reportId: sid(40), capped: false, detail: '' } } });
+    const mv = harness({ api: fakeApi(), dir: moving.dir });
+    expect(await mv.host.setWorkspace('wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ')).toMatchObject({ workspaceId: 'wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ', error: null, training: { state: 'ended', sessionId: null, report: null, sessions: 3 } });
+    expect(JSON.parse(readFileSync(path.join(moving.dir, AGENT_CLOUD_FILE), 'utf8')).formation).toMatchObject({ environmentId: null, readerId: null, coordinatorId: null, sessionId: null, result: null, history: formation.history });
   });
 });
