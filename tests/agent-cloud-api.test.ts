@@ -282,6 +282,56 @@ describe('agent cloud · client Managed Agents', () => {
     expect(parseMemoryEntry({ type: 'autre', path: '/x/' })).toBeNull();
   });
 
+  it('CLD37 créer, relire, retrouver par le magasin et interrompre une session, sans rien d’autre', async () => {
+    const STORE = 'memstore_011CZkZ9X2dpNyB7HsEFoRfW';
+    const raw = { id: SESN, status: 'running', created_at: '2026-11-03T20:00:00Z', updated_at: '2026-11-03T20:00:01Z', deployment_id: null, budget: { type: 'limit', max_list_cost: { amount: '2500', currency: 'USD' } } };
+    const h = harness((url, init) => {
+      if (url.pathname === '/v1/sessions' && init.method === 'GET')
+        return json({ data: [raw, { ...raw, id: 'sesn_011CZkZAtmR3yMPDzynEDxu8', status: 'idle', deployment_id: DEPL }, { id: 'pas-une-session' }], next_page: 'page_2' });
+      if (url.pathname === `/v1/sessions/${SESN}/events`) return json({ data: [] });
+      return json(raw);
+    });
+    const body = { agent: 'agent_011CZkYpogX7uDKUyvBTophP', environment_id: 'env_011CZkZ9X2dpNyB7HsEFoRfW' };
+    expect(await h.api.createSession(body)).toMatchObject({ id: SESN, status: 'running', deploymentId: null, budgetCents: 2500 });
+    expect(await h.api.getSession(SESN)).toMatchObject({ id: SESN, deploymentId: null });
+    const found = await h.api.listStoreSessions(STORE, { limit: 500 });
+    expect(found.map((s) => [s.id, s.deploymentId])).toEqual([
+      [SESN, null],
+      ['sesn_011CZkZAtmR3yMPDzynEDxu8', DEPL],
+    ]);
+    await h.api.listStoreSessions(STORE);
+    await h.api.interruptSession(SESN);
+    const [create, get, list, listDefault, interrupt] = h.calls;
+    expect([create, get, list, listDefault, interrupt].map((c) => `${c?.init.method} ${c?.url.pathname}`)).toEqual([
+      'POST /v1/sessions',
+      `GET /v1/sessions/${SESN}`,
+      'GET /v1/sessions',
+      'GET /v1/sessions',
+      `POST /v1/sessions/${SESN}/events`,
+    ]);
+    for (const call of h.calls) expect((call.init.headers as Record<string, string>)['anthropic-beta']).toBe(MANAGED_AGENTS_BETA);
+    expect(create?.init.body).toBe(JSON.stringify(body));
+    // Retrouver une session par son magasin : les plus récentes d'abord, archivées exclues, 20 au plus (chaque session rend son agent figé).
+    expect(Object.fromEntries(list?.url.searchParams ?? [])).toEqual({ memory_store_id: STORE, order: 'desc', limit: '20' });
+    expect(Object.fromEntries(listDefault?.url.searchParams ?? [])).toEqual({ memory_store_id: STORE, order: 'desc', limit: '10' });
+    // L'interruption : un événement de contrôle sans contenu, exactement ; aucune autre méthode n'envoie d'événement.
+    expect(interrupt?.init.body).toBe('{"events":[{"type":"user.interrupt"}]}');
+    expect(Object.keys(h.api).filter((name) => /message|budget|event/i.test(name))).toEqual([]);
+    expect(h.api.interruptSession.length).toBe(1);
+    const calls = h.fetchImpl.mock.calls.length;
+    await expect(h.api.getSession(DEPL)).rejects.toMatchObject({ type: 'invalid_id' });
+    await expect(h.api.interruptSession('sesn_../../v1/agents')).rejects.toMatchObject({ type: 'invalid_id' });
+    await expect(h.api.listStoreSessions(SESN)).rejects.toMatchObject({ type: 'invalid_id' });
+    expect(h.fetchImpl.mock.calls.length).toBe(calls);
+    // Hors déploiement : `deploymentId` vaut `null` ; une réponse hors forme est illisible.
+    expect(parseSession({ ...raw, deployment_id: DEPL })?.deploymentId).toBe(DEPL);
+    expect(parseSession({ ...raw, deployment_id: 'depl_x' })?.deploymentId).toBeNull();
+    expect(parseSession({ id: SESN, status: 'idle' })?.deploymentId).toBeNull();
+    const bad = harness(() => json({ id: 'x' }));
+    await expect(bad.api.createSession(body)).rejects.toMatchObject({ type: 'unreadable' });
+    await expect(bad.api.getSession(SESN)).rejects.toMatchObject({ type: 'unreadable' });
+  });
+
   it('déploiement en pause sur erreur : la cause est lue ; sans planification, rien de prévu', () => {
     const paused = parseDeployment({ ...DEPLOYMENT, status: 'paused', paused_reason: { type: 'error', error: { type: 'environment_archived_error' } }, schedule: null, budget: undefined });
     expect(paused).toMatchObject({ status: 'paused', pausedReason: 'environment_archived_error', cron: null, nextRunAt: null, budgetCents: null });

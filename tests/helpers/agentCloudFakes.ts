@@ -47,6 +47,7 @@ export const session = (n: number, over: Partial<SessionView> = {}): SessionView
   outcomePending: false,
   outcomeResult: 'satisfied',
   budgetCents: 300,
+  deploymentId: DEPL,
   ...over,
 });
 
@@ -93,6 +94,10 @@ export function fakeApi(over: FakeOverrides = {}): FakeCloudApi {
     listMemoryStores: vi.fn(async () => note('listMemoryStores', { stores: [] as MemoryStoreView[], nextPage: null })),
     listMemories: vi.fn(async () => note('listMemories', { entries: [] as MemoryEntry[], nextPage: null })),
     getMemoryText: vi.fn(async () => note('getMemoryText', '')),
+    createSession: refuse('createSession'),
+    getSession: vi.fn(async (id: string) => note('getSession', session(0, { id, deploymentId: null }))),
+    listStoreSessions: vi.fn(async () => note('listStoreSessions', [] as SessionView[])),
+    interruptSession: refuse('interruptSession'),
   };
   const wrapped = Object.fromEntries(
     Object.entries(over).map(([name, fn]) => [

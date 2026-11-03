@@ -86,6 +86,8 @@ export interface SessionView {
   outcomeResult: string | null;
   /** Plafond de la session (`budget.max_list_cost`), en cents ; `null` sans plafond. */
   budgetCents: number | null;
+  /** Le déploiement qui l'a lancée ; `null` pour une session créée directement (la formation). */
+  deploymentId: string | null;
 }
 
 export interface SessionPage {
@@ -175,6 +177,16 @@ export interface CloudApi {
   listMemories(storeId: string, opts: { pathPrefix: string; depth?: 0 | 1; page?: string; limit?: number }): Promise<MemoryPage>;
   /** Contenu d'une mémoire (vue `full`), refusé si la réponse dépasse `maxBytes` (128 Kio par défaut : 100 kB de contenu au plus). */
   getMemoryText(storeId: string, memoryId: string, maxBytes?: number): Promise<string>;
+  /** Session hors déploiement (la formation) : le corps vient de la définition du desk, fait de constantes et d'identifiants. */
+  createSession(body: Record<string, unknown>): Promise<SessionView>;
+  getSession(id: string): Promise<SessionView>;
+  /** Sessions non archivées qui montent ce magasin, la plus récente d'abord ; 20 au plus (chaque session rend son agent figé). */
+  listStoreSessions(memoryStoreId: string, opts?: { limit?: number }): Promise<SessionView[]>;
+  /**
+   * Arrête la session et tous ses fils : un `user.interrupt`, sans contenu. Aucune autre méthode n'envoie d'événement ni
+   * ne change un budget : une formation se reprend par une session nouvelle.
+   */
+  interruptSession(id: string): Promise<void>;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -288,6 +300,7 @@ export function parseSession(raw: unknown): SessionView | null {
     outcomePending: results.some((r) => OUTCOME_OPEN.has(r)),
     outcomeResult: terminal.length ? (terminal[terminal.length - 1] ?? null) : null,
     budgetCents: budget ? cents(budget.max_list_cost) : null,
+    deploymentId: apiId(raw.deployment_id, 'depl'),
   };
 }
 
@@ -556,6 +569,25 @@ export function createCloudApi(deps: { key: () => string; workspace?: () => stri
     },
     async unpauseDeployment(id) {
       return parseDeployment(await json({ method: 'POST', path: `/v1/deployments/${checked(id, 'depl')}/unpause` }));
+    },
+    async createSession(body) {
+      const session = parseSession(await json({ method: 'POST', path: '/v1/sessions', body }));
+      if (!session) throw new CloudApiError(0, 'unreadable', 'Réponse illisible');
+      return session;
+    },
+    async getSession(id) {
+      const session = parseSession(await json({ method: 'GET', path: `/v1/sessions/${checked(id, 'sesn')}` }));
+      if (!session) throw new CloudApiError(0, 'unreadable', 'Réponse illisible');
+      return session;
+    },
+    async listStoreSessions(memoryStoreId, opts) {
+      const query = { memory_store_id: checked(memoryStoreId, 'memstore'), order: 'desc', limit: clampLimit(opts?.limit, 20, 10) };
+      return listOf(await json({ method: 'GET', path: '/v1/sessions', query }), parseSession);
+    },
+    async interruptSession(id) {
+      // Le statut suffit : la forme de la réponse n'est pas écrite, et rien n'en est lu.
+      const { res } = await send({ method: 'POST', path: `/v1/sessions/${checked(id, 'sesn')}/events`, body: { events: [{ type: 'user.interrupt' }] } });
+      discard(res);
     },
     // Magasins de mémoire : lecture, et une seule écriture, la création du magasin. Le desk n'écrit aucune mémoire.
     async createMemoryStore(body) {
