@@ -284,6 +284,11 @@ describe('agent cloud · Options › Agent cloud', () => {
     expect(refused.text).toContain('Formation close : accès à quantmemo.com refusé');
     // Rien de la formation n'entre dans les échecs du rapport quotidien.
     expect(running.signals).toBe(0);
+    // CLD59 : un déploiement externe ne se met pas à jour depuis le desk ; la plaque ne le demande pas, elle renvoie à la Console.
+    const external = await plate(ready({}, { managed: false }));
+    expect(external.text).toContain('Savoir montéNon monté : déploiement externe, réglé dans la Console');
+    expect(external.text).not.toContain('mettre à jour l’agent');
+    expect((await plate(ready({}, { managed: false, deployment: { ...DEPLOYMENT, memoryStoreId: STORE } }))).text).toContain('Savoir montéLecture seule');
     // CLD58 : une clause d'usage à confirmer se dit à l'ADMIN, avant toute publication d'un rapport qui cite le savoir.
     const clause = await plate(ready({ state: 'ended', sessions: 1, report: 'filed', progress: { ...progress, clause: 'a_confirmer' } }));
     expect(clause.signals).toBe(1);

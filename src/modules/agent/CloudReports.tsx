@@ -134,7 +134,14 @@ export function LabPlate({ status }: { status: AgentCloudStatus | null }) {
       <Regle label={tr('Dépense formation', 'Training spend', 'Gasto de formación')} value={trainingSpend(training)} />
       <Regle
         label={tr('Savoir monté', 'Knowledge mounted', 'Saber montado')}
-        value={deployment?.memoryStoreId ? tr('Lecture seule', 'Read-only', 'Solo lectura') : tr('Non monté : mettre à jour l’agent', 'Not mounted: update the agent', 'No montado: actualizar el agente')}
+        value={
+          deployment?.memoryStoreId
+            ? tr('Lecture seule', 'Read-only', 'Solo lectura')
+            : status?.deploymentId && !status.managed
+              ? // Un déploiement externe ne se met pas à jour depuis le desk (CLD59) : la Console le règle.
+                tr('Non monté : déploiement externe, réglé dans la Console', 'Not mounted: external deployment, set in the Console', 'No montado: despliegue externo, se ajusta en la Consola')
+              : tr('Non monté : mettre à jour l’agent', 'Not mounted: update the agent', 'No montado: actualizar el agente')
+        }
       />
       {status?.error ? <Signal level={2}>{status.error}</Signal> : null}
       {training?.state === 'refused' ? (
