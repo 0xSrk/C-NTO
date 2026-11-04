@@ -17,7 +17,8 @@ import { SAMPLE_FAIBLE } from '@/engine/ontology/confidence';
 import type { PropPlan } from '@/engine/propfirm';
 import type { Session, Trade } from '@/engine/types';
 import { cmeSession } from './cmeClosed';
-import { addDays, ET_ZONE, pad2, parseDateKey, tradingDayKey, weekday, zonedToUtc } from './time';
+import { cmeTradingDay } from '@/engine/tradingDay';
+import { addDays, ET_ZONE, pad2, parseDateKey, weekday, zonedToUtc } from './time';
 
 export const MIN = 60_000;
 /** Un cran du curseur : ← →. */
@@ -49,9 +50,12 @@ export function cursorOnTab(tab: string, cursor: number | null): number | null {
 
 /* ─── La journée CME ─── */
 
-/** Journée CME d'un instant : elle bascule à 18:00 ET (le dimanche 18:30 compte pour le lundi). La journée de la frise. */
+/**
+ * Journée CME d'un instant : elle bascule à 18:00 ET (le dimanche 18:30 compte pour le lundi). La journée de la frise, celle
+ * de la garde et du process principal (`cmeTradingDay`, OROS5.48).
+ */
 export function cmeDay(ms: number): string {
-  return tradingDayKey(ms, 18, ET_ZONE);
+  return cmeTradingDay(ms);
 }
 
 export interface DaySpan {

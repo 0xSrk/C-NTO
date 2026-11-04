@@ -17,6 +17,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
   const target = path.normalize(path.resolve(path.dirname(importer), source));
   const rel = path.relative(path.join(root, 'electron'), target).split(path.sep).join('/');
   const map: Record<string, string> = {
+    tradingDay: 'src/engine/tradingDay.ts',
     'execution/guards': 'src/engine/execution/guards.ts',
     'execution/port': 'src/engine/execution/port.ts',
     'execution/orderBook': 'src/engine/execution/orderBook.ts',

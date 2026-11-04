@@ -15,6 +15,7 @@
   },
   "files": [
     "../src/engine/sources.ts",
+    "../src/engine/tradingDay.ts",
     "../src/engine/execution/guards.ts",
     "../src/engine/execution/orderBook.ts",
     "../src/engine/copier/router.ts",

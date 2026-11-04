@@ -3,7 +3,7 @@
  * écarts aux règles. Pur : le desk lit le journal, le pont et le calendrier, puis appelle ces fonctions.
  * Une règle à 0 (ou une liste vide) est inactive : elle ne signale rien.
  */
-import { ET_ZONE, tradingDayKey } from '@/lib/time';
+import { cmeTradingDay } from './tradingDay';
 import { CATALYST_MIN_IMPACT, catalystInstant } from './agent/events';
 import type { CalEvent } from './calendar';
 import { getInstrument, resolveSymbol, standardCounterpart } from './instruments';
@@ -103,10 +103,11 @@ export function hasActiveRules(rules: TraderRules): boolean {
 
 /**
  * Journée CME en cours (18 h → 17 h, heure de New York) : la date de séance du journal (`tradeDay`,
- * `Session.date`). Un instant du dimanche 18 h 30 compte pour le lundi.
+ * `Session.date`). Un instant du dimanche 18 h 30 compte pour le lundi. La définition est celle du moteur, que lit aussi
+ * le process principal (`cmeTradingDay`, `src/engine/tradingDay.ts`, OROS5.48).
  */
 export function tradingDayNow(now: number): string {
-  return tradingDayKey(now, 18, ET_ZONE);
+  return cmeTradingDay(now);
 }
 
 export interface DayLossInput {
