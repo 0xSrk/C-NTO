@@ -5,7 +5,6 @@
   display: grid;
   place-items: center;
   z-index: 6000;
-  animation: fade-in var(--t-fast) linear both;
 }
 .modal::before {
   /* Lumière zénithale sur l'arête haute */
@@ -28,7 +27,6 @@
   box-shadow: none;
   display: flex;
   flex-direction: column;
-  animation: rise-in var(--t-med) var(--ease-out) both;
 }
 .corner {
   position: absolute;

@@ -114,7 +114,6 @@
   letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
-  animation: fade-in 0.4s linear 0.2s both;
 }
 .hud b {
   color: var(--text-0);
@@ -306,9 +305,6 @@
 }
 .line.off .lineStatus {
   color: var(--text-3);
-}
-.line.pending .lineStatus {
-  animation: pulse-dot 1s ease-in-out infinite;
 }
 
 /* Barre : 1 px, graduée par étape, tête lumineuse */

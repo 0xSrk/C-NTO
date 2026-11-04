@@ -538,6 +538,31 @@ describe('garde du système visuel', () => {
     expect(readFileSync('src/app/objects/TradeFiche.tsx', 'utf8')).toMatch(/<span className=\{s\.release\}>\{release\}<\/span>/);
   });
 
+  it('OROS5.45a une animation d’une feuille de module nomme un @keyframes de cette feuille : les modules CSS renomment le nom en local, celui de tokens.css n’y répond jamais', () => {
+    const keywords = new Set(['none', 'linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end', 'both', 'forwards', 'backwards', 'infinite', 'alternate', 'alternate-reverse', 'reverse', 'normal', 'running', 'paused', 'initial', 'inherit', 'unset']);
+    const dangling: string[] = [];
+    let named = 0;
+    for (const path of walk('src').filter((p) => p.endsWith('.module.css'))) {
+      const text = readFileSync(path, 'utf8');
+      const declared = new Set([...text.matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1]!));
+      for (const rule of cssRules(text)) {
+        for (const [, prop, value] of rule.body.matchAll(/(?:^|;)\s*(animation(?:-name)?)\s*:\s*([^;]+)/g)) {
+          // Les fonctions (var, calc, cubic-bezier, steps), imbriquées comprises, ne nomment rien.
+          let bare = value!;
+          for (let prev = ''; prev !== bare; ) [prev, bare] = [bare, bare.replace(/[\w-]*\([^()]*\)/g, ' ')];
+          for (const layer of bare.split(',')) {
+            const names = layer.trim().split(/\s+/).filter((word) => word && !keywords.has(word) && !/^-?[\d.]+(?:m?s)?$/.test(word));
+            if (prop === 'animation-name' || names.length > 0) named++;
+            for (const name of names) if (!declared.has(name)) dangling.push(`${posix('src', path)} › ${rule.selector.replace(/\s+/g, ' ')} : ${name}`);
+          }
+        }
+      }
+    }
+    expect(dangling).toEqual([]);
+    // La garde lit des animations réelles : la frise, le registre, le verrou, la marque du siège en ont.
+    expect(named).toBeGreaterThan(10);
+  });
+
   it('OROS5.21 la plaque vissée quitte A.01 et B.01 : ni vis, ni languette, ni dégradé, ni rayon, ni ombre ; le filet d’un pixel reste', () => {
     // aucune PlaqueVissee dans les modules ; sans emploi, la primitive sort, avec ses règles
     const reads = (dir: string) => walk(dir).filter((path) => /PlaqueVissee/.test(readFileSync(path, 'utf8'))).map((path) => posix('.', path));

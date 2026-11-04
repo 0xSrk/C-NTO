@@ -135,7 +135,7 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
       <div className={s.console}>
         <div className={s.log}>
           {steps.slice(0, visibleCount).map((st, i) => (
-            <div key={st.id} className={`${s.line} ${s[st.status]}`}>
+            <div key={st.id} className={[s.line, s[st.status]].filter(Boolean).join(' ')}>
               <span className={s.lineIndex}>{String(i + 1).padStart(2, '0')}</span>
               <span className={s.lineLabel}>{st.label}</span>
               <span className={s.lineDots} />

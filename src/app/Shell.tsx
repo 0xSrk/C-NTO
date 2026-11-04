@@ -254,7 +254,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   };
 
   return (
-    <div className={cx(s.shell, revealed ? s.intro : s.pending, openRef && s.withDrawer)} inert={inert}>
+    <div className={cx(s.shell, !revealed && s.pending, openRef && s.withDrawer)} inert={inert}>
       <div className={s.texture} aria-hidden />
       {/* Les trois lignes du châssis : le circuit de l'ouverture les trace là où elles sont (src/app/unlockCircuit.ts). */}
       <header className={s.title} data-chassis="title">

@@ -29,7 +29,6 @@
   letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
-  animation: fade-in 0.4s linear 0.08s both;
 }
 .slash {
   font-style: normal;

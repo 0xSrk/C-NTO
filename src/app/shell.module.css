@@ -1478,10 +1478,3 @@
 }
 
 .pending .main { visibility: hidden; }
-
-.intro .navItem,
-.intro .brand,
-.intro .titleRight,
-.intro .status > * {
-  animation: fade-in 0.35s linear both;
-}
