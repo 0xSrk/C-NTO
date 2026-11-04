@@ -270,6 +270,34 @@ describe('OROS5.48a · le process principal ferme la journée CME à la perte du
     expect(reduce.submitted).toEqual([expect.objectContaining({ action: 'Sell', quantity: 1, tag: 'canto-agent' })]);
   });
 
+  it('OROS5.48q trois journées à venir déjà retenues : la vraie journée fermée pour un compte le reste quand un autre la ferme', async () => {
+    // l'horloge du poste avançait : Sim101 fermé à 10:00 ET les 2026-11-05, 11-06 et 11-09
+    const h = harness({ at: et('2026-11-05', '10:00') });
+    await h.host.enable();
+    for (const day of ['2026-11-05', '2026-11-06', '2026-11-09']) {
+      h.clock.now = et(day, '10:00');
+      expect(h.host.closeDay({ account: 'Sim101', at: h.clock.now })).toBe(true);
+    }
+    // l'horloge corrigée, 10:00 le 2026-11-04 : la perte du jour vue ferme la vraie journée pour Sim101
+    h.clock.now = et(DAY, '10:00');
+    expect(await h.host.propose(OPEN, 'llm', null, LOSS_RULE)).toMatchObject({ status: 'refused', reason: 'trader_rule' });
+    // 10:30 : le renderer ferme la même journée pour Sim102 ; à 10:40, après un gain, Sim101 reste fermé depuis 10:00
+    h.clock.now = et(DAY, '10:30');
+    expect(h.host.closeDay({ account: 'Sim102', at: h.clock.now })).toBe(true);
+    h.clock.now = et(DAY, '10:40');
+    expect(await h.host.propose(OPEN, 'llm', null, null)).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 10:00 ET : perte du jour atteinte' });
+    expect(h.submitted).toEqual([]);
+    // le module partagé : de même pour une seconde fermeture du même compte, plus tard ; la première garde son heure
+    const ahead = ['2026-11-05', '2026-11-06', '2026-11-09'].map((day) => ({ day, account: 'Sim101', at: et(day, '10:00') }));
+    const real = { day: DAY, account: 'Sim101', at: et(DAY, '10:00') };
+    const first = ahead.reduce(withDayClose, [] as ReturnType<typeof withDayClose>);
+    for (const second of [{ day: DAY, account: 'Sim102', at: et(DAY, '10:30') }, { day: DAY, account: 'Sim101', at: et(DAY, '10:30') }]) {
+      const list = withDayClose(withDayClose(first, real), second);
+      expect(dayCloseFor(list, 'Sim101', et(DAY, '10:40')), second.account).toEqual(real);
+      expect(dayCloseFor(list, second.account, et(DAY, '10:40'))?.at, second.account).toBe(second.account === 'Sim101' ? real.at : second.at);
+    }
+  });
+
   it('la fermeture relue : bornée, sans caractère de contrôle, d’une seule journée, la plus ancienne heure', () => {
     const at = et(DAY, '10:56');
     expect(parseDayClose({ day: DAY, account: ' Sim101 ', at })).toEqual({ day: DAY, account: 'Sim101', at });
