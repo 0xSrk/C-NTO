@@ -69,8 +69,8 @@ const PORTEURS: Readonly<Record<string, string>> = {
   'src/modules/agent/reports.module.css › .plate.dashed': 'état · rapport en construction',
   'src/modules/agent/reports.module.css › .fiche.planned': 'état · rapport prévu',
   'src/modules/bot/bot.module.css › .template': 'état · modèle proposé, pas encore en service',
-  "src/modules/calendrier/calendrier.module.css › .ev[data-stroke='prevu'], .fluxEv[data-stroke='prevu'], .evCard[data-stroke='prevu']": 'état · publication prévue dans la fenêtre',
-  "src/modules/calendrier/calendrier.module.css › .ev[data-stroke='horizon'], .fluxEv[data-stroke='horizon'], .evCard[data-stroke='horizon']": 'état · publication au-delà de l’horizon',
+  "src/modules/calendrier/calendrier.module.css › .ev[data-stroke='prevu'], .fluxEv[data-stroke='prevu']": 'état · publication prévue dans la fenêtre',
+  "src/modules/calendrier/calendrier.module.css › .ev[data-stroke='horizon'], .fluxEv[data-stroke='horizon']": 'état · publication au-delà de l’horizon',
   'src/modules/crypto/crypto.module.css › .alertRow .planTag': 'état · alerte armée, prévue',
   'src/modules/metrique/Analyse.tsx ×1': 'tracé · diagonale de référence',
   'src/modules/metrique/EquityChart.tsx ×3': 'tracé · grille et réticule de la courbe A.02',
@@ -289,5 +289,19 @@ describe('OROS5.45b la pause, la panne et le fermé au filet graphite', () => {
     expect(reports).toMatch(/archived: r\.off/);
     // le prévu garde son tireté : un dossier en construction
     expect(reports).toMatch(/construction: r\.dashed/);
+  });
+});
+
+describe('OROS5.45g le trait des publications ne vise que ce que le Calendrier pose', () => {
+  it('chaque classe d’une règle [data-stroke] de la feuille du Calendrier est posée par le Calendrier ; .evCard, sans emploi, est sortie', () => {
+    const css = readFileSync('src/modules/calendrier/calendrier.module.css', 'utf8');
+    const tsx = readFileSync('src/modules/calendrier/Calendrier.tsx', 'utf8');
+    const classes = new Set<string>();
+    for (const rule of cssRules(css)) {
+      for (const part of rule.selector.split(',')) if (/\[data-stroke/.test(part)) for (const [, name] of part.matchAll(/\.([A-Za-z]\w*)/g)) classes.add(name!);
+    }
+    expect(classes.size).toBeGreaterThan(0);
+    for (const name of classes) expect(tsx, name).toMatch(new RegExp(`\\bs\\.${name}\\b`));
+    expect(css).not.toMatch(/\.evCard\b/);
   });
 });

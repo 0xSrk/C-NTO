@@ -585,13 +585,11 @@
 
 /* ─── Système 4.0 : le trait dit l'état (plein : publié · tireté : prévu dans la fenêtre · pointillé : au-delà) ─── */
 .ev[data-stroke='prevu'],
-.fluxEv[data-stroke='prevu'],
-.evCard[data-stroke='prevu'] {
+.fluxEv[data-stroke='prevu'] {
   border-style: dashed;
 }
 .ev[data-stroke='horizon'],
-.fluxEv[data-stroke='horizon'],
-.evCard[data-stroke='horizon'] {
+.fluxEv[data-stroke='horizon'] {
   border-style: dotted;
   border-color: var(--line-2);
 }
