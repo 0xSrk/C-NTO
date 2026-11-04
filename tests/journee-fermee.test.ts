@@ -220,6 +220,39 @@ describe('OROS5.48b · la journée fermée, côté renderer', () => {
     expect(borneCells(open).map((c) => c.key)).toEqual(['settings']);
   });
 
+  it('OROS5.48i le pont perdu, sans séance du jour : la barre d’état dit la journée fermée, et non la dernière séance', async () => {
+    const s = await desk();
+    // aucune sortie aujourd'hui, une position ouverte : à 11:00, le latent du pont (−700 $) porte la perte au-delà de 600 $
+    state(s, [], -700);
+    s.deskEvents.recordDayClose(et(DAY, '11:00'));
+    // puis NinjaTrader se déconnecte
+    s.bridge.useBridge.setState({ nt: null });
+    const now = et(DAY, '11:45');
+    const { borneCells } = await import('@/app/StatusBornes');
+    const { dayBornes, replayBornes } = await import('@/engine/bornes');
+    const yesterday: Trade = { ...trade('y', '10:00', -63), sessionId: 's5', entryTime: et('2026-10-05', '10:00') - 600_000, exitTime: et('2026-10-05', '10:00') };
+    const before: Session = { ...session([yesterday]), id: 's5', date: '2026-10-05' };
+    for (const [sessions, trades] of [
+      [[], []],
+      [[before], [yesterday]],
+    ] as const) {
+      const replay = replayBornes({ sessions: [...sessions], trades: [...trades], account: SIM, plan: null, rules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 600 } });
+      const bornes = dayBornes(replay, { now, link: 'absent', accountsAt: null, accounts: [], catalysts: [], dayClosedSince: s.deskEvents.trackedDayClosedSince(now) });
+      expect(bornes.day.today, `${sessions.length} séance(s)`).toBe(false);
+      expect(bornes.loss).toMatchObject({ value: null, closedSince: et(DAY, '11:00'), level: 3 });
+      const loss = borneCells(bornes).find((c) => c.key === 'loss')!;
+      expect(loss).toMatchObject({ level: 3, value: `— / ${fmtUsd(600)} · journée fermée depuis 11:00 ET`, stale: false });
+      expect(loss.label).toBe(`Perte du jour non lue, limite ${fmtUsd(600)}, journée fermée depuis 11:00 ET, règle du trader, compte SimApex1`);
+    }
+    // la garde et la frise le disent de même
+    expect(s.deskEvents.traderRuleBlocks(OPEN, now)[0]?.detail).toBe('journée fermée depuis 11:00 ET : limite 600 $ atteinte (règle du trader)');
+    // sans fermeture, la dernière séance reste une lecture datée, au niveau 0, comme avant
+    const replay = replayBornes({ sessions: [before], trades: [yesterday], account: SIM, plan: null, rules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 600 } });
+    const open = dayBornes(replay, { now, link: 'absent', accountsAt: null, accounts: [], catalysts: [], dayClosedSince: null });
+    expect(open.loss).toMatchObject({ value: 63, closedSince: null, level: 0 });
+    expect(borneCells(open).find((c) => c.key === 'loss')).toMatchObject({ value: `63 / ${fmtUsd(600)} · 05.10`, stale: true });
+  });
+
   it('la frise, la barre d’état et le miroir de la garde disent la même chose : « journée fermée depuis hh:mm ET »', async () => {
     const s = await desk();
     state(s, [trade('a', '10:20', -300), trade('b', '10:56', -320), trade('c', '11:40', 80)], 0);

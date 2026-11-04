@@ -321,12 +321,11 @@ function readDay(replay: BornesReplay, live: BornesLive): DayRead {
 function lossAndTrades(replay: BornesReplay, live: BornesLive, day: DayRead): { loss: LossBorne; trades: TradesBorne } {
   const { limit, maxTrades } = replay;
   const account = replay.account || null;
-  if (!day.key) {
-    return {
-      loss: { value: null, realized: null, unrealized: null, limit: limit?.amount ?? null, source: limit?.source ?? null, account, consumed: null, remaining: null, pnl: null, afterLimit: null, closedSince: null, level: 0 },
-      trades: { count: null, max: maxTrades, pnls: [], consumed: null, over: null, level: 0 },
-    };
-  }
+  // La journée CME en cours fermée (décision 15), sans séance du jour ni pont vivant : la perte du jour n'est pas lue, mais
+  // la fermeture tient, et se dit au niveau 3 plutôt que la dernière séance, datée (OROS5.48i).
+  const unread = (closedSince: number | null): LossBorne => ({ value: null, realized: null, unrealized: null, limit: limit?.amount ?? null, source: limit?.source ?? null, account, consumed: null, remaining: null, pnl: null, afterLimit: null, closedSince, level: closedSince !== null ? 3 : 0 });
+  const closedToday = !day.today && finite(live.dayClosedSince) ? live.dayClosedSince : null;
+  if (!day.key) return { loss: unread(closedToday), trades: { count: null, max: maxTrades, pnls: [], consumed: null, over: null, level: 0 } };
   const read = replay.day(day.key);
   const { unrealized, loss } = lossOfDay(read.realized, day.live ? unrealizedOf(replay, live) : 0);
   const consumed = limit ? loss / limit.amount : null;
@@ -337,7 +336,7 @@ function lossAndTrades(replay: BornesReplay, live: BornesLive, day: DayRead): { 
   const lossLevel: BorneLevel = !day.today ? 0 : closedSince !== null ? 3 : consumed === null ? 0 : consumed >= 1 ? 3 : consumed >= LOSS_WARN ? 2 : 0;
   const tradesLevel: BorneLevel = !day.today || maxTrades === null ? 0 : read.trades > maxTrades ? 3 : read.trades === maxTrades ? 2 : 0;
   return {
-    loss: {
+    loss: closedToday !== null ? unread(closedToday) : {
       value: loss,
       realized: read.realized,
       unrealized: day.live ? unrealized : null,

@@ -126,8 +126,12 @@ function lossCell(b: DayBornes): BorneCell | null {
   }
   if (closed) parts.push(closed);
   if (limit !== null) parts.push(source);
-  parts.push(accountWords(loss.account), readFrom(b));
-  const dated = datedDay(b);
+  // Fermée, la cellule dit la journée CME en cours, même quand la barre lit une séance datée (OROS5.48i) : ni la séance,
+  // ni sa date, ni C.013.
+  const closedUnread = closed !== null && !b.day.today;
+  parts.push(accountWords(loss.account));
+  if (!closedUnread) parts.push(readFrom(b));
+  const dated = closedUnread ? null : datedDay(b);
   const read = loss.value === null ? '—' : fmtInt(loss.value);
   const bare = limit === null ? read : `${read} / ${limit}`;
   return {
