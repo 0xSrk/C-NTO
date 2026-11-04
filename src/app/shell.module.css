@@ -1339,6 +1339,10 @@
 .main[data-frise-open] .toasts {
   bottom: 80px;
 }
+/* Le registre déplié (240 px) : les messages montent au-dessus de lui, comme au-dessus de la frise (OROS5.45f). */
+.main[data-registre-open] .toasts {
+  bottom: 256px;
+}
 .toast {
   pointer-events: auto;
   background: var(--bg-2);

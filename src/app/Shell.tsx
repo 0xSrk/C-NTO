@@ -35,6 +35,7 @@ import { useKillSwitch } from './killState';
 import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
 import { Omnibar } from './objects/Omnibar';
 import { RailGates } from './RailGates';
+import { useRegistre } from './registre';
 import { RegistreDrawer } from './RegistreDrawer';
 import { matchShortcut } from './shortcuts';
 import { ShortcutHelp, useShortcutHelp } from './ShortcutHelp';
@@ -120,6 +121,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const cryptoMarkets = useCrypto((c) => c.watchlist.length);
   const openRef = useObjects((o) => o.open);
   const friseOpen = useUi((u) => u.friseOpen);
+  const registreOpen = useRegistre((st) => st.open);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
@@ -378,8 +380,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
       </aside>
 
-      {/* Le tiroir de la frise déplié recouvre le bas de la zone de travail : les messages montent au-dessus de lui. */}
-      <main className={s.main} data-frise-open={friseOpen ? '' : undefined}>
+      {/* Un tiroir déplié (la frise, 64 px ; le registre, 240 px) recouvre le bas de la zone de travail : les messages montent
+          au-dessus de lui. Les deux ne s'ouvrent pas ensemble. */}
+      <main className={s.main} data-frise-open={friseOpen ? '' : undefined} data-registre-open={registreOpen ? '' : undefined}>
         {children}
         <div className={s.toasts} role="status" aria-live="polite">
           {toasts.map((toast) => (

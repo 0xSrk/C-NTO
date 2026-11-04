@@ -16,6 +16,7 @@ vi.mock('@/store/db', async (importOriginal) => ({
 }));
 
 import { useKillLatch } from '@/app/killState';
+import { closeRegistre, openRegistre, useRegistre } from '@/app/registre';
 import { Shell } from '@/app/Shell';
 import { matchShortcut, SHORTCUTS, type Chord, type ShortcutScope } from '@/app/shortcuts';
 import e from '@/design/etat.module.css';
@@ -171,6 +172,31 @@ describe('OROS5.24 · la frise déplie son tiroir et tient le curseur au clavier
     expect(cursor()).toBeNull();
     act(() => useUi.getState().setTab('metrique'));
     expect(slider().hasAttribute('aria-readonly')).toBe(false);
+  });
+
+  it('OROS5.45f les messages montent au-dessus du tiroir déplié, la frise comme le registre ; les deux ne s’ouvrent pas ensemble', () => {
+    mount();
+    const main = host!.querySelector('main')!;
+    expect(main.hasAttribute('data-frise-open')).toBe(false);
+    expect(main.hasAttribute('data-registre-open')).toBe(false);
+    act(() => void openRegistre(null));
+    expect(main.hasAttribute('data-registre-open')).toBe(true);
+    // la frise dépliée replie le registre
+    act(() => useUi.getState().setFriseOpen(true));
+    expect(useRegistre.getState().open).toBe(false);
+    expect(main.hasAttribute('data-frise-open')).toBe(true);
+    expect(main.hasAttribute('data-registre-open')).toBe(false);
+    // le registre ouvert replie la frise
+    act(() => void openRegistre(null));
+    expect(useUi.getState().friseOpen).toBe(false);
+    expect(main.hasAttribute('data-registre-open')).toBe(true);
+    act(() => closeRegistre(false));
+    expect(main.hasAttribute('data-registre-open')).toBe(false);
+    // au-dessus de chaque tiroir : 64 px + 16, 240 px + 16
+    const css = readFileSync('src/app/shell.module.css', 'utf8').replace(/\r\n/g, '\n');
+    expect(css).toMatch(/\.main\[data-frise-open\] \.toasts \{\s*bottom: 80px;\s*\}/);
+    expect(css).toMatch(/\.main\[data-registre-open\] \.toasts \{\s*bottom: 256px;\s*\}/);
+    expect(readFileSync('src/app/registre.module.css', 'utf8')).toMatch(/height: 240px;/);
   });
 
   it('rien ne répond sous le verrou : ni la réponse, ni l’axe, ni Entrée', () => {
