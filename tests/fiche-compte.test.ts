@@ -26,10 +26,12 @@ import { gateWords, guardMirror, MIRROR_ISSUES, mirrorIssueName, mirrorProposal 
 import { BEAD_GAP, BEAD_MAX, BEAD_MIN, BEAD_SLOT, boundCircles, bounds, tradeBeads, type EntityRef } from '@/engine/ontology';
 import type { Session, Trade } from '@/engine/types';
 import { useI18n } from '@/i18n';
+import { fmtUsd } from '@/lib/format';
 import type { NtBridgeStatus } from '@/lib/desk';
 import { useAgentOrders } from '@/store/agentOrders';
 import { useBridge } from '@/store/bridge';
 import { useCopier } from '@/store/copier';
+import { useDayClose } from '@/store/dayClose';
 import { propShareFor, traderRulesOf } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useLinks } from '@/store/links';
@@ -117,6 +119,7 @@ beforeEach(() => {
   useAgentOrders.setState({ available: true, status: { ...ON } });
   useKillLatch.setState({ engaged: false });
   useCopier.setState({ accounts: [] });
+  useDayClose.setState({ closes: [] });
   useBridge.setState({ nt: nt({ [SIM]: [], [APEX]: [] }, { [APEX]: -24 }) });
   bench();
 });
@@ -321,6 +324,43 @@ describe('OROS5.27 la fiche Compte', () => {
     act(() => bench(APEX));
     act(() => void useObjects.getState().openObject({ type: 'compte', id: APEX }));
     expect(effect()).toContain(`L’agent ne propose aucun ordre sur ${APEX} : la garde s’arrête aux comptes Sim.`);
+  });
+
+  it('OROS5.48j la journée fermée se dit dans les bornes de la fiche et dans l’effet du plan, même sans limite', () => {
+    // Sim101 suivi, limite 600 $ : −300 $ à 10:20 ET, −320 $ à 10:40 ET (620 $, la journée ferme), +80 $ à 10:50 ET
+    const journal = {
+      sessions: [session('s0', '2026-10-26', 40, SIM), session('s1', TODAY, -540, SIM, 3)],
+      trades: [trade('t0', 's0', '2026-10-26T14:00:00Z', 40, SIM), trade('t1', 's1', '2026-10-27T14:19:00Z', -300, SIM), trade('t2', 's1', '2026-10-27T14:39:00Z', -320, SIM), trade('t3', 's1', '2026-10-27T14:49:00Z', 80, SIM)],
+    };
+    bench(SIM, journal);
+    useSettings.setState({ settings: { ...useSettings.getState().settings, traderRules: { ...RULES, maxDailyLoss: 600 } } });
+    useBridge.setState({ nt: nt({ [SIM]: [], [APEX]: [] }) });
+    mount();
+    open(SIM);
+    const bornes = () => section('bornes');
+    expect(bornes().querySelector('[data-borne="loss"]')!.textContent).toMatch(/Perte du jour540 \/ 600\s\$/u);
+    expect(bornes().querySelector('[data-closed="day"]')!.textContent).toBe('Journée fermée depuis 10:40 ET');
+    // M.011 : la perte du jour ne laisse plus rien tant que la journée est fermée
+    const disk = bornes().querySelector('[data-bound-value="daily"]')!;
+    expect(disk.textContent).toBe(fmtUsd(0));
+    expect(disk.closest('[aria-label]')!.getAttribute('aria-label')).toContain(`perte du jour, reste ${fmtUsd(0)}`);
+    expect(section('plan').querySelector('[data-effect]')!.textContent).toContain('journée fermée depuis 10:40 ET');
+    // la limite retirée : la fiche dit la fermeture, non « aucune limite »
+    act(() => {
+      useDayClose.setState({ closes: [{ day: TODAY, account: SIM, at: Date.parse('2026-10-27T14:40:00Z') }] });
+      useSettings.setState({ settings: { ...useSettings.getState().settings, planId: '', traderRules: { ...RULES, maxDailyLoss: 0 } } });
+    });
+    expect(bornes().querySelector('[data-borne="loss"]')!.textContent).toBe('Perte du jour540');
+    expect(bornes().querySelector('[data-closed="day"]')!.textContent).toBe('Journée fermée depuis 10:40 ET');
+    expect(bornes().textContent).not.toContain('Aucune borne réglée');
+    const effect = section('plan').querySelector('[data-effect]')!.textContent!;
+    expect(effect).toContain('journée fermée depuis 10:40 ET');
+    expect(effect).not.toContain('aucune limite de perte du jour réglée');
+    // sans fermeture ni limite, comme avant
+    act(() => useDayClose.setState({ closes: [] }));
+    act(() => useJournal.setState({ sessions: [], trades: [] }));
+    expect(bornes().querySelector('[data-closed="day"]')).toBeNull();
+    expect(section('plan').querySelector('[data-effect]')!.textContent).toContain('aucune limite de perte du jour réglée');
   });
 
   it('aucune méthode d’écriture appelée depuis la fiche : le bouton du plan mène à l’écriture existante de Firme prop', () => {

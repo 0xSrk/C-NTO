@@ -12,6 +12,7 @@ import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtRatio, fmtUsd, plural } from '@/lib/format';
 import { useBridge } from '@/store/bridge';
 import { useCopier } from '@/store/copier';
+import { dayClosedText } from '@/store/deskEvents';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -64,8 +65,8 @@ export function accountPlanReading(replay: ReturnType<typeof useBornesReplay>, t
  * borne que le compte suivi (`limitAccount`) : ni l'une ni l'autre ne gardent alors les comptes Sim, les seuls que
  * l'agent trade.
  */
-export function planEffect(input: { account: string; planAccount: string; hasPlan: boolean; hasDailyLimit: boolean; binds: { margin: boolean; dailyLoss: boolean } }): string[] {
-  const { account, planAccount, hasPlan, hasDailyLimit, binds } = input;
+export function planEffect(input: { account: string; planAccount: string; hasPlan: boolean; hasDailyLimit: boolean; binds: { margin: boolean; dailyLoss: boolean }; closedSince?: number | null }): string[] {
+  const { account, planAccount, hasPlan, hasDailyLimit, binds, closedSince = null } = input;
   const sim = isSimAccount(account);
   const out: string[] = [];
   if (planAccount && !isSimAccount(planAccount)) {
@@ -86,7 +87,10 @@ export function planEffect(input: { account: string; planAccount: string; hasPla
     : hasPlan
       ? tr(`la marge datée ne borne pas l’agent sur ${account}`, `the dated margin does not bound the agent on ${account}`, `el margen fechado no limita al agente en ${account}`)
       : tr('aucun plan suivi : pas de marge datée', 'no tracked plan: no dated margin', 'ningún plan seguido: sin margen fechado');
-  const daily = !hasDailyLimit
+  // La journée fermée (décision 15) tient, même la limite retirée ensuite (OROS5.48j) : la fiche le dit d'abord.
+  const daily = closedSince !== null
+    ? dayClosedText(closedSince)
+    : !hasDailyLimit
     ? tr('aucune limite de perte du jour réglée', 'no day loss limit set', 'ningún límite de pérdida del día ajustado')
     : binds.dailyLoss
       ? tr(`la perte du jour borne l’agent sur ${account}`, `the day loss bounds the agent on ${account}`, `la pérdida del día limita al agente en ${account}`)
@@ -120,7 +124,10 @@ function Bornes({ account, planAccount, b, tracked }: { account: string; planAcc
     );
   }
   const { loss, trades, margin } = b;
-  const none = loss.limit === null && trades.max === null && margin.planLabel === null;
+  const none = loss.limit === null && loss.closedSince === null && trades.max === null && margin.planLabel === null;
+  // La journée fermée (décision 15) : dite ici comme à la barre d'état, et la perte du jour ne laisse plus rien à M.011 tant
+  // qu'elle tient (OROS5.48j).
+  const closed = loss.closedSince !== null ? dayClosedText(loss.closedSince) : null;
   if (none) return <p className={s.empty}>{tr('Aucune borne réglée : ni limite de perte du jour, ni maximum de trades, ni plan suivi.', 'No bound set: no day loss limit, no trade maximum, no tracked plan.', 'Ningún límite ajustado: ni límite de pérdida del día, ni máximo de trades, ni plan seguido.')}</p>;
   const dated = !b.day.today && b.day.key !== null;
   const stale = b.day.stale || dated;
@@ -129,7 +136,7 @@ function Bornes({ account, planAccount, b, tracked }: { account: string; planAcc
     margin: margin.inService ? margin.value : margin.dated,
     marginDate: margin.date,
     marginLive: margin.live,
-    daily: loss.limit !== null && loss.remaining !== null ? Math.max(0, loss.remaining) : null,
+    daily: closed !== null && loss.limit !== null ? 0 : loss.limit !== null && loss.remaining !== null ? Math.max(0, loss.remaining) : null,
     floorKind: margin.floorKind,
     closed: margin.status === 'objectif' || margin.status === 'echec' ? { status: margin.status, date: margin.date } : null,
   };
@@ -145,7 +152,7 @@ function Bornes({ account, planAccount, b, tracked }: { account: string; planAcc
       </p>
       <div className={s.borneLine} data-borne="loss">
         <span className={s.borneKey}>{tr('Perte du jour', 'Day loss', 'Pérdida del día')}</span>
-        <b className={s.borneVal}>{loss.limit !== null ? `${loss.value === null ? '—' : fmtInt(loss.value)} / ${fmtUsd(loss.limit)}` : tr('aucune limite', 'no limit', 'sin límite')}</b>
+        <b className={s.borneVal}>{loss.limit !== null ? `${loss.value === null ? '—' : fmtInt(loss.value)} / ${fmtUsd(loss.limit)}` : closed ? (loss.value === null ? '—' : fmtInt(loss.value)) : tr('aucune limite', 'no limit', 'sin límite')}</b>
         {loss.limit !== null ? (
           loss.source === 'plan' ? (
             <span className={s.borneSrc} data-source="plan">
@@ -156,6 +163,12 @@ function Bornes({ account, planAccount, b, tracked }: { account: string; planAcc
           )
         ) : null}
       </div>
+      {closed ? (
+        <p className={s.bornesClosed} data-closed="day">
+          <EtatMark stroke="eteint" />
+          <span>{`${closed.charAt(0).toLocaleUpperCase()}${closed.slice(1)}`}</span>
+        </p>
+      ) : null}
       <div className={s.borneLine} data-borne="trades">
         <span className={s.borneKey}>{tr('Trades', 'Trades', 'Trades')}</span>
         <b className={s.borneVal}>{tradesOfMax(trades.count, trades.max)}</b>
@@ -324,7 +337,7 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
             </span>
           </div>
           <ul className={s.effect} data-effect="">
-            {planEffect({ account: id, planAccount, hasPlan: plan !== null, hasDailyLimit: b.loss.limit !== null, binds: mirror.binds }).map((line) => (
+            {planEffect({ account: id, planAccount, hasPlan: plan !== null, hasDailyLimit: b.loss.limit !== null, binds: mirror.binds, closedSince: tracked ? b.loss.closedSince : null }).map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
