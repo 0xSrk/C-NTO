@@ -507,6 +507,13 @@ describe('OROS5.26 A.04 et A.02 ouvrent la fiche de leur séance', () => {
     act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
     expect(useObjects.getState().open).toBeNull();
     expect(charts.fits).toBe(fits + 1);
+    // le double-clic de la bibliothèque seul, sans dblclick du DOM ni second appui vu de l'hôte (une fenêtre du système
+    // plus courte que 500 ms), de même : subscribeDblClick annule (OROS5.45n)
+    act(() => charts.click!(step));
+    act(() => void vi.advanceTimersByTime(350));
+    act(() => charts.dbl!(step));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
+    expect(useObjects.getState().open).toBeNull();
     // le double-clic du DOM seul, à 450 ms, de même
     act(() => charts.click!(step));
     act(() => void vi.advanceTimersByTime(450));
