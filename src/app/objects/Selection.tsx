@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { hourLabel } from '@/design/instruments/Butterfly';
 import { Glyph } from '@/design/Micro';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
 import { cx } from '@/design/primitives';
@@ -21,8 +22,12 @@ export function useSelection(): Selection {
   const account = useUi((u) => u.metricAccount);
   const range = useUi((u) => u.metricRange);
   const instrument = useUi((u) => u.metricInstrument);
-  return useMemo(() => ({ account, range, instrument }), [account, range, instrument]);
+  const hour = useUi((u) => u.metricHour);
+  return useMemo(() => ({ account, range, instrument, hour }), [account, range, instrument, hour]);
 }
+
+/** Les heures que propose la puce Heure : les vingt-quatre de New York, comme M.003 les élargit au journal. */
+export const HOUR_CHOICES: readonly number[] = Array.from({ length: 24 }, (_, i) => i);
 
 /** Le nom court d'une période, celui des puces de Métrique : 7J, 30J, 90J, TOUT. */
 export function rangeLabel(range: MetricRange): string {
@@ -115,7 +120,30 @@ export function InstrumentChip({ sessions, trades, className }: { sessions: read
   );
 }
 
-/** Les puces de la sélection : le compte, la période et l'instrument, chacune une liste qu'on change sur place. */
+/**
+ * La puce Heure (OROS5.35) : l'heure d'entrée à New York, posée d'un clic sur M.003 ; elle ne paraît que posée, et se
+ * change ou se retire sur place.
+ */
+export function HourChip({ className }: { className?: string }) {
+  useI18n((st) => st.locale);
+  const hour = useUi((u) => u.metricHour);
+  const setHour = useUi((u) => u.setMetricHour);
+  if (hour == null) return null;
+  return (
+    <label className={cx(s.chip, s.chipOn, className)} data-chip="hour">
+      <select className={s.chipSelect} aria-label={tr('Heure d’entrée, New York', 'Entry hour, New York', 'Hora de entrada, Nueva York')} value={String(hour)} onChange={(event) => setHour(event.target.value === '' ? null : Number(event.target.value))}>
+        <option value="">{tr('Toutes les heures', 'All hours', 'Todas las horas')}</option>
+        {HOUR_CHOICES.map((h) => (
+          <option key={h} value={String(h)}>
+            {hourLabel(h)} ET
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Les puces de la sélection : le compte, la période et l'instrument, chacune une liste qu'on change sur place ; l'heure, posée. */
 export function SelectionChips({ sessions, trades, className }: { sessions: readonly Session[]; trades: readonly Trade[]; className?: string }) {
   useI18n((st) => st.locale);
   return (
@@ -123,6 +151,7 @@ export function SelectionChips({ sessions, trades, className }: { sessions: read
       <AccountChip sessions={sessions} />
       <RangeChip />
       <InstrumentChip sessions={sessions} trades={trades} />
+      <HourChip />
     </div>
   );
 }

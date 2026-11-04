@@ -32,6 +32,9 @@ interface UiState {
   /** La puce Instrument. `null` = tous les instruments. */
   metricInstrument: string | null;
   setMetricInstrument: (instrument: string | null) => void;
+  /** La puce Heure, posée depuis M.003 (OROS5.35) : l'heure d'entrée à New York. `null` = toutes les heures. */
+  metricHour: number | null;
+  setMetricHour: (hour: number | null) => void;
   /** Troisième segment du fil d'Ariane, ignoré s'il ne concerne pas l'onglet actif. */
   crumb: { tab: TabId; label: string } | null;
   setCrumb: (tab: TabId, label: string) => void;
@@ -67,8 +70,8 @@ interface UiState {
 }
 
 /** La sélection partagée telle que la lisent les puces et les panneaux (OROS5.32). */
-export function selectionOf(state: { metricAccount: string | null; metricRange: MetricRange; metricInstrument: string | null }): Selection {
-  return { account: state.metricAccount, range: state.metricRange, instrument: state.metricInstrument };
+export function selectionOf(state: { metricAccount: string | null; metricRange: MetricRange; metricInstrument: string | null; metricHour?: number | null }): Selection {
+  return { account: state.metricAccount, range: state.metricRange, instrument: state.metricInstrument, hour: state.metricHour ?? null };
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -81,6 +84,8 @@ export const useUi = create<UiState>((set, get) => ({
   setMetricRange: (metricRange) => set({ metricRange }),
   metricInstrument: null,
   setMetricInstrument: (metricInstrument) => set({ metricInstrument }),
+  metricHour: null,
+  setMetricHour: (metricHour) => set({ metricHour: metricHour != null && Number.isInteger(metricHour) && metricHour >= 0 && metricHour <= 23 ? metricHour : null }),
   crumb: null,
   setCrumb: (tab, label) => set({ crumb: { tab, label } }),
   toasts: [],

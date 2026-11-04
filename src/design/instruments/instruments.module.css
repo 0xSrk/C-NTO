@@ -1,0 +1,87 @@
+/* Les instruments dessinés du desk (Système 5 « Fiche et Frise ») : des pièces de lecture, à l'encre de la zone, sans
+   jeton nouveau. M.003 : le papillon par heure d'entrée à New York (OROS5.35). */
+
+.butterfly {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  grid-template-rows: 14px repeat(var(--rows), var(--row));
+  column-gap: 6px;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+/* Les deux côtés, nommés au-dessus du dessin : perdants à gauche, gagnants à droite. */
+.side {
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: start;
+  color: var(--text-2);
+}
+.sideWin {
+  justify-self: end;
+}
+.hour {
+  grid-column: 1;
+  justify-self: start;
+  align-self: center;
+  padding: 0 0 0 4px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  color: var(--text-2);
+  background: none;
+  box-shadow: inset 1px 0 0 transparent;
+  cursor: pointer;
+  transition:
+    color 200ms linear,
+    opacity 220ms linear,
+    box-shadow 220ms linear;
+}
+/* L'heure du curseur de temps, ou de maintenant : l'or dit ce que tient l'opérateur (décision 1). */
+.hour[data-cursor] {
+  color: var(--gold);
+}
+/* La puce Heure posée : son heure garde le filet d'ivoire à gauche, comme une ligne de A.03. */
+.hour[aria-pressed='true'] {
+  box-shadow: inset var(--active-line) 0 0 var(--text-0);
+}
+.hour:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .hour:hover {
+    color: var(--text-0);
+  }
+  .hour[data-cursor]:hover {
+    color: var(--gold);
+  }
+}
+.bars {
+  grid-row: 2 / -1;
+  grid-column: 2;
+  display: block;
+  overflow: visible;
+}
+/* L'axe, à la construction : le glacier, la technique. */
+.axis {
+  stroke: var(--ice-line);
+  stroke-width: 1;
+}
+/* À angle droit, à l'ivoire des deux côtés : le côté dit gagnant ou perdant, pas la couleur. */
+.bar {
+  fill: var(--text-0);
+}
+.count {
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+/* Hors de la puce Heure : à sa place, à 35 % ; rien ne disparaît. */
+.out {
+  opacity: 0.35;
+  transition: opacity 220ms linear;
+}

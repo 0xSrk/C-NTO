@@ -562,6 +562,22 @@
   opacity: 0.35;
   transition: opacity 220ms linear;
 }
+/* A.03 : M.003 occupe le vide sous les instruments, toute la largeur de la carte (OROS5.35). */
+.hours {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-1);
+}
+.subHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
 /* A.03 : chaque instrument pose ou retire la puce Instrument ; la ligne posée garde son filet d'ivoire à gauche. */
 .instRow {
   width: 100%;

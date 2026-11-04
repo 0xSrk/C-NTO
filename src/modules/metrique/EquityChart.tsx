@@ -3,6 +3,7 @@ import { ColorType, createChart, CrosshairMode, LineStyle, type AutoscaleInfo, t
 import { SetCount } from '@/app/objects/Selection';
 import { Montant, Segmented } from '@/design/primitives';
 import { equityCurve, type EquityCurveData, type EquityGrain, type EquityStep } from '@/engine/equityCurve';
+import { entryHourET } from '@/engine/selection';
 import type { Session, Trade } from '@/engine/types';
 import { intlTag, tr, useI18n } from '@/i18n';
 import { fmtInt } from '@/lib/format';
@@ -92,15 +93,23 @@ const floorLabel = (floor: number) => (floor > 0 ? `${tr('PLANCHER', 'FLOOR', 'S
 const ALL_STEPS = () => true;
 
 /**
- * Les pas qu'allume la puce Instrument (OROS5.32) : au grain séance, chaque journée où l'instrument a un trade ; au grain
- * trade, chacun de ses trades. Le départ n'en est jamais. `null` sans puce.
+ * Les pas qu'allument les puces Instrument (OROS5.32) et Heure (OROS5.35) : au grain séance, chaque journée où la
+ * sélection a un trade ; au grain trade, chacun de ses trades (sa sortie et son instrument). Le départ n'en est jamais.
+ * `null` sans puce.
  */
-export function litSteps(curve: EquityCurveData, sessions: readonly Session[], trades: readonly Trade[], instrument: string | null): { on: boolean[]; count: number } | null {
-  if (!instrument) return null;
+export function litSteps(curve: EquityCurveData, sessions: readonly Session[], trades: readonly Trade[], instrument: string | null, hour: number | null = null): { on: boolean[]; count: number } | null {
+  if (!instrument && hour == null) return null;
+  const keep = (row: Trade) => (!instrument || row.instrument === instrument) && (hour == null || entryHourET(row) === hour);
   const dateOf = new Map(sessions.map((row) => [row.id, row.date]));
   const days = new Set<string>();
-  for (const row of trades) if (row.instrument === instrument) days.add(dateOf.get(row.sessionId) ?? '');
-  const on = curve.steps.map((step) => !step.origin && (curve.grain === 'trade' ? step.instrument === instrument : days.has(step.date)));
+  const exits = new Set<string>();
+  for (const row of trades) {
+    if (!keep(row)) continue;
+    days.add(dateOf.get(row.sessionId) ?? '');
+    exits.add(`${row.exitTime}|${row.instrument}`);
+  }
+  const onTrade = (step: EquityStep) => (hour == null ? step.instrument === instrument : exits.has(`${step.at}|${step.instrument}`));
+  const on = curve.steps.map((step) => !step.origin && (curve.grain === 'trade' ? onTrade(step) : days.has(step.date)));
   return { on, count: on.filter(Boolean).length };
 }
 
@@ -138,6 +147,7 @@ export function EquityCard({
   className,
   floor,
   lit,
+  litHour,
   onStep,
 }: {
   sessions: Session[];
@@ -148,6 +158,8 @@ export function EquityCard({
    * restent, atténués. Au grain séance, les journées où l'instrument a un trade ; au grain trade, ses trades.
    */
   lit?: string | null;
+  /** La puce Heure (OROS5.35) : ses pas s'allument de même, une journée ou un trade entré à cette heure de New York. */
+  litHour?: number | null;
   /** Drawdown maximal du plan suivi pour le compte filtré : la borne du volet sous l'eau. Absent : aucune borne inventée. */
   floor?: number | null;
   /**
@@ -343,7 +355,7 @@ export function EquityCard({
   }, [hover]);
 
   // La sélection allumée : les pas de l'instrument, un par journée qui en a un trade, ou un par trade de l'instrument.
-  const lighting = useMemo(() => litSteps(curve, sessions, trades, lit ?? null), [curve, sessions, trades, lit]);
+  const lighting = useMemo(() => litSteps(curve, sessions, trades, lit ?? null, litHour ?? null), [curve, sessions, trades, lit, litHour]);
   const selection = useMemo(() => (lighting ? (index: number) => lighting.on[index] ?? false : null), [lighting]);
   selectionRef.current = selection;
   useEffect(() => {

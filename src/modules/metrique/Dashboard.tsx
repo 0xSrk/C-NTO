@@ -1,6 +1,7 @@
-import { useMemo, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { samplePhrase } from '@/app/objects/sample';
 import { SetCount } from '@/app/objects/Selection';
+import { Butterfly, butterflyRows, hourLabel } from '@/design/instruments/Butterfly';
 import { Glyph, Signal } from '@/design/Micro';
 import { Button, cx, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
@@ -10,7 +11,7 @@ import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
 import { fmtInt, fmtPct, fmtPoints, fmtRatio, fmtUsd, plural } from '@/lib/format';
-import { dateTimeFormatter, parseDateKey } from '@/lib/time';
+import { dateTimeFormatter, ET_ZONE, parseDateKey, zonedWallClock } from '@/lib/time';
 import { sampleOf, type EntityRef } from '@/engine/ontology';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
@@ -50,6 +51,16 @@ function k04SampleLabel(n: number, account: string): string {
     `K.04 sample: ${plural(n, 'session')}, the whole history of ${account}; open the account record`,
     `Muestra de K.04: ${plural(n, 'sesión', 'sesiones')}, todo el historial de ${account}; abrir la ficha de la cuenta`,
   );
+}
+
+/** L'horloge de M.003 : l'heure de maintenant change au plus une fois par minute. */
+function useMinute(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  return now;
 }
 
 function rangeTitle(range: MetricRange): string {
@@ -131,10 +142,19 @@ export function Dashboard({
   // la période et allument ce qu'elle garde, le reste à sa place, atténué.
   const instrument = useUi((st) => st.metricInstrument);
   const setInstrument = useUi((st) => st.setMetricInstrument);
+  // La puce Heure (OROS5.35), posée depuis M.003 : comme l'instrument, elle recalcule K et A.01 et allume A.02 et A.04.
+  const hour = useUi((st) => st.metricHour);
+  const setHour = useUi((st) => st.setMetricHour);
+  // L'heure du curseur de temps, ou de maintenant, à l'or sur M.003 (décision 1).
+  const cursor = useUi((st) => st.timeCursor);
+  const now = useMinute();
+  const cursorHour = zonedWallClock(cursor ?? now, ET_ZONE).hour;
   const contextSessions = context?.sessions ?? sessions;
   const contextTrades = context?.trades ?? trades;
   const contextOrdered = useMemo(() => [...contextSessions].sort((a, b) => a.date.localeCompare(b.date)), [contextSessions]);
   const contextStats = useMemo(() => (context ? computeTradeStats(context.trades) : stats), [context, stats]);
+  // M.003 lit le compte et la période, tous instruments, toutes heures : la puce Heure y allume son heure, comme A.03.
+  const hourRows = useMemo(() => butterflyRows(contextStats.byHour), [contextStats]);
   const kept = useMemo(() => new Set(sessions.map((row) => row.id)), [sessions]);
   const last = contextOrdered.slice(-5).reverse();
   // Chaque séance est un objet (OROS5.26) : une ligne de A.04 et un pas de A.02 ouvrent sa fiche ; ↑ ↓ passent à la voisine.
@@ -215,6 +235,7 @@ export function Dashboard({
                 <span className={s.code}>
                   A.01 / {tr('NET P&L', 'NET P&L', 'P&L NETO')} · {rangeTitle(range)}
                   {instrument ? ` · ${instrument}` : ''}
+                  {hour != null ? ` · ${hourLabel(hour)} ET` : ''}
                 </span>
                 <span className={s.hint}>{tr('APRÈS COMMISSIONS', 'AFTER COMMISSIONS', 'DESPUÉS DE COMISIONES')} · USD</span>
                 <SetCount n={stats.count} total={contextStats.count} kind="trade" className={s.count} />
@@ -422,6 +443,7 @@ export function Dashboard({
         trades={contextTrades}
         floor={limit}
         lit={instrument}
+        litHour={hour}
         onStep={(step, origin) => {
           // Un pas est une journée : sa séance, la première du jour quand plusieurs comptes y ont tradé.
           const day = contextOrdered.find((row) => row.date === step.date);
@@ -473,6 +495,14 @@ export function Dashboard({
           })}
         </div>
         <span className={s.hint}>{tr('RÉPARTITION DES', 'SPLIT OF', 'REPARTO DE')} {fmtInt(contextStats.count)} {tr('TRADES', 'TRADES', 'TRADES')}</span>
+        {/* M.003 occupe le vide de A.03 : gagnants et perdants par heure d'entrée à New York ; une heure pose la puce Heure. */}
+        <div className={s.hours}>
+          <div className={s.subHead}>
+            <span className={s.kName}>{tr('Heure d’entrée', 'Entry hour', 'Hora de entrada')}</span>
+            <span className={s.hint}>NEW YORK · ET</span>
+          </div>
+          <Butterfly rows={hourRows} cursorHour={cursorHour} hour={hour} onHour={setHour} />
+        </div>
       </section>
 
       <section className={`${s.card} ${s.span12}`}>

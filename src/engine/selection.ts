@@ -1,3 +1,4 @@
+import { ET_ZONE, zonedWallClock } from '@/lib/time';
 import { summarizeTrades } from './metrics';
 import type { Session, Trade } from './types';
 
@@ -21,6 +22,11 @@ export interface Selection {
   range: MetricRange;
   /** La puce Instrument ; `null` : tous les instruments. */
   instrument: string | null;
+  /**
+   * La puce Heure (OROS5.35), posée depuis M.003 : l'heure d'entrée à New York, de 0 à 23, celle de `TradeStats.byHour` ;
+   * `null` ou absente : toutes les heures.
+   */
+  hour?: number | null;
 }
 
 export function shiftDateKey(date: string, days: number): string {
@@ -74,10 +80,41 @@ export function byInstrument(journal: { sessions: readonly Session[]; trades: re
   return { sessions, trades };
 }
 
-/** La sélection appliquée à un journal : le compte et la période (`filterJournal`), puis la puce Instrument (`byInstrument`). */
+/** L'heure d'entrée d'un trade à New York (0–23) : la clé de `TradeStats.byHour`, et celle de la puce Heure. */
+export function entryHourET(trade: Pick<Trade, 'entryTime'>): number {
+  return zonedWallClock(trade.entryTime, ET_ZONE).hour;
+}
+
+/**
+ * La puce Heure : les trades entrés à cette heure de New York, et chaque séance qui en compte au moins un, réduite à cette
+ * part par le résumé du moteur (`summarizeTrades`). Une séance sans trade au journal n'a pas d'heure : elle n'y entre pas.
+ */
+export function byEntryHour(journal: { sessions: readonly Session[]; trades: readonly Trade[] }, hour: number): { sessions: Session[]; trades: Trade[] } {
+  const trades = journal.trades.filter((row) => Number.isFinite(row.entryTime) && entryHourET(row) === hour);
+  const parts = new Map<string, Trade[]>();
+  for (const row of trades) {
+    const part = parts.get(row.sessionId);
+    if (part) part.push(row);
+    else parts.set(row.sessionId, [row]);
+  }
+  const sessions: Session[] = [];
+  for (const row of journal.sessions) {
+    const part = parts.get(row.id);
+    if (part) sessions.push({ ...row, ...summarizeTrades(part) });
+  }
+  return { sessions, trades };
+}
+
+/** Les puces qui découpent un journal déjà borné au compte et à la période : l'instrument, puis l'heure. */
+export function narrowJournal(journal: { sessions: readonly Session[]; trades: readonly Trade[] }, chips: Pick<Selection, 'instrument' | 'hour'>): { sessions: Session[]; trades: Trade[] } {
+  const byChip = chips.instrument ? byInstrument(journal, chips.instrument) : { sessions: [...journal.sessions], trades: [...journal.trades] };
+  return chips.hour != null ? byEntryHour(byChip, chips.hour) : byChip;
+}
+
+/** La sélection appliquée à un journal : le compte et la période (`filterJournal`), puis la puce Instrument (`byInstrument`) et la puce Heure (`byEntryHour`). */
 export function selectJournal(sessions: readonly Session[], trades: readonly Trade[], selection: Selection, asOf: string): { sessions: Session[]; trades: Trade[] } {
   const scoped = filterJournal(sessions, trades, selection.range, asOf, selection.account);
-  return selection.instrument ? byInstrument(scoped, selection.instrument) : scoped;
+  return selection.instrument || selection.hour != null ? narrowJournal(scoped, selection) : scoped;
 }
 
 /** Ce que la sélection garde d'un journal, par identifiant : le reste s'atténue, sans disparaître. */
