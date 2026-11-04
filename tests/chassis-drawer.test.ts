@@ -162,10 +162,11 @@ describe('OROS5.16 la fiche, troisième colonne du châssis', () => {
     expect(drawerCss).not.toMatch(/position:\s*(absolute|fixed)/);
     expect(drawerCss).toMatch(/animation: ficheIn var\(--t-med\) linear both/);
     expect(bodyOf(ficheCss, 'from', (heads) => heads.includes('@keyframes ficheIn'))).toMatch(/opacity: 0/);
-    // la zone de travail se mesure elle-même : sous 1 100 px, A.01 prend la largeur et la bande K passe dessous
+    // la zone de travail se mesure elle-même : sous 900 px (OROS5.45h, 1 100 px avant), A.01 prend la largeur et la bande K
+    // passe dessous
     expect(bodyOf(shellCss, '.main')).toMatch(/container: main \/ inline-size/);
     const dash = cssRules(readFileSync('src/modules/metrique/dashboard.module.css', 'utf8'));
-    const inMain = (heads: string[]) => heads.includes('@container main (max-width: 1100px)');
+    const inMain = (heads: string[]) => heads.includes('@container main (max-width: 900px)');
     expect(dash.find((r) => r.selector.includes('.span7') && inMain(r.at))?.body).toMatch(/grid-column: 1 \/ -1/);
     expect(bodyOf(dash, '.kpis', inMain)).toMatch(/grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
     // fermée, la colonne s'en va

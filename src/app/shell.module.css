@@ -761,7 +761,7 @@
 }
 
 /* La zone de travail se mesure elle-même (OROS5.16) : un module range ses panneaux sur la largeur qu'elle a, fiche
-   ouverte ou fenêtre étroite (le Tableau de bord sous 1 100 px). */
+   ouverte ou fenêtre étroite (le Tableau de bord sous 900 px, OROS5.45h). */
 .main {
   grid-area: main;
   position: relative;

@@ -805,9 +805,10 @@
   .plateTop { grid-template-columns: 1fr; }
 }
 
-/* La zone de travail se mesure elle-même (OROS5.16, le châssis en fait un conteneur) : sous 1 100 px — fiche ouverte, ou
-   fenêtre étroite —, A.01 prend toute la largeur et la bande K passe dessous, ses quatre cartes sur une ligne. */
-@container main (max-width: 1100px) {
+/* La zone de travail se mesure elle-même (OROS5.16, le châssis en fait un conteneur) : sous 900 px — la fiche ouverte à la
+   fenêtre minimale —, A.01 prend toute la largeur et la bande K passe dessous, ses quatre cartes sur une ligne. Sans fiche,
+   la fenêtre minimale laisse 960 px : A.01 et la bande K restent côte à côte (OROS5.45h). */
+@container main (max-width: 900px) {
   .span7,
   .span5,
   .span8,
