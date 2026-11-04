@@ -188,10 +188,31 @@ const OR: Readonly<Record<string, string>> = {
 /** Le plafond de chaque liste : il baisse avec elle et ne se relève jamais. */
 const OR_PLAFOND = { total: 113, reste: 45 };
 
+/**
+ * Les jetons qui portent l'or : `--gold…`, et chaque jeton de tokens.css dont la valeur le cite (`--lab: var(--gold)`) —
+ * un alias reste de l'or (OROS5.44a).
+ */
+function goldTokens(): string[] {
+  const tokens = readFileSync('src/design/tokens.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const aliases = [...tokens.matchAll(/(--[\w-]+)\s*:[^;{}]*var\(--gold\b/g)].map((m) => m[1]!).filter((name) => !name.startsWith('--gold'));
+  return ['--gold', ...new Set(aliases)];
+}
+
+/** La classe `gold` dans une chaîne de plusieurs classes (« num gold », `${s.x} gold`) : chaque occurrence (OROS5.44a). */
+function goldInClassStrings(code: string): number {
+  let n = 0;
+  for (const [, , content] of code.matchAll(/(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g)) {
+    const words = content!.trim().split(/\s+/);
+    if (words.length > 1) n += words.filter((word) => word === 'gold').length;
+  }
+  return n;
+}
+
 /** Les usages de l'or hors de tokens.css, tels que le cliquet les nomme. */
 function goldCarriers(): string[] {
-  const css = /var\(--gold\b/;
-  const code = /var\(--gold\b|['"`]--gold\b|(?<![\w-])['"]gold['"]/g;
+  const names = goldTokens().join('|');
+  const css = new RegExp(`var\\((?:${names})\\b`);
+  const code = new RegExp(`var\\((?:${names})\\b|['"\`](?:${names})\\b|(?<![\\w-])['"\`]gold['"\`]`, 'g');
   const found: string[] = [];
   for (const path of walk('src').filter((p) => /\.(css|tsx?|mjs)$/.test(p))) {
     const rel = posix('.', path);
@@ -202,7 +223,7 @@ function goldCarriers(): string[] {
     } else {
       // Les commentaires ne portent pas d'or.
       const bare = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
-      const n = bare.match(code)?.length ?? 0;
+      const n = (bare.match(code)?.length ?? 0) + goldInClassStrings(bare);
       if (n > 0) found.push(`${rel} ×${n}`);
     }
   }
@@ -466,12 +487,23 @@ describe('garde du système visuel', () => {
     for (const [where, dit] of Object.entries(OR)) expect(OR_SENS.some((sens) => dit.startsWith(`${sens} · `)), `${where} : ${dit}`).toBe(true);
     expect(Object.values(OR).filter((dit) => dit.startsWith('reste · '))).toHaveLength(OR_PLAFOND.reste);
 
-    // Les étoiles d'Éval. de B · Séances : ni la classe d'or dans la table, ni l'or sur l'étoile cochée.
+    // Les étoiles d'Éval. de B · Séances : ni la classe d'or dans la table, ni l'or sur l'étoile cochée — aucune des règles
+    // de l'étoile, ni par un alias de l'or (OROS5.44a).
     expect(listed.some((where) => /Éval|\.stars/.test(where))).toBe(false);
+    expect(goldTokens()).toContain('--lab');
     const sessions = readFileSync('src/modules/metrique/Sessions.tsx', 'utf8');
-    expect(sessions).not.toMatch(/className="gold">\{x\.rating/);
-    const star = cssRules(readFileSync('src/modules/metrique/metrique.module.css', 'utf8')).find((rule) => rule.selector === '.stars button.on');
-    expect(star?.body).toMatch(/color: var\(--text-0\)/);
+    const ratingCell = /<td\b[^>]*>\{x\.rating\b/.exec(sessions)?.[0];
+    expect(ratingCell).toBeDefined();
+    expect(/className=(?:"([^"]*)"|\{[^}]*\})/.exec(ratingCell!)?.[0] ?? '').not.toMatch(/(?<![\w-])gold(?![\w-])/);
+    const stars = cssRules(readFileSync('src/modules/metrique/metrique.module.css', 'utf8')).filter((rule) => rule.selector === '.stars button.on');
+    expect(stars.length).toBeGreaterThan(0);
+    expect(stars.some((rule) => /color: var\(--text-0\)/.test(rule.body))).toBe(true);
+    const goldVar = new RegExp(`var\\((?:${goldTokens().join('|')})\\b`);
+    expect(stars.filter((rule) => goldVar.test(rule.body)).map((rule) => rule.body.trim())).toEqual([]);
+    // Le compte lit la classe d'or dans une chaîne de plusieurs classes, et l'or d'un alias.
+    expect(goldInClassStrings('<td className="num gold">x</td>')).toBe(1);
+    expect(goldInClassStrings('className={`${s.cell} gold`}')).toBe(1);
+    expect(goldInClassStrings("tone='gold' fetch('precious/gold.contractSpecs') 'crude oil, gold, euro FX'")).toBe(0);
     // Les boutons de création : Nouvel automate, Nouvelle note, Brancher, Ajouter (Copieur), Créer l'alerte, la séance
     // manuelle et Générer la démo passent au bouton d'action ordinaire.
     const creation: readonly (readonly [string, string])[] = [
