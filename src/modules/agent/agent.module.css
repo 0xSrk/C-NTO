@@ -313,9 +313,6 @@
   padding: 2px 8px;
   border-radius: var(--radius);
 }
-.toolChip.pending i {
-  animation: pulse-dot 1s ease-in-out infinite;
-}
 .toolChip i {
   width: 4px;
   height: 4px;
@@ -334,10 +331,133 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
-.cursor::after {
-  content: '▍';
-  color: var(--gold);
-  animation: pulse-dot 0.8s ease-in-out infinite;
+/* La trace des outils sous chaque réponse (OROS5.41) : le nom de l'outil en Geist Mono au glacier (la technique), ses
+   arguments bornés, son issue et sa durée. L'appel en cours garde le halo tireté de la table d'états jusqu'à son résultat :
+   rien ne pulse, et l'or reste à l'opérateur. */
+.trace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 820px;
+}
+.traceList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.traceRow {
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-1);
+}
+.traceMark {
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  --k: var(--text-1);
+}
+.traceName {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ice);
+}
+.traceArgs {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.traceIssue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-1);
+}
+.traceGlyph {
+  width: 10px;
+  height: 10px;
+  --k: var(--text-1);
+}
+.traceMs {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.traceResult {
+  grid-column: 2 / -1;
+}
+.traceResult summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.traceResult pre {
+  margin: 4px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line-0);
+  background: var(--bg-0);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+/* « Contexte lu » : les objets que l'agent a lus ; chacun ouvre sa fiche. */
+.contextRead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.contextHead {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.contextItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--line-1);
+  background: none;
+  font-size: 11px;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: border-color 200ms linear, color 200ms linear;
+}
+.contextItem:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .contextItem:hover {
+    border-color: var(--line-2);
+    color: var(--text-0);
+  }
+}
+.contextGlyph {
+  width: 12px;
+  height: 12px;
+  --k: var(--ice);
 }
 .routines {
   display: flex;

@@ -30,6 +30,7 @@ import { CloudReports, LabPlate } from './CloudReports';
 import { claudeCodeCommand, claudeDesktopConfig, codexConfig, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
 import { Propositions } from './Propositions';
+import { ToolTrace } from './ToolTrace';
 import s from './agent.module.css';
 
 function suggestions(): string[] {
@@ -63,11 +64,14 @@ function suggestions(): string[] {
 }
 
 
-/** Le flux en cours est affiché en texte brut (Markdown seulement pour le message final) : O(n) par jeton au lieu de O(n²). */
+/**
+ * Le flux en cours est affiché en texte brut (Markdown seulement pour le message final) : O(n) par jeton au lieu de O(n²).
+ * Aucun curseur qui pulse (OROS5.41) : le texte qui arrive dit que l'agent écrit.
+ */
 function StreamBubble({ text }: { text: string }) {
   const deferred = useDeferredValue(text);
   return (
-    <div className={cx(s.bubble, s.cursor)} style={{ whiteSpace: 'pre-wrap' }}>
+    <div className={s.bubble} style={{ whiteSpace: 'pre-wrap' }}>
       {deferred}
     </div>
   );
@@ -245,6 +249,12 @@ export default function Agent() {
   };
 
   const visibleMessages = messages.filter((m) => m.role !== 'system');
+  // La trace des outils (OROS5.41) se pose sous la réponse qui les appelle : ses résultats s'y lisent, plus en bulles à part.
+  const toolResults = useMemo(() => visibleMessages.filter((m) => m.role === 'tool'), [messages]);
+  const answered = useMemo(() => {
+    const calls = new Set(visibleMessages.flatMap((m) => (m.role === 'assistant' ? (m.toolCalls ?? []).map((c) => c.id) : [])));
+    return new Set(toolResults.filter((m) => calls.has(m.toolCallId ?? m.id)).map((m) => m.id));
+  }, [messages, toolResults]);
 
   const cloudOn = isDesk && !!desk?.agentCloud;
   // Le siège du Lab, dit par le process principal : lui seul voit et pilote l'agent cloud ; les autres lisent le dossier.
@@ -338,20 +348,16 @@ export default function Agent() {
                     </div>
                   </div>
                 )}
-                {visibleMessages.map((m) => (
-                  <Message key={m.id} m={m} />
-                ))}
+                {visibleMessages.map((m) =>
+                  m.role === 'tool' && answered.has(m.id) ? null : <Message key={m.id} m={m} results={m.role === 'assistant' && m.toolCalls?.length ? toolResults : undefined} streaming={streaming} />,
+                )}
                 {streaming && (
                   <div className={cx(s.msg, s.assistant)}>
                     <div className={s.msgHead}>
                       <span>Agent</span>
-                      {pendingTool && (
-                        <span className={cx(s.toolChip, s.pending)}>
-                          <i /> {pendingTool}
-                        </span>
-                      )}
                     </div>
-                    {streamText ? <StreamBubble text={streamText} /> : <div className={cx(s.bubble, s.cursor)}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
+                    {/* L'appel en cours se lit dans la trace de la réponse, au tireté : rien ne pulse ici. */}
+                    {streamText ? <StreamBubble text={streamText} /> : <div className={s.bubble}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
                   </div>
                 )}
                 {error && (
@@ -827,8 +833,11 @@ function prettyToolContent(content: string): string {
   }
 }
 
-/** Mémorisé : les messages passés ne sont pas réaffichés (ni re-rendus en Markdown) à chaque jeton du flux. */
-const Message = memo(function Message({ m }: { m: AgentMessage }) {
+/**
+ * Mémorisé : les messages passés ne sont pas réaffichés (ni re-rendus en Markdown) à chaque jeton du flux. Une réponse qui
+ * appelle des outils porte leur trace (OROS5.41) ; un résultat sans réponse rangée garde sa bulle.
+ */
+const Message = memo(function Message({ m, results, streaming = false }: { m: AgentMessage; results?: readonly AgentMessage[]; streaming?: boolean }) {
   useI18n((s) => s.locale);
   const html = useMemo(() => (m.role === 'assistant' && m.content ? renderMarkdown(m.content) : ''), [m.role, m.content]);
   const pretty = useMemo(() => (m.role === 'tool' ? prettyToolContent(m.content) : ''), [m.role, m.content]);
@@ -849,13 +858,9 @@ const Message = memo(function Message({ m }: { m: AgentMessage }) {
       <div className={cx(s.msg, s.assistant)}>
         <div className={s.msgHead}>
           <span>Agent</span>
-          {m.toolCalls?.map((tc) => (
-            <span key={tc.id} className={s.toolChip}>
-              <i /> {tc.name}
-            </span>
-          ))}
         </div>
         {html && <div className={s.bubble} dangerouslySetInnerHTML={{ __html: html }} />}
+        {m.toolCalls?.length ? <ToolTrace answer={m} results={results ?? []} streaming={streaming} /> : null}
       </div>
     );
   }
