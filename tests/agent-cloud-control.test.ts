@@ -982,6 +982,37 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
     }
   });
 
+  it('CLD56 le repli « coordinateur seul » ne vaut que pour un refus du champ multiagent lui-même, et chaque lancement réessaie le multiagent', async () => {
+    const extra = (where: string) => new CloudApiError(400, 'invalid_request_error', `HTTP 400 · invalid_request_error : ${where}: Extra inputs are not permitted`);
+    const coordinators = (api: ReturnType<typeof trainer>, method: 'createAgent' | 'updateAgent') =>
+      vi.mocked(api[method]).mock.calls.map((call) => call.at(-1) as Record<string, unknown>).filter((b) => b.name === 'CΛNTO · formation quant').map((b) => 'multiagent' in b);
+    // Un refus porté sur une entrée du bloc ne dit pas que l'organisation n'a pas le type : pas de repli, l'erreur est dite.
+    const entry = extra('multiagent.subagents.inline_agents');
+    const inner = trainer({ createAgent: async (b: Record<string, unknown>) => (b.name === READER_AGENT_NAME ? { id: READER, version: 1 } : Promise.reject(entry)) });
+    const h = trained(inner, { answers: [0] });
+    expect((await h.host.train()).error).toBe(`Coordinateur · ${entry.message}`);
+    expect(coordinators(inner, 'createAgent')).toEqual([true]);
+    expect(saved(h.dir).formation).toMatchObject({ solo: false, sessionId: null });
+    // Le type daté n'est pas le champ : `multiagent_20261001` refusé ailleurs ne fait pas de repli non plus.
+    const typed = extra('multiagent_20261001.workflows');
+    const t = trained(trainer({ createAgent: async (b: Record<string, unknown>) => (b.name === READER_AGENT_NAME ? { id: READER, version: 1 } : Promise.reject(typed)) }), { answers: [0] });
+    expect((await t.host.train()).error).toBe(`Coordinateur · ${typed.message}`);
+
+    // Repli enregistré, puis l'organisation reçoit le type : le lancement suivant réessaie le multiagent, et le repli se défait.
+    const soloBefore = { environmentId: FORMATION_ENV, readerId: READER, coordinatorId: COORDINATOR, coordinatorVersion: 1, solo: true, sessionId: sid(40), settled: true, history: [{ id: sid(40), startedAt: NOW - 86_400_000, costCents: 900 }] };
+    const healed = trainer({ createSession: async () => trainingSession(41) });
+    const back = trained(healed, { answers: [0], formation: soloBefore });
+    expect(await back.host.train()).toMatchObject({ error: null, training: { solo: false, sessionId: sid(41) } });
+    expect(coordinators(healed, 'updateAgent')).toEqual([true]);
+    expect(saved(back.dir).formation).toMatchObject({ solo: false });
+    expect(back.logs).toContain('agent cloud · multiagent de nouveau disponible : coordinateur et lecteurs');
+    // Toujours refusé sur le champ : seul de nouveau, sans rien perdre.
+    const still = trainer({ updateAgent: async (id: string, b: Record<string, unknown>) => (b.name !== READER_AGENT_NAME && 'multiagent' in b ? Promise.reject(extra('multiagent')) : { id, version: 3 }), createSession: async () => trainingSession(42) });
+    const s = trained(still, { answers: [0], formation: soloBefore });
+    expect(await s.host.train()).toMatchObject({ error: null, training: { solo: true, sessionId: sid(42) } });
+    expect(coordinators(still, 'updateAgent')).toEqual([true, false]);
+  });
+
   it('CLD54 une session étrangère sur le magasin n’est jamais prise pour la formation du desk : marque et coordinateur exigés', async () => {
     const OTHER_AGENT = 'agent_011CZkYpogX7uDKUyvBToOTH';
     const known = { environmentId: FORMATION_ENV, readerId: READER, coordinatorId: COORDINATOR, sessionId: sid(40), settled: true, history: [{ id: sid(40), startedAt: NOW - 86_400_000, costCents: 1875 }] };

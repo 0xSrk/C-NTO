@@ -1335,15 +1335,25 @@ export class AgentCloudHost {
           return this.upsert(f.coordinatorId, (id) => this.api.updateAgent(id, body), () => this.api.createAgent(body), 'coordinateur', lost);
         };
         let agent: { id: string; version: number };
+        // Chaque lancement essaie d'abord le multiagent (CLD56) : un repli enregistré se défait dès que l'organisation a le type.
         try {
-          agent = await coordinator(f.solo);
+          agent = await coordinator(false);
+          if (f.solo) {
+            f.solo = false;
+            this.persist();
+            this.deps.log('agent cloud · multiagent de nouveau disponible : coordinateur et lecteurs');
+          }
         } catch (error) {
-          // L'organisation n'a pas le type multiagent : le coordinateur lit seul (25 cours au plus, la consigne le prévoit).
-          const refused = error instanceof CloudApiError && error.status === 400 && /Extra inputs are not permitted/i.test(error.message) && /multiagent/i.test(error.message);
-          if (f.solo || !refused) throw error;
-          f.solo = true;
-          this.persist();
-          this.deps.log('agent cloud · multiagent indisponible : coordinateur seul');
+          // L'organisation n'a pas le type multiagent : refus « Extra inputs are not permitted » sur le champ `multiagent`
+          // lui-même, pas sur une entrée du bloc (`multiagent.subagents…`) ni sur le type daté. Le coordinateur lit seul
+          // (25 cours au plus, la consigne le prévoit).
+          const refused = error instanceof CloudApiError && error.status === 400 && /Extra inputs are not permitted/i.test(error.message) && /\bmultiagent\b(?![.[])/i.test(error.message);
+          if (!refused) throw error;
+          if (!f.solo) {
+            f.solo = true;
+            this.persist();
+            this.deps.log('agent cloud · multiagent indisponible : coordinateur seul');
+          }
           agent = await coordinator(true);
         }
         f.coordinatorId = agent.id;
