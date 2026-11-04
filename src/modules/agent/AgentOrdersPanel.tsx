@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { CriteriaMirror } from '@/app/Criteria';
+import { agentCriteria } from '@/app/criteriaMirror';
 import { useKillSwitch } from '@/app/killState';
 import { readGates } from '@/app/RailGates';
+import { useGuardMirror } from '@/app/useGuardMirror';
 import { Glyph } from '@/design/Micro';
 import e from '@/design/etat.module.css';
 import { Button, Field, cx } from '@/design/primitives';
@@ -85,6 +88,9 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
   const kill = killSwitchText(killShortcut);
   // Après le kill switch, la garde refuse tout jusqu'au redémarrage : M.060 le dit, comme la porte du rail.
   const killed = useKillSwitch().engaged;
+  // Les critères d'Activer en miroir (OROS5.43) : le compte où l'agent ouvrirait, lu par le miroir de la garde.
+  const mirror = useGuardMirror();
+  const activation = agentCriteria(mirror, status, killed);
   const [draft, setDraft] = useState<Record<LimitKey, number>>({ maxQty: status.maxQty, maxPosition: status.maxPosition, perMinute: status.perMinute });
 
   useEffect(() => {
@@ -114,6 +120,12 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
       <OrdersGuard status={status} available={available} killed={killed} />
       {available ? (
         <>
+          <CriteriaMirror
+            id="agent"
+            mirror={activation}
+            on={status.enabled}
+            opening={tr('Activer · coupés à chaque ouverture du desk ; le dialogue du desk décide', 'Enable · cut each time the desk opens; the desk dialog decides', 'Activar · cortadas en cada apertura del desk; el diálogo del desk decide')}
+          />
           <div className={s.row2}>
             <Field label={tr('État', 'Status', 'Estado')}>
               {status.enabled ? (

@@ -155,3 +155,12 @@
 .col > * {
   flex: none;
 }
+
+/* C.070, l'écrou de la garde, sur Armer : le bouton ouvre le dialogue du process principal (OROS5.43). */
+.gateNut {
+  width: 12px;
+  height: 14px;
+  margin-right: 6px;
+  --k: currentColor;
+  --p: var(--bg-2);
+}

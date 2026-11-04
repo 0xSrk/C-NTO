@@ -47,7 +47,7 @@ export type GateDistance =
   | { kind: 'position'; position: number; resulting: number; max: number }
   | { kind: 'margin'; share: number | null; floor: number }
   | { kind: 'bound'; max: number; unit: 'contracts' | 'perMinute' }
-  | { kind: 'rules'; rules: readonly AgentTraderRuleBlock[] }
+  | { kind: 'rules'; rules: readonly AgentTraderRuleBlock[]; deferred?: readonly AgentTraderRuleBlock[] }
   | { kind: 'timeout'; ms: number };
 
 export interface MirrorGate {
@@ -129,6 +129,9 @@ export function guardMirror(input: MirrorInput): GuardMirror {
   const parsed = parseProposal(unknown ? { ...raw, instrument: UNKNOWN_INSTRUMENT } : raw);
   const proposal = parsed.ok ? (unknown ? { ...parsed.proposal, instrument: '' } : parsed.proposal) : raw;
   const traderRules = unknown ? input.traderRules.filter((r) => r.rule !== 'instrument_not_allowed') : input.traderRules;
+  // La règle des instruments autorisés ne refuse pas l'ordre fictif sans instrument : elle se dit lue à chaque proposition
+  // (OROS5.43), au lieu de disparaître de la liste.
+  const deferred = unknown ? input.traderRules.filter((r) => r.rule === 'instrument_not_allowed') : [];
   const snap: AgentOrderSnapshot = {
     now: input.now,
     link: input.link,
@@ -147,7 +150,7 @@ export function guardMirror(input: MirrorInput): GuardMirror {
     if (key === 'prop_buffer') return { kind: 'margin', share: input.propShare, floor: AGENT_PROP_FLOOR };
     if (key === 'quantity') return { kind: 'bound', max: input.policy.maxQty, unit: 'contracts' };
     if (key === 'rate') return { kind: 'bound', max: input.policy.perMinute, unit: 'perMinute' };
-    if (key === 'trader_rule') return { kind: 'rules', rules: traderRules };
+    if (key === 'trader_rule') return { kind: 'rules', rules: traderRules, ...(deferred.length ? { deferred } : {}) };
     return undefined;
   };
 
@@ -165,7 +168,7 @@ export function guardMirror(input: MirrorInput): GuardMirror {
       const r = guardProposal(proposal, policy, s);
       const refuses = !r.ok && r.reason === key;
       // La quantité et la cadence d'une vraie proposition ne se connaissent qu'à son arrivée : sans elles, la borne seule se dit.
-      const perProposal = (key === 'quantity' && input.qty === undefined) || (key === 'rate' && input.recent === undefined);
+      const perProposal = (key === 'quantity' && input.qty === undefined) || (key === 'rate' && input.recent === undefined) || (key === 'trader_rule' && deferred.length > 0 && !reducing);
       state = refuses ? 'refuse' : perProposal ? 'proposal' : 'pass';
       if (refuses) detail = r.detail;
     }
@@ -265,7 +268,10 @@ export function gateWords(gate: MirrorGate): string {
     }
     case 'trader_rule': {
       const rules = d?.kind === 'rules' ? d.rules : [];
-      return rules.length ? rules.map((r) => r.detail).join(' · ') : tr('aucune règle du trader enfreinte', 'no trader rule broken', 'ninguna regla del trader incumplida');
+      // Sans instrument connu, la liste des instruments autorisés se lit à chaque proposition (OROS5.43).
+      const deferred = d?.kind === 'rules' && d.deferred?.length ? tr('la liste des instruments autorisés, lue à chaque proposition', 'the allowed instruments list, read on each proposal', 'la lista de instrumentos autorizados, leída en cada propuesta') : '';
+      if (rules.length) return [rules.map((r) => r.detail).join(' · '), deferred].filter(Boolean).join(' · ');
+      return deferred || tr('aucune règle du trader enfreinte', 'no trader rule broken', 'ninguna regla del trader incumplida');
     }
     case 'declined': {
       const s = d?.kind === 'timeout' ? Math.round(d.ms / 1000) : 0;
