@@ -153,6 +153,25 @@ describe('OROS5.48b · la journée fermée, côté renderer', () => {
     expect(restoredSettingValue('agent.routineSeen', { brief: 'x' }, { brief: DAY })).toEqual({ brief: DAY });
   });
 
+  it('OROS5.48m la table de restauration relit la ligne avec l’heure : la journée en cours reste à côté de trois journées à venir', async () => {
+    const { prepareVaultRestore, restoredSettingValue } = await import('@/store/db');
+    const { dayCloseFor } = await import('@/engine/agent/dayClose');
+    // un coffre exporté à 11:30 : la fermeture d'aujourd'hui, et trois journées à venir retenues pendant que l'horloge
+    // du poste avançait ; il est restauré sur un poste neuf (aucune ligne en place, aucun fichier au process principal)
+    const today = { day: DAY, account: SIM, at: et(DAY, '10:56') };
+    const ahead = ['2026-10-07', '2026-10-08', '2026-10-09'].map((day) => ({ day, account: SIM, at: et(day, '09:00') }));
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(et(DAY, '11:45'));
+    try {
+      const restored = prepareVaultRestore(JSON.stringify({ artefact: 'CΛNTO', sessions: [], settings: [{ key: 'agent.dayClose', value: [today, ...ahead] }] }));
+      expect(restored.otherSettings).toEqual([{ key: 'agent.dayClose', value: [today, ...ahead] }]);
+      const written = restoredSettingValue('agent.dayClose', undefined, restored.otherSettings[0]!.value);
+      expect(dayCloseFor(written as never, SIM, et(DAY, '11:45'))).toEqual(today);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('OROS5.48f une fermeture d’une journée à venir (une horloge qui avançait) ne retient ni n’efface celle de la vraie journée', async () => {
     const { dayCloseFor } = await import('@/engine/agent/dayClose');
     const ahead = { day: '2026-10-08', account: 'z', at: et('2026-10-08', '09:00') };
