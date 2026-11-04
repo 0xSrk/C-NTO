@@ -66,7 +66,7 @@ const PROPOSAL = { account: 'sim101', instrument: 'mnq 12-26', side: 'buy', qty:
 const VIEW: BridgeView = { link: 'live', ordersOpen: true, accounts: [{ name: 'Sim101', positions: [{ instrument: 'MNQ 12-26', quantity: 1 }] }] };
 
 /** Le process principal, avec ses vraies gardes et son vrai dialogue ; la fenêtre et le pont sont des doublures. */
-function harness(opts: { answers?: number[]; hang?: boolean; confirmTimeoutMs?: number; view?: BridgeView } = {}) {
+function harness(opts: { answers?: number[]; hang?: boolean; confirmTimeoutMs?: number; view?: BridgeView; window?: () => { isDestroyed: () => boolean } | null } = {}) {
   const timeline: string[] = [];
   const published: AgentProposalStep[] = [];
   const dialogs: AgentDialogOptions[] = [];
@@ -75,7 +75,7 @@ function harness(opts: { answers?: number[]; hang?: boolean; confirmTimeoutMs?: 
   const host = new AgentOrderHost({
     userDataDir: mkdtempSync(path.join(tmpdir(), 'canto-agent-step-')),
     locale: () => 'fr',
-    window: () => ({ isDestroyed: () => false }),
+    window: opts.window ?? (() => ({ isDestroyed: () => false })),
     showMessageBox: (_w, options) => {
       dialogs.push(options);
       // Deux marques distinctes : le dialogue (« box ») et chaque étape publiée (« step:… »), pour tenir leur ordre.
@@ -252,6 +252,35 @@ describe('OROS5.40 l’étape d’une proposition, publiée par le process princ
       await pending;
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('OROS5.40c sans fenêtre du desk à la proposition : ni étape `dialog` ni dialogue, et la carte dit « Non envoyée »', async () => {
+    let present: { isDestroyed: () => boolean } | null = { isDestroyed: () => false };
+    const h = harness({ answers: [0], window: () => present });
+    // L'activation passe par son dialogue : la fenêtre est là.
+    await h.host.enable();
+    expect(h.dialogs).toHaveLength(1);
+    for (const gone of [null, { isDestroyed: () => true }]) {
+      present = gone;
+      useAgentOrders.setState({ proposals: [], last: null });
+      fake.calls.length = 0;
+      const pending = useAgentOrders.getState().propose(PROPOSAL, 'llm');
+      const ticket = fake.calls[0]![4] as string;
+      const before = h.published.length;
+      const outcome = await h.host.propose(PROPOSAL, 'llm', null, null, ticket);
+      expect(outcome).toEqual({ status: 'declined', detail: 'refusé par le trader', timeout: false });
+      // Gardée seulement : aucune étape `dialog`, aucun dialogue ouvert.
+      const steps = h.published.slice(before);
+      expect(steps.map((step) => step.stage)).toEqual(['guarded']);
+      expect(h.dialogs).toHaveLength(1);
+      // Le renderer reçoit ce que le process principal publie, puis l'issue : personne n'a refusé.
+      for (const step of steps) fake.step!(step);
+      fake.release!(outcome);
+      await pending;
+      const view = proposalView(useAgentOrders.getState().proposals[0]!);
+      expect(view.window).toBeNull();
+      expect([outcomeTitle(view), outcomeDetail(view)]).toEqual(['Non envoyée', 'aucun dialogue du desk ne s’est ouvert']);
     }
   });
 
