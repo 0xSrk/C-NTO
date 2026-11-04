@@ -44,8 +44,11 @@ function Drawer({ className }: { className?: string }) {
   const sources = useIndexSources(now);
   const ctx: RegistreContext = useMemo(() => ({ sessions: sources.sessions, trades: sources.trades, catalysts: sources.catalysts, proposals: sources.proposals }), [sources]);
   const rows = kinds.length ? events.filter((ev) => kinds.includes(ev.kind)) : events;
-  const [active, setActive] = useState(0);
-  const at = Math.min(active, Math.max(0, rows.length - 1));
+  // La ligne active est un événement (`seq`), pas un rang : la liste va du plus récent au plus ancien, et chaque
+  // événement rangé décale les rangs. Celui qui sort du filtre, ou du registre, rend la main à la première ligne.
+  const [activeSeq, setActiveSeq] = useState<number | null>(() => rows[0]?.seq ?? null);
+  const found = activeSeq === null ? -1 : rows.findIndex((ev) => ev.seq === activeSeq);
+  const at = found >= 0 ? found : 0;
   const listRef = useRef<HTMLOListElement>(null);
 
   // Ouvert, la liste prend le focus : ↑ ↓ y parcourent les lignes aussitôt.
@@ -56,11 +59,10 @@ function Drawer({ className }: { className?: string }) {
   useEffect(() => {
     if (friseOpen) closeRegistre(false);
   }, [friseOpen]);
-  // La ligne active reste en vue.
+  // La ligne choisie revient en vue quand le choix change, pas à chaque événement rangé : la liste ne bouge pas sous la main.
   useEffect(() => {
-    const row = rows[at];
-    if (row) document.getElementById(`registre-${row.seq}`)?.scrollIntoView?.({ block: 'nearest' });
-  }, [at, rows]);
+    if (activeSeq !== null) document.getElementById(`registre-${activeSeq}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeSeq]);
 
   const openRow = (ev: DeskEvent | undefined) => {
     const target = ev ? eventTarget(ev, ctx) : null;
@@ -79,7 +81,7 @@ function Drawer({ className }: { className?: string }) {
     }
     if (event.target !== listRef.current) return;
     event.preventDefault();
-    if (hit.id === 'registreChoose') setActive(Math.max(0, Math.min(rows.length - 1, at + (hit.index === 1 ? 1 : -1))));
+    if (hit.id === 'registreChoose') setActiveSeq(rows[Math.max(0, Math.min(rows.length - 1, at + (hit.index === 1 ? 1 : -1)))]?.seq ?? null);
     else if (hit.id === 'registreOpen') openRow(rows[at]);
   };
 
@@ -132,7 +134,7 @@ function Drawer({ className }: { className?: string }) {
                 data-seq={ev.seq}
                 data-kind={ev.kind}
                 onClick={() => {
-                  setActive(i);
+                  setActiveSeq(ev.seq);
                   openRow(ev);
                 }}
               >
