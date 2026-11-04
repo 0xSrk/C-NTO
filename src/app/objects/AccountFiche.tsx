@@ -215,17 +215,18 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
       id: 'metrique',
       glyph: 'metrique',
       label: tr('Filtrer Métrique sur ce compte', 'Filter Metrics on this account', 'Filtrar Métrica en esta cuenta'),
+      // Le saut d'abord : Retour arrière rend la sélection d'avant le filtre (OROS5.45d).
       run: () => {
-        useUi.getState().setMetricAccount(id);
-        useObjects.getState().jumpTo('metrique', { view: 'bord' });
+        if (useObjects.getState().jumpTo('metrique', { view: 'bord' })) useUi.getState().setMetricAccount(id);
       },
     },
     copyAction(target),
   ];
   /** Firme prop, filtrée sur ce compte : l'écriture existante (« Suivre ce plan pour … ») y vit ; rien n'est écrit d'ici. */
   const openProp = () => {
+    if (!useObjects.getState().jumpTo('metrique', { view: 'prop' })) return;
     useUi.getState().setMetricAccount(id);
-    if (useObjects.getState().jumpTo('metrique', { view: 'prop' })) landOn('[data-plan-target]');
+    landOn('[data-plan-target]');
   };
 
   const sub =

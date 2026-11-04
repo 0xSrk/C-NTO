@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { EntityRef, EntityType, Predicate } from '@/engine/ontology/schema';
-import { useUi, type TabId } from './ui';
+import { selectionOf, useUi, type TabId } from './ui';
 
 /**
  * L'objet ouvert et ses sauts (OROS5.14, Système 5 « Fiche et Frise » ; repris du prototype d1, AF2). La fiche du châssis
@@ -65,6 +65,11 @@ export interface JumpSnapshot {
   siblings: readonly ObjectRef[];
   /** L'ensemble d'« Autour de… » affiché avant le saut (OROS5.31) ; absent ou `null` : sans ensemble. */
   set?: ObjectSet | null;
+  /**
+   * Les puces de la sélection partagée avant le saut (OROS5.45d) : le compte, la période, l'instrument et l'heure. Retour
+   * arrière les rend, comme l'ensemble ; absent : la sélection ne bouge pas.
+   */
+  selection?: ReturnType<typeof selectionOf>;
 }
 
 export interface OpenOptions {
@@ -149,8 +154,9 @@ export const useObjects = create<ObjectsState>((set, get) => {
   /** L'état que rendra Retour arrière, pris avant un saut. */
   const snapshot = (): JumpSnapshot => {
     const { open, jumpedFrom, siblings, views, set: shown } = get();
-    const tab = useUi.getState().tab;
-    return { tab, view: views[tab] ?? null, open, jumpedFrom, siblings, set: shown };
+    const ui = useUi.getState();
+    const tab = ui.tab;
+    return { tab, view: views[tab] ?? null, open, jumpedFrom, siblings, set: shown, selection: selectionOf(ui) };
   };
   const remember = (): readonly JumpSnapshot[] => [...get().history, snapshot()].slice(-JUMP_HISTORY_MAX);
 
@@ -244,6 +250,10 @@ export const useObjects = create<ObjectsState>((set, get) => {
         stamp: state.stamp + 1,
       });
       if (useUi.getState().tab !== last.tab) useUi.getState().setTab(last.tab);
+      if (last.selection) {
+        const { account, range, instrument, hour } = last.selection;
+        useUi.setState({ metricAccount: account, metricRange: range, metricInstrument: instrument, metricHour: hour });
+      }
       return true;
     },
 

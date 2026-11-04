@@ -220,3 +220,25 @@ describe('OROS5.14 l’objet ouvert et ses sauts', () => {
     expect(code).not.toMatch(/\bdb\b|indexedDB|localStorage|sessionStorage|\bdesk\b|window\.canto|persist\(/);
   });
 });
+
+describe('OROS5.45d Retour arrière rend les puces de la sélection', () => {
+  it('le compte, la période, l’instrument et l’heure d’avant le saut reviennent avec la fiche et l’ensemble', () => {
+    const A: EntityRef = { type: 'session', id: 's-a' };
+    const B: EntityRef = { type: 'session', id: 's-b' };
+    useUi.setState({ metricAccount: 'Sim101', metricRange: '30j', metricInstrument: 'NQ', metricHour: 9 });
+    useObjects.getState().openObject(A);
+    // un saut, puis les puces changent (la puce Période d'« Autour de… », le filtre du plan)
+    useObjects.getState().openObject(B, { jump: true });
+    useUi.setState({ metricAccount: 'Apex-PA-50K', metricRange: 'tout', metricInstrument: null, metricHour: null });
+    expect(useObjects.getState().back()).toBe(true);
+    expect(useObjects.getState().open).toEqual(A);
+    const ui = useUi.getState();
+    expect([ui.metricAccount, ui.metricRange, ui.metricInstrument, ui.metricHour]).toEqual(['Sim101', '30j', 'NQ', 9]);
+    // l'ensemble d'« Autour de… » ouvert puis défait rend aussi la période d'avant
+    useObjects.getState().openSet({ from: A, path: [], type: 'session', members: [B] });
+    useUi.setState({ metricRange: 'tout' });
+    expect(useObjects.getState().back()).toBe(true);
+    expect(useObjects.getState().set).toBeNull();
+    expect(useUi.getState().metricRange).toBe('30j');
+  });
+});

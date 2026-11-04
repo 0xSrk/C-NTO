@@ -327,6 +327,8 @@ describe('OROS5.27 la fiche Compte', () => {
     expect(useObjects.getState().history).toHaveLength(1);
     act(() => void useObjects.getState().back());
     expect(useObjects.getState().open).toEqual({ type: 'compte', id: SIM });
+    // OROS5.45d : Retour arrière rend aussi le filtre de compte d'avant le saut
+    expect(useUi.getState().metricAccount).toBeNull();
     // chaque autre bouton de la fiche ouvre un objet ou un module
     const buttons = () => [...drawer().querySelectorAll<HTMLElement>('button, summary')].filter((b) => !['close', 'copy'].includes(b.dataset.action ?? ''));
     for (const index of buttons().keys()) {
