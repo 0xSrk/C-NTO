@@ -16,7 +16,7 @@ import { getSetting, setSetting } from './db';
 export const DAY_CLOSE_KEY = 'agent.dayClose';
 
 interface DayCloseState {
-  /** Les fermetures de la journée la plus récente, une par compte ('' : tous les comptes). */
+  /** Les fermetures des journées les plus récentes, une par compte et par journée ('' : tous les comptes). */
   closes: readonly AgentDayClose[];
   /** Relit le coffre, sans rien perdre de ce qui a déjà été vu, puis redit au process principal les fermetures du jour. */
   load: () => Promise<void>;

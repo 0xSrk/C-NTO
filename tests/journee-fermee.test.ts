@@ -147,9 +147,9 @@ describe('OROS5.48b · la journée fermée, côté renderer', () => {
     // un coffre d'avant la décision 15 n'a pas la ligne : rien n'est écarté
     const old = prepareVaultRestore(JSON.stringify({ artefact: 'CΛNTO', sessions: [], settings: [{ key: 'agent.routineSeen', value: { brief: DAY } }] }));
     expect(old.skipped.settings ?? 0).toBe(0);
-    // restaurer un coffre d'hier sur la journée fermée d'aujourd'hui : la fermeture d'aujourd'hui reste
+    // restaurer un coffre d'hier sur la journée fermée d'aujourd'hui : la fermeture d'aujourd'hui reste, celle d'hier à côté (OROS5.48k)
     const yesterday = { day: '2026-10-05', account: SIM, at: et('2026-10-05', '10:00') };
-    expect(restoredSettingValue(DAY_CLOSE_KEY, [close], [yesterday])).toEqual([close]);
+    expect(restoredSettingValue(DAY_CLOSE_KEY, [close], [yesterday])).toEqual([yesterday, close]);
     expect(restoredSettingValue('agent.routineSeen', { brief: 'x' }, { brief: DAY })).toEqual({ brief: DAY });
   });
 
@@ -184,6 +184,33 @@ describe('OROS5.48b · la journée fermée, côté renderer', () => {
     const close = { day: DAY, account: SIM, at: et(DAY, '10:56') };
     const restored = restoredSettingValue('agent.dayClose', [close], [ahead], et(DAY, '11:45'));
     expect(dayCloseFor(restored as never, SIM, et(DAY, '11:45'))).toEqual(close);
+  });
+
+  it('OROS5.48k fermer la journée, puis une journée à venir quand l’horloge avance : l’horloge corrigée, la vraie reste fermée', async () => {
+    const { dayCloseFor } = await import('@/engine/agent/dayClose');
+    // 10:00 : aucune sortie, le latent du pont (−700 $) porte la perte au-delà de 600 $
+    const s = await desk();
+    state(s, [], -700);
+    s.deskEvents.recordDayClose(et(DAY, '10:00'));
+    expect(vault.get('agent.dayClose')).toEqual([{ day: DAY, account: SIM, at: et(DAY, '10:00') }]);
+    // l'horloge du poste saute de deux jours, le latent est encore à la limite : cette journée-là se ferme aussi
+    s.deskEvents.recordDayClose(et('2026-10-08', '10:10'));
+    expect(s.closeDay).toHaveBeenLastCalledWith({ account: SIM, at: et('2026-10-08', '10:10') });
+    // l'horloge corrigée, un gain ramène le latent à −100 $ : la journée reste fermée, au store comme au coffre
+    state(s, [], -100);
+    const at = et(DAY, '10:20');
+    expect(s.deskEvents.traderRuleBlocks(OPEN, at)).toEqual([{ rule: 'after_daily_limit', detail: 'journée fermée depuis 10:00 ET : limite 600 $ atteinte (règle du trader)' }]);
+    expect(s.deskEvents.dailyLossReached(at)).toBe(true);
+    expect(dayCloseFor(vault.get('agent.dayClose') as never, SIM, at)).toEqual({ day: DAY, account: SIM, at: et(DAY, '10:00') });
+    // rechargé à 10:31, le coffre relu : de même, et le process principal la réentend
+    const again = await desk();
+    state(again, [], -100);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(et(DAY, '10:31'));
+    await again.dayClose.useDayClose.getState().load();
+    vi.useRealTimers();
+    expect(again.deskEvents.traderRuleBlocks(OPEN, et(DAY, '10:31'))[0]?.detail).toBe('journée fermée depuis 10:00 ET : limite 600 $ atteinte (règle du trader)');
+    expect(again.closeDay).toHaveBeenCalledWith({ account: SIM, at: et(DAY, '10:00') });
   });
 
   it('OROS5.48h la limite retirée après la fermeture : la barre d’état dit encore la journée fermée, au niveau 3', async () => {

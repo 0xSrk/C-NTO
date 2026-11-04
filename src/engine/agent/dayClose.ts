@@ -46,16 +46,28 @@ export function parseDayClose(raw: unknown): AgentDayClose | null {
 const byTime = (a: AgentDayClose, b: AgentDayClose) => a.at - b.at || a.account.localeCompare(b.account);
 
 /**
+ * Journées retenues, outre celle de la fermeture qu'on ajoute : les plus récentes de la liste (OROS5.48k). L'horloge qui
+ * écrit peut être fausse : aucune journée ne sort parce qu'elle serait « passée » à ses yeux, seule la plus ancienne sort
+ * au-delà de trois. Chacune est bornée par le repli au-delà du plafond : quatre journées tiennent dans une liste relue.
+ */
+const DAYS_KEPT = 3;
+
+/** Les `DAYS_KEPT` journées les plus récentes d'une liste. */
+function recentDays(list: readonly AgentDayClose[]): Set<string> {
+  return new Set([...new Set(list.map((c) => c.day))].sort().slice(-DAYS_KEPT));
+}
+
+/**
  * Ajoute une fermeture : une entrée par compte (nom replié) et par journée, l'heure la plus ancienne. Restent la journée
- * de la fermeture — celle de l'horloge qui l'envoie — et la plus récente (OROS5.48f) : une horloge qui avançait, puis
- * corrigée, ne fait céder ni l'une ni l'autre ; les journées passées sortent. Rien ne rouvre : une fermeture ne retire
- * jamais une autre fermeture de sa journée. Au-delà du plafond (OROS5.48e), les fermetures de la journée se replient en
- * une seule, de tous les comptes, à l'heure la plus ancienne : on ferme davantage, jamais moins, et aucune fermeture plus
- * ancienne ne fait sortir la vraie.
+ * de la fermeture — celle de l'horloge qui l'envoie — et les trois plus récentes (OROS5.48f, OROS5.48k) : une horloge qui
+ * avançait, puis corrigée, ne fait céder ni la journée qu'elle a fermée en avance ni la vraie, fermée avant ou après ;
+ * seule la plus ancienne sort, au-delà de trois. Rien ne rouvre : une fermeture ne retire jamais une autre fermeture de
+ * sa journée. Au-delà du plafond (OROS5.48e), les fermetures de la journée se replient en une seule, de tous les comptes,
+ * à l'heure la plus ancienne : on ferme davantage, jamais moins, et aucune fermeture plus ancienne ne fait sortir la vraie.
  */
 export function withDayClose(list: readonly AgentDayClose[], close: AgentDayClose): AgentDayClose[] {
-  const latest = list.reduce((max, c) => (c.day > max ? c.day : max), close.day);
-  const out = list.filter((c) => c.day === latest || c.day === close.day).map((c) => ({ ...c }));
+  const days = recentDays([...list, close]).add(close.day);
+  const out = list.filter((c) => days.has(c.day)).map((c) => ({ ...c }));
   const key = foldDayAccount(close.account);
   const same = out.find((c) => c.day === close.day && foldDayAccount(c.account) === key);
   if (same) same.at = Math.min(same.at, close.at);
@@ -65,23 +77,32 @@ export function withDayClose(list: readonly AgentDayClose[], close: AgentDayClos
   return [...kept, ...out.filter((c) => c.day !== close.day)].sort((a, b) => a.day.localeCompare(b.day) || byTime(a, b));
 }
 
-/**
- * Les fermetures relues d'une liste (fichier, coffre) : chacune lue par `parseDayClose`. Une valeur illisible : aucune.
- * Restent la journée la plus récente et, `now` donné, la journée CME en cours de l'horloge qui relit (OROS5.48f).
- */
-export function coerceDayCloses(raw: unknown, now?: number): AgentDayClose[] {
-  if (!Array.isArray(raw)) return [];
-  const read = raw.slice(0, 4 * AGENT_DAY_CLOSE_MAX).flatMap((item) => parseDayClose(item) ?? []);
-  const latest = read.reduce((max, c) => (c.day > max ? c.day : max), '');
-  const today = now === undefined ? latest : cmeTradingDay(now);
-  // la plus récente d'abord, puis celle de l'horloge : chacune reste (`withDayClose`)
-  const order = [...read.filter((c) => c.day === latest), ...read.filter((c) => c.day === today && c.day !== latest)];
+/** Les fermetures lues d'une liste, une à une (`parseDayClose`) ; au plus quatre journées pleines. */
+function readDayCloses(raw: unknown): AgentDayClose[] {
+  return Array.isArray(raw) ? raw.slice(0, (DAYS_KEPT + 1) * AGENT_DAY_CLOSE_MAX).flatMap((item) => parseDayClose(item) ?? []) : [];
+}
+
+/** Restent les trois journées les plus récentes et, `now` donné, la journée CME en cours de l'horloge qui relit. */
+function keepDayCloses(read: readonly AgentDayClose[], now?: number): AgentDayClose[] {
+  const recent = recentDays(read);
+  const today = now === undefined ? null : cmeTradingDay(now);
+  // les plus récentes d'abord, puis celle de l'horloge : chacune reste (`withDayClose`)
+  const order = [...read.filter((c) => recent.has(c.day)), ...read.filter((c) => c.day === today && !recent.has(c.day))];
   return order.reduce<AgentDayClose[]>((out, close) => withDayClose(out, close), []);
 }
 
-/** Deux listes réunies (un coffre restauré sur la fermeture en place) : rien de la journée la plus récente ni, `now` donné, de la journée en cours ne se perd. */
+/**
+ * Les fermetures relues d'une liste (fichier, coffre) : chacune lue par `parseDayClose`. Une valeur illisible : aucune.
+ * Restent les trois journées les plus récentes et, `now` donné, la journée CME en cours de l'horloge qui relit (OROS5.48f,
+ * OROS5.48k).
+ */
+export function coerceDayCloses(raw: unknown, now?: number): AgentDayClose[] {
+  return keepDayCloses(readDayCloses(raw), now);
+}
+
+/** Deux listes réunies (un coffre restauré sur la fermeture en place), chacune lue en entier : rien des trois journées les plus récentes ni, `now` donné, de la journée en cours ne se perd. */
 export function mergeDayCloses(a: unknown, b: unknown, now?: number): AgentDayClose[] {
-  return coerceDayCloses([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])], now);
+  return keepDayCloses([...readDayCloses(a), ...readDayCloses(b)], now);
 }
 
 /** Une fermeture de tous les comptes vaut pour chacun ; celle d'un compte, pour ce compte seul, nom replié. */
