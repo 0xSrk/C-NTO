@@ -175,10 +175,14 @@ export function generateDemoSimJournal(opts: { endDate?: Date } = {}): { session
 /**
  * Les réglages que le jeu pose (OROS5.30a) : le plan suit le compte Sim, et la perte du jour est réglée. Un réglage du
  * trader n'est jamais remplacé : seul ce qui est encore à son défaut (aucun compte suivi, aucun plan, aucune limite) change.
+ * Aucun compte suivi ('') veut dire tous les comptes (OROS5.30b) : ce n'est un défaut que si rien de ce que le trader a
+ * réglé ne le lit — ni perte du jour, ni plan autre que celui du jeu, celui d'un desk neuf. Sinon, poser le compte Sim
+ * restreindrait sa limite ou son plan au seul compte du jeu.
  */
 export function demoSettingsPatch(current: { planAccount: string; planId: string; traderRules: TraderRules }): { planAccount?: string; planId?: string; traderRules?: TraderRules } {
   const patch: { planAccount?: string; planId?: string; traderRules?: TraderRules } = {};
-  if (!current.planAccount.trim()) patch.planAccount = SIM_DEMO.account;
+  const scopeRead = current.traderRules.maxDailyLoss > 0 || (!!current.planId.trim() && current.planId !== SIM_DEMO.planId);
+  if (!current.planAccount.trim() && !scopeRead) patch.planAccount = SIM_DEMO.account;
   if (!current.planId.trim()) patch.planId = SIM_DEMO.planId;
   if (!(current.traderRules.maxDailyLoss > 0)) patch.traderRules = { ...current.traderRules, maxDailyLoss: SIM_DEMO.dailyLoss };
   return patch;

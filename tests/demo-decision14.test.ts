@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AGENT_SIM_PREFIX } from '@/engine/agent/orders';
 import { demoPocket, demoSettingsPatch, generateDemoJournal, generateDemoSimJournal, SIM_DEMO } from '@/engine/demo';
 import { DEFAULT_TRADER_RULES, dailyLimit } from '@/engine/discipline';
 import { evaluatePlan, findPlan } from '@/engine/propfirm';
+import type { Trade } from '@/engine/types';
+import { ET_ZONE, zonedToUtc } from '@/lib/time';
 
 const { account: DEMO_ACCOUNT, planId: DEMO_PLAN, dailyLoss: DAILY_LOSS } = SIM_DEMO;
 
@@ -60,5 +62,50 @@ describe('OROS5.30a · le jeu de démonstration tient la décision 14', () => {
     expect(body).toMatch(/usePortfolio\.getState\(\)\.load\(\)/);
     expect(body).toMatch(/generateDemoOntology\(/);
     expect(body).not.toMatch(/agentOrders|propose|closeDay|proposal/i);
+  });
+});
+
+describe('OROS5.30b · le jeu ne restreint jamais à son compte Sim une limite ou un plan que le trader suit sur tous les comptes', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('la portée « tous les comptes » d’une limite ou d’un plan du trader reste ; celle d’un desk neuf devient le compte Sim', () => {
+    const limited = { ...DEFAULT_TRADER_RULES, maxDailyLoss: 300 };
+    // une perte du jour réglée, sans plan ou avec celui du desk neuf : ni le compte ni la limite ne changent
+    expect(demoSettingsPatch({ planAccount: '', planId: '', traderRules: limited })).toEqual({ planId: DEMO_PLAN });
+    expect(demoSettingsPatch({ planAccount: '', planId: DEMO_PLAN, traderRules: limited })).toEqual({});
+    // un plan du trader, avec ou sans perte du jour : il continue de suivre tous les comptes
+    for (const planId of ['mffu-50', 'apex-100']) expect(demoSettingsPatch({ planAccount: '', planId, traderRules: DEFAULT_TRADER_RULES }), planId).not.toHaveProperty('planAccount');
+    // un desk neuf (le plan du jeu est celui des réglages par défaut, aucune limite) : le compte Sim, comme avant
+    expect(demoSettingsPatch({ planAccount: '', planId: DEMO_PLAN, traderRules: DEFAULT_TRADER_RULES })).toMatchObject({ planAccount: DEMO_ACCOUNT });
+    expect(demoSettingsPatch({ planAccount: '', planId: '', traderRules: DEFAULT_TRADER_RULES })).toMatchObject({ planAccount: DEMO_ACCOUNT });
+  });
+
+  it('une perte du jour de 300 $ sur tous les comptes : après le jeu, Sim102 à −400 $ reste fermé aux ouvertures de l’agent', async () => {
+    vi.stubGlobal('window', { location: { search: '' } });
+    vi.resetModules();
+    const { useSettings, DEFAULT_SETTINGS } = await import('@/store/settings');
+    const { useJournal } = await import('@/store/journal');
+    const { useMacro } = await import('@/store/macro');
+    const { useI18n } = await import('@/i18n');
+    const { traderRuleBlocks } = await import('@/store/deskEvents');
+    expect(DEFAULT_SETTINGS.planId).toBe(DEMO_PLAN);
+    useI18n.setState({ locale: 'fr' });
+    useMacro.setState({ events: [] });
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: '', planAccount: '', traderRules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 300 } } });
+    const day = '2026-10-06';
+    const exit = zonedToUtc(day, '10:20', ET_ZONE);
+    const loss: Trade = { id: 'a', sessionId: 's', instrument: 'MNQ', account: 'Sim102', direction: 'long', qty: 1, entryTime: exit - 600_000, exitTime: exit, entryPrice: 0, exitPrice: 0, pnl: -400, commission: 0 };
+    useJournal.setState({ trades: [loss] });
+    const open = { account: 'Sim102', instrument: 'MNQ 12-26', qty: 1 };
+    const at = zonedToUtc(day, '11:00', ET_ZONE);
+    const closed = [{ rule: 'after_daily_limit', detail: 'journée fermée depuis 10:20 ET : perte du jour 400 $ ≥ limite 300 $ (règle du trader)' }];
+    expect(traderRuleBlocks(open, at)).toEqual(closed);
+    // les réglages que pose `loadDemo` (`demoSettingsPatch`, appliqué par `useSettings.update`)
+    const { planAccount, planId, traderRules } = useSettings.getState().settings;
+    useSettings.setState({ settings: { ...useSettings.getState().settings, ...demoSettingsPatch({ planAccount, planId, traderRules }) } });
+    expect(traderRuleBlocks(open, at)).toEqual(closed);
+    expect(useSettings.getState().settings.planAccount).toBe('');
   });
 });
