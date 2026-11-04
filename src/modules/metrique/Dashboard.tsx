@@ -449,6 +449,7 @@ export function Dashboard({
           const day = contextOrdered.find((row) => row.date === step.date);
           if (day) openObject({ type: 'session', id: day.id }, { origin, siblings: orderedRefs });
         }}
+        onCatalyst={(id, origin) => openObject({ type: 'evenement', id }, { origin })}
       />
 
       <section className={`${s.card} ${s.pad} ${s.span4}`}>

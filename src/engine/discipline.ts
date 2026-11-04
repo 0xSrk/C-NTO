@@ -323,6 +323,8 @@ export function detectDrifts(entries: readonly DisciplineEntry[], closed: readon
 
 /** Catalyseur majeur daté (impact 3, heure de New York connue). */
 export interface MajorCatalyst {
+  /** L'identifiant de la publication dans la source unique : la fiche Catalyseur qu'elle ouvre (OROS5.45m). */
+  id?: string;
   /** Epoch ms de la publication. */
   at: number;
   title: string;
@@ -341,7 +343,7 @@ export function majorCatalysts(events: readonly CalEvent[], minImpact = CATALYST
     if (e.impact < minImpact) continue;
     const at = catalystInstant(e);
     if (at === null || !e.timeET) continue;
-    out.push({ at, title: e.title, date: e.date, timeET: e.timeET, instruments: e.instruments ?? [], estimated: e.estimated });
+    out.push({ id: e.id, at, title: e.title, date: e.date, timeET: e.timeET, instruments: e.instruments ?? [], estimated: e.estimated });
   }
   return out.sort((a, b) => a.at - b.at);
 }

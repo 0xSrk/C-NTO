@@ -332,3 +332,34 @@ describe('OROS5.36 les jeux d’événements s’allument en puces, avec leur n'
     expect(zoom.defaultPrevented).toBe(true);
   });
 });
+
+describe('OROS5.45m les tiges de A.02 s’atteignent au clavier et ouvrent leur catalyseur', () => {
+  it('la puce Catalyseurs allumée, chaque catalyseur d’une tige est un bouton hors de la toile, qui ouvre sa fiche', async () => {
+    const opened: { id: string; origin: HTMLElement | null }[] = [];
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => root!.render(createElement(EquityCard, { sessions, trades, onCatalyst: (id: string, origin: HTMLElement | null) => opened.push({ id, origin }) })));
+    // éteinte, aucune liste : la courbe reste la même tant qu'on n'allume rien
+    expect(host.querySelector('[data-stems]')).toBeNull();
+    await act(async () => chip('catalysts').click());
+    const list = host.querySelector<HTMLElement>('[data-stems]')!;
+    expect(list).not.toBeNull();
+    expect(list.getAttribute('aria-label')).toBe('Catalyseurs de la courbe');
+    const buttons = [...list.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons.map((b) => b.textContent)).toEqual(['Inflation CPI · 02.09']);
+    // au clavier : un bouton, dans l'ordre de tabulation, hors de la toile (role="img")
+    expect(buttons[0]!.closest('[role="img"]')).toBeNull();
+    expect(buttons[0]!.tabIndex).toBe(0);
+    await act(async () => buttons[0]!.click());
+    expect(opened).toEqual([{ id: CPI.id, origin: buttons[0] }]);
+    // en trois langues
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect(host.querySelector('[data-stems]')!.getAttribute('aria-label')).toBe('Catalysts on the curve');
+    await act(async () => useI18n.setState({ locale: 'es' }));
+    expect(host.querySelector('[data-stems]')!.getAttribute('aria-label')).toBe('Catalizadores de la curva');
+    // éteinte de nouveau, la liste s'en va
+    await act(async () => chip('catalysts').click());
+    expect(host.querySelector('[data-stems]')).toBeNull();
+  });
+});

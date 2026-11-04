@@ -87,14 +87,8 @@ export function cursorStep(curve: Pick<EquityCurveData, 'grain' | 'steps'>, curs
   return best;
 }
 
-/**
- * Les marques des jeux d'événements sur la courbe : chaque catalyseur au pas de sa journée (au grain trade, le premier
- * trade du jour sorti après la publication, sinon le dernier du jour), chaque écart au pas du trade qu'il marque (au
- * grain séance, sa journée). Ce qui ne tombe sur aucun pas n'est pas sur la courbe. Plusieurs marques d'un même pas se
- * comptent ; les catalyseurs s'y nomment ensemble (`name` : le titre dans la langue du desk), « ≈ » devant un estimé
- * (`catalystLabel`, C.054 ; décision 13). Pur.
- */
-export function eventMarks(curve: Pick<EquityCurveData, 'grain' | 'steps'>, input: { catalysts: readonly MajorCatalyst[]; findings: readonly DisciplineFinding[]; trades: readonly Trade[] }, name: (title: string) => string = (title) => title): EventMarks {
+/** Les pas de chaque journée de la courbe, et le pas où tombe un catalyseur : sa séance, ou le premier trade sorti après lui. */
+function stepsByDay(curve: Pick<EquityCurveData, 'grain' | 'steps'>): { byDay: Map<string, number[]>; catalystStep: (c: MajorCatalyst) => number | null } {
   const byDay = new Map<string, number[]>();
   curve.steps.forEach((step, i) => {
     if (step.origin) return;
@@ -108,6 +102,35 @@ export function eventMarks(curve: Pick<EquityCurveData, 'grain' | 'steps'>, inpu
     if (curve.grain === 'session') return day[0]!;
     return day.find((i) => (curve.steps[i]!.at ?? -Infinity) >= c.at) ?? day[day.length - 1]!;
   };
+  return { byDay, catalystStep };
+}
+
+/**
+ * Les catalyseurs des tiges, un par publication, dans l'ordre de la courbe (OROS5.45m) : la toile ne s'atteint pas au
+ * clavier, chacun devient un bouton hors de la toile qui ouvre sa fiche. Seuls ceux que la source unique identifie.
+ */
+export function catalystStems(curve: Pick<EquityCurveData, 'grain' | 'steps'>, catalysts: readonly MajorCatalyst[], name: (title: string) => string = (title) => title): { index: number; id: string; label: string; date: string }[] {
+  const { catalystStep } = stepsByDay(curve);
+  const seen = new Set<string>();
+  const out: { index: number; id: string; label: string; date: string }[] = [];
+  for (const c of catalysts) {
+    const index = catalystStep(c);
+    if (index === null || !c.id || seen.has(c.id)) continue;
+    seen.add(c.id);
+    out.push({ index, id: c.id, label: catalystLabel({ title: name(c.title), estimated: c.estimated === true }), date: c.date });
+  }
+  return out.sort((a, b) => a.index - b.index);
+}
+
+/**
+ * Les marques des jeux d'événements sur la courbe : chaque catalyseur au pas de sa journée (au grain trade, le premier
+ * trade du jour sorti après la publication, sinon le dernier du jour), chaque écart au pas du trade qu'il marque (au
+ * grain séance, sa journée). Ce qui ne tombe sur aucun pas n'est pas sur la courbe. Plusieurs marques d'un même pas se
+ * comptent ; les catalyseurs s'y nomment ensemble (`name` : le titre dans la langue du desk), « ≈ » devant un estimé
+ * (`catalystLabel`, C.054 ; décision 13). Pur.
+ */
+export function eventMarks(curve: Pick<EquityCurveData, 'grain' | 'steps'>, input: { catalysts: readonly MajorCatalyst[]; findings: readonly DisciplineFinding[]; trades: readonly Trade[] }, name: (title: string) => string = (title) => title): EventMarks {
+  const { byDay, catalystStep } = stepsByDay(curve);
   const tradeOf = new Map(input.trades.map((t) => [t.id, t]));
   const findingStep = (f: DisciplineFinding): number | null => {
     const day = byDay.get(f.day);

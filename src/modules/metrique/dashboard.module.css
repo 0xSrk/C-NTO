@@ -339,6 +339,15 @@
   height: 12px;
   --k: currentColor;
 }
+/* Les catalyseurs des tiges, hors de la toile (OROS5.45m) : un bouton chacun, au clavier comme au pointeur. */
+.eqStems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
 .eqSet:focus-visible {
   outline: 1px solid var(--line-3);
   outline-offset: 2px;

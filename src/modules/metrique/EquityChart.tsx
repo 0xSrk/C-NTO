@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ColorType, createChart, CrosshairMode, LineStyle, type AutoscaleInfo, type IChartApi, type ISeriesApi, type SeriesPartialOptions, type Time, type UTCTimestamp, type WhitespaceData } from 'lightweight-charts';
+import { shortDay } from '@/app/objects/index';
 import { SetCount } from '@/app/objects/Selection';
 import { Glyph } from '@/design/Micro';
 import { cx, Montant, Segmented } from '@/design/primitives';
@@ -20,7 +21,7 @@ import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './dashboard.module.css';
 import { sessionMarks } from './equityPaint';
-import { cursorStep, EquityTrait, eventMarks, floorRange, NONE, StemTrait, UnderwaterTrait, type EquityRow, type EventGlyphKey, type EventMarks, type GlyphKey, type Ink, type Marks, type TraitOptions } from './equitySeries';
+import { catalystStems, cursorStep, EquityTrait, eventMarks, floorRange, NONE, StemTrait, UnderwaterTrait, type EquityRow, type EventGlyphKey, type EventMarks, type GlyphKey, type Ink, type Marks, type TraitOptions } from './equitySeries';
 import { glyphImage, readyImage } from './glyphSprite';
 
 /**
@@ -177,6 +178,7 @@ export function EquityCard({
   lit,
   litHour,
   onStep,
+  onCatalyst,
 }: {
   sessions: Session[];
   trades: Trade[];
@@ -195,6 +197,8 @@ export function EquityCard({
    * pour un clic (au-delà de 5 px) : glisser déplace toujours la courbe.
    */
   onStep?: (step: EquityStep, origin: HTMLElement | null) => void;
+  /** Un catalyseur d'une tige, choisi hors de la toile (OROS5.45m) : il ouvre sa fiche. */
+  onCatalyst?: (id: string, origin: HTMLElement | null) => void;
 }) {
   const locale = useI18n((st) => st.locale);
   const [grain, setGrain] = useState<EquityGrain>('session');
@@ -215,6 +219,8 @@ export function EquityCard({
   const majors = useMemo(() => majorCatalysts(calendar), [calendar]);
   const findings = useMemo(() => (trades.length ? replayDiscipline(trades, calendar, rules, findPlan(planId), planAccount) : []), [trades, calendar, rules, planId, planAccount]);
   const marksOfEvents = useMemo(() => eventMarks(curve, { catalysts: majors, findings, trades }, trEventTitle), [curve, majors, findings, trades, locale]);
+  // Les tiges sont peintes sur la toile : chacun de leurs catalyseurs est aussi un bouton, au clavier (OROS5.45m).
+  const stems = useMemo(() => catalystStems(curve, majors, trEventTitle), [curve, majors, locale]);
   const counts = { catalysts: marksOfEvents.catalysts.reduce((n, m) => n + m.count, 0), drifts: marksOfEvents.drifts.reduce((n, m) => n + m.count, 0) };
   const [booted, setBooted] = useState(0);
   const floorValue = floor != null && floor > 0 ? floor : 0;
@@ -545,6 +551,17 @@ export function EquityCard({
       ) : (
         <div ref={host} className={s.eqChart} style={{ height: CHART_HEIGHT }} role="img" aria-label={tr(`P&L cumulé ${signed(curve.net)} USD`, `Cumulative P&L ${signed(curve.net)} USD`, `P&L acumulado ${signed(curve.net)} USD`)} />
       )}
+      {sets.catalysts && stems.length ? (
+        <ul className={s.eqStems} data-stems="" aria-label={tr('Catalyseurs de la courbe', 'Catalysts on the curve', 'Catalizadores de la curva')}>
+          {stems.map((stem) => (
+            <li key={stem.id}>
+              <button type="button" className={s.eqSet} onClick={(event) => onCatalyst?.(stem.id, event.currentTarget)}>
+                {`${stem.label} · ${shortDay(stem.date)}`}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className={s.eqLegend}>
         <span>
           <i className={s.eqKeyLine} /> {tr('Équité', 'Equity', 'Equidad')}
