@@ -22,6 +22,7 @@ import { isBridgeLive, useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useCopier } from '@/store/copier';
 import { useCrypto } from '@/store/crypto';
+import { useDayClose } from '@/store/dayClose';
 import { useNotes } from '@/store/notes';
 import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
@@ -141,7 +142,10 @@ export default function Metrique() {
     try {
       const r = await restoreVault(f.text);
       // `useBars.load()` relit la base à chaque appel (le garde-fou `loading` ne fait que dédupliquer les appels concurrents).
+      // La journée fermée d'abord (OROS5.48o) : la garde lit le store, qui reprend la ligne réunie au coffre et la redit au
+      // process principal ; relue la première, avant qu'un store relu ne fasse écrire une fermeture sur la ligne.
       await Promise.all([
+        useDayClose.getState().load(),
         reload(),
         reloadSettings(),
         useNotes.getState().load(),
