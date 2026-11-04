@@ -1,6 +1,6 @@
 # Agent cloud — rapports quotidiens (Managed Agents d'Anthropic)
 
-Demandé par l'ADMIN le 26 octobre 2026 : un agent qui tourne chaque jour dans son bac à sable, sur les serveurs d'Anthropic, payé sur les crédits API mensuels de l'organisation, et dont les rapports apparaissent dans l'onglet 06 · AGT (Agent IA). Ce document décrit le pont livré (tickets CLD1 à CLD49 et LAB2 à LAB4, `docs/AUDIT.md` › « Agent cloud — rapports quotidiens » et « Agent cloud — formation quant »), et la formation quant de l'agent sur quantmemo.com (§ 9, demandée le 3 novembre 2026). L'analyse elle-même est provisoire : la consigne et le design des rapports viendront de l'ADMIN.
+Demandé par l'ADMIN le 26 octobre 2026 : un agent qui tourne chaque jour dans son bac à sable, sur les serveurs d'Anthropic, payé sur les crédits API mensuels de l'organisation, et dont les rapports apparaissent dans l'onglet 06 · AGT (Agent IA). Ce document décrit le pont livré (tickets CLD1 à CLD60 et LAB2 à LAB4, `docs/AUDIT.md` › « Agent cloud — rapports quotidiens », « Agent cloud — formation quant » et « Agent cloud — formation quant, relecture adverse »), et la formation quant de l'agent sur quantmemo.com (§ 9, demandée le 3 novembre 2026). L'analyse elle-même est provisoire : la consigne et le design des rapports viendront de l'ADMIN.
 
 ## 1. Le produit Anthropic retenu
 
@@ -118,7 +118,7 @@ Les vues restent montées (`hidden`) ; la vue Lab, seulement au siège du Lab, e
 
 ## 9. Formation quant
 
-Demandée par l'ADMIN le 3 novembre 2026 : que l'agent cloud suive tous les cours des parcours de https://quantmemo.com/learn/roadmaps pour acquérir le savoir quant, « carte blanche » et sur tous les crédits, en restant économe (décision 13, `docs/THESE-AGENTIQUE.md` § 7 ; tickets CLD36 à CLD49). Un agent ne garde rien d'une session à l'autre : le savoir vit dans un magasin de mémoire Managed Agents, persistant et propre à l'espace de travail, que l'analyste quotidien monte en lecture seule (§ 4).
+Demandée par l'ADMIN le 3 novembre 2026 : que l'agent cloud suive tous les cours des parcours de https://quantmemo.com/learn/roadmaps pour acquérir le savoir quant, « carte blanche » et sur tous les crédits, en restant économe (décision 13, `docs/THESE-AGENTIQUE.md` § 7 ; tickets CLD36 à CLD49, relus par CLD50 à CLD60). Un agent ne garde rien d'une session à l'autre : le savoir vit dans un magasin de mémoire Managed Agents, persistant et propre à l'espace de travail, que l'analyste quotidien monte en lecture seule (§ 4).
 
 **Les objets.**
 
@@ -138,7 +138,7 @@ L'environnement, le lecteur et le coordinateur naissent au premier *Former l'age
 
 - les modèles ;
 - le site lu, robots.txt et conditions d'abord ;
-- « Plafond de la session : 25,00 $, aux tarifs publics (la dernière requête en cours peut le dépasser de peu) » (`FORMATION_BUDGET_CENTS`), vérifié dans la réponse de l'API ;
+- « Plafond de la session : 25,00 $, aux tarifs publics (la dernière requête en cours peut le dépasser de peu) » (`FORMATION_BUDGET_CENTS`), vérifié dans la réponse de l'API : une session qui déclare un plafond absent ou plus haut est arrêtée aussitôt (CLD50) ;
 - la dépense de formation des 30 derniers jours, et les sessions dont le coût n'est pas encore relevé ;
 - le plafond de 3,00 $ des rapports quotidiens, et que des crédits épuisés font tout refuser jusqu'au cycle suivant ;
 - le magasin, et le savoir déjà acquis ;

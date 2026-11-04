@@ -30,7 +30,7 @@ describe('agent cloud · formation quant, documentation', () => {
     // docs/AGENT-CLOUD.md : le magasin, les domaines, le plafond tirés du code ; les workflows coupés, et comment les rallumer.
     const doc = readFileSync('docs/AGENT-CLOUD.md', 'utf8');
     const training = section('docs/AGENT-CLOUD.md', '## 9. Formation quant');
-    expect(doc).toContain('CLD1 à CLD49');
+    expect(doc).toContain('CLD1 à CLD60');
     expect(training).toContain(MEMORY_STORE_NAME);
     for (const domain of FORMATION_DOMAINS) {
       expect(training).toContain(domain);
@@ -47,7 +47,7 @@ describe('agent cloud · formation quant, documentation', () => {
     const these = readFileSync('docs/THESE-AGENTIQUE.md', 'utf8');
     const d13 = these.indexOf("13. **Formation quant de l'agent cloud : oui, sur quantmemo.com.**");
     expect(d13).toBeGreaterThan(these.indexOf('12. **Rapports du Lab'));
-    expect(these.slice(d13, these.indexOf('\n', d13))).toContain('Livrée : CLD36 à CLD49.');
+    expect(these.slice(d13, these.indexOf('\n', d13))).toContain('Livrée : CLD36 à CLD49 ;');
     expect(these).toContain("Le 3 novembre 2026, l'ADMIN a demandé la formation quant de l'agent cloud");
 
     // L'audit : une ligne par ticket, de CLD36 à CLD49, dans la section de la formation (LAB7 vérifie qu'aucun n'est doublé).
@@ -55,5 +55,26 @@ describe('agent cloud · formation quant, documentation', () => {
     const rows = audit.split('\n').filter((line) => /^\| (CLD|LAB)\d+ \|/.test(line)).map((line) => line.split('|')[1]!.trim());
     expect(rows).toEqual(['LAB7', ...Array.from({ length: 14 }, (_, i) => `CLD${36 + i}`)]);
     for (const heading of ['**Décisions tranchées.**', '**Vérifications.**', '**Non vérifié.**', "**Recette de l'ADMIN, desk lancé.**"]) expect(audit, heading).toContain(heading);
+  });
+
+  it('CLD60 la relecture adverse est consignée : une ligne par ticket, des lignes citées qui existent, et les renvois des documents', () => {
+    const audit = section('docs/AUDIT.md', '## Agent cloud — formation quant, relecture adverse (2026-11-03)');
+    const rows = audit.split('\n').filter((line) => /^\| CLD\d+ \|/.test(line));
+    expect(rows.map((line) => line.split('|')[1]!.trim())).toEqual(Array.from({ length: 11 }, (_, i) => `CLD${50 + i}`));
+    for (const heading of ['**Constats.**', '**Vérifications.**', '**Non vérifié.**', "**Recette de l'ADMIN, en plus de la précédente.**"]) expect(audit, heading).toContain(heading);
+    // Chaque ligne citée sur le HEAD (hors « avant correctif ») tombe dans son fichier.
+    for (const line of rows) {
+      let file = '';
+      const before = [...line.matchAll(/\([^()]*avant correctif\)/g)].map((m) => [m.index, m.index + m[0].length] as const);
+      for (const m of line.matchAll(/`((?:electron|src)\/[\w./-]+\.tsx?)?:(\d+)(?:-(\d+))?`/g)) {
+        if (m[1]) file = m[1];
+        if (before.some(([a, b]) => m.index >= a && m.index < b)) continue;
+        const last = Number(m[3] ?? m[2]);
+        expect(file, line.slice(0, 12)).not.toBe('');
+        expect(readFileSync(file, 'utf8').split('\n').length, `${file}:${last}`).toBeGreaterThanOrEqual(last);
+      }
+    }
+    expect(readFileSync('docs/AGENT-CLOUD.md', 'utf8')).toContain('relus par CLD50 à CLD60');
+    expect(readFileSync('docs/THESE-AGENTIQUE.md', 'utf8')).toContain('Livrée : CLD36 à CLD49 ; relue : CLD50 à CLD60.');
   });
 });
