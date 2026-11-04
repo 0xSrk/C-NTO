@@ -42,28 +42,45 @@ export interface TraceRow {
 export const ARGS_MAX = 120;
 const VALUE_MAX = 32;
 const MASK = '••••';
-/** Un nom d'argument qui porte un secret : sa valeur n'est jamais montrée. */
+/** Un nom d'argument qui porte un secret : sa valeur n'est jamais montrée, à quelque profondeur qu'il soit. */
 const SECRET_KEY = /token|key|secret|pass(?:word)?|auth|bearer|credential|cookie|signature/i;
-/** Une valeur qui a la forme d'un secret (clé d'API, jeton, JWT, longue chaîne opaque) : masquée, quel que soit son nom. */
-const SECRET_VALUE = /^(?:sk[-_]|pk[-_]|rk[-_]|xox[abprs]-|gh[pousr]_|github_pat_|glpat-|eyJ)|^[A-Za-z0-9+/_=-]{32,}$/;
+/**
+ * Les formes d'un secret (clé d'API, jeton, JWT, en-tête `Bearer`, longue chaîne opaque), où qu'elles soient dans une
+ * chaîne : chacune est remplacée par le masque, le reste de la chaîne se lit.
+ */
+const SECRET_SPAN = /\b[Bb]earer\s+\S+|\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]*|\bxox[abprs]-[A-Za-z0-9-]*|\bgh[pousr]_[A-Za-z0-9_]*|\bgithub_pat_[A-Za-z0-9_]*|\bglpat-[A-Za-z0-9_-]*|\beyJ[A-Za-z0-9_.-]*|[A-Za-z0-9+/_=-]{32,}/g;
+/** Dans un texte illisible : une paire dont le nom porte un secret (`"api_key": "…"`, `token=…`), sa valeur jusqu'au bout si elle n'est pas close. */
+const SECRET_PAIR = /("?)([\w$.-]*(?:token|key|secret|pass(?:word)?|auth|bearer|credential|cookie|signature)[\w$.-]*)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?|[^\s,;}\]]+)/gi;
 
 function bounded(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** Les arguments d'un appel, bornés : `clé valeur · clé valeur` ; une clé ou un jeton n'y paraît jamais. */
+/** Une chaîne, ses secrets masqués, ses blancs réduits. */
+const scrubText = (text: string): string => text.replace(SECRET_SPAN, MASK).replace(/\s+/g, ' ').trim();
+
+/** Une valeur, ses secrets masqués à toute profondeur : chaque nom qui porte un secret, chaque chaîne qui en contient un. */
+function scrubValue(value: unknown): unknown {
+  if (typeof value === 'string') return scrubText(value);
+  if (Array.isArray(value)) return value.map(scrubValue);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, SECRET_KEY.test(key) ? MASK : scrubValue(v)]));
+  return value;
+}
+
+/** Les arguments d'un appel, bornés : `clé valeur · clé valeur` ; une clé ou un jeton n'y paraît jamais (OROS5.41a). */
 export function argsSummary(raw: string): string {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw || '{}');
   } catch {
-    return SECRET_VALUE.test(raw.trim()) ? MASK : bounded(raw.replace(/\s+/g, ' ').trim(), ARGS_MAX);
+    // Illisibles (un flux coupé, un JSON mal formé) : le texte, ses paires secrètes et ses formes de secret masquées.
+    return bounded(scrubText(raw.replace(SECRET_PAIR, (_m, quote: string, name: string, sep: string) => `${quote}${name}${quote}${sep}${MASK}`)), ARGS_MAX);
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return '';
   const parts = Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
     if (SECRET_KEY.test(key)) return `${key} ${MASK}`;
-    if (typeof value === 'string') return `${key} ${SECRET_VALUE.test(value.trim()) ? MASK : bounded(value.replace(/\s+/g, ' ').trim(), VALUE_MAX)}`;
-    return `${key} ${bounded(JSON.stringify(value) ?? '', VALUE_MAX)}`;
+    if (typeof value === 'string') return `${key} ${bounded(scrubText(value), VALUE_MAX)}`;
+    return `${key} ${bounded(JSON.stringify(scrubValue(value)) ?? '', VALUE_MAX)}`;
   });
   return bounded(parts.join(' · '), ARGS_MAX);
 }

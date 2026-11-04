@@ -84,6 +84,38 @@ describe('OROS5.41 la trace des outils sous chaque réponse', () => {
     expect(argsSummary('ghp_0123456789abcdef0123456789abcdef0123')).toBe('••••');
   });
 
+  it('OROS5.41a une clé ou un jeton n’y paraît jamais : ni dans des arguments illisibles, ni imbriqué, ni au milieu d’une chaîne', () => {
+    const KEY = 'sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const cases: [string, string][] = [
+      // Illisibles : un flux coupé, une virgule finale d'un modèle local.
+      [`{"title": "x", "api_key": "${KEY}"`, KEY.slice(0, 12)],
+      ['{"title": "x", "token": "abcd1234efgh",}', 'abcd1234efgh'],
+      ["{title: 'x', password: hunter2hunter2}", 'hunter2'],
+      // Imbriqués : un objet, un tableau.
+      ['{"filter":{"token":"hunter2hunter2"}}', 'hunter2'],
+      ['{"params":{"api_key":"zzz-secret-value"}}', 'zzz-secret'],
+      [`{"tags":["${KEY}"]}`, 'sk-ant'],
+      [`{"params":{"list":[{"auth":"letmein-please"}]}}`, 'letmein'],
+      // Au milieu d'une chaîne.
+      [`{"body":"Bearer ${KEY}"}`, 'sk-ant'],
+      ['{"body":"Authorization: Bearer abc.def.ghi"}', 'abc.def'],
+      [`{"query":"my key is ${KEY}"}`, 'sk-ant'],
+      [`{"note":"jeton ghp_0123456789abcdef0123456789abcdef0123 copié"}`, 'ghp_'],
+    ];
+    for (const [args, secret] of cases) {
+      const text = argsSummary(args);
+      expect(text, args).not.toContain(secret);
+      expect(text, args).toContain('••••');
+      expect(text.length, args).toBeLessThanOrEqual(ARGS_MAX);
+    }
+    expect(argsSummary('{"filter":{"token":"hunter2hunter2"}}')).toBe('filter {"token":"••••"}');
+    expect(argsSummary(`{"query":"my key is ${KEY}"}`)).toBe('query my key is ••••');
+    expect(argsSummary(`{"title": "x", "api_key": "${KEY}"`)).toBe('{"title": "x", "api_key": ••••');
+    // Ce qui n'est pas un secret se lit toujours, imbriqué ou non.
+    expect(argsSummary('{"query":"cpi","limit":10,"filter":{"account":"Sim101"}}')).toBe('query cpi · limit 10 · filter {"account":"Sim101"}');
+    expect(argsSummary('{"task":"risk-list","ask":"sk"}')).toBe('task risk-list · ask sk');
+  });
+
   it('la durée de chaque appel est affichée, en millisecondes, du début de l’appel à son résultat', async () => {
     const a = answer([
       { id: 'c1', name: 'list_sessions', args: { from: '2026-10-01' } },
