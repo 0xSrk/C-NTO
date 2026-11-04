@@ -28,9 +28,9 @@ export interface ButterflyRow {
 
 /**
  * Les rangées de M.003, lues dans `byHour` : de 08 à 16 h, élargies aux heures où le journal a des entrées, pour que rien
- * ne soit caché. Gagnants : `wins` ; perdants : le reste des trades de l'heure.
+ * ne soit caché. Gagnants : `wins` ; perdants : `losses` (pnl < 0). Un trade nul ne compte que dans n, sans barre.
  */
-export function butterflyRows(byHour: readonly Pick<Bucket, 'key' | 'count' | 'wins'>[], from = BUTTERFLY_FROM, to = BUTTERFLY_TO): ButterflyRow[] {
+export function butterflyRows(byHour: readonly Pick<Bucket, 'key' | 'count' | 'wins' | 'losses'>[], from = BUTTERFLY_FROM, to = BUTTERFLY_TO): ButterflyRow[] {
   const used = byHour.filter((b) => b.count > 0).map((b) => Number(b.key)).filter((h) => Number.isInteger(h));
   const first = Math.min(from, ...used);
   const last = Math.max(to, ...used);
@@ -38,8 +38,7 @@ export function butterflyRows(byHour: readonly Pick<Bucket, 'key' | 'count' | 'w
   for (let hour = first; hour <= last; hour++) {
     const b = byHour.find((row) => Number(row.key) === hour);
     const n = b?.count ?? 0;
-    const winners = b?.wins ?? 0;
-    rows.push({ hour, winners, losers: n - winners, n });
+    rows.push({ hour, winners: b?.wins ?? 0, losers: b?.losses ?? 0, n });
   }
   return rows;
 }

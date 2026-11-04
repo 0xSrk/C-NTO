@@ -133,6 +133,21 @@ describe('OROS5.35 M.003 : gagnants et perdants par heure de New York', () => {
     expect(butterflyRows(computeTradeStats(late).byHour).map((r) => r.hour)).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
   });
 
+  it('OROS5.35a un trade nul n’est ni gagnant ni perdant : il compte dans n, sans barre, comme les statistiques du moteur', () => {
+    // Un scratch à 10:05 ET sur un compte Sim sans commission : pnl 0. Et à 11 h, un perdant et un nul.
+    const scratch = [trade('z1', '2026-07-06', 10, 0, 5), trade('z2', '2026-07-06', 11, -40), trade('z3', '2026-07-06', 11, 0, 40)];
+    const stats = computeTradeStats(scratch);
+    expect([stats.wins, stats.losses, stats.breakeven]).toEqual([0, 1, 2]);
+    const rows = butterflyRows(stats.byHour);
+    expect(rows.find((r) => r.hour === 10)).toEqual({ hour: 10, winners: 0, losers: 0, n: 1 });
+    expect(rows.find((r) => r.hour === 11)).toEqual({ hour: 11, winners: 0, losers: 1, n: 2 });
+    const g = butterflyGeometry(rows);
+    const ten = g.bars.find((b) => b.hour === 10)!;
+    // Ni barre à gauche sous « PERDANTS », ni « — » : l'heure a un trade.
+    expect([ten.win, ten.loss, ten.none, ten.count]).toEqual([null, null, false, '0/1']);
+    expect(g.bars.find((b) => b.hour === 11)!.loss!.w).toBeCloseTo(g.span, 6);
+  });
+
   it('role="img" dit la valeur, en trois langues ; gagnants / n à droite ; l’heure du curseur à l’or', async () => {
     const rows = butterflyRows(computeTradeStats(JOURNAL_TRADES).byHour);
     const node = await render(createElement(Butterfly, { rows, cursorHour: 10, hour: null, onHour: () => undefined }));
