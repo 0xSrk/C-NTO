@@ -73,6 +73,15 @@ describe('OROS5.47 · la recette sous Electron', () => {
     expect(SOURCE).not.toMatch(/env: \{ \.\.\.process\.env/);
   });
 
+  it('OROS5.47n la phrase ne passe pas au desk quelle que soit sa casse : sous Windows, CANTO_PHRASE la lit en toute casse', () => {
+    // Node sous Windows lit `process.env` sans égard à la casse, mais l'énumère dans la casse d'origine (`Path`) : une
+    // variable posée en `canto_phrase` est lue par le script, et le desk la relirait de même.
+    expect(launchEnv({ canto_phrase: 'p', PATH: '/bin' }, {})).toEqual({ PATH: '/bin' });
+    expect(launchEnv({ Canto_Phrase: 'p', Path: 'C:\\Windows' }, { canto_phrase: 'q', HOME: '/h' })).toEqual({ Path: 'C:\\Windows', HOME: '/h' });
+    // les autres variables gardent leur nom et leur valeur, dans leur casse
+    expect(launchEnv({ CANTO_PHRASES: 'x', canto: 'y' }, {})).toEqual({ CANTO_PHRASES: 'x', canto: 'y' });
+  });
+
   it('ne prend un dossier de données de banc que sous Linux ; Electron du dépôt, son bac à sable demandé sauf pour root sous Linux', () => {
     const env = dataEnv('linux', '/banc');
     expect(Object.keys(env).sort()).toEqual(['HOME', 'XDG_CONFIG_HOME']);

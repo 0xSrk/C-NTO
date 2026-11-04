@@ -124,10 +124,13 @@ export const DEBUG_PORTS_NOTICE =
   'tout process local qui les joint exécute du code dans le desk, coffre ouvert, clés et pont compris. ' +
   'Ne lancez --reel que sur un poste à un seul compte, sans autre logiciel ouvert, et fermez le desk à la fin.';
 
-/** L'environnement du desk : celui du script, sans la phrase, qui reste au script et n'est saisie qu'au verrou. */
+/**
+ * L'environnement du desk : celui du script, sans la phrase, qui reste au script et n'est saisie qu'au verrou. Sous
+ * Windows, `process.env.CANTO_PHRASE` la lit en toute casse, mais l'environnement s'énumère dans la casse d'origine : la
+ * phrase sort quelle que soit la sienne (OROS5.47n).
+ */
 export function launchEnv(base, extra) {
-  const { CANTO_PHRASE: _phrase, ...rest } = { ...base, ...extra };
-  return rest;
+  return Object.fromEntries(Object.entries({ ...base, ...extra }).filter(([key]) => key.toUpperCase() !== 'CANTO_PHRASE'));
 }
 
 /** L'environnement d'un dossier de données de banc : Linux seulement, où le desk suit XDG_CONFIG_HOME. */
