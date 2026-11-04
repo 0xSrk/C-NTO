@@ -37,6 +37,7 @@ import { etDateKey } from '@/lib/time';
 import { useKillLatch } from '@/app/killState';
 import { etClock } from '@/app/objects/index';
 import { useBridge } from '@/store/bridge';
+import { useDayClose } from '@/store/dayClose';
 import { useJournal } from '@/store/journal';
 import { useLinks } from '@/store/links';
 import { useMacro } from '@/store/macro';
@@ -153,6 +154,7 @@ afterEach(() => {
   useBridge.setState({ nt: null });
   useJournal.setState({ sessions: [], trades: [] });
   useSettings.setState({ settings: DEFAULT_SETTINGS });
+  useDayClose.setState({ closes: [] });
   useI18n.setState({ locale: 'fr' });
 });
 
@@ -379,6 +381,29 @@ describe('OROS5.22 · les bornes du jour dans la barre d’état', () => {
     expect(second).not.toBeNull();
     mount(createElement(Shell, null, createElement(Probe)));
     expect(borneCells(second!).map((c) => c.value)).toEqual(cells().map((c) => c.querySelector('b')!.querySelector('span')?.textContent ?? c.querySelector('b')!.textContent));
+  });
+
+  it('OROS5.48n la limite retirée après la fermeture : la cellule de perte dit la journée fermée, sans signe de source', () => {
+    // Sim101 suivi : −300 $ à 10:19 ET, −320 $ à 10:39 ET, +80 $ à 10:49 ET ; la journée est fermée depuis 10:40 ET, puis
+    // le trader retire sa limite (ni plan, ni perte du jour réglée) ; le pont est hors ligne
+    const SIM = 'Sim101';
+    useJournal.setState({
+      sessions: [session('s1', TODAY, -540, 3, SIM)],
+      trades: [trade('t1', 's1', Date.parse('2026-10-27T14:18:00Z'), -300, SIM), trade('t2', 's1', Date.parse('2026-10-27T14:38:00Z'), -320, SIM), trade('t3', 's1', Date.parse('2026-10-27T14:48:00Z'), 80, SIM)],
+    });
+    useDayClose.setState({ closes: [{ day: TODAY, account: SIM, at: Date.parse('2026-10-27T14:40:00Z') }] });
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: '', planAccount: SIM, traderRules: { ...RULES, maxDailyLoss: 0, maxTradesPerDay: 0 } } });
+    mount();
+    const loss = cell('loss')!;
+    expect(loss.dataset.level).toBe('3');
+    expect(valueOf('loss')).toBe('540 · journée fermée depuis 10:40 ET');
+    // aucune limite : ni le mot du plan, ni C.109, le signe des règles du trader
+    expect(loss.querySelector('[data-source]')).toBeNull();
+    expect(loss.querySelector('svg.skg-109')).toBeNull();
+    // la limite rendue, le signe de sa source revient
+    act(() => useSettings.setState({ settings: { ...useSettings.getState().settings, traderRules: { ...RULES, maxDailyLoss: 600, maxTradesPerDay: 0 } } }));
+    expect(cell('loss')!.querySelector('[data-source]')?.getAttribute('data-source')).toBe('trader');
+    expect(cell('loss')!.querySelector('[data-source] svg.skg-109')).not.toBeNull();
   });
 });
 
