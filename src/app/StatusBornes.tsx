@@ -103,12 +103,18 @@ function undated(bare: string, dated: string | null): Pick<BorneCell, 'valueShor
 
 function lossCell(b: DayBornes): BorneCell | null {
   const { loss } = b;
-  if (loss.limit === null) return null;
-  const limit = fmtUsd(loss.limit);
+  // La journée fermée (décision 15) : dite par les mots de la garde, jusqu'à la journée CME suivante. Retirer la limite
+  // après la fermeture ne la rouvre pas : la cellule reste, et dit la seule fermeture (OROS5.48h).
+  const closed = loss.closedSince !== null ? dayClosedText(loss.closedSince) : null;
+  if (loss.limit === null && !closed) return null;
+  const limit = loss.limit === null ? null : fmtUsd(loss.limit);
   const plan = b.margin.planLabel;
   const source = loss.source === 'plan' ? (plan ? tr(`plan ${plan}`, `plan ${plan}`, `plan ${plan}`) : tr('plan suivi', 'tracked plan', 'plan seguido')) : tr('règle du trader', 'trader rule', 'regla del trader');
   const parts: string[] = [];
-  if (loss.value === null) parts.push(tr(`Perte du jour non lue, limite ${limit}`, `Day loss not read, limit ${limit}`, `Pérdida del día no leída, límite ${limit}`));
+  if (limit === null) {
+    parts.push(loss.value === null ? tr('Perte du jour non lue', 'Day loss not read', 'Pérdida del día no leída') : tr(`Perte du jour ${fmtInt(loss.value)}`, `Day loss ${fmtInt(loss.value)}`, `Pérdida del día ${fmtInt(loss.value)}`));
+    parts.push(tr('aucune limite réglée', 'no limit set', 'ningún límite ajustado'));
+  } else if (loss.value === null) parts.push(tr(`Perte du jour non lue, limite ${limit}`, `Day loss not read, limit ${limit}`, `Pérdida del día no leída, límite ${limit}`));
   else {
     parts.push(tr(`Perte du jour ${fmtInt(loss.value)} sur ${limit}`, `Day loss ${fmtInt(loss.value)} of ${limit}`, `Pérdida del día ${fmtInt(loss.value)} de ${limit}`));
     const rest = loss.remaining ?? 0;
@@ -118,12 +124,12 @@ function lossCell(b: DayBornes): BorneCell | null {
     else parts.push(tr(`dépassée de ${fmtInt(-rest)}`, `exceeded by ${fmtInt(-rest)}`, `superada en ${fmtInt(-rest)}`));
     if (loss.level === 2 && loss.consumed !== null) parts.push(tr(`${fmtPct(loss.consumed, 0)} de la limite`, `${fmtPct(loss.consumed, 0)} of the limit`, `${fmtPct(loss.consumed, 0)} del límite`));
   }
-  // La journée fermée (décision 15) : dite par les mots de la garde, jusqu'à la journée CME suivante.
-  const closed = loss.closedSince !== null ? dayClosedText(loss.closedSince) : null;
   if (closed) parts.push(closed);
-  parts.push(source, accountWords(loss.account), readFrom(b));
+  if (limit !== null) parts.push(source);
+  parts.push(accountWords(loss.account), readFrom(b));
   const dated = datedDay(b);
-  const bare = `${loss.value === null ? '—' : fmtInt(loss.value)} / ${limit}`;
+  const read = loss.value === null ? '—' : fmtInt(loss.value);
+  const bare = limit === null ? read : `${read} / ${limit}`;
   return {
     key: 'loss',
     level: loss.level,
@@ -133,7 +139,7 @@ function lossCell(b: DayBornes): BorneCell | null {
     // Fermée, la valeur le dit en entier, puis l'heure seule à l'étroit ; la réponse du temps le redit dans sa forme courte.
     value: closed ? `${bare} · ${closed}` : `${bare}${dated ? ` · ${dated}` : ''}`,
     ...(closed && loss.closedSince !== null ? { valueShort: `${bare} · ${tr('fermée', 'closed', 'cerrada')} ${etClock(loss.closedSince)}`, valueNarrow: bare } : undated(bare, dated)),
-    source: loss.source ?? 'trader',
+    ...(limit !== null ? { source: loss.source ?? 'trader' } : {}),
     stale: b.day.stale || dated !== null,
     label: parts.join(', '),
     target: borneTarget(loss.account, 'bord'),
@@ -311,7 +317,7 @@ function Cell({ cell }: { cell: BorneCell }) {
         )
       ) : null}
       {/* La source de la limite : C.109, le signe des règles du trader, ou le plan, en mot. */}
-      {cell.key === 'loss' ? (
+      {cell.key === 'loss' && cell.source ? (
         cell.source === 'plan' ? (
           <span className={s.borneSource} data-source="plan">
             {tr('plan', 'plan', 'plan')}

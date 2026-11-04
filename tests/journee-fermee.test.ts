@@ -186,6 +186,40 @@ describe('OROS5.48b · la journée fermée, côté renderer', () => {
     expect(dayCloseFor(restored as never, SIM, et(DAY, '11:45'))).toEqual(close);
   });
 
+  it('OROS5.48h la limite retirée après la fermeture : la barre d’état dit encore la journée fermée, au niveau 3', async () => {
+    const s = await desk();
+    const all = [trade('a', '10:20', -300), trade('b', '10:56', -320), trade('c', '11:40', 80)];
+    state(s, all, 0);
+    s.deskEvents.recordDayClose(et(DAY, '11:41'));
+    // le trader retire sa limite : la garde tient la journée fermée, la barre aussi
+    s.settings.useSettings.setState({ settings: { ...s.settings.useSettings.getState().settings, traderRules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 0 } } });
+    const now = et(DAY, '11:45');
+    expect(s.deskEvents.traderRuleBlocks(OPEN, now)).toEqual([{ rule: 'after_daily_limit', detail: 'journée fermée depuis 10:56 ET : perte du jour atteinte' }]);
+    const { borneCells } = await import('@/app/StatusBornes');
+    const { dayBornes, replayBornes } = await import('@/engine/bornes');
+    const { trades, sessions } = s.journal.useJournal.getState();
+    const nt = s.bridge.useBridge.getState().nt!;
+    const replay = replayBornes({ sessions, trades, account: SIM, plan: null, rules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 0 } });
+    const bornes = dayBornes(replay, { now, link: 'live', accountsAt: now - 2_000, accounts: nt.accounts, catalysts: [], dayClosedSince: s.deskEvents.trackedDayClosedSince(now) });
+    expect(bornes.loss).toMatchObject({ limit: null, closedSince: et(DAY, '10:56'), level: 3 });
+    const cells = borneCells(bornes);
+    expect(cells.map((c) => c.key)).not.toContain('settings');
+    const loss = cells.find((c) => c.key === 'loss')!;
+    expect(loss).toMatchObject({ level: 3, value: '540 · journée fermée depuis 10:56 ET', valueShort: '540 · fermée 10:56', valueNarrow: '540' });
+    expect(loss.source).toBeUndefined();
+    expect(loss.label).toBe('Perte du jour 540, aucune limite réglée, journée fermée depuis 10:56 ET, compte SimApex1, pont il y a 2 s');
+    for (const [locale, words] of [
+      ['en', 'Day loss 540, no limit set, day closed since 10:56 ET'],
+      ['es', 'Pérdida del día 540, ningún límite ajustado, jornada cerrada desde 10:56 ET'],
+    ] as const) {
+      s.i18n.useI18n.setState({ locale });
+      expect(borneCells(bornes).find((c) => c.key === 'loss')!.label, locale).toContain(words);
+    }
+    // sans fermeture ni limite, la cellule de perte ne se pose pas : « Bornes à régler », comme avant
+    const open = dayBornes(replay, { now, link: 'live', accountsAt: now - 2_000, accounts: nt.accounts, catalysts: [], dayClosedSince: null });
+    expect(borneCells(open).map((c) => c.key)).toEqual(['settings']);
+  });
+
   it('la frise, la barre d’état et le miroir de la garde disent la même chose : « journée fermée depuis hh:mm ET »', async () => {
     const s = await desk();
     state(s, [trade('a', '10:20', -300), trade('b', '10:56', -320), trade('c', '11:40', 80)], 0);
