@@ -196,7 +196,8 @@ describe('OROS5.16 la fiche, troisième colonne du châssis', () => {
     // trois actions au plus, puis la fermeture
     expect([...head.querySelectorAll('button')].map((b) => b.dataset.action)).toEqual(['calendar', 'visual', 'copy', 'close']);
     // les sections du cadre, dans l'ordre ; la fiche Séance (OROS5.26) pose M.057 en tête et ses écarts rejoués
-    expect([...drawer.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'around', 'drifts', 'properties', 'provenance']);
+    // la section Activité de chaque fiche (OROS5.38), avant la provenance
+    expect([...drawer.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'around', 'drifts', 'properties', 'activity', 'provenance']);
     expect(drawer.querySelector('[data-section="identity"]')!.textContent).toContain('2 trades · 0/2 gagnants');
     const props = [...drawer.querySelectorAll('[data-section="properties"] dt')].map((dt) => dt.textContent);
     expect(props.slice(0, 2)).toEqual(['Éval.', 'Note de séance']);

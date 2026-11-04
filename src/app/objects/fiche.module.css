@@ -146,6 +146,93 @@
   color: var(--text-2);
 }
 
+/* L'activité de l'objet (OROS5.38) : le registre du lancement, filtré sur lui ; une ligne par événement. */
+.activityScope {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.activity {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.activityRow {
+  display: grid;
+  grid-template-columns: 58px 14px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 4px;
+  border-top: 1px solid var(--line-1);
+  font: inherit;
+  text-align: left;
+  color: var(--text-1);
+  background: none;
+}
+button.activityRow {
+  cursor: pointer;
+  transition: background-color 200ms linear;
+}
+button.activityRow:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: -1px;
+}
+@media (hover: hover) {
+  button.activityRow:hover {
+    background-color: var(--bg-3);
+  }
+}
+.activityTime {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.activityGlyph {
+  width: 12px;
+  height: 12px;
+  align-self: center;
+  --k: var(--text-1);
+}
+.activityText {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.activityText b {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-0);
+}
+.activityAll {
+  display: block;
+  margin-top: 8px;
+  padding: 0;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ice);
+  background: none;
+  cursor: pointer;
+  transition: color 200ms linear;
+}
+.activityAll:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .activityAll:hover {
+    color: var(--text-0);
+  }
+}
+
 /* Propriétés : un libellé en Geist Mono, une valeur à l'ivoire ; une ligne par propriété. */
 .props {
   display: flex;

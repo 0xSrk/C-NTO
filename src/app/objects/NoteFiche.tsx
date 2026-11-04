@@ -3,7 +3,7 @@ import { tr, useI18n } from '@/i18n';
 import { formatDateFr } from '@/lib/time';
 import { useNotes } from '@/store/notes';
 import { useObjects } from '@/store/objects';
-import { copyAction, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, ObjectLink, Properties, Provenance, stamped, type FicheAction, type PropertyRow } from './Fiche';
+import { ActivitySection, copyAction, FicheHead, FicheSection, ficheTitle, linkProvenance, LinksByPredicate, ObjectLink, Properties, Provenance, stamped, type FicheAction, type PropertyRow } from './Fiche';
 import { isStrategyNote, type IndexSources } from './index';
 import s from './fiche.module.css';
 import { AroundOf } from './AroundOf';
@@ -80,6 +80,7 @@ export function NoteFiche({ target, ctx, now }: { target: EntityRef; ctx: IndexS
         <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
           <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
+        <ActivitySection target={target} ctx={ctx} />
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance lines={[`${tr('Note', 'Note', 'Nota')} · ${source} · ${noteAuthor(note)}`, ...linkProvenance(target, ctx.links)]} />
         </FicheSection>

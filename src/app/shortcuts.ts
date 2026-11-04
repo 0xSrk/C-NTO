@@ -12,8 +12,8 @@ import { KILL_SHORTCUT_FALLBACK } from './killState';
  * seule) ; aucun gestionnaire du renderer ne le lit.
  */
 
-/** Où la touche agit : le châssis, le zoom de la barre de titre, l'omnibar, la fiche, le curseur de temps, Note, le process principal. */
-export type ShortcutScope = 'desk' | 'zoom' | 'omnibar' | 'fiche' | 'frise' | 'note' | 'main';
+/** Où la touche agit : le châssis, le zoom de la barre de titre, l'omnibar, la fiche, le curseur de temps, le registre, Note, le process principal. */
+export type ShortcutScope = 'desk' | 'zoom' | 'omnibar' | 'fiche' | 'frise' | 'registre' | 'note' | 'main';
 
 /**
  * Une combinaison de touches. `key` se compare à `KeyboardEvent.key` (une lettre sans casse) ; `code`, à
@@ -91,6 +91,10 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'cursorEdge', scope: 'frise', chords: [{ key: 'Home' }, { key: 'End' }], keys: () => tr('Début · Fin', 'Home · End', 'Inicio · Fin'), label: () => tr('Début ou fin de la journée', 'Start or end of the day', 'Inicio o fin de la jornada') },
   { id: 'cursorPresent', scope: 'frise', chords: [{ key: 'Escape' }], keys: escKey, label: () => tr('Rendre le présent', 'Back to the present', 'Volver al presente') },
   { id: 'cursorOpen', scope: 'frise', chords: [{ key: 'Enter' }], keys: enterKey, label: () => tr('Ouvrir la fiche de l’objet sous le curseur', 'Open the record of the object under the cursor', 'Abrir la ficha del objeto bajo el cursor') },
+  // Le registre, en tiroir bas, quand sa liste a le focus (OROS5.38 ; src/app/RegistreDrawer.tsx).
+  { id: 'registreChoose', scope: 'registre', chords: [{ key: 'ArrowUp' }, { key: 'ArrowDown' }], keys: () => '↑ ↓', label: () => tr('Choisir une ligne du registre', 'Choose a log line', 'Elegir una línea del registro') },
+  { id: 'registreOpen', scope: 'registre', chords: [{ key: 'Enter' }], keys: enterKey, label: () => tr('Ouvrir la fiche de l’objet de la ligne', 'Open the record of the line’s object', 'Abrir la ficha del objeto de la línea') },
+  { id: 'registreClose', scope: 'registre', chords: [{ key: 'Escape', shift: 'any' }], keys: escKey, label: () => tr('Fermer le registre et rendre le focus', 'Close the log and return focus', 'Cerrar el registro y devolver el foco') },
   // Note (src/modules/note/Note.tsx).
   { id: 'newNote', scope: 'note', chords: [{ key: 'n', mod: true, alt: 'any' }], keys: () => `${modKey()}+N`, label: () => tr('Nouvelle note, dans Note', 'New note, in Note', 'Nueva nota, en Nota') },
   // Le process principal, en lecture seule.
@@ -146,6 +150,7 @@ export const HELP_SECTIONS: readonly { scope: ShortcutScope; title: () => string
   { scope: 'fiche', title: () => tr('La fiche', 'The record', 'La ficha') },
   { scope: 'omnibar', title: () => tr('L’omnibar', 'The omnibar', 'El omnibar') },
   { scope: 'frise', title: () => tr('Le curseur de temps, au tiroir de la frise', 'The time cursor, in the timeline drawer', 'El cursor de tiempo, en el cajón de la frisa') },
+  { scope: 'registre', title: () => tr('Le registre, en tiroir bas', 'The log, in the bottom drawer', 'El registro, en el cajón inferior') },
   { scope: 'note', title: () => tr('Note', 'Note', 'Nota') },
   { scope: 'main', title: () => tr('Le process principal, en lecture seule', 'The main process, read-only', 'El proceso principal, solo lectura') },
 ];

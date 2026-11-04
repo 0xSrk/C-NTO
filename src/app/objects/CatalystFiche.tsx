@@ -13,7 +13,7 @@ import { ET_ZONE, etDateKey, formatDateFr, formatTimeLocal, zonedToUtc } from '@
 import { useMacro } from '@/store/macro';
 import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
-import { catalystSourceWord, copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, MissingFiche, openDayAction, Properties, Provenance, type FicheAction } from './Fiche';
+import { ActivitySection, catalystSourceWord, copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, linkProvenance, LinksByPredicate, MissingFiche, openDayAction, Properties, Provenance, type FicheAction } from './Fiche';
 import { catalystWindow, dayWithYear, STROKE_ETAT, type IndexSources } from './index';
 import { AroundOf } from './AroundOf';
 import { EventStudy } from './EventStudy';
@@ -245,6 +245,7 @@ export function CatalystFiche({ target, ctx, now }: { target: EntityRef; ctx: In
           <LinksByPredicate target={target} ctx={ctx} now={now} />
         </FicheSection>
 
+        <ActivitySection target={target} ctx={ctx} />
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance
             lines={[

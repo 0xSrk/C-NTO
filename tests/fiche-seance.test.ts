@@ -176,7 +176,8 @@ describe('OROS5.26 la fiche Séance', () => {
     open();
     const fiche = drawer();
     expect(fiche.dataset.drawer).toBe('session');
-    expect([...fiche.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'around', 'drifts', 'properties', 'provenance']);
+    // la section Activité de chaque fiche (OROS5.38), avant la provenance
+    expect([...fiche.querySelectorAll('section')].map((sec) => sec.dataset.section)).toEqual(['identity', 'links', 'around', 'drifts', 'properties', 'activity', 'provenance']);
     // M.057 : le P&L net au numéral, le compte en lien (C.065), la date, les instruments, les étiquettes, les trades, la commission
     const ident = fiche.querySelector<HTMLElement>('[data-section="identity"]')!;
     expect(ident.querySelector('[data-ident="numeral"] b')!.textContent).toBe('−247,62');

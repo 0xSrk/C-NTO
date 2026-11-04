@@ -196,12 +196,11 @@ describe('OROS5.25 · les quatre portes du rail, en lecture', () => {
     const css = cssRules(readFileSync('src/app/shell.module.css', 'utf8'));
     expect(css.find((r) => r.selector === ".gate[data-state='pending']")?.body).toMatch(/--k: var\(--gold\)/);
     expect(css.filter((r) => /^\.gate/.test(r.selector) && r.selector !== ".gate[data-state='pending']" && /--gold/.test(r.body))).toEqual([]);
-    // le registre n'existe pas encore (OROS5.38) : son compte, sans lien
+    // « Registre n » ouvre le registre du lancement en tiroir bas (OROS5.38 ; tests/registre.test.ts)
     const registry = host!.querySelector<HTMLElement>('[data-registry]')!;
-    expect(registry.tagName).toBe('SPAN');
-    expect(registry.querySelector('a, button')).toBeNull();
+    expect(registry.tagName).toBe('BUTTON');
     expect([...registry.querySelectorAll('[aria-hidden]')].map((el) => el.textContent)).toEqual(['Registre', '0']);
-    expect(registry.textContent).toContain('Registre du lancement : 0 événement(s), en mémoire');
+    expect(registry.getAttribute('aria-label')).toBe('Registre du lancement : 0 événement(s), en mémoire — ouvrir le registre');
   });
 
   it('pont hors ligne ≠ fermé jusqu’au redémarrage', async () => {

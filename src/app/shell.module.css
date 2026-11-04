@@ -670,6 +670,18 @@
   gap: 6px;
   height: 16px;
   padding: 0 4px;
+  background: none;
+  cursor: pointer;
+  transition: color 200ms linear;
+}
+.registry:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 1px;
+}
+@media (hover: hover) {
+  .registry:hover {
+    color: var(--text-0);
+  }
 }
 .registry b {
   font-weight: 500;
@@ -1045,6 +1057,17 @@
   z-index: 3;
 }
 .withDrawer .friseDrawer {
+  right: 400px;
+}
+/* Le registre (OROS5.38) : le même tiroir bas, 240 px ; il recouvre le bas de la zone de travail sans la pousser. */
+.registreDrawer {
+  position: absolute;
+  left: var(--rail-w);
+  right: 0;
+  bottom: 100%;
+  z-index: 3;
+}
+.withDrawer .registreDrawer {
   right: 400px;
 }
 

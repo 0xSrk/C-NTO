@@ -14,6 +14,7 @@ import { useUi, type TabId } from '@/store/ui';
 import { useKillSwitch } from './killState';
 import type { EtatStroke } from './objects/index';
 import { railFit, type GatesMode } from './railFit';
+import { openRegistre } from './registre';
 import s from './shell.module.css';
 
 /**
@@ -26,7 +27,7 @@ import s from './shell.module.css';
  * Une porte ouvre ce qui la règle — la vue, puis l'élément exact — sans jamais armer ni activer : le focus se pose sur la
  * section qui la règle, jamais sur Armer ni sur Autoriser ; l'écriture reste au geste de l'opérateur, derrière le dialogue
  * du process principal. Les portes ne lisent que des états : aucune méthode d'écriture d'un store ni du process principal.
- * Le registre (OROS5.38) n'existe pas encore : son compte se pose, son lien viendra avec lui.
+ * Au bout, le lien « Registre n » ouvre le registre du lancement en tiroir bas (OROS5.38).
  */
 
 export type GateId = 'agentOrders' | 'copier' | 'agentWrite' | 'channel';
@@ -220,7 +221,11 @@ export function RailGates() {
   }, []);
   if (mode === 'none') return null;
   const gates = readGates({ orders, ordersAvailable, copier: desk?.copier ? copier : null, allowWrite, link: nt?.link ?? null, ordersOpen: nt?.ordersOpen, killed: kill.engaged });
-  const registry = tr(`Registre du lancement : ${count} événement(s), en mémoire`, `Launch log: ${count} event(s), in memory`, `Registro del lanzamiento: ${count} evento(s), en memoria`);
+  const registry = tr(
+    `Registre du lancement : ${count} événement(s), en mémoire — ouvrir le registre`,
+    `Launch log: ${count} event(s), in memory — open the log`,
+    `Registro del lanzamiento: ${count} evento(s), en memoria — abrir el registro`,
+  );
   return (
     <div className={cx(s.gates, mode === 'line' && s.gatesLine)} role="group" aria-label={tr('Portes du process principal, en lecture', 'Main process gates, read-only', 'Puertas del proceso principal, en lectura')} data-gates={mode}>
       {gates.map((g) => (
@@ -236,12 +241,11 @@ export function RailGates() {
           ) : null}
         </button>
       ))}
-      {/* Le registre (OROS5.38) : son compte, ici ; son lien viendra avec lui, rien ne peut encore l'ouvrir. */}
-      <span className={s.registry} data-registry="" title={registry}>
+      {/* « Registre n » (OROS5.38) : il ouvre le registre du lancement en tiroir bas ; Échap y rend le focus. */}
+      <button type="button" className={s.registry} data-registry="" aria-label={registry} title={registry} onClick={(event) => openRegistre(event.currentTarget)}>
         <span aria-hidden>{tr('Registre', 'Log', 'Registro')}</span>
         <b aria-hidden>{fmtInt(count)}</b>
-        <span className={s.srOnly}>{registry}</span>
-      </span>
+      </button>
     </div>
   );
 }

@@ -8,9 +8,11 @@ import { tr, useI18n } from '@/i18n';
 import { publicationInstant } from '@/lib/calendarMarks';
 import { fmtInt, plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
+import { deskEventLog, useDeskEvents } from '@/store/deskEvents';
 import { useLinks } from '@/store/links';
 import { previousObject, useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
+import { activityOf, eventLine, eventTarget, KIND_GLYPH, kindLabel, logEvents, openRegistre, registreClock, registreScope } from '../registre';
 import { matchShortcut } from '../shortcuts';
 import { objectLabel, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
 import { AccountFiche } from './AccountFiche';
@@ -472,6 +474,63 @@ export function ObjectFiche({ target }: { target: EntityRef }) {
   return <MissingFiche target={target} ctx={ctx} now={now} />;
 }
 
+/** Au plus tant de lignes d'activité dans une fiche ; le registre entier dit le reste. */
+export const ACTIVITY_MAX = 12;
+
+/**
+ * La section Activité de chaque fiche (OROS5.38) : le registre du lancement (`deskEventLog`), filtré sur l'objet, du plus
+ * récent au plus ancien — l'heure de New York, le glyphe du genre (aucun signe réservé), ce qui s'est passé. Chaque ligne
+ * ouvre la fiche de son objet, par un saut que Retour arrière défait ; « Tout le registre » ouvre le tiroir bas. La portée
+ * est écrite : depuis l'ouverture, en mémoire, 500 au plus. Lecture seule.
+ */
+export function ActivitySection({ target, ctx }: { target: EntityRef; ctx: IndexSources }) {
+  useI18n((st) => st.locale);
+  const count = useDeskEvents((d) => d.count);
+  const openObject = useObjects((o) => o.openObject);
+  const events = useMemo(() => activityOf(target, logEvents(deskEventLog), ctx), [target, ctx, count]);
+  const shown = events.slice(0, ACTIVITY_MAX);
+  return (
+    <FicheSection part="activity" title={tr('Activité', 'Activity', 'Actividad')} meta={plural(events.length, tr('événement', 'event', 'evento'), tr('événements', 'events', 'eventos'))}>
+      <p className={s.activityScope}>{registreScope()}</p>
+      {shown.length === 0 ? (
+        <p className={s.empty}>{tr('Rien depuis l’ouverture.', 'Nothing since opening.', 'Nada desde la apertura.')}</p>
+      ) : (
+        <ol className={s.activity}>
+          {shown.map((ev) => {
+            const line = eventLine(ev);
+            const to = eventTarget(ev, ctx);
+            const body = (
+              <>
+                <time className={s.activityTime} dateTime={new Date(ev.at).toISOString()}>
+                  {registreClock(ev.at)}
+                </time>
+                <Glyph name={KIND_GLYPH[ev.kind]} className={s.activityGlyph} />
+                <span className={s.activityText}>
+                  <b>{kindLabel(ev.kind)}</b> · {line.object} · {line.detail}
+                </span>
+              </>
+            );
+            return (
+              <li key={ev.seq} data-seq={ev.seq} data-kind={ev.kind}>
+                {to ? (
+                  <button type="button" className={s.activityRow} onClick={() => openObject(to, { jump: true })}>
+                    {body}
+                  </button>
+                ) : (
+                  <span className={s.activityRow}>{body}</span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <button type="button" className={s.activityAll} data-registre-open="" onClick={(event) => openRegistre(event.currentTarget)}>
+        {tr('Tout le registre', 'The whole log', 'Todo el registro')}
+      </button>
+    </FicheSection>
+  );
+}
+
 /** Un objet qui n'est plus au coffre (un lien vers une séance supprimée) : le cadre seul, ses liens et leur provenance. */
 export function MissingFiche({ target, ctx, now }: { target: EntityRef; ctx: IndexSources; now: number }) {
   return (
@@ -482,6 +541,7 @@ export function MissingFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
         <FicheSection part="links" title={tr('Liens', 'Links', 'Enlaces')} meta={plural(neighborsOf(target, ctx.links).filter((n) => n.link.kind !== 'rejete').length, tr('lien', 'link', 'enlace'), tr('liens', 'links', 'enlaces'))}>
           <LinksByPredicate target={target} ctx={ctx} now={now} />
         </FicheSection>
+        <ActivitySection target={target} ctx={ctx} />
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance lines={linkProvenance(target, ctx.links)} />
         </FicheSection>

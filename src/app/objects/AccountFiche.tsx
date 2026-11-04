@@ -19,7 +19,7 @@ import { landOn } from '../RailGates';
 import { ageText, readFrom } from '../StatusBornes';
 import { useBornesReplay, useDayBornes } from '../useDayBornes';
 import { useGuardMirror } from '../useGuardMirror';
-import { copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, ObjectLink, Provenance, type FicheAction } from './Fiche';
+import { ActivitySection, copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, linkProvenance, LinksByPredicate, ObjectLink, Provenance, type FicheAction } from './Fiche';
 import { shortDay, type EtatStroke, type IndexSources } from './index';
 import { BoundsDisk, IdentityGrid, TradeBeads, tradesOfMax, type BoundsReading } from './Instruments';
 import s from './fiche.module.css';
@@ -368,6 +368,7 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
           <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
 
+        <ActivitySection target={target} ctx={ctx} />
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance
             lines={[

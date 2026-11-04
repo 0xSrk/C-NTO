@@ -5,7 +5,7 @@ import { computeTradeStats } from '@/engine/metrics';
 import { sampleOf, type EntityRef } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtPrice, fmtUsd, plural } from '@/lib/format';
-import { copyAction, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, Properties, Provenance } from './Fiche';
+import { ActivitySection, copyAction, FicheHead, FicheSection, ficheTitle, linkProvenance, LinksByPredicate, Properties, Provenance } from './Fiche';
 import { shortDay, type IndexSources } from './index';
 import { IdentityGrid } from './Instruments';
 import { sampleWord } from './sample';
@@ -66,6 +66,7 @@ export function InstrumentFiche({ target, ctx, now }: { target: EntityRef; ctx: 
         <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
           <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
+        <ActivitySection target={target} ctx={ctx} />
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance
             lines={[

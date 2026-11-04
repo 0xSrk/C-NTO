@@ -35,6 +35,7 @@ import { useKillSwitch } from './killState';
 import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
 import { Omnibar } from './objects/Omnibar';
 import { RailGates } from './RailGates';
+import { RegistreDrawer } from './RegistreDrawer';
 import { matchShortcut } from './shortcuts';
 import { ShortcutHelp, useShortcutHelp } from './ShortcutHelp';
 import { StatusBornes } from './StatusBornes';
@@ -408,6 +409,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       <footer className={s.status} data-chassis="status">
         {/* Le tiroir de la frise (OROS5.24), déplié par la réponse au-dessus de la barre ; premier de la zone pour F6. */}
         <FriseDrawer className={s.friseDrawer} />
+        {/* Le registre du lancement (OROS5.38), en tiroir bas de 240 px, ouvert par « Registre n » ou une fiche. */}
+        <RegistreDrawer className={s.registreDrawer} />
         {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. */}
         <div className={s.statusLeft}>
           <StatusBornes />

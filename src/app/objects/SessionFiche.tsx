@@ -13,7 +13,7 @@ import { replayDiscipline } from '@/lib/frise';
 import { formatDateFr } from '@/lib/time';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
-import { EtatMark, FicheHead, FicheSection, LINK_ETAT, LinksByPredicate, linkProvenance, objectInstant, ObjectLink, predicateLabel, Properties, Provenance, sessionActions, sourceWord, stamped, ficheTitle, type PropertyRow } from './Fiche';
+import { ActivitySection, EtatMark, FicheHead, FicheSection, ficheTitle, LINK_ETAT, linkProvenance, LinksByPredicate, objectInstant, ObjectLink, predicateLabel, Properties, Provenance, sessionActions, sourceWord, stamped, type PropertyRow } from './Fiche';
 import { catalystTitle, etClock, typeWord, type IndexSources } from './index';
 import { EgoGraph, fmtR, IdentityGrid, RScaleBar, type EgoLabel } from './Instruments';
 import { useHoverLight, type LightProps } from './useHoverLight';
@@ -287,6 +287,7 @@ export function SessionFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
           <Properties rows={properties} />
         </FicheSection>
 
+        <ActivitySection target={target} ctx={ctx} />
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance
             lines={[

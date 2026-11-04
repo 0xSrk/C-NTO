@@ -7,7 +7,7 @@ import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPrice, fmtUsd } from '@/lib/format';
 import { formatDuration } from '@/lib/time';
 import { useSettings } from '@/store/settings';
-import { copyAction, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, ObjectLink, openDayAction, Properties, Provenance, sourceWord, type PropertyRow } from './Fiche';
+import { ActivitySection, copyAction, FicheHead, FicheSection, ficheTitle, linkProvenance, LinksByPredicate, ObjectLink, openDayAction, Properties, Provenance, sourceWord, type PropertyRow } from './Fiche';
 import { etClock, objectLabel, shortDay, type IndexSources } from './index';
 import { fmtR, IdentityGrid, RScaleBar } from './Instruments';
 import s from './fiche.module.css';
@@ -96,6 +96,7 @@ export function TradeFiche({ target, ctx, now }: { target: EntityRef; ctx: Index
         <FicheSection part="around" title={tr('Autour de…', 'Around…', 'Alrededor de…')}>
           <AroundOf target={target} ctx={ctx} now={now} />
         </FicheSection>
+        <ActivitySection target={target} ctx={ctx} />
         <FicheSection part="provenance" title={tr('Provenance', 'Provenance', 'Procedencia')}>
           <Provenance
             lines={[
