@@ -123,7 +123,9 @@ export function AgentOrdersPanel({ available }: { available: boolean }) {
           <CriteriaMirror
             id="agent"
             mirror={activation}
-            on={status.enabled}
+            // Après le kill switch, la politique reste activée au process principal mais la garde refuse tout : le cadre
+            // suit M.060 et la porte du rail (`readGates`, le kill switch prime), au filet graphite.
+            on={status.enabled && !killed}
             opening={tr('Activer · coupés à chaque ouverture du desk ; le dialogue du desk décide', 'Enable · cut each time the desk opens; the desk dialog decides', 'Activar · cortadas en cada apertura del desk; el diálogo del desk decide')}
           />
           <div className={s.row2}>

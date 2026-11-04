@@ -211,6 +211,21 @@ describe('OROS5.43 les critères en miroir d’Armer et d’Activer', () => {
     expect(enable).toHaveBeenCalledTimes(1);
   });
 
+  it('OROS5.43a activés puis coupés par le kill switch : le cadre d’Activer passe au filet graphite, comme M.060 et la porte du rail', async () => {
+    // Le kill switch ne désactive pas la politique du process principal : `enabled` reste vrai, la garde refuse tout.
+    useAgentOrders.setState({ status: { ...AGENT_ORDER_DEFAULTS, enabled: true, pending: false } });
+    let node = await mount(createElement(AgentOrdersPanel, { available: true }));
+    let block = node.querySelector<HTMLElement>('[data-criteria="agent"]')!;
+    expect([block.dataset.state, block.className.includes(e.plein!)]).toEqual(['on', true]);
+    act(() => root?.unmount());
+    host?.remove();
+    useKillLatch.setState({ engaged: true });
+    node = await mount(createElement(AgentOrdersPanel, { available: true }));
+    block = node.querySelector<HTMLElement>('[data-criteria="agent"]')!;
+    expect([block.dataset.state, block.className.includes(e.eteint!), block.className.includes(e.plein!)]).toEqual(['off', true, false]);
+    expect(block.querySelector('[data-criterion="kill"]')?.getAttribute('data-state')).toBe('missing');
+  });
+
   it('aucun nouvel appel d’écriture : le miroir et ses lignes ne font que lire', () => {
     for (const file of ['src/app/criteriaMirror.ts', 'src/app/Criteria.tsx']) {
       const source = readFileSync(file, 'utf8');
