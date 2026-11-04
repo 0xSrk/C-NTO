@@ -203,6 +203,15 @@ describe('OROS5.48a · le process principal ferme la journée CME à la perte du
     expect(coerceDayCloses([{ day: '2026-11-03', account: 'Sim101', at: et('2026-11-03', '10:00') }, real], now)).toEqual([real]);
   });
 
+  it('OROS5.48g closeDay : un instant de la journée en cours, mais à venir, cède la place à maintenant', async () => {
+    const h = harness({ at: et(DAY, '11:02') });
+    await h.host.enable();
+    expect(h.host.closeDay({ account: 'Sim101', at: et(DAY, '16:59') })).toBe(true);
+    expect(JSON.parse(read(path.join(h.dir, 'agent-day-close.json')))).toEqual([{ day: DAY, account: 'Sim101', at: et(DAY, '11:02') }]);
+    expect(await h.host.propose(OPEN, 'llm', null, null)).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 11:02 ET : perte du jour atteinte' });
+    expect(h.logs).toContain('agent journée fermée 2026-11-04 compte=Sim101 depuis 11:02 ET');
+  });
+
   it('la fermeture relue : bornée, sans caractère de contrôle, d’une seule journée, la plus ancienne heure', () => {
     const at = et(DAY, '10:56');
     expect(parseDayClose({ day: DAY, account: ' Sim101 ', at })).toEqual({ day: DAY, account: 'Sim101', at });
