@@ -309,4 +309,19 @@ describe('OROS5.38 l’activité de chaque objet, le registre en tiroir', () => 
     useI18n.setState({ locale: 'es' });
     expect(eventLine(estimated).object).toBe('≈ Inflación CPI');
   });
+
+  it('OROS5.38b la ligne d’une alerte crypto dit le marché, le genre et le niveau en mots, dans les trois langues', () => {
+    // La forme que range `signal` (src/store/cryptoAlerts.ts) : la cible est l'identifiant du marché, le genre un code.
+    const alert: DeskEvent = { seq: 1, at: NOW, kind: 'crypto_alert', data: { alertId: 'a1', target: 'coinbase:BTC-USD', kind: 'price_above', level: 85_000, value: 85_100, author: 'user' } };
+    const temperature: DeskEvent = { seq: 2, at: NOW, kind: 'crypto_alert', data: { alertId: 'a2', target: 'temperature', kind: 'funding_median_above', level: 0.01, value: 0.012, author: 'user' } };
+    expect(eventLine(alert)).toEqual({ object: 'BTC-USD · Coinbase', detail: 'Prix au-dessus de 85\u202f000,00 USD' });
+    expect(eventLine(temperature)).toEqual({ object: 'Température · Binance', detail: 'Funding médian au-dessus de +0,0100 %' });
+    useI18n.setState({ locale: 'en' });
+    expect(eventLine(alert)).toEqual({ object: 'BTC-USD · Coinbase', detail: 'Price above 85,000.00 USD' });
+    useI18n.setState({ locale: 'es' });
+    expect(eventLine(alert).detail).toBe('Precio por encima de 85.000,00 USD');
+    // Aucun code interne à l'écran.
+    for (const line of [eventLine(alert), eventLine(temperature)]) expect(`${line.object} ${line.detail}`).not.toMatch(/price_above|funding_median|coinbase:/);
+  });
 });
+

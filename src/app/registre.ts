@@ -5,12 +5,14 @@ import { DESK_EVENT_KINDS, type DeskEventKind } from '@/engine/agent/catalog';
 import { AGENT_CONFIRM_TIMEOUT_MS, AGENT_ORDER_REFUSALS, type AgentOrderRefusal } from '@/engine/agent/orders';
 import { EVENT_LOG_MAX, EVENTS_PAGE_MAX, type DeskEvent, type DeskEventLog } from '@/engine/agent/events';
 import type { CalEvent } from '@/engine/calendar';
+import { CRYPTO_ALERT_KINDS, type CryptoAlert, type CryptoAlertKind } from '@/engine/crypto/alerts';
 import { resolveSymbol } from '@/engine/instruments';
 import { catalystLabel, familyKey } from '@/engine/macroMerge';
 import type { DisciplineFinding } from '@/engine/discipline';
 import type { Session, Trade } from '@/engine/types';
 import { tr } from '@/i18n';
 import { refusalLabel } from '@/lib/agentOrderLabels';
+import { alertKindText, alertLevelText, alertTargetText } from '@/lib/cryptoAlertText';
 import { trEventTitle } from '@/lib/eventTitles';
 import { cmeDay } from '@/lib/frise';
 import { dateTimeFormatter, ET_ZONE } from '@/lib/time';
@@ -290,8 +292,15 @@ export function eventLine(ev: DeskEvent): { object: string; detail: string } {
       const detail = d.detail && typeof d.detail === 'object' ? (d.detail as DisciplineFinding['detail']) : {};
       return { object: pair(d.instrument, d.account), detail: FINDING_KINDS.includes(kind) ? findingWords({ kind, detail, instrument: str(d.instrument) }) : kind || '—' };
     }
-    case 'crypto_alert':
-      return { object: str(d.target) || '—', detail: str(d.kind) || '—' };
+    case 'crypto_alert': {
+      // Comme le toast du même franchissement : le marché par son libellé, le genre et le niveau dans son unité.
+      const target = str(d.target) as CryptoAlert['target'];
+      const kind = str(d.kind);
+      const level = num(d.level);
+      if (!(CRYPTO_ALERT_KINDS as readonly string[]).includes(kind)) return { object: target ? alertTargetText(target) : '—', detail: kind || '—' };
+      const words = alertKindText(kind as CryptoAlertKind);
+      return { object: target ? alertTargetText(target) : '—', detail: level === null ? words : `${words} ${alertLevelText({ target, kind: kind as CryptoAlertKind, level })}` };
+    }
   }
 }
 
