@@ -7,9 +7,18 @@
  * dépôt, ni dans un journal, ni dans le rapport.
  *
  *   CANTO_PHRASE=… PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs node scripts/capture-oros5.mjs --out <dossier> \
- *     [--langs fr,en,es] [--sizes 1600x1000,1180x720] [--instrument "MNQ 12-26"] [--wait 180] [--data <dossier> [--demo]]
+ *     [--langs fr,en,es] [--sizes 1600x1000,1180x720] [--instrument "MNQ 12-26"] [--wait 180] (--reel | --data <dossier> [--demo])
  *
- * Conditions réelles (le poste de l'ADMIN) : sans --data, le desk ouvre son coffre réel, le pont NinjaTrader réel et son
+ * Deux portes de débogage (OROS5.47h). Pour piloter Electron, Playwright ajoute toujours `--inspect=0
+ * --remote-debugging-port=0` : pendant toute la recette, l'inspecteur Node du process principal et un port CDP du renderer
+ * écoutent sur 127.0.0.1, sans authentification, et l'Electron de node_modules n'a pas le fusible du binaire empaqueté
+ * (`enableNodeCliInspectArguments: false`, constat P2 de docs/AUDIT.md). Tout process local qui joint 127.0.0.1 peut y
+ * exécuter du code dans le process principal, qui tient le coffre ouvert, les clés et le pont. Le script le dit dans la
+ * console avant le premier lancement (DEBUG_PORTS_NOTICE) et ne pilote le coffre réel que sur --reel : un poste à un seul
+ * compte, rien d'autre d'ouvert. La phrase reste au script, qui la saisit au verrou : l'environnement passé au desk ne la
+ * porte pas (`launchEnv`).
+ *
+ * Conditions réelles (le poste de l'ADMIN, --reel) : le desk ouvre son coffre réel, le pont NinjaTrader réel et son
  * calendrier. Le script n'y écrit rien de lui-même : il navigue, lit et capture. Ce qui demande la main de l'opérateur, il
  * le dit dans la console et attend que le desk le montre (--wait secondes au plus) : ouvrir la passerelle MCP avec
  * l'écriture autorisée (Agent IA › Options), choisir « Autoriser » dans le dialogue du process principal, laisser expirer
@@ -67,7 +76,7 @@ export function frontContract(date = new Date()) {
 
 /** Les arguments de la ligne de commande. --demo n'entre jamais dans un coffre réel : il demande --data. */
 export function parseArgs(argv) {
-  const opts = { out: null, langs: [...LANGS], sizes: SIZES.map((s) => ({ ...s })), data: null, demo: false, instrument: null, waitMs: 180_000 };
+  const opts = { out: null, langs: [...LANGS], sizes: SIZES.map((s) => ({ ...s })), data: null, demo: false, reel: false, instrument: null, waitMs: 180_000 };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const value = () => {
@@ -78,6 +87,7 @@ export function parseArgs(argv) {
     if (arg === '--out') opts.out = path.resolve(value());
     else if (arg === '--data') opts.data = path.resolve(value());
     else if (arg === '--demo') opts.demo = true;
+    else if (arg === '--reel') opts.reel = true;
     else if (arg === '--instrument') opts.instrument = value();
     else if (arg === '--wait') {
       const seconds = Number(value());
@@ -102,7 +112,22 @@ export function parseArgs(argv) {
   }
   if (!opts.out) throw new Error('--out <dossier> requis');
   if (opts.demo && !opts.data) throw new Error('--demo demande --data : le jeu de démonstration n’entre jamais dans un coffre réel');
+  if (opts.reel && opts.data) throw new Error('--reel ou --data : le coffre réel ou un dossier de banc, pas les deux');
+  if (!opts.reel && !opts.data) throw new Error('sans --data, le desk ouvre son coffre réel : --reel requis, après avoir lu l’avis des deux portes de débogage');
   return opts;
+}
+
+/** OROS5.47h — ce que Playwright ouvre sur le poste, dit avant le premier lancement en conditions réelles. */
+export const DEBUG_PORTS_NOTICE =
+  'capture-oros5 : Playwright lance le desk avec --inspect=0 --remote-debugging-port=0. Pendant toute la recette, ' +
+  'l’inspecteur Node du process principal et un port CDP du renderer écoutent sur 127.0.0.1, sans authentification : ' +
+  'tout process local qui les joint exécute du code dans le desk, coffre ouvert, clés et pont compris. ' +
+  'Ne lancez --reel que sur un poste à un seul compte, sans autre logiciel ouvert, et fermez le desk à la fin.';
+
+/** L'environnement du desk : celui du script, sans la phrase, qui reste au script et n'est saisie qu'au verrou. */
+export function launchEnv(base, extra) {
+  const { CANTO_PHRASE: _phrase, ...rest } = { ...base, ...extra };
+  return rest;
 }
 
 /** L'environnement d'un dossier de données de banc : Linux seulement, où le desk suit XDG_CONFIG_HOME. */
@@ -168,6 +193,7 @@ export async function run(opts, { playwright, operator = consoleOperator, onLaun
   const env = opts.data ? dataEnv(process.platform, opts.data) : {};
   if (opts.data) for (const dir of Object.values(env)) mkdirSync(dir, { recursive: true });
   const electronPath = createRequire(import.meta.url)('electron');
+  if (!opts.data) console.warn(DEBUG_PORTS_NOTICE);
   const report = { started: new Date().toISOString(), mode: opts.data ? (opts.demo ? 'banc, démonstration' : 'banc') : 'conditions réelles', langs: opts.langs, sizes: opts.sizes, shots: [], errors: [], skipped: [], steps: [] };
   const instrument = opts.instrument ?? frontContract();
   let staged = false;
@@ -175,7 +201,7 @@ export async function run(opts, { playwright, operator = consoleOperator, onLaun
   let locale = null;
 
   for (const lang of opts.langs) {
-    const app = await playwright._electron.launch({ executablePath: electronPath, args: electronArgs(process.platform, process.getuid?.()), cwd: REPO, env: { ...process.env, ...env } });
+    const app = await playwright._electron.launch({ executablePath: electronPath, args: electronArgs(process.platform, process.getuid?.()), cwd: REPO, env: launchEnv(process.env, env) });
     const page = await app.firstWindow();
     page.on('console', (msg) => {
       if (msg.type() === 'error') report.errors.push({ lang, kind: 'console', text: msg.text().slice(0, 400) });

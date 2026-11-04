@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { dataEnv, electronArgs, frontContract, GESTURES, LANGS, parseArgs, REPO, shotName, SIZES, ZONES } from '../scripts/capture-oros5.mjs';
+import { DEBUG_PORTS_NOTICE, dataEnv, electronArgs, frontContract, GESTURES, LANGS, launchEnv, parseArgs, REPO, shotName, SIZES, ZONES } from '../scripts/capture-oros5.mjs';
 
 /**
  * OROS5.47 — la recette de la vague sous Electron (`scripts/capture-oros5.mjs`). Le script se lance sur le poste de l'ADMIN
@@ -27,7 +27,7 @@ const DESK = walk('src')
 
 describe('OROS5.47 · la recette sous Electron', () => {
   it('lit ses arguments : trois langues, deux tailles, et le jeu de démonstration jamais dans un coffre réel', () => {
-    const opts = parseArgs(['--out', 'captures']);
+    const opts = parseArgs(['--out', 'captures', '--reel']);
     expect(posix(opts.out).endsWith('/captures')).toBe(true);
     expect(opts.langs).toEqual(['fr', 'en', 'es']);
     expect(LANGS).toEqual(['fr', 'en', 'es']);
@@ -36,18 +36,41 @@ describe('OROS5.47 · la recette sous Electron', () => {
       { width: 1180, height: 720 },
     ]);
     expect(SIZES).toEqual(opts.sizes);
-    expect(opts).toMatchObject({ data: null, demo: false, instrument: null, waitMs: 180_000 });
+    expect(opts).toMatchObject({ data: null, demo: false, reel: true, instrument: null, waitMs: 180_000 });
     expect(() => parseArgs([])).toThrow(/--out/);
     expect(() => parseArgs(['--out', 'x', '--demo'])).toThrow(/coffre réel/);
     expect(parseArgs(['--out', 'x', '--data', 'banc', '--demo'])).toMatchObject({ demo: true });
-    expect(() => parseArgs(['--out', 'x', '--sizes', '1024x700'])).toThrow(/fenêtre minimale/);
-    expect(parseArgs(['--out', 'x', '--sizes', '1180x720']).sizes).toEqual([{ width: 1180, height: 720 }]);
-    expect(() => parseArgs(['--out', 'x', '--langs', 'fr,de'])).toThrow(/de/);
-    expect(parseArgs(['--out', 'x', '--langs', 'es']).langs).toEqual(['es']);
-    expect(() => parseArgs(['--out', 'x', '--wait', '30'])).toThrow(/45 s/);
-    expect(parseArgs(['--out', 'x', '--wait', '60']).waitMs).toBe(60_000);
+    expect(() => parseArgs(['--out', 'x', '--reel', '--sizes', '1024x700'])).toThrow(/fenêtre minimale/);
+    expect(parseArgs(['--out', 'x', '--reel', '--sizes', '1180x720']).sizes).toEqual([{ width: 1180, height: 720 }]);
+    expect(() => parseArgs(['--out', 'x', '--reel', '--langs', 'fr,de'])).toThrow(/de/);
+    expect(parseArgs(['--out', 'x', '--reel', '--langs', 'es']).langs).toEqual(['es']);
+    expect(() => parseArgs(['--out', 'x', '--reel', '--wait', '30'])).toThrow(/45 s/);
+    expect(parseArgs(['--out', 'x', '--reel', '--wait', '60']).waitMs).toBe(60_000);
     expect(() => parseArgs(['--out', 'x', '--phrase', 'p'])).toThrow(/inconnu/);
     expect(() => parseArgs(['--out', '--data'])).toThrow(/valeur manquante/);
+  });
+
+  it('OROS5.47h ne pilote le coffre réel que sur --reel, dit les deux portes de débogage et ne passe pas la phrase au desk', () => {
+    // Sans --data, le desk ouvre son coffre réel : Playwright y ouvre l'inspecteur du process principal et un port CDP
+    // (`--inspect=0 --remote-debugging-port=0`, toujours ajoutés par `_electron.launch`), sans authentification. Rien ne
+    // part sans un drapeau qui le dit.
+    expect(() => parseArgs(['--out', 'x'])).toThrow(/--reel/);
+    expect(() => parseArgs(['--out', 'x', '--reel', '--data', 'banc'])).toThrow(/--reel/);
+    expect(parseArgs(['--out', 'x', '--data', 'banc'])).toMatchObject({ reel: false });
+    expect(DEBUG_PORTS_NOTICE).toMatch(/--inspect=0/);
+    expect(DEBUG_PORTS_NOTICE).toMatch(/--remote-debugging-port=0/);
+    expect(DEBUG_PORTS_NOTICE).toMatch(/127\.0\.0\.1/);
+    expect(DEBUG_PORTS_NOTICE).toMatch(/sans authentification/);
+    expect(DEBUG_PORTS_NOTICE).toMatch(/un seul compte/);
+    // L'avis se dit dans la console avant le premier lancement, en conditions réelles.
+    const notice = SOURCE.indexOf('console.warn(DEBUG_PORTS_NOTICE)');
+    expect(notice).toBeGreaterThan(0);
+    expect(notice).toBeLessThan(SOURCE.indexOf('playwright._electron.launch('));
+    // La phrase reste au script, qui la saisit : le process principal du desk ne la reçoit pas dans son environnement.
+    expect(launchEnv({ CANTO_PHRASE: 'p', PATH: '/bin', HOME: '/h' }, { HOME: '/banc/home' })).toEqual({ PATH: '/bin', HOME: '/banc/home' });
+    expect(launchEnv({ CANTO_PHRASE: 'p' }, { CANTO_PHRASE: 'q' })).toEqual({});
+    expect(SOURCE).toMatch(/env: launchEnv\(process\.env, env\)/);
+    expect(SOURCE).not.toMatch(/env: \{ \.\.\.process\.env/);
   });
 
   it('ne prend un dossier de données de banc que sous Linux ; Electron du dépôt, sans bac à sable pour root seulement', () => {
