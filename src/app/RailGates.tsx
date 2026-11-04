@@ -7,7 +7,7 @@ import { desk, type AgentOrderStatus, type CopierHostStatus } from '@/lib/desk';
 import { fmtInt } from '@/lib/format';
 import { useAgentOrders } from '@/store/agentOrders';
 import { useBridge } from '@/store/bridge';
-import { useDeskEvents } from '@/store/deskEvents';
+import { deskEventLog, useDeskEvents } from '@/store/deskEvents';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi, type TabId } from '@/store/ui';
@@ -221,11 +221,20 @@ export function RailGates() {
   }, []);
   if (mode === 'none') return null;
   const gates = readGates({ orders, ordersAvailable, copier: desk?.copier ? copier : null, allowWrite, link: nt?.link ?? null, ordersOpen: nt?.ordersOpen, killed: kill.engaged });
-  const registry = tr(
-    `Registre du lancement : ${count} événement(s), en mémoire — ouvrir le registre`,
-    `Launch log: ${count} event(s), in memory — open the log`,
-    `Registro del lanzamiento: ${count} evento(s), en memoria — abrir el registro`,
-  );
+  // Le lien compte ce que le registre qu'il ouvre garde : 500 au plus (décision 13). Au-delà, son nom dit les deux nombres.
+  const kept = Math.min(count, deskEventLog.size);
+  const registry =
+    count > kept
+      ? tr(
+          `Registre du lancement : ${count} événement(s) depuis l’ouverture, les ${kept} derniers en mémoire — ouvrir le registre`,
+          `Launch log: ${count} event(s) since opening, the last ${kept} in memory — open the log`,
+          `Registro del lanzamiento: ${count} evento(s) desde la apertura, los ${kept} últimos en memoria — abrir el registro`,
+        )
+      : tr(
+          `Registre du lancement : ${kept} événement(s), en mémoire — ouvrir le registre`,
+          `Launch log: ${kept} event(s), in memory — open the log`,
+          `Registro del lanzamiento: ${kept} evento(s), en memoria — abrir el registro`,
+        );
   return (
     <div className={cx(s.gates, mode === 'line' && s.gatesLine)} role="group" aria-label={tr('Portes du process principal, en lecture', 'Main process gates, read-only', 'Puertas del proceso principal, en lectura')} data-gates={mode}>
       {gates.map((g) => (
@@ -244,7 +253,7 @@ export function RailGates() {
       {/* « Registre n » (OROS5.38) : il ouvre le registre du lancement en tiroir bas ; Échap y rend le focus. */}
       <button type="button" className={s.registry} data-registry="" aria-label={registry} title={registry} onClick={(event) => openRegistre(event.currentTarget)}>
         <span aria-hidden>{tr('Registre', 'Log', 'Registro')}</span>
-        <b aria-hidden>{fmtInt(count)}</b>
+        <b aria-hidden>{fmtInt(kept)}</b>
       </button>
     </div>
   );
