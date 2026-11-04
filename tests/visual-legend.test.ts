@@ -45,3 +45,20 @@ describe('OROS5.47k · la légende de Visual et l’étiquette de source ne se r
     expect(between.match(/<div\b/g)?.length).toBe(between.match(/<\/div>/g)?.length);
   });
 });
+
+describe('OROS5.47o · les valeurs lues au survol passent à la ligne avec la légende', () => {
+  it('la rangée des valeurs lues au survol passe à la ligne, dans la légende ; elle n’est pas absolue', () => {
+    // six valeurs avec les indicateurs par défaut (VWAP et ses bandes, EMA 21, Opening Range 15) : sans retour à la ligne,
+    // la rangée débordait de la légende, sur l'échelle des prix puis hors du graphique (1180 × 720, fiche ouverte)
+    const row = body('.legendRow');
+    expect(row).toMatch(/display: flex;/);
+    expect(row).toMatch(/flex-wrap: wrap;/);
+    expect(row).toMatch(/gap: 2px 12px;/);
+    expect(row).not.toMatch(/position: absolute|white-space: nowrap/);
+    // la rangée est dans la légende, que borne la rangée posée sur le graphique
+    const source = read('src/modules/visual/Visual.tsx');
+    const legend = source.indexOf('<div className={s.legend}>');
+    expect(source.indexOf('<div className={s.legendRow}>')).toBeGreaterThan(legend);
+    expect(source.indexOf('<div className={s.legendRow}>')).toBeLessThan(source.indexOf('<div className={s.stamp}>'));
+  });
+});

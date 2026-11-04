@@ -23,8 +23,8 @@
 }
 /*
  * La légende et l'étiquette de source partagent une seule rangée au-dessus du graphique (OROS5.47k) : la légende y passe
- * à la ligne, et l'étiquette, à 72 px de l'échelle des prix, descend sous la légende quand la rangée manque de place.
- * Aucune des deux ne recouvre l'autre, fiche ouverte ou à la fenêtre minimale.
+ * à la ligne, ses valeurs lues au survol comprises (OROS5.47o), et l'étiquette, à 72 px de l'échelle des prix, descend sous
+ * la légende quand la rangée manque de place. Aucune des deux ne recouvre l'autre, fiche ouverte ou à la fenêtre minimale.
  */
 .overlay {
   position: absolute;
@@ -64,7 +64,8 @@
 }
 .legendRow {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 2px 12px;
   color: var(--text-3);
 }
 .legendRow i {
