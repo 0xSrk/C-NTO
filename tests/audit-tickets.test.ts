@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const audit = readFileSync('docs/AUDIT.md', 'utf8');
+// CLD61 sous Windows, la copie de travail porte des fins de ligne \r\n : le fichier se lit sans elles.
+const audit = readFileSync('docs/AUDIT.md', 'utf8').replace(/\r\n/g, '\n');
 const lines = audit.split('\n');
 
 /** Les lignes des tableaux « Ticket » : identifiant de première colonne et numéro de ligne (1 d'abord). */

@@ -1572,3 +1572,11 @@ La relecture adverse de la branche `agent/formation-quant` (lentilles sécurité
 1. Après *Former l'agent*, la plaque ne doit montrer aucun « Plafond déclaré par la session » ; si elle le montre, la session a été arrêtée : la relire dans la Console et le dire.
 2. Si D · Lab affiche « Clause d'usage de quantmemo.com à confirmer par l'ADMIN », lire « Accès et conditions » du rapport de formation et décider avant de publier un rapport qui cite le savoir.
 3. Un rapport qui porte une section « Sources écartées par le desk » signale un texte injecté ou une erreur de l'agent : le dire.
+
+## Agent cloud — formation quant sous Windows (2026-11-04)
+
+La CI de #141 a rendu trois échecs sous Windows seulement ; macOS et Linux étaient verts.
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| CLD61 | `verifie.py` lisait un chemin relatif avec le séparateur du système (`os.path.relpath`, `electron/agent-cloud-formation.ts:160`) : sous Windows, `fiches\…` ne commence pas par `fiches/`, aucune fiche n'était comptée, et l'index ne se comparait plus. Le chemin se lit désormais avec `/` partout (`.replace(os.sep, '/')`), sans effet dans le bac à sable Linux de la formation. Le test lance le script avec `-X utf8`, qui fixe l'encodage de la console de l'hôte (cp1252 sous Windows rendait « écart » illisible), et lit la sortie sans ses `\r`. `tests/audit-tickets.test.ts` lit `docs/AUDIT.md` sans les fins de ligne `\r\n` de la copie de travail Windows : la ligne de séparation d'un tableau y passait pour un ticket « --- », et aucune section ne se trouvait. Rouge sans le correctif sur une copie de `docs/AUDIT.md` en `\r\n`, vert avec. | `tests/agent-cloud-formation.test.ts` › CLD57, CLD39 ; `tests/audit-tickets.test.ts` |

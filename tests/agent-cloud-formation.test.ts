@@ -89,6 +89,8 @@ describe('agent cloud · formation quant', () => {
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(prompt).toContain('écris « montant en dollars : relevé par le desk », et n’en avance aucune estimation');
     expect(prompt).toContain("python3 -I /tmp/formation/verifie.py <chemin du magasin>");
+    // CLD61 un chemin relatif se lit avec `/` quel que soit le système : `fiches/` et l'index se comparent ainsi sous Windows aussi.
+    expect(prompt).toContain("rel = os.path.relpath(p, R).replace(os.sep, '/')");
     expect(prompt).toContain("if not re.search(r'^source: https://([a-z0-9-]+\\.)*quantmemo\\.com/', t, re.M): err.append(f'{rel} : source absente')");
 
     // La langue du rapport suit celle du desk ; les fiches restent en français (un seul magasin pour tous les desks).
@@ -163,7 +165,12 @@ describe('agent cloud · formation quant', () => {
         mkdirSync(dir, { recursive: true });
         return dir;
       };
-      const run = (dir: string) => spawnSync('python3', ['-I', code, dir], { encoding: 'utf8' });
+      // CLD61 `-X utf8` fixe l'encodage de la console de l'hôte de test (cp1252 sous Windows), et la sortie se lit sans ses \r :
+      // le script, lui, est celui de la consigne, lancé par python3 -I.
+      const run = (dir: string) => {
+        const done = spawnSync('python3', ['-I', '-X', 'utf8', code, dir], { encoding: 'utf8' });
+        return { stderr: done.stderr, stdout: done.stdout.replace(/\r\n/g, '\n') };
+      };
       // Accès interdit : la consigne n'y laisse écrire qu'acces.md et etat.json ; le contrôle finit par « aucun écart ».
       const forbidden = run(store('interdit', { '_formation/acces.md': 'interdit', '_formation/etat.json': '{"schema":"canto.formation-etat/1","acces":"interdit"}' }));
       expect(forbidden.stderr).toBe('');

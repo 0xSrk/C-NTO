@@ -157,7 +157,7 @@ export function formationSystemPrompt(locale: AppLocale): string {
     'err, fiches = [], []',
     'for d, _, fs in os.walk(R):',
     '    for f in fs:',
-    '        p = os.path.join(d, f); rel = os.path.relpath(p, R); n = os.path.getsize(p)',
+    "        p = os.path.join(d, f); rel = os.path.relpath(p, R).replace(os.sep, '/'); n = os.path.getsize(p)",
     `        if n > 100_000: err.append(f'{rel} : {n} octets, plus de 100 000')`,
     `        if not rel.startswith('fiches/'): continue`,
     `        t = open(p, encoding='utf-8').read(); fiches.append((rel, n))`,
