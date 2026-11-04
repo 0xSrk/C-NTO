@@ -1,12 +1,15 @@
 /* Les instruments dessinés du desk (Système 5 « Fiche et Frise ») : des pièces de lecture, à l'encre de la zone, sans
    jeton nouveau. M.003 : le papillon par heure d'entrée à New York (OROS5.35). */
 
+/* Sa largeur est bornée (OROS5.45e) : A.03 en pleine largeur (1180 × 720, zoom 100 %) l'étirait à 834 px, des barres
+   trop longues pour une lecture d'heure ; 480 px, la largeur qu'il a dans A.03 à 1600 × 1000, à peu près. */
 .butterfly {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 34px;
   grid-template-rows: 14px repeat(var(--rows), var(--row));
   column-gap: 6px;
   width: 100%;
+  max-width: 480px;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;

@@ -177,6 +177,14 @@ describe('OROS5.35 M.003 : gagnants et perdants par heure de New York', () => {
     expect(img.getAttribute('aria-label')).toMatch(/^Trades por hora de entrada en Nueva York: 08 h ninguno; 09 h 3 ganadores de 5;/);
   });
 
+  it('OROS5.45e sa largeur est bornée : A.03 en pleine largeur ne l’étire plus au-delà de 480 px', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { cssRules } = await import('./helpers/cssRules');
+    const rule = cssRules(readFileSync('src/design/instruments/instruments.module.css', 'utf8')).find((r) => r.selector === '.butterfly' && r.at.length === 0);
+    expect(rule?.body).toMatch(/width: 100%/);
+    expect(rule?.body).toMatch(/max-width: 480px/);
+  });
+
   it('dans A.03, un clic sur une heure pose la puce Heure de la sélection partagée ; un second clic la retire', async () => {
     const node = await dashboard();
     const a03 = [...node.querySelectorAll('span')].find((el) => el.textContent?.trim() === 'A.03')!.closest('section')!;
