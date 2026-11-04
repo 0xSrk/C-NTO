@@ -6,11 +6,12 @@ import { AGENT_CONFIRM_TIMEOUT_MS, AGENT_ORDER_REFUSALS, type AgentOrderRefusal 
 import { EVENT_LOG_MAX, EVENTS_PAGE_MAX, type DeskEvent, type DeskEventLog } from '@/engine/agent/events';
 import type { CalEvent } from '@/engine/calendar';
 import { resolveSymbol } from '@/engine/instruments';
-import { familyKey } from '@/engine/macroMerge';
+import { catalystLabel, familyKey } from '@/engine/macroMerge';
 import type { DisciplineFinding } from '@/engine/discipline';
 import type { Session, Trade } from '@/engine/types';
 import { tr } from '@/i18n';
 import { refusalLabel } from '@/lib/agentOrderLabels';
+import { trEventTitle } from '@/lib/eventTitles';
 import { cmeDay } from '@/lib/frise';
 import { dateTimeFormatter, ET_ZONE } from '@/lib/time';
 import { useObjects, type ObjectRef } from '@/store/objects';
@@ -258,7 +259,8 @@ export function eventLine(ev: DeskEvent): { object: string; detail: string } {
       return { object: str(d.account) || tr('tous les comptes', 'all accounts', 'todas las cuentas'), detail: share === null ? '—' : tr(`marge ${pct(share)} du drawdown maximal`, `margin ${pct(share)} of the max drawdown`, `margen ${pct(share)} del drawdown máximo`) };
     }
     case 'catalyst':
-      return { object: str(d.title) || '—', detail: `${str(d.timeET) || '—'} ET${num(d.minutesBefore) !== null ? ` · ${tr(`annoncé ${num(d.minutesBefore)} min avant`, `announced ${num(d.minutesBefore)} min ahead`, `anunciado ${num(d.minutesBefore)} min antes`)}` : ''}` };
+      // Le nom tel que le desk l'écrit ailleurs : dans sa langue, « ≈ » devant un estimé (C.054 ; décision 13).
+      return { object: str(d.title) ? catalystLabel({ title: trEventTitle(str(d.title)), estimated: d.estimated === true }) : '—', detail: `${str(d.timeET) || '—'} ET${num(d.minutesBefore) !== null ? ` · ${tr(`annoncé ${num(d.minutesBefore)} min avant`, `announced ${num(d.minutesBefore)} min ahead`, `anunciado ${num(d.minutesBefore)} min antes`)}` : ''}` };
     case 'bridge_link':
       return { object: 'NinjaTrader 8', detail: `${str(d.from) || '—'} → ${str(d.to) || '—'}` };
     case 'agent_order': {

@@ -16,14 +16,14 @@ vi.mock('@/store/db', async (importOriginal) => ({
 
 import { ObjectDrawer } from '@/app/objects/Fiche';
 import { RailGates } from '@/app/RailGates';
-import { activityOf, closeRegistre, eventTarget, KIND_GLYPH, logEvents, openRegistre, registreScope, useRegistre, type RegistreContext } from '@/app/registre';
+import { activityOf, closeRegistre, eventLine, eventTarget, KIND_GLYPH, logEvents, openRegistre, registreScope, useRegistre, type RegistreContext } from '@/app/registre';
 import { RegistreDrawer } from '@/app/RegistreDrawer';
 import { matchShortcut, SHORTCUTS } from '@/app/shortcuts';
 import { GLYPH_ID } from '@/design/Micro';
 import { RESERVED_GLYPHS } from '@/design/micro/meaning';
 import { DESK_EVENT_KINDS, type DeskEventKind } from '@/engine/agent/catalog';
-import { EVENT_LOG_MAX, type DeskEvent } from '@/engine/agent/events';
-import type { CalEvent } from '@/engine/calendar';
+import { dueCatalysts, EVENT_LOG_MAX, type DeskEvent } from '@/engine/agent/events';
+import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import type { EntityRef } from '@/engine/ontology';
 import type { Session, Trade } from '@/engine/types';
 import { useI18n } from '@/i18n';
@@ -290,5 +290,23 @@ describe('OROS5.38 l’activité de chaque objet, le registre en tiroir', () => 
     expect(useRegistre.getState().open).toBe(true);
     expect(useRegistre.getState().origin).toBe(link);
     expect(node.querySelector('[data-registre]')).not.toBeNull();
+  });
+
+  it('OROS5.38a la ligne d’un catalyseur l’écrit comme le desk : dans sa langue, « ≈ » devant un estimé', () => {
+    // Le CPI local de juillet 2026 (2e mercredi, le 8, estimé) annoncé à 08:15 ET par le vrai chemin (`dueCatalysts`),
+    // et une publication officielle.
+    const at = Date.parse('2026-07-08T12:15:00Z');
+    const local = generateNasdaqEvents(2026).find((e) => e.date === '2026-07-08' && e.title === 'Inflation CPI')!;
+    expect(local.estimated).toBe(true);
+    const [due] = dueCatalysts([local], at, new Set());
+    const estimated: DeskEvent = { seq: 1, at, kind: 'catalyst', data: due!.data };
+    const official: DeskEvent = { seq: 2, at, kind: 'catalyst', data: { ...due!.data, source: 'bls', estimated: false } };
+    expect(eventLine(estimated).object).toBe('≈ Inflation CPI');
+    expect(eventLine(official).object).toBe('Inflation CPI');
+    useI18n.setState({ locale: 'en' });
+    expect(eventLine(estimated)).toEqual({ object: '≈ CPI inflation', detail: '08:30 ET · announced 15 min ahead' });
+    expect(eventLine(official).object).toBe('CPI inflation');
+    useI18n.setState({ locale: 'es' });
+    expect(eventLine(estimated).object).toBe('≈ Inflación CPI');
   });
 });
