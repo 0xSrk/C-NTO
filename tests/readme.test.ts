@@ -44,12 +44,8 @@ describe('README', () => {
   });
 
   it('R3.8c le README suit le desk 3.8 : Système 4.1, rail en cartouches, menu Options, verrou ouvert par un circuit', () => {
-    // « What's new » reprend mot pour mot les cinq points anglais du journal 3.8.0.
-    const journal = JSON.parse(readFileSync('src/engine/changelog/changelog.json', 'utf8')) as { entries: { version: string; highlights: { en: string[] } }[] };
-    const entry = journal.entries.find((e) => e.version === '3.8.0');
-    expect(entry?.highlights.en).toHaveLength(5);
-    const news = readme.slice(readme.indexOf("## What's new in 3.8.0"), readme.indexOf('<a id="install"></a>'));
-    for (const point of entry?.highlights.en ?? []) expect(news).toContain(point);
+    // R3.9a « What's new » suit désormais la dernière version (test R3.9a) ; la 3.8.0 garde son ancre dans l'historique.
+    expect(readme).toContain('<a id="whats-new-in-380"></a>**3.8.0**');
     expect(readme).toContain('badge/design-System%204.1%20ΟΡΟΣ');
     // Ce que le 4.1 a retiré n'est plus décrit : catégories du rail, survol inerte, plaque TIME ENGINE, accroches d'en-tête,
     // outils de Métrique hors du menu Options.
@@ -59,5 +55,28 @@ describe('README', () => {
     // Les deux plaques du premier lancement : la fiche d'accès et « DESK UNLOCKED » au cœur du circuit.
     expect(readme).toMatch(/access sheet: the phrase, its state, <b>Paste<\/b> and <b>Open<\/b>/);
     expect(readme).toMatch(/the circuit spreads around it and traces the chassis/);
+  });
+
+  it("R3.9a le README suit le desk 3.9 : « What's new » de la version publiée, formation quant du Lab, liens d’installation", () => {
+    // « What's new » reprend mot pour mot les points anglais de l'entrée du journal qui porte la version de package.json.
+    const journal = JSON.parse(readFileSync('src/engine/changelog/changelog.json', 'utf8')) as { entries: { version: string; highlights: { en: string[] } }[] };
+    const entry = journal.entries.find((e) => e.version === version);
+    expect(entry?.highlights.en.length).toBeGreaterThan(0);
+    const news = readme.slice(readme.indexOf(`## What's new in ${version}`), readme.indexOf('<a id="install"></a>'));
+    expect(news.length).toBeGreaterThan(0);
+    for (const point of entry?.highlights.en ?? []) expect(news).toContain(point);
+    expect(news).toContain(`[Release v${version}](https://github.com/0xSrk/C-NTO/releases/tag/v${version})`);
+    // Chaque lien d'installation et chaque nom d'installeur cité est celui de la version publiée.
+    const installers = [...readme.matchAll(/CANTO-(\d+\.\d+\.\d+)-(?:mac|win|linux)/g)].map((m) => m[1]);
+    expect(installers.length).toBeGreaterThanOrEqual(10);
+    expect(new Set(installers)).toEqual(new Set([version]));
+    // La formation quant est décrite là où le sont les rapports du Lab, et la ligne de sécurité de l'agent cloud la nomme.
+    const lab = readme.slice(readme.indexOf('### Lab reports'), readme.indexOf('<a id="ninjatrader-8-bridge"></a>'));
+    expect(lab).toContain('**The training.**');
+    expect(lab).toContain('Train the agent');
+    expect(lab).toContain('$25 cap');
+    expect(lab).toContain('`AGT-FRM-YYYYMMDD`');
+    expect(readme).not.toContain('The agent reads official sources only');
+    expect(readme).toContain('the training is started, resumed and stopped from the Lab\'s own desk only');
   });
 });

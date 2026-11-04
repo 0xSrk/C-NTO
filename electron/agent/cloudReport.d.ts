@@ -37,11 +37,13 @@ export interface CloudReportSession {
   costCents: number | null;
   agentVersion: number | null;
 }
+export type CloudReportKind = 'formation';
 export interface CloudReport extends CloudReportBody {
   v: 1;
   id: string;
   receivedAt: number;
   session: CloudReportSession;
+  kind?: 'formation';
 }
 export interface CloudReportSummary {
   id: string;
@@ -51,6 +53,7 @@ export interface CloudReportSummary {
   generatedAt: number | null;
   receivedAt: number;
   read: boolean;
+  kind?: 'formation';
 }
 export type ReportRefusal = 'not_object' | 'format' | 'date' | 'title' | 'sections' | 'section';
 export type ReportParse = { ok: true; report: CloudReportBody } | { ok: false; reason: ReportRefusal };
@@ -63,4 +66,4 @@ export function parseReport(raw: unknown): ReportParse;
 export function coerceStoredReport(raw: unknown): CloudReport | null;
 export function reportSummary(report: CloudReport, read: boolean): CloudReportSummary;
 export function sortReports<T extends { date: string; receivedAt: number }>(list: readonly T[]): T[];
-export function reportCodes(list: readonly { id: string; date: string; receivedAt: number }[]): Map<string, string>;
+export function reportCodes(list: readonly { id: string; date: string; receivedAt: number; kind?: 'formation' }[]): Map<string, string>;

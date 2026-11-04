@@ -24,6 +24,8 @@ export interface AgentCloudState {
   run: () => Promise<void>;
   pause: () => Promise<void>;
   unpause: () => Promise<void>;
+  train: () => Promise<void>;
+  stopTraining: () => Promise<void>;
   setKey: (text: string) => Promise<void>;
   setWorkspace: (id: string) => Promise<void>;
   setDeployment: (id: string | null) => Promise<void>;
@@ -94,6 +96,8 @@ export const useAgentCloud = create<AgentCloudState>((set, get) => {
     run: () => act((api) => api.run()),
     pause: () => act((api) => api.pause()),
     unpause: () => act((api) => api.unpause()),
+    train: () => act((api) => api.train()),
+    stopTraining: () => act((api) => api.stopTraining()),
     setKey: (text) => act((api) => api.setKey(text)),
     setWorkspace: (id) => act((api) => api.setWorkspace(id)),
     setDeployment: (id) => act((api) => api.setDeployment(id)),

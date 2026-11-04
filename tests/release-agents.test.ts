@@ -17,7 +17,7 @@ function section(file: string, title: string): string {
   return text.slice(start, next < 0 ? undefined : next);
 }
 
-describe("LAB2 la Release confiée aux agents, sous contrôle croisé (décision de l'ADMIN, 2026-11-01)", () => {
+describe("LAB5 la Release confiée aux agents, sous contrôle croisé (décision de l'ADMIN, 2026-11-01)", () => {
   it("CLAUDE.md § 3 : la Release sort de la liste de l'ADMIN avec ses deux gardes ; la fusion et la clé de siège y restent", () => {
     const s3 = section('CLAUDE.md', "## 3. Ce qui reste à l'ADMIN");
     expect(s3).not.toMatch(/Montée de version dans `package\.json`, tag `v\*`, Release/);

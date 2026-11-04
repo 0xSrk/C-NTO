@@ -130,6 +130,36 @@ describe('agent cloud · contrat canto.rapport/1', () => {
     expect(sortReports(rows).map((r) => r.id)).toEqual(['sesn_cccccccc', 'sesn_bbbbbbbb', 'sesn_aaaaaaaa']);
   });
 
+  it('CLD44 une fiche de formation garde sa marque et son code AGT-FRM ; le rapport du jour garde le sien', () => {
+    const parsed = parseReport({ ...VALID, date: '2026-11-05', title: 'Formation quant · session du 2026-11-05' });
+    if (!parsed.ok) throw new Error('rapport valide attendu');
+    const id = 'sesn_011CZkZAtmR3yMPDzynEDxFR';
+    const stored: CloudReport = { v: 1, id, ...parsed.report, receivedAt: 1_800_000_000_000, session: { id, createdAt: null, costCents: 1875, agentVersion: 1 }, kind: 'formation' };
+    // La marque se relit du disque ; une marque inconnue tombe, et une fiche ancienne, sans marque, reste un rapport du jour.
+    expect(coerceStoredReport(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
+    expect(coerceStoredReport({ ...stored, kind: 'autre' })).not.toHaveProperty('kind');
+    expect(coerceStoredReport({ ...stored, kind: undefined })).not.toHaveProperty('kind');
+    expect(reportSummary(stored, false)).toMatchObject({ id, kind: 'formation' });
+    expect(reportSummary({ ...stored, kind: undefined }, false)).not.toHaveProperty('kind');
+    // Le même jour : la formation se code AGT-FRM, le rapport quotidien garde AGT-RPT sans suffixe, la fiche prévue aussi.
+    const rows = [
+      { id: 'sesn_formation1', date: '2026-11-05', receivedAt: 1, kind: 'formation' as const },
+      { id: 'sesn_quotidien1', date: '2026-11-05', receivedAt: 2 },
+      { id: 'sesn_formation2', date: '2026-11-05', receivedAt: 3, kind: 'formation' as const },
+      { id: 'sesn_ancien0001', date: '2026-11-04', receivedAt: 0 },
+    ];
+    const codes = reportCodes(rows);
+    expect(codes.get('sesn_formation1')).toBe('AGT-FRM-20261105');
+    expect(codes.get('sesn_formation2')).toBe('AGT-FRM-20261105-2');
+    expect(codes.get('sesn_quotidien1')).toBe('AGT-RPT-20261105');
+    expect(codes.get('sesn_ancien0001')).toBe('AGT-RPT-20261104');
+    expect(reportCodes([rows[0]!, { id: 'planned', date: '2026-11-05', receivedAt: Number.MAX_SAFE_INTEGER }]).get('planned')).toBe('AGT-RPT-20261105');
+    // Le type déclaré à la main pour le process principal suit.
+    const declared = readFileSync('electron/agent/cloudReport.d.ts', 'utf8');
+    expect(declared).toContain("kind?: 'formation';");
+    expect(declared).toContain("export function reportCodes(list: readonly { id: string; date: string; receivedAt: number; kind?: 'formation' }[]): Map<string, string>;");
+  });
+
   it('la ligne du dossier ne porte pas le corps', () => {
     const parsed = parseReport(VALID);
     if (!parsed.ok) throw new Error('rapport valide attendu');

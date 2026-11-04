@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ANTHROPIC_VERSION, CloudApiError, createCloudApi, isWorkspaceId, MANAGED_AGENTS_BETA, parseDeployment, parseSession, WORKSPACE_HEADER, type FetchLike } from '../electron/agent-cloud-api';
+import { ANTHROPIC_VERSION, CloudApiError, createCloudApi, isWorkspaceId, MANAGED_AGENTS_BETA, MEMORY_BETA, parseDeployment, parseMemoryEntry, parseMemoryStore, parseSession, WORKSPACE_HEADER, type FetchLike } from '../electron/agent-cloud-api';
 
 const KEY = 'sk-ant-api03-cle-de-test-0123456789';
 const DEPL = 'depl_011CZkZcDH3vPqd7xnEfwTai';
@@ -54,6 +54,7 @@ describe('agent cloud · client Managed Agents', () => {
       lastRunAt: Date.parse('2026-10-26T06:00:04Z'),
       budgetCents: 300,
       tagged: false,
+      memoryStoreId: null,
     });
   });
 
@@ -198,6 +199,148 @@ describe('agent cloud · client Managed Agents', () => {
     const run = await h.api.runDeployment(DEPL);
     expect(h.calls[1]?.url.pathname).toBe(`/v1/deployments/${DEPL}/run`);
     expect(run).toEqual({ id: 'drun_01abc12345', createdAt: Date.parse('2026-10-27T09:00:00Z'), trigger: 'manual', sessionId: SESN, errorType: null, errorMessage: '' });
+  });
+
+  it('CLD36 un appel au magasin ne porte que agent-memory-2026-07-22 ; les autres gardent managed-agents-2026-04-01', async () => {
+    const STORE = 'memstore_011CZkZ9X2dpNyB7HsEFoRfW';
+    const MEM = 'mem_011CZkZ9X2dpNyB7HsEFoRfW';
+    const store = { type: 'memory_store', id: STORE, name: 'canto-savoir-quant', description: 'x', metadata: { canto: 'agent-cloud-formation' }, archived_at: null };
+    const h = harness((url) => {
+      if (url.pathname === '/v1/memory_stores') return json(url.search ? { data: [store, { ...store, id: 'memstore_011CZkZ9X2dpNyB7HsEFoOTH', metadata: { canto: 'agent-cloud' } }, { id: 'x' }], next_page: 'page_2' } : store);
+      if (url.pathname === `/v1/memory_stores/${STORE}`) return json({ ...store, archived_at: '2026-11-03T00:00:00Z' });
+      if (url.pathname === `/v1/memory_stores/${STORE}/memories`)
+        return json({
+          data: [
+            { type: 'memory', id: MEM, path: '/fiches/volatilite/vol.md', content_size_bytes: 4812, updated_at: '2026-11-03T10:00:00Z', content: null },
+            { type: 'memory_prefix', path: '/fiches/taux/' },
+            { type: 'memory', id: 'mem_bad', path: '/x.md' },
+            { type: 'memory', id: MEM, path: 'sans-barre.md' },
+            { type: 'memory', id: MEM, path: '/a\u0007b.md' },
+          ],
+          next_page: null,
+        });
+      if (url.pathname === `/v1/memory_stores/${STORE}/memories/${MEM}`) return json({ type: 'memory', id: MEM, path: '/_formation/etat.json', content: '{"schema":"canto.formation-etat/1"}' });
+      return json(DEPLOYMENT);
+    });
+    expect(await h.api.createMemoryStore({ name: 'canto-savoir-quant' })).toEqual({ id: STORE, name: 'canto-savoir-quant', archived: false, tagged: true });
+    expect(await h.api.getMemoryStore(STORE)).toMatchObject({ id: STORE, archived: true });
+    const stores = await h.api.listMemoryStores({ page: 'page_1' });
+    expect(stores).toEqual({ stores: [{ id: STORE, name: 'canto-savoir-quant', archived: false, tagged: true }, { id: 'memstore_011CZkZ9X2dpNyB7HsEFoOTH', name: 'canto-savoir-quant', archived: false, tagged: false }], nextPage: 'page_2' });
+    const page = await h.api.listMemories(STORE, { pathPrefix: '/fiches/', limit: 500, page: 'page_x' });
+    expect(page).toEqual({
+      entries: [
+        { kind: 'memory', id: MEM, path: '/fiches/volatilite/vol.md', sizeBytes: 4812, updatedAt: Date.parse('2026-11-03T10:00:00Z') },
+        { kind: 'prefix', id: null, path: '/fiches/taux/', sizeBytes: null, updatedAt: null },
+      ],
+      nextPage: null,
+    });
+    await h.api.listMemories(STORE, { pathPrefix: '/_formation/', depth: 1 });
+    expect(await h.api.getMemoryText(STORE, MEM, 1024)).toBe('{"schema":"canto.formation-etat/1"}');
+    await h.api.getDeployment(DEPL);
+    // Chaque appel au magasin : un seul en-tête bêta, celui des magasins, vers api.anthropic.com ; jamais les deux.
+    const [create, get, list, memories, shallow, text, deployment] = h.calls;
+    for (const call of [create, get, list, memories, shallow, text]) {
+      expect(call?.url.origin).toBe('https://api.anthropic.com');
+      expect(call?.init.redirect).toBe('manual');
+      const beta = (call?.init.headers as Record<string, string>)['anthropic-beta'];
+      expect(beta).toBe(MEMORY_BETA);
+      expect(beta).not.toMatch(/,|managed-agents/);
+    }
+    expect(MEMORY_BETA).toBe('agent-memory-2026-07-22');
+    expect((deployment?.init.headers as Record<string, string>)['anthropic-beta']).toBe('managed-agents-2026-04-01');
+    expect([create, get, list, memories, shallow, text].map((c) => `${c?.init.method} ${c?.url.pathname}`)).toEqual([
+      'POST /v1/memory_stores',
+      `GET /v1/memory_stores/${STORE}`,
+      'GET /v1/memory_stores',
+      `GET /v1/memory_stores/${STORE}/memories`,
+      `GET /v1/memory_stores/${STORE}/memories`,
+      `GET /v1/memory_stores/${STORE}/memories/${MEM}`,
+    ]);
+    expect(create?.init.body).toBe('{"name":"canto-savoir-quant"}');
+    expect(Object.fromEntries(list?.url.searchParams ?? [])).toEqual({ limit: '100', page: 'page_1' });
+    // La vue `basic` seule (une page en `full` dépasserait 2 Mio), `limit` borné à 100, `depth` envoyé seulement à 1.
+    expect(Object.fromEntries(memories?.url.searchParams ?? [])).toEqual({ path_prefix: '/fiches/', view: 'basic', limit: '100', page: 'page_x' });
+    expect(Object.fromEntries(shallow?.url.searchParams ?? [])).toEqual({ path_prefix: '/_formation/', view: 'basic', limit: '100', depth: '1' });
+    expect(text?.url.search).toBe('');
+    const calls = h.fetchImpl.mock.calls.length;
+    // Un identifiant hors forme, ou un préfixe qui ne finit pas par « / » ou coupe un segment : rien ne part.
+    await expect(h.api.getMemoryStore(DEPL)).rejects.toMatchObject({ type: 'invalid_id' });
+    await expect(h.api.getMemoryStore('memstore_../../v1/agents')).rejects.toMatchObject({ type: 'invalid_id' });
+    await expect(h.api.listMemories(MEM, { pathPrefix: '/fiches/' })).rejects.toMatchObject({ type: 'invalid_id' });
+    await expect(h.api.getMemoryText(STORE, STORE, 1024)).rejects.toMatchObject({ type: 'invalid_id' });
+    for (const bad of ['/fiches', 'fiches/', '/fiches//', '/../', '/./x/', '/a\nb/', `/${'x'.repeat(1024)}/`]) await expect(h.api.listMemories(STORE, { pathPrefix: bad })).rejects.toMatchObject({ type: 'invalid_id' });
+    expect(h.fetchImpl.mock.calls.length).toBe(calls);
+    // Un contenu au-delà de la borne n'est pas lu.
+    const big = harness(() => json({ type: 'memory', id: MEM, path: '/x.md', content: 'x'.repeat(4096) }));
+    await expect(big.api.getMemoryText(STORE, MEM, 1024)).rejects.toMatchObject({ type: 'too_large' });
+    const empty = harness(() => json({ type: 'memory', id: MEM, path: '/x.md', content: null }));
+    await expect(empty.api.getMemoryText(STORE, MEM, 1024)).rejects.toMatchObject({ type: 'unreadable' });
+    // `tagged` ne vaut que pour la métadonnée de la formation ; un magasin ou une entrée hors forme sont écartés.
+    expect(parseMemoryStore({ ...store, metadata: { canto: 'agent-cloud' } }).tagged).toBe(false);
+    expect(parseMemoryStore({ ...store, metadata: undefined }).tagged).toBe(false);
+    expect(() => parseMemoryStore({ ...store, id: 'mem_011CZkZ9X2dpNyB7HsEFoRfW' })).toThrow(CloudApiError);
+    expect(parseMemoryEntry({ type: 'memory', id: MEM, path: `/${'x'.repeat(1024)}` })).toBeNull();
+    expect(parseMemoryEntry({ type: 'autre', path: '/x/' })).toBeNull();
+  });
+
+  it('CLD37 créer, relire, retrouver par le magasin et interrompre une session, sans rien d’autre', async () => {
+    const STORE = 'memstore_011CZkZ9X2dpNyB7HsEFoRfW';
+    const raw = { id: SESN, status: 'running', created_at: '2026-11-03T20:00:00Z', updated_at: '2026-11-03T20:00:01Z', deployment_id: null, budget: { type: 'limit', max_list_cost: { amount: '2500', currency: 'USD' } } };
+    const h = harness((url, init) => {
+      if (url.pathname === '/v1/sessions' && init.method === 'GET')
+        return json({ data: [raw, { ...raw, id: 'sesn_011CZkZAtmR3yMPDzynEDxu8', status: 'idle', deployment_id: DEPL }, { id: 'pas-une-session' }], next_page: 'page_2' });
+      if (url.pathname === `/v1/sessions/${SESN}/events`) return json({ data: [] });
+      return json(raw);
+    });
+    const body = { agent: 'agent_011CZkYpogX7uDKUyvBTophP', environment_id: 'env_011CZkZ9X2dpNyB7HsEFoRfW' };
+    expect(await h.api.createSession(body)).toMatchObject({ id: SESN, status: 'running', deploymentId: null, budgetCents: 2500 });
+    expect(await h.api.getSession(SESN)).toMatchObject({ id: SESN, deploymentId: null });
+    const found = await h.api.listStoreSessions(STORE, { limit: 500 });
+    expect(found.map((s) => [s.id, s.deploymentId])).toEqual([
+      [SESN, null],
+      ['sesn_011CZkZAtmR3yMPDzynEDxu8', DEPL],
+    ]);
+    await h.api.listStoreSessions(STORE);
+    await h.api.interruptSession(SESN);
+    const [create, get, list, listDefault, interrupt] = h.calls;
+    expect([create, get, list, listDefault, interrupt].map((c) => `${c?.init.method} ${c?.url.pathname}`)).toEqual([
+      'POST /v1/sessions',
+      `GET /v1/sessions/${SESN}`,
+      'GET /v1/sessions',
+      'GET /v1/sessions',
+      `POST /v1/sessions/${SESN}/events`,
+    ]);
+    for (const call of h.calls) expect((call.init.headers as Record<string, string>)['anthropic-beta']).toBe(MANAGED_AGENTS_BETA);
+    expect(create?.init.body).toBe(JSON.stringify(body));
+    // Retrouver une session par son magasin : les plus récentes d'abord, archivées exclues, 20 au plus (chaque session rend son agent figé).
+    expect(Object.fromEntries(list?.url.searchParams ?? [])).toEqual({ memory_store_id: STORE, order: 'desc', limit: '20' });
+    expect(Object.fromEntries(listDefault?.url.searchParams ?? [])).toEqual({ memory_store_id: STORE, order: 'desc', limit: '10' });
+    // L'interruption : un événement de contrôle sans contenu, exactement ; aucune autre méthode n'envoie d'événement.
+    expect(interrupt?.init.body).toBe('{"events":[{"type":"user.interrupt"}]}');
+    expect(Object.keys(h.api).filter((name) => /message|budget|event/i.test(name))).toEqual([]);
+    expect(h.api.interruptSession.length).toBe(1);
+    const calls = h.fetchImpl.mock.calls.length;
+    await expect(h.api.getSession(DEPL)).rejects.toMatchObject({ type: 'invalid_id' });
+    await expect(h.api.interruptSession('sesn_../../v1/agents')).rejects.toMatchObject({ type: 'invalid_id' });
+    await expect(h.api.listStoreSessions(SESN)).rejects.toMatchObject({ type: 'invalid_id' });
+    expect(h.fetchImpl.mock.calls.length).toBe(calls);
+    // Hors déploiement : `deploymentId` vaut `null` ; une réponse hors forme est illisible.
+    expect(parseSession({ ...raw, deployment_id: DEPL })?.deploymentId).toBe(DEPL);
+    expect(parseSession({ ...raw, deployment_id: 'depl_x' })?.deploymentId).toBeNull();
+    expect(parseSession({ id: SESN, status: 'idle' })?.deploymentId).toBeNull();
+    const bad = harness(() => json({ id: 'x' }));
+    await expect(bad.api.createSession(body)).rejects.toMatchObject({ type: 'unreadable' });
+    await expect(bad.api.getSession(SESN)).rejects.toMatchObject({ type: 'unreadable' });
+  });
+
+  it('CLD54 une session dit son agent et la marque de formation du desk', () => {
+    const AGENT_ID = 'agent_011CZkYpogX7uDKUyvBToCOO';
+    const raw = { id: SESN, status: 'running', agent: { type: 'agent', id: AGENT_ID, version: 3 }, metadata: { canto: 'agent-cloud-formation' } };
+    expect(parseSession(raw)).toMatchObject({ agentId: AGENT_ID, agentVersion: 3, tagged: true });
+    expect(parseSession({ ...raw, metadata: { canto: 'agent-cloud' } })).toMatchObject({ tagged: false });
+    expect(parseSession({ ...raw, metadata: undefined })).toMatchObject({ tagged: false });
+    expect(parseSession({ ...raw, agent: { id: 'env_011CZkZ9X2dpNyB7HsEFoRfW' } })).toMatchObject({ agentId: null });
+    expect(parseSession({ id: SESN, status: 'idle' })).toMatchObject({ agentId: null, tagged: false });
   });
 
   it('déploiement en pause sur erreur : la cause est lue ; sans planification, rien de prévu', () => {

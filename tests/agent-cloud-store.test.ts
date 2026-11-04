@@ -15,6 +15,7 @@ const fake = vi.hoisted(() => {
     workspaceId: null,
     deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
     managed: true,
+    memoryStoreId: null,
     schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
     deployment: null,
     pulling: false,
@@ -26,6 +27,7 @@ const fake = vi.hoisted(() => {
     failures: [],
     reports: 2,
     unread: 2,
+    training: { state: 'idle', sessionId: null, startedAt: null, sessions: 0, solo: false, spent30dCents: 0, unknownCost: 0, costCents: null, budgetCents: null, capped: false, report: null, reportId: null, detail: null, progress: null },
     ...over,
   });
   const state = {
@@ -61,6 +63,8 @@ const fake = vi.hoisted(() => {
       run: note('run', () => status({ pending: 1 })),
       pause: note('pause', () => status()),
       unpause: note('unpause', () => status()),
+      train: note('train', () => status({ busy: 'train' })),
+      stopTraining: note('stopTraining', () => status({ busy: 'stop' })),
       openFolder: note('openFolder', () => true),
       onStatus: (cb: (s: unknown) => void) => {
         state.listeners.status.push(cb);
@@ -143,11 +147,15 @@ describe('agent cloud · store du renderer', () => {
     await s.provision();
     await s.pause();
     await s.unpause();
+    await s.train();
+    expect(useAgentCloud.getState().status?.busy).toBe('train');
+    await s.stopTraining();
+    expect(useAgentCloud.getState().status?.busy).toBe('stop');
     const before = useAgentCloud.getState().status;
     await s.setDeployment(null);
     expect(useAgentCloud.getState().status).toBe(before);
     expect(await s.openFolder()).toBe(true);
-    expect(fake.calls.map((c) => c[0])).toEqual(['status', 'list', 'pull', 'run', 'setKey', 'setWorkspace', 'setSchedule', 'provision', 'pause', 'unpause', 'setDeployment', 'openFolder']);
+    expect(fake.calls.map((c) => c[0])).toEqual(['status', 'list', 'pull', 'run', 'setKey', 'setWorkspace', 'setSchedule', 'provision', 'pause', 'unpause', 'train', 'stopTraining', 'setDeployment', 'openFolder']);
   });
 
   it('chargé au démarrage du desk, sans étape de démarrage qui attende le réseau', () => {
@@ -157,7 +165,7 @@ describe('agent cloud · store du renderer', () => {
   });
 
   it('le statut ne porte jamais de clé', () => {
-    const keys: (keyof AgentCloudStatus)[] = ['available', 'lab', 'keyStored', 'workspaceId', 'deploymentId', 'managed', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread'];
+    const keys: (keyof AgentCloudStatus)[] = ['available', 'lab', 'keyStored', 'workspaceId', 'deploymentId', 'managed', 'memoryStoreId', 'schedule', 'deployment', 'pulling', 'busy', 'lastPullAt', 'nextPullAt', 'error', 'pending', 'failures', 'reports', 'unread', 'training'];
     expect(Object.keys(fake.status()).sort()).toEqual([...keys].sort());
   });
 });

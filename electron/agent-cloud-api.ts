@@ -12,6 +12,11 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
 export const CLOUD_API_ORIGIN = 'https://api.anthropic.com';
 export const MANAGED_AGENTS_BETA = 'managed-agents-2026-04-01';
+/**
+ * Les magasins de mémoire (`/v1/memory_stores/**`) ont leur propre bêta, qui REMPLACE celle de Managed Agents : les deux
+ * ensemble donnent un 400. Monter un magasin sur une session ou un déploiement reste un appel de session.
+ */
+export const MEMORY_BETA = 'agent-memory-2026-07-22';
 /** Les points d'accès Managed Agents se comportent à l'identique en `2023-06-01` et `2026-10-21` ; le desk envoie déjà `2023-06-01`. */
 export const ANTHROPIC_VERSION = '2023-06-01';
 /** Une clé d'utilisateur (`sk-ant-usr-…`) vaut pour toute l'organisation : chaque appel nomme l'espace de travail visé. */
@@ -20,6 +25,8 @@ const TIMEOUT_MS = 20_000;
 /** Une réponse JSON de l'API (liste de 20 sessions et leurs agents figés) reste sous 2 Mio. */
 const JSON_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_MAX_BYTES = 16 * 1024;
+/** Une mémoire compte 100 kB au plus : sa réponse JSON (échappement compris) tient en 128 Kio. */
+const MEMORY_JSON_MAX_BYTES = 128 * 1024;
 const MESSAGE_MAX = 200;
 const RETRY_AFTER_MAX_SEC = 3600;
 
@@ -61,6 +68,8 @@ export interface DeploymentView {
   budgetCents: number | null;
   /** Posé par le desk (`metadata.canto` = `agent-cloud`) : un déploiement qu'il peut reprendre plutôt que doubler. */
   tagged: boolean;
+  /** Le magasin de mémoire monté en lecture seule dans chaque session du déploiement ; `null` sans montage. */
+  memoryStoreId: string | null;
 }
 
 export type SessionStatus = 'idle' | 'running' | 'rescheduling' | 'terminated';
@@ -79,6 +88,12 @@ export interface SessionView {
   outcomeResult: string | null;
   /** Plafond de la session (`budget.max_list_cost`), en cents ; `null` sans plafond. */
   budgetCents: number | null;
+  /** Le déploiement qui l'a lancée ; `null` pour une session créée directement (la formation). */
+  deploymentId: string | null;
+  /** L'agent de la session (`agent.id`), `null` s'il ne se lit pas. */
+  agentId: string | null;
+  /** Posé par le desk sur une session de formation (`metadata.canto` = `agent-cloud-formation`). */
+  tagged: boolean;
 }
 
 export interface SessionPage {
@@ -100,6 +115,35 @@ export interface FileView {
   filename: string;
   sizeBytes: number;
   createdAt: number | null;
+}
+
+/** Un magasin de mémoire : persistant, propre à l'espace de travail ; le desk le crée et le lit, il n'y écrit jamais. */
+export interface MemoryStoreView {
+  id: string;
+  name: string;
+  /** Archivé : en lecture seule, aucune session nouvelle ne peut plus l'attacher. */
+  archived: boolean;
+  /** Posé par le desk (`metadata.canto` = `agent-cloud-formation`) : un magasin qu'il peut reprendre plutôt que doubler. */
+  tagged: boolean;
+}
+
+export interface MemoryStorePage {
+  stores: MemoryStoreView[];
+  nextPage: string | null;
+}
+
+/** Une ligne de la liste des mémoires : une mémoire (fichier), ou un préfixe (dossier) quand la liste est bornée en profondeur. */
+export interface MemoryEntry {
+  kind: 'memory' | 'prefix';
+  id: string | null;
+  path: string;
+  sizeBytes: number | null;
+  updatedAt: number | null;
+}
+
+export interface MemoryPage {
+  entries: MemoryEntry[];
+  nextPage: string | null;
 }
 
 export interface CloudApi {
@@ -127,6 +171,28 @@ export interface CloudApi {
   runDeployment(id: string): Promise<RunView>;
   pauseDeployment(id: string): Promise<DeploymentView>;
   unpauseDeployment(id: string): Promise<DeploymentView>;
+  /** Magasin de mémoire (bêta `agent-memory-2026-07-22` seule). Le corps vient de la définition du desk, constant. */
+  createMemoryStore(body: Record<string, unknown>): Promise<MemoryStoreView>;
+  getMemoryStore(id: string): Promise<MemoryStoreView>;
+  /** Magasins non archivés de l'espace de travail, 100 par page ; `nextPage` mène à la suite. */
+  listMemoryStores(opts?: { page?: string }): Promise<MemoryStorePage>;
+  /**
+   * Mémoires sous `pathPrefix` (qui finit par `/`), en vue `basic` seule : sans contenu, une page en vue `full` dépasserait
+   * 2 Mio. `depth: 1` : enfants directs, le reste regroupé en préfixes. 100 lignes par page au plus.
+   */
+  listMemories(storeId: string, opts: { pathPrefix: string; depth?: 0 | 1; page?: string; limit?: number }): Promise<MemoryPage>;
+  /** Contenu d'une mémoire (vue `full`), refusé si la réponse dépasse `maxBytes` (128 Kio par défaut : 100 kB de contenu au plus). */
+  getMemoryText(storeId: string, memoryId: string, maxBytes?: number): Promise<string>;
+  /** Session hors déploiement (la formation) : le corps vient de la définition du desk, fait de constantes et d'identifiants. */
+  createSession(body: Record<string, unknown>): Promise<SessionView>;
+  getSession(id: string): Promise<SessionView>;
+  /** Sessions non archivées qui montent ce magasin, la plus récente d'abord ; 20 au plus (chaque session rend son agent figé). */
+  listStoreSessions(memoryStoreId: string, opts?: { limit?: number }): Promise<SessionView[]>;
+  /**
+   * Arrête la session et tous ses fils : un `user.interrupt`, sans contenu. Aucune autre méthode n'envoie d'événement ni
+   * ne change un budget : une formation se reprend par une session nouvelle.
+   */
+  interruptSession(id: string): Promise<void>;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -160,6 +226,7 @@ export function parseDeployment(raw: unknown): DeploymentView {
   const pausedError = paused && isRecord(paused.error) ? str(paused.error.type, 80) : null;
   const agent = isRecord(raw.agent) ? raw.agent : null;
   const budget = isRecord(raw.budget) ? raw.budget : null;
+  const mount = Array.isArray(raw.resources) ? raw.resources.filter(isRecord).find((r) => r.type === 'memory_store' && r.access === 'read_only') : undefined;
   return {
     id,
     name: cleanText(raw.name, 256),
@@ -175,7 +242,45 @@ export function parseDeployment(raw: unknown): DeploymentView {
     lastRunAt: schedule ? instant(schedule.last_run_at) : null,
     budgetCents: budget ? cents(budget.max_list_cost) : null,
     tagged: isRecord(raw.metadata) && raw.metadata.canto === 'agent-cloud',
+    memoryStoreId: mount ? apiId(mount.memory_store_id, 'memstore') : null,
   };
+}
+
+export function parseMemoryStore(raw: unknown): MemoryStoreView {
+  const id = isRecord(raw) ? apiId(raw.id, 'memstore') : null;
+  if (!isRecord(raw) || !id) throw new CloudApiError(0, 'unreadable', 'Magasin de mémoire illisible');
+  return {
+    id,
+    name: cleanText(raw.name, 256),
+    archived: typeof raw.archived_at === 'string',
+    tagged: isRecord(raw.metadata) && raw.metadata.canto === 'agent-cloud-formation',
+  };
+}
+
+const MEMORY_PATH_MAX = 1024;
+
+/** Chemin d'une mémoire : commence par `/`, 1 024 signes au plus, sans caractère de contrôle. */
+function memoryPath(v: unknown): string | null {
+  return typeof v === 'string' && v.startsWith('/') && v.length <= MEMORY_PATH_MAX && !/[\u0000-\u001f\u007f-\u009f]/.test(v) ? v : null;
+}
+
+/** Préfixe de liste : finit par `/` et ne compte que des segments entiers (ni vides, ni `.`, ni `..`) ; `/` seul vaut la racine. */
+export function isMemoryPrefix(v: unknown): v is string {
+  if (memoryPath(v) === null || !(v as string).endsWith('/')) return false;
+  const segments = (v as string).slice(1, -1);
+  return segments === '' || segments.split('/').every((s) => s !== '' && s !== '.' && s !== '..');
+}
+
+export function parseMemoryEntry(raw: unknown): MemoryEntry | null {
+  if (!isRecord(raw)) return null;
+  const path = memoryPath(raw.path);
+  if (!path) return null;
+  if (raw.type === 'memory_prefix') return { kind: 'prefix', id: null, path, sizeBytes: null, updatedAt: null };
+  if (raw.type !== 'memory') return null;
+  const id = apiId(raw.id, 'mem');
+  if (!id) return null;
+  const size = int(raw.content_size_bytes);
+  return { kind: 'memory', id, path, sizeBytes: size !== null && size >= 0 ? size : null, updatedAt: instant(raw.updated_at) };
 }
 
 const SESSION_STATUSES: readonly SessionStatus[] = ['idle', 'running', 'rescheduling', 'terminated'];
@@ -203,6 +308,9 @@ export function parseSession(raw: unknown): SessionView | null {
     outcomePending: results.some((r) => OUTCOME_OPEN.has(r)),
     outcomeResult: terminal.length ? (terminal[terminal.length - 1] ?? null) : null,
     budgetCents: budget ? cents(budget.max_list_cost) : null,
+    deploymentId: apiId(raw.deployment_id, 'depl'),
+    agentId: agent ? apiId(agent.id, 'agent') : null,
+    tagged: isRecord(raw.metadata) && raw.metadata.canto === 'agent-cloud-formation',
   };
 }
 
@@ -325,6 +433,8 @@ interface Call {
   maxBytes?: number;
   /** Espace de travail de cet appel seul ; absent, celui du desk. */
   workspace?: string | null;
+  /** En-tête `anthropic-beta` de cet appel, qui REMPLACE celui de Managed Agents (jamais les deux) ; absent, Managed Agents. */
+  beta?: string;
 }
 
 /** `workspace` : l'espace de travail d'une clé d'utilisateur, envoyé dans `anthropic-workspace-id` ; vide ou absent, rien. */
@@ -342,7 +452,7 @@ export function createCloudApi(deps: { key: () => string; workspace?: () => stri
     const headers: Record<string, string> = {
       'x-api-key': key,
       'anthropic-version': ANTHROPIC_VERSION,
-      'anthropic-beta': MANAGED_AGENTS_BETA,
+      'anthropic-beta': call.beta ?? MANAGED_AGENTS_BETA,
       accept: 'application/json',
     };
     if (workspace) headers[WORKSPACE_HEADER] = workspace;
@@ -394,6 +504,10 @@ export function createCloudApi(deps: { key: () => string; workspace?: () => stri
     return id;
   };
   const clampLimit = (n: number | undefined, max: number, fallback: number) => String(Number.isInteger(n) && n !== undefined && n >= 1 ? Math.min(n, max) : fallback);
+  // Le curseur est opaque : il ne fait que repasser, borné et sans caractère de contrôle.
+  const cursor = (page: string | undefined): string | null => (page && /^[\x21-\x7e]{1,512}$/.test(page) ? page : null);
+  const nextPage = (raw: unknown): string | null => (isRecord(raw) && typeof raw.next_page === 'string' && raw.next_page.length <= 512 ? raw.next_page : null);
+  const memoryStorePath = (id: string) => `/v1/memory_stores/${checked(id, 'memstore')}`;
 
   return {
     async getDeployment(id, opts) {
@@ -465,6 +579,61 @@ export function createCloudApi(deps: { key: () => string; workspace?: () => stri
     },
     async unpauseDeployment(id) {
       return parseDeployment(await json({ method: 'POST', path: `/v1/deployments/${checked(id, 'depl')}/unpause` }));
+    },
+    async createSession(body) {
+      const session = parseSession(await json({ method: 'POST', path: '/v1/sessions', body }));
+      if (!session) throw new CloudApiError(0, 'unreadable', 'Réponse illisible');
+      return session;
+    },
+    async getSession(id) {
+      const session = parseSession(await json({ method: 'GET', path: `/v1/sessions/${checked(id, 'sesn')}` }));
+      if (!session) throw new CloudApiError(0, 'unreadable', 'Réponse illisible');
+      return session;
+    },
+    async listStoreSessions(memoryStoreId, opts) {
+      const query = { memory_store_id: checked(memoryStoreId, 'memstore'), order: 'desc', limit: clampLimit(opts?.limit, 20, 10) };
+      return listOf(await json({ method: 'GET', path: '/v1/sessions', query }), parseSession);
+    },
+    async interruptSession(id) {
+      // Le statut suffit : la forme de la réponse n'est pas écrite, et rien n'en est lu.
+      const { res } = await send({ method: 'POST', path: `/v1/sessions/${checked(id, 'sesn')}/events`, body: { events: [{ type: 'user.interrupt' }] } });
+      discard(res);
+    },
+    // Magasins de mémoire : lecture, et une seule écriture, la création du magasin. Le desk n'écrit aucune mémoire.
+    async createMemoryStore(body) {
+      return parseMemoryStore(await json({ method: 'POST', path: '/v1/memory_stores', body, beta: MEMORY_BETA }));
+    },
+    async getMemoryStore(id) {
+      return parseMemoryStore(await json({ method: 'GET', path: memoryStorePath(id), beta: MEMORY_BETA }));
+    },
+    async listMemoryStores(opts) {
+      const query: Record<string, string> = { limit: '100' };
+      const page = cursor(opts?.page);
+      if (page) query.page = page;
+      const raw = await json({ method: 'GET', path: '/v1/memory_stores', query, beta: MEMORY_BETA });
+      const stores = listOf(raw, (item) => {
+        try {
+          return parseMemoryStore(item);
+        } catch {
+          return null;
+        }
+      });
+      return { stores, nextPage: nextPage(raw) };
+    },
+    async listMemories(storeId, opts) {
+      const path = `${memoryStorePath(storeId)}/memories`;
+      if (!isMemoryPrefix(opts.pathPrefix)) throw new CloudApiError(0, 'invalid_id', 'Préfixe de mémoire invalide (/…/)');
+      const query: Record<string, string> = { path_prefix: opts.pathPrefix, view: 'basic', limit: clampLimit(opts.limit, 100, 100) };
+      if (opts.depth === 1) query.depth = '1';
+      const page = cursor(opts.page);
+      if (page) query.page = page;
+      const raw = await json({ method: 'GET', path, query, beta: MEMORY_BETA });
+      return { entries: listOf(raw, parseMemoryEntry), nextPage: nextPage(raw) };
+    },
+    async getMemoryText(storeId, memoryId, maxBytes = MEMORY_JSON_MAX_BYTES) {
+      const raw = await json({ method: 'GET', path: `${memoryStorePath(storeId)}/memories/${checked(memoryId, 'mem')}`, maxBytes, beta: MEMORY_BETA });
+      if (!isRecord(raw) || typeof raw.content !== 'string') throw new CloudApiError(0, 'unreadable', 'Mémoire illisible');
+      return raw.content;
     },
   };
 }

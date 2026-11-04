@@ -532,6 +532,28 @@
           "En inglés y en español: 7D · 30D · 90D, «today» y «hoy» en el Calendario, títulos de catalizadores traducidos en el Bot; en inglés, punto decimal y «$750». El raíl solo cuenta las seguidoras del Copiador y calla sobre Cripto apagado. La actualización, sus notas y el calendario oficial salen sin cookies."
         ]
       }
+    },
+    {
+      "version": "3.9.0",
+      "date": "2026-11-04",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Formation quant, au desk du Lab : D · Lab gagne « Former l’agent ». L’agent cloud suit les cours des parcours de quantmemo.com et en écrit un savoir quant, avec ses mots et ses sources, dans un magasin de mémoire. Chaque session part d’un dialogue qui dit son plafond de 25 $ et commence par lire le robots.txt et les conditions du site ; un accès refusé l’arrête.",
+          "L’analyste quotidien monte ce savoir en lecture seule. Le rapport de formation se range au dossier, codé AGT-FRM. Dans chaque rapport, une source ne devient un lien que sur un domaine que l’agent peut lire ; les autres sont écartées et dites. Sur les autres desks, rien ne change, et rien du desk ne part vers le cloud.",
+          "Garde des ordres de l’agent : le latent du pont se lit comme le process principal le lit, le nom exact du compte d’abord, puis sans casse ni espaces. Un compte nommé « simapex1 » face à un plan sur « SimApex1 » ne compte plus pour zéro dans la marge et la perte du jour."
+        ],
+        "en": [
+          "Quant training, on the Lab’s desk: D · Lab gains “Train the agent”. The cloud agent follows the courses of the quantmemo.com roadmaps and writes a body of quant knowledge from them, in its own words and with its sources, into a memory store. Each session starts from a dialog that states its $25 cap, and first reads the site’s robots.txt and terms; a refused access stops it.",
+          "The daily analyst mounts that knowledge read-only. The training report is filed in the folder, coded AGT-FRM. In every report, a source becomes a link only on a domain the agent can read; the others are set aside and named. On other desks nothing changes, and nothing from the desk goes to the cloud.",
+          "The agent’s order guard: the bridge’s open P&L is read the way the main process reads it, exact account name first, then ignoring case and spaces. An account named “simapex1” facing a plan on “SimApex1” no longer counts as zero in the margin and the day’s loss."
+        ],
+        "es": [
+          "Formación quant, en el desk del Lab: D · Lab gana «Formar al agente». El agente en la nube sigue los cursos de los itinerarios de quantmemo.com y escribe con ellos un saber quant, con sus palabras y sus fuentes, en un almacén de memoria. Cada sesión parte de un diálogo que dice su límite de 25 $ y empieza leyendo el robots.txt y las condiciones del sitio; un acceso denegado la detiene.",
+          "El analista diario monta ese saber en solo lectura. El informe de formación se guarda en la carpeta, con el código AGT-FRM. En cada informe, una fuente solo se vuelve enlace en un dominio que el agente puede leer; las demás se apartan y se nombran. En los demás desks nada cambia, y nada del desk sale hacia la nube.",
+          "Guarda de las órdenes del agente: el latente del puente se lee como lo lee el proceso principal, primero el nombre exacto de la cuenta, luego sin mayúsculas ni espacios. Una cuenta llamada «simapex1» frente a un plan en «SimApex1» ya no cuenta como cero en el margen y la pérdida del día."
+        ]
+      }
     }
   ]
 }

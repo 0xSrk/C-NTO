@@ -53,6 +53,9 @@ export interface CloudReportSession {
   agentVersion: number | null;
 }
 
+/** Sorte de fiche : absente, un rapport quotidien ; `formation`, le rapport d'une session de formation quant. */
+export type CloudReportKind = 'formation';
+
 /** Le rapport rangé par le desk : un fichier `agent-reports/<session>.json`. */
 export interface CloudReport extends CloudReportBody {
   v: 1;
@@ -60,6 +63,8 @@ export interface CloudReport extends CloudReportBody {
   id: string;
   receivedAt: number;
   session: CloudReportSession;
+  /** Absente sur les fiches rangées avant la formation : elles restent des rapports quotidiens. */
+  kind?: CloudReportKind;
 }
 
 /** Une ligne du dossier, sans le corps. */
@@ -71,6 +76,7 @@ export interface CloudReportSummary {
   generatedAt: number | null;
   receivedAt: number;
   read: boolean;
+  kind?: CloudReportKind;
 }
 
 export type ReportRefusal = 'not_object' | 'format' | 'date' | 'title' | 'sections' | 'section';
@@ -200,11 +206,13 @@ export function coerceStoredReport(raw: unknown): CloudReport | null {
       costCents: finiteOrNull(session.costCents),
       agentVersion: finiteOrNull(session.agentVersion),
     },
+    // Une marque inconnue tombe : la fiche reste un rapport quotidien.
+    ...(raw.kind === 'formation' ? { kind: 'formation' as const } : {}),
   };
 }
 
 export function reportSummary(report: CloudReport, read: boolean): CloudReportSummary {
-  return { id: report.id, date: report.date, title: report.title, summary: report.summary, generatedAt: report.generatedAt, receivedAt: report.receivedAt, read };
+  return { id: report.id, date: report.date, title: report.title, summary: report.summary, generatedAt: report.generatedAt, receivedAt: report.receivedAt, read, ...(report.kind ? { kind: report.kind } : {}) };
 }
 
 /** Plus récent d'abord : la journée, puis la réception. */
@@ -214,14 +222,17 @@ export function sortReports<T extends { date: string; receivedAt: number }>(list
 
 /**
  * Code de la fiche, en clair : `AGT-RPT-AAAAMMJJ`, suffixé `-2`, `-3`… quand la journée compte plusieurs rapports
- * (rangés du plus ancien au plus récent). Le seul code-barres du châssis reste celui de la barre d'état.
+ * (rangés du plus ancien au plus récent). Une fiche de formation se code `AGT-FRM-AAAAMMJJ`, ses suffixes comptés à part :
+ * le rapport quotidien du même jour garde son code. Le seul code-barres du châssis reste celui de la barre d'état.
  */
-export function reportCodes(list: readonly { id: string; date: string; receivedAt: number }[]): Map<string, string> {
-  const byDay = new Map<string, { id: string; receivedAt: number }[]>();
-  for (const r of list) byDay.set(r.date, [...(byDay.get(r.date) ?? []), r]);
+export function reportCodes(list: readonly { id: string; date: string; receivedAt: number; kind?: CloudReportKind }[]): Map<string, string> {
+  const byCode = new Map<string, { id: string; receivedAt: number }[]>();
+  for (const r of list) {
+    const base = `${r.kind === 'formation' ? 'AGT-FRM' : 'AGT-RPT'}-${r.date.replace(/-/g, '')}`;
+    byCode.set(base, [...(byCode.get(base) ?? []), r]);
+  }
   const codes = new Map<string, string>();
-  for (const [date, rows] of byDay) {
-    const base = `AGT-RPT-${date.replace(/-/g, '')}`;
+  for (const [base, rows] of byCode) {
     [...rows].sort((a, b) => a.receivedAt - b.receivedAt).forEach((row, index) => codes.set(row.id, index === 0 ? base : `${base}-${index + 1}`));
   }
   return codes;

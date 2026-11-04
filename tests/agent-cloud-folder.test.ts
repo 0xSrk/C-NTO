@@ -39,8 +39,9 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   workspaceId: null,
   deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai',
   managed: true,
+  memoryStoreId: null,
   schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
-  deployment: { name: 'canto-rapport-quotidien', state: 'active', pausedReason: null, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', nextRunAt: NOW + 86_400_000, lastRunAt: NOW - 3_600_000, budgetCents: 300, agentVersion: 2 },
+  deployment: { name: 'canto-rapport-quotidien', state: 'active', pausedReason: null, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', nextRunAt: NOW + 86_400_000, lastRunAt: NOW - 3_600_000, budgetCents: 300, agentVersion: 2, memoryStoreId: null },
   pulling: false,
   busy: null,
   lastPullAt: NOW,
@@ -50,6 +51,7 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   failures: [],
   reports: 2,
   unread: 1,
+  training: { state: 'idle', sessionId: null, startedAt: null, sessions: 0, solo: false, spent30dCents: 0, unknownCost: 0, costCents: null, budgetCents: null, capped: false, report: null, reportId: null, detail: null, progress: null },
   ...over,
 });
 const summary = (id: string, date: string, read: boolean, receivedAt: number): CloudReportSummary => ({ id, date, title: `Brief du ${date}`, summary: 'Deux catalyseurs.', generatedAt: null, receivedAt, read });

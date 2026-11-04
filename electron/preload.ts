@@ -113,6 +113,8 @@ contextBridge.exposeInMainWorld('canto', {
     run: () => ipcRenderer.invoke('agent-cloud:run'),
     pause: () => ipcRenderer.invoke('agent-cloud:pause'),
     unpause: () => ipcRenderer.invoke('agent-cloud:unpause'),
+    train: () => ipcRenderer.invoke('agent-cloud:train'),
+    stopTraining: () => ipcRenderer.invoke('agent-cloud:train-stop'),
     openFolder: () => ipcRenderer.invoke('agent-cloud:open-folder'),
     onStatus: (cb: (status: unknown) => void) => subscribe('agent-cloud:status', cb),
     onReports: (cb: (list: unknown) => void) => subscribe('agent-cloud:reports', cb),

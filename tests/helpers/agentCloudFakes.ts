@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { vi } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
-import type { CloudApi, DeploymentView, FetchLike, FileView, SessionPage, SessionView } from '../../electron/agent-cloud-api';
+import type { CloudApi, DeploymentView, FetchLike, FileView, MemoryEntry, MemoryStoreView, SessionPage, SessionView } from '../../electron/agent-cloud-api';
 import { AgentCloudHost, type AgentCloudDeps, type CloudDialogOptions } from '../../electron/agent-cloud';
 import type { AppLocale } from '../../electron/locale';
 
@@ -11,6 +11,7 @@ export const KEY = 'sk-ant-api03-cle-de-test-0123456789';
 export const DEPL = 'depl_011CZkZcDH3vPqd7xnEfwTai';
 export const AGENT = 'agent_011CZkYpogX7uDKUyvBTophP';
 export const ENV = 'env_011CZkZ9X2dpNyB7HsEFoRfW';
+export const MEMSTORE = 'memstore_011CZkZ9X2dpNyB7HsEFoRfW';
 export const NOW = Date.parse('2026-10-27T08:00:00Z');
 export const sid = (n: number) => `sesn_011CZkZAtmR3yMPDzynEDx${String(n).padStart(2, '0')}`;
 export const fid = (n: number) => `file_011CNha8iCJcU1wXNR6q4V${String(n).padStart(2, '0')}`;
@@ -30,7 +31,11 @@ export const DEPLOYMENT: DeploymentView = {
   lastRunAt: NOW - 3_600_000,
   budgetCents: 300,
   tagged: true,
+  memoryStoreId: null,
 };
+
+/** Le magasin de savoir du desk, tel que l'API le rend. */
+export const MEMORY_STORE: MemoryStoreView = { id: MEMSTORE, name: 'canto-savoir-quant', archived: false, tagged: true };
 
 export const session = (n: number, over: Partial<SessionView> = {}): SessionView => ({
   id: sid(n),
@@ -43,6 +48,9 @@ export const session = (n: number, over: Partial<SessionView> = {}): SessionView
   outcomePending: false,
   outcomeResult: 'satisfied',
   budgetCents: 300,
+  deploymentId: DEPL,
+  agentId: AGENT,
+  tagged: false,
   ...over,
 });
 
@@ -84,6 +92,15 @@ export function fakeApi(over: FakeOverrides = {}): FakeCloudApi {
     runDeployment: refuse('runDeployment'),
     pauseDeployment: refuse('pauseDeployment'),
     unpauseDeployment: refuse('unpauseDeployment'),
+    createMemoryStore: refuse('createMemoryStore'),
+    getMemoryStore: vi.fn(async () => note('getMemoryStore', MEMORY_STORE)),
+    listMemoryStores: vi.fn(async () => note('listMemoryStores', { stores: [] as MemoryStoreView[], nextPage: null })),
+    listMemories: vi.fn(async () => note('listMemories', { entries: [] as MemoryEntry[], nextPage: null })),
+    getMemoryText: vi.fn(async () => note('getMemoryText', '')),
+    createSession: refuse('createSession'),
+    getSession: vi.fn(async (id: string) => note('getSession', session(0, { id, deploymentId: null }))),
+    listStoreSessions: vi.fn(async () => note('listStoreSessions', [] as SessionView[])),
+    interruptSession: refuse('interruptSession'),
   };
   const wrapped = Object.fromEntries(
     Object.entries(over).map(([name, fn]) => [

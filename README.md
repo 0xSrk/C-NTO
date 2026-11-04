@@ -2,7 +2,7 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.8.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.9.0 · DESK OUTPUT`**
 
 # CΛNTO
 
@@ -19,8 +19,8 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 <br/><br/>
 
-[![Version](https://img.shields.io/badge/version-3.8.0-CCB066?style=flat-square)](#versions)
-[![Tests](https://img.shields.io/badge/tests-2702%20passed-000000?style=flat-square)](tests)
+[![Version](https://img.shields.io/badge/version-3.9.0-CCB066?style=flat-square)](#versions)
+[![Tests](https://img.shields.io/badge/tests-2742%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
 [![MCP](https://img.shields.io/badge/MCP-local%20gateway-000000?style=flat-square)](docs/PROTOCOLE-AGENT.md)
@@ -89,20 +89,18 @@ It reads the whole desk and your rules, prepares the brief and the debrief, and 
 ---
 
 <a id="whats-new"></a>
-<a id="whats-new-in-380"></a>
+<a id="whats-new-in-390"></a>
 
-## What's new in 3.8.0
+## What's new in 3.9.0
 
 > [!NOTE]
-> **v3.8.0 · 2026-11-01.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish). 3.7.0 was not published on its own: its entry follows this one in the journal, and three of its sentences no longer hold. Hover is a light again; the HUD plates are gone, in the desk and the launcher, except the kill switch's; the launcher no longer prints version readings.
+> **v3.9.0 · 2026-11-04.** The same three points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish). The training runs on the Lab’s own desk only; every other desk reads the report folder as before.
 
-- **Visual system 4.1, a lighter desk.** Visual system 4.1: a lighter desk. The rail loses its categories; each module is a cartouche, emblem first and shortcut in the corner, and the open tab lights up. The account has its own cartouche, the Lab’s seal signs the foot of the rail. The version, top right, opens the version journal.
-- **Headers, Options menu and light.** Headers with no code or tagline; the secondary tools of Metrics, Calendar, Visual, Note and Portfolio move into an Options menu at the top right, whose dots show their state. Hover is a dimmed light again and moves nothing. No more HUD plates, except the kill switch’s.
-- **The lock opens by a circuit.** Lock: a wider card, “Paste” beside the field, “Close CΛNTO”. On opening, the phrase breaks into glyphs whose tracks relight the seal; it folds into its horizon, and the circuit draws the desk’s lines. A key, a click or a touch skips it; reduced motion is respected.
-- **AI Agent and the Lab’s reports.** AI Agent opens on A · Reports, then B · Conversation and C · Options. The reports are the analyses the Lab writes with its cloud agent; only the Lab’s own desk drives it and, for now, pulls them: elsewhere, the folder stays empty. Nothing from the desk goes to the cloud.
-- **Languages, rail and network.** In English and Spanish: 7D · 30D · 90D, “today” and “hoy” in Calendar, catalyst titles translated in Bot; in English, a decimal point and “$750”. The rail counts only the Copier’s followers and says nothing of Crypto while off. Updates, their notes and the official calendar go out without cookies.
+- **Quant training, on the Lab’s desk.** Quant training, on the Lab’s desk: D · Lab gains “Train the agent”. The cloud agent follows the courses of the quantmemo.com roadmaps and writes a body of quant knowledge from them, in its own words and with its sources, into a memory store. Each session starts from a dialog that states its $25 cap, and first reads the site’s robots.txt and terms; a refused access stops it.
+- **The analyst reads it; sources stay on known domains.** The daily analyst mounts that knowledge read-only. The training report is filed in the folder, coded AGT-FRM. In every report, a source becomes a link only on a domain the agent can read; the others are set aside and named. On other desks nothing changes, and nothing from the desk goes to the cloud.
+- **The agent’s order guard reads the bridge like the main process.** The agent’s order guard: the bridge’s open P&L is read the way the main process reads it, exact account name first, then ignoring case and spaces. An account named “simapex1” facing a plan on “SimApex1” no longer counts as zero in the margin and the day’s loss.
 
-NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.8.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.8.0).
+NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.9.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.9.0).
 
 ---
 
@@ -114,9 +112,9 @@ NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.8.0](https://g
 
 | Platform | Download | Runs on |
 |---|---|---|
-| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
-| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-win-arm64-portable.exe) | Windows 10 and 11 |
-| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.8.0/CANTO-3.8.0-linux-arm64.deb) | x64 and ARM64 |
+| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
+| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-arm64-portable.exe) | Windows 10 and 11 |
+| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-arm64.deb) | x64 and ARM64 |
 
 The installers need neither Node.js nor a clone of the repository. Each Release lists every file in `SHA256SUMS.txt`, signed with the Lab's Ed25519 key: the desk's built-in update refuses an installer whose signature is missing, foreign, or bound to another version ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
 
@@ -141,7 +139,7 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-1. Run `CANTO-3.8.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.8.0-win-x64-portable.exe`.
+1. Run `CANTO-3.9.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.9.0-win-x64-portable.exe`.
 2. NinjaTrader 8 — real time, AddOn, CSV folder: [the bridge](#ninjatrader-8-bridge).
 
 **Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log`, and a start-up error is shown in a dialog rather than closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it. Check *Windows Security › App & browser control*, or use the source install below.
@@ -153,8 +151,8 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-- **AppImage** (no system install): `chmod +x CANTO-3.8.0-linux-x86_64.AppImage && ./CANTO-3.8.0-linux-x86_64.AppImage`
-- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.8.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
+- **AppImage** (no system install): `chmod +x CANTO-3.9.0-linux-x86_64.AppImage && ./CANTO-3.9.0-linux-x86_64.AppImage`
+- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.9.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
 - **NinjaTrader**: as on macOS, the Linux desk imports the CSV files the AddOn writes on Windows ([the bridge](#ninjatrader-8-bridge)); real time, orders and the Copier need the desk on the NinjaTrader machine.
 
 Without a GPU (remote session, no `/dev/dri`), Chromium can leave the window black and quit. The desk then switches to software rendering on its own, including at the next launch. Force it with `CANTO_DISABLE_GPU=1`.
@@ -632,7 +630,8 @@ The Lab runs its own agent on Anthropic's Managed Agents: on a schedule, in Anth
 
 - **The folder.** Sheets coded `AGT-RPT-YYYYMMDD`, newest first, with a gold LED on each unread one and a reader beside them. The latest report opens by itself, and an opened sheet is marked read; the rail counts unread reports under AI agent. Reports are files in the desk's data folder (`agent-reports/`), outside the vault; **Open the folder** shows them.
 - **What the desk checks.** A report is filed only if it holds to the `canto.rapport/1` contract: bounded fields, control characters dropped, sources kept in https only, a day within a week of its run. The reader renders the Markdown through DOMPurify, keeps images hidden, prints beside each link the host it leads to, and opens https links in your system browser.
-- **What it reads.** Official public sources only: the Federal Reserve (Board, New York, St. Louis), the BLS, the DOL, the BEA, the Census Bureau, the Treasury, the EIA, the CFTC, the SEC and the ECB. The CME is not among them, so a report gives no CME hours or holidays, and says so.
+- **What it reads.** Official public sources only: the Federal Reserve (Board, New York, St. Louis), the BLS, the DOL, the BEA, the Census Bureau, the Treasury, the EIA, the CFTC, the SEC and the ECB. The CME is not among them, so a report gives no CME hours or holidays, and says so. It also mounts, read-only, the quant knowledge its training writes from quantmemo.com (below), and cites it as such. A source becomes a link only on one of these domains: any other is set aside, and the report names it.
+- **The training.** On the Lab's own desk, D · Lab › **Train the agent** starts a separate session, in its own sandbox open to quantmemo.com only, that follows the courses of its roadmaps and writes notes in its own words, with their sources, into a memory store. Each session starts from a main-process dialog, Cancel by default, that states its $25 cap; it reads the site's robots.txt and terms first, and a refused access stops it. Its report is filed in the folder, coded `AGT-FRM-YYYYMMDD`. The store's content is data, never an instruction, and the desk writes nothing to it.
 - **What never leaves.** The pull is outbound only, from the main process to `api.anthropic.com` only, with no redirect: nothing listens, and no journal, session or note is sent. The cloud agent has no desk tool, no MCP server and no order tool. A report is displayed data: no desk tool reads it, so neither the conversational model nor an MCP client is ever handed one.
 - **Who drives it.** Only the Lab's own desk steers the cloud agent; on any other desk the main process refuses every control command. There, its key is separate from the conversational model's, encrypted by the system keychain and never returned to the interface, logged or exported; installing, running and resuming each take a main-process dialog, Cancel by default, that states the spending cap, and leaving the desk's own deployment first asks to pause it.
 
@@ -671,7 +670,7 @@ A trading desk that can send orders earns trust by what it refuses to do. These 
 | **Bot** | Design only: no automaton sends an order. |
 | **Copier** | Disarmed at every launch; Sim followers only, never the master or a duplicate; arming through a main-process dialog. A risk reduction is never blocked and never exceeds the follower's real position; an opening passes the follower's floor: its dated buffer (K.04), unrealized loss included. |
 | **Crypto** | Off at the first launch, and until you consent in a main-process dialog (Cancel by default); turning it off closes every feed. Network only in the main process, to pinned exchange hosts over `https:` and `wss:` only, with no redirects and no credentials. Public data only — no order, no account. An agent's write can open a feed: see **Agent**. |
-| **Cloud agent** | The Lab runs it; its reports are read in AI agent › Reports. Only the Lab's own desk drives it: the main process checks at every command and, on any other desk, refuses the key, the schedule, install, run, pause and resume. Pickup only: the main process calls `api.anthropic.com` alone, over HTTPS, with no redirects; nothing listens, and nothing from the journal or the vault leaves the desk. Its key is separate from the model's, encrypted by the system keychain in the main process, and never returned to the interface, logged or exported. Installing, running and resuming each take a main-process dialog (Cancel by default) that states the cap; leaving the desk's own deployment first asks to pause it (Cancel by default); a deployment set up elsewhere is read, never changed, paused or resumed. The agent reads official sources only and has no desk tool and no order tool; its report is displayed as data, never passed as an instruction to the desk's agent or to external agents. |
+| **Cloud agent** | The Lab runs it; its reports are read in AI agent › Reports. Only the Lab's own desk drives it: the main process checks at every command and, on any other desk, refuses the key, the schedule, install, run, pause and resume. Pickup only: the main process calls `api.anthropic.com` alone, over HTTPS, with no redirects; nothing listens, and nothing from the journal or the vault leaves the desk. Its key is separate from the model's, encrypted by the system keychain in the main process, and never returned to the interface, logged or exported. Installing, running and resuming each take a main-process dialog (Cancel by default) that states the cap; leaving the desk's own deployment first asks to pause it (Cancel by default); a deployment set up elsewhere is read, never changed, paused or resumed. The agent reads official sources and, read-only, the knowledge its training writes from quantmemo.com; the training is started, resumed and stopped from the Lab's own desk only, each session by a main-process dialog (Cancel by default) that states its cap. The agent has no desk tool and no order tool; its report is displayed as data, never passed as an instruction to the desk's agent or to external agents. |
 | **Keys and providers** | The API key stays in the main process, encrypted at rest; provider hosts are pinned and cannot be widened from the interface. |
 | **Network** | The interface runs under a strict Content Security Policy — connections to the app itself and to the loopback only — and calls no outside host; providers, crypto exchanges and the cloud agent's reports go through the main process. The MCP gateway and the orchestrator listen on `127.0.0.1` only: no tunnel, no cloud connector. |
 | **Updates** | An installer is installed only if `SHA256SUMS.txt` carries a signature from a Lab key embedded in the desk, bound to that version. The private key never touches the repository or GitHub. |
@@ -780,7 +779,8 @@ Installers land in `release/`, each built on its own OS.
 
 The journal inside the desk, opened from the version at the top right, lists every release in French, English and Spanish.
 
-- **3.8.0** — Visual system 4.1: a lighter desk, the rail and the account in cartouches, the secondary tools in an Options menu, hover as a dim light; the lock opens by a circuit; AI Agent opens on the Lab’s reports; English and Spanish labels and decimals; updates without cookies. (2026-11-01)
+- **3.9.0** — Quant training on the Lab’s desk: the cloud agent follows the quantmemo.com courses and writes a quant knowledge base, in a memory store, one capped session at a time; the daily analyst reads it read-only; report sources stay on the domains the agent can read. The agent’s order guard reads the bridge’s open P&L the way the main process does. (2026-11-04)
+- <a id="whats-new-in-380"></a>**3.8.0** — Visual system 4.1: a lighter desk, the rail and the account in cartouches, the secondary tools in an Options menu, hover as a dim light; the lock opens by a circuit; AI Agent opens on the Lab’s reports; English and Spanish labels and decimals; updates without cookies. (2026-11-01)
 - <a id="whats-new-in-370"></a>**3.7.0** — Not published on its own: shipped in 3.8.0. Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; the status bar in the chassis black, signed with an eleven-bar code between braces; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected; DOMPurify 3.4.17. (2026-10-26)
 - <a id="whats-new-in-360"></a>**3.6.0** — Optional crypto tab `09 · CRY`, off until you consent in a main-process dialog: live markets with their CVD and the desk's indicators, the Binance market temperature, local alerts, ten `crypto_*` tools for the agent and MCP clients. Network in the main process only, to pinned exchange hosts. (2026-10-13)
 - <a id="whats-new-in-350"></a>**3.5.0** — Metrics reworked: interactive equity curve, corrected figures, risk and R per trade, daily context, reading by context. The session in progress, discipline rules, Visual following the bridge. The agent reads your rules and day loss, prepares the brief and the debrief, and the desk refuses its proposed orders when they break your rules; the Copier's follower floor reads the same dated buffer. (2026-10-06)
@@ -855,6 +855,6 @@ A model reached through an API and run as a service, a desk fitted to one trader
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.8.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.9.0 · DESK OUTPUT`**
 
 </div>

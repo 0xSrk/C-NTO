@@ -65,6 +65,46 @@ function failureText(kind: string, detail: string): string {
   return detail ? `${what} · ${detail}` : what;
 }
 
+type Training = AgentCloudStatus['training'];
+
+/** L'état de la formation quant, tel que le relevé le dit (CLD45, CLD46). */
+export function trainingLabel(training: Training | null): string {
+  if (!training) return '—';
+  switch (training.state) {
+    case 'idle':
+      return '—';
+    case 'running':
+      return tr('En cours', 'Running', 'En curso');
+    case 'settling':
+      return tr('En attente du rapport', 'Awaiting the report', 'A la espera del informe');
+    case 'refused':
+      return tr('Accès refusé', 'Access refused', 'Acceso rechazado');
+    case 'ended':
+      if (training.report === 'lost') return tr('Introuvable avec cette clé', 'Not found with this key', 'No encontrada con esta clave');
+      if (training.capped) return tr('À son plafond', 'At its cap', 'En su límite');
+      if (training.report !== 'filed' && training.detail?.includes('interrupted')) return tr('Arrêtée', 'Stopped', 'Detenida');
+      return training.report === 'filed' ? tr('Terminée', 'Finished', 'Terminada') : tr('Terminée sans rapport', 'Finished without a report', 'Terminada sin informe');
+  }
+}
+
+/** Le savoir acquis : les fiches que compte le magasin, les cours de l'état court, et ce qu'a écrit la dernière session. */
+function knowledgeText(training: Training | null): string {
+  const p = training?.progress ?? null;
+  if (!p) return '—';
+  const courses = p.coursesRead !== null && p.coursesKnown !== null ? ` · ${tr(`${fmtInt(p.coursesRead)} cours lus sur ${fmtInt(p.coursesKnown)}`, `${fmtInt(p.coursesRead)} courses read of ${fmtInt(p.coursesKnown)}`, `${fmtInt(p.coursesRead)} cursos leídos de ${fmtInt(p.coursesKnown)}`)}` : '';
+  const added = training?.state === 'ended' && p.fichesAtStart !== null ? ` · ${tr(`+${fmtInt(Math.max(0, p.fiches - p.fichesAtStart))} cette session`, `+${fmtInt(Math.max(0, p.fiches - p.fichesAtStart))} this session`, `+${fmtInt(Math.max(0, p.fiches - p.fichesAtStart))} esta sesión`)}` : '';
+  return `${count(p.fiches, tr('fiche', 'note', 'ficha'), tr('fiches', 'notes', 'fichas'))}${courses}${added}`;
+}
+
+/** La dépense : la session en cours ou la dernière (coût relevé, plafond déclaré), puis le cumul des 30 derniers jours. */
+function trainingSpend(training: Training | null): string {
+  if (!training) return '—';
+  const month = `${tr('30 j', '30 d', '30 d')} ${dollars(training.spent30dCents)}`;
+  if (!training.sessionId) return training.sessions > 0 ? month : '—';
+  const session = `${tr('session', 'session', 'sesión')} ${training.costCents !== null ? dollars(training.costCents) : '—'}${training.budgetCents !== null ? ` / ${dollars(training.budgetCents)}` : ''}`;
+  return `${session} · ${month}`;
+}
+
 /**
  * Plaque de l'agent cloud : un état réel du pont, jamais décorative. Elle ne s'affiche qu'au siège du Lab, dans la vue
  * « D · Lab », au-dessus du pilotage ; un desk qui lit ne voit que le dossier.
@@ -73,6 +113,7 @@ export function LabPlate({ status }: { status: AgentCloudStatus | null }) {
   const state = cloudState(status);
   const deployment = status?.deployment ?? null;
   const failures = status?.failures.slice(0, 2) ?? [];
+  const training = status?.training ?? null;
   return (
     <section className={cx(r.plate, TRAIT[state])} aria-label={tr('Agent cloud', 'Cloud agent', 'Agente en la nube')}>
       <div className={r.plateHead}>
@@ -89,7 +130,39 @@ export function LabPlate({ status }: { status: AgentCloudStatus | null }) {
       />
       <Regle label={tr('Plafond', 'Cap', 'Límite')} value={deployment?.budgetCents ? `${dollars(deployment.budgetCents)} / ${tr('exéc.', 'run', 'ejec.')}` : '—'} />
       {status && status.pending > 0 ? <Regle label={tr('En cours', 'Running', 'En curso')} value={`${fmtInt(status.pending)} ${tr('session(s)', 'session(s)', 'sesión(es)')}`} /> : null}
+      <Regle label={tr('Formation', 'Training', 'Formación')} value={trainingLabel(training)} />
+      <Regle label={tr('Savoir', 'Knowledge', 'Saber')} value={knowledgeText(training)} />
+      <Regle label={tr('Dépense formation', 'Training spend', 'Gasto de formación')} value={trainingSpend(training)} />
+      <Regle
+        label={tr('Savoir monté', 'Knowledge mounted', 'Saber montado')}
+        value={
+          deployment?.memoryStoreId
+            ? tr('Lecture seule', 'Read-only', 'Solo lectura')
+            : status?.deploymentId && !status.managed
+              ? // Un déploiement externe ne se met pas à jour depuis le desk (CLD59) : la Console le règle.
+                tr('Non monté : déploiement externe, réglé dans la Console', 'Not mounted: external deployment, set in the Console', 'No montado: despliegue externo, se ajusta en la Consola')
+              : tr('Non monté : mettre à jour l’agent', 'Not mounted: update the agent', 'No montado: actualizar el agente')
+        }
+      />
       {status?.error ? <Signal level={2}>{status.error}</Signal> : null}
+      {training?.state === 'refused' ? (
+        <Signal level={2}>
+          {tr(
+            'Formation close : accès à quantmemo.com refusé (robots.txt ou conditions d’utilisation).',
+            'Training closed: access to quantmemo.com refused (robots.txt or terms of use).',
+            'Formación cerrada: acceso a quantmemo.com rechazado (robots.txt o condiciones de uso).',
+          )}
+        </Signal>
+      ) : null}
+      {training?.progress?.clause === 'a_confirmer' ? (
+        <Signal level={2}>
+          {tr(
+            'Clause d’usage de quantmemo.com à confirmer par l’ADMIN (rapport de formation, « Accès et conditions ») : aucun rapport qui cite le savoir ne se publie avant sa décision.',
+            'quantmemo.com usage clause to be confirmed by the ADMIN (training report, « Accès et conditions »): no report citing the knowledge is published before that decision.',
+            'Cláusula de uso de quantmemo.com por confirmar por el ADMIN (informe de formación, « Accès et conditions »): ningún informe que cite el saber se publica antes de su decisión.',
+          )}
+        </Signal>
+      ) : null}
       {failures.map((f) => (
         <Signal key={`${f.at}-${f.kind}`} level={1}>
           {failureText(f.kind, f.detail)}

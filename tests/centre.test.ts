@@ -108,7 +108,7 @@ describe('LAB1 centre de contrôle du Lab : privé, sans secret, sans se marcher
   });
 });
 
-describe("LAB3 le centre reste sur le poste de l'ADMIN : absent, rien ne le crée en passant", () => {
+describe("LAB6 le centre reste sur le poste de l'ADMIN : absent, rien ne le crée en passant", () => {
   it('sans init, chaque commande refuse sans rien créer et dit quoi faire, sur le poste comme depuis le cloud', () => {
     const { dir, run } = centre();
     for (const args of [
