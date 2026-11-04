@@ -31,6 +31,8 @@ const fake = vi.hoisted(() => {
       run: note('run'),
       pause: note('pause'),
       unpause: note('unpause'),
+      train: note('train'),
+      stopTraining: note('stopTraining'),
       openFolder: async () => true,
       onStatus: () => () => undefined,
       onReports: () => () => undefined,
@@ -40,10 +42,11 @@ const fake = vi.hoisted(() => {
 });
 
 import { CloudOptions } from '@/modules/agent/CloudOptions';
+import { LabPlate } from '@/modules/agent/CloudReports';
 import { useI18n } from '@/i18n';
 import { resetAgentCloudForTests, useAgentCloud } from '@/store/agentCloud';
 
-const DEPLOYMENT = { name: 'canto-rapport-quotidien', state: 'active' as const, pausedReason: null, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', nextRunAt: 1, lastRunAt: null, budgetCents: 300, agentVersion: 2 };
+const DEPLOYMENT = { name: 'canto-rapport-quotidien', state: 'active' as const, pausedReason: null, cron: '0 7 * * 1-5', timezone: 'Europe/Paris', nextRunAt: 1, lastRunAt: null, budgetCents: 300, agentVersion: 2, memoryStoreId: null };
 const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   available: true,
   lab: true,
@@ -51,6 +54,7 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   workspaceId: null,
   deploymentId: null,
   managed: false,
+  memoryStoreId: null,
   schedule: { cron: '0 7 * * 1-5', timezone: 'Europe/Paris' },
   deployment: null,
   pulling: false,
@@ -62,6 +66,7 @@ const status = (over: Partial<AgentCloudStatus> = {}): AgentCloudStatus => ({
   failures: [],
   reports: 0,
   unread: 0,
+  training: { state: 'idle', sessionId: null, startedAt: null, sessions: 0, solo: false, spent30dCents: 0, unknownCost: 0, costCents: null, budgetCents: null, capped: false, report: null, reportId: null, detail: null, progress: null },
   ...over,
 });
 
@@ -196,5 +201,98 @@ describe('agent cloud · Options › Agent cloud', () => {
     await type(node.querySelector<HTMLInputElement>('input[type="password"]')!, 'sk-ant-api03-cle-de-test-0123456789');
     expect(button(node, 'Enregistrer')?.disabled).toBe(true);
     expect(button(node, 'Relever celui-ci')?.disabled).toBe(true);
+  });
+
+  it('CLD48 D · Lab dit la formation et la lance, la reprend ou l’arrête par le process principal', async () => {
+    const IDLE = status().training;
+    const STORE = 'memstore_011CZkZ9X2dpNyB7HsEFoRfW';
+    const ready = (training: Partial<AgentCloudStatus['training']> = {}, over: Partial<AgentCloudStatus> = {}) =>
+      status({ keyStored: true, memoryStoreId: STORE, deploymentId: 'depl_011CZkZcDH3vPqd7xnEfwTai', managed: true, deployment: DEPLOYMENT, training: { ...IDLE, ...training }, ...over });
+    const node = await mount(status({ keyStored: true }));
+    // Sans magasin (installation pas encore faite), « Former » est figé et la ligne dit pourquoi.
+    expect(button(node, 'Former l’agent')?.disabled).toBe(true);
+    expect(node.textContent).toContain('La formation demande le magasin de savoir : installez ou mettez à jour l’agent d’abord.');
+    // Première fois : « Former l'agent », qui passe par la méthode nommée ; aucun arrêt proposé.
+    await act(async () => useAgentCloud.setState({ status: ready() }));
+    expect(button(node, 'Former l’agent')?.disabled).toBe(false);
+    expect(button(node, 'Arrêter la formation')).toBeUndefined();
+    await press(button(node, 'Former l’agent'));
+    expect(fake.calls).toEqual([['train']]);
+    // Pendant le dialogue : « Formation… », et tout est figé.
+    await act(async () => useAgentCloud.setState({ status: ready({}, { busy: 'train' }) }));
+    expect(button(node, 'Formation…')?.disabled).toBe(true);
+    expect(button(node, 'Lancer maintenant')?.disabled).toBe(true);
+    // En cours : pas de second lancement ; « Arrêter la formation » passe par sa méthode, sans rien d'autre.
+    await act(async () => useAgentCloud.setState({ status: ready({ state: 'running', sessionId: 'sesn_011CZkZAtmR3yMPDzynEDx40', sessions: 1, costCents: 640, budgetCents: 2500 }) }));
+    expect(button(node, 'Reprendre la formation')?.disabled).toBe(true);
+    expect(node.textContent).toContain('Formation en cours · session 6,40 $ / 25,00 $');
+    await press(button(node, 'Arrêter la formation'));
+    expect(fake.calls.at(-1)).toEqual(['stopTraining']);
+    await act(async () => useAgentCloud.setState({ status: ready({ state: 'running', sessionId: 'sesn_011CZkZAtmR3yMPDzynEDx40', sessions: 1 }, { busy: 'stop' }) }));
+    expect(button(node, 'Arrêt…')?.disabled).toBe(true);
+    // Au repos, rapport attendu : ni lancement ni arrêt.
+    await act(async () => useAgentCloud.setState({ status: ready({ state: 'settling', sessionId: 'sesn_011CZkZAtmR3yMPDzynEDx40', sessions: 1 }) }));
+    expect(button(node, 'Reprendre la formation')?.disabled).toBe(true);
+    expect(button(node, 'Arrêter la formation')).toBeUndefined();
+    // Réglée : « Reprendre la formation ».
+    await act(async () => useAgentCloud.setState({ status: ready({ state: 'ended', sessions: 1, report: 'filed', reportId: 'sesn_011CZkZAtmR3yMPDzynEDx40' }) }));
+    expect(button(node, 'Reprendre la formation')?.disabled).toBe(false);
+    await press(button(node, 'Reprendre la formation'));
+    expect(fake.calls.at(-1)).toEqual(['train']);
+    // Accès refusé par le site : fermé, et dit.
+    await act(async () => useAgentCloud.setState({ status: ready({ state: 'refused', sessions: 1 }) }));
+    expect(button(node, 'Reprendre la formation')?.disabled).toBe(true);
+    expect(node.textContent).toContain('Formation close : l’accès à quantmemo.com est refusé (robots.txt ou conditions d’utilisation) ; la rouvrir est une décision de l’ADMIN.');
+    // Sans clé : figé.
+    await act(async () => useAgentCloud.setState({ status: ready({}, { keyStored: false }) }));
+    expect(button(node, 'Former l’agent')?.disabled).toBe(true);
+    // Aucun champ nouveau : les champs cron, fuseau et Console restent les seuls `input.mono` après l'espace de travail.
+    expect(node.querySelectorAll('input.mono')).toHaveLength(4);
+    expect(fake.calls).toEqual([['train'], ['stopTraining'], ['train']]);
+
+    // La plaque : l'état, le savoir, la dépense, le montage chez l'analyste.
+    act(() => root?.unmount());
+    const plate = async (s: AgentCloudStatus) => {
+      root = createRoot(host!);
+      await act(async () => root?.render(createElement(LabPlate, { status: s })));
+      const text = host!.textContent ?? '';
+      const signals = host!.querySelectorAll('[data-level="2"]').length;
+      act(() => root?.unmount());
+      return { text, signals };
+    };
+    const progress = { fiches: 39, fichesAtStart: 31, coursesRead: 46, coursesKnown: 174, toVerify: 6, next: 'Greeks', access: 'autorise' as const, clause: null, at: 1 };
+    const running = await plate(ready({ state: 'running', sessionId: 'sesn_011CZkZAtmR3yMPDzynEDx41', sessions: 2, costCents: 640, budgetCents: 2500, spent30dCents: 2515, progress }));
+    expect(running.text).toContain('FormationEn cours');
+    expect(running.text).toContain('Savoir39 fiches · 46 cours lus sur 174');
+    expect(running.text).toContain('Dépense formationsession 6,40 $ / 25,00 $ · 30 j 25,15 $');
+    expect(running.text).toContain('Savoir montéNon monté : mettre à jour l’agent');
+    const ended = await plate(ready({ state: 'ended', sessions: 2, costCents: 1875, report: 'filed', progress }, { deployment: { ...DEPLOYMENT, memoryStoreId: STORE } }));
+    expect(ended.text).toContain('FormationTerminée');
+    expect(ended.text).toContain('Savoir39 fiches · 46 cours lus sur 174 · +8 cette session');
+    expect(ended.text).toContain('Savoir montéLecture seule');
+    expect((await plate(ready({ state: 'ended', sessions: 1, capped: true, report: 'missing' }))).text).toContain('FormationÀ son plafond');
+    expect((await plate(ready({ state: 'ended', sessions: 1, report: 'missing', detail: 'outcome interrupted' }))).text).toContain('FormationArrêtée');
+    // CLD52 : une session oubliée parce que la clé ne la voit plus le dit, au lieu de « Terminée sans rapport ».
+    expect((await plate(ready({ state: 'ended', sessions: 1, report: 'lost', detail: 'HTTP 404' }))).text).toContain('FormationIntrouvable avec cette clé');
+    expect((await plate(ready({ state: 'settling', sessions: 1 }))).text).toContain('FormationEn attente du rapport');
+    const idle = await plate(ready());
+    expect(idle.text).toContain('Formation—');
+    expect(idle.text).toContain('Savoir—');
+    const refused = await plate(ready({ state: 'refused', sessions: 1 }));
+    expect(refused.text).toContain('FormationAccès refusé');
+    expect(refused.signals).toBe(1);
+    expect(refused.text).toContain('Formation close : accès à quantmemo.com refusé');
+    // Rien de la formation n'entre dans les échecs du rapport quotidien.
+    expect(running.signals).toBe(0);
+    // CLD59 : un déploiement externe ne se met pas à jour depuis le desk ; la plaque ne le demande pas, elle renvoie à la Console.
+    const external = await plate(ready({}, { managed: false }));
+    expect(external.text).toContain('Savoir montéNon monté : déploiement externe, réglé dans la Console');
+    expect(external.text).not.toContain('mettre à jour l’agent');
+    expect((await plate(ready({}, { managed: false, deployment: { ...DEPLOYMENT, memoryStoreId: STORE } }))).text).toContain('Savoir montéLecture seule');
+    // CLD58 : une clause d'usage à confirmer se dit à l'ADMIN, avant toute publication d'un rapport qui cite le savoir.
+    const clause = await plate(ready({ state: 'ended', sessions: 1, report: 'filed', progress: { ...progress, clause: 'a_confirmer' } }));
+    expect(clause.signals).toBe(1);
+    expect(clause.text).toContain('Clause d’usage de quantmemo.com à confirmer par l’ADMIN (rapport de formation, « Accès et conditions ») : aucun rapport qui cite le savoir ne se publie avant sa décision.');
+    expect((await plate(ready({ state: 'ended', sessions: 1, report: 'filed', progress: { ...progress, clause: 'aucune' } }))).signals).toBe(0);
   });
 });

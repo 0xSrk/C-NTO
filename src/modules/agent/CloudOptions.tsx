@@ -40,6 +40,8 @@ export function CloudOptions() {
   const pause = useAgentCloud((c) => c.pause);
   const unpause = useAgentCloud((c) => c.unpause);
   const pull = useAgentCloud((c) => c.pull);
+  const train = useAgentCloud((c) => c.train);
+  const stopTraining = useAgentCloud((c) => c.stopTraining);
   const [key, setKeyDraft] = useState('');
   const [workspace, setWorkspaceDraft] = useState('');
   const [cron, setCron] = useState(status?.schedule.cron ?? '');
@@ -76,6 +78,11 @@ export function CloudOptions() {
   const isExternal = !!status?.deploymentId && !status.managed;
   const scheduleChanged = !!status && (cron !== status.schedule.cron || timezone !== status.schedule.timezone);
   const appliedDiffers = !!deployment && status?.managed && (deployment.cron !== status.schedule.cron || deployment.timezone !== status.schedule.timezone);
+  const training = status?.training ?? null;
+  const trainingActive = training?.state === 'running' || training?.state === 'settling';
+  // Siège, dialogue et plafond restent au process principal : ici, deux méthodes nommées, figées quand elles ne peuvent pas servir.
+  const canTrain = !!status?.keyStored && !!status.memoryStoreId && busy === null && !trainingActive && training?.state !== 'refused';
+  const money = (cents: number | null) => (cents === null ? '—' : `${fmtNum(cents / 100, 2)} $`);
 
   return (
     <div className={s.section}>
@@ -206,6 +213,41 @@ export function CloudOptions() {
         <Button size="sm" variant="ghost" disabled={!status?.deploymentId || status.pulling} onClick={() => void pull()}>
           {tr('Relever', 'Pull', 'Leer')}
         </Button>
+        <Button size="sm" variant="ghost" disabled={!canTrain} onClick={() => void train()}>
+          {busy === 'train'
+            ? tr('Formation…', 'Training…', 'Formación…')
+            : training && training.sessions > 0
+              ? tr('Reprendre la formation', 'Resume the training', 'Reanudar la formación')
+              : tr('Former l’agent', 'Train the agent', 'Formar al agente')}
+        </Button>
+        {training?.state === 'running' ? (
+          <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void stopTraining()}>
+            {busy === 'stop' ? tr('Arrêt…', 'Stopping…', 'Deteniendo…') : tr('Arrêter la formation', 'Stop the training', 'Detener la formación')}
+          </Button>
+        ) : null}
+      </div>
+      <div className={s.hint}>
+        {!status?.memoryStoreId
+          ? tr(
+              'La formation demande le magasin de savoir : installez ou mettez à jour l’agent d’abord.',
+              'Training needs the knowledge store: install or update the agent first.',
+              'La formación necesita el almacén de saber: instale o actualice primero el agente.',
+            )
+          : training?.state === 'refused'
+            ? tr(
+                'Formation close : l’accès à quantmemo.com est refusé (robots.txt ou conditions d’utilisation) ; la rouvrir est une décision de l’ADMIN.',
+                'Training closed: access to quantmemo.com is refused (robots.txt or terms of use); reopening it is the ADMIN’s decision.',
+                'Formación cerrada: el acceso a quantmemo.com está rechazado (robots.txt o condiciones de uso); reabrirla es decisión del ADMIN.',
+              )
+            : training?.state === 'running'
+              ? `${tr('Formation en cours · session', 'Training running · session', 'Formación en curso · sesión')} ${money(training.costCents)}${training.budgetCents !== null ? ` / ${money(training.budgetCents)}` : ''}`
+              : training?.state === 'settling'
+                ? tr('Formation au repos : son rapport est attendu.', 'Training at rest: its report is expected.', 'Formación en reposo: se espera su informe.')
+                : tr(
+                    'Formation quant : une session lit quantmemo.com et écrit dans le magasin de savoir ; le dialogue dit son plafond et le cumul des 30 jours.',
+                    'Quant training: a session reads quantmemo.com and writes to the knowledge store; the dialog states its cap and the 30-day total.',
+                    'Formación cuantitativa: una sesión lee quantmemo.com y escribe en el almacén de saber; el diálogo indica su límite y el total de 30 días.',
+                  )}
       </div>
       {deployment ? (
         <div className={s.hint}>

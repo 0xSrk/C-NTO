@@ -953,6 +953,9 @@ ipcMain.handle('agent-cloud:provision', (e) => (trusted(e) && agentCloud ? agent
 ipcMain.handle('agent-cloud:run', (e) => (trusted(e) && agentCloud ? agentCloud.runNow() : null));
 ipcMain.handle('agent-cloud:pause', (e) => (trusted(e) && agentCloud ? agentCloud.pause() : null));
 ipcMain.handle('agent-cloud:unpause', (e) => (trusted(e) && agentCloud ? agentCloud.unpause() : null));
+// Former et arrêter la formation : aucun argument, rien ne vient du renderer ; siège, dialogue et plafond restent ici.
+ipcMain.handle('agent-cloud:train', (e) => (trusted(e) && agentCloud ? agentCloud.train() : null));
+ipcMain.handle('agent-cloud:train-stop', (e) => (trusted(e) && agentCloud ? agentCloud.stopTraining() : null));
 ipcMain.handle('agent-cloud:open-folder', (e) => (trusted(e) && agentCloud ? agentCloud.openFolder() : false));
 
 /* ─── Secrets (clé API chiffrée par le trousseau du système) ─── */
