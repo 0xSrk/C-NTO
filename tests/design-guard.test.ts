@@ -540,6 +540,26 @@ describe('garde du système visuel', () => {
     expect(readFileSync('src/app/objects/TradeFiche.tsx', 'utf8')).toMatch(/<span className=\{s\.release\}>\{release\}<\/span>/);
   });
 
+  it('OROS5.47c aucune police relative ne descend sous 10 px : les décimales d’un montant, à 60 %, ont 10 px pour plancher', () => {
+    // Sous Electron, la fiche posait des montants de 12 px : leurs décimales, à 0,6 em, tombaient à 7,2 px.
+    const floorless: string[] = [];
+    for (const path of walk('src').filter((p) => p.endsWith('.css'))) {
+      for (const rule of cssRules(readFileSync(path, 'utf8'))) {
+        for (const [, raw] of rule.body.matchAll(/(?:^|;)\s*font-size:\s*([^;]+)/g)) {
+          const value = raw!.trim();
+          if (!/(?:\d(?:r?em|%|vw|vh|vmin|vmax)\b|\d%)/.test(value)) continue;
+          const floor = /^(?:max|clamp)\((\d+(?:\.\d+)?)px,/.exec(value);
+          if (!floor || Number(floor[1]) < 10) floorless.push(`${posix('src', path)} › ${rule.selector} : ${value}`);
+        }
+      }
+    }
+    expect(floorless).toEqual([]);
+    const decimals = cssRules(readFileSync('src/design/primitives.module.css', 'utf8')).find((rule) => rule.selector === '.decimals');
+    expect(decimals?.body).toMatch(/font-size: max\(10px, 0\.6em\);/);
+    const doc = readFileSync('docs/DESIGN.md', 'utf8').replace(/\r\n/g, '\n');
+    expect(doc.slice(doc.indexOf('## 05.'), doc.indexOf('## 06.'))).toMatch(/décimales à 60 %, jamais sous 10 px/);
+  });
+
   it('OROS5.45a une animation d’une feuille de module nomme un @keyframes de cette feuille : les modules CSS renomment le nom en local, celui de tokens.css n’y répond jamais', () => {
     const keywords = new Set(['none', 'linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end', 'both', 'forwards', 'backwards', 'infinite', 'alternate', 'alternate-reverse', 'reverse', 'normal', 'running', 'paused', 'initial', 'inherit', 'unset']);
     const dangling: string[] = [];

@@ -611,8 +611,10 @@
 .groupGap {
   margin-left: 0.22em;
 }
+/* Les décimales à 60 % du montant, jamais sous 10 px (§ 04) : sous Electron, un montant de 12 px de la fiche les mettait à
+   7,2 px (OROS5.47c). */
 .decimals {
-  font-size: 0.6em;
+  font-size: max(10px, 0.6em);
   color: var(--text-2);
 }
 .masked {
