@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { REPORT_FORMAT } from '@/engine/agent/cloudReport';
 import { cloudAgentBody, cloudEnvironmentBody, FORMATION_TAG, OFFICIAL_DOMAINS } from '../electron/agent-cloud-definition';
@@ -130,6 +134,55 @@ describe('agent cloud · formation quant', () => {
 
     // Ni outil d'ordre ni pont, nulle part.
     for (const text of [prompt, reader, formationRubric('fr'), FORMATION_STORE_INSTRUCTIONS, JSON.stringify(formationOutcomeEvent('fr'))]) expect(text).not.toMatch(/propose_order|copy\.order|ntbridge/);
+  });
+
+  // Le contrôle que la consigne fait écrire, lancé tel quel par python3 -I sur des magasins de test (sauté sans python3).
+  const python = spawnSync('python3', ['--version'], { encoding: 'utf8' }).status === 0;
+  it.skipIf(!python)('CLD57 verifie.py tient la voie interdite (magasin sans index ni progression) et une progression découpée par parcours', () => {
+    const prompt = formationSystemPrompt('fr');
+    const script = prompt.slice(prompt.indexOf('```python\n') + 10, prompt.indexOf('\n```', prompt.indexOf('```python\n')));
+    const root = mkdtempSync(path.join(tmpdir(), 'canto-verifie-'));
+    try {
+      const code = path.join(root, 'verifie.py');
+      writeFileSync(code, script, 'utf8');
+      const store = (name: string, files: Record<string, string>) => {
+        const dir = path.join(root, name);
+        for (const [rel, text] of Object.entries(files)) {
+          mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+          writeFileSync(path.join(dir, rel), text, 'utf8');
+        }
+        mkdirSync(dir, { recursive: true });
+        return dir;
+      };
+      const run = (dir: string) => spawnSync('python3', ['-I', code, dir], { encoding: 'utf8' });
+      // Accès interdit : la consigne n'y laisse écrire qu'acces.md et etat.json ; le contrôle finit par « aucun écart ».
+      const forbidden = run(store('interdit', { '_formation/acces.md': 'interdit', '_formation/etat.json': '{"schema":"canto.formation-etat/1","acces":"interdit"}' }));
+      expect(forbidden.stderr).toBe('');
+      expect(forbidden.stdout.trim()).toBe('0 fiches, 0 octets, 0 cours suivis\naucun écart');
+      // Une progression découpée en _formation/progression/<parcours>.json, sans progression.json : lue, rien d'absent.
+      const fiche = ['---', 'id: derives/parite', 'source: https://quantmemo.com/learn/put-call-parity', 'statut: verifiee', '---', '## En une phrase', 'x', '## Définitions', 'x', '## Formules', 'x', '## Intuition', 'x', '## Pièges', 'x', '## Pour un trader de contrats à terme', 'x', '## Vérification', 'x', '## Source', 'x', ''].join('\n');
+      const split = run(
+        store('decoupe', {
+          'INDEX.md': '- fiches/derives/parite.md',
+          'fiches/derives/parite.md': fiche,
+          '_formation/progression/derives.json': JSON.stringify({ cours: [{ id: '/learn/put-call-parity', fiches: ['fiches/derives/parite.md'] }] }),
+          '_formation/progression/risque.json': JSON.stringify({ cours: [{ id: '/learn/var', fiches: ['fiches/risque/var.md'] }] }),
+        }),
+      );
+      expect(split.stderr).toBe('');
+      expect(split.stdout.trim().split('\n')).toEqual([`1 fiches, ${Buffer.byteLength(fiche)} octets, 2 cours suivis`, 'progression : /learn/var renvoie à fiches/risque/var.md, absent']);
+      // Une fiche sans index : l'écart est dit, sans planter.
+      const unindexed = run(store('sans-index', { 'fiches/derives/parite.md': fiche }));
+      expect(unindexed.stderr).toBe('');
+      expect(unindexed.stdout).toContain('INDEX.md : fiches/derives/parite.md absent');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+    // La reprise et les instructions du montage connaissent la progression découpée.
+    expect(prompt).toContain('Si _formation/progression.json existe, ou _formation/progression/ une fois découpé, c’est l’état de la formation.');
+    expect(prompt).toContain('Au-delà de 90 Ko, découpe-le en _formation/progression/<parcours>.json, de la même forme (`{"cours": […]}`), puis efface _formation/progression.json.');
+    expect(FORMATION_STORE_INSTRUCTIONS).toContain('Lis d\'abord _formation/progression.json, ou _formation/progression/ une fois découpé');
+    expect(FORMATION_STORE_INSTRUCTIONS.length).toBeLessThanOrEqual(4096);
   });
 
   it('CLD40 décision de l’ADMIN (2026-11-03) : quantmemo.com et ses sous-domaines, pour la formation seule', () => {
