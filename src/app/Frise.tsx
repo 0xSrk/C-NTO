@@ -8,7 +8,7 @@ import type { Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { horizonEnd, impactBars, strokeOf } from '@/lib/calendarMarks';
 import { trEventTitle } from '@/lib/eventTitles';
-import { CURSOR_TABS, dayFraction, fractionToMs, groupNear, hourTicks, MERGE_PX, MIN, moveCursor, replayDiscipline, snap, stemGroups, type TimeWindow } from '@/lib/frise';
+import { CURSOR_TABS, dayFraction, fractionToMs, groupNear, hourTicks, MERGE_PX, MIN, moveCursor, replayDiscipline, snap, spaced, stemGroups, type TimeWindow } from '@/lib/frise';
 import { useJournal } from '@/store/journal';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
@@ -294,8 +294,7 @@ function Drawer({ className }: { className?: string }) {
             <i key={`k${t.at}`} className={f.tick} style={{ left: x(t.at) }} />
           ))}
           {/* L'heure lue, à la tête de la ligne, prend la place des heures qu'elle recouvrirait. */}
-          {labels
-            .filter((t) => Math.abs(x(t.at) - headX) >= 30)
+          {spaced(labels.filter((t) => Math.abs(x(t.at) - headX) >= 30), (t) => x(t.at))
             .map((t) => (
               <span key={`h${t.at}`} className={f.hour} style={{ left: x(t.at) }}>
                 {String(t.hour).padStart(2, '0')}

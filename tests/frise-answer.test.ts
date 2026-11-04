@@ -152,6 +152,17 @@ describe('OROS5.23 · la réponse du temps dans la barre d’état', () => {
     expect(today.closest<HTMLElement>('[data-day]')!.dataset.day).toBe('2026-10-27');
   });
 
+  it('OROS5.45 à l’étroit, ce qui vient garde son délai et sa borne ; l’heure cède, le nom accessible la garde', () => {
+    at(et(CPI, '08:00'));
+    mount();
+    const short = () => answer().querySelector('[class*="answerShort"]')!.textContent;
+    expect(short()).toBe('Fenêtre ± 15 · Inflation CPI');
+    expect(longText()).toBe('08:15 Fenêtre ± 15 · Inflation CPI');
+    expect(answer().getAttribute('aria-label')).toMatch(/^15 min · 08:15 Fenêtre ± 15 · Inflation CPI,/);
+    act(() => useI18n.setState({ locale: 'es' }));
+    expect(short()).toBe('Ventana ± 15 · Inflación CPI');
+  });
+
   it('trois langues', () => {
     at(et(CPI, '08:20'));
     mount();

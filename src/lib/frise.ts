@@ -161,6 +161,26 @@ export function hourTicks(span: DaySpan): { at: number; hour: number; night: boo
   return out;
 }
 
+/** L'écart minimal entre deux heures de l'axe, centre à centre : deux chiffres de 10 px et leur blanc (OROS5.45). */
+export const HOUR_GAP_PX = 24;
+
+/**
+ * Les heures de l'axe qui se lisent : une heure trop près de la précédente cède, sauf 07, le début de la journée, qui
+ * prend la place de la nuit qui la précède (06 sur la nuit comprimée).
+ */
+export function spaced<T extends { hour: number }>(labels: readonly T[], xOf: (label: T) => number): T[] {
+  const kept: T[] = [];
+  for (const label of labels) {
+    const last = kept[kept.length - 1];
+    if (last && xOf(label) - xOf(last) < HOUR_GAP_PX) {
+      if (label.hour === 7) kept[kept.length - 1] = label;
+      continue;
+    }
+    kept.push(label);
+  }
+  return kept;
+}
+
 /* ─── Couloir Séance ─── */
 
 export type PhaseKind = 'globex' | 'europe' | 'rth' | 'lunch' | 'post';

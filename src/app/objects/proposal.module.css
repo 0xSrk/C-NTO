@@ -140,8 +140,8 @@
   --k: var(--text-1);
 }
 .chainStop {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   --k: var(--text-1);
 }
 
@@ -197,7 +197,7 @@
 }
 .cell {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
+  grid-template-columns: 12px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -205,12 +205,12 @@
 .cellMark {
   width: 6px;
   height: 6px;
-  margin-left: 2px;
+  margin-left: 3px;
   --k: var(--text-1);
 }
 .cellStop {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   --k: var(--text-0);
 }
 .cellSkip {

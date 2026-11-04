@@ -177,7 +177,8 @@ export function friseLine(answer: HourAnswer, ctx: { at: number; events: readonl
     const delay = delayText(next.delayMs);
     const text = `${etClock(next.at)} ${boundaryWords(next)}`;
     const source = sourceOf(next.event);
-    return { kind: 'ahead', delay, text, short: text, source, label: close(`${delay} · ${text}`, source) };
+    // À l'étroit, le délai dit déjà quand : l'heure cède, la borne reste (OROS5.45, la barre tient à 1180 × 720).
+    return { kind: 'ahead', delay, text, short: boundaryWords(next), source, label: close(`${delay} · ${text}`, source) };
   }
   const major = nextCatalyst(ctx.events, ctx.at);
   if (major) {

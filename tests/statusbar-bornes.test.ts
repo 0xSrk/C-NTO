@@ -195,6 +195,26 @@ describe('OROS5.22 · les bornes du jour dans la barre d’état', () => {
     expect(css).toMatch(/\.borneNear \{\s*color: var\(--text-0\);\s*\}/);
   });
 
+  it('OROS5.45 à l’étroit, la date d’une valeur d’un autre jour cède : C.013 la marque, le nom accessible la dit', () => {
+    bench('offline');
+    // hors ligne, la dernière séance est d'hier : la valeur se date
+    useJournal.setState({ sessions: [session('s0', '2026-10-26', -63, 4)], trades: [] });
+    mount();
+    const b = expected();
+    expect(b.day.today).toBe(false);
+    for (const key of ['loss', 'trades']) {
+      const forms = [...cell(key)!.querySelector('b')!.querySelectorAll('span')].map((el) => el.textContent);
+      expect(forms, key).toHaveLength(3);
+      // la forme longue et la courte gardent la date ; la plus étroite (sous 1 480 px) la laisse
+      expect(forms[0], key).toMatch(/ · 26\.10$/);
+      expect(forms[1], key).toBe(forms[0]);
+      expect(forms[2], key).toBe(forms[0]!.replace(' · 26.10', ''));
+      expect(cell(key)!.querySelector('.skg-13'), key).not.toBeNull();
+    }
+    const css = readFileSync('src/app/shell.module.css', 'utf8');
+    expect(css).toMatch(/@container status \(max-width: 1480px\) \{[^}]*\.valueShort,[^}]*display: none;[^}]*\}\s*\.valueNarrow,/);
+  });
+
   it('« — », jamais 0 : une borne réglée sans valeur ; zéro n’est dit que quand il est lu ; rien de réglé, « Bornes à régler »', () => {
     // une limite et un maximum réglés, aucune séance du compte suivi, pont hors ligne : rien n'est lu
     useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: '', planAccount: APEX, traderRules: RULES } });

@@ -634,9 +634,10 @@
   width: 16px;
   height: 16px;
 }
+/* C.070 (14 × 16) à 12 px de haut, dans l'écrou de 16 px (OROS5.45 : une micro à 12 px au moins). */
 .gateGlyph {
-  width: 9px;
-  height: 11px;
+  width: 11px;
+  height: 12px;
 }
 .gateName {
   min-width: 0;
@@ -1122,8 +1123,8 @@
 }
 /* C.054, une source incomplète : le calendrier local, estimé ; il reste seul à l'étroit. */
 .answerGlyph {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   margin: 0 5px 0 8px;
   vertical-align: -1px;
 }

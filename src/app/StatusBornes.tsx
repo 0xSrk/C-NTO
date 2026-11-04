@@ -92,6 +92,14 @@ const accountWords = (account: string | null) => (account ? tr(`compte ${account
 /** La journée lue n'est pas celle de maintenant (la dernière séance, hors séance) : la valeur dit sa date, avec C.013. */
 const datedDay = (b: DayBornes): string | null => (!b.day.today && b.day.key ? shortDay(b.day.key) : null);
 
+/**
+ * Une valeur datée d'une autre journée garde sa date jusqu'à 1 480 px ; plus à l'étroit, la date cède et C.013 la marque
+ * seul, le nom accessible la disant toujours (OROS5.45 : la barre tient à 1180 × 720 dans les trois langues).
+ */
+function undated(bare: string, dated: string | null): Pick<BorneCell, 'valueShort' | 'valueNarrow'> {
+  return dated ? { valueShort: `${bare} · ${dated}`, valueNarrow: bare } : {};
+}
+
 function lossCell(b: DayBornes): BorneCell | null {
   const { loss } = b;
   if (loss.limit === null) return null;
@@ -118,6 +126,7 @@ function lossCell(b: DayBornes): BorneCell | null {
     name: tr('Perte du jour', 'Day loss', 'Pérdida del día'),
     short: tr('Perte', 'Loss', 'Pérdida'),
     value: `${loss.value === null ? '—' : fmtInt(loss.value)} / ${limit}${dated ? ` · ${dated}` : ''}`,
+    ...undated(`${loss.value === null ? '—' : fmtInt(loss.value)} / ${limit}`, dated),
     source: loss.source ?? 'trader',
     stale: b.day.stale || dated !== null,
     label: parts.join(', '),
@@ -146,6 +155,7 @@ function tradesCell(b: DayBornes): BorneCell | null {
     name: tr('Trades', 'Trades', 'Trades'),
     short: tr('Trades', 'Trades', 'Trades'),
     value: `${trades.count === null ? '—' : fmtInt(trades.count)} / ${fmtInt(trades.max)}${dated ? ` · ${dated}` : ''}`,
+    ...undated(`${trades.count === null ? '—' : fmtInt(trades.count)} / ${fmtInt(trades.max)}`, dated),
     matrix: { count: trades.count, max: trades.max },
     stale: b.day.stale || dated !== null,
     label: parts.join(', '),

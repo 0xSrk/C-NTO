@@ -12,7 +12,8 @@
   border-top: 1px solid var(--line-0);
   color: var(--text-2);
   font-family: var(--font-mono);
-  font-size: 9px;
+  /* Geist Mono à 10 px au moins (OROS5.45, taille d'usage). */
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   --k: var(--text-1);
@@ -52,9 +53,10 @@
   line-height: 12px;
   --k: var(--text-2);
 }
+/* Une micro à 12 px au moins (OROS5.45) : elle remplit la hauteur du couloir. */
 .laneGlyph {
-  width: 9px;
-  height: 9px;
+  width: 12px;
+  height: 12px;
   flex: none;
 }
 .day {
@@ -156,13 +158,14 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
+/* C.090 (12 × 16) et C.024 (20 × 15) à 12 px sur leur grand côté, dans un couloir de 12 px (OROS5.45). */
 .markGlyph {
-  width: 7px;
-  height: 9px;
+  width: 9px;
+  height: 12px;
 }
 .driftGlyph {
-  width: 9px;
-  height: 7px;
+  width: 12px;
+  height: 9px;
 }
 .laneText {
   position: absolute;

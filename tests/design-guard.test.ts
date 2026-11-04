@@ -207,6 +207,74 @@ function goldCarriers(): string[] {
   return found;
 }
 
+/**
+ * OROS5.45 — la taille d'usage dans les feuilles et les pièces de la vague (Système 5) : Geist Mono à 10 px au moins, une
+ * micro de la planche à 12 px au moins sur son grand côté, la distance à la publication jamais mise en ellipse.
+ */
+const WAVE_SHEETS = [
+  'src/app/criteria.module.css',
+  'src/app/frise.module.css',
+  'src/app/objects/fiche.module.css',
+  'src/app/objects/omnibar.module.css',
+  'src/app/objects/proposal.module.css',
+  'src/app/registre.module.css',
+  'src/app/shortcutHelp.module.css',
+  'src/design/etat.module.css',
+  'src/design/instruments/instruments.module.css',
+] as const;
+/** Les pièces de la vague qui posent une micro : chacune la règle dans sa feuille, par `className`. */
+const WAVE_PIECES = [
+  'src/app/Criteria.tsx',
+  'src/app/Frise.tsx',
+  'src/app/FriseAnswer.tsx',
+  'src/app/RailGates.tsx',
+  'src/app/RegistreDrawer.tsx',
+  'src/app/ShortcutHelp.tsx',
+  'src/app/StatusBornes.tsx',
+  'src/app/objects/AccountFiche.tsx',
+  'src/app/objects/AroundOf.tsx',
+  'src/app/objects/CatalystFiche.tsx',
+  'src/app/objects/EventStudy.tsx',
+  'src/app/objects/Fiche.tsx',
+  'src/app/objects/InstrumentFiche.tsx',
+  'src/app/objects/Instruments.tsx',
+  'src/app/objects/NoteFiche.tsx',
+  'src/app/objects/Omnibar.tsx',
+  'src/app/objects/ProposalFiche.tsx',
+  'src/app/objects/Selection.tsx',
+  'src/app/objects/SessionFiche.tsx',
+  'src/app/objects/StrategyFiche.tsx',
+  'src/app/objects/TradeFiche.tsx',
+  'src/design/instruments/Butterfly.tsx',
+  'src/modules/agent/Propositions.tsx',
+  'src/modules/agent/ToolTrace.tsx',
+] as const;
+
+/** Chaque micro posée par une pièce : la classe que `<Glyph className=…>` lui donne, résolue dans la feuille importée. */
+function waveMicros(): { where: string; width: number; height: number }[] {
+  const out: { where: string; width: number; height: number }[] = [];
+  for (const piece of WAVE_PIECES) {
+    const source = readFileSync(piece, 'utf8');
+    const sheets = new Map<string, string>();
+    for (const [, alias, from] of source.matchAll(/import (\w+) from '([^']+\.module\.css)'/g)) {
+      sheets.set(alias!, from!.startsWith('@/') ? `src/${from!.slice(2)}` : posix('.', join(piece, '..', from!)));
+    }
+    for (const [tag] of source.matchAll(/<Glyph\b[^>]*?\/>/gs)) {
+      for (const [, alias, name] of (tag.match(/className=\{([^}]*)\}/)?.[1] ?? '').matchAll(/\b(\w+)\.(\w+)\b/g)) {
+        const sheet = sheets.get(alias!);
+        if (!sheet) continue;
+        const rules = cssRules(readFileSync(sheet, 'utf8')).filter((rule) => rule.selector.split(',').map((part) => part.trim()).includes(`.${name}`));
+        expect(rules.length, `${piece} › ${sheet} .${name}`).toBeGreaterThan(0);
+        for (const rule of rules) {
+          const px = (prop: string) => Number(new RegExp(`(?:^|;)\\s*${prop}:\\s*(\\d+(?:\\.\\d+)?)px`).exec(rule.body)?.[1] ?? NaN);
+          out.push({ where: `${piece} › ${sheet} ${rule.at.join(' ')} .${name}`.replace(/\s+/g, ' '), width: px('width'), height: px('height') });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 describe('garde du système visuel', () => {
   it('n’appelle aucune police Google', () => {
     const roots = ['src', 'electron', 'index.html'].flatMap((entry) => (entry.endsWith('.html') ? [entry] : walk(entry)));
@@ -437,6 +505,37 @@ describe('garde du système visuel', () => {
     expect(doctrine).not.toMatch(/Ce qui vit est or|or pour ce qui vit/);
     const signals = doc.slice(doc.indexOf('## 02.'), doc.indexOf('## 03.'));
     expect(signals).toMatch(/^\| LED · ce que tient l’opérateur \| `--gold` \|/m);
+  });
+
+  it('OROS5.45 la taille d’usage : Geist Mono à 10 px au moins et une micro à 12 px au moins dans les pièces de la vague ; la distance à la publication jamais en ellipse', () => {
+    // Aucune police sous 10 px dans les feuilles nouvelles, et toujours en px : la garde lit ce qui est écrit.
+    const small: string[] = [];
+    for (const sheet of WAVE_SHEETS) {
+      for (const rule of cssRules(readFileSync(sheet, 'utf8'))) {
+        for (const [, value] of rule.body.matchAll(/(?:^|;)\s*font-size:\s*([^;]+)/g)) {
+          const px = /^(\d+(?:\.\d+)?)px$/.exec(value!.trim());
+          if (!px || Number(px[1]) < 10) small.push(`${sheet} › ${rule.selector} : ${value!.trim()}`);
+        }
+      }
+    }
+    expect(small).toEqual([]);
+    // Aucune micro sous 12 px sur son grand côté ; chacune a sa mesure.
+    const micros = waveMicros();
+    expect(micros.length).toBeGreaterThan(30);
+    expect(micros.filter((m) => !(Number.isFinite(m.width) || Number.isFinite(m.height)))).toEqual([]);
+    expect(micros.filter((m) => Math.max(Number.isFinite(m.width) ? m.width : 0, Number.isFinite(m.height) ? m.height : 0) < 12).map((m) => `${m.where} ${m.width}×${m.height}`)).toEqual([]);
+    // La distance à la publication (« CPI +108 min ») : la ligne de trade de la séance et l'échelle du trade la posent
+    // dans `.release`, d'un seul tenant ; ni elle ni ce qui la porte n'est coupé ni mis en ellipse.
+    const fiche = cssRules(readFileSync('src/app/objects/fiche.module.css', 'utf8'));
+    const release = fiche.filter((rule) => rule.selector.split(',').map((part) => part.trim()).includes('.release'));
+    expect(release.length).toBeGreaterThan(0);
+    expect(release.map((rule) => rule.body).join(';')).toMatch(/white-space: nowrap/);
+    const carriers = fiche.filter((rule) => /\.(?:release|tradeTime|tradeRow)\b/.test(rule.selector));
+    for (const rule of carriers) expect(rule.body, rule.selector).not.toMatch(/text-overflow|overflow:\s*hidden|-webkit-line-clamp/);
+    // Dans la fiche, l'ellipse ne sert qu'au fil d'Ariane de la barre de titre.
+    expect(fiche.filter((rule) => /text-overflow:\s*ellipsis/.test(rule.body)).map((rule) => rule.selector.replace(/\s+/g, ' '))).toEqual(['.crumbLink, .crumbObject']);
+    expect(readFileSync('src/app/objects/SessionFiche.tsx', 'utf8')).toMatch(/<span className=\{s\.release\} data-release="">/);
+    expect(readFileSync('src/app/objects/TradeFiche.tsx', 'utf8')).toMatch(/<span className=\{s\.release\}>\{release\}<\/span>/);
   });
 
   it('OROS5.21 la plaque vissée quitte A.01 et B.01 : ni vis, ni languette, ni dégradé, ni rayon, ni ombre ; le filet d’un pixel reste', () => {

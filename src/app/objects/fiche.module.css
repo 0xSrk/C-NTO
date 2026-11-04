@@ -899,7 +899,7 @@ button.activityRow:focus-visible {
 }
 .bKey {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   fill: var(--text-2);
 }
@@ -1176,7 +1176,7 @@ button.activityRow:focus-visible {
 }
 .studyTick {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.06em;
   fill: var(--text-2);
 }
@@ -1267,7 +1267,7 @@ button.activityRow:focus-visible {
 }
 .studySample {
   display: block;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.06em;
   color: var(--text-2);
 }

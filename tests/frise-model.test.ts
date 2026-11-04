@@ -25,6 +25,9 @@ import {
   sameTimeOn,
   sessionPlan,
   shiftDay,
+  spaced,
+  HOUR_GAP_PX,
+  hourTicks,
   stemGroups,
   twoWeeks,
   weekRingPoint,
@@ -325,5 +328,23 @@ describe('frise : dix journées, deux semaines ancrées à une journée', () => 
       return Math.round((Math.atan2(y - 50, x - 50) * 180) / Math.PI);
     });
     expect(angles).toEqual([-60, -30, 0, 30, 60, 120, 150, 180, -150, -120]);
+  });
+});
+
+describe('OROS5.45 frise : les heures de l’axe se lisent à 10 px', () => {
+  it('une heure trop près de la précédente cède ; 07, le début de la journée, prend la place de 06 sur la nuit comprimée', () => {
+    const span = daySpan(cmeDay(Date.parse('2026-11-04T15:00:00Z')));
+    const ticks = hourTicks(span);
+    // L'axe de la frise à 1180 × 720 (836 px) : la nuit au tiers, ses heures à 21 px les unes des autres.
+    const width = 836;
+    const x = (t: { at: number }) => dayFraction(t.at, span) * width;
+    const labels = ticks.filter((t) => t.hour === 7 || !t.night || (t.hour - 18 + 24) % 2 === 0);
+    const kept = spaced(labels, x);
+    for (let i = 1; i < kept.length; i++) expect(x(kept[i]!) - x(kept[i - 1]!), `${kept[i - 1]!.hour} → ${kept[i]!.hour}`).toBeGreaterThanOrEqual(HOUR_GAP_PX);
+    expect(kept.map((t) => t.hour)).toContain(7);
+    expect(kept.map((t) => t.hour)).not.toContain(6);
+    // Large (1600 × 1000), rien ne cède.
+    const wide = (t: { at: number }) => dayFraction(t.at, span) * 1256;
+    expect(spaced(ticks, wide)).toHaveLength(ticks.length);
   });
 });
