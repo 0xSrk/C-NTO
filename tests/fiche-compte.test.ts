@@ -363,6 +363,20 @@ describe('OROS5.27 la fiche Compte', () => {
     expect(section('plan').querySelector('[data-effect]')!.textContent).toContain('aucune limite de perte du jour réglée');
   });
 
+  it('OROS5.45k « Filtrer Métrique sur ce compte » saute d’abord, puis filtre : Retour arrière rend Métrique sans le filtre', () => {
+    mount();
+    open(SIM);
+    expect(useUi.getState().metricAccount).toBeNull();
+    act(() => drawer().querySelector<HTMLButtonElement>('[data-action="metrique"]')!.click());
+    expect(useUi.getState().tab).toBe('metrique');
+    expect(useObjects.getState().views.metrique).toBe('bord');
+    expect(useUi.getState().metricAccount).toBe(SIM);
+    expect(useObjects.getState().history).toHaveLength(1);
+    act(() => void useObjects.getState().back());
+    expect(useObjects.getState().open).toEqual({ type: 'compte', id: SIM });
+    expect(useUi.getState().metricAccount).toBeNull();
+  });
+
   it('aucune méthode d’écriture appelée depuis la fiche : le bouton du plan mène à l’écriture existante de Firme prop', () => {
     const writes = {
       update: vi.fn(async () => undefined),
