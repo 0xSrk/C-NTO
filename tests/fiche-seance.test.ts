@@ -533,4 +533,16 @@ describe('OROS5.26 A.04 et A.02 ouvrent la fiche de leur séance', () => {
     act(() => void vi.advanceTimersByTime(1));
     expect(useObjects.getState().open).not.toBeNull();
   });
+
+  it('OROS5.45o au Tableau de bord, le bouton d’une tige de A.02 ouvre la fiche de son catalyseur', async () => {
+    await dashboard();
+    // éteinte, aucune liste ; la puce Catalyseurs allumée, le CPI du 14.10 a son bouton
+    expect(host!.querySelector('[data-stems]')).toBeNull();
+    await act(async () => host!.querySelector<HTMLButtonElement>('button[data-event-set="catalysts"]')!.click());
+    const buttons = [...host!.querySelectorAll<HTMLButtonElement>('[data-stems] button')];
+    expect(buttons.map((b) => b.textContent)).toEqual(['Inflation CPI · 14.10']);
+    await act(async () => buttons[0]!.click());
+    expect(useObjects.getState().open).toEqual({ type: 'evenement', id: CPI });
+    expect(useObjects.getState().origin).toBe(buttons[0]);
+  });
 });
