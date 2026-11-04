@@ -78,7 +78,8 @@ function harness(opts: { answers?: number[]; hang?: boolean; confirmTimeoutMs?: 
     window: () => ({ isDestroyed: () => false }),
     showMessageBox: (_w, options) => {
       dialogs.push(options);
-      timeline.push('dialog');
+      // Deux marques distinctes : le dialogue (« box ») et chaque étape publiée (« step:… »), pour tenir leur ordre.
+      timeline.push('box');
       if (opts.hang && options.signal) return new Promise((resolve) => options.signal?.addEventListener('abort', () => resolve({ response: options.cancelId })));
       return Promise.resolve({ response: answers.shift() ?? 1 });
     },
@@ -87,7 +88,7 @@ function harness(opts: { answers?: number[]; hang?: boolean; confirmTimeoutMs?: 
     log: () => undefined,
     publish: (step) => {
       published.push(step);
-      timeline.push(step.stage);
+      timeline.push(`step:${step.stage}`);
     },
     now: () => (clock += 1000),
     confirmTimeoutMs: opts.confirmTimeoutMs,
@@ -119,8 +120,9 @@ describe('OROS5.40 l’étape d’une proposition, publiée par le process princ
     await h.host.enable();
     const outcome = await h.host.propose(PROPOSAL, 'mcp', null, null, 'p7');
     expect(outcome).toEqual({ status: 'declined', detail: 'refusé par le trader', timeout: false });
-    // L'activation n'a pas d'étape ; la proposition : gardée, dialogue ouvert, puis le dialogue lui-même.
-    expect(h.timeline).toEqual(['dialog', 'guarded', 'dialog', 'dialog']);
+    // L'activation n'a pas d'étape ; la proposition : gardée, dialogue ouvert, puis le dialogue lui-même (OROS5.40b : le
+    // dialogue et l'étape portent deux marques, l'étape `dialog` part avant que le dialogue ne s'ouvre).
+    expect(h.timeline).toEqual(['box', 'step:guarded', 'step:dialog', 'box']);
     const [guarded, dialog] = h.published;
     expect(guarded).toEqual({ ticket: 'p7', stage: 'guarded', at: guarded!.at, account: 'Sim101', instrument: 'MNQ 12-26', position: 1, resulting: 2 });
     expect(dialog).toEqual({ ticket: 'p7', stage: 'dialog', at: guarded!.at, deadline: guarded!.at + AGENT_CONFIRM_TIMEOUT_MS });
