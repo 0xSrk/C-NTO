@@ -23,7 +23,8 @@ import type { NtBridgeStatus } from '@/lib/desk';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
-import { dailyLossReached, traderRuleBlocks } from '@/store/deskEvents';
+import { useDayClose } from '@/store/dayClose';
+import { dailyLossReached, recordDayClose, traderRuleBlocks } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useLinks } from '@/store/links';
 import { useMacro } from '@/store/macro';
@@ -35,8 +36,8 @@ import { useUi } from '@/store/ui';
 /**
  * OROS5.23 — la réponse du temps, repliée au bout de la ligne de la journée : ce qui est en vigueur d'abord (le kill
  * switch en tête), sinon ce qui vient et son délai, puis sa source. L'heure de New York. La journée CME n'est que celle de
- * la frise : à 18:30 ET, l'« aujourd'hui » du rail et du Calendrier reste la date locale. La perte du jour n'est en
- * vigueur que tant que la garde la relit au-delà de sa limite.
+ * la frise : à 18:30 ET, l'« aujourd'hui » du rail et du Calendrier reste la date locale. La perte du jour atteinte ferme
+ * la journée jusqu'à la suivante, comme pour la garde (décision 15, OROS5.48b).
  */
 
 const et = (day: string, time: string) => zonedToUtc(day, time, ET_ZONE);
@@ -176,14 +177,14 @@ describe('OROS5.23 · la réponse du temps dans la barre d’état', () => {
   });
 });
 
-describe('OROS5.23 · la perte du jour n’est en vigueur que tant que la garde la relit au-delà de sa limite', () => {
+describe('OROS5.48b · la journée fermée, dite comme la garde la lit, même après un gain (décision 15, changement voulu d’OROS5.23)', () => {
   // Mardi 6 octobre 2026, limite de 600 $ (règle du trader) sur Apex-PA-50K : −300 $ à 10:20, −320 $ à 10:56, +80 $ à 11:40.
   const DAY = '2026-10-06';
   const trade = (id: string, exit: string, pnl: number): Trade => ({ id, sessionId: 's6', instrument: 'MNQ', account: APEX, direction: 'long', qty: 1, entryTime: et(DAY, exit) - 600_000, exitTime: et(DAY, exit), entryPrice: 0, exitPrice: 0, pnl, commission: 0 });
   const session = (pnl: number, n: number): Session => ({ id: 's6', date: DAY, account: APEX, instruments: ['MNQ'], source: 'ninjatrader', tradeCount: n, pnl, grossProfit: 0, grossLoss: pnl, commission: 0, tags: [], createdAt: 0, updatedAt: 0 });
-  /** Le journal tel qu'il est à l'instant lu : les seuls trades déjà sortis. */
-  function journalAt(time: string) {
-    const all = [trade('a', '10:20', -300), trade('b', '10:56', -320), trade('c', '11:40', 80)];
+  /** Le journal tel qu'il est à l'instant lu : les seuls trades déjà sortis (sans `b`, le réalisé n'atteint jamais la limite). */
+  function journalAt(time: string, withB = true) {
+    const all = [trade('a', '10:20', -300), ...(withB ? [trade('b', '10:56', -320)] : []), trade('c', '11:40', 80)];
     const done = all.filter((t) => t.exitTime <= et(DAY, time));
     useJournal.setState({ sessions: [session(done.reduce((sum, t) => sum + t.pnl, 0), done.length)], trades: done });
   }
@@ -208,39 +209,57 @@ describe('OROS5.23 · la perte du jour n’est en vigueur que tant que la garde 
 
   beforeEach(() => {
     useSettings.setState({ settings: { ...DEFAULT_SETTINGS, planId: '', planAccount: APEX, traderRules: { ...DEFAULT_TRADER_RULES, maxDailyLoss: 600 } } });
+    useDayClose.setState({ closes: [] });
   });
 
-  it('atteinte à 10:56, en vigueur à 11:10 ; reprise sous la limite par un gain à 11:40, elle ne l’est plus à 11:45, comme pour la garde', () => {
+  it('atteinte à 10:56, fermée à 11:10 ; un gain la ramène sous la limite à 11:40 : à 11:45, la garde refuse encore et la barre le dit', () => {
     at(et(DAY, '11:10'));
     journalAt('11:10');
     mount();
-    expect(answer().dataset.answer).toBe('lossReached');
-    expect(longText()).toBe('Perte du jour atteinte depuis 10:56');
+    expect(answer().dataset.answer).toBe('dayClosed');
+    expect(longText()).toBe('Journée fermée depuis 10:56 ET');
     expect(dailyLossReached()).toBe(true);
     expect(guardBlocks()).toBe(true);
     act(() => root!.unmount());
-    // 11:45 : −540 $, la garde laisse repasser une ouverture ; la barre ne dit plus « en vigueur »
+    // 11:45 : −540 $ relus ; la journée reste fermée depuis 10:56, pour la garde comme pour la barre
     at(et(DAY, '11:45'));
     journalAt('11:45');
-    mount();
-    expect(dailyLossReached()).toBe(false);
-    expect(guardBlocks()).toBe(false);
-    expect(answer().dataset.answer).not.toBe('lossReached');
-    expect(answer().getAttribute('aria-label')).not.toMatch(/Perte du jour atteinte/);
-  });
-
-  it('au présent, le latent négatif du pont compte comme pour la garde : la perte relue au-delà de la limite vaut, « latent compris »', () => {
-    at(et(DAY, '11:45'));
-    journalAt('11:45');
-    useBridge.setState({ nt: live(-80) });
     mount();
     expect(dailyLossReached()).toBe(true);
     expect(guardBlocks()).toBe(true);
-    expect(answer().dataset.answer).toBe('lossReached');
-    expect(longText()).toBe('Perte du jour atteinte · latent compris');
-    // un latent positif ne compte pas : ni pour la garde, ni pour la barre
+    expect(answer().dataset.answer).toBe('dayClosed');
+    expect(longText()).toBe('Journée fermée depuis 10:56 ET');
+    expect(answer().getAttribute('aria-label')).toBe('Journée fermée depuis 10:56 ET, sources officielles incomplètes, heure de New York');
+    // en trois langues
+    const said = (locale: Locale) => {
+      act(() => useI18n.setState({ locale }));
+      return longText();
+    };
+    expect([said('fr'), said('en'), said('es')]).toEqual(['Journée fermée depuis 10:56 ET', 'Day closed since 10:56 ET', 'Jornada cerrada desde 10:56 ET']);
+  });
+
+  it('au latent, la journée se ferme à l’instant lu ; retenue par le desk, elle tient quand le latent revient, jusqu’à la journée CME suivante', () => {
+    at(et(DAY, '11:45'));
+    journalAt('11:45', false);
+    useBridge.setState({ nt: live(-400) });
+    mount();
+    expect(dailyLossReached()).toBe(true);
+    expect(guardBlocks()).toBe(true);
+    expect(answer().dataset.answer).toBe('dayClosed');
+    expect(longText()).toBe('Journée fermée depuis 11:45 ET');
+    // la veille du desk retient la fermeture (`recordDayClose`), puis le latent passe en gain
+    act(() => recordDayClose());
     act(() => useBridge.setState({ nt: live(200) }));
+    expect(dailyLossReached()).toBe(true);
+    expect(guardBlocks()).toBe(true);
+    expect(answer().dataset.answer).toBe('dayClosed');
+    expect(longText()).toBe('Journée fermée depuis 11:45 ET');
+    act(() => root!.unmount());
+    // la journée CME suivante : rien ne la ferme plus
+    at(et('2026-10-07', '09:40'));
+    mount();
     expect(dailyLossReached()).toBe(false);
-    expect(answer().dataset.answer).not.toBe('lossReached');
+    expect(guardBlocks()).toBe(false);
+    expect(answer().dataset.answer).not.toBe('dayClosed');
   });
 });

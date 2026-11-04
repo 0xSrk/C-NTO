@@ -10,6 +10,7 @@ import { useCalendar } from '@/store/calendar';
 import { startCopierSync } from '@/store/copierSync';
 import { useAgentCloud } from '@/store/agentCloud';
 import { useCrypto } from '@/store/crypto';
+import { useDayClose } from '@/store/dayClose';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useLinks } from '@/store/links';
@@ -87,6 +88,8 @@ function boot(): Promise<void> {
     await step('vault', async () => {
       await useSettings.getState().load();
       await useJournal.getState().load();
+      // La journée fermée (décision 15) : relue du coffre avant que la garde de l'agent ne lise une proposition.
+      await useDayClose.getState().load();
       const j = useJournal.getState();
       return ['ok', `${plural(j.sessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · ${plural(j.trades.length, 'trade')}`];
     });

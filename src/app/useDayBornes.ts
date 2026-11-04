@@ -5,6 +5,8 @@ import { catalystSource } from '@/engine/macroMerge';
 import { findPlan } from '@/engine/propfirm';
 import { etDateKey } from '@/lib/time';
 import { useBridge } from '@/store/bridge';
+import { useDayClose } from '@/store/dayClose';
+import { trackedDayClosedSince } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
@@ -55,6 +57,8 @@ export function useDayBornes(): DayBornes {
   const replay = useBornesReplay();
   const nt = useBridge((b) => b.nt);
   const killLatched = useKillLatch((k) => k.engaged);
+  // La journée fermée (décision 15) : une fermeture retenue au coffre change ce que lit la garde.
+  const closes = useDayClose((d) => d.closes);
   const official = useMacro((m) => m.events);
   const sources = useMacro((m) => m.sources);
   const lastError = useMacro((m) => m.lastError);
@@ -82,7 +86,9 @@ export function useDayBornes(): DayBornes {
         ordersClosed: nt?.ordersClosed,
         killLatched,
         maxContractsPerOrder: nt?.maxContractsPerOrder ?? null,
+        // La lecture même de la garde : « journée fermée depuis hh:mm ET » jusqu'à la journée CME suivante.
+        dayClosedSince: trackedDayClosedSince(now),
       }),
-    [replay, now, nt, catalysts, calendarSources, killLatched],
+    [replay, now, nt, catalysts, calendarSources, killLatched, closes],
   );
 }

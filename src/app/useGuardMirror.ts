@@ -6,6 +6,7 @@ import type { Trade } from '@/engine/types';
 import type { AgentOrderStatus, NtBridgeStatus } from '@/lib/desk';
 import { useAgentOrders } from '@/store/agentOrders';
 import { useBridge } from '@/store/bridge';
+import { useDayClose } from '@/store/dayClose';
 import { propShareFor, traderRulesOf } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
@@ -96,6 +97,8 @@ export function useGuardMirror(account?: string | null, side?: AgentOrderProposa
   useSettings((st) => st.settings.userPlans);
   useJournal((j) => j.sessions);
   useMacro((m) => m.events);
+  // La journée fermée (décision 15) : une fermeture retenue au coffre change la règle que lit `traderRulesOf`.
+  useDayClose((d) => d.closes);
   const trades = useJournal((j) => j.trades);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

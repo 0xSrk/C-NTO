@@ -156,6 +156,12 @@ export interface BornesLive {
   /** Verrou du renderer : une coupure vue garde le canal fermé jusqu'au redémarrage. */
   killLatched?: boolean;
   maxContractsPerOrder?: number | null;
+  /**
+   * Depuis quand la journée CME en cours est fermée sur le compte suivi (décision 15 de l'ADMIN), d'après la fermeture
+   * retenue et le journal, comme la garde le lit (`trackedDayClosedSince`) ; `null` ou absent : rien de tel. La perte relue
+   * à l'instant, latent compris, la ferme aussi : la borne la lit d'elle-même.
+   */
+  dayClosedSince?: number | null;
 }
 
 export interface DayRead {
@@ -197,6 +203,12 @@ export interface LossBorne {
   pnl: number | null;
   /** Entrées prises après la perte du jour atteinte, rejouées. */
   afterLimit: number | null;
+  /**
+   * La journée fermée depuis (décision 15) : la perte du jour a atteint la limite, la journée CME en cours reste fermée aux
+   * ouvertures de l'agent jusqu'à la suivante, même si un gain la ramène sous la limite ; `null` : ouverte. C.123 tant
+   * qu'elle tient.
+   */
+  closedSince: number | null;
   level: BorneLevel;
 }
 
@@ -311,15 +323,18 @@ function lossAndTrades(replay: BornesReplay, live: BornesLive, day: DayRead): { 
   const account = replay.account || null;
   if (!day.key) {
     return {
-      loss: { value: null, realized: null, unrealized: null, limit: limit?.amount ?? null, source: limit?.source ?? null, account, consumed: null, remaining: null, pnl: null, afterLimit: null, level: 0 },
+      loss: { value: null, realized: null, unrealized: null, limit: limit?.amount ?? null, source: limit?.source ?? null, account, consumed: null, remaining: null, pnl: null, afterLimit: null, closedSince: null, level: 0 },
       trades: { count: null, max: maxTrades, pnls: [], consumed: null, over: null, level: 0 },
     };
   }
   const read = replay.day(day.key);
   const { unrealized, loss } = lossOfDay(read.realized, day.live ? unrealizedOf(replay, live) : 0);
   const consumed = limit ? loss / limit.amount : null;
-  // Une borne ne s'allume que pour la journée en cours : la dernière séance est une lecture datée, pas une alerte.
-  const lossLevel: BorneLevel = !day.today || consumed === null ? 0 : consumed >= 1 ? 3 : consumed >= LOSS_WARN ? 2 : 0;
+  // Une borne ne s'allume que pour la journée en cours : la dernière séance est une lecture datée, pas une alerte. La
+  // journée fermée (décision 15) reste franchie jusqu'à la suivante, même si un gain ramène la perte sous la limite.
+  const reachedNow = day.today && limit !== null && loss >= limit.amount ? live.now : null;
+  const closedSince = !day.today ? null : finite(live.dayClosedSince) ? Math.min(live.dayClosedSince, reachedNow ?? Number.POSITIVE_INFINITY) : reachedNow;
+  const lossLevel: BorneLevel = !day.today ? 0 : closedSince !== null ? 3 : consumed === null ? 0 : consumed >= 1 ? 3 : consumed >= LOSS_WARN ? 2 : 0;
   const tradesLevel: BorneLevel = !day.today || maxTrades === null ? 0 : read.trades > maxTrades ? 3 : read.trades === maxTrades ? 2 : 0;
   return {
     loss: {
@@ -333,6 +348,7 @@ function lossAndTrades(replay: BornesReplay, live: BornesLive, day: DayRead): { 
       remaining: limit ? limit.amount - loss : null,
       pnl: read.realized + unrealized,
       afterLimit: read.afterLimit,
+      closedSince,
       level: lossLevel,
     },
     trades: { count: read.trades, max: maxTrades, pnls: read.pnls, consumed: maxTrades === null ? null : read.trades / maxTrades, over: read.overMax, level: tradesLevel },

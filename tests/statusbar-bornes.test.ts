@@ -35,6 +35,7 @@ import type { NtBridgeStatus } from '@/lib/desk';
 import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
 import { etDateKey } from '@/lib/time';
 import { useKillLatch } from '@/app/killState';
+import { etClock } from '@/app/objects/index';
 import { useBridge } from '@/store/bridge';
 import { useJournal } from '@/store/journal';
 import { useLinks } from '@/store/links';
@@ -163,8 +164,11 @@ describe('OROS5.22 · les bornes du jour dans la barre d’état', () => {
       const b = expected();
       const tag = state;
       expect(cells().map((c) => c.dataset.borne), tag).toEqual(['loss', 'trades', 'margin']);
-      // la perte du jour : sa valeur, sa limite et sa source, au niveau des bornes (C.012 à 75 %, C.123 au-delà)
-      expect(valueOf('loss'), tag).toBe(`${fmtInt(b.loss.value!)} / ${fmtUsd(500)}${b.day.today ? '' : ' · 26.10'}`);
+      // la perte du jour : sa valeur, sa limite et sa source, au niveau des bornes (C.012 à 75 %, C.123 au-delà) ; franchie,
+      // la journée est fermée (décision 15, OROS5.48b, changement voulu) et la valeur le dit
+      const closed = b.loss.closedSince !== null ? ` · journée fermée depuis ${etClock(b.loss.closedSince)} ET` : '';
+      expect(b.loss.closedSince !== null, tag).toBe(state === 'breach');
+      expect(valueOf('loss'), tag).toBe(`${fmtInt(b.loss.value!)} / ${fmtUsd(500)}${closed}${b.day.today ? '' : ' · 26.10'}`);
       expect(cell('loss')!.dataset.level, tag).toBe(String(b.loss.level));
       expect(cell('loss')!.querySelector('[data-source]')?.getAttribute('data-source'), tag).toBe('trader');
       const signal = cell('loss')!.querySelector<HTMLElement>('[data-level]:not([data-borne])');
@@ -259,7 +263,8 @@ describe('OROS5.22 · les bornes du jour dans la barre d’état', () => {
     // franchie : ce qui dépasse ; hors ligne : la dernière séance, datée
     act(() => useI18n.setState({ locale: 'fr' }));
     act(() => bench('breach'));
-    expect(cell('loss')!.getAttribute('aria-label')).toBe(`Perte du jour 524 sur ${fmtUsd(500)}, dépassée de 24, règle du trader, compte Apex-PA-50K, pont il y a 4 s`);
+    // OROS5.48b (changement voulu) : franchie, la journée est fermée depuis l'instant lu, et le nom accessible le dit
+    expect(cell('loss')!.getAttribute('aria-label')).toBe(`Perte du jour 524 sur ${fmtUsd(500)}, dépassée de 24, journée fermée depuis 11:00 ET, règle du trader, compte Apex-PA-50K, pont il y a 4 s`);
     act(() => bench('offline'));
     act(() => useJournal.setState({ sessions: [session('s0', '2026-10-26', -63, 4)], trades: [] }));
     expect(cell('loss')!.getAttribute('aria-label')).toBe(`Perte du jour 63 sur ${fmtUsd(500)}, reste 437, règle du trader, compte Apex-PA-50K, dernière séance, 26.10`);

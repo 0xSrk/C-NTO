@@ -3,7 +3,7 @@ import { EVENT_LOG_MAX } from '@/engine/agent/events';
 import { AGENT_ORDER_DEFAULTS, AGENT_RATE_WINDOW_MS, AGENT_REASON_MAX, parseProposal } from '@/engine/agent/orders';
 import { desk, type AgentOrderOrigin, type AgentOrderOutcome, type AgentOrderStatus, type AgentOrderStep } from '@/lib/desk';
 // Ce que le renderer transmet à la garde du process principal vit dans `deskEvents` (OROS5.9) : le miroir de la garde le relit.
-import { propShareFor, recordDeskEvent, traderRuleOf } from './deskEvents';
+import { propShareFor, recordDayClose, recordDeskEvent, traderRuleOf } from './deskEvents';
 
 /** Statut hors desk (navigateur) ou avant la première lecture : désactivé. */
 export const AGENT_ORDERS_OFF: AgentOrderStatus = { ...AGENT_ORDER_DEFAULTS, enabled: false, pending: false };
@@ -230,6 +230,8 @@ export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
     } else {
       set({ status: { ...get().status, pending: true } });
       try {
+        // La journée fermée d'abord (décision 15) : une perte du jour vue à cet instant la ferme avant que la règle se lise.
+        recordDayClose();
         // L'identifiant de la proposition part comme ticket : le process principal le renvoie avec chaque étape (OROS5.40).
         outcome = await api.propose(args, origin, propShareFor(text(args.account, 128)), traderRuleOf(args), proposal.id);
       } catch (e) {

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Glyph, Signal } from '@/design/Micro';
+import { dayClosesFor } from '@/engine/agent/dayClose';
 import { calendarSourcesState, type CalendarSources } from '@/engine/bornes';
 import type { CalEvent } from '@/engine/calendar';
 import { dailyLimit } from '@/engine/discipline';
@@ -11,6 +12,8 @@ import { trEventTitle } from '@/lib/eventTitles';
 import { catalystSource } from '@/engine/macroMerge';
 import { addDays, dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
 import { daySpan, hourAt, isWeekday, MIN, nextCatalyst, type Boundary, type HourAnswer, type InForce, type InForceKind } from '@/lib/frise';
+import { useDayClose } from '@/store/dayClose';
+import { dayClosedText } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
 import { useObjects } from '@/store/objects';
 import { useMacro } from '@/store/macro';
@@ -24,15 +27,15 @@ import s from './shell.module.css';
 /**
  * La réponse du temps, au bout de la ligne de la journée (OROS5.23, Système 5 « Fiche et Frise » ; repris du prototype
  * C · Frise, d3) : ce qui borne l'heure qui vient, tiré du modèle pur de la frise (`hourAt`, `src/lib/frise.ts`). D'abord
- * ce qui est en vigueur — C.123 « soumission fermée », « perte du jour atteinte depuis 10:56 », « fenêtre ± 15 · CPI
+ * ce qui est en vigueur — C.123 « soumission fermée », « journée fermée depuis 10:56 ET », « fenêtre ± 15 · CPI
  * jusqu'à 08:45 » —, sinon ce qui vient et son délai — « 20 min · 09:30 Ouverture RTH » —, puis sa source : « calendrier
  * local · estimé ». L'heure est celle de New York (décision 7). L'axe des heures n'entre pas dans la barre : il vit dans le
  * tiroir de la frise. La journée CME n'est que celle de la frise : l'« aujourd'hui » du rail et du Calendrier reste la
  * date locale.
  *
- * La perte du jour n'est dite en vigueur que tant que la perte relue reste au moins égale à la limite, comme la garde la
- * relit à chaque entrée (`dailyLossReached`), latent négatif du pont compris : la frise ne dit jamais « en vigueur » pour
- * une perte que la garde laisserait passer. Lecture seule.
+ * La perte du jour atteinte ferme la journée CME jusqu'à la suivante (décision 15 de l'ADMIN, 2026-11-03) : la réponse dit
+ * « journée fermée depuis hh:mm ET » comme la garde le lit (`traderRuleBlocks`, `dailyLossReached`), latent négatif du
+ * pont et fermeture retenue au coffre compris, même si un gain ramène ensuite la perte relue sous la limite. Lecture seule.
  */
 
 /** Ce que dit la réponse : ce qui vaut, ce qui vient dans l'heure, le prochain catalyseur majeur, ou rien. */
@@ -97,19 +100,23 @@ function reopenAfter(day: string): number {
   return daySpan(addDays(day, 1)).start;
 }
 
+/** « Journée fermée depuis hh:mm ET » (décision 15) : les mots de la garde (`dayClosedText`), en tête de ligne. */
+export function dayClosedWords(since: number): string {
+  const text = dayClosedText(since);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** Ce qui vaut, en mots : la forme entière et la courte. */
 function inForceWords(item: InForce, day: string): { text: string; short: string } {
   switch (item.kind) {
     case 'kill':
       // La bande du kill switch dit le reste (jusqu'au redémarrage, les comptes à aplatir) : la réponse dit ce qui vaut.
       return { text: tr('Soumission fermée', 'Submission closed', 'Envío cerrado'), short: tr('Soumission fermée', 'Submission closed', 'Envío cerrado') };
-    case 'lossReached':
-      if (item.since === undefined)
-        return { text: tr('Perte du jour atteinte · latent compris', 'Day loss reached · open P&L included', 'Pérdida del día alcanzada · latente incluido'), short: tr('Perte atteinte · latent', 'Loss reached · open', 'Pérdida alcanzada · latente') };
-      return {
-        text: tr(`Perte du jour atteinte depuis ${etClock(item.since)}`, `Day loss reached since ${etClock(item.since)}`, `Pérdida del día alcanzada desde ${etClock(item.since)}`),
-        short: tr(`Perte atteinte · ${etClock(item.since)}`, `Loss reached · ${etClock(item.since)}`, `Pérdida alcanzada · ${etClock(item.since)}`),
-      };
+    case 'dayClosed': {
+      // La journée fermée (décision 15) : les mots mêmes de la barre d'état et du miroir de la garde.
+      const since = etClock(item.since ?? 0);
+      return { text: dayClosedWords(item.since ?? 0), short: tr(`Journée fermée · ${since}`, `Day closed · ${since}`, `Jornada cerrada · ${since}`) };
+    }
     case 'window': {
       const name = titles(item.event ? [item.event] : []);
       const until = etClock(item.until ?? 0);
@@ -238,7 +245,8 @@ export interface HourRead {
 /**
  * La réponse de la frise à l'instant lu — le curseur tiré, sinon maintenant (OROS5.24) —, depuis les stores du desk : la
  * source unique du catalyseur, les trades du compte suivi (comme la garde : `limitAccount`), la limite du jour retenue,
- * le kill switch, et le latent négatif du pont tel que la garde le lit (les bornes du jour : nom exact du compte suivi).
+ * le kill switch, le latent négatif du pont tel que la garde le lit (les bornes du jour), et les fermetures de la journée
+ * que le desk a retenues pour le compte suivi (`useDayClose`, décision 15).
  */
 export function useHourAnswer(): HourRead {
   useI18n((st) => st.locale);
@@ -252,6 +260,7 @@ export function useHourAnswer(): HourRead {
   const userPlans = useSettings((st) => st.settings.userPlans);
   const rules = useSettings((st) => st.settings.traderRules);
   const kill = useKillSwitch().engaged;
+  const stored = useDayClose((d) => d.closes);
   const bornes = useDayBornes();
   const official = useMacro((m) => m.events);
   const sources = useMacro((m) => m.sources);
@@ -260,7 +269,8 @@ export function useHourAnswer(): HourRead {
   // `userPlans` : un plan saisi change ce que rend `findPlan`.
   const limit = useMemo(() => dailyLimit(rules, findPlan(planId))?.amount ?? null, [rules, planId, userPlans]);
   const unrealized = bornes.day.live ? (bornes.loss.unrealized ?? 0) : 0;
-  const answer = useMemo(() => hourAt({ at, now, events, trades: own, rules, limit, kill, unrealized }), [at, now, events, own, rules, limit, kill, unrealized]);
+  const closes = useMemo(() => dayClosesFor(stored, planAccount), [stored, planAccount]);
+  const answer = useMemo(() => hourAt({ at, now, events, trades: own, rules, limit, kill, unrealized, closes }), [at, now, events, own, rules, limit, kill, unrealized, closes]);
   const line = friseLine(answer, { at, events, sources: calendarSourcesState(sources, lastError, official.length) });
   return { answer, line, at, now, pulled: cursor !== null, events, own };
 }

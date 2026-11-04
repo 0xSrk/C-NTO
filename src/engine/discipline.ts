@@ -182,6 +182,29 @@ export function dayLoss(input: DayLossInput): DayLoss {
   };
 }
 
+/**
+ * Premier instant de la journée CME `day` où la perte réalisée du compte suivi ('' : tous les comptes) atteint `limit`,
+ * les sorties relues dans l'ordre jusqu'à `until` ; `null` sinon. La lecture de `detectRuleBreaches` (sorties de la même
+ * journée CME, compte de la limite), faite sortie après sortie : un gain qui ramène ensuite la perte sous la limite n'efface
+ * pas l'instant où elle l'a atteinte (décision 15 de l'ADMIN, 2026-11-03 : la journée reste fermée).
+ */
+export function limitReachedAt(closed: readonly Trade[], ctx: { day: string; account: string; limit: number; until?: number }): number | null {
+  if (!(ctx.limit > 0)) return null;
+  const until = ctx.until ?? Number.POSITIVE_INFINITY;
+  // Une journée CME dure au plus 25 h : lue à un instant de cette journée, aucune sortie plus ancienne n'en est ; le jour
+  // de chaque sortie candidate reste celui de `tradingDayNow`.
+  const floor = Number.isFinite(until) && tradingDayNow(until) === ctx.day ? until - 26 * 3_600_000 : Number.NEGATIVE_INFINITY;
+  const exits = closed
+    .filter((t) => Number.isFinite(t.pnl) && Number.isFinite(t.exitTime) && t.exitTime <= until && t.exitTime >= floor && (!ctx.account || (t.account ?? '') === ctx.account) && tradingDayNow(t.exitTime) === ctx.day)
+    .sort((a, b) => a.exitTime - b.exitTime || a.id.localeCompare(b.id));
+  let realized = 0;
+  for (const t of exits) {
+    realized += t.pnl;
+    if (-realized >= ctx.limit) return t.exitTime;
+  }
+  return null;
+}
+
 export interface DailyLimit {
   /** Limite retenue : la plus basse des deux. */
   amount: number;

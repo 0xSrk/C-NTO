@@ -25,7 +25,9 @@ const CPI: CalendarEventRow = { id: 'bls:cpi', sourceId: 'bls', date: DAY, timeE
 const order = (account: string, instrument = 'MNQ 12-26', qty = 1): Record<string, unknown> => ({ account, instrument, side: 'buy', qty, type: 'market', reason: 'cassure du plus haut de la veille' });
 const loss = { sessions: [session('s1', 'SimApex1', -600)], trades: [trade('t1', 's1', 'SimApex1', -600)] };
 const lossApex = { sessions: [session('s2', 'Apex-PA-50K', -600)], trades: [trade('t2', 's2', 'Apex-PA-50K', -600)] };
-const lossRule = (n: number): AgentTraderRuleBlock => ({ rule: 'after_daily_limit', detail: `perte du jour ${n} $ ≥ limite 500 $ (règle du trader)` });
+// OROS5.48b (décision 15, changement voulu) : la perte du jour atteinte ferme la journée CME, et la règle transmise dit depuis
+// quand, à l'heure de New York (la sortie de −600 $ à 07:55 ET) ; la perte relue suit, telle qu'avant.
+const lossRule = (n: number): AgentTraderRuleBlock => ({ rule: 'after_daily_limit', detail: `journée fermée depuis 07:55 ET : perte du jour ${n} $ ≥ limite 500 $ (règle du trader)` });
 const windowRule: AgentTraderRuleBlock = { rule: 'catalyst_window', detail: 'Consumer Price Index à 08:30 ET : pas d’entrée à ± 10 min' };
 const listRule = (symbol: string): AgentTraderRuleBlock => ({ rule: 'instrument_not_allowed', detail: `${symbol} hors des instruments autorisés (ES)` });
 

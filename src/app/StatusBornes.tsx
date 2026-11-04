@@ -4,9 +4,10 @@ import type { BorneLevel, DayBornes } from '@/engine/bornes';
 import { tr, useI18n } from '@/i18n';
 import { fmtInt, fmtPct, fmtUsd } from '@/lib/format';
 import { useBridge } from '@/store/bridge';
+import { dayClosedText } from '@/store/deskEvents';
 import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
-import { shortDay } from './objects/index';
+import { etClock, shortDay } from './objects/index';
 import { useDayBornes } from './useDayBornes';
 import s from './shell.module.css';
 
@@ -117,16 +118,21 @@ function lossCell(b: DayBornes): BorneCell | null {
     else parts.push(tr(`dépassée de ${fmtInt(-rest)}`, `exceeded by ${fmtInt(-rest)}`, `superada en ${fmtInt(-rest)}`));
     if (loss.level === 2 && loss.consumed !== null) parts.push(tr(`${fmtPct(loss.consumed, 0)} de la limite`, `${fmtPct(loss.consumed, 0)} of the limit`, `${fmtPct(loss.consumed, 0)} del límite`));
   }
+  // La journée fermée (décision 15) : dite par les mots de la garde, jusqu'à la journée CME suivante.
+  const closed = loss.closedSince !== null ? dayClosedText(loss.closedSince) : null;
+  if (closed) parts.push(closed);
   parts.push(source, accountWords(loss.account), readFrom(b));
   const dated = datedDay(b);
+  const bare = `${loss.value === null ? '—' : fmtInt(loss.value)} / ${limit}`;
   return {
     key: 'loss',
     level: loss.level,
     nearest: b.nearest === 'loss',
     name: tr('Perte du jour', 'Day loss', 'Pérdida del día'),
     short: tr('Perte', 'Loss', 'Pérdida'),
-    value: `${loss.value === null ? '—' : fmtInt(loss.value)} / ${limit}${dated ? ` · ${dated}` : ''}`,
-    ...undated(`${loss.value === null ? '—' : fmtInt(loss.value)} / ${limit}`, dated),
+    // Fermée, la valeur le dit en entier, puis l'heure seule à l'étroit ; la réponse du temps le redit dans sa forme courte.
+    value: closed ? `${bare} · ${closed}` : `${bare}${dated ? ` · ${dated}` : ''}`,
+    ...(closed && loss.closedSince !== null ? { valueShort: `${bare} · ${tr('fermée', 'closed', 'cerrada')} ${etClock(loss.closedSince)}`, valueNarrow: bare } : undated(bare, dated)),
     source: loss.source ?? 'trader',
     stale: b.day.stale || dated !== null,
     label: parts.join(', '),

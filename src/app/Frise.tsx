@@ -13,7 +13,7 @@ import { useJournal } from '@/store/journal';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
-import { etDay, FRISE_ANSWER_ID, FRISE_DRAWER_ID, useHourAnswer } from './FriseAnswer';
+import { dayClosedWords, etDay, FRISE_ANSWER_ID, FRISE_DRAWER_ID, useHourAnswer } from './FriseAnswer';
 import { etClock, STROKE_ETAT, type EtatStroke } from './objects/index';
 import { cursorMoveOf, matchShortcut } from './shortcuts';
 import f from './frise.module.css';
@@ -230,7 +230,7 @@ function Drawer({ className }: { className?: string }) {
               key={`h${w.from}`}
               className={f.hatch}
               style={{ left: x(w.from), width: Math.max(1, x(w.to) - x(w.from)), top: 2 * LANE + 2 }}
-              title={tr(`Perte du jour au-delà de sa limite, de ${etClock(w.from)} à ${etClock(w.to)}`, `Day loss beyond its limit, from ${etClock(w.from)} to ${etClock(w.to)}`, `Pérdida del día más allá de su límite, de ${etClock(w.from)} a ${etClock(w.to)}`)}
+              title={dayClosedWords(w.from)}
               aria-hidden
             />
           ))}
