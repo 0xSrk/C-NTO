@@ -251,6 +251,9 @@ export default function Agent() {
   const visibleMessages = messages.filter((m) => m.role !== 'system');
   // La trace des outils (OROS5.41) se pose sous la réponse qui les appelle : ses résultats s'y lisent, plus en bulles à part.
   const toolResults = useMemo(() => visibleMessages.filter((m) => m.role === 'tool'), [messages]);
+  // Le tour en cours : ce qui suit la dernière question de l'opérateur. Seules ses réponses courent pendant le flux ; une
+  // réponse plus ancienne restée sans résultat (le desk fermé pendant un outil) reste « sans résultat ».
+  const turnStart = visibleMessages.map((m) => m.role).lastIndexOf('user');
   const answered = useMemo(() => {
     const calls = new Set(visibleMessages.flatMap((m) => (m.role === 'assistant' ? (m.toolCalls ?? []).map((c) => c.id) : [])));
     return new Set(toolResults.filter((m) => calls.has(m.toolCallId ?? m.id)).map((m) => m.id));
@@ -348,8 +351,8 @@ export default function Agent() {
                     </div>
                   </div>
                 )}
-                {visibleMessages.map((m) =>
-                  m.role === 'tool' && answered.has(m.id) ? null : <Message key={m.id} m={m} results={m.role === 'assistant' && m.toolCalls?.length ? toolResults : undefined} streaming={streaming} />,
+                {visibleMessages.map((m, i) =>
+                  m.role === 'tool' && answered.has(m.id) ? null : <Message key={m.id} m={m} results={m.role === 'assistant' && m.toolCalls?.length ? toolResults : undefined} streaming={streaming && i > turnStart} />,
                 )}
                 {streaming && (
                   <div className={cx(s.msg, s.assistant)}>
