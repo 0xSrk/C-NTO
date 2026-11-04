@@ -43,9 +43,9 @@ describe('journal des versions', () => {
     expect(versions).toEqual(sorted);
   });
 
-  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.8.0', () => {
-    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0']);
-    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0']);
+  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.9.0', () => {
+    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0', '3.9.0']);
+    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0', '3.9.0']);
     expect(entryFor('3.1.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.date).toBe('2026-09-29');
@@ -97,6 +97,14 @@ describe('journal des versions', () => {
     for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.8.0')?.highlights[lang]).toHaveLength(5);
     expect(entryFor('3.8.0')?.highlights.en.join(' ')).toMatch(/Visual system 4\.1/);
     expect(entryFor('3.8.0')?.highlights.en.join(' ')).toMatch(/Hover is a dimmed light again/);
+    // R3.9a la 3.9.0 porte la formation quant du desk du Lab et la garde A18 du latent du pont.
+    expect(entryFor('3.9.0')?.kind).toBe('fonctionnalite');
+    expect(entryFor('3.9.0')?.date).toBe('2026-11-04');
+    for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.9.0')?.highlights[lang]).toHaveLength(3);
+    expect(entryFor('3.9.0')?.highlights.en.join(' ')).toMatch(/Train the agent/);
+    expect(entryFor('3.9.0')?.highlights.en.join(' ')).toMatch(/\$25 cap/);
+    expect(entryFor('3.9.0')?.highlights.fr.join(' ')).toMatch(/Former l’agent/);
+    expect(entryFor('3.9.0')?.highlights.es.join(' ')).toMatch(/Formar al agente/);
     expect(entryFor('3.0.1')).toBeNull();
   });
 

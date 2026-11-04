@@ -1580,3 +1580,17 @@ La CI de #141 a rendu trois échecs sous Windows seulement ; macOS et Linux éta
 | Ticket | Ce qui change | Test |
 |---|---|---|
 | CLD61 | `verifie.py` lisait un chemin relatif avec le séparateur du système (`os.path.relpath`, `electron/agent-cloud-formation.ts:160`) : sous Windows, `fiches\…` ne commence pas par `fiches/`, aucune fiche n'était comptée, et l'index ne se comparait plus. Le chemin se lit désormais avec `/` partout (`.replace(os.sep, '/')`), sans effet dans le bac à sable Linux de la formation. Le test lance le script avec `-X utf8`, qui fixe l'encodage de la console de l'hôte (cp1252 sous Windows rendait « écart » illisible), et lit la sortie sans ses `\r`. `tests/audit-tickets.test.ts` lit `docs/AUDIT.md` sans les fins de ligne `\r\n` de la copie de travail Windows : la ligne de séparation d'un tableau y passait pour un ticket « --- », et aucune section ne se trouvait. Rouge sans le correctif sur une copie de `docs/AUDIT.md` en `\r\n`, vert avec. | `tests/agent-cloud-formation.test.ts` › CLD57, CLD39 ; `tests/audit-tickets.test.ts` |
+
+## Publication de la 3.9.0 (2026-11-04)
+
+L'ADMIN demande que l'agent cloud se forme au savoir quant sur quantmemo.com, puis que l'on fusionne et mette à jour. La 3.9.0 porte la formation (#141, CLD36 à CLD60) et la garde A18 (#140), fusionnée après la 3.8.0. Elle part de la branche de la formation : sa PR suit la fusion de #141.
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| R3.9a | Version 3.9.0 (`package.json`, les deux entrées racine de `package-lock.json`). Entrée 3.9.0 du journal, trois points en français, anglais et espagnol : la formation quant au desk du Lab (« Former l'agent », plafond de 25 $ par session, robots.txt et conditions d'abord) ; le savoir monté en lecture seule chez l'analyste, le rapport `AGT-FRM` et les sources bornées aux domaines lisibles ; la garde A18. README : badge et cartouches, « What's new in 3.9.0 » (les trois points anglais mot pour mot), liens et commandes d'installation vers les fichiers de la v3.9.0, ligne 3.9.0 en tête de « Versions », l'ancre `whats-new-in-380` passée à la ligne 3.8.0 ; « Lab reports » gagne « The training » et dit ce que l'analyste lit ; la ligne « Cloud agent » de la sécurité nomme la formation ; 2 742 tests. Le test R3.8c ne lit plus « What's new » à la 3.8.0 : R3.9a le lit à la version de `package.json`, et vérifie que chaque installeur cité porte cette version. | `tests/changelog.test.ts`, `tests/release-notes.test.ts`, `tests/readme.test.ts` › R3.9a |
+
+**Ce qui ne change pas.** Le journal et le README ne promettent rien de plus que le code : la formation ne tourne qu'au desk du Lab ; ailleurs, le dossier se lit comme avant ; rien du desk ne part vers le cloud. Ni « siège » ni « asiento » (`tests/seat.test.ts`). Les plaques du README restent celles de la 3.8.0 : la formation n'ajoute qu'une rangée à D · Lab, vue du seul desk du Lab.
+
+**Vérifications.** `npm run check` vert (typecheck, 275 fichiers, 2 742 tests, build), `node scripts/release-notes.mjs --check` : 3.9.0, trois points, fr/en/es.
+
+**Reste.** Fusionner #141 puis cette montée (ADMIN) ; lancer le workflow `release` sur `main` ; signer sur le poste de l'ADMIN, contrôle croisé selon `docs/PUBLICATION.md`. D'ici la publication, les liens d'installation du README mènent à des fichiers que seule la Release en brouillon porte.
