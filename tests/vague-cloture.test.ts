@@ -23,10 +23,29 @@ describe('OROS5.46b · la relecture de la vague se consigne', () => {
     expect(closing).toContain('OROS5.30a, OROS5.44a, OROS5.45h à OROS5.45m, OROS5.46a, OROS5.47h à OROS5.47l, OROS5.48e à OROS5.48j');
   });
 
-  it('la recette réelle se lance par --reel ; la date d’une fermeture née d’une limite abaissée reste à décider', () => {
+  it('la recette réelle se lance par --reel ; la date d’une fermeture née d’une limite abaissée est une lecture gardée (OROS5.46c)', () => {
     expect(closing).toContain('`scripts/capture-oros5.mjs --reel`');
     expect(closing).not.toContain('sans `--data`, qui s\'y lance sans modification');
     expect(closing).toMatch(/limite abaissée en cours de journée/);
     expect(closing).toMatch(/décision 15 ne dit pas/);
+  });
+
+  it('OROS5.46c les deux derniers tours, les lectures gardées et le contrôle croisé de la 3.9.0 se consignent', () => {
+    for (const id of ['OROS5.30b', 'OROS5.45n', 'OROS5.45o', 'OROS5.47m', 'OROS5.47q', 'OROS5.48k', 'OROS5.48t', 'OROS5.48u', 'OROS5.46c']) {
+      expect(s5.split('\n').filter((line) => line.startsWith(`| ${id} |`)), id).toHaveLength(1);
+    }
+    expect(closing).toContain('un second tour sur ces correctifs (18 constats confirmés');
+    expect(closing).toContain('sans constat confirmé');
+    // les deux questions de l'ADMIN ne restent plus « à décider » : gardées, chacune tenue par un test (CLAUDE.md § 2.5)
+    const kept = closing.slice(closing.indexOf('Gardés tels que le code les lit'), closing.indexOf('Relevés en cours de vague'));
+    expect(kept).toContain('CLAUDE.md § 2.5');
+    expect(kept).toContain('`tests/journee-fermee-limite.test.ts` (OROS5.48u)');
+    expect(kept).toContain('`tests/a02-cursor.test.ts` (OROS5.36a');
+    expect(closing.slice(0, closing.indexOf('Gardés tels que le code les lit'))).not.toMatch(/limite abaissée en cours de journée/);
+    expect(closing).toContain('antérieur à la vague (A5)');
+    const pub = audit.slice(audit.indexOf('\n## Publication de la 3.9.0 (2026-11-04)\n'), start);
+    expect(pub).toContain('**Publication et contrôle croisé (2026-11-04).**');
+    expect(pub).toContain('`verifyReleaseSignature`');
+    expect(pub).toContain('Aucun écart.');
   });
 });
