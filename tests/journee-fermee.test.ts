@@ -232,6 +232,29 @@ describe('OROS5.48b · la journée fermée, côté renderer', () => {
     expect(again.closeDay).toHaveBeenCalledWith({ account: SIM, at: et(DAY, '10:00') });
   });
 
+  it('OROS5.48s rechargé, le renderer garde la journée en cours fermée à côté de trois journées à venir, au store comme au coffre', async () => {
+    const { dayCloseFor } = await import('@/engine/agent/dayClose');
+    // le coffre : la journée en cours fermée à 10:00 ET, et trois journées fermées pendant que l'horloge du poste avançait
+    const today = { day: DAY, account: SIM, at: et(DAY, '10:00') };
+    const ahead = ['2026-10-07', '2026-10-08', '2026-10-09'].map((day) => ({ day, account: SIM, at: et(day, '09:00') }));
+    vault.set('agent.dayClose', [today, ...ahead]);
+    // rechargé à 10:31, aucune sortie, le latent revenu à −100 $
+    const s = await desk();
+    state(s, [], -100);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(et(DAY, '10:31'));
+    try {
+      await s.dayClose.useDayClose.getState().load();
+    } finally {
+      vi.useRealTimers();
+    }
+    const at = et(DAY, '10:31');
+    expect(dayCloseFor(s.dayClose.useDayClose.getState().closes, SIM, at)).toEqual(today);
+    expect(dayCloseFor(vault.get('agent.dayClose') as never, SIM, at)).toEqual(today);
+    expect(s.deskEvents.traderRuleBlocks(OPEN, at)).toEqual([{ rule: 'after_daily_limit', detail: 'journée fermée depuis 10:00 ET : limite 600 $ atteinte (règle du trader)' }]);
+    expect(s.closeDay).toHaveBeenCalledWith({ account: SIM, at: et(DAY, '10:00') });
+  });
+
   it('OROS5.48h la limite retirée après la fermeture : la barre d’état dit encore la journée fermée, au niveau 3', async () => {
     const s = await desk();
     const all = [trade('a', '10:20', -300), trade('b', '10:56', -320), trade('c', '11:40', 80)];
