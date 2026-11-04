@@ -291,6 +291,64 @@
   flex-direction: column;
   gap: 4px;
 }
+/* Le pas que tient le curseur de temps : l'or dit ce que tient l'opérateur (décision 1). */
+.eqPinned {
+  color: var(--gold);
+}
+/* Le catalyseur du pas lu, nommé après sa date. */
+.eqWhenEvent {
+  color: var(--text-0);
+}
+/* Les jeux d'événements de A.02, en puces (OROS5.36) : éteinte, le graphite ; allumée, l'ivoire et son filet. */
+.eqSets {
+  display: inline-flex;
+  gap: 6px;
+}
+.eqSet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: none;
+  border: 1px solid var(--line-1);
+  cursor: pointer;
+  transition:
+    color 200ms linear,
+    border-color 200ms linear;
+}
+.eqSet b {
+  font-weight: 500;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.eqSetOn {
+  color: var(--text-0);
+  border-color: var(--text-1);
+}
+.eqSetOn b {
+  color: var(--text-0);
+}
+.eqSetGlyph {
+  width: 12px;
+  height: 12px;
+  --k: currentColor;
+}
+.eqSet:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .eqSet:hover {
+    color: var(--text-0);
+    border-color: var(--line-2);
+  }
+}
 .eqRead .pos { color: var(--pos); }
 .eqRead .neg { color: var(--neg); }
 /* Système 4.1 : la courbe seule, sans plaque en filigrane derrière elle. */
