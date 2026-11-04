@@ -200,6 +200,7 @@ export interface CloudTrainingProgress {
   toVerify: number | null;
   next: string | null;
   access: 'autorise' | 'interdit' | 'inconnu' | null;
+  clause: 'aucune' | 'a_confirmer' | null;
   at: number;
 }
 

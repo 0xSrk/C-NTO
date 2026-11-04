@@ -76,7 +76,7 @@ describe('agent cloud · formation quant', () => {
     expect(prompt).toContain('entrée de _formation/journal.md, _formation/etat.json, rapport final.');
     expect(prompt).toContain('Écris seulement _formation/acces.md (décision, date, adresse, clause citée en 25 mots au plus), _formation/etat.json (`"acces":"interdit"`) et le rapport');
     expect(prompt).toContain(
-      '`{"schema":"canto.formation-etat/1","acces":"autorise|interdit|inconnu","cours_connus":n,"cours_lus":n,"fiches":n,"a_verifier":n,"prochain":"<titre>","mis_a_jour":"<ISO>"}`',
+      '`{"schema":"canto.formation-etat/1","acces":"autorise|interdit|inconnu","clause":"aucune|a_confirmer","cours_connus":n,"cours_lus":n,"fiches":n,"a_verifier":n,"prochain":"<titre>","mis_a_jour":"<ISO>"}`',
     );
     expect(prompt).toContain('un seul objet JSON de 2 000 octets au plus');
 
@@ -134,6 +134,15 @@ describe('agent cloud · formation quant', () => {
 
     // Ni outil d'ordre ni pont, nulle part.
     for (const text of [prompt, reader, formationRubric('fr'), FORMATION_STORE_INSTRUCTIONS, JSON.stringify(formationOutcomeEvent('fr'))]) expect(text).not.toMatch(/propose_order|copy\.order|ntbridge/);
+  });
+
+  it('CLD58 une clause d’usage personnel ou de non-redistribution se dit à l’ADMIN : les rapports qui citent le savoir sont destinés à être publiés', () => {
+    const prompt = formationSystemPrompt('fr');
+    expect(prompt).not.toContain('ne sont jamais publiées');
+    expect(prompt).toContain(
+      '4. Une clause qui réserve le contenu à un usage personnel ou non commercial, ou qui interdit sa reproduction ou sa redistribution, n’arrête pas la formation : tes fiches, rédigées avec tes mots, restent dans le magasin privé. Mais les rapports quotidiens qui s’en servent sont destinés à être publiés (décision de l’ADMIN du 2026-10-27) : écris `"clause":"a_confirmer"` dans _formation/etat.json, et cite cette clause au rapport, avec la mention « à confirmer par l’ADMIN ». Sans une telle clause, `"clause":"aucune"`.',
+    );
+    expect(prompt).toContain('`clause` vaut `a_confirmer` tant qu’une clause d’usage (règle 4 de l’accès) attend la décision de l’ADMIN, `aucune` sinon');
   });
 
   // Le contrôle que la consigne fait écrire, lancé tel quel par python3 -I sur des magasins de test (sauté sans python3).

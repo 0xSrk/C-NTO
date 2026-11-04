@@ -103,6 +103,8 @@ export interface CloudTrainingProgress {
   toVerify: number | null;
   next: string | null;
   access: 'autorise' | 'interdit' | 'inconnu' | null;
+  /** `a_confirmer` : une clause d'usage de quantmemo.com attend la décision de l'ADMIN avant toute publication (CLD58). */
+  clause: 'aucune' | 'a_confirmer' | null;
   at: number;
 }
 
@@ -340,6 +342,7 @@ function coerceProgress(raw: unknown): CloudTrainingProgress | null {
     toVerify: count(raw.toVerify),
     next: typeof raw.next === 'string' ? raw.next.slice(0, 160) : null,
     access: ACCESS_VALUES.find((a) => a !== null && a === raw.access) ?? null,
+    clause: raw.clause === 'aucune' || raw.clause === 'a_confirmer' ? raw.clause : null,
     at,
   };
 }
@@ -607,6 +610,7 @@ export class AgentCloudHost {
         toVerify: state?.toVerify ?? null,
         next: state?.next ?? null,
         access: state?.access ?? null,
+        clause: state?.clause ?? null,
         at: this.now(),
       };
       this.persist();

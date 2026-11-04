@@ -76,7 +76,7 @@ export function formationSystemPrompt(locale: AppLocale): string {
     '1. Lis https://quantmemo.com/robots.txt. Arrête-toi si une règle `Disallow` couvre `/` ou `/learn/` pour `User-agent: *`, `ClaudeBot`, `Claude-User`, `Claude-SearchBot` ou `anthropic-ai`, ou si un `Content-Signal` porte `ai-input=no` ou `ai-train=no`. Un chemin interdit à part (par exemple /api/) ne s’ouvre pas, et le reste du site reste lisible. Respecte un `Crawl-delay` entre deux requêtes ; à défaut, attends au moins une seconde entre deux requêtes curl.',
     '2. Cherche les conditions d’utilisation : d’abord le lien du pied de page de la page d’accueil, puis /terms, /terms-of-service, /tos, /legal, /conditions. Cinq requêtes au plus. Lis-les entières.',
     '3. Arrête-toi si elles interdisent l’accès automatisé (robots, crawlers, scraping, extraction automatique), l’usage du contenu par une intelligence artificielle, ou son usage pour entraîner un modèle. N’écris alors aucune fiche et aucune progression de cours. Écris seulement _formation/acces.md (décision, date, adresse, clause citée en 25 mots au plus), _formation/etat.json (`"acces":"interdit"`) et le rapport, qui le dit en tête. C’est un résultat valable, pas un échec.',
-    '4. Une clause qui réserve le contenu à un usage personnel ou non commercial, ou qui interdit sa reproduction ou sa redistribution, n’arrête pas la formation : tes fiches sont rédigées avec tes mots, restent privées et ne sont jamais publiées. Cite cette clause au rapport, avec la mention « à confirmer par l’ADMIN ».',
+    '4. Une clause qui réserve le contenu à un usage personnel ou non commercial, ou qui interdit sa reproduction ou sa redistribution, n’arrête pas la formation : tes fiches, rédigées avec tes mots, restent dans le magasin privé. Mais les rapports quotidiens qui s’en servent sont destinés à être publiés (décision de l’ADMIN du 2026-10-27) : écris `"clause":"a_confirmer"` dans _formation/etat.json, et cite cette clause au rapport, avec la mention « à confirmer par l’ADMIN ». Sans une telle clause, `"clause":"aucune"`.',
     '5. Si les conditions restent introuvables après cinq requêtes, continue sous les seules règles de robots.txt, et dis-le au rapport.',
     '6. Refais ces vérifications à chaque session, car elles peuvent changer. Consigne-les dans _formation/acces.md.',
     '',
@@ -114,7 +114,7 @@ export function formationSystemPrompt(locale: AppLocale): string {
     '- parcours/<parcours>.md : le plan d’un parcours, dans l’ordre du site, avec la fiche de chaque cours.',
     '- fiches/<domaine>/<notion>.md : une fiche par cours ou par notion. Domaines : probabilites, statistiques, series-temporelles, calcul-stochastique, derives, volatilite, taux, microstructure, risque, portefeuille, strategies, apprentissage, programmation, divers.',
     '- _formation/progression.json : l’état de la formation, dont toi seul te sers. Au-delà de 90 Ko, découpe-le en _formation/progression/<parcours>.json, de la même forme (`{"cours": […]}`), puis efface _formation/progression.json.',
-    '- _formation/etat.json : l’état court de la formation, que lit le desk. Réécris-le dès l’accès vérifié, après chaque lot et à la fin : un seul objet JSON de 2 000 octets au plus, de la forme `{"schema":"canto.formation-etat/1","acces":"autorise|interdit|inconnu","cours_connus":n,"cours_lus":n,"fiches":n,"a_verifier":n,"prochain":"<titre>","mis_a_jour":"<ISO>"}`. `acces` vaut `interdit` si robots.txt ou les conditions interdisent l’accès automatisé ou l’usage par une IA, `inconnu` tant que tu ne les as pas lus ; les nombres sont des entiers ; `prochain` est le titre du prochain cours à lire, ou null s’il n’y en a pas (accès interdit, formation finie) ; `mis_a_jour` est l’heure de l’écriture, en ISO 8601 avec son fuseau (Z ou un décalage).',
+    '- _formation/etat.json : l’état court de la formation, que lit le desk. Réécris-le dès l’accès vérifié, après chaque lot et à la fin : un seul objet JSON de 2 000 octets au plus, de la forme `{"schema":"canto.formation-etat/1","acces":"autorise|interdit|inconnu","clause":"aucune|a_confirmer","cours_connus":n,"cours_lus":n,"fiches":n,"a_verifier":n,"prochain":"<titre>","mis_a_jour":"<ISO>"}`. `acces` vaut `interdit` si robots.txt ou les conditions interdisent l’accès automatisé ou l’usage par une IA, `inconnu` tant que tu ne les as pas lus ; `clause` vaut `a_confirmer` tant qu’une clause d’usage (règle 4 de l’accès) attend la décision de l’ADMIN, `aucune` sinon ; les nombres sont des entiers ; `prochain` est le titre du prochain cours à lire, ou null s’il n’y en a pas (accès interdit, formation finie) ; `mis_a_jour` est l’heure de l’écriture, en ISO 8601 avec son fuseau (Z ou un décalage).',
     '- _formation/acces.md : robots.txt et conditions, session par session.',
     '- _formation/journal.md : une entrée par session (date, cours lus, fiches écrites, arrêts, reste à faire).',
     '- Chaque fichier fait 100 000 octets au plus. Vise de 2 à 8 Ko par fiche, et découpe une fiche dès qu’elle dépasse 30 Ko. Mesure la taille d’un fichier avant de l’écrire.',
@@ -366,10 +366,13 @@ export const FORMATION_STATE_SCHEMA = 'canto.formation-etat/1';
 export const FORMATION_STATE_MAX_BYTES = 2000;
 const STATE_COUNT_MAX = 100_000;
 const ACCESS = ['autorise', 'interdit', 'inconnu'] as const;
+const CLAUSES = ['aucune', 'a_confirmer'] as const;
 
 /** Les nombres, le titre et l'heure sont `null` seulement dans un état `interdit` dont ces champs annexes sont hors forme. */
 export interface FormationState {
   access: (typeof ACCESS)[number];
+  /** Une clause d'usage (personnel, non commercial, non-redistribution) attend la décision de l'ADMIN (CLD58) ; `null` : non dite. */
+  clause: (typeof CLAUSES)[number] | null;
   coursesKnown: number | null;
   coursesRead: number | null;
   fiches: number | null;
@@ -401,10 +404,12 @@ export function parseFormationState(text: string): FormationState | null {
   const count = (v: unknown): number | undefined => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= STATE_COUNT_MAX ? v : undefined);
   const next = r.prochain === null || r.prochain === undefined ? null : typeof r.prochain === 'string' ? cleanText(r.prochain, 160) || null : undefined;
   const at = typeof r.mis_a_jour === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})?$/.test(r.mis_a_jour) ? Date.parse(r.mis_a_jour) : Number.NaN;
-  const fields = { coursesKnown: count(r.cours_connus), coursesRead: count(r.cours_lus), fiches: count(r.fiches), toVerify: count(r.a_verifier), next, updatedAt: Number.isFinite(at) ? at : undefined };
+  const clause = r.clause === undefined || r.clause === null ? null : (CLAUSES.find((c) => c === r.clause) ?? undefined);
+  const fields = { clause, coursesKnown: count(r.cours_connus), coursesRead: count(r.cours_lus), fiches: count(r.fiches), toVerify: count(r.a_verifier), next, updatedAt: Number.isFinite(at) ? at : undefined };
   if (access !== 'interdit' && Object.values(fields).includes(undefined)) return null;
   return {
     access,
+    clause: fields.clause ?? null,
     coursesKnown: fields.coursesKnown ?? null,
     coursesRead: fields.coursesRead ?? null,
     fiches: fields.fiches ?? null,

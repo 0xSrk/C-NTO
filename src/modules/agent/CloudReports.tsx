@@ -146,6 +146,15 @@ export function LabPlate({ status }: { status: AgentCloudStatus | null }) {
           )}
         </Signal>
       ) : null}
+      {training?.progress?.clause === 'a_confirmer' ? (
+        <Signal level={2}>
+          {tr(
+            'Clause d’usage de quantmemo.com à confirmer par l’ADMIN (rapport de formation, « Accès et conditions ») : aucun rapport qui cite le savoir ne se publie avant sa décision.',
+            'quantmemo.com usage clause to be confirmed by the ADMIN (training report, « Accès et conditions »): no report citing the knowledge is published before that decision.',
+            'Cláusula de uso de quantmemo.com por confirmar por el ADMIN (informe de formación, « Accès et conditions »): ningún informe que cite el saber se publica antes de su decisión.',
+          )}
+        </Signal>
+      ) : null}
       {failures.map((f) => (
         <Signal key={`${f.at}-${f.kind}`} level={1}>
           {failureText(f.kind, f.detail)}

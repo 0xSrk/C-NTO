@@ -665,15 +665,43 @@ describe('agent cloud · hôte du process principal', () => {
     expect(filed?.sections.at(-1)?.body).toContain('`www.bls.gov`');
   });
 
+  it('CLD58 la clause d’usage à confirmer par l’ADMIN se lit dans l’état court et reste dans la progression', async () => {
+    const text = (o: Record<string, unknown>) =>
+      JSON.stringify({ schema: 'canto.formation-etat/1', acces: 'autorise', cours_connus: 174, cours_lus: 46, fiches: 39, a_verifier: 6, prochain: 'Greeks', mis_a_jour: '2026-11-05T15:42:00Z', ...o });
+    expect(parseFormationState(text({ clause: 'a_confirmer' }))).toMatchObject({ access: 'autorise', clause: 'a_confirmer' });
+    expect(parseFormationState(text({ clause: 'aucune' }))).toMatchObject({ clause: 'aucune' });
+    // Un état écrit avant la règle : sans clause, rien n'est supposé.
+    expect(parseFormationState(text({}))).toMatchObject({ clause: null });
+    // Hors forme : comme tout champ annexe (CLD53).
+    expect(parseFormationState(text({ clause: 'peut-être' }))).toBeNull();
+    expect(parseFormationState(text({ acces: 'interdit', clause: 'peut-être' }))).toMatchObject({ access: 'interdit', clause: null });
+
+    const STATE = 'mem_011CZkZ9X2dpNyB7HsEFoSTA';
+    const api = fakeApi({
+      listMemories: async (_store: string, opts: { pathPrefix: string }) => ({ entries: opts.pathPrefix === '/_formation/' ? [{ kind: 'memory' as const, id: STATE, path: '/_formation/etat.json', sizeBytes: 200, updatedAt: NOW }] : [], nextPage: null }),
+      getMemoryText: async () => text({ clause: 'a_confirmer' }),
+    });
+    const probe = harness();
+    writeFileSync(path.join(probe.dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE }));
+    const h = harness({ api, dir: probe.dir });
+    await h.host.train();
+    expect(h.host.status().training.progress).toMatchObject({ clause: 'a_confirmer', access: 'autorise' });
+    // Relu au redémarrage ; une valeur inconnue sur le disque tombe.
+    expect(harness({ dir: probe.dir }).host.status().training.progress).toMatchObject({ clause: 'a_confirmer' });
+    const file = JSON.parse(readFileSync(path.join(probe.dir, AGENT_CLOUD_FILE), 'utf8'));
+    writeFileSync(path.join(probe.dir, AGENT_CLOUD_FILE), JSON.stringify({ ...file, formation: { ...file.formation, progress: { ...file.formation.progress, clause: 'oui' } } }));
+    expect(harness({ dir: probe.dir }).host.status().training.progress).toMatchObject({ clause: null });
+  });
+
   it('CLD53 un accès interdit ne se perd pas pour un champ annexe de l’état court ; « prochain » nul et l’heure sans fuseau sont lus', async () => {
     const SCHEMA = 'canto.formation-etat/1';
     const text = (o: Record<string, unknown>) => JSON.stringify({ schema: SCHEMA, ...o });
     // La voie interdite telle que la consigne la décrit : aucun cours connu, donc aucun « prochain » ; heure locale.
     const forbidden = text({ acces: 'interdit', cours_connus: 0, cours_lus: 0, fiches: 0, a_verifier: 0, prochain: null, mis_a_jour: '2026-11-05T10:00:00' });
-    expect(parseFormationState(forbidden)).toEqual({ access: 'interdit', coursesKnown: 0, coursesRead: 0, fiches: 0, toVerify: 0, next: null, updatedAt: Date.parse('2026-11-05T10:00:00') });
+    expect(parseFormationState(forbidden)).toEqual({ access: 'interdit', clause: null, coursesKnown: 0, coursesRead: 0, fiches: 0, toVerify: 0, next: null, updatedAt: Date.parse('2026-11-05T10:00:00') });
     // Interdit avec des champs annexes absents ou hors forme : la décision reste, le reste est inconnu.
     for (const raw of [text({ acces: 'interdit' }), text({ acces: 'interdit', cours_lus: -1, prochain: 42, mis_a_jour: 'hier' })])
-      expect(parseFormationState(raw)).toEqual({ access: 'interdit', coursesKnown: null, coursesRead: null, fiches: null, toVerify: null, next: null, updatedAt: null });
+      expect(parseFormationState(raw)).toEqual({ access: 'interdit', clause: null, coursesKnown: null, coursesRead: null, fiches: null, toVerify: null, next: null, updatedAt: null });
     // Les formes légitimes valent pour tout accès : « prochain » nul (formation finie), sortie de Python `isoformat()`.
     expect(parseFormationState(text({ acces: 'autorise', cours_connus: 9, cours_lus: 9, fiches: 9, a_verifier: 0, prochain: null, mis_a_jour: '2026-11-05T15:42:00.123456' }))).toMatchObject({ access: 'autorise', next: null, updatedAt: Date.parse('2026-11-05T15:42:00.123456') });
     // Hors de l'interdit, la forme reste exacte : un champ hors forme rejette l'état.
@@ -703,7 +731,7 @@ describe('agent cloud · hôte du process principal', () => {
     const etat = (over: Record<string, unknown> = {}) =>
       JSON.stringify({ schema: 'canto.formation-etat/1', acces: 'autorise', cours_connus: 174, cours_lus: 46, fiches: 39, a_verifier: 6, prochain: 'Term structure of volatility', mis_a_jour: '2026-11-05T15:42:00Z', ...over });
     // Le parseur : une forme exacte, bornée, ou rien.
-    expect(parseFormationState(etat())).toEqual({ access: 'autorise', coursesKnown: 174, coursesRead: 46, fiches: 39, toVerify: 6, next: 'Term structure of volatility', updatedAt: Date.parse('2026-11-05T15:42:00Z') });
+    expect(parseFormationState(etat())).toEqual({ access: 'autorise', clause: null, coursesKnown: 174, coursesRead: 46, fiches: 39, toVerify: 6, next: 'Term structure of volatility', updatedAt: Date.parse('2026-11-05T15:42:00Z') });
     for (const bad of [
       etat({ schema: 'canto.formation/1' }),
       etat({ acces: 'peut-être' }),
@@ -758,7 +786,7 @@ describe('agent cloud · hôte du process principal', () => {
       [MEMSTORE, { pathPrefix: '/_formation/', depth: 1 }],
     ]);
     expect(vi.mocked(api.getMemoryText).mock.calls).toEqual([[MEMSTORE, STATE, 8 * 1024]]);
-    expect(h.host.status().training.progress).toEqual({ fiches: 3, fichesAtStart: null, coursesRead: 46, coursesKnown: 174, toVerify: 6, next: 'Term structure of volatility', access: 'autorise', at: NOW });
+    expect(h.host.status().training.progress).toEqual({ fiches: 3, fichesAtStart: null, coursesRead: 46, coursesKnown: 174, toVerify: 6, next: 'Term structure of volatility', access: 'autorise', clause: null, at: NOW });
     // Le dialogue la dit ; le desk compte les fiches lui-même, l'état court donne les cours.
     expect(h.dialogs[0]?.detail).toContain('Savoir : 3 fiches, 46 cours lus sur 174 connus');
 

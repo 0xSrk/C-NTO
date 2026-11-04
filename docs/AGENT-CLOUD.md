@@ -154,6 +154,8 @@ Il n'y a pas de plafond mensuel bloquant : l'ADMIN a dit qu'on pouvait tout dép
 
 **La progression** se lit sans modèle, avant le dialogue et quand une session se règle, jamais à chaque relevé : le nombre de fiches sous `/fiches/` que rend la liste des mémoires, puis l'état court `_formation/etat.json` (2 000 octets au plus, schéma `canto.formation-etat/1`), lu par un parseur strict qui n'en garde que des nombres, la décision d'accès et un titre d'une ligne.
 
+**Une clause d'usage à confirmer.** Une clause qui réserve le contenu à un usage personnel ou non commercial, ou qui interdit sa redistribution, n'arrête pas la formation : les fiches restent dans le magasin privé. Mais les rapports quotidiens qui s'en servent sont destinés à être publiés (`docs/DIFFUSION-RAPPORTS.md`) : la formation l'écrit dans l'état court (`"clause":"a_confirmer"`), et D · Lab dit qu'aucun rapport qui cite le savoir ne se publie avant la décision de l'ADMIN (CLD58).
+
 **L'accès refusé ferme la reprise.** Si l'état court dit `acces: interdit` (robots.txt ou les conditions interdisent l'accès automatisé ou l'usage par une IA), *Former l'agent* est refusé dans le process principal, avec la raison ; le rouvrir est une décision de l'ADMIN, comme le retrait du CME (CLD35).
 
 **Arrêter la formation** envoie un `user.interrupt` sans contenu, qui arrête le coordinateur et ses lecteurs ; sans dialogue, puisque cela ne coûte rien.

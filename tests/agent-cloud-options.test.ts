@@ -260,7 +260,7 @@ describe('agent cloud · Options › Agent cloud', () => {
       act(() => root?.unmount());
       return { text, signals };
     };
-    const progress = { fiches: 39, fichesAtStart: 31, coursesRead: 46, coursesKnown: 174, toVerify: 6, next: 'Greeks', access: 'autorise' as const, at: 1 };
+    const progress = { fiches: 39, fichesAtStart: 31, coursesRead: 46, coursesKnown: 174, toVerify: 6, next: 'Greeks', access: 'autorise' as const, clause: null, at: 1 };
     const running = await plate(ready({ state: 'running', sessionId: 'sesn_011CZkZAtmR3yMPDzynEDx41', sessions: 2, costCents: 640, budgetCents: 2500, spent30dCents: 2515, progress }));
     expect(running.text).toContain('FormationEn cours');
     expect(running.text).toContain('Savoir39 fiches · 46 cours lus sur 174');
@@ -284,5 +284,10 @@ describe('agent cloud · Options › Agent cloud', () => {
     expect(refused.text).toContain('Formation close : accès à quantmemo.com refusé');
     // Rien de la formation n'entre dans les échecs du rapport quotidien.
     expect(running.signals).toBe(0);
+    // CLD58 : une clause d'usage à confirmer se dit à l'ADMIN, avant toute publication d'un rapport qui cite le savoir.
+    const clause = await plate(ready({ state: 'ended', sessions: 1, report: 'filed', progress: { ...progress, clause: 'a_confirmer' } }));
+    expect(clause.signals).toBe(1);
+    expect(clause.text).toContain('Clause d’usage de quantmemo.com à confirmer par l’ADMIN (rapport de formation, « Accès et conditions ») : aucun rapport qui cite le savoir ne se publie avant sa décision.');
+    expect((await plate(ready({ state: 'ended', sessions: 1, report: 'filed', progress: { ...progress, clause: 'aucune' } }))).signals).toBe(0);
   });
 });
