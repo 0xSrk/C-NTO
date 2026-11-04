@@ -333,6 +333,16 @@ describe('agent cloud · client Managed Agents', () => {
     await expect(bad.api.getSession(SESN)).rejects.toMatchObject({ type: 'unreadable' });
   });
 
+  it('CLD54 une session dit son agent et la marque de formation du desk', () => {
+    const AGENT_ID = 'agent_011CZkYpogX7uDKUyvBToCOO';
+    const raw = { id: SESN, status: 'running', agent: { type: 'agent', id: AGENT_ID, version: 3 }, metadata: { canto: 'agent-cloud-formation' } };
+    expect(parseSession(raw)).toMatchObject({ agentId: AGENT_ID, agentVersion: 3, tagged: true });
+    expect(parseSession({ ...raw, metadata: { canto: 'agent-cloud' } })).toMatchObject({ tagged: false });
+    expect(parseSession({ ...raw, metadata: undefined })).toMatchObject({ tagged: false });
+    expect(parseSession({ ...raw, agent: { id: 'env_011CZkZ9X2dpNyB7HsEFoRfW' } })).toMatchObject({ agentId: null });
+    expect(parseSession({ id: SESN, status: 'idle' })).toMatchObject({ agentId: null, tagged: false });
+  });
+
   it('déploiement en pause sur erreur : la cause est lue ; sans planification, rien de prévu', () => {
     const paused = parseDeployment({ ...DEPLOYMENT, status: 'paused', paused_reason: { type: 'error', error: { type: 'environment_archived_error' } }, schedule: null, budget: undefined });
     expect(paused).toMatchObject({ status: 'paused', pausedReason: 'environment_archived_error', cron: null, nextRunAt: null, budgetCents: null });

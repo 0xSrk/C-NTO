@@ -90,6 +90,10 @@ export interface SessionView {
   budgetCents: number | null;
   /** Le déploiement qui l'a lancée ; `null` pour une session créée directement (la formation). */
   deploymentId: string | null;
+  /** L'agent de la session (`agent.id`), `null` s'il ne se lit pas. */
+  agentId: string | null;
+  /** Posé par le desk sur une session de formation (`metadata.canto` = `agent-cloud-formation`). */
+  tagged: boolean;
 }
 
 export interface SessionPage {
@@ -305,6 +309,8 @@ export function parseSession(raw: unknown): SessionView | null {
     outcomeResult: terminal.length ? (terminal[terminal.length - 1] ?? null) : null,
     budgetCents: budget ? cents(budget.max_list_cost) : null,
     deploymentId: apiId(raw.deployment_id, 'depl'),
+    agentId: agent ? apiId(agent.id, 'agent') : null,
+    tagged: isRecord(raw.metadata) && raw.metadata.canto === 'agent-cloud-formation',
   };
 }
 

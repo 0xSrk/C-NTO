@@ -1223,8 +1223,11 @@ export class AgentCloudHost {
         return;
       }
       // Une session de formation que le desk ne connaît pas (réponse perdue, desk plus ancien) tourne peut-être sur le magasin.
+      // Seule une session hors déploiement, marquée par le desk et, quand il est connu, du coordinateur du desk, en est une :
+      // une session ouverte dans la Console sur le magasin n'est ni arrêtée, ni rangée, ni comptée (CLD54).
       const known = new Set(f.history.map((run) => run.id));
-      const stray = (await this.api.listStoreSessions(memoryStoreId, { limit: 10 })).find((s) => s.deploymentId === null && (s.status === 'running' || s.status === 'rescheduling') && !known.has(s.id));
+      const ours = (s: SessionView, coordinatorId: string | null) => s.deploymentId === null && s.tagged && (coordinatorId === null || s.agentId === null || s.agentId === coordinatorId) && !known.has(s.id);
+      const stray = (await this.api.listStoreSessions(memoryStoreId, { limit: 10 })).find((s) => ours(s, f.coordinatorId) && (s.status === 'running' || s.status === 'rescheduling'));
       if (stray) {
         this.adoptTraining(stray);
         this.deps.log('agent cloud · session de formation retrouvée sur le magasin');
@@ -1338,7 +1341,7 @@ export class AgentCloudHost {
           // La réponse s'est perdue en route : la session existe peut-être, et facture. Une seule recherche, par le magasin.
           let found: SessionView | undefined;
           try {
-            found = (await this.api.listStoreSessions(memoryStoreId, { limit: 10 })).find((s) => s.deploymentId === null && !known.has(s.id) && (s.createdAt ?? 0) >= attemptAt - CREATE_LOST_SLACK_MS);
+            found = (await this.api.listStoreSessions(memoryStoreId, { limit: 10 })).find((s) => ours(s, agent.id) && (s.createdAt ?? 0) >= attemptAt - CREATE_LOST_SLACK_MS);
           } catch {
             /* recherche impossible : le prochain lancement cherchera avant tout */
           }

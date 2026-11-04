@@ -803,8 +803,9 @@ describe('agent cloud · installation et commandes, par dialogue du process prin
 const READER = 'agent_011CZkYpogX7uDKUyvBToREA';
 const COORDINATOR = 'agent_011CZkYpogX7uDKUyvBToCOO';
 const FORMATION_ENV = 'env_011CZkZ9X2dpNyB7HsEFoFRM';
-/** Une session de formation : hors déploiement, plafonnée à 25,00 $. */
-const trainingSession = (n: number, over: Parameters<typeof session>[1] = {}) => session(n, { status: 'running', deploymentId: null, budgetCents: FORMATION_BUDGET_CENTS, costCents: null, createdAt: NOW, updatedAt: NOW, ...over });
+/** Une session de formation : hors déploiement, du coordinateur, marquée par le desk, plafonnée à 25,00 $. */
+const trainingSession = (n: number, over: Parameters<typeof session>[1] = {}) =>
+  session(n, { status: 'running', deploymentId: null, agentId: COORDINATOR, tagged: true, budgetCents: FORMATION_BUDGET_CENTS, costCents: null, createdAt: NOW, updatedAt: NOW, ...over });
 
 /** Faux formateur : environnement, lecteur et coordinateur (selon le nom du corps), session. */
 const trainer = (extra: FakeOverrides = {}) =>
@@ -979,6 +980,33 @@ describe('agent cloud · formation quant, par dialogue du process principal', ()
       const h = trained(trainer({ createSession: async () => trainingSession(45, { budgetCents: null }), interruptSession: async () => undefined }), { answers: [0], locale });
       expect((await h.host.train()).error).toBe(text);
     }
+  });
+
+  it('CLD54 une session étrangère sur le magasin n’est jamais prise pour la formation du desk : marque et coordinateur exigés', async () => {
+    const OTHER_AGENT = 'agent_011CZkYpogX7uDKUyvBToOTH';
+    const known = { environmentId: FORMATION_ENV, readerId: READER, coordinatorId: COORDINATOR, sessionId: sid(40), settled: true, history: [{ id: sid(40), startedAt: NOW - 86_400_000, costCents: 1875 }] };
+    // Une session de la Console sur le magasin (l'ADMIN qui essaie l'analyste), ou marquée mais d'un autre agent : pas adoptée.
+    for (const foreign of [trainingSession(41, { tagged: false, agentId: AGENT }), trainingSession(42, { agentId: OTHER_AGENT })]) {
+      const h = trained(trainer({ listStoreSessions: async () => [foreign] }), { formation: known });
+      const status = await h.host.train();
+      expect(status.error).toBeNull();
+      expect(status.training).toMatchObject({ sessionId: sid(40), state: 'ended' });
+      expect(h.dialogs).toHaveLength(1);
+      expect(saved(h.dir).formation.history).toEqual(known.history);
+    }
+    // Marquée, du coordinateur connu : c'est bien une formation du desk (réponse perdue) ; reprise.
+    const ours = trained(trainer({ listStoreSessions: async () => [trainingSession(43)] }), { formation: known });
+    expect((await ours.host.train()).error).toBe('Une session de formation retrouvée tourne sur le magasin : attendez son rapport, ou arrêtez-la.');
+    expect(saved(ours.dir).formation).toMatchObject({ sessionId: sid(43), settled: false });
+    // Réponse de création perdue : seule une session marquée du coordinateur qui vient d'être écrit est retrouvée.
+    let listed = 0;
+    const lostApi = trainer({
+      createSession: async () => Promise.reject(new CloudApiError(0, 'timeout', 'Délai dépassé (api.anthropic.com)')),
+      listStoreSessions: async () => (listed++ === 0 ? [] : [trainingSession(44, { tagged: false, createdAt: NOW - 30_000 }), trainingSession(45, { agentId: OTHER_AGENT, createdAt: NOW - 30_000 })]),
+    });
+    const lost = trained(lostApi, { answers: [0] });
+    expect((await lost.host.train()).error).toBe('Création de la session non confirmée : le prochain lancement la cherchera avant tout ; la Console la montre.');
+    expect(saved(lost.dir).formation).toMatchObject({ sessionId: null, history: [] });
   });
 
   it('CLD42 arrêter la formation : un user.interrupt, sans dialogue, au seul siège du Lab', async () => {

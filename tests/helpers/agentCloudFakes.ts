@@ -49,6 +49,8 @@ export const session = (n: number, over: Partial<SessionView> = {}): SessionView
   outcomeResult: 'satisfied',
   budgetCents: 300,
   deploymentId: DEPL,
+  agentId: AGENT,
+  tagged: false,
   ...over,
 });
 
