@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PLATES } from '@/design/micro/assets';
+import { MEANING, RESERVED_GLYPHS } from '@/design/micro/meaning';
+import { GLYPH_ID } from '@/design/Micro';
 import { cssRules, HOVER_LIGHT, hoverOffenses } from './helpers/cssRules';
 
 const TEXT = new Set(['.ts', '.tsx', '.css', '.html', '.js', '.mjs', '.cjs', '.svg']);
@@ -597,6 +599,84 @@ describe('garde du système visuel', () => {
         expect(token(css, name!).toLowerCase(), name).toBe(value!.toLowerCase());
       }
     }
+  });
+
+  it('OROS5.46 DESIGN.md inscrit au § 09 chaque pièce de la vague (numéro, donnée liée, fichier), chaque numéro de la table sens → numéro, le grec et les mesures locales ; les mesures du châssis sont celles de tokens.css ; aucun triangle ne dit plus un signal', () => {
+    const doc = readFileSync('docs/DESIGN.md', 'utf8').replace(/\r\n/g, '\n');
+    const css = readFileSync('src/design/tokens.css', 'utf8').replace(/\r\n/g, '\n');
+    const lab = doc.slice(doc.indexOf('## 09.'), doc.indexOf('## 10.'));
+    const pad = (n: number) => String(n).padStart(3, '0');
+
+    // La table des pièces : une ligne par pièce, son numéro, la donnée qu'elle lit, le fichier qui la pose.
+    const head = '| Pièce | Numéro | Donnée liée | Fichier |';
+    expect(lab).toContain(head);
+    const table: string[] = [];
+    for (const line of lab.slice(lab.indexOf(head)).split('\n')) {
+      if (!line.startsWith('|')) break;
+      table.push(line);
+    }
+    const rows = table.slice(2).map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()));
+    expect(rows.length).toBeGreaterThanOrEqual(20);
+    const glyphIds = new Set<number>(Object.values(GLYPH_ID));
+    const inscribed = new Set<string>();
+    for (const row of rows) {
+      expect(row, row.join(' | ')).toHaveLength(4);
+      const [piece, numero, donnee, fichier] = row as [string, string, string, string];
+      expect(piece.length * donnee.length, piece).toBeGreaterThan(0);
+      const files = [...fichier.matchAll(/`([^`]+)`/g)].map((m) => m[1]!);
+      expect(files.length, piece).toBeGreaterThan(0);
+      for (const file of files) expect(existsSync(file), `${piece} : ${file}`).toBe(true);
+      // Un numéro M. se lit dans l'un des fichiers de sa ligne ; un numéro C. est un composant de la bibliothèque unique.
+      for (const [id] of numero.matchAll(/M\.\d{3}/g)) {
+        inscribed.add(id);
+        expect(files.some((file) => readFileSync(file, 'utf8').includes(id)), `${piece} : ${id}`).toBe(true);
+      }
+      for (const [, n] of numero.matchAll(/C\.(\d{3})/g)) expect(glyphIds.has(Number(n)), `${piece} : C.${n}`).toBe(true);
+    }
+    // Chaque pièce M. que le desk pose a sa ligne.
+    const posed = new Set<string>();
+    for (const path of walk('src')) {
+      if (posix('src', path) === 'design/micro/assets.ts') continue;
+      for (const [id] of readFileSync(path, 'utf8').matchAll(/\bM\.\d{3}\b/g)) posed.add(id);
+    }
+    expect(posed.size).toBeGreaterThanOrEqual(9);
+    expect([...posed].filter((id) => !inscribed.has(id)).sort()).toEqual([]);
+
+    // Chaque numéro de la table sens → numéro, et chaque signe réservé du châssis, est cité au § 09.
+    const numbers = new Set<number>([...Object.values(MEANING), ...Object.keys(RESERVED_GLYPHS).map(Number)]);
+    expect(numbers.size).toBeGreaterThanOrEqual(26);
+    for (const n of numbers) expect(lab.includes(`(${n})`) || lab.includes(`C.${pad(n)}`), `C.${pad(n)}`).toBe(true);
+
+    // Le grec : ΟΡΟΣ une seule fois, en IBM Plex Sans, en titre de la section Bornes de la fiche Compte (décision 6).
+    expect(lab).toMatch(/ΟΡΟΣ[^.]*une seule fois[^.]*IBM Plex Sans[^.]*section Bornes de la fiche Compte/);
+    expect(cssRules(readFileSync('src/app/objects/fiche.module.css', 'utf8')).find((rule) => rule.selector === '.oros')?.body).toMatch(/font-family: var\(--font-name\)/);
+
+    // Les mesures locales (décision 4) : écrites au § 09 avec leur feuille, lues dans cette feuille, jamais en jeton.
+    const mesures = [
+      ['fiche', 400, 'src/app/shell.module.css', '.shell.withDrawer', 'grid-template-columns'],
+      ['omnibar', 500, 'src/app/objects/omnibar.module.css', '.panel', 'width'],
+      ['tiroir de la frise', 64, 'src/app/frise.module.css', '.drawer', 'height'],
+      ['registre', 240, 'src/app/registre.module.css', '.drawer', 'height'],
+    ] as const;
+    for (const [name, px, sheet, selector, prop] of mesures) {
+      expect(lab, name).toContain(`${name} ${px} px (\`${sheet}\`)`);
+      const body = cssRules(readFileSync(sheet, 'utf8')).find((rule) => rule.selector === selector && rule.at.length === 0)?.body ?? '';
+      expect(body, `${sheet} › ${selector}`).toMatch(new RegExp(`(?:^|;)\\s*${prop}:[^;]*\\b${px}px`));
+    }
+    expect(css).not.toMatch(/--(?:drawer|omnibar|fiche|registre|frise|state)-[a-z]*\s*:/);
+
+    // Les mesures du châssis et la largeur de l'afficheur sont celles de tokens.css.
+    const chassis = /Châssis : titre (\d+), rail (\d+), état (\d+)/.exec(doc);
+    expect(chassis).not.toBeNull();
+    for (const [i, name] of (['--titlebar-h', '--rail-w', '--statusbar-h'] as const).entries()) expect(css, name).toMatch(new RegExp(`${name}: ${chassis![i + 1]}px;`));
+    const stretch = /`--value-stretch` : (\d+) %/.exec(doc);
+    expect(stretch).not.toBeNull();
+    expect(css).toMatch(new RegExp(`--value-stretch: ${stretch![1]}%;`));
+
+    // Plus aucun triangle ne dit un signal : le glyphe dit le niveau (orbite, rayonnement, cercle barré).
+    expect(doc).not.toMatch(/forme du triangle|Triangle : un signal|triangle plein|marque — triangle/);
+    const signals = doc.slice(doc.indexOf('## 02.'), doc.indexOf('## 03.'));
+    for (const n of [131, 12, 123]) expect(signals, String(n)).toContain(`(${n})`);
   });
 
   it('OROS5.4 le design et le châssis ne lisent aucun module : les tables du trait, de l’impact et des titres vivent dans src/lib', () => {
