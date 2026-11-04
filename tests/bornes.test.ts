@@ -242,6 +242,8 @@ describe('OROS5.11 · useDayBornes ne rejoue qu’au changement de journal, de p
     root = null;
   });
 
+  // OROS5.11a ce test compte des rejeux, il ne mesure aucun temps : 5 000 trades et trente statuts du pont prennent
+  // près de 2 s seuls, et plus de 5 s sur un runner Windows chargé par la suite entière. Le délai des tests lourds du dépôt.
   it('5 000 trades : ni un statut du pont ni un tic de 15 s ne relancent evaluatePlan ni detectRuleBreaches', async () => {
     const journal = bigJournal();
     expect(journal.trades).toHaveLength(5_000);
@@ -293,5 +295,5 @@ describe('OROS5.11 · useDayBornes ne rejoue qu’au changement de journal, de p
     await act(async () => useSettings.setState({ settings: { ...useSettings.getState().settings, planAccount: '' } }));
     expect(evaluate.mock.calls.length).toBeGreaterThan(before);
     expect(breaches.mock.calls.length).toBeGreaterThan(beforeBreaches);
-  });
+  }, 15_000);
 });
