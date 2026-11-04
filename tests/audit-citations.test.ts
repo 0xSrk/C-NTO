@@ -42,3 +42,12 @@ describe('OROS5.47q · la ligne d’OROS5.47k cite la feuille de la légende de 
     expect(lines.filter((line) => /Visual\.tsx:(52|217)$/.test(line))).toEqual([]);
   });
 });
+
+describe('OROS5.48t · la ligne d’OROS5.48i cite le retour sans séance lue', () => {
+  it('`unread` est posé aux deux retours de la borne de perte, la journée sans séance lue comprise', () => {
+    const lines = cited('OROS5.48i');
+    // `:326` définit `unread` ; `:327` calcule `closedToday` ; `:328` et `:339` le posent (aucune séance, une séance datée)
+    expect(lines).toEqual(expect.arrayContaining(['src/engine/bornes.ts:326', 'src/engine/bornes.ts:328', 'src/engine/bornes.ts:339']));
+    expect(lines).not.toContain('src/engine/bornes.ts:327');
+  });
+});
