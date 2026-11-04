@@ -18,7 +18,7 @@ export interface AgentDayClose {
   at: number;
 }
 
-/** Fermetures retenues au plus : une par compte, sur la journée la plus récente. */
+/** Fermetures retenues au plus : une par compte, sur la journée la plus récente ; au-delà, une seule de tous les comptes. */
 export const AGENT_DAY_CLOSE_MAX = 32;
 const ACCOUNT_MAX = 128;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,7 +45,9 @@ export function parseDayClose(raw: unknown): AgentDayClose | null {
 
 /**
  * Ajoute une fermeture : seule la journée la plus récente reste, une entrée par compte (nom replié), et l'heure la plus
- * ancienne. Rien ne rouvre : une fermeture ne retire jamais une autre fermeture de sa journée.
+ * ancienne. Rien ne rouvre : une fermeture ne retire jamais une autre fermeture de sa journée. Au-delà du plafond
+ * (OROS5.48e), les fermetures de la journée se replient en une seule, de tous les comptes, à l'heure la plus ancienne :
+ * on ferme davantage, jamais moins, et aucune fermeture plus ancienne ne fait sortir la vraie.
  */
 export function withDayClose(list: readonly AgentDayClose[], close: AgentDayClose): AgentDayClose[] {
   const latest = list.reduce((max, c) => (c.day > max ? c.day : max), close.day);
@@ -55,7 +57,8 @@ export function withDayClose(list: readonly AgentDayClose[], close: AgentDayClos
   const same = out.find((c) => foldDayAccount(c.account) === key);
   if (same) same.at = Math.min(same.at, close.at);
   else out.push({ ...close });
-  return out.sort((a, b) => a.at - b.at || a.account.localeCompare(b.account)).slice(0, AGENT_DAY_CLOSE_MAX);
+  out.sort((a, b) => a.at - b.at || a.account.localeCompare(b.account));
+  return out.length <= AGENT_DAY_CLOSE_MAX ? out : [{ day: latest, account: '', at: out[0]!.at }];
 }
 
 /** Les fermetures relues d'une liste (fichier, coffre) : chacune lue par `parseDayClose`. Une valeur illisible : aucune. */

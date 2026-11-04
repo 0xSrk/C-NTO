@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AgentOrderHost, type AgentDialogOptions, type BridgeView } from '../electron/agent-orders';
-import { coerceDayCloses, dayCloseFor, mergeDayCloses, parseDayClose, withDayClose } from '@/engine/agent/dayClose';
+import { AGENT_DAY_CLOSE_MAX, coerceDayCloses, dayCloseFor, mergeDayCloses, parseDayClose, withDayClose } from '@/engine/agent/dayClose';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
 
 /**
@@ -131,6 +131,40 @@ describe('OROS5.48a · le process principal ferme la journée CME à la perte du
     await third.host.enable();
     third.host.closeDay({ account: 'Sim202', at: et(DAY, '10:00') });
     expect(await third.host.propose(OPEN, 'llm', null, null)).toMatchObject({ status: 'sent' });
+  });
+
+  it('OROS5.48e au-delà du plafond, rien ne sort : les fermetures se replient en une fermeture de tous les comptes', async () => {
+    const junk = (n: number, at: number) => Array.from({ length: n }, (_, i) => ({ account: `Junk${String(i).padStart(2, '0')}`, at }));
+    // Sim101 fermé à 10:56 ; puis le renderer envoie trente-deux fermetures plus anciennes : Sim101 reste fermé
+    const h = harness({ at: et(DAY, '10:56') });
+    await h.host.enable();
+    await h.host.propose(OPEN, 'llm', null, LOSS_RULE);
+    h.clock.now = et(DAY, '11:45');
+    for (const close of junk(AGENT_DAY_CLOSE_MAX, et(DAY, '09:00'))) expect(h.host.closeDay(close)).toBe(true);
+    h.clock.now = et(DAY, '11:50');
+    expect(await h.host.propose(OPEN, 'llm', null, null)).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 09:00 ET : perte du jour atteinte' });
+    const stored = JSON.parse(read(path.join(h.dir, 'agent-day-close.json'))) as unknown[];
+    expect(stored.length).toBeLessThanOrEqual(AGENT_DAY_CLOSE_MAX);
+    // après un redémarrage du desk, la journée reste fermée
+    const again = harness({ dir: h.dir, at: et(DAY, '12:30') });
+    await again.host.enable();
+    expect(await again.host.propose(OPEN, 'llm', null, null)).toMatchObject({ status: 'refused', reason: 'trader_rule' });
+    expect(h.submitted).toEqual([]);
+    expect(again.submitted).toEqual([]);
+    // une fermeture de tous les comptes ne sort pas davantage
+    const all = harness({ at: et(DAY, '11:00') });
+    await all.host.enable();
+    all.host.closeDay({ account: '', at: et(DAY, '10:56') });
+    for (const close of junk(AGENT_DAY_CLOSE_MAX, et(DAY, '09:00'))) all.host.closeDay(close);
+    all.clock.now = et(DAY, '11:10');
+    expect(await all.host.propose(OPEN, 'llm', null, null)).toMatchObject({ status: 'refused', reason: 'trader_rule' });
+    // le module partagé : aucune fermeture de la journée la plus récente ne sort, la liste reste bornée
+    let list = withDayClose([], { day: DAY, account: 'Sim101', at: et(DAY, '10:56') });
+    for (let i = 0; i < 3 * AGENT_DAY_CLOSE_MAX; i++) list = withDayClose(list, { day: DAY, account: `Junk${i}`, at: et(DAY, '09:00') + i });
+    expect(list.length).toBeLessThanOrEqual(AGENT_DAY_CLOSE_MAX);
+    for (const account of ['Sim101', 'Junk0', `Junk${3 * AGENT_DAY_CLOSE_MAX - 1}`]) expect(dayCloseFor(list, account, et(DAY, '11:00')), account).not.toBeNull();
+    expect(dayCloseFor(list, 'Sim101', et(DAY, '11:00'))!.at).toBe(et(DAY, '09:00'));
+    expect(dayCloseFor(coerceDayCloses(list), 'Sim101', et(DAY, '11:00'))).not.toBeNull();
   });
 
   it('la fermeture relue : bornée, sans caractère de contrôle, d’une seule journée, la plus ancienne heure', () => {
