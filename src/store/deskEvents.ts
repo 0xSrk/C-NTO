@@ -5,7 +5,7 @@ import { dailyLossAlert, ThresholdWatch, type DailyLossInput } from '@/engine/ag
 import { matchAccount, sameAccount } from '@/engine/accounts';
 import { dayCloseFor } from '@/engine/agent/dayClose';
 import { AGENT_TRADER_RULES, type AgentTraderRuleBlock } from '@/engine/agent/orders';
-import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, limitReachedAt, majorCatalysts, tradingDayNow, type DailyLimit, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
+import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, limitReachedAt, lossOfDay, majorCatalysts, tradingDayNow, type DailyLimit, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { evaluatePlan, findPlan, planMargin } from '@/engine/propfirm';
@@ -189,21 +189,39 @@ export function dailyLossReached(now = Date.now()): boolean {
   return dailyLossNow(now) || trackedDayClosedSince(now) !== null;
 }
 
+/** Le réalisé de la journée et sa première atteinte de la limite, pour une journée, un compte suivi et une limite. */
+let closeReplay: { sessions: unknown; trades: unknown; key: string; realized: number; reached: number | null } | null = null;
+
+/**
+ * Le réalisé de la journée (`dayLoss`) et la première sortie qui a porté la perte à la limite (`limitReachedAt`), rejoués une
+ * fois par journal, journée, compte suivi et limite (OROS5.48d) : un statut du pont ne relit que le latent, comme les bornes
+ * du jour (OROS5.11).
+ */
+function dayCloseReplay(day: string, account: string, limit: number): { realized: number; reached: number | null } {
+  const { sessions, trades } = useJournal.getState();
+  const key = `${day}|${account}|${limit}`;
+  if (closeReplay && closeReplay.sessions === sessions && closeReplay.trades === trades && closeReplay.key === key) return closeReplay;
+  closeReplay = { sessions, trades, key, realized: dayLoss({ sessions, trades, day, account }).realized, reached: limitReachedAt(trades, { day, account, limit }) };
+  return closeReplay;
+}
+
 /**
  * Retient la journée fermée du compte suivi dès que la perte du jour atteint la limite (décision 15) : au coffre, et au
  * process principal (`useDayClose`, `closeDay`). Depuis la sortie qui l'a portée à la limite, ou depuis maintenant quand le
- * latent l'y porte. Rien ne rouvre ; la veille du desk l'appelle à chaque statut du pont, journal ou réglage, et chaque
- * proposition de l'agent avant de lire la règle.
+ * latent l'y porte (la perte de `trackedDailyLoss` : le réalisé du jour plus le latent négatif du pont, `lossOfDay`). Rien
+ * ne rouvre ; la veille du desk l'appelle à chaque statut du pont, journal ou réglage, et chaque proposition de l'agent
+ * avant de lire la règle.
  */
 export function recordDayClose(now = Date.now()): void {
-  const { planAccount } = useSettings.getState().settings;
-  const tracked = trackedDailyLoss(now);
-  if (!tracked) return;
+  const { traderRules, planId, planAccount } = useSettings.getState().settings;
+  const limit = dailyLimit(traderRules, findPlan(planId));
+  if (!limit) return;
+  const day = tradingDayNow(now);
+  const { realized, reached } = dayCloseReplay(day, planAccount, limit.amount);
   const since: number[] = [];
-  const reached = limitReachedAt(useJournal.getState().trades, { day: tracked.input.day, account: planAccount, limit: tracked.input.limit, until: now });
-  if (reached !== null) since.push(reached);
-  if (tracked.input.loss >= tracked.input.limit) since.push(now);
-  if (since.length) useDayClose.getState().close({ day: tracked.input.day, account: planAccount, at: Math.min(...since) });
+  if (reached !== null && reached <= now) since.push(reached);
+  if (lossOfDay(realized, liveUnrealized(planAccount)).loss >= limit.amount) since.push(now);
+  if (since.length) useDayClose.getState().close({ day, account: planAccount, at: Math.min(...since) });
 }
 
 /** Perte du jour : un niveau par journée, compte et limite ; le premier calcul pose le niveau sans alerter. */
