@@ -1572,3 +1572,17 @@ La relecture adverse de la branche `agent/formation-quant` (lentilles sécurité
 1. Après *Former l'agent*, la plaque ne doit montrer aucun « Plafond déclaré par la session » ; si elle le montre, la session a été arrêtée : la relire dans la Console et le dire.
 2. Si D · Lab affiche « Clause d'usage de quantmemo.com à confirmer par l'ADMIN », lire « Accès et conditions » du rapport de formation et décider avant de publier un rapport qui cite le savoir.
 3. Un rapport qui porte une section « Sources écartées par le desk » signale un texte injecté ou une erreur de l'agent : le dire.
+
+## Publication de la 3.9.0 (2026-11-04)
+
+L'ADMIN demande que l'agent cloud se forme au savoir quant sur quantmemo.com, puis que l'on fusionne et mette à jour. La 3.9.0 porte la formation (#141, CLD36 à CLD60) et la garde A18 (#140), fusionnée après la 3.8.0. Elle part de la branche de la formation : sa PR suit la fusion de #141.
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| R3.9a | Version 3.9.0 (`package.json`, les deux entrées racine de `package-lock.json`). Entrée 3.9.0 du journal, trois points en français, anglais et espagnol : la formation quant au desk du Lab (« Former l'agent », plafond de 25 $ par session, robots.txt et conditions d'abord) ; le savoir monté en lecture seule chez l'analyste, le rapport `AGT-FRM` et les sources bornées aux domaines lisibles ; la garde A18. README : badge et cartouches, « What's new in 3.9.0 » (les trois points anglais mot pour mot), liens et commandes d'installation vers les fichiers de la v3.9.0, ligne 3.9.0 en tête de « Versions », l'ancre `whats-new-in-380` passée à la ligne 3.8.0 ; « Lab reports » gagne « The training » et dit ce que l'analyste lit ; la ligne « Cloud agent » de la sécurité nomme la formation ; 2 742 tests. Le test R3.8c ne lit plus « What's new » à la 3.8.0 : R3.9a le lit à la version de `package.json`, et vérifie que chaque installeur cité porte cette version. | `tests/changelog.test.ts`, `tests/release-notes.test.ts`, `tests/readme.test.ts` › R3.9a |
+
+**Ce qui ne change pas.** Le journal et le README ne promettent rien de plus que le code : la formation ne tourne qu'au desk du Lab ; ailleurs, le dossier se lit comme avant ; rien du desk ne part vers le cloud. Ni « siège » ni « asiento » (`tests/seat.test.ts`). Les plaques du README restent celles de la 3.8.0 : la formation n'ajoute qu'une rangée à D · Lab, vue du seul desk du Lab.
+
+**Vérifications.** `npm run check` vert (typecheck, 275 fichiers, 2 742 tests, build), `node scripts/release-notes.mjs --check` : 3.9.0, trois points, fr/en/es.
+
+**Reste.** Fusionner #141 puis cette montée (ADMIN) ; lancer le workflow `release` sur `main` ; signer sur le poste de l'ADMIN, contrôle croisé selon `docs/PUBLICATION.md`. D'ici la publication, les liens d'installation du README mènent à des fichiers que seule la Release en brouillon porte.
