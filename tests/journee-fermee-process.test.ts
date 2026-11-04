@@ -298,6 +298,31 @@ describe('OROS5.48a · le process principal ferme la journée CME à la perte du
     }
   });
 
+  it('OROS5.48r au redémarrage, la journée en cours reste fermée à côté de trois journées à venir', async () => {
+    const ahead = ['2026-11-05', '2026-11-06', '2026-11-09'];
+    // le fichier, tel qu'il est : la vraie journée fermée à 10:00 ET, et trois journées fermées pendant que l'horloge avançait
+    const dir = mkdtempSync(path.join(tmpdir(), 'canto-day-close-'));
+    writeFileSync(path.join(dir, 'agent-day-close.json'), JSON.stringify([{ day: DAY, account: 'Sim101', at: et(DAY, '10:00') }, ...ahead.map((day) => ({ day, account: 'Sim101', at: et(day, '09:00') }))]));
+    const again = harness({ dir, at: et(DAY, '10:30') });
+    await again.host.enable();
+    expect(await again.host.propose(OPEN, 'llm', null, null)).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 10:00 ET : perte du jour atteinte' });
+    // le même état, par le vrai chemin : trois propositions refusées pendant que l'horloge avance, puis la vraie journée
+    const h = harness({ at: et(ahead[0]!, '09:00') });
+    await h.host.enable();
+    for (const day of ahead) {
+      h.clock.now = et(day, '09:00');
+      expect(await h.host.propose(OPEN, 'llm', null, LOSS_RULE)).toMatchObject({ status: 'refused', reason: 'trader_rule' });
+    }
+    h.clock.now = et(DAY, '10:00');
+    expect(await h.host.propose(OPEN, 'llm', null, LOSS_RULE)).toMatchObject({ status: 'refused', reason: 'trader_rule' });
+    expect((JSON.parse(read(path.join(h.dir, 'agent-day-close.json'))) as { day: string }[]).map((c) => c.day)).toEqual([DAY, ...ahead]);
+    // le desk redémarre à 10:30, après un gain : la journée reste fermée
+    const restarted = harness({ dir: h.dir, at: et(DAY, '10:30') });
+    await restarted.host.enable();
+    expect(await restarted.host.propose(OPEN, 'llm', null, null)).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 10:00 ET : perte du jour atteinte' });
+    expect([...again.submitted, ...h.submitted, ...restarted.submitted]).toEqual([]);
+  });
+
   it('la fermeture relue : bornée, sans caractère de contrôle, d’une seule journée, la plus ancienne heure', () => {
     const at = et(DAY, '10:56');
     expect(parseDayClose({ day: DAY, account: ' Sim101 ', at })).toEqual({ day: DAY, account: 'Sim101', at });
