@@ -1,4 +1,5 @@
 import { useMemo, type ComponentProps } from 'react';
+import { samplePhrase } from '@/app/objects/sample';
 import { SetCount } from '@/app/objects/Selection';
 import { Glyph, Signal } from '@/design/Micro';
 import { Button, cx, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
@@ -10,7 +11,7 @@ import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
 import { fmtInt, fmtPct, fmtPoints, fmtRatio, fmtUsd, plural } from '@/lib/format';
 import { dateTimeFormatter, parseDateKey } from '@/lib/time';
-import type { EntityRef } from '@/engine/ontology';
+import { sampleOf, type EntityRef } from '@/engine/ontology';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
@@ -39,6 +40,15 @@ function Gauge(props: ComponentProps<typeof Jauge>) {
       <Jauge {...props} />
       <i className={s.ruler} data-ruler="" aria-hidden />
     </div>
+  );
+}
+
+/** Le nom accessible de l'échantillon de K.04, distinct de celui de la bande et de « Les N séances » (OROS5.34). */
+function k04SampleLabel(n: number, account: string): string {
+  return tr(
+    `Échantillon de K.04 : ${plural(n, 'séance')}, tout l’historique de ${account} ; ouvrir la fiche du compte`,
+    `K.04 sample: ${plural(n, 'session')}, the whole history of ${account}; open the account record`,
+    `Muestra de K.04: ${plural(n, 'sesión', 'sesiones')}, todo el historial de ${account}; abrir la ficha de la cuenta`,
   );
 }
 
@@ -109,6 +119,13 @@ export function Dashboard({
   const borneUsed = borne != null ? consumed / borne : 0;
   const borneLevel = borneSignal(gauge);
   const breakeven = breakevenWinRate(stats.payoffRatio);
+  // L'échantillon de la bande, aux seuils du moteur (`SAMPLE_FAIBLE`, `SAMPLE_MOYEN`, `SAMPLE_SOLIDE`), en trades.
+  const sample = sampleOf(stats.count);
+  const bandSampleLabel = tr(
+    `Échantillon de la bande K : ${plural(stats.count, 'trade')}, ${samplePhrase(sample)} ; ouvrir l’ensemble dans B · Séances`,
+    `K band sample: ${plural(stats.count, 'trade')}, ${samplePhrase(sample)}; open the set in B · Sessions`,
+    `Muestra de la banda K: ${plural(stats.count, 'trade')}, ${samplePhrase(sample)}; abrir el conjunto en B · Sesiones`,
+  );
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
   // La sélection partagée (OROS5.32) : la puce Instrument recalcule K et A.01 ; A.02, A.03 et A.04 gardent le compte et
   // la période et allument ce qu'elle garde, le reste à sa place, atténué.
@@ -241,9 +258,18 @@ export function Dashboard({
       </section>
 
       <section className={`${s.card} ${s.kpis} ${s.span5}`}>
+        {/* L'échantillon de la bande, dit une fois, en tête (OROS5.34) : il ouvre l'ensemble qui fait les quatre chiffres. */}
+        <div className={s.kBandHead}>
+          <button type="button" className={s.kSample} data-sample="band" data-level={sample} aria-label={bandSampleLabel} onClick={onSessions}>
+            <span>
+              n = {plural(stats.count, 'trade', 'trades')} · {samplePhrase(sample)}
+            </span>
+            <Glyph name="arrowNext" className={s.btnGlyph} />
+          </button>
+        </div>
         <div className={s.tile} data-k="K.01">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.01 </span>
               <span className={s.kName}>{tr('Espérance', 'Expectancy', 'Esperanza')} / {tr('TRADE', 'TRADE', 'TRADE')}</span>
             </span>
@@ -266,13 +292,12 @@ export function Dashboard({
         </div>
         <div className={s.tile} data-k="K.02">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.02 </span>
               <span className={s.kName}>{tr('Taux de réussite', 'Win rate', 'Tasa de acierto')}</span>
             </span>
-            <span className={s.hint}>
-              {fmtInt(stats.wins)} / {fmtInt(stats.count)}
-            </span>
+            {/* Le total est dit en tête de la bande : K.02 dit ses gagnants. */}
+            <span className={s.hint}>{plural(stats.wins, tr('gagnant', 'winner', 'ganador'), tr('gagnants', 'winners', 'ganadores'))}</span>
           </div>
           <span className={s.kValue}>{fmtPct(stats.winRate, 1)}</span>
           <Gauge
@@ -290,7 +315,7 @@ export function Dashboard({
         </div>
         <div className={s.tile} data-k="K.03">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.03 </span>
               <span className={s.kName}>{tr('Profit factor', 'Profit factor', 'Profit factor')}</span>
             </span>
@@ -315,7 +340,7 @@ export function Dashboard({
         </div>
         <div className={s.tile} data-k="K.04">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.04 </span>
               <span className={s.kName}>{gauge.kind === 'plan' ? tr('Marge au plancher', 'Margin to floor', 'Margen al suelo') : tr('Drawdown max', 'Max drawdown', 'Drawdown máx.')}</span>
             </span>
@@ -326,6 +351,14 @@ export function Dashboard({
             ) : null}
           </div>
           {gauge.kind === 'plan' ? <Montant className={`${s.kValue} ${gauge.margin < gauge.limit * 0.25 ? s.neg : ''}`} value={gauge.margin} /> : <Montant className={`${s.kValue} ${s.neg}`} value={-gauge.maxDrawdown} />}
+          {/* K.04 ne garde son n que s'il diffère de la bande : avec un plan, la marge se lit sur tout l'historique du compte. */}
+          {gauge.kind === 'plan' && metricAccount ? (
+            <button type="button" className={s.kSample} data-sample="k04" aria-label={k04SampleLabel(history.sessions.length, metricAccount)} onClick={(event) => openObject({ type: 'compte', id: metricAccount }, { origin: event.currentTarget })}>
+              <span>
+                n = {plural(history.sessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {tr('tout l’historique', 'whole history', 'todo el historial')}
+              </span>
+            </button>
+          ) : null}
           <div>
             {borne != null ? (
               <Gauge
@@ -346,7 +379,8 @@ export function Dashboard({
               <Gauge min={0} max={100} value={null} ticks={[{ value: 0, label: '0' }, { value: 100, label: '100 %' }]} />
             )}
             {gauge.kind === 'plan' ? (
-              <div className={s.pair}>
+              // Le plan se desserre : une ligne par lecture, au lieu de deux colonnes serrées.
+              <div className={s.planLines} data-plan-lines="">
                 <span className={s.hint}>
                   {tr('PLANCHER', 'FLOOR', 'SUELO')} {fmtInt(gauge.floor)} · {tr('PLUS-HAUT', 'HIGH', 'MÁXIMO')} {fmtInt(gauge.highWater)}
                 </span>
@@ -365,7 +399,7 @@ export function Dashboard({
                   {gauge.limit != null && gauge.limit > 0 ? `${fmtPct(gauge.maxDrawdown / gauge.limit, 1)} ${tr('DE LA LIMITE', 'OF THE LIMIT', 'DEL LÍMITE')} · ` : ''}
                   {tr('SUR CLÔTURES, PÉRIODE AFFICHÉE', 'ON CLOSES, SHOWN RANGE', 'EN CIERRES, PERÍODO MOSTRADO')}
                 </span>
-                <span className={s.hint}>{plural(daily.maxDrawdownDays, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
+                <span className={s.hint}>{tr(`creux sur ${plural(daily.maxDrawdownDays, 'séance')}`, `trough over ${plural(daily.maxDrawdownDays, 'session')}`, `valle en ${plural(daily.maxDrawdownDays, 'sesión', 'sesiones')}`)}</span>
               </div>
             )}
             {borneLevel === 3 ? (

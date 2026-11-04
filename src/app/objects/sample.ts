@@ -14,3 +14,17 @@ export function sampleWord(sample: ClaimConfidence['sample']): string {
       return tr('solide', 'solid', 'sólido');
   }
 }
+
+/** « échantillon moyen » : le nom et son mot, accordés dans chaque langue (« muestra media »). */
+export function samplePhrase(sample: ClaimConfidence['sample']): string {
+  switch (sample) {
+    case 'insuffisant':
+      return tr('échantillon insuffisant', 'insufficient sample', 'muestra insuficiente');
+    case 'faible':
+      return tr('échantillon faible', 'weak sample', 'muestra débil');
+    case 'moyen':
+      return tr('échantillon moyen', 'medium sample', 'muestra media');
+    case 'solide':
+      return tr('échantillon solide', 'solid sample', 'muestra sólida');
+  }
+}

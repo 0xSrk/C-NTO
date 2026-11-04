@@ -40,7 +40,39 @@
 .kpis {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: auto 1fr 1fr;
+}
+/* L'échantillon de la bande, dit une fois, en tête (OROS5.34) : un lien vers l'ensemble, au glacier (la technique). */
+.kBandHead {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line-1);
+}
+.kSample {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  color: var(--ice);
+  background: none;
+  cursor: pointer;
+  transition: color 200ms linear;
+}
+.kSample:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .kSample:hover {
+    color: var(--text-0);
+  }
 }
 
 .tile {
@@ -53,8 +85,9 @@
   border-right: 1px solid var(--line-1);
   border-bottom: 1px solid var(--line-1);
 }
-.tile:nth-child(2n) { border-right: none; }
-.tile:nth-child(n + 3) { border-bottom: none; }
+/* La tête est le premier enfant : les filets des tuiles se recomptent à partir du deuxième. */
+.tile:nth-child(2n + 1) { border-right: none; }
+.tile:nth-child(n + 4) { border-bottom: none; }
 
 .kHead,
 .cardHead {
@@ -62,6 +95,17 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
+}
+/* Le titre d'une carte K tient sur une ligne ; s'il manque de place, le complément passe dessous, à droite. */
+.kHead {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.kTitle {
+  white-space: nowrap;
+}
+.kHead > .hint {
+  margin-left: auto;
 }
 .cardHead {
   padding-bottom: 10px;
@@ -207,6 +251,14 @@
   justify-content: space-between;
   gap: 8px;
   margin-top: 6px;
+}
+/* K.04 avec un plan : une ligne par lecture, desserrées. */
+.planLines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  line-height: 1.35;
 }
 
 .pad {
@@ -681,7 +733,7 @@
   .grid { grid-template-rows: minmax(206px, auto) auto minmax(258px, auto) auto; }
   .kpis {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: auto;
+    grid-template-rows: auto auto;
   }
   .tile:nth-child(n) {
     border-right: 1px solid var(--line-1);

@@ -232,14 +232,18 @@ describe('OROS5.32 Métrique lit la sélection partagée : n / N dans chaque pan
     const header = node.querySelector<HTMLSelectElement>('[data-chip="instrument"] select')!;
     expect([...header.options].map((o) => o.value)).toEqual(['', 'ES', 'NQ']);
     const k02 = () => node.querySelector<HTMLElement>('[data-k="K.02"]')!.textContent ?? '';
-    expect(k02()).toContain('3 / 7');
+    // Le total se dit une fois, en tête de la bande K, et K.02 ses gagnants (OROS5.34).
+    const band = () => node.querySelector<HTMLElement>('[data-sample="band"]')!.textContent ?? '';
+    expect(k02()).toContain('3 gagnants');
+    expect(band()).toContain('n = 7 trades');
 
     // A.03 pose la puce Instrument
     act(() => node.querySelector<HTMLButtonElement>('[data-instrument="NQ"]')!.click());
     expect(useUi.getState().metricInstrument).toBe('NQ');
     expect(header.value).toBe('NQ');
     // K et A.01 sur la part NQ : quatre trades, deux gagnants ; A.01 dit 4 / 7 trades
-    expect(k02()).toContain('2 / 4');
+    expect(k02()).toContain('2 gagnants');
+    expect(band()).toContain('n = 4 trades');
     expect(k02()).toMatch(/50,0\s?%/);
     expect(counts(node)).toEqual(['4/7', '3/5', '4/7', '3/5']);
     expect([...node.querySelectorAll<HTMLElement>('[data-count]')].map((el) => el.textContent)).toEqual(['4 / 7 trades', '3 / 5 séances', '4 / 7 trades', '3 / 5 séances']);
