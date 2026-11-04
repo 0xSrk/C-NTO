@@ -168,12 +168,17 @@
 /* La fiche ouverte (OROS5.16) ou la fenêtre minimale : sous 1000 px de zone de travail, les filtres passent sous le tableau,
    et sous 700 px le tableau tient sur deux colonnes ; rien ne se coupe lettre à lettre ni ne déborde (OROS5.47d). */
 @container main (max-width: 1000px) {
+  /* Rangé sur une colonne, le Copieur prend sa hauteur et la zone de travail défile : enfant d'une colonne flexible, il
+     s'y tassait sinon, et les filtres recouvraient les critères d'Armer (OROS5.47f). */
   .layout {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
+    flex: none;
+    min-height: auto;
   }
   .col {
     overflow: visible;
+    min-height: auto;
   }
 }
 @container main (max-width: 700px) {

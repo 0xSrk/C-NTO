@@ -20,6 +20,16 @@ describe('OROS5.47d · le Copieur à la largeur de la fiche ouverte', () => {
     expect(at('.board', '@container main (max-width: 700px)')).toMatch(/grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   });
 
+  it('OROS5.47f rangé sur une colonne, il prend sa hauteur : ni la grille ni ses colonnes ne se tassent sous la zone de travail', () => {
+    // Sous Electron, en espagnol à 1180 × 720, fiche ouverte : la grille, enfant d'une colonne flexible (min-height: 0),
+    // se tassait à la hauteur de la zone de travail ; les filtres recouvraient alors les critères d'Armer.
+    const layout = at('.layout', '@container main (max-width: 1000px)');
+    expect(layout).toMatch(/flex: none;/);
+    expect(layout).toMatch(/min-height: auto;/);
+    expect(at('.col', '@container main (max-width: 1000px)')).toMatch(/min-height: auto;/);
+    expect(readFileSync('src/app/shell.module.css', 'utf8')).toMatch(/\.content \{\s*flex: 1;\s*min-height: 0;\s*overflow: auto;/);
+  });
+
   it('aucune piste fr ne s’élargit à son contenu : chacune est minmax(0, …)', () => {
     const bare: string[] = [];
     for (const rule of rules) {
