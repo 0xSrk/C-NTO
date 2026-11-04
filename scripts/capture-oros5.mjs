@@ -136,9 +136,13 @@ export function dataEnv(platform, dir) {
   return { XDG_CONFIG_HOME: path.join(dir, 'config'), HOME: path.join(dir, 'home') };
 }
 
-/** Les arguments d'Electron : le desk du dépôt ; sans bac à sable seulement pour root sous Linux (un conteneur de banc). */
-export function electronArgs(platform, uid) {
-  return [REPO, ...(platform === 'linux' && uid === 0 ? ['--no-sandbox'] : [])];
+/**
+ * Les options de lancement d'Electron (OROS5.47i) : le desk du dépôt, et le bac à sable de Chromium, sauf pour root sous
+ * Linux (un conteneur de banc). Sous Linux, `_electron.launch` ajoute lui-même `--no-sandbox` dès que `chromiumSandbox`
+ * n'est pas vrai, quel que soit l'utilisateur : le bac à sable se demande ici, il ne se retire pas.
+ */
+export function launchOptions(platform, uid) {
+  return { args: [REPO], chromiumSandbox: !(platform === 'linux' && uid === 0) };
 }
 
 /** Le nom d'une capture : langue, taille, scène. */
@@ -201,7 +205,7 @@ export async function run(opts, { playwright, operator = consoleOperator, onLaun
   let locale = null;
 
   for (const lang of opts.langs) {
-    const app = await playwright._electron.launch({ executablePath: electronPath, args: electronArgs(process.platform, process.getuid?.()), cwd: REPO, env: launchEnv(process.env, env) });
+    const app = await playwright._electron.launch({ executablePath: electronPath, ...launchOptions(process.platform, process.getuid?.()), cwd: REPO, env: launchEnv(process.env, env) });
     const page = await app.firstWindow();
     page.on('console', (msg) => {
       if (msg.type() === 'error') report.errors.push({ lang, kind: 'console', text: msg.text().slice(0, 400) });

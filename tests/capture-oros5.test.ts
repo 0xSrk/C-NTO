@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEBUG_PORTS_NOTICE, dataEnv, electronArgs, frontContract, GESTURES, LANGS, launchEnv, parseArgs, REPO, shotName, SIZES, ZONES } from '../scripts/capture-oros5.mjs';
+import { DEBUG_PORTS_NOTICE, dataEnv, frontContract, GESTURES, LANGS, launchEnv, launchOptions, parseArgs, REPO, shotName, SIZES, ZONES } from '../scripts/capture-oros5.mjs';
 
 /**
  * OROS5.47 — la recette de la vague sous Electron (`scripts/capture-oros5.mjs`). Le script se lance sur le poste de l'ADMIN
@@ -73,17 +73,21 @@ describe('OROS5.47 · la recette sous Electron', () => {
     expect(SOURCE).not.toMatch(/env: \{ \.\.\.process\.env/);
   });
 
-  it('ne prend un dossier de données de banc que sous Linux ; Electron du dépôt, sans bac à sable pour root seulement', () => {
+  it('ne prend un dossier de données de banc que sous Linux ; Electron du dépôt, son bac à sable demandé sauf pour root sous Linux', () => {
     const env = dataEnv('linux', '/banc');
     expect(Object.keys(env).sort()).toEqual(['HOME', 'XDG_CONFIG_HOME']);
     expect(posix(env.XDG_CONFIG_HOME!)).toBe('/banc/config');
     expect(posix(env.HOME!)).toBe('/banc/home');
     expect(() => dataEnv('win32', 'C:\\banc')).toThrow(/Linux seulement/);
     expect(() => dataEnv('darwin', '/banc')).toThrow(/Linux seulement/);
-    expect(electronArgs('linux', 0)).toEqual([REPO, '--no-sandbox']);
-    expect(electronArgs('linux', 1000)).toEqual([REPO]);
-    expect(electronArgs('win32', undefined)).toEqual([REPO]);
-    expect(electronArgs('darwin', 501)).toEqual([REPO]);
+    // OROS5.47i — sous Linux, `_electron.launch` ajoute `--no-sandbox` dès que `chromiumSandbox` n'est pas vrai, quel que
+    // soit l'utilisateur : le bac à sable se demande, et seul root (un conteneur de banc) s'en passe.
+    expect(launchOptions('linux', 0)).toEqual({ args: [REPO], chromiumSandbox: false });
+    expect(launchOptions('linux', 1000)).toEqual({ args: [REPO], chromiumSandbox: true });
+    expect(launchOptions('win32', undefined)).toEqual({ args: [REPO], chromiumSandbox: true });
+    expect(launchOptions('darwin', 501)).toEqual({ args: [REPO], chromiumSandbox: true });
+    expect(SOURCE).toMatch(/\.\.\.launchOptions\(process\.platform, process\.getuid\?\.\(\)\)/);
+    expect(SOURCE).not.toMatch(/['"]--no-sandbox['"]/);
     expect(shotName('es', { width: 1180, height: 720 }, 'kill-switch')).toBe('es-1180x720-kill-switch.png');
   });
 
