@@ -1,6 +1,7 @@
 import { customSeriesDefaultOptions, type AutoscaleInfo, type CustomData, type CustomSeriesOptions, type ICustomSeriesPaneRenderer, type ICustomSeriesPaneView, type PaneRendererCustomData, type PriceToCoordinateConverter, type Time } from 'lightweight-charts';
 import type { DisciplineFinding, MajorCatalyst } from '@/engine/discipline';
 import type { EquityCurveData } from '@/engine/equityCurve';
+import { catalystLabel } from '@/engine/macroMerge';
 import { OUT_OF_SELECTION } from '@/engine/selection';
 import type { Trade } from '@/engine/types';
 import { cmeDay } from '@/lib/frise';
@@ -90,7 +91,8 @@ export function cursorStep(curve: Pick<EquityCurveData, 'grain' | 'steps'>, curs
  * Les marques des jeux d'événements sur la courbe : chaque catalyseur au pas de sa journée (au grain trade, le premier
  * trade du jour sorti après la publication, sinon le dernier du jour), chaque écart au pas du trade qu'il marque (au
  * grain séance, sa journée). Ce qui ne tombe sur aucun pas n'est pas sur la courbe. Plusieurs marques d'un même pas se
- * comptent ; les catalyseurs s'y nomment ensemble (`name` : le titre dans la langue du desk). Pur.
+ * comptent ; les catalyseurs s'y nomment ensemble (`name` : le titre dans la langue du desk), « ≈ » devant un estimé
+ * (`catalystLabel`, C.054 ; décision 13). Pur.
  */
 export function eventMarks(curve: Pick<EquityCurveData, 'grain' | 'steps'>, input: { catalysts: readonly MajorCatalyst[]; findings: readonly DisciplineFinding[]; trades: readonly Trade[] }, name: (title: string) => string = (title) => title): EventMarks {
   const byDay = new Map<string, number[]>();
@@ -120,7 +122,7 @@ export function eventMarks(curve: Pick<EquityCurveData, 'grain' | 'steps'>, inpu
     if (index === null) continue;
     const row = stems.get(index) ?? { titles: [], count: 0 };
     row.count += 1;
-    const title = name(c.title);
+    const title = catalystLabel({ title: name(c.title), estimated: c.estimated === true });
     if (!row.titles.includes(title)) row.titles.push(title);
     stems.set(index, row);
   }

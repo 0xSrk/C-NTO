@@ -240,6 +240,35 @@ describe('OROS5.36 les jeux d’événements s’allument en puces, avec leur n'
     expect(marks.catalysts.find((m) => /CPI/.test(m.label))?.index).toBe(byTrade.steps.findIndex((s) => s.at === Date.parse('2026-09-02T14:00:00Z')));
   });
 
+  it('OROS5.36a un estimé local se nomme « ≈ » sur sa tige et dans la lecture ; la publication officielle du même mois, sans', async () => {
+    // Juillet 2026 : le CPI local tombe le 2e mercredi (le 8, estimé) ; la publication officielle du BLS, le 14. Pas le
+    // même jour : la source unique garde les deux, l'estimé marqué (décision 13).
+    const july = [session('j1', '2026-07-08', 120), session('j2', '2026-07-14', -80)];
+    const julyTrades = [trade('u1', 'j1', '2026-07-08T14:00:00Z', 120), trade('u2', 'j2', '2026-07-14T14:00:00Z', -80)];
+    const official: CalendarEventRow = { ...CPI, id: 'bls:cpi-2026-07-14', date: '2026-07-14' };
+    const majors = majorCatalysts(catalystSource([official], [2026]));
+    expect(majors.filter((c) => c.date === '2026-07-08' || c.date === '2026-07-14').map((c) => [c.date, c.estimated === true])).toEqual([
+      ['2026-07-08', true],
+      ['2026-07-14', false],
+    ]);
+    const marks = eventMarks(equityCurve(july, julyTrades, 'session'), { catalysts: majors, findings: [], trades: julyTrades });
+    expect(marks.catalysts).toEqual([
+      { index: 1, label: '≈ Inflation CPI', count: 1 },
+      { index: 2, label: 'Inflation CPI', count: 1 },
+    ]);
+    // La lecture du pas tenu par le curseur le dit aussi.
+    useMacro.setState({ events: [official] });
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => root!.render(createElement(EquityCard, { sessions: july, trades: julyTrades })));
+    await act(async () => chip('catalysts').click());
+    await act(async () => useUi.setState({ timeCursor: Date.parse('2026-07-08T15:00:00Z') }));
+    expect(readout()).toMatch(/08\/07 · ≈ Inflation CPI/);
+    await act(async () => useUi.setState({ timeCursor: Date.parse('2026-07-14T15:00:00Z') }));
+    expect(readout()).toMatch(/14\/07 · Inflation CPI/);
+  });
+
   it('zoom, molette et double-clic ne changent pas', async () => {
     await mount();
     const el = host!.querySelector('[role="img"]')!;
