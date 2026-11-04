@@ -388,6 +388,12 @@ export class AgentOrderHost {
         // L'issue est typée : sans réponse dans le délai, ou refusée (OROS5.40) ; le renderer ne relit pas le texte.
         return { status: 'declined', detail, timeout: timeout.aborted };
       }
+      // La journée fermée pendant le dialogue (OROS5.48p) : le verrou se relit avant l'envoi ; une réduction de risque passe.
+      const closedNow = verdict.reducing ? null : dayCloseFor(this.closes, p.account, this.now());
+      if (closedNow) {
+        this.deps.log(`agent proposition refusée ${summary} motif=trader_rule`);
+        return { status: 'refused', reason: 'trader_rule', detail: this.closedRule(closedNow).detail };
+      }
       const ack = await this.deps.submit({
         op: 'submit',
         account: p.account,

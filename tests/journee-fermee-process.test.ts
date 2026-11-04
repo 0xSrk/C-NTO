@@ -18,7 +18,7 @@ const DAY = '2026-11-04';
 const OPEN = { account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, type: 'market', reason: 'cassure de l’Opening Range' };
 const LOSS_RULE = { rule: 'after_daily_limit', detail: 'perte du jour 620 $ ≥ limite 600 $ (règle du trader)' };
 
-function harness(opts: { dir?: string; position?: number; at: number }) {
+function harness(opts: { dir?: string; position?: number; at: number; onDialog?: (options: AgentDialogOptions) => void }) {
   const dir = opts.dir ?? mkdtempSync(path.join(tmpdir(), 'canto-day-close-'));
   const dialogs: AgentDialogOptions[] = [];
   const submitted: Record<string, unknown>[] = [];
@@ -32,6 +32,8 @@ function harness(opts: { dir?: string; position?: number; at: number }) {
     // Le trader accepte tout ce qu'on lui montre : seul un dialogue ouvert laisse passer l'ordre.
     showMessageBox: (_w, options) => {
       dialogs.push(options);
+      // ce qui arrive au process principal pendant que le dialogue est ouvert (OROS5.48p)
+      opts.onDialog?.(options);
       return Promise.resolve({ response: 0 });
     },
     bridge: () => view,
@@ -240,6 +242,32 @@ describe('OROS5.48a · le process principal ferme la journée CME à la perte du
     expect(dayCloseFor(ahead, 'Sim101', et(DAY, '10:20'))).toEqual(real);
     for (const list of [coerceDayCloses(ahead), coerceDayCloses(ahead, et(DAY, '10:20')), mergeDayCloses(ahead, [], et(DAY, '10:20')), mergeDayCloses([], ahead)]) expect(dayCloseFor(list, 'Sim101', et(DAY, '10:20'))).toEqual(real);
     expect(withDayClose(ahead, next('2026-11-10')).map((c) => c.day)).toEqual(['2026-11-06', '2026-11-09', '2026-11-10']);
+  });
+
+  it('OROS5.48p une journée fermée pendant le dialogue : l’ouverture acceptée n’est pas envoyée ; une réduction de risque passe', async () => {
+    // 10:55:00, Sim101 à plat, la perte à 590 / 600 $ : la garde laisse passer et le dialogue s'ouvre ; à 10:55:20, le latent
+    // porte la perte à la limite et le renderer dit la fermeture ; à 10:55:40, le trader clique « Envoyer l'ordre »
+    const during = (h: ReturnType<typeof harness>, options: AgentDialogOptions) => {
+      if (options.buttons[0] !== 'Envoyer l’ordre') return;
+      h.clock.now = et(DAY, '10:55') + 20_000;
+      expect(h.host.closeDay({ account: 'Sim101', at: h.clock.now })).toBe(true);
+      h.clock.now = et(DAY, '10:55') + 40_000;
+    };
+    let h!: ReturnType<typeof harness>;
+    h = harness({ at: et(DAY, '10:55'), onDialog: (options) => during(h, options) });
+    await h.host.enable();
+    const out = await h.host.propose(OPEN, 'llm', null, null);
+    expect(h.dialogs.map((d) => d.buttons[0])).toEqual(['Autoriser', 'Envoyer l’ordre']);
+    expect(out).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 10:55 ET : perte du jour atteinte' });
+    expect(h.submitted).toEqual([]);
+    expect(h.logs).toContain('agent journée fermée 2026-11-04 compte=Sim101 depuis 10:55 ET');
+    expect(h.logs).toContain('agent proposition refusée buy 1 MNQ 12-26 market compte=Sim101 origine=llm motif=trader_rule');
+    // la même fermeture pendant le dialogue d'une réduction de risque : l'ordre part
+    let reduce!: ReturnType<typeof harness>;
+    reduce = harness({ at: et(DAY, '10:55'), position: 1, onDialog: (options) => during(reduce, options) });
+    await reduce.host.enable();
+    expect(await reduce.host.propose({ ...OPEN, side: 'sell' }, 'llm', null, null)).toMatchObject({ status: 'sent', resulting: 0 });
+    expect(reduce.submitted).toEqual([expect.objectContaining({ action: 'Sell', quantity: 1, tag: 'canto-agent' })]);
   });
 
   it('la fermeture relue : bornée, sans caractère de contrôle, d’une seule journée, la plus ancienne heure', () => {
