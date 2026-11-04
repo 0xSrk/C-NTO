@@ -225,6 +225,34 @@ describe('OROS5.40 l’étape d’une proposition, publiée par le process princ
     expect(gold.map((r) => r.selector)).toEqual(['.bar i']);
   });
 
+  it('OROS5.40a la barre du délai ne se recale pas à chaque rendu : son délai est pris une fois, à l’ouverture', async () => {
+    const opened = Date.parse('2026-10-14T14:05:00Z');
+    vi.useFakeTimers({ now: opened + 5, toFake: ['Date'] });
+    try {
+      const pending = useAgentOrders.getState().propose(PROPOSAL, 'llm');
+      const ticket = fake.calls[0]![4] as string;
+      fake.step!({ ticket, stage: 'guarded', at: opened, account: 'Sim101', instrument: 'MNQ 12-26', position: 1, resulting: 2 });
+      fake.step!({ ticket, stage: 'dialog', at: opened, deadline: opened + ENGINE_TIMEOUT_MS });
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      const render = () => act(async () => root!.render(createElement(ProposalCard, { p: proposalView(useAgentOrders.getState().proposals[0]!) })));
+      const bar = () => host!.querySelector<HTMLElement>('[data-deadline] i')!;
+      await render();
+      expect([bar().style.animationDuration, bar().style.animationDelay]).toEqual([`${ENGINE_TIMEOUT_MS}ms`, '-5ms']);
+      // Vingt secondes plus tard, un nouveau rendu (la minuterie de 30 s d'Agent IA, un événement du desk) : l'animation
+      // en cours compte déjà ces vingt secondes ; réécrire son délai les compterait deux fois (Chromium l'applique depuis
+      // son départ), et la barre se viderait à 25 s.
+      vi.setSystemTime(opened + 20_000);
+      await render();
+      expect([bar().style.animationDuration, bar().style.animationDelay]).toEqual([`${ENGINE_TIMEOUT_MS}ms`, '-5ms']);
+      fake.release!({ status: 'declined', detail: 'refusé par le trader', timeout: false });
+      await pending;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('câblage : une méthode nommée du preload, le canal en lecture seule, le gestionnaire derrière trusted(e)', () => {
     const main = readFileSync('electron/main.ts', 'utf8');
     const preload = readFileSync('electron/preload.ts', 'utf8');

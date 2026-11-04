@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Glyph } from '@/design/Micro';
 import e from '@/design/etat.module.css';
 import { cx } from '@/design/primitives';
@@ -83,6 +84,13 @@ function GuardCells({ cells }: { cells: readonly CellState[] }) {
 function DeadlineBar({ window }: { window: { opened: number; deadline: number } }) {
   const total = Math.max(1, window.deadline - window.opened);
   const elapsed = Math.min(total, Math.max(0, Date.now() - window.opened));
+  // Le délai se prend une fois, au montage : l'animation en cours compte déjà le temps écoulé, et un délai réécrit à un
+  // rendu suivant s'appliquerait depuis son départ (le temps compterait deux fois, la barre se viderait trop tôt).
+  const { opened, deadline } = window;
+  const style = useMemo(() => {
+    const span = Math.max(1, deadline - opened);
+    return { animationDuration: `${span}ms`, animationDelay: `${-Math.min(span, Math.max(0, Date.now() - opened))}ms` };
+  }, [opened, deadline]);
   return (
     <div
       className={s.bar}
@@ -93,7 +101,7 @@ function DeadlineBar({ window }: { window: { opened: number; deadline: number } 
       aria-valuemax={Math.round(total / 1000)}
       aria-valuenow={Math.round((total - elapsed) / 1000)}
     >
-      <i style={{ animationDuration: `${total}ms`, animationDelay: `${-elapsed}ms` }} />
+      <i style={style} />
     </div>
   );
 }
