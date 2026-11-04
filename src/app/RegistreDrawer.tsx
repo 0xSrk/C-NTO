@@ -42,7 +42,7 @@ function Drawer({ className }: { className?: string }) {
   const friseOpen = useUi((u) => u.friseOpen);
   const now = useMemo(() => Date.now(), [events]);
   const sources = useIndexSources(now);
-  const ctx: RegistreContext = useMemo(() => ({ sessions: sources.sessions, trades: sources.trades, catalysts: sources.catalysts }), [sources]);
+  const ctx: RegistreContext = useMemo(() => ({ sessions: sources.sessions, trades: sources.trades, catalysts: sources.catalysts, proposals: sources.proposals }), [sources]);
   const rows = kinds.length ? events.filter((ev) => kinds.includes(ev.kind)) : events;
   const [active, setActive] = useState(0);
   const at = Math.min(active, Math.max(0, rows.length - 1));

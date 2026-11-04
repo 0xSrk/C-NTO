@@ -29,6 +29,7 @@ import { CloudOptions } from './CloudOptions';
 import { CloudReports, LabPlate } from './CloudReports';
 import { claudeCodeCommand, claudeDesktopConfig, codexConfig, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
+import { Propositions } from './Propositions';
 import s from './agent.module.css';
 
 function suggestions(): string[] {
@@ -312,105 +313,109 @@ export default function Agent() {
           <CloudReports active={view === 'rapports'} />
         </div>
         <div className={s.view} role="tabpanel" id="agent-panel-conversation" aria-labelledby="agent-tab-conversation" hidden={view !== 'conversation'}>
-          <section className={s.chat}>
-            <div className={s.messages} ref={listRef}>
-              {visibleMessages.length === 0 && !streaming && (
-                <div className={s.welcome}>
-                  {/* L'emblème de l'agent, muet : le titre le nomme. */}
-                  <Glyph name="agent" className={s.emblem} />
-                  <h2>{tr('Passerelle agent', 'Agent gateway', 'Pasarela del agente')}</h2>
-                  <p>
-                    {tr(
-                      'L’agent lit le desk par des outils natifs — métriques, séances, notes, calendrier, plan prop firm — et peut écrire des notes ou annoter des séances. Connectez un modèle local (Ollama, LM Studio) ou distant dans Options, puis posez une question.',
-                      'The agent reads the desk through native tools — metrics, sessions, notes, calendar, prop firm plan — and can write notes or annotate sessions. Connect a local model (Ollama, LM Studio) or a remote one in Options, then ask a question.',
-                      'El agente lee el desk con herramientas nativas — métricas, sesiones, notas, calendario, plan prop firm — y puede escribir notas o anotar sesiones. Conecte un modelo local (Ollama, LM Studio) o remoto en Opciones, luego formule una pregunta.',
-                    )}
-                  </p>
-                  <div className={s.suggestions} style={{ justifyContent: 'center' }}>
-                    {sugs.map((sg) => (
+          {/* La conversation, puis la colonne Propositions (OROS5.39) : chaque ordre que l'agent a proposé, objet de la fiche. */}
+          <div className={s.conversation}>
+            <section className={s.chat}>
+              <div className={s.messages} ref={listRef}>
+                {visibleMessages.length === 0 && !streaming && (
+                  <div className={s.welcome}>
+                    {/* L'emblème de l'agent, muet : le titre le nomme. */}
+                    <Glyph name="agent" className={s.emblem} />
+                    <h2>{tr('Passerelle agent', 'Agent gateway', 'Pasarela del agente')}</h2>
+                    <p>
+                      {tr(
+                        'L’agent lit le desk par des outils natifs — métriques, séances, notes, calendrier, plan prop firm — et peut écrire des notes ou annoter des séances. Connectez un modèle local (Ollama, LM Studio) ou distant dans Options, puis posez une question.',
+                        'The agent reads the desk through native tools — metrics, sessions, notes, calendar, prop firm plan — and can write notes or annotate sessions. Connect a local model (Ollama, LM Studio) or a remote one in Options, then ask a question.',
+                        'El agente lee el desk con herramientas nativas — métricas, sesiones, notas, calendario, plan prop firm — y puede escribir notas o anotar sesiones. Conecte un modelo local (Ollama, LM Studio) o remoto en Opciones, luego formule una pregunta.',
+                      )}
+                    </p>
+                    <div className={s.suggestions} style={{ justifyContent: 'center' }}>
+                      {sugs.map((sg) => (
+                        <button key={sg} className={s.suggestion} onClick={() => setDraft(sg)}>
+                          {sg}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {visibleMessages.map((m) => (
+                  <Message key={m.id} m={m} />
+                ))}
+                {streaming && (
+                  <div className={cx(s.msg, s.assistant)}>
+                    <div className={s.msgHead}>
+                      <span>Agent</span>
+                      {pendingTool && (
+                        <span className={cx(s.toolChip, s.pending)}>
+                          <i /> {pendingTool}
+                        </span>
+                      )}
+                    </div>
+                    {streamText ? <StreamBubble text={streamText} /> : <div className={cx(s.bubble, s.cursor)}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
+                  </div>
+                )}
+                {error && (
+                  <div className={s.error}>
+                    {tr('Erreur fournisseur :', 'Provider error:', 'Error del proveedor:')} {error}
+                  </div>
+                )}
+                {notice && !error && (
+                  <div className={s.notice} role="status">
+                    {notice}
+                  </div>
+                )}
+              </div>
+              <div className={s.composer}>
+                <div className={s.routines}>
+                  <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('brief')}>
+                    {tr('Brief', 'Brief', 'Brief')}
+                    {due.brief ? <i className={s.cue} aria-hidden /> : null}
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('debrief')}>
+                    {tr('Débrief', 'Debrief', 'Debrief')}
+                    {due.debrief ? <i className={s.cue} aria-hidden /> : null}
+                  </Button>
+                </div>
+                {visibleMessages.length > 0 && (
+                  <div className={s.suggestions}>
+                    {sugs.slice(0, 3).map((sg) => (
                       <button key={sg} className={s.suggestion} onClick={() => setDraft(sg)}>
-                        {sg}
+                        {sg.length > 60 ? `${sg.slice(0, 58)}…` : sg}
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-              {visibleMessages.map((m) => (
-                <Message key={m.id} m={m} />
-              ))}
-              {streaming && (
-                <div className={cx(s.msg, s.assistant)}>
-                  <div className={s.msgHead}>
-                    <span>Agent</span>
-                    {pendingTool && (
-                      <span className={cx(s.toolChip, s.pending)}>
-                        <i /> {pendingTool}
-                      </span>
-                    )}
-                  </div>
-                  {streamText ? <StreamBubble text={streamText} /> : <div className={cx(s.bubble, s.cursor)}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
-                </div>
-              )}
-              {error && (
-                <div className={s.error}>
-                  {tr('Erreur fournisseur :', 'Provider error:', 'Error del proveedor:')} {error}
-                </div>
-              )}
-              {notice && !error && (
-                <div className={s.notice} role="status">
-                  {notice}
-                </div>
-              )}
-            </div>
-            <div className={s.composer}>
-              <div className={s.routines}>
-                <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('brief')}>
-                  {tr('Brief', 'Brief', 'Brief')}
-                  {due.brief ? <i className={s.cue} aria-hidden /> : null}
-                </Button>
-                <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('debrief')}>
-                  {tr('Débrief', 'Debrief', 'Debrief')}
-                  {due.debrief ? <i className={s.cue} aria-hidden /> : null}
-                </Button>
-              </div>
-              {visibleMessages.length > 0 && (
-                <div className={s.suggestions}>
-                  {sugs.slice(0, 3).map((sg) => (
-                    <button key={sg} className={s.suggestion} onClick={() => setDraft(sg)}>
-                      {sg.length > 60 ? `${sg.slice(0, 58)}…` : sg}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className={s.composerRow}>
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                  placeholder={tr(
-                    'Demander à l’agent… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)',
-                    'Ask the agent… (Enter to send, Shift+Enter for a new line)',
-                    'Preguntar al agente… (Entrar para enviar, Mayús+Entrar para una nueva línea)',
-                  )}
-                  rows={2}
-                />
-                {streaming ? (
-                  <Button variant="danger" onClick={stop}>
-                    {tr('Arrêter', 'Stop', 'Detener')}
-                  </Button>
-                ) : (
-                  <Button variant="gold" onClick={submit} disabled={!draft.trim()}>
-                    <IconSend size={14} /> {tr('Envoyer', 'Send', 'Enviar')}
-                  </Button>
                 )}
+                <div className={s.composerRow}>
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        submit();
+                      }
+                    }}
+                    placeholder={tr(
+                      'Demander à l’agent… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)',
+                      'Ask the agent… (Enter to send, Shift+Enter for a new line)',
+                      'Preguntar al agente… (Entrar para enviar, Mayús+Entrar para una nueva línea)',
+                    )}
+                    rows={2}
+                  />
+                  {streaming ? (
+                    <Button variant="danger" onClick={stop}>
+                      {tr('Arrêter', 'Stop', 'Detener')}
+                    </Button>
+                  ) : (
+                    <Button variant="gold" onClick={submit} disabled={!draft.trim()}>
+                      <IconSend size={14} /> {tr('Envoyer', 'Send', 'Enviar')}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+            <Propositions />
+          </div>
         </div>
         <div className={s.view} role="tabpanel" id="agent-panel-options" aria-labelledby="agent-tab-options" hidden={view !== 'options'}>
           <div className={s.options}>

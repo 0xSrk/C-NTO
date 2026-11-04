@@ -39,12 +39,13 @@ interface DeskEventsState {
 
 let stop: (() => void) | null = null;
 
-/** Range un événement, le compte et le pousse aux clients de l'orchestrateur. */
-export function recordDeskEvent(kind: DeskEventKind, data: Record<string, unknown>): void {
+/** Range un événement, le compte et le pousse aux clients de l'orchestrateur ; rend l'événement rangé (son numéro). */
+export function recordDeskEvent(kind: DeskEventKind, data: Record<string, unknown>): DeskEvent {
   const event = deskEventLog.push(kind, data);
   useDeskEvents.setState((s) => ({ count: s.count + 1, last: event }));
   // L'orchestrateur ne pousse qu'à ses clients authentifiés ; le main borne type et taille.
   desk?.orchestrator?.broadcast(kind, { seq: event.seq, cursor: `${deskEventLog.epoch}.${event.seq}`, data });
+  return event;
 }
 
 /** Plan suivi, rejoué sur le journal, avec le latent du pont : `null` sans plan. */

@@ -4,27 +4,31 @@ import { TYPE_GLYPH } from '@/design/micro/meaning';
 import type { CalEvent } from '@/engine/calendar';
 import { getInstrument, hasInstrument } from '@/engine/instruments';
 import { catalystSource, yearsSpanned } from '@/engine/macroMerge';
-import { noteTradingDay, type EntityRef, type EntityType, type Link } from '@/engine/ontology';
+import { noteTradingDay, type Link } from '@/engine/ontology';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n, type Locale } from '@/i18n';
 import { publicationInstant, strokeOf, type Stroke } from '@/lib/calendarMarks';
 import { trEventTitle } from '@/lib/eventTitles';
 import { fmtInt, fmtUsd } from '@/lib/format';
 import { addDays, dateKeyLocal, dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
+import { useAgentOrders, type AgentProposal } from '@/store/agentOrders';
 import { useCrypto } from '@/store/crypto';
 import type { Note } from '@/store/db';
 import { useJournal } from '@/store/journal';
 import { useLinks } from '@/store/links';
 import { useMacro } from '@/store/macro';
 import { useNotes } from '@/store/notes';
+import type { ObjectRef, ObjectType } from '@/store/objects';
 import type { TabId } from '@/store/ui';
 import { tabCopy, TABS } from '../tabs';
+import { outcomeWord, proposalClock, proposalDay, proposalTitle, proposalView } from './proposals';
 
 /**
  * L'index des objets du desk (OROS5.15, Système 5 « Fiche et Frise » ; repris de d1, corrigé par le juge Palantir) : ce
  * que Ctrl+J cherche. Construit dans le renderer, depuis les stores, sans réseau : les modules (le rail), les séances et
  * les trades du journal, les notes et les stratégies du coffre de notes, les catalyseurs de la source unique du Calendrier
- * (OROS5.13), les instruments et les comptes du journal et des liens de l'ontologie. Huit groupes, cinq résultats chacun ;
+ * (OROS5.13), les instruments et les comptes du journal et des liens de l'ontologie, et les propositions de l'agent du
+ * lancement (OROS5.39, en mémoire). Neuf groupes, cinq résultats chacun ;
  * l'année se dit quand elle n'est pas l'année en cours, « ≈ » marque un estimé, le trait d'état ouvre la ligne ; le tri
  * suit la proximité de la date cherchée, ou d'aujourd'hui ; les catalyseurs sont bornés à la fenêtre de la fiche.
  *
@@ -32,14 +36,14 @@ import { tabCopy, TABS } from '../tabs';
  * n'écrit : les stores ne sont que lus, par leurs données.
  */
 
-/** Les huit groupes de l'omnibar, dans l'ordre de lecture. */
-export const OMNI_GROUPS = ['module', 'session', 'trade', 'note', 'evenement', 'instrument', 'strategie', 'compte'] as const;
+/** Les neuf groupes de l'omnibar, dans l'ordre de lecture : les propositions de l'agent en dernier (OROS5.39). */
+export const OMNI_GROUPS = ['module', 'session', 'trade', 'note', 'evenement', 'instrument', 'strategie', 'compte', 'proposition'] as const;
 export type OmniGroup = (typeof OMNI_GROUPS)[number];
 
 /** La liste fermée des commandes : naviguer seulement, vers un module ou vers la fiche d'un objet. */
 export const OMNIBAR_COMMANDS = Object.freeze(['tab', 'object'] as const);
 export type OmniCommand = (typeof OMNIBAR_COMMANDS)[number];
-export type OmniTarget = { kind: 'tab'; tab: TabId } | { kind: 'object'; ref: EntityRef };
+export type OmniTarget = { kind: 'tab'; tab: TabId } | { kind: 'object'; ref: ObjectRef };
 
 /** Le trait d'état d'une ligne, une classe de la table d'états (`src/design/etat.module.css`). */
 export type EtatStroke = 'plein' | 'tirete' | 'pointille' | 'eteint';
@@ -150,6 +154,8 @@ export interface IndexSources {
   links: readonly Link[];
   /** Le module Crypto, éteint par défaut : sa ligne le dit au trait. */
   cryptoEnabled: boolean;
+  /** Les propositions de l'agent du lancement, de la plus récente à la plus ancienne (OROS5.39) ; absentes : aucune. */
+  proposals?: readonly AgentProposal[];
 }
 
 /** Une note de stratégie : son étiquette `strategie` en fait un objet de l'ontologie (`deriveStructuralLinks`). */
@@ -157,10 +163,17 @@ export function isStrategyNote(note: Pick<Note, 'tags'>): boolean {
   return note.tags.some((tag) => tag.toLowerCase() === 'strategie');
 }
 
+/** Le glyphe d'un type d'objet de la fiche : celui de l'ontologie (`TYPE_GLYPH`), C.092 pour une proposition de l'agent. */
+export function objectGlyph(type: ObjectType): GlyphName {
+  return type === 'proposition' ? 'proposal' : TYPE_GLYPH[type];
+}
+
 /** Le nom d'un type d'objet : « séance », « séances ». */
-export function typeWord(type: EntityType, n = 1): string {
+export function typeWord(type: ObjectType, n = 1): string {
   const one = n === 1;
   switch (type) {
+    case 'proposition':
+      return one ? tr('proposition', 'proposal', 'propuesta') : tr('propositions', 'proposals', 'propuestas');
     case 'session':
       return one ? tr('séance', 'session', 'sesión') : tr('séances', 'sessions', 'sesiones');
     case 'trade':
@@ -201,15 +214,19 @@ export function catalystTitle(event: Pick<CalEvent, 'title' | 'estimated'>): str
 }
 
 /** Le contexte qui nomme un objet : les données de l'index. */
-export type NamingContext = Pick<IndexSources, 'sessions' | 'trades' | 'notes' | 'catalysts'>;
+export type NamingContext = Pick<IndexSources, 'sessions' | 'trades' | 'notes' | 'catalysts' | 'proposals'>;
 
 /**
  * Le nom d'un objet en clair, tel que l'omnibar, la fiche et le fil d'Ariane l'écrivent, dans la langue du desk :
  * « 14.10 · Apex-PA-50K », « ≈ Inflation CPI · 12.11 », « NQ L 2 · 14.10 09:38 ET ». `null` quand l'objet n'est plus au
  * coffre (un lien vers une séance supprimée).
  */
-export function objectLabel(ref: EntityRef, ctx: NamingContext, now: number, locale: Locale = useI18n.getState().locale): string | null {
+export function objectLabel(ref: ObjectRef, ctx: NamingContext, now: number, locale: Locale = useI18n.getState().locale): string | null {
   switch (ref.type) {
+    case 'proposition': {
+      const proposal = ctx.proposals?.find((x) => x.id === ref.id);
+      return proposal ? proposalTitle(proposalView(proposal)) : null;
+    }
     case 'session': {
       const session = ctx.sessions.find((x) => x.id === ref.id);
       return session ? `${dayWithYear(session.date, now, locale)} · ${session.account?.trim() || tr('sans compte', 'no account', 'sin cuenta')}` : null;
@@ -412,6 +429,26 @@ export function buildObjectIndex(src: IndexSources, now: number, locale: Locale 
     });
   }
 
+  // Les propositions de l'agent du lancement (OROS5.39) : décidée, pleine ; en cours, tiretée.
+  for (const proposal of src.proposals ?? []) {
+    const p = proposalView(proposal);
+    const title = proposalTitle(p);
+    const day = proposalDay(p);
+    const outcome = outcomeWord(p);
+    items.push({
+      key: `proposition:${p.id}`,
+      group: 'proposition',
+      glyph: 'proposal',
+      title,
+      meta: `${outcome} · ${proposalClock(p.at)} ET`,
+      stroke: p.stage === 'decided' ? 'plein' : 'tirete',
+      date: day,
+      at: p.at,
+      hay: normalize(`${title} ${typeWord('proposition')} ${outcome} ${p.reason} ${dateHay(day)}`),
+      target: { kind: 'object', ref: { type: 'proposition', id: p.id } },
+    });
+  }
+
   return items;
 }
 
@@ -481,8 +518,9 @@ export function useIndexSources(now: number): IndexSources {
   const notes = useNotes((n) => n.notes);
   const links = useLinks((l) => l.links);
   const cryptoEnabled = useCrypto((c) => c.enabled);
+  const proposals = useAgentOrders((a) => a.proposals);
   const catalysts = useCatalysts(now);
-  return useMemo(() => ({ sessions, trades, notes, catalysts, links, cryptoEnabled }), [sessions, trades, notes, catalysts, links, cryptoEnabled]);
+  return useMemo(() => ({ sessions, trades, notes, catalysts, links, cryptoEnabled, proposals }), [sessions, trades, notes, catalysts, links, cryptoEnabled, proposals]);
 }
 
 /** L'index de l'omnibar, à l'instant `now`, dans la langue du desk. */

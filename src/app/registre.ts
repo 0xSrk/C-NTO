@@ -2,17 +2,18 @@ import { create } from 'zustand';
 import type { GlyphName } from '@/design/Micro';
 import { sameAccount } from '@/engine/accounts';
 import { DESK_EVENT_KINDS, type DeskEventKind } from '@/engine/agent/catalog';
+import { AGENT_ORDER_REFUSALS, type AgentOrderRefusal } from '@/engine/agent/orders';
 import { EVENT_LOG_MAX, EVENTS_PAGE_MAX, type DeskEvent, type DeskEventLog } from '@/engine/agent/events';
 import type { CalEvent } from '@/engine/calendar';
 import { resolveSymbol } from '@/engine/instruments';
 import { familyKey } from '@/engine/macroMerge';
-import type { EntityRef } from '@/engine/ontology';
 import type { DisciplineFinding } from '@/engine/discipline';
 import type { Session, Trade } from '@/engine/types';
 import { tr } from '@/i18n';
+import { refusalLabel } from '@/lib/agentOrderLabels';
 import { cmeDay } from '@/lib/frise';
 import { dateTimeFormatter, ET_ZONE } from '@/lib/time';
-import { useObjects } from '@/store/objects';
+import { useObjects, type ObjectRef } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { findingWords } from './objects/SessionFiche';
 
@@ -126,11 +127,21 @@ export function eventInstrument(ev: DeskEvent): string | null {
   return instrumentKey(str(ev.data.instrument)) || null;
 }
 
-/** Ce qu'un événement peut toucher, dans le journal et la source du catalyseur. */
+/** Ce qu'un événement peut toucher, dans le journal, la source du catalyseur et les propositions de l'agent. */
 export interface RegistreContext {
   sessions: readonly Session[];
   trades: readonly Trade[];
   catalysts: readonly CalEvent[];
+  /**
+   * Les propositions de l'agent du lancement, avec le numéro de leur événement `agent_order` (OROS5.39) : la ligne d'une
+   * proposition ouvre sa fiche. Absentes, ou sortie de la mémoire : la ligne ouvre son compte, comme avant.
+   */
+  proposals?: readonly { id: string; seq: number | null }[];
+}
+
+/** La proposition qu'un événement `agent_order` a rangée, quand le desk la tient encore en mémoire. */
+function proposalOf(ctx: RegistreContext, ev: DeskEvent): { id: string } | undefined {
+  return ev.kind === 'agent_order' ? ctx.proposals?.find((p) => p.seq === ev.seq) : undefined;
 }
 
 /** Le compte tel que le journal l'écrit, quand il le connaît (la règle de la garde : `sameAccount`) ; sinon le nom reçu. */
@@ -161,10 +172,12 @@ const TRADE_SLACK_MS = 1_000;
  * un instant entre son entrée et sa sortie), le même catalyseur (la journée et la famille). Une note ou une stratégie
  * n'a pas d'événement du desk.
  */
-export function eventTouches(ev: DeskEvent, ref: EntityRef, ctx: RegistreContext): boolean {
+export function eventTouches(ev: DeskEvent, ref: ObjectRef, ctx: RegistreContext): boolean {
   const account = eventAccount(ev);
   const instrument = eventInstrument(ev);
   switch (ref.type) {
+    case 'proposition':
+      return proposalOf(ctx, ev)?.id === ref.id;
     case 'compte':
       return account !== null && sameAccount(account, ref.id);
     case 'instrument':
@@ -191,17 +204,20 @@ export function eventTouches(ev: DeskEvent, ref: EntityRef, ctx: RegistreContext
 }
 
 /** Les événements d'un objet, du plus récent au plus ancien : la section Activité de sa fiche. */
-export function activityOf(ref: EntityRef, events: readonly DeskEvent[], ctx: RegistreContext): DeskEvent[] {
+export function activityOf(ref: ObjectRef, events: readonly DeskEvent[], ctx: RegistreContext): DeskEvent[] {
   return events.filter((ev) => eventTouches(ev, ref, ctx)).sort((a, b) => b.seq - a.seq);
 }
 
 /**
  * L'objet qu'une ligne du registre ouvre : la séance d'une exécution ou d'un écart (son compte, sa journée), sinon leur
- * compte ; le compte d'un ordre, d'une proposition, d'une marge ou d'une perte du jour ; le catalyseur annoncé. Le lien du
- * pont et une alerte crypto n'ont pas d'objet dans l'ontologie : leur ligne n'ouvre rien.
+ * compte ; la fiche d'une proposition de l'agent tant que le desk la tient en mémoire (OROS5.39), sinon son compte ; le
+ * compte d'un ordre, d'une marge ou d'une perte du jour ; le catalyseur annoncé. Le lien du pont et une alerte crypto n'ont
+ * pas d'objet : leur ligne n'ouvre rien.
  */
-export function eventTarget(ev: DeskEvent, ctx: RegistreContext): EntityRef | null {
+export function eventTarget(ev: DeskEvent, ctx: RegistreContext): ObjectRef | null {
   const account = eventAccount(ev);
+  const proposal = proposalOf(ctx, ev);
+  if (proposal) return { type: 'proposition', id: proposal.id };
   switch (ev.kind) {
     case 'fill':
     case 'discipline': {
@@ -247,7 +263,17 @@ export function eventLine(ev: DeskEvent): { object: string; detail: string } {
       return { object: 'NinjaTrader 8', detail: `${str(d.from) || '—'} → ${str(d.to) || '—'}` };
     case 'agent_order': {
       const status = str(d.status);
-      const outcome = status === 'sent' ? tr('envoyée', 'sent', 'enviada') : status === 'refused' ? tr('refusée par la garde', 'refused by the guard', 'rechazada por la guarda') : status === 'declined' ? tr('non envoyée', 'not sent', 'no enviada') : tr('en échec', 'failed', 'fallida');
+      // Un refus de la garde dit son motif typé (`reason`, l'un des refus de `guardProposal`, ou la lecture), jamais un texte reconnu.
+      const reason = str(d.reason);
+      const typed = reason === 'invalid' || (AGENT_ORDER_REFUSALS as readonly string[]).includes(reason) ? ` · ${refusalLabel(reason as AgentOrderRefusal | 'invalid')}` : '';
+      const outcome =
+        status === 'sent'
+          ? tr('envoyée', 'sent', 'enviada')
+          : status === 'refused'
+            ? `${tr('refusée par la garde', 'refused by the guard', 'rechazada por la guardia')}${typed}`
+            : status === 'declined'
+              ? tr('non envoyée', 'not sent', 'no enviada')
+              : tr('en échec', 'failed', 'fallida');
       return { object: pair(d.instrument, d.account), detail: `${side(d.side)} ${num(d.qty) ?? '—'} · ${outcome}` };
     }
     case 'daily_loss': {

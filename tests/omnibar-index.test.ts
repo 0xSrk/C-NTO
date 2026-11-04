@@ -113,6 +113,10 @@ function sources(over: Partial<IndexSources> = {}): IndexSources {
       link({ type: 'note', id: 'n3' }, 'mentionne', { type: 'instrument', id: 'MNQ' }),
     ],
     cryptoEnabled: false,
+    // OROS5.39 : une proposition de l'agent du lancement, en mémoire, est un objet que Ctrl+J trouve.
+    proposals: [
+      { id: 'p1', at: Date.parse('2026-10-27T15:30:00Z'), origin: 'llm', account: 'Sim101', instrument: 'MNQ 12-26', side: 'buy', qty: 1, type: 'market', reason: 'Reprise du VWAP', outcome: { status: 'declined', detail: 'refusé par le trader' }, seq: 4 },
+    ],
     ...over,
   };
 }
@@ -124,9 +128,10 @@ afterEach(() => {
 const keys = (items: readonly OmniItem[]) => items.map((item) => item.key);
 
 describe('OROS5.15 l’index de Ctrl+J', () => {
-  it('huit groupes : modules, séances, trades, notes, catalyseurs, instruments, stratégies et comptes', () => {
+  // OROS5.39 : réécrit — les propositions de l'agent deviennent un neuvième groupe (le comportement change délibérément).
+  it('neuf groupes : modules, séances, trades, notes, catalyseurs, instruments, stratégies, comptes et propositions', () => {
     useI18n.setState({ locale: 'fr' });
-    expect(OMNI_GROUPS).toEqual(['module', 'session', 'trade', 'note', 'evenement', 'instrument', 'strategie', 'compte']);
+    expect(OMNI_GROUPS).toEqual(['module', 'session', 'trade', 'note', 'evenement', 'instrument', 'strategie', 'compte', 'proposition']);
     const index = buildObjectIndex(sources(), NOW, 'fr');
     for (const group of OMNI_GROUPS) expect(index.some((item) => item.group === group), group).toBe(true);
     expect(index.every((item) => (OMNI_GROUPS as readonly string[]).includes(item.group))).toBe(true);
@@ -178,7 +183,8 @@ describe('OROS5.15 l’index de Ctrl+J', () => {
     for (const item of buildObjectIndex(sources(), NOW, 'fr')) {
       expect(OMNIBAR_COMMANDS, item.key).toContain(item.target.kind);
       if (item.target.kind === 'tab') expect(tabs.has(item.target.tab), item.key).toBe(true);
-      else expect(ENTITY_TYPES, item.key).toContain(item.target.ref.type);
+      // OROS5.39 : une fiche s'ouvre sur un objet de l'ontologie, ou sur une proposition de l'agent (en mémoire).
+      else expect([...ENTITY_TYPES, 'proposition'], item.key).toContain(item.target.ref.type);
       // Seules les données : aucune fonction dans une ligne, rien à exécuter.
       expect(Object.values(item).some((value) => typeof value === 'function'), item.key).toBe(false);
     }
@@ -189,7 +195,7 @@ describe('OROS5.15 l’index de Ctrl+J', () => {
     expect(code).not.toMatch(/getState\(\)\.(?!locale\b)|setState\(|\bdesk\b|window\.canto|\bdb\.|localStorage|indexedDB/);
     const picked = [...code.matchAll(/\buse[A-Z]\w*\(\((\w+)\) => \1\.(\w+)\)/g)].map((m) => m[2]);
     expect(picked.length).toBeGreaterThan(0);
-    expect([...new Set(picked)].sort()).toEqual(['enabled', 'events', 'links', 'locale', 'notes', 'sessions', 'trades']);
+    expect([...new Set(picked)].sort()).toEqual(['enabled', 'events', 'links', 'locale', 'notes', 'proposals', 'sessions', 'trades']);
   });
 
   it('cinq résultats par groupe, triés par proximité de la date cherchée, sinon d’aujourd’hui', () => {

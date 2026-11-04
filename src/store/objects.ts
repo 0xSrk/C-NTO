@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { entityKey, type EntityRef, type EntityType, type Predicate } from '@/engine/ontology/schema';
+import type { EntityRef, EntityType, Predicate } from '@/engine/ontology/schema';
 import { useUi, type TabId } from './ui';
 
 /**
@@ -14,6 +14,26 @@ import { useUi, type TabId } from './ui';
  *
  * En mémoire seulement : rien n'est persisté, rien n'écrit au coffre ni au process principal.
  */
+
+/**
+ * Une proposition de l'agent (OROS5.39) : un objet que la fiche ouvre sans être un objet de l'ontologie. Elle vit en mémoire
+ * seulement (décision 13), tenue par le store des ordres de l'agent (`useAgentOrders.proposals`) ; elle n'a ni table ni lien
+ * au coffre, et ses liens (son compte, son instrument, sa séance) se lisent à l'ouverture de sa fiche.
+ */
+export interface ProposalRef {
+  type: 'proposition';
+  /** L'identifiant que le renderer lui donne à l'envoi (`p1`, `p2`…). */
+  id: string;
+}
+
+/** Ce que la fiche ouvre : un objet de l'ontologie, ou une proposition de l'agent. */
+export type ObjectRef = EntityRef | ProposalRef;
+export type ObjectType = ObjectRef['type'];
+
+/** La clé d'un objet de la fiche, `type:id`, comme `entityKey` pour l'ontologie. */
+export function refKey(ref: ObjectRef): string {
+  return `${ref.type}:${ref.id}`;
+}
 
 /** Retour arrière défait au plus vingt-quatre sauts ; le plus ancien s'oublie. */
 export const JUMP_HISTORY_MAX = 24;
@@ -40,9 +60,9 @@ export interface JumpSnapshot {
   tab: TabId;
   /** La vue que le module avait confiée au store (un sous-onglet), `null` s'il n'en confie aucune. */
   view: string | null;
-  open: EntityRef | null;
-  jumpedFrom: EntityRef | null;
-  siblings: readonly EntityRef[];
+  open: ObjectRef | null;
+  jumpedFrom: ObjectRef | null;
+  siblings: readonly ObjectRef[];
   /** L'ensemble d'« Autour de… » affiché avant le saut (OROS5.31) ; absent ou `null` : sans ensemble. */
   set?: ObjectSet | null;
 }
@@ -51,7 +71,7 @@ export interface OpenOptions {
   /** L'élément qui ouvre la fiche : Échap lui rend le focus. Un saut garde celui de la première ouverture. */
   origin?: HTMLElement | null;
   /** La liste d'où vient l'objet, dans son ordre : ↑ ↓ y passent au voisin. Un saut la quitte. */
-  siblings?: readonly EntityRef[];
+  siblings?: readonly ObjectRef[];
   /** Un saut : Retour arrière le défait, et le fil porte l'objet d'avant. */
   jump?: boolean;
   /** Le focus passe à la fiche : une ouverture sans ligne d'origine (l'omnibar). */
@@ -59,17 +79,17 @@ export interface OpenOptions {
 }
 
 export interface ObjectsState {
-  /** L'objet ouvert dans la fiche, un `EntityRef` de l'ontologie ; `null` : la fiche est fermée. */
-  open: EntityRef | null;
+  /** L'objet ouvert dans la fiche, un `EntityRef` de l'ontologie ou une proposition de l'agent ; `null` : la fiche est fermée. */
+  open: ObjectRef | null;
   /**
    * L'objet d'où l'on a sauté pour ouvrir l'objet ouvert : le fil d'Ariane le porte. Nul après une ouverture qui n'est
    * pas un saut (une ligne, ↑ ↓) : le fil ne prétend aucun chemin.
    */
-  jumpedFrom: EntityRef | null;
+  jumpedFrom: ObjectRef | null;
   /** La ligne d'où la fiche a été ouverte : Échap lui rend le focus. */
   origin: HTMLElement | null;
   /** La liste d'où vient l'objet ouvert, dans son ordre. */
-  siblings: readonly EntityRef[];
+  siblings: readonly ObjectRef[];
   /** Les sauts à défaire, du plus ancien au plus récent. */
   history: readonly JumpSnapshot[];
   /** La vue que chaque module confie au store, par onglet : Retour arrière la rend avec lui. */
@@ -89,9 +109,9 @@ export interface ObjectsState {
   /** Retire l'ensemble affiché, sans saut. */
   clearSet: () => void;
   /** Ouvre un objet ; rend `false` sous le verrou. */
-  openObject: (ref: EntityRef, opts?: OpenOptions) => boolean;
+  openObject: (ref: ObjectRef, opts?: OpenOptions) => boolean;
   /** Remplace l'objet ouvert par son voisin de liste (↑ ↓), sans fermer ; `null` au bord, sans liste ou sous le verrou. */
-  step: (delta: 1 | -1, origin?: HTMLElement | null) => EntityRef | null;
+  step: (delta: 1 | -1, origin?: HTMLElement | null) => ObjectRef | null;
   /** Ferme la fiche et, par défaut, rend le focus à la ligne d'origine ; `false` s'il n'y avait rien à fermer. */
   close: (restoreFocus?: boolean) => boolean;
   /** Quitte la fiche pour la vue d'un module (le jour au Calendrier…) : un saut, que Retour arrière défait. */
@@ -106,15 +126,15 @@ export interface ObjectsState {
 }
 
 /** Deux références du même objet. */
-export function sameRef(a: EntityRef | null | undefined, b: EntityRef | null | undefined): boolean {
-  return !!a && !!b && entityKey(a) === entityKey(b);
+export function sameRef(a: ObjectRef | null | undefined, b: ObjectRef | null | undefined): boolean {
+  return !!a && !!b && refKey(a) === refKey(b);
 }
 
 /**
  * L'objet d'avant que porte le fil d'Ariane : celui d'où l'on a sauté pour ouvrir l'objet ouvert, s'il en diffère.
  * Rien quand l'objet a été ouvert sans saut.
  */
-export function previousObject(state: Pick<ObjectsState, 'open' | 'jumpedFrom'>): EntityRef | null {
+export function previousObject(state: Pick<ObjectsState, 'open' | 'jumpedFrom'>): ObjectRef | null {
   return state.open && state.jumpedFrom && !sameRef(state.open, state.jumpedFrom) ? state.jumpedFrom : null;
 }
 
@@ -150,7 +170,7 @@ export const useObjects = create<ObjectsState>((set, get) => {
     openObject(ref, opts = {}) {
       const state = get();
       if (state.locked) return false;
-      const target: EntityRef = { type: ref.type, id: ref.id };
+      const target = { type: ref.type, id: ref.id } as ObjectRef;
       const focusStamp = opts.focus ? state.focusStamp + 1 : state.focusStamp;
       // L'objet déjà ouvert : ni saut ni fil ; la ligne et la liste suivent la dernière ouverture.
       if (sameRef(state.open, target)) {

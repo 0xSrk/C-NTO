@@ -6,7 +6,7 @@ import { dateTimeFormatter } from '@/lib/time';
 import { useAgentOrders } from '@/store/agentOrders';
 import { useBridge } from '@/store/bridge';
 import { killSwitchText } from './agentGuard';
-import { originLabel, outcomeLabel } from './agentOrderLabels';
+import { originLabel, outcomeLabel } from '@/lib/agentOrderLabels';
 import s from './agent.module.css';
 
 type LimitKey = keyof typeof AGENT_ORDER_BOUNDS;

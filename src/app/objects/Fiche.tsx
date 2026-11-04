@@ -3,22 +3,23 @@ import { Glyph, type GlyphName } from '@/design/Micro';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
 import e from '@/design/etat.module.css';
 import { cx } from '@/design/primitives';
-import { authorCounts, entityKey, groupNeighbors, kindCounts, neighborsOf, orderGroups, type EntityRef, type EntityType, type Link, type LinkKind, type Neighbor, type NeighborGroup, type Predicate } from '@/engine/ontology';
+import { authorCounts, entityKey, groupNeighbors, kindCounts, neighborsOf, orderGroups, type EntityRef, type Link, type LinkKind, type Neighbor, type NeighborGroup, type Predicate } from '@/engine/ontology';
 import { tr, useI18n } from '@/i18n';
 import { publicationInstant } from '@/lib/calendarMarks';
 import { fmtInt, plural } from '@/lib/format';
 import { dateKeyLocal, formatDateFr, formatTimeLocal } from '@/lib/time';
 import { deskEventLog, useDeskEvents } from '@/store/deskEvents';
 import { useLinks } from '@/store/links';
-import { previousObject, useObjects } from '@/store/objects';
+import { previousObject, refKey, useObjects, type ObjectRef, type ObjectType } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { activityOf, eventLine, eventTarget, KIND_GLYPH, kindLabel, logEvents, openRegistre, registreClock, registreScope } from '../registre';
 import { matchShortcut } from '../shortcuts';
-import { objectLabel, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
+import { objectGlyph, objectLabel, typeWord, useIndexSources, type EtatStroke, type IndexSources } from './index';
 import { AccountFiche } from './AccountFiche';
 import { CatalystFiche } from './CatalystFiche';
 import { InstrumentFiche } from './InstrumentFiche';
 import { NoteFiche } from './NoteFiche';
+import { ProposalFiche } from './ProposalFiche';
 import { SessionFiche } from './SessionFiche';
 import { StrategyFiche } from './StrategyFiche';
 import { TradeFiche } from './TradeFiche';
@@ -98,7 +99,7 @@ export function ObjectDrawer() {
   };
   return (
     <aside ref={ref} className={s.drawer} data-drawer={open.type} tabIndex={-1} aria-label={tr('Fiche de l’objet', 'Object record', 'Ficha del objeto')} onKeyDown={onKeyDown}>
-      <ObjectFiche key={entityKey(open)} target={open} />
+      <ObjectFiche key={refKey(open)} target={open} />
     </aside>
   );
 }
@@ -113,7 +114,7 @@ export function ObjectCrumb({ slash }: { slash?: string }) {
   const now = useMemo(() => Date.now(), [stamp]);
   const ctx = useIndexSources(now);
   if (!open) return null;
-  const name = (ref: EntityRef) => objectLabel(ref, ctx, now) ?? typeWord(ref.type);
+  const name = (ref: ObjectRef) => objectLabel(ref, ctx, now) ?? typeWord(ref.type);
   return (
     <>
       <span className={slash}>/</span>
@@ -148,11 +149,11 @@ export interface FicheAction {
 export const FICHE_ACTIONS_MAX = 3;
 
 /** L'en-tête : le glyphe du type, à l'or pour l'objet ouvert ; l'identifiant en clair ; les actions ; la fermeture. */
-export function FicheHead({ type, title, actions }: { type: EntityType; title: string; actions: readonly FicheAction[] }) {
+export function FicheHead({ type, title, actions }: { type: ObjectType; title: string; actions: readonly FicheAction[] }) {
   const close = useObjects((o) => o.close);
   return (
     <header className={s.head}>
-      <Glyph name={TYPE_GLYPH[type]} className={s.headGlyph} label={capital(typeWord(type))} />
+      <Glyph name={objectGlyph(type)} className={s.headGlyph} label={capital(typeWord(type))} />
       <h2 className={s.headTitle} data-fiche="title">
         {title}
       </h2>
@@ -387,7 +388,7 @@ export function ObjectLink({ to, label, className }: { to: EntityRef; label: str
 }
 
 /** Copier l'identifiant interne : le seul geste où la clé interne paraît (elle ne s'écrit jamais dans la fiche). */
-export function copyAction(target: EntityRef): FicheAction {
+export function copyAction(target: ObjectRef): FicheAction {
   return {
     id: 'copy',
     label: tr('Copier l’identifiant interne', 'Copy the internal identifier', 'Copiar el identificador interno'),
@@ -443,13 +444,16 @@ export function catalystSourceWord(source: string | undefined, origin: string | 
 }
 
 /** Une fiche : le cadre commun, rempli de ce que le type de l'objet dit. */
-export function ObjectFiche({ target }: { target: EntityRef }) {
+export function ObjectFiche({ target }: { target: ObjectRef }) {
   useI18n((st) => st.locale);
   const stamp = useObjects((o) => o.stamp);
   const now = useMemo(() => Date.now(), [stamp]);
   const ctx = useIndexSources(now);
-  // Une fiche par type, sur le même cadre (OROS5.26 à OROS5.29) ; un objet absent du coffre garde le cadre seul.
+  // Une fiche par type, sur le même cadre (OROS5.26 à OROS5.29) ; un objet absent du coffre garde le cadre seul. Une
+  // proposition de l'agent n'est pas au coffre : sa fiche la lit en mémoire (OROS5.39).
   switch (target.type) {
+    case 'proposition':
+      return <ProposalFiche target={target} ctx={ctx} now={now} />;
     case 'session':
       if (ctx.sessions.some((x) => x.id === target.id)) return <SessionFiche target={target} ctx={ctx} now={now} />;
       break;
@@ -483,7 +487,7 @@ export const ACTIVITY_MAX = 12;
  * ouvre la fiche de son objet, par un saut que Retour arrière défait ; « Tout le registre » ouvre le tiroir bas. La portée
  * est écrite : depuis l'ouverture, en mémoire, 500 au plus. Lecture seule.
  */
-export function ActivitySection({ target, ctx }: { target: EntityRef; ctx: IndexSources }) {
+export function ActivitySection({ target, ctx }: { target: ObjectRef; ctx: IndexSources }) {
   useI18n((st) => st.locale);
   const count = useDeskEvents((d) => d.count);
   const openObject = useObjects((o) => o.openObject);
