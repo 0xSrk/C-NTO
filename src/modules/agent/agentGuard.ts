@@ -1,28 +1,9 @@
+import { acceleratorKeys } from '@/app/shortcuts';
 import { tr } from '@/i18n';
 
-const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
-
-/** Raccourci Electron (`CommandOrControl+Shift+K`) dit comme au clavier : `Ctrl+Shift+K` (`Cmd` sur macOS). */
+/** Raccourci Electron (`CommandOrControl+Shift+K`) dit comme l'aide le dit, dans la langue du desk (OROS5.47a). */
 export function shortcutLabel(accelerator: string): string {
-  return accelerator
-    .split('+')
-    .map((key) => {
-      switch (key.toLowerCase()) {
-        case 'commandorcontrol':
-        case 'cmdorctrl':
-          return MAC ? 'Cmd' : 'Ctrl';
-        case 'command':
-        case 'cmd':
-          return 'Cmd';
-        case 'control':
-          return 'Ctrl';
-        case 'option':
-          return 'Alt';
-        default:
-          return key.length === 1 ? key.toUpperCase() : key;
-      }
-    })
-    .join('+');
+  return acceleratorKeys(accelerator);
 }
 
 /**

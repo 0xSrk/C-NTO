@@ -138,7 +138,7 @@ describe('OROS2.10 cartouches du châssis', () => {
     expect(signal!.querySelector('svg.skg-123')).not.toBeNull();
     expect(band!.textContent).toContain('Kill switch engagé');
     expect(band!.textContent).toContain('Soumission fermée jusqu’au redémarrage du desk');
-    expect(band!.textContent).toContain('Ctrl+Shift+K');
+    expect(band!.textContent).toContain('Ctrl+Maj+K');
     // l'ordre de la bande : le signal, puis le texte
     expect(signal!.compareDocumentPosition(band!.querySelector('b')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const look = rule('.band');

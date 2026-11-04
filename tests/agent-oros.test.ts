@@ -53,7 +53,7 @@ describe('OROS4.10 le panneau des ordres s’ouvre sur son titre, sans plaque AG
     const { useBridge } = await import('@/store/bridge');
     useBridge.setState({ nt: nt('CommandOrControl+Shift+K') });
     let node = await panel(true);
-    expect(node.textContent).toContain('ou après le kill switch (Ctrl+Shift+K), l’agent ne peut plus ouvrir ni augmenter');
+    expect(node.textContent).toContain('ou après le kill switch (Ctrl+Maj+K), l’agent ne peut plus ouvrir ni augmenter');
     act(() => root?.unmount());
     host?.remove();
     // Un autre raccourci annoncé : la notice le suit, rien n'est écrit à la main.
@@ -76,7 +76,7 @@ describe('OROS4.10 le panneau des ordres s’ouvre sur son titre, sans plaque AG
     await act(async () => useI18n.setState({ locale: 'en' }));
     expect(node.textContent).toContain('or after the kill switch (Ctrl+Shift+K), the agent can no longer open or add');
     await act(async () => useI18n.setState({ locale: 'es' }));
-    expect(node.textContent).toContain('o tras el kill switch (Ctrl+Shift+K), el agente ya no puede abrir ni aumentar');
+    expect(node.textContent).toContain('o tras el kill switch (Ctrl+Mayús+K), el agente ya no puede abrir ni aumentar');
   });
 });
 

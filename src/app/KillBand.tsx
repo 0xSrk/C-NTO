@@ -5,12 +5,12 @@ import { tr, useI18n } from '@/i18n';
 import { fmtInt } from '@/lib/format';
 import { dateTimeFormatter, ET_ZONE } from '@/lib/time';
 import { useBridge, type LastKill } from '@/store/bridge';
+import { acceleratorKeys } from './shortcuts';
 import s from './shell.module.css';
 
-/** « CommandOrControl+Shift+K » (raccourci du process principal) tel que le clavier le porte. */
+/** « CommandOrControl+Shift+K » (raccourci du process principal) tel que l'aide l'écrit, dans la langue du desk (OROS5.47a). */
 export function shortcutLabel(accelerator: string): string {
-  const mac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
-  return accelerator.replace(/CommandOrControl|CmdOrCtrl/g, mac ? '⌘' : 'Ctrl');
+  return acceleratorKeys(accelerator);
 }
 
 /**

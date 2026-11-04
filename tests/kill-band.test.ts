@@ -72,8 +72,8 @@ describe('OROS3.1 bande du kill switch', () => {
     const rail = el.querySelector('aside')!;
     expect(header.compareDocumentPosition(alert!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(alert!.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // le raccourci porté est celui que le process principal annonce
-    expect(alert!.textContent).toContain('Ctrl+Shift+K');
+    // le raccourci porté est celui que le process principal annonce, écrit comme l'aide l'écrit (OROS5.47a)
+    expect(alert!.textContent).toContain('Ctrl+Maj+K');
   });
 
   it('jusqu’au redémarrage du desk : la bande reste si le lien tombe ensuite, et se pose aussi pour une coupure vue avant le châssis', () => {

@@ -52,6 +52,25 @@ const enterKey = () => tr('Entrée', 'Enter', 'Intro');
 
 const digits = Array.from({ length: 9 }, (_, i) => ({ code: `Digit${i + 1}`, mod: true }) satisfies Chord);
 
+/**
+ * Un raccourci du process principal (`CommandOrControl+Shift+K`, `CommandOrControl+V`) écrit comme l'aide l'écrit, dans la
+ * langue du desk : Ctrl+Maj+K, Ctrl+Shift+K, Ctrl+Mayús+K ; ⌘ sous macOS. La bande du kill switch, la notice des ordres de
+ * l'agent et le verrou le lisent ici : une seule écriture des touches (OROS5.47a).
+ */
+export function acceleratorKeys(accelerator: string): string {
+  return accelerator
+    .split('+')
+    .map((part) => {
+      if (/^(CommandOrControl|CmdOrCtrl)$/i.test(part)) return modKey();
+      if (/^(Command|Cmd)$/i.test(part)) return '⌘';
+      if (/^(Control|Ctrl)$/i.test(part)) return 'Ctrl';
+      if (/^shift$/i.test(part)) return shiftKey();
+      if (/^(alt|option)$/i.test(part)) return 'Alt';
+      return part.length === 1 ? part.toUpperCase() : part;
+    })
+    .join('+');
+}
+
 /** Ctrl+Maj+K, tel que le process principal l'enregistre (`KILL_SWITCH_SHORTCUT`, electron/nt-bridge/index.ts). */
 export function chordOfAccelerator(accelerator: string): Chord {
   const parts = accelerator.split('+');
@@ -103,7 +122,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: 'main',
     chords: [chordOfAccelerator(KILL_SHORTCUT_FALLBACK)],
     readOnly: true,
-    keys: () => `${modKey()}+${shiftKey()}+K`,
+    keys: () => acceleratorKeys(KILL_SHORTCUT_FALLBACK),
     label: () => tr('Kill switch : aplatir et fermer la soumission jusqu’au redémarrage (process principal)', 'Kill switch: flatten and close submission until restart (main process)', 'Kill switch: aplanar y cerrar el envío hasta reiniciar (proceso principal)'),
   },
 ];
