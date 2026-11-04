@@ -45,6 +45,9 @@ jobs:
           exit 1
       - run: npm run typecheck
       - run: npm test
+        # Un fichier de test qui ne se charge jamais laissait le job tourner jusqu'aux six heures de GitHub, puis
+        # l'annulait sans échec (OROS5.47s) : la suite dure quelques minutes, au-delà de 15 l'étape échoue et se voit.
+        timeout-minutes: 15
         env:
           TZ: UTC
       - run: npm run build
