@@ -21,15 +21,29 @@
   position: relative;
   overflow: hidden;
 }
-.legend {
+/*
+ * La légende et l'étiquette de source partagent une seule rangée au-dessus du graphique (OROS5.47k) : la légende y passe
+ * à la ligne, et l'étiquette, à 72 px de l'échelle des prix, descend sous la légende quand la rangée manque de place.
+ * Aucune des deux ne recouvre l'autre, fiche ouverte ou à la fenêtre minimale.
+ */
+.overlay {
   position: absolute;
   top: 12px;
   left: 12px;
+  right: 72px;
   z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 12px;
+  pointer-events: none;
+}
+.legend {
+  flex: 1 1 360px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  pointer-events: none;
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: var(--track-11);
@@ -37,7 +51,8 @@
 }
 .legendMain {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 2px 12px;
   align-items: baseline;
   color: var(--text-2);
 }
@@ -200,9 +215,6 @@
   border-bottom: 1px solid var(--line-1);
 }
 .stamp {
-  position: absolute;
-  right: 72px;
-  top: 12px;
-  z-index: 2;
-  pointer-events: none;
+  flex: none;
+  margin-left: auto;
 }

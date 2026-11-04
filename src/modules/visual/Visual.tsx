@@ -222,41 +222,43 @@ export default function Visual() {
             )}
             {active && (
               <>
-                <div className={s.legend}>
-                  <div className={s.legendMain}>
-                    <b>{follow.following ? follow.contract : active.instrument} · {active.timeframe}m</b>
-                    {shownBar && (
-                      <>
-                        <span>{formatDateFr(barDateKey(shownBar.time), { short: true })} {formatTimeLocal(shownBar.time * 1000)}</span>
-                        <span>
-                          O <b className={signClass(shownBar.close - shownBar.open)}>{fmtPrice(shownBar.open)}</b> H <b>{fmtPrice(shownBar.high)}</b> L <b>{fmtPrice(shownBar.low)}</b> C <b className={signClass(shownBar.close - shownBar.open)}>{fmtPrice(shownBar.close)}</b>
-                        </span>
-                        <span>Vol {fmtInt(shownBar.volume)}</span>
-                      </>
+                <div className={s.overlay}>
+                  <div className={s.legend}>
+                    <div className={s.legendMain}>
+                      <b>{follow.following ? follow.contract : active.instrument} · {active.timeframe}m</b>
+                      {shownBar && (
+                        <>
+                          <span>{formatDateFr(barDateKey(shownBar.time), { short: true })} {formatTimeLocal(shownBar.time * 1000)}</span>
+                          <span>
+                            O <b className={signClass(shownBar.close - shownBar.open)}>{fmtPrice(shownBar.open)}</b> H <b>{fmtPrice(shownBar.high)}</b> L <b>{fmtPrice(shownBar.low)}</b> C <b className={signClass(shownBar.close - shownBar.open)}>{fmtPrice(shownBar.close)}</b>
+                          </span>
+                          <span>Vol {fmtInt(shownBar.volume)}</span>
+                        </>
+                      )}
+                    </div>
+                    {hover && hover.values.length > 0 && (
+                      <div className={s.legendRow}>
+                        {hover.values
+                          .filter((v) => v.value !== null)
+                          .slice(0, 8)
+                          .map((v) => (
+                            <span key={v.key}>
+                              <i style={{ background: v.color }} />
+                              {v.label} <b>{fmtPrice(v.value)}</b>
+                            </span>
+                          ))}
+                      </div>
                     )}
                   </div>
-                  {hover && hover.values.length > 0 && (
-                    <div className={s.legendRow}>
-                      {hover.values
-                        .filter((v) => v.value !== null)
-                        .slice(0, 8)
-                        .map((v) => (
-                          <span key={v.key}>
-                            <i style={{ background: v.color }} />
-                            {v.label} <b>{fmtPrice(v.value)}</b>
-                          </span>
-                        ))}
-                    </div>
-                  )}
-                </div>
-                <div className={s.stamp}>
-                  {source === 'nt8' ? (
-                    <Tag tone="mint">{tr('Données NinjaTrader', 'NinjaTrader data', 'Datos NinjaTrader')}</Tag>
-                  ) : source === 'demo' ? (
-                    <Tag tone="amber">{tr('Données synthétiques · démo', 'Synthetic data · demo', 'Datos sintéticos · demo')}</Tag>
-                  ) : (
-                    <Tag tone="ice">{tr('Import CSV', 'CSV import', 'Importación CSV')}</Tag>
-                  )}
+                  <div className={s.stamp}>
+                    {source === 'nt8' ? (
+                      <Tag tone="mint">{tr('Données NinjaTrader', 'NinjaTrader data', 'Datos NinjaTrader')}</Tag>
+                    ) : source === 'demo' ? (
+                      <Tag tone="amber">{tr('Données synthétiques · démo', 'Synthetic data · demo', 'Datos sintéticos · demo')}</Tag>
+                    ) : (
+                      <Tag tone="ice">{tr('Import CSV', 'CSV import', 'Importación CSV')}</Tag>
+                    )}
+                  </div>
                 </div>
                 <Chart bars={chartBars ?? []} timeframe={active.timeframe} lines={lines} trades={sessionTrades} onHover={onHover} live={source !== 'demo'} />
               </>
