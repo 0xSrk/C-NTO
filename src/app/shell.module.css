@@ -1118,6 +1118,13 @@
 .answerShort {
   display: none;
 }
+/* La forme longue déborde (OROS5.47e) : la réponse prend sa forme courte plutôt que l'ellipse. */
+.answer[data-fit='short'] .answerLong {
+  display: none;
+}
+.answer[data-fit='short'] .answerShort {
+  display: inline;
+}
 .answerSource {
   --k: var(--text-2);
 }

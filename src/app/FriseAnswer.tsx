@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Glyph, Signal } from '@/design/Micro';
 import { calendarSourcesState, type CalendarSources } from '@/engine/bornes';
 import type { CalEvent } from '@/engine/calendar';
@@ -265,6 +265,33 @@ export function useHourAnswer(): HourRead {
   return { answer, line, at, now, pulled: cursor !== null, events, own };
 }
 
+/**
+ * La réponse ne se coupe jamais (OROS5.47e) : les seuils de la barre d'état (1800, 1480, 1240 px) la replient selon la
+ * largeur, mais une langue plus longue, l'espagnol à 1600 px, coupait encore la forme longue en ellipse. Quand elle
+ * déborde, la réponse prend sa forme courte ; elle reprend la longue dès que la place qu'elle demandait revient, ou que son
+ * texte change.
+ */
+function useAnswerFit(text: string): { ref: RefObject<HTMLButtonElement | null>; short: boolean } {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const [needed, setNeeded] = useState<number | null>(null);
+  useLayoutEffect(() => setNeeded(null), [text]);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      if (needed === null) {
+        if (el.scrollWidth > el.clientWidth + 1) setNeeded(el.scrollWidth);
+      } else if (el.clientWidth >= needed) setNeeded(null);
+    };
+    check();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [needed, text]);
+  return { ref, short: needed !== null };
+}
+
 /** L'identifiant de la réponse : Échap, le tiroir replié, lui rend le focus. */
 export const FRISE_ANSWER_ID = 'frise-answer';
 export const FRISE_DRAWER_ID = 'frise-drawer';
@@ -282,11 +309,14 @@ export function FriseAnswer() {
     useUi.getState().setFriseOpen(!open);
   };
   const held = pulled ? `${etDay(at)} ${etClock(at)}` : null;
+  const fit = useAnswerFit(`${held ?? ''}|${line.text}|${line.short}`);
   return (
     <button
+      ref={fit.ref}
       type="button"
       id={FRISE_ANSWER_ID}
       className={s.answer}
+      data-fit={fit.short ? 'short' : undefined}
       data-status="answer"
       data-answer={line.kind}
       data-day={answer.span.day}
