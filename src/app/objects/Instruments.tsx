@@ -297,7 +297,7 @@ export function RScaleBar({ risk, realizedR, plannedRr, domain }: { risk: number
       <line x1="2" x2={RW - 2} y1={AXIS} y2={AXIS} className={s.rAxis} />
       <line x1={x(-1)} x2={x(-1)} y1={AXIS - 3.5} y2={AXIS + 3.5} className={s.rStop} data-r="stop" />
       <line x1={zero} x2={zero} y1={AXIS - 5} y2={AXIS + 5} className={s.rEntry} data-r="entry" />
-      {plannedRr != null && plannedRr > 0 ? <FigureGlyph name="target" x={x(plannedRr)} y={AXIS} size={8} className={s.rTarget} /> : null}
+      {plannedRr != null && plannedRr > 0 ? <FigureGlyph name="target" x={x(plannedRr)} y={AXIS} size={12} className={s.rTarget} /> : null}
       {real != null ? <rect x={Math.min(zero, end)} y={AXIS + 1.5} width={Math.max(1, Math.abs(end - zero))} height="3" className={cx(s.rReal, (realizedR ?? 0) >= 0 ? s.pos : s.neg)} data-r="real" /> : null}
       {real != null ? (
         <text x={Math.min(RW - 12, Math.max(12, end))} y="7.5" textAnchor="middle" className={cx(s.rTick, s.rTickReal)}>

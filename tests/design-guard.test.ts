@@ -252,7 +252,10 @@ const WAVE_PIECES = [
   'src/modules/agent/ToolTrace.tsx',
 ] as const;
 
-/** Chaque micro posée par une pièce : la classe que `<Glyph className=…>` lui donne, résolue dans la feuille importée. */
+/**
+ * Chaque micro posée par une pièce : la classe que `<Glyph className=…>` lui donne, résolue dans la feuille importée ; et
+ * chaque composant de la planche posé dans une figure, `<FigureGlyph size={n}>`, à sa taille (OROS5.45l).
+ */
 function waveMicros(): { where: string; width: number; height: number }[] {
   const out: { where: string; width: number; height: number }[] = [];
   for (const piece of WAVE_PIECES) {
@@ -272,6 +275,10 @@ function waveMicros(): { where: string; width: number; height: number }[] {
           out.push({ where: `${piece} › ${sheet} ${rule.at.join(' ')} .${name}`.replace(/\s+/g, ' '), width: px('width'), height: px('height') });
         }
       }
+    }
+    for (const [tag] of source.matchAll(/<FigureGlyph\b[^>]*?\/>/gs)) {
+      const size = Number(/\bsize=\{(\d+(?:\.\d+)?)\}/.exec(tag)?.[1] ?? NaN);
+      out.push({ where: `${piece} › ${tag.replace(/\s+/g, ' ').slice(0, 80)}`, width: size, height: size });
     }
   }
   return out;
@@ -524,6 +531,8 @@ describe('garde du système visuel', () => {
     // Aucune micro sous 12 px sur son grand côté ; chacune a sa mesure.
     const micros = waveMicros();
     expect(micros.length).toBeGreaterThan(30);
+    // les composants posés dans une figure comptent aussi (OROS5.45l) : M.022, M.011, le graphe de la fiche
+    expect(micros.filter((m) => m.where.includes('<FigureGlyph')).length).toBeGreaterThanOrEqual(4);
     expect(micros.filter((m) => !(Number.isFinite(m.width) || Number.isFinite(m.height)))).toEqual([]);
     expect(micros.filter((m) => Math.max(Number.isFinite(m.width) ? m.width : 0, Number.isFinite(m.height) ? m.height : 0) < 12).map((m) => `${m.where} ${m.width}×${m.height}`)).toEqual([]);
     // La distance à la publication (« CPI +108 min ») : la ligne de trade de la séance et l'échelle du trade la posent
