@@ -140,16 +140,22 @@ function Bornes({ account, planAccount, b, tracked }: { account: string; planAcc
     floorKind: margin.floorKind,
     closed: margin.status === 'objectif' || margin.status === 'echec' ? { status: margin.status, date: margin.date } : null,
   };
-  return (
-    <div className={s.bornes} data-bornes="tracked">
-      <p className={s.bornesRead} data-read="">
-        {stale ? <Glyph name="stale" className={s.bornesStale} label={tr('Lecture datée ou périmée', 'Dated or stale reading', 'Lectura fechada o caducada')} /> : null}
-        <span>
-          {b.day.key ? `${tr('Journée du', 'Day of', 'Jornada del')} ${shortDay(b.day.key)} · ` : ''}
-          {readFrom(b)}
-          {` · ${planAccount ? planAccount : tr('tous les comptes', 'all accounts', 'todas las cuentas')}`}
-        </span>
-      </p>
+  const who = ` · ${planAccount ? planAccount : tr('tous les comptes', 'all accounts', 'todas las cuentas')}`;
+  const read = (
+    <p className={s.bornesRead} data-read="">
+      {stale ? <Glyph name="stale" className={s.bornesStale} label={tr('Lecture datée ou périmée', 'Dated or stale reading', 'Lectura fechada o caducada')} /> : null}
+      <span>
+        {b.day.key ? `${tr('Journée du', 'Day of', 'Jornada del')} ${shortDay(b.day.key)} · ` : ''}
+        {readFrom(b)}
+        {who}
+      </span>
+    </p>
+  );
+  // La journée en cours fermée quand la section lit une séance datée, ou aucune (OROS5.48i) : la perte non lue et la
+  // fermeture sont celles de la journée CME en cours, sous sa propre ligne, avant la lecture datée (OROS5.48l).
+  const closedUnread = closed !== null && !b.day.today;
+  const lossBlock = (
+    <>
       <div className={s.borneLine} data-borne="loss">
         <span className={s.borneKey}>{tr('Perte du jour', 'Day loss', 'Pérdida del día')}</span>
         <b className={s.borneVal}>{loss.limit !== null ? `${loss.value === null ? '—' : fmtInt(loss.value)} / ${fmtUsd(loss.limit)}` : closed ? (loss.value === null ? '—' : fmtInt(loss.value)) : tr('aucune limite', 'no limit', 'sin límite')}</b>
@@ -169,6 +175,24 @@ function Bornes({ account, planAccount, b, tracked }: { account: string; planAcc
           <span>{`${closed.charAt(0).toLocaleUpperCase()}${closed.slice(1)}`}</span>
         </p>
       ) : null}
+    </>
+  );
+  return (
+    <div className={s.bornes} data-bornes="tracked">
+      {closedUnread ? (
+        <>
+          <p className={s.bornesRead} data-read="today">
+            <span>{`${tr('Journée du', 'Day of', 'Jornada del')} ${shortDay(b.day.tradingDay)} · ${tr('journée CME en cours', 'current CME day', 'jornada CME en curso')}${who}`}</span>
+          </p>
+          {lossBlock}
+          {read}
+        </>
+      ) : (
+        <>
+          {read}
+          {lossBlock}
+        </>
+      )}
       <div className={s.borneLine} data-borne="trades">
         <span className={s.borneKey}>{tr('Trades', 'Trades', 'Trades')}</span>
         <b className={s.borneVal}>{tradesOfMax(trades.count, trades.max)}</b>

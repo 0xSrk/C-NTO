@@ -363,6 +363,48 @@ describe('OROS5.27 la fiche Compte', () => {
     expect(section('plan').querySelector('[data-effect]')!.textContent).toContain('aucune limite de perte du jour réglée');
   });
 
+  it('OROS5.48l la journée en cours fermée, la section lisant une séance datée : la perte et la fermeture disent leur journée', () => {
+    // Sim101 suivi, limite 600 $ : la seule séance est celle du 26.10 (−63 $, 3 trades) ; la journée du 27.10 est fermée
+    // depuis 10:00 ET (la perte vue au latent), puis le pont s'est perdu
+    const journal = {
+      sessions: [session('s0', '2026-10-26', -63, SIM, 3)],
+      trades: [trade('t0', 's0', '2026-10-26T14:00:00Z', -30, SIM), trade('t1', 's0', '2026-10-26T14:20:00Z', -20, SIM), trade('t2', 's0', '2026-10-26T14:40:00Z', -13, SIM)],
+    };
+    bench(SIM, journal);
+    useSettings.setState({ settings: { ...useSettings.getState().settings, traderRules: { ...RULES, maxDailyLoss: 600 } } });
+    useDayClose.setState({ closes: [{ day: TODAY, account: SIM, at: Date.parse('2026-10-27T14:00:00Z') }] });
+    useBridge.setState({ nt: null });
+    mount();
+    open(SIM);
+    const bornes = () => section('bornes');
+    const today = () => bornes().querySelector<HTMLElement>('[data-read="today"]');
+    const dated = bornes().querySelector<HTMLElement>('[data-read=""]')!;
+    const loss = bornes().querySelector<HTMLElement>('[data-borne="loss"]')!;
+    const closed = bornes().querySelector<HTMLElement>('[data-closed="day"]')!;
+    const tradesLine = bornes().querySelector<HTMLElement>('[data-borne="trades"]')!;
+    // la perte non lue et la fermeture sont celles de la journée CME en cours, sous sa propre ligne, avant la séance datée
+    expect(today()!.textContent).toBe('Journée du 27.10 · journée CME en cours · Sim101');
+    expect(loss.textContent).toMatch(/Perte du jour— \/ 600\s\$/u);
+    expect(closed.textContent).toBe('Journée fermée depuis 10:00 ET');
+    expect(dated.textContent).toBe('Journée du 26.10 · dernière séance, 26.10 · Sim101');
+    const before = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(before(today()!, loss) && before(loss, closed) && before(closed, dated) && before(dated, tradesLine)).toBe(true);
+    expect(tradesLine.textContent).toContain('3 / 6');
+    for (const [locale, words] of [
+      ['en', 'Day of 10/27 · current CME day · Sim101'],
+      ['es', 'Jornada del 27.10 · jornada CME en curso · Sim101'],
+    ] as const) {
+      act(() => useI18n.setState({ locale }));
+      expect(today()!.textContent, locale).toBe(words);
+    }
+    act(() => useI18n.setState({ locale: 'fr' }));
+    // sans fermeture, la section lit la séance datée d'un bout à l'autre, comme avant
+    act(() => useDayClose.setState({ closes: [] }));
+    expect(today()).toBeNull();
+    expect(bornes().querySelector('[data-borne="loss"]')!.textContent).toMatch(/Perte du jour63 \/ 600\s\$/u);
+    expect(before(bornes().querySelector('[data-read=""]')!, bornes().querySelector('[data-borne="loss"]')!)).toBe(true);
+  });
+
   it('OROS5.45k « Filtrer Métrique sur ce compte » saute d’abord, puis filtre : Retour arrière rend Métrique sans le filtre', () => {
     mount();
     open(SIM);
