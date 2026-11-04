@@ -280,6 +280,10 @@ export function useHourAnswer(): HourRead {
  * largeur, mais une langue plus longue, l'espagnol à 1600 px, coupait encore la forme longue en ellipse. Quand elle
  * déborde, la réponse prend sa forme courte ; elle reprend la longue dès que la place qu'elle demandait revient, ou que son
  * texte change.
+ *
+ * La place, c'est celle que la ligne lui laisse (OROS5.47j) : sa boîte, plus ce qui reste libre au bout de la ligne. La
+ * réponse est un élément flexible sans croissance ; en forme courte, sa boîte suit la forme courte et ne dit jamais la
+ * place revenue. La ligne et chacun de ses éléments sont observés : un pont qui se perd, une fenêtre qui s'élargit.
  */
 function useAnswerFit(text: string): { ref: RefObject<HTMLButtonElement | null>; short: boolean } {
   const ref = useRef<HTMLButtonElement | null>(null);
@@ -288,15 +292,22 @@ function useAnswerFit(text: string): { ref: RefObject<HTMLButtonElement | null>;
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const line = el.parentElement;
+    const room = () => {
+      if (!line) return el.clientWidth;
+      const end = line.getBoundingClientRect().right - (parseFloat(getComputedStyle(line).paddingRight) || 0);
+      return el.clientWidth + Math.max(0, end - el.getBoundingClientRect().right);
+    };
     const check = () => {
       if (needed === null) {
         if (el.scrollWidth > el.clientWidth + 1) setNeeded(el.scrollWidth);
-      } else if (el.clientWidth >= needed) setNeeded(null);
+      } else if (room() >= needed) setNeeded(null);
     };
     check();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(check);
     observer.observe(el);
+    if (line) for (const node of [line, ...Array.from(line.children)]) if (node !== el) observer.observe(node);
     return () => observer.disconnect();
   }, [needed, text]);
   return { ref, short: needed !== null };

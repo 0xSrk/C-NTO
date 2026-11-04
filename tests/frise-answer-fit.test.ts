@@ -84,6 +84,36 @@ describe('OROS5.47e · la réponse du temps ne se coupe jamais', () => {
     expect(answer().dataset.fit).toBeUndefined();
   });
 
+  it('OROS5.47j la forme courte, plus étroite que la longue, revient à la longue quand la ligne rend la place', () => {
+    // Un rendu réel : la réponse est un élément flexible sans croissance (`flex: 0 1 auto`) ; sa boîte suit sa forme, et la
+    // forme courte reste plus étroite que la longue, quelle que soit la place que la ligne lui laisse.
+    room = 300;
+    wanted = 420;
+    const SHORT = 180;
+    const width = (el: HTMLElement) => Math.min(room, el.dataset.fit === 'short' ? SHORT : wanted);
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get() { const el = this as HTMLElement; return el.dataset.status === 'answer' ? width(el) : 0; } });
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get() { const el = this as HTMLElement; return el.dataset.status !== 'answer' ? 0 : el.dataset.fit === 'short' ? SHORT : wanted; } });
+    const rect = (right: number) => ({ left: 0, right, top: 0, bottom: 28, width: right, height: 28, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.dataset.status === 'answer' ? rect(width(this)) : this === host ? rect(room) : rect(0);
+    });
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(createElement(FriseAnswer)));
+    expect(answer().dataset.fit).toBe('short');
+    expect(answer().clientWidth).toBe(SHORT);
+    // La ligne rend de la place, sans suffire : la forme courte reste.
+    room = 400;
+    resize();
+    expect(answer().dataset.fit).toBe('short');
+    // Elle suffit : la forme longue revient, bien que la boîte de la forme courte n'ait pas grandi.
+    room = 430;
+    resize();
+    expect(answer().dataset.fit).toBeUndefined();
+    spy.mockRestore();
+  });
+
   it('assez de place : la forme longue, sans attribut ; la feuille échange les deux formes sur data-fit', () => {
     room = 500;
     wanted = 420;
