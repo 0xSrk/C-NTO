@@ -519,73 +519,76 @@ export function Dashboard({
             </button>
           </span>
         </div>
-        <table className={s.table}>
-          <thead>
-            <tr>
-              <th>{tr('Séance', 'Session', 'Sesión')}</th>
-              <th>{tr('Instruments', 'Instruments', 'Instrumentos')}</th>
-              <th>{tr('Tr.', 'Tr.', 'Tr.')}</th>
-              <th>{tr('Gagnants', 'Winners', 'Ganadores')}</th>
-              <th>{tr('Comm. USD', 'Comm. USD', 'Com. USD')}</th>
-              <th>{tr('Tag', 'Tag', 'Etiqueta')}</th>
-              <th>{tr('Net USD', 'Net USD', 'Neto USD')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {last.map((row) => {
-              const mine = bySession.get(row.id) ?? [];
-              const wins = mine.filter((trade) => trade.pnl > 0).length;
-              const total = mine.length || row.tradeCount;
-              const squares = Math.min(total, 8);
-              const tag = row.tags[0]?.trim() || tr('HORS PLAN', 'NO PLAN', 'SIN PLAN');
-              const on = openId === row.id;
-              const out = !kept.has(row.id);
-              const open = (origin: HTMLElement | null) => openObject({ type: 'session', id: row.id }, { origin, siblings: lastRefs });
-              return (
-                <tr key={row.id} className={cx(s.objRow, on && s.objOn, out && s.out)} data-session={row.id} data-out={out ? '' : undefined} onClick={(event) => open(event.currentTarget.querySelector('button'))}>
-                  <td>
-                    {/* La séance C.094 : le glyphe et le jour, un bouton qui ouvre sa fiche ; la ligne entière y mène aussi. */}
-                    <button
-                      type="button"
-                      className={s.objOpen}
-                      aria-current={on ? 'true' : undefined}
-                      aria-label={tr(`Ouvrir la fiche de la séance du ${shortDay(row.date)}`, `Open the record of the ${shortDay(row.date)} session`, `Abrir la ficha de la sesión del ${shortDay(row.date)}`)}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        open(event.currentTarget);
-                      }}
-                    >
-                      <Glyph name="session" className={s.objGlyph} />
-                      <span className={s.day}>
-                        {shortDay(row.date)}
-                        <span>{weekday(row.date)}</span>
+        {/* A.04 défile dans sa carte, jamais la zone de travail (OROS5.47l). */}
+        <div className={s.tableScroll}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>{tr('Séance', 'Session', 'Sesión')}</th>
+                <th>{tr('Instruments', 'Instruments', 'Instrumentos')}</th>
+                <th>{tr('Tr.', 'Tr.', 'Tr.')}</th>
+                <th>{tr('Gagnants', 'Winners', 'Ganadores')}</th>
+                <th>{tr('Comm. USD', 'Comm. USD', 'Com. USD')}</th>
+                <th>{tr('Tag', 'Tag', 'Etiqueta')}</th>
+                <th>{tr('Net USD', 'Net USD', 'Neto USD')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {last.map((row) => {
+                const mine = bySession.get(row.id) ?? [];
+                const wins = mine.filter((trade) => trade.pnl > 0).length;
+                const total = mine.length || row.tradeCount;
+                const squares = Math.min(total, 8);
+                const tag = row.tags[0]?.trim() || tr('HORS PLAN', 'NO PLAN', 'SIN PLAN');
+                const on = openId === row.id;
+                const out = !kept.has(row.id);
+                const open = (origin: HTMLElement | null) => openObject({ type: 'session', id: row.id }, { origin, siblings: lastRefs });
+                return (
+                  <tr key={row.id} className={cx(s.objRow, on && s.objOn, out && s.out)} data-session={row.id} data-out={out ? '' : undefined} onClick={(event) => open(event.currentTarget.querySelector('button'))}>
+                    <td>
+                      {/* La séance C.094 : le glyphe et le jour, un bouton qui ouvre sa fiche ; la ligne entière y mène aussi. */}
+                      <button
+                        type="button"
+                        className={s.objOpen}
+                        aria-current={on ? 'true' : undefined}
+                        aria-label={tr(`Ouvrir la fiche de la séance du ${shortDay(row.date)}`, `Open the record of the ${shortDay(row.date)} session`, `Abrir la ficha de la sesión del ${shortDay(row.date)}`)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          open(event.currentTarget);
+                        }}
+                      >
+                        <Glyph name="session" className={s.objGlyph} />
+                        <span className={s.day}>
+                          {shortDay(row.date)}
+                          <span>{weekday(row.date)}</span>
+                        </span>
+                      </button>
+                    </td>
+                    <td>{row.instruments.join(' · ') || '—'}</td>
+                    <td>{fmtInt(total)}</td>
+                    <td>
+                      <span className={s.squares} aria-hidden>
+                        {Array.from({ length: squares }, (_, i) => (
+                          <i key={i} className={`${s.sq} ${i < Math.min(wins, squares) ? s.on : ''}`} />
+                        ))}
                       </span>
-                    </button>
-                  </td>
-                  <td>{row.instruments.join(' · ') || '—'}</td>
-                  <td>{fmtInt(total)}</td>
-                  <td>
-                    <span className={s.squares} aria-hidden>
-                      {Array.from({ length: squares }, (_, i) => (
-                        <i key={i} className={`${s.sq} ${i < Math.min(wins, squares) ? s.on : ''}`} />
-                      ))}
-                    </span>
-                    {wins}/{total}
-                  </td>
-                  <td>
-                    <Montant value={-Math.abs(row.commission)} />
-                  </td>
-                  <td>
-                    <Etiquette>{tag}</Etiquette>
-                  </td>
-                  <td>
-                    <Montant value={row.pnl} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      {wins}/{total}
+                    </td>
+                    <td>
+                      <Montant value={-Math.abs(row.commission)} />
+                    </td>
+                    <td>
+                      <Etiquette>{tag}</Etiquette>
+                    </td>
+                    <td>
+                      <Montant value={row.pnl} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <details className={`${s.card} ${s.span12} ${s.ratios}`}>

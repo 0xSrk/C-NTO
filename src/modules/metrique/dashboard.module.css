@@ -500,6 +500,15 @@
   background: var(--text-1);
 }
 
+/*
+ * A.04 tient dans sa carte (OROS5.47l) : la fiche ouverte à 1180 × 720 ne laisse que 560 px à la zone de travail, et ses
+ * cellules sur une ligne l'élargissaient au-delà, sous le bord de la fiche. À l'étroit, les cellules passent à la ligne et
+ * se resserrent ; si la table reste plus large, elle défile dans sa carte, jamais la zone de travail.
+ */
+.tableScroll {
+  min-width: 0;
+  overflow-x: auto;
+}
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -814,4 +823,9 @@
     border-bottom: none;
   }
   .tile:last-child { border-right: none; }
+}
+@container main (max-width: 700px) {
+  .table th,
+  .table td { padding: 8px 4px; }
+  .table td { white-space: normal; }
 }
