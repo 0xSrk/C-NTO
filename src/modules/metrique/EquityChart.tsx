@@ -296,6 +296,9 @@ export function EquityCard({
         if (pnlHeight) panes[1]?.setHeight(pnlHeight);
         if (ddHeight) panes[2]?.setHeight(ddHeight);
         chart.subscribeCrosshairMove((param) => {
+          // Un point sans événement d'origine n'est pas le pointeur : c'est la position posée par `setCrosshairPosition`,
+          // que la bibliothèque relance à chaque `applyOptions` d'une série (`updateCrosshair`). Ce n'est pas un survol.
+          if (param.point && !param.sourceEvent) return;
           if (param.time === undefined || !param.point) {
             setHover(null);
             return;
@@ -398,12 +401,14 @@ export function EquityCard({
   }, [locale]);
 
   // Pas survolé, ou pas du curseur : carré creux sur la crête, fil allumé, lueur sous l'eau. Le survol passe devant.
+  // Une courbe nouvelle repasse par `draw`, qui remet le focus : il se repose après elle.
   useEffect(() => {
     for (const trait of refs.current?.traits ?? []) trait.applyOptions({ focus: hover ?? pinned ?? NONE });
-  }, [hover, pinned, booted]);
+  }, [hover, pinned, curve, booted]);
 
   // Le réticule unique de la bibliothèque, posé sur le pas du curseur tant que le pointeur n'est pas sur la courbe. La
-  // position posée ainsi ne déclenche aucun événement de survol (position « synthétique » de la bibliothèque).
+  // position posée ainsi (« synthétique ») ne déclenche pas d'événement ; la bibliothèque la relance ensuite à chaque
+  // `applyOptions`, sans événement d'origine, et le gestionnaire du survol l'ignore.
   useEffect(() => {
     const current = refs.current;
     if (!current || hover !== null) return;

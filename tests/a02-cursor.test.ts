@@ -27,9 +27,15 @@ interface FakeSeries {
 
 interface FakeChart {
   series: FakeSeries[];
-  crosshair: ((param: { time?: number; point?: { x: number; y: number } }) => void) | null;
+  crosshair: ((param: { time?: number; point?: { x: number; y: number }; sourceEvent?: object }) => void) | null;
   /** Les positions posées par le desk (`setCrosshairPosition`), puis `null` à chaque `clearCrosshairPosition`. */
   pinned: ({ price: number; time: number; series: number } | null)[];
+  /**
+   * La position que la bibliothèque garde (lightweight-charts 5.2.1) : posée par `setCrosshairPosition` sans événement,
+   * ou par le pointeur ; effacée par `clearCrosshairPosition` ou quand le pointeur quitte la courbe. Tant qu'elle est là,
+   * chaque `applyOptions` d'une série la relance (`updateCrosshair`) : un mouvement avec un point, sans `sourceEvent`.
+   */
+  saved: number | null;
 }
 
 const state = vi.hoisted(() => ({ charts: [] as FakeChart[] }));
@@ -49,14 +55,20 @@ vi.mock('lightweight-charts', () => {
     CrosshairMode: { Magnet: 3 },
     LineStyle: { Dotted: 1, SparseDotted: 4 },
     createChart: () => {
-      const chart: FakeChart = { series: [], crosshair: null, pinned: [] };
+      const chart: FakeChart = { series: [], crosshair: null, pinned: [], saved: null };
       const apis: unknown[] = [];
       state.charts.push(chart);
       return {
         addCustomSeries: (view: { constructor: { name: string }; defaultOptions: () => Record<string, unknown> }, options: Record<string, unknown>) => {
           const series: FakeSeries = { kind: view.constructor.name, options: merge({ ...view.defaultOptions() }, options) };
           chart.series.push(series);
-          const api = { setData: () => undefined, applyOptions: (next: Record<string, unknown>) => void merge(series.options, next) };
+          const api = {
+            setData: () => undefined,
+            applyOptions: (next: Record<string, unknown>) => {
+              merge(series.options, next);
+              if (chart.saved !== null) chart.crosshair?.({ time: chart.saved, point: { x: 1, y: 1 } });
+            },
+          };
           apis.push(api);
           return api;
         },
@@ -65,8 +77,14 @@ vi.mock('lightweight-charts', () => {
           chart.crosshair = cb;
         },
         subscribeClick: () => undefined,
-        setCrosshairPosition: (price: number, time: number, api: unknown) => void chart.pinned.push({ price, time, series: apis.indexOf(api) }),
-        clearCrosshairPosition: () => void chart.pinned.push(null),
+        setCrosshairPosition: (price: number, time: number, api: unknown) => {
+          chart.saved = time;
+          chart.pinned.push({ price, time, series: apis.indexOf(api) });
+        },
+        clearCrosshairPosition: () => {
+          chart.saved = null;
+          chart.pinned.push(null);
+        },
         timeScale: () => ({ fitContent: () => undefined, getVisibleLogicalRange: () => ({ from: 0, to: 20 }), setVisibleLogicalRange: () => undefined, coordinateToLogical: () => 10 }),
         applyOptions: () => undefined,
         remove: () => undefined,
@@ -116,6 +134,16 @@ async function mount(): Promise<FakeChart> {
 }
 
 const trait = (chart: FakeChart, kind: string) => chart.series.find((row) => row.kind === kind)!;
+/** Le pointeur sur un pas : la bibliothèque garde sa position et passe l'événement d'origine. */
+const hoverAt = (chart: FakeChart, time: number) => {
+  chart.saved = time;
+  chart.crosshair!({ time, point: { x: 10, y: 10 }, sourceEvent: {} });
+};
+/** Le pointeur quitte la courbe : la position gardée s'efface. */
+const leave = (chart: FakeChart) => {
+  chart.saved = null;
+  chart.crosshair!({});
+};
 const readout = () => host!.querySelector('[aria-live]')!.textContent ?? '';
 const chip = (set: 'catalysts' | 'drifts') => host!.querySelector<HTMLButtonElement>(`button[data-event-set="${set}"]`)!;
 
@@ -174,12 +202,12 @@ describe('OROS5.36 le réticule de A.02 s’épingle au pas du curseur', () => {
     expect(host!.querySelector('[data-pinned]')).not.toBeNull();
     // Le survol passe devant : le pas survolé, sans repose du réticule.
     const posed = chart.pinned.length;
-    await act(async () => chart.crosshair!({ time: curve.steps[2]!.time, point: { x: 10, y: 10 } }));
+    await act(async () => hoverAt(chart, curve.steps[2]!.time));
     expect(chart.series.map((row) => row.options.focus)).toEqual([2, 2, 2]);
     expect(readout()).toMatch(/02\/09/);
     expect(chart.pinned.length).toBe(posed);
     // Le pointeur quitte la courbe : le réticule revient au pas du curseur.
-    await act(async () => chart.crosshair!({}));
+    await act(async () => leave(chart));
     expect(chart.series.map((row) => row.options.focus)).toEqual([3, 3, 3]);
     expect(chart.pinned.at(-1)).toEqual({ price: curve.steps[3]!.equity, time: curve.steps[3]!.time, series: 0 });
     // Le présent : plus de réticule posé, la lecture revient au dernier pas.
@@ -187,6 +215,30 @@ describe('OROS5.36 le réticule de A.02 s’épingle au pas du curseur', () => {
     expect(chart.pinned.at(-1)).toBeNull();
     expect(chart.series.map((row) => row.options.focus)).toEqual([-1, -1, -1]);
     expect(readout()).toMatch(/04\/09/);
+  });
+
+  it('OROS5.36b le réticule suit chaque pas du curseur : la position que la bibliothèque relance n’est pas un survol', async () => {
+    const chart = await mount();
+    const curve = equityCurve(sessions, trades, 'session');
+    for (const [at, index, day] of [
+      ['2026-09-03T14:00:00Z', 3, /03\/09/],
+      ['2026-09-02T14:00:00Z', 2, /02\/09/],
+      ['2026-09-01T14:00:00Z', 1, /01\/09/],
+      ['2026-09-04T14:00:00Z', 4, /04\/09/],
+    ] as const) {
+      await act(async () => useUi.setState({ timeCursor: Date.parse(at) }));
+      expect(chart.pinned.at(-1)).toEqual({ price: curve.steps[index]!.equity, time: curve.steps[index]!.time, series: 0 });
+      expect(chart.series.map((row) => row.options.focus)).toEqual([index, index, index]);
+      expect(readout()).toMatch(day);
+      // La date tenue garde son or.
+      expect(host!.querySelector('[data-pinned]')).not.toBeNull();
+    }
+    // Une courbe nouvelle (un trade de plus le 4), le curseur au même pas : `draw` remet le focus, l'effet le repose.
+    await act(async () => useUi.setState({ timeCursor: Date.parse('2026-09-02T14:00:00Z') }));
+    const more = [...sessions.slice(0, 3), session('d', '2026-09-04', 260, 2)];
+    await act(async () => root!.render(createElement(EquityCard, { sessions: more, trades: [...trades, trade('t6', 'd', '2026-09-04T15:00:00Z', 60)] })));
+    expect(chart.series.map((row) => row.options.focus)).toEqual([2, 2, 2]);
+    expect(host!.querySelector('[data-pinned]')).not.toBeNull();
   });
 
   it('un curseur sur une journée sans séance : ni réticule ni pas, la lecture le dit', async () => {
