@@ -32,6 +32,8 @@ import { glyphImage, readyImage } from './glyphSprite';
  */
 
 const CHART_HEIGHT = 300;
+/** La fenêtre du double-clic : un pas cliqué n'ouvre sa fiche qu'une fois passée (OROS5.45c). */
+export const DOUBLE_CLICK_MS = 300;
 const PNL_PANE = 58;
 const DD_PANE = 64;
 
@@ -231,6 +233,8 @@ export function EquityCard({
     const el = host.current;
     if (!el) return;
     let disposed = false;
+    /** Le clic d'un pas, en attente de la fenêtre du double-clic. */
+    let pending: number | null = null;
     const sprites: Partial<Record<GlyphKey | EventGlyphKey, HTMLImageElement>> = {};
     const boot = () => {
       if (disposed || refs.current) return;
@@ -306,11 +310,21 @@ export function EquityCard({
           const index = curveRef.current.steps.findIndex((step) => step.time === (param.time as number));
           setHover(index >= 0 ? index : null);
         });
-        // Le clic, hors glisser : le pas ouvre la fiche de sa séance ; le départ n'est pas une séance.
+        // Le clic, hors glisser : le pas ouvre la fiche de sa séance ; le départ n'est pas une séance. Il attend la fenêtre
+        // du double-clic : un second clic dans la fenêtre, ou le double-clic qui recadre la courbe, n'ouvre rien (OROS5.45c).
         chart.subscribeClick?.((param) => {
+          if (pending !== null) {
+            window.clearTimeout(pending);
+            pending = null;
+            return;
+          }
           if (param.time === undefined) return;
           const step = curveRef.current.steps.find((row) => row.time === (param.time as number));
-          if (step && !step.origin) onStepRef.current?.(step, el);
+          if (!step || step.origin) return;
+          pending = window.setTimeout(() => {
+            pending = null;
+            if (!disposed) onStepRef.current?.(step, el);
+          }, DOUBLE_CLICK_MS);
         });
         // Composants de la planche (⊕ ⊗ borne) : images du master, encrées en ivoire, à la densité de l'écran ; le trait
         // ne les reçoit qu'une fois chargées, et chaque chargement redessine.
@@ -363,12 +377,17 @@ export function EquityCard({
       const ratio = span > 0 ? (anchor - range.from) / span : 1;
       scale.setVisibleLogicalRange({ from: anchor - next * ratio, to: anchor + next * (1 - ratio) });
     };
-    const onDoubleClick = () => refs.current?.chart.timeScale().fitContent();
+    const onDoubleClick = () => {
+      if (pending !== null) window.clearTimeout(pending);
+      pending = null;
+      refs.current?.chart.timeScale().fitContent();
+    };
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('dblclick', onDoubleClick);
     boot();
     return () => {
       disposed = true;
+      if (pending !== null) window.clearTimeout(pending);
       for (const img of Object.values(sprites)) img.onload = null;
       ro.disconnect();
       el.removeEventListener('wheel', onWheel);

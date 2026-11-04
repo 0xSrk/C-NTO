@@ -17,7 +17,7 @@ vi.mock('@/store/db', async (importOriginal) => ({
 }));
 
 // Le canevas n'existe pas sous jsdom : la courbe A.02 est un enregistreur qui garde l'abonnement au clic.
-const charts = vi.hoisted(() => ({ click: null as null | ((param: { time?: number; point?: { x: number; y: number } }) => void) }));
+const charts = vi.hoisted(() => ({ click: null as null | ((param: { time?: number; point?: { x: number; y: number } }) => void), fits: 0 }));
 vi.mock('lightweight-charts', () => ({
   customSeriesDefaultOptions: { color: '#000' },
   ColorType: { Solid: 'solid' },
@@ -30,7 +30,14 @@ vi.mock('lightweight-charts', () => ({
     subscribeClick: (cb: (param: { time?: number; point?: { x: number; y: number } }) => void) => {
       charts.click = cb;
     },
-    timeScale: () => ({ fitContent: () => undefined, getVisibleLogicalRange: () => ({ from: 0, to: 10 }), setVisibleLogicalRange: () => undefined, coordinateToLogical: () => 5 }),
+    timeScale: () => ({
+      fitContent: () => {
+        charts.fits++;
+      },
+      getVisibleLogicalRange: () => ({ from: 0, to: 10 }),
+      setVisibleLogicalRange: () => undefined,
+      coordinateToLogical: () => 5,
+    }),
     applyOptions: () => undefined,
     remove: () => undefined,
   }),
@@ -432,17 +439,49 @@ describe('OROS5.26 A.04 et A.02 ouvrent la fiche de leur séance', () => {
 
   it('un pas de A.02 cliqué, hors glisser, ouvre la fiche de sa séance ; le départ n’en ouvre aucune', async () => {
     await dashboard();
+    vi.useFakeTimers({ now: NOW, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const { DOUBLE_CLICK_MS } = await import('@/modules/metrique/EquityChart');
     expect(charts.click).not.toBeNull();
     const curve = equityCurve(useJournal.getState().sessions, useJournal.getState().trades, 'session');
-    act(() => charts.click!({ time: curve.steps[0]!.time, point: { x: 1, y: 1 } }));
+    const click = (time?: number) => {
+      act(() => charts.click!({ time, point: { x: 1, y: 1 } }));
+      act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS));
+    };
+    click(curve.steps[0]!.time);
     expect(useObjects.getState().open).toBeNull();
-    act(() => charts.click!({ time: curve.steps[1]!.time, point: { x: 1, y: 1 } }));
+    click(curve.steps[1]!.time);
     expect(useObjects.getState().open).toEqual(S1);
     expect(useObjects.getState().siblings).toEqual([S1, S2]);
-    act(() => charts.click!({ time: curve.steps[2]!.time, point: { x: 1, y: 1 } }));
+    click(curve.steps[2]!.time);
     expect(useObjects.getState().open).toEqual(S2);
     // un clic hors de tout pas ne fait rien
-    act(() => charts.click!({ point: { x: 1, y: 1 } }));
+    click(undefined);
     expect(useObjects.getState().open).toEqual(S2);
+  });
+
+  it('OROS5.45c le double-clic sur A.02 recadre la courbe et n’ouvre rien : le clic d’un pas attend la fenêtre du double-clic', async () => {
+    await dashboard();
+    vi.useFakeTimers({ now: NOW, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const { DOUBLE_CLICK_MS } = await import('@/modules/metrique/EquityChart');
+    const curve = equityCurve(useJournal.getState().sessions, useJournal.getState().trades, 'session');
+    const chart = [...host!.querySelectorAll<HTMLElement>('[role="img"]')].find((el) => /cumulé/.test(el.getAttribute('aria-label') ?? ''))!;
+    expect(chart).toBeDefined();
+    const fits = charts.fits;
+    // le premier clic d'un double-clic : rien ne s'ouvre avant la fin de la fenêtre
+    act(() => charts.click!({ time: curve.steps[1]!.time, point: { x: 1, y: 1 } }));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS - 1));
+    expect(useObjects.getState().open).toBeNull();
+    // le second clic, puis le double-clic : la courbe se recadre, et la fiche ne s'ouvre jamais
+    act(() => charts.click!({ time: curve.steps[1]!.time, point: { x: 1, y: 1 } }));
+    act(() => void chart.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
+    expect(useObjects.getState().open).toBeNull();
+    expect(charts.fits).toBe(fits + 1);
+    // le double-clic seul, sans clic sur un pas, recadre aussi
+    act(() => charts.click!({ time: curve.steps[2]!.time, point: { x: 1, y: 1 } }));
+    act(() => void chart.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
+    expect(useObjects.getState().open).toBeNull();
+    expect(charts.fits).toBe(fits + 2);
   });
 });
