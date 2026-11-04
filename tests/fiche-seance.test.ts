@@ -17,7 +17,7 @@ vi.mock('@/store/db', async (importOriginal) => ({
 }));
 
 // Le canevas n'existe pas sous jsdom : la courbe A.02 est un enregistreur qui garde l'abonnement au clic.
-const charts = vi.hoisted(() => ({ click: null as null | ((param: { time?: number; point?: { x: number; y: number } }) => void), fits: 0 }));
+const charts = vi.hoisted(() => ({ click: null as null | ((param: { time?: number; point?: { x: number; y: number } }) => void), dbl: null as null | ((param: { time?: number; point?: { x: number; y: number } }) => void), fits: 0 }));
 vi.mock('lightweight-charts', () => ({
   customSeriesDefaultOptions: { color: '#000' },
   ColorType: { Solid: 'solid' },
@@ -29,6 +29,9 @@ vi.mock('lightweight-charts', () => ({
     subscribeCrosshairMove: () => undefined,
     subscribeClick: (cb: (param: { time?: number; point?: { x: number; y: number } }) => void) => {
       charts.click = cb;
+    },
+    subscribeDblClick: (cb: (param: { time?: number; point?: { x: number; y: number } }) => void) => {
+      charts.dbl = cb;
     },
     timeScale: () => ({
       fitContent: () => {
@@ -483,5 +486,44 @@ describe('OROS5.26 A.04 et A.02 ouvrent la fiche de leur séance', () => {
     act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
     expect(useObjects.getState().open).toBeNull();
     expect(charts.fits).toBe(fits + 2);
+  });
+
+  it('OROS5.45j un double-clic lent (300 à 500 ms) n’ouvre rien : la fenêtre est celle de la bibliothèque et de Windows', async () => {
+    await dashboard();
+    vi.useFakeTimers({ now: NOW, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const { DOUBLE_CLICK_MS } = await import('@/modules/metrique/EquityChart');
+    // lightweight-charts compte le double-clic sur 500 ms depuis le premier appui (Delay.ResetClick), Windows aussi
+    expect(DOUBLE_CLICK_MS).toBeGreaterThanOrEqual(500);
+    const curve = equityCurve(useJournal.getState().sessions, useJournal.getState().trades, 'session');
+    const chart = [...host!.querySelectorAll<HTMLElement>('[role="img"]')].find((el) => /cumulé/.test(el.getAttribute('aria-label') ?? ''))!;
+    const step = { time: curve.steps[1]!.time, point: { x: 1, y: 1 } };
+    const fits = charts.fits;
+    // Dans la fenêtre, la bibliothèque rend le second clic à son double-clic, jamais à subscribeClick.
+    act(() => charts.click!(step));
+    act(() => void vi.advanceTimersByTime(350));
+    expect(useObjects.getState().open).toBeNull();
+    act(() => charts.dbl!(step));
+    act(() => void chart.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
+    expect(useObjects.getState().open).toBeNull();
+    expect(charts.fits).toBe(fits + 1);
+    // le double-clic du DOM seul, à 450 ms, de même
+    act(() => charts.click!(step));
+    act(() => void vi.advanceTimersByTime(450));
+    act(() => void chart.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
+    expect(useObjects.getState().open).toBeNull();
+    // un second appui dans la fenêtre l'annule dès qu'il commence, même tenu
+    act(() => charts.click!(step));
+    act(() => void vi.advanceTimersByTime(450));
+    act(() => void chart.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS * 3));
+    expect(useObjects.getState().open).toBeNull();
+    // un clic seul ouvre la fiche, une fois la fenêtre passée
+    act(() => charts.click!(step));
+    act(() => void vi.advanceTimersByTime(DOUBLE_CLICK_MS - 1));
+    expect(useObjects.getState().open).toBeNull();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(useObjects.getState().open).not.toBeNull();
   });
 });

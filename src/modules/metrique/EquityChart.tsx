@@ -32,8 +32,11 @@ import { glyphImage, readyImage } from './glyphSprite';
  */
 
 const CHART_HEIGHT = 300;
-/** La fenêtre du double-clic : un pas cliqué n'ouvre sa fiche qu'une fois passée (OROS5.45c). */
-export const DOUBLE_CLICK_MS = 300;
+/**
+ * La fenêtre du double-clic : un pas cliqué n'ouvre sa fiche qu'une fois passée (OROS5.45c). 500 ms, celle de
+ * lightweight-charts (`Delay.ResetClick`, depuis le premier appui) et de Windows par défaut (OROS5.45j).
+ */
+export const DOUBLE_CLICK_MS = 500;
 const PNL_PANE = 58;
 const DD_PANE = 64;
 
@@ -235,6 +238,10 @@ export function EquityCard({
     let disposed = false;
     /** Le clic d'un pas, en attente de la fenêtre du double-clic. */
     let pending: number | null = null;
+    const cancelPending = () => {
+      if (pending !== null) window.clearTimeout(pending);
+      pending = null;
+    };
     const sprites: Partial<Record<GlyphKey | EventGlyphKey, HTMLImageElement>> = {};
     const boot = () => {
       if (disposed || refs.current) return;
@@ -312,6 +319,8 @@ export function EquityCard({
         });
         // Le clic, hors glisser : le pas ouvre la fiche de sa séance ; le départ n'est pas une séance. Il attend la fenêtre
         // du double-clic : un second clic dans la fenêtre, ou le double-clic qui recadre la courbe, n'ouvre rien (OROS5.45c).
+        // Dans sa fenêtre, la bibliothèque rend le second clic à son double-clic, jamais à `subscribeClick` (OROS5.45j).
+        chart.subscribeDblClick?.(() => cancelPending());
         chart.subscribeClick?.((param) => {
           if (pending !== null) {
             window.clearTimeout(pending);
@@ -378,12 +387,13 @@ export function EquityCard({
       scale.setVisibleLogicalRange({ from: anchor - next * ratio, to: anchor + next * (1 - ratio) });
     };
     const onDoubleClick = () => {
-      if (pending !== null) window.clearTimeout(pending);
-      pending = null;
+      cancelPending();
       refs.current?.chart.timeScale().fitContent();
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('dblclick', onDoubleClick);
+    // Un second appui dans la fenêtre l'annule dès qu'il commence, même tenu : le double-clic ne se dit qu'au relâché.
+    el.addEventListener('mousedown', cancelPending);
     boot();
     return () => {
       disposed = true;
@@ -392,6 +402,7 @@ export function EquityCard({
       ro.disconnect();
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('dblclick', onDoubleClick);
+      el.removeEventListener('mousedown', cancelPending);
       refs.current?.chart.remove();
       refs.current = null;
     };
