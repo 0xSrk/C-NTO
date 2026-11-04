@@ -53,7 +53,7 @@ export const useDayClose = create<DayCloseState>((set, get) => ({
     } catch {
       /* coffre illisible : ce qui a été vu depuis l'ouverture reste */
     }
-    const merged = mergeDayCloses(stored, get().closes);
+    const merged = mergeDayCloses(stored, get().closes, Date.now());
     set({ closes: merged });
     if (JSON.stringify(merged) !== JSON.stringify(stored)) persist(merged);
     const today = cmeTradingDay(Date.now());

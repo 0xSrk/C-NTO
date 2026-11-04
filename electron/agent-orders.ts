@@ -183,8 +183,9 @@ export class AgentOrderHost {
     } catch {
       /* aucune journée fermée */
     }
-    // Une journée fermée survit au redémarrage du desk ; seule la journée CME suivante la lève (`dayCloseFor`).
-    this.closes = coerceDayCloses(closes);
+    // Une journée fermée survit au redémarrage du desk ; seule la journée CME suivante la lève (`dayCloseFor`). La journée en
+    // cours de l'horloge reste à côté d'une journée à venir (OROS5.48f).
+    this.closes = coerceDayCloses(closes, this.now());
   }
 
   status(): AgentOrderStatus {

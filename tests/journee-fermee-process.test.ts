@@ -167,6 +167,42 @@ describe('OROS5.48a · le process principal ferme la journée CME à la perte du
     expect(dayCloseFor(coerceDayCloses(list), 'Sim101', et(DAY, '11:00'))).not.toBeNull();
   });
 
+  it('OROS5.48f une horloge qui avançait, puis corrigée : la fermeture de la vraie journée est retenue, et survit au redémarrage', async () => {
+    // 2026-11-05 10:00 à l'horloge du poste, un jour d'avance : la perte du jour vue ferme cette journée-là
+    const h = harness({ at: et('2026-11-05', '10:00') });
+    await h.host.enable();
+    expect(await h.host.propose(OPEN, 'llm', null, LOSS_RULE)).toMatchObject({ status: 'refused', reason: 'trader_rule' });
+    // l'horloge corrigée : la perte du jour vue à 10:56 ferme la vraie journée, et la retient
+    h.clock.now = et(DAY, '10:56');
+    expect(await h.host.propose(OPEN, 'llm', null, LOSS_RULE)).toMatchObject({ status: 'refused', reason: 'trader_rule' });
+    expect(h.logs).toContain('agent journée fermée 2026-11-04 compte=Sim101 depuis 10:56 ET');
+    // 11:45 : un gain a ramené la perte sous la limite, le renderer ne transmet plus rien ; la journée reste fermée
+    h.clock.now = et(DAY, '11:45');
+    expect(await h.host.propose(OPEN, 'llm', null, null)).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 10:56 ET : perte du jour atteinte' });
+    // après un redémarrage du desk, de même
+    const again = harness({ dir: h.dir, at: et(DAY, '12:30') });
+    await again.host.enable();
+    expect(await again.host.propose(OPEN, 'llm', null, null)).toEqual({ status: 'refused', reason: 'trader_rule', detail: 'journée fermée depuis 10:56 ET : perte du jour atteinte' });
+    // par closeDay, de même
+    const ipc = harness({ at: et('2026-11-05', '10:00') });
+    await ipc.host.enable();
+    ipc.host.closeDay({ account: 'Sim101', at: et('2026-11-05', '10:00') });
+    ipc.clock.now = et(DAY, '11:02');
+    ipc.host.closeDay({ account: 'Sim101', at: et(DAY, '10:56') });
+    expect(await ipc.host.propose(OPEN, 'llm', null, null)).toMatchObject({ status: 'refused', detail: 'journée fermée depuis 10:56 ET : perte du jour atteinte' });
+    expect([...h.submitted, ...again.submitted, ...ipc.submitted]).toEqual([]);
+    // le module partagé : la journée de la fermeture et la plus récente restent, dans un sens comme dans l'autre ; une
+    // liste relue garde la journée en cours de l'horloge qui la relit
+    const real = { day: DAY, account: 'Sim101', at: et(DAY, '10:56') };
+    const ahead = { day: '2026-11-06', account: 'z', at: et('2026-11-06', '09:00') };
+    const now = et(DAY, '11:45');
+    expect(withDayClose([ahead], real)).toEqual([real, ahead]);
+    for (const list of [mergeDayCloses([real], [ahead], now), mergeDayCloses([ahead], [real], now), coerceDayCloses([real, ahead], now), coerceDayCloses([ahead, real], now)]) expect(dayCloseFor(list, 'Sim101', now)).toEqual(real);
+    // une journée passée sort toujours
+    expect(withDayClose([{ day: '2026-11-03', account: 'Sim101', at: et('2026-11-03', '10:00') }], real)).toEqual([real]);
+    expect(coerceDayCloses([{ day: '2026-11-03', account: 'Sim101', at: et('2026-11-03', '10:00') }, real], now)).toEqual([real]);
+  });
+
   it('la fermeture relue : bornée, sans caractère de contrôle, d’une seule journée, la plus ancienne heure', () => {
     const at = et(DAY, '10:56');
     expect(parseDayClose({ day: DAY, account: ' Sim101 ', at })).toEqual({ day: DAY, account: 'Sim101', at });
@@ -175,10 +211,11 @@ describe('OROS5.48a · le process principal ferme la journée CME à la perte du
     expect(parseDayClose({ day: DAY, account: 'Sim101', at: Number.NaN })).toBeNull();
     const list = withDayClose(withDayClose([], { day: DAY, account: 'Sim101', at: at + 60_000 }), { day: DAY, account: 'SIM101', at });
     expect(list).toEqual([{ day: DAY, account: 'Sim101', at }]);
-    // une nouvelle journée remplace l'ancienne ; une ancienne n'efface pas la nouvelle
+    // une nouvelle journée remplace l'ancienne
     const next = withDayClose(list, { day: '2026-11-05', account: '', at: et('2026-11-05', '09:00') });
     expect(next).toEqual([{ day: '2026-11-05', account: '', at: et('2026-11-05', '09:00') }]);
-    expect(withDayClose(next, { day: DAY, account: 'Sim101', at })).toEqual(next);
+    // une ancienne n'efface pas la nouvelle, et, la journée de l'horloge qui l'envoie, elle reste à côté (OROS5.48f)
+    expect(withDayClose(next, { day: DAY, account: 'Sim101', at })).toEqual([{ day: DAY, account: 'Sim101', at }, ...next]);
     expect(coerceDayCloses('x')).toEqual([]);
     expect(coerceDayCloses([{ day: DAY, account: 'Sim101', at }, 'x', { day: DAY }])).toEqual([{ day: DAY, account: 'Sim101', at }]);
     expect(mergeDayCloses([{ day: DAY, account: 'Sim101', at }], [{ day: '2026-11-03', account: 'Sim101', at: et('2026-11-03', '09:00') }])).toEqual([{ day: DAY, account: 'Sim101', at }]);

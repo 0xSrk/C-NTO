@@ -603,7 +603,7 @@ const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
   'agent.conversation': (v) => (isStr(v, 64) && v.length > 0 ? v : undefined),
   'agent.routineSeen': (v) => coerceRoutineSeen(v),
   // La journée fermée (décision 15, OROS5.48b) : une liste de fermetures relues une à une ; une autre forme écarte la ligne.
-  'agent.dayClose': (v) => (Array.isArray(v) ? coerceDayCloses(v) : undefined),
+  'agent.dayClose': (v) => (Array.isArray(v) ? coerceDayCloses(v, Date.now()) : undefined),
   'chart.active': (v) => (v === null || isStr(v, 200) ? v : undefined),
   'chart.indicators': (v) => {
     if (!Array.isArray(v) || v.length > 50) return undefined;
@@ -813,10 +813,11 @@ export function prepareVaultRestore(json: string): PreparedVault {
 
 /**
  * La valeur qu'une ligne restaurée de la table `settings` écrit : la sienne, sauf la journée fermée (OROS5.48b), réunie à
- * celle en place. Un coffre restauré ne rouvre jamais une journée que le desk a fermée (décision 15 de l'ADMIN).
+ * celle en place. Un coffre restauré ne rouvre jamais une journée que le desk a fermée (décision 15 de l'ADMIN), pas même
+ * par une fermeture d'une journée à venir (OROS5.48f) : la journée en cours de l'horloge reste.
  */
-export function restoredSettingValue(key: string, current: unknown, incoming: unknown): unknown {
-  return key === 'agent.dayClose' ? mergeDayCloses(current, incoming) : incoming;
+export function restoredSettingValue(key: string, current: unknown, incoming: unknown, now = Date.now()): unknown {
+  return key === 'agent.dayClose' ? mergeDayCloses(current, incoming, now) : incoming;
 }
 
 export interface RestoreSummary {

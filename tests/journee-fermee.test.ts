@@ -153,6 +153,39 @@ describe('OROS5.48b · la journée fermée, côté renderer', () => {
     expect(restoredSettingValue('agent.routineSeen', { brief: 'x' }, { brief: DAY })).toEqual({ brief: DAY });
   });
 
+  it('OROS5.48f une fermeture d’une journée à venir (une horloge qui avançait) ne retient ni n’efface celle de la vraie journée', async () => {
+    const { dayCloseFor } = await import('@/engine/agent/dayClose');
+    const ahead = { day: '2026-10-08', account: 'z', at: et('2026-10-08', '09:00') };
+    // le coffre tient déjà une fermeture du 2026-10-08 ; à 11:00 le 2026-10-06, le latent porte la perte à la limite
+    vault.set('agent.dayClose', [ahead]);
+    const s = await desk();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(et(DAY, '09:30'));
+    await s.dayClose.useDayClose.getState().load();
+    vi.useRealTimers();
+    const realized = [trade('a', '10:20', -300), trade('c', '11:40', 80)];
+    state(s, realized.slice(0, 1), -400);
+    s.deskEvents.recordDayClose(et(DAY, '11:00'));
+    expect(s.closeDay).toHaveBeenCalledWith({ account: SIM, at: et(DAY, '11:00') });
+    expect(dayCloseFor(vault.get('agent.dayClose') as never, SIM, et(DAY, '11:45'))).toEqual({ day: DAY, account: SIM, at: et(DAY, '11:00') });
+    // 11:45 : le latent est revenu ; la journée reste fermée
+    state(s, realized, 0);
+    expect(s.deskEvents.traderRuleBlocks(OPEN, et(DAY, '11:45'))).toEqual([{ rule: 'after_daily_limit', detail: 'journée fermée depuis 11:00 ET : limite 600 $ atteinte (règle du trader)' }]);
+    // relu après un redémarrage, le coffre la garde
+    const again = await desk();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(et(DAY, '11:46'));
+    await again.dayClose.useDayClose.getState().load();
+    vi.useRealTimers();
+    state(again, realized, 0);
+    expect(again.deskEvents.traderRuleBlocks(OPEN, et(DAY, '11:46'))[0]?.rule).toBe('after_daily_limit');
+    // restaurer un coffre qui porte une fermeture à venir n'efface pas celle d'aujourd'hui
+    const { restoredSettingValue } = await import('@/store/db');
+    const close = { day: DAY, account: SIM, at: et(DAY, '10:56') };
+    const restored = restoredSettingValue('agent.dayClose', [close], [ahead], et(DAY, '11:45'));
+    expect(dayCloseFor(restored as never, SIM, et(DAY, '11:45'))).toEqual(close);
+  });
+
   it('la frise, la barre d’état et le miroir de la garde disent la même chose : « journée fermée depuis hh:mm ET »', async () => {
     const s = await desk();
     state(s, [trade('a', '10:20', -300), trade('b', '10:56', -320), trade('c', '11:40', 80)], 0);
