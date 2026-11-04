@@ -47,7 +47,8 @@ vi.mock('@/store/db', async (importOriginal) => ({
 import { proposalDialog } from '../electron/agent-orders';
 import { ObjectDrawer } from '@/app/objects/Fiche';
 import { buildObjectIndex, searchObjectIndex, type IndexSources } from '@/app/objects/index';
-import { authorLine, cellStates, dialogLines, PROPOSAL_CELLS, proposalFoot, reasonCaption } from '@/app/objects/proposals';
+import { ProposalCard } from '@/app/objects/ProposalFiche';
+import { authorLine, cellStates, dialogLines, PROPOSAL_CELLS, proposalFoot, reasonCaption, type ProposalView } from '@/app/objects/proposals';
 import { activityOf, eventLine, eventTarget, logEvents, type RegistreContext } from '@/app/registre';
 import { AGENT_CONFIRM_TIMEOUT_MS, AGENT_ORDER_REFUSALS, type AgentOrderProposal } from '@/engine/agent/orders';
 import type { Session } from '@/engine/types';
@@ -254,4 +255,44 @@ describe('OROS5.39 la proposition de l’agent, objet de la fiche', () => {
     expect(column.length).toBeGreaterThan(0);
     expect(column.map((r) => r.body).join('\n')).not.toMatch(/--signal|--neg|--ember|--gold/);
   });
+
+  it('OROS5.39a chaque case de M.040 et chaque pas de C.092 disent leur état aux lecteurs d’écran', async () => {
+    /** Le texte accessible d'un élément : les sous-arbres aria-hidden ignorés, une image lue par son nom. */
+    const spoken = (el: Element): string => {
+      if (el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('aria-hidden')) return '';
+      if (el.getAttribute('role') === 'img') return el.getAttribute('aria-label') ?? '';
+      return [...el.childNodes].map((n) => (n.nodeType === 3 ? n.textContent ?? '' : n.nodeType === 1 ? spoken(n as Element) : '')).join('');
+    };
+    const base: ProposalView = { id: 'p1', at: NOW, origin: 'llm', account: SIM, instrument: 'MNQ 12-26', side: 'buy', qty: 1, type: 'market', reason: '', position: 0, stage: 'desk', window: null, outcome: null, seq: null };
+    const read = async (p: ProposalView) => {
+      const node = await mount(createElement(ProposalCard, { p }));
+      const cells = Object.fromEntries([...node.querySelectorAll('li[data-cell]')].map((li) => [li.getAttribute('data-cell'), spoken(li)]));
+      const steps = Object.fromEntries([...node.querySelectorAll('li[data-step]')].map((li) => [li.getAttribute('data-step'), spoken(li)]));
+      act(() => root?.unmount());
+      host?.remove();
+      return { cells, steps };
+    };
+    // Chez la garde : rien n'est encore lu.
+    const desk = await read(base);
+    expect(desk.cells.declined).toBe('vous : pas encore lue');
+    expect(desk.steps).toEqual({ agent: 'l’agent propose : fait', guard: 'la garde du desk lit : en cours', you: 'vous décidez : à venir' });
+    // Le dialogue ouvert : les cases franchies, « vous » en attente.
+    const dialog = await read({ ...base, stage: 'dialog', window: { opened: NOW, deadline: NOW + AGENT_CONFIRM_TIMEOUT_MS } });
+    expect(dialog.cells.declined).toBe('vous : en attente de vous');
+    expect(dialog.cells.quantity).toBe('contrats : franchie');
+    expect(dialog.steps.you).toBe('vous décidez : en cours');
+    // Envoyée : « vous » franchie.
+    const sent = await read({ ...base, stage: 'decided', outcome: { status: 'sent', orderId: 'nt-1', account: SIM, instrument: 'MNQ 12-26', side: 'buy', qty: 1, resulting: 1, latencyMs: 3 } as AgentOrderOutcome });
+    expect(sent.cells.declined).toBe('vous : franchie');
+    // Une réduction de risque : les cases contournées le disent, sans aria-label sur un span générique.
+    const reducing = await read({ ...base, side: 'sell', position: 2, stage: 'dialog', window: { opened: NOW, deadline: NOW + AGENT_CONFIRM_TIMEOUT_MS } });
+    expect((Object.values(reducing.cells) as string[]).filter((t) => t.endsWith(' : contournée, réduction de risque'))).toHaveLength(3);
+    // Refusée par la garde : la case qui arrête, le pas arrêté, les suivantes pas encore lues.
+    const refused = await read({ ...base, stage: 'decided', qty: 3, outcome: { status: 'refused', reason: 'quantity', detail: '' } as AgentOrderOutcome });
+    expect(refused.cells.quantity).toBe('arrêtée icicontrats');
+    expect(refused.cells.declined).toBe('vous : pas encore lue');
+    expect(refused.steps.guard).toBe('la garde du desk lit : la chaîne s’arrête ici');
+    expect(readFileSync('src/app/objects/ProposalFiche.tsx', 'utf8')).not.toMatch(/<span className=\{s\.cellSkip\} aria-label/);
+  });
 });
+

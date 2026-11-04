@@ -29,6 +29,7 @@ import {
   reasonCaption,
   windowWords,
   type CellState,
+  type ChainState,
   type ChainStep,
   type ProposalView,
 } from './proposals';
@@ -51,6 +52,36 @@ const STEP_ETAT: Partial<Record<string, string>> = { done: e.plein, current: e.t
 
 const CHAIN: readonly ChainStep[] = ['agent', 'guard', 'you'];
 
+/** L'état d'une case de M.040, dit aux lecteurs d'écran : la marque ne le dit qu'aux yeux (OROS5.39a). */
+function cellWord(state: CellState): string {
+  switch (state) {
+    case 'pass':
+      return tr('franchie', 'passed', 'superada');
+    case 'pending':
+      return tr('en attente de vous', 'waiting for you', 'esperando su decisión');
+    case 'skip':
+      return tr('contournée, réduction de risque', 'bypassed, risk reduction', 'omitida, reducción de riesgo');
+    case 'stop':
+      return tr('arrêtée ici', 'stopped here', 'detenida aquí');
+    case 'idle':
+      return tr('pas encore lue', 'not read yet', 'aún no leída');
+  }
+}
+
+/** L'état d'un pas de la chaîne C.092, dit aux lecteurs d'écran. */
+function stepWord(state: ChainState): string {
+  switch (state) {
+    case 'done':
+      return tr('fait', 'done', 'hecho');
+    case 'current':
+      return tr('en cours', 'in progress', 'en curso');
+    case 'stopped':
+      return tr('la chaîne s’arrête ici', 'the chain stops here', 'la cadena se detiene aquí');
+    case 'ahead':
+      return tr('à venir', 'ahead', 'pendiente');
+  }
+}
+
 /** M.040 : les douze issues, chacune son nom en clair ; la marque dit l'état, l'identifiant de la garde reste au survol. */
 function GuardCells({ cells }: { cells: readonly CellState[] }) {
   return (
@@ -62,13 +93,15 @@ function GuardCells({ cells }: { cells: readonly CellState[] }) {
             {state === 'stop' ? (
               <Glyph name="refused" className={s.cellStop} label={tr('arrêtée ici', 'stopped here', 'detenida aquí')} />
             ) : state === 'skip' ? (
-              <span className={s.cellSkip} aria-label={tr('contournée : réduction de risque', 'bypassed: risk reduction', 'omitida: reducción de riesgo')}>
+              <span className={s.cellSkip} aria-hidden>
                 —
               </span>
             ) : (
               <i className={cx(s.cellMark, CELL_ETAT[state])} data-etat={state} aria-hidden />
             )}
             <span className={s.cellName}>{mirrorIssueName(cell)}</span>
+            {/* L'arrêt se dit déjà par le nom de C.042 ; les autres états, par un texte que seul le lecteur d'écran lit. */}
+            {state === 'stop' ? null : <span className={s.srOnly}>{` : ${cellWord(state)}`}</span>}
           </li>
         );
       })}
@@ -158,6 +191,7 @@ export function ProposalCard({ p, onOpen, compact = false }: { p: ProposalView; 
               <li key={step} data-step={step} data-state={state}>
                 {state === 'stopped' ? <Glyph name="refused" className={s.chainStop} /> : <i className={cx(s.chainMark, STEP_ETAT[state])} aria-hidden />}
                 <span>{chainWord(step)}</span>
+                <span className={s.srOnly}>{` : ${stepWord(state)}`}</span>
               </li>
             );
           })}

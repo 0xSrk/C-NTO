@@ -263,3 +263,17 @@
   letter-spacing: 0.04em;
   color: var(--text-2);
 }
+
+/* Ce que la marque d'une case ou d'un pas dit aux yeux, dit aux lecteurs d'écran (OROS5.39a). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
