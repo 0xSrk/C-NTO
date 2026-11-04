@@ -1044,6 +1044,147 @@
   color: var(--text-1);
 }
 
+/* ─── L'étude d'événement (OROS5.37) : la seconde lecture d'« Autour de… », à côté du miroir ─── */
+.study {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-1);
+}
+.studyHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.studyN {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+.studyChart {
+  display: block;
+  overflow: visible;
+}
+/* La construction au glacier : les demi-heures, la publication, la bande min–max. */
+.studyGrid {
+  stroke: var(--line-1);
+  stroke-width: 1;
+}
+.studyT0 {
+  stroke: var(--ice-line);
+  stroke-width: 1;
+}
+.studyZero {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+.studyBand {
+  fill: var(--ice-soft);
+  stroke: none;
+}
+.studyTick {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  fill: var(--text-2);
+}
+.studySeries {
+  fill: none;
+  stroke: var(--text-3);
+  stroke-width: 1;
+}
+/* La moyenne en escalier, à l'ivoire ; faite d'un échantillon trop mince, elle se lit en veille. */
+.studyMean {
+  fill: none;
+  stroke: var(--text-0);
+  stroke-width: 1.5;
+}
+.studyMeanWeak {
+  stroke: var(--text-2);
+}
+/* La journée du catalyseur ouvert : l'or dit ce que tient l'opérateur (décision 1). */
+.studyChosen {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.5;
+}
+.studyKey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.studyKey i {
+  display: inline-block;
+  width: 12px;
+  height: 0;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-top: 1px solid var(--text-3);
+}
+.studyKey .studyKeyBand {
+  height: 6px;
+  border: none;
+  background: var(--ice-soft);
+}
+.studyKey .studyKeyMean {
+  border-top: 2px solid var(--text-0);
+}
+.studyKey .studyKeyChosen {
+  border-top: 2px solid var(--gold);
+}
+.studyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-0);
+}
+.studyTable th,
+.studyTable td {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line-1);
+  text-align: right;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.studyTable thead th {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.studyTable th[scope='row'] {
+  text-align: left;
+}
+.studyCaption {
+  caption-side: bottom;
+  padding-top: 6px;
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+/* Sous SAMPLE_FAIBLE, la ligne se lit en veille : au graphite, et elle dit son échantillon. */
+.studyWeak th,
+.studyWeak td {
+  color: var(--text-2);
+}
+.studySample {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+
 .occRow {
   grid-template-columns: 20px 64px minmax(0, 1fr) auto;
   min-height: 34px;

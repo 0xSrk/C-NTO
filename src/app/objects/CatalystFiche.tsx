@@ -16,6 +16,7 @@ import { useUi } from '@/store/ui';
 import { catalystSourceWord, copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, LinksByPredicate, linkProvenance, MissingFiche, openDayAction, Properties, Provenance, type FicheAction } from './Fiche';
 import { catalystWindow, dayWithYear, STROKE_ETAT, type IndexSources } from './index';
 import { AroundOf } from './AroundOf';
+import { EventStudy } from './EventStudy';
 import { IdentityGrid, Mirror } from './Instruments';
 import { sampleWord } from './sample';
 import { SelectionChips, SetCount, useSelection } from './Selection';
@@ -28,7 +29,8 @@ import s from './fiche.module.css';
  *   au-delà de l'horizon), la période et les instruments ;
  * - ses occurrences, de la famille (`familyKey`), du début du journal à deux mois, chacune son trait et la séance du jour ;
  * - « Autour de… » : les séances liées « pendant » à la famille, et M.036 qui les met face au reste (`mirror`, au moteur),
- *   l'échantillon de chaque côté, dans le périmètre des puces de la sélection partagée (OROS5.32) ;
+ *   l'échantillon de chaque côté, dans le périmètre des puces de la sélection partagée (OROS5.32) ; puis, seconde lecture
+ *   de la famille, l'étude d'événement rebasée à t0 (`EventStudy`, OROS5.37) ;
  * - l'attendu, le précédent et le publié ; les liens ; la provenance.
  * Elle ne fait que lire.
  */
@@ -191,6 +193,8 @@ export function CatalystFiche({ target, ctx, now }: { target: EntityRef; ctx: In
               <span className={s.predicate}>{tr('pendant', 'during', 'durante')}</span> {plural(reading.inside.sessions, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {plural(reading.inside.trades, 'trade', 'trades')}
             </p>
             <Mirror inside={reading.inside} outside={reading.outside} leftTitle={tr('pendant', 'during', 'durante')} rightTitle={tr('hors', 'outside', 'fuera')} leftSample={sampleWord(sampleOf(reading.inside.trades))} rightSample={sampleWord(sampleOf(reading.outside.trades))} />
+            {/* La seconde lecture de la famille (OROS5.37) : l'étude d'événement, dans le même périmètre que le miroir. */}
+            <EventStudy events={ctx.catalysts} family={familyKey(event.title)} sessions={perimeter.sessions} trades={perimeter.trades} now={now} chosen={event.date} />
           </AroundOf>
         </FicheSection>
 

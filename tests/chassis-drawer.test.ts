@@ -184,8 +184,10 @@ describe('OROS5.16 la fiche, troisième colonne du châssis', () => {
     expect(glyph).not.toBeNull();
     expect(glyph.closest('[class*="headGlyph"]')).not.toBeNull();
     expect(bodyOf(ficheCss, '.headGlyph')).toMatch(/--k: var\(--gold\)/);
+    // L'or de la fiche ne dit que l'objet ouvert : son glyphe, et, depuis OROS5.37, la journée du catalyseur ouvert dans
+    // son étude d'événement (le tracé et sa légende).
     const gold = ficheCss.filter((rule) => /var\(--gold/.test(rule.body)).map((rule) => rule.selector);
-    expect(gold).toEqual(['.headGlyph']);
+    expect(gold).toEqual(['.headGlyph', '.studyChosen', '.studyKey .studyKeyChosen']);
     // l'identifiant en clair ; la clé interne ne sert qu'au geste « copier »
     expect(head.querySelector('h2')!.textContent).toBe('Séance · 14.10 · Apex-PA-50K');
     expect(drawer.textContent).not.toContain(S1.id);
