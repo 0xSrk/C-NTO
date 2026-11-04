@@ -194,6 +194,29 @@ describe('OROS5.27 la fiche Compte', () => {
     expect(drawer().textContent).not.toMatch(/canal d’ordres ouvert/i);
   });
 
+  it('OROS5.47b pont vivant qui ne rapporte pas ce compte : « absent du pont », jamais « hors ligne », dans les trois langues', () => {
+    // Sous Electron, le pont vivait sur Sim101 seul, et la fiche d'Apex-PA-50K disait « pont hors ligne ».
+    act(() => useBridge.setState({ nt: nt({ [SIM]: [] }) }));
+    mount();
+    open(APEX);
+    expect(drawer().textContent).toContain('absent du pont');
+    expect(drawer().textContent).not.toMatch(/pont hors ligne/i);
+    expect(section('bridge').textContent).toContain('Le pont ne rapporte pas ce compte : aucune position lue.');
+    act(() => useI18n.setState({ locale: 'en' }));
+    expect(drawer().textContent).toContain('not at the bridge');
+    expect(section('bridge').textContent).toContain('The bridge does not report this account: no position read.');
+    act(() => useI18n.setState({ locale: 'es' }));
+    expect(drawer().textContent).toContain('ausente del puente');
+    expect(section('bridge').textContent).toContain('El puente no informa de esta cuenta: ninguna posición leída.');
+    act(() => useI18n.setState({ locale: 'fr' }));
+    // Le compte au pont dit « pont vif » ; le pont absent, « pont hors ligne ».
+    act(() => useBridge.setState({ nt: nt({ [SIM]: [], [APEX]: [] }) }));
+    expect(drawer().textContent).toContain('pont vif');
+    act(() => useBridge.setState({ nt: null }));
+    expect(drawer().textContent).toContain('pont hors ligne');
+    expect(section('bridge').textContent).toContain('Pont hors ligne : aucune position lue.');
+  });
+
   it('sans instrument connu, le miroir ne prend plus « lecture » pour un refus : l’instrument vient de la proposition', () => {
     useJournal.setState({ sessions: [], trades: [] });
     mount();

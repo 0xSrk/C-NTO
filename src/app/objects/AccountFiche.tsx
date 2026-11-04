@@ -261,7 +261,12 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
             `${plural(own.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · ${plural(ownTrades.length, 'trade', 'trades')}`,
             `${tr('réussite', 'win rate', 'acierto')} ${ownTrades.length ? fmtPct(wins / ownTrades.length, 0) : '—'}`,
             `${tr('copieur', 'copier', 'copiador')} ${role ? (role.role === 'maitre' ? tr('maître', 'master', 'maestro') : tr('suiveur', 'follower', 'seguidor')) : '—'}`,
-            `${tr('pont', 'bridge', 'puente')} ${bridgeRow && live ? (stale ? tr('périmé', 'stale', 'caducado') : tr('vif', 'live', 'vivo')) : tr('hors ligne', 'offline', 'fuera de línea')}`,
+            // Pont vivant qui ne rapporte pas ce compte : « absent du pont », jamais « hors ligne » (OROS5.47b).
+            bridgeRow && live
+              ? `${tr('pont', 'bridge', 'puente')} ${stale ? tr('périmé', 'stale', 'caducado') : tr('vif', 'live', 'vivo')}`
+              : live
+                ? tr('absent du pont', 'not at the bridge', 'ausente del puente')
+                : `${tr('pont', 'bridge', 'puente')} ${tr('hors ligne', 'offline', 'fuera de línea')}`,
           ]}
         />
 
@@ -349,6 +354,8 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
             ) : (
               <p className={s.empty}>{tr('À plat au pont.', 'Flat at the bridge.', 'Sin posición en el puente.')}</p>
             )
+          ) : live ? (
+            <p className={s.empty}>{tr('Le pont ne rapporte pas ce compte : aucune position lue.', 'The bridge does not report this account: no position read.', 'El puente no informa de esta cuenta: ninguna posición leída.')}</p>
           ) : (
             <p className={s.empty}>{tr('Pont hors ligne : aucune position lue.', 'Bridge offline: no position read.', 'Puente fuera de línea: ninguna posición leída.')}</p>
           )}
