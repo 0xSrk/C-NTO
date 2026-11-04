@@ -50,10 +50,12 @@ function Drawer({ className }: { className?: string }) {
   const found = activeSeq === null ? -1 : rows.findIndex((ev) => ev.seq === activeSeq);
   const at = found >= 0 ? found : 0;
   const listRef = useRef<HTMLOListElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Ouvert, la liste prend le focus : ↑ ↓ y parcourent les lignes aussitôt.
+  // Ouvert, la liste prend le focus : ↑ ↓ y parcourent les lignes aussitôt. Vide, la liste n'est pas là : le bouton
+  // Fermer le prend, pour qu'Échap arrive au tiroir et non au châssis (qui fermerait la fiche ouverte).
   useEffect(() => {
-    if (!useObjects.getState().locked) listRef.current?.focus();
+    if (!useObjects.getState().locked) (listRef.current ?? closeRef.current)?.focus();
   }, []);
   // Le tiroir de la frise et le registre ne s'ouvrent pas ensemble : la frise dépliée replie le registre.
   useEffect(() => {
@@ -105,7 +107,7 @@ function Drawer({ className }: { className?: string }) {
             );
           })}
         </div>
-        <button type="button" className={r.close} onClick={() => closeRegistre()} aria-label={tr('Fermer le registre (Échap)', 'Close the log (Esc)', 'Cerrar el registro (Esc)')}>
+        <button ref={closeRef} type="button" className={r.close} onClick={() => closeRegistre()} aria-label={tr('Fermer le registre (Échap)', 'Close the log (Esc)', 'Cerrar el registro (Esc)')}>
           <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden>
             <path d="M1 1 9 9M9 1 1 9" />
           </svg>
