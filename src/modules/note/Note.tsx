@@ -84,7 +84,7 @@ export default function Note() {
         tab="note"
         actions={
           <>
-            <Button variant="gold" onClick={() => create()}>
+            <Button onClick={() => create()}>
               <IconPlus size={14} /> {tr('Nouvelle note', 'New note', 'Nueva nota')}
             </Button>
             {!graph && <Segmented value={mode} onChange={setMode} options={[{ value: 'editer', label: tr('Éditer', 'Edit', 'Editar') }, { value: 'scinde', label: tr('Scindé', 'Split', 'Dividido') }, { value: 'apercu', label: tr('Aperçu', 'Preview', 'Vista previa') }]} />}
@@ -149,7 +149,7 @@ export default function Note() {
                 title={tr('Aucune note ouverte', 'No note open', 'Ninguna nota abierta')}
                 text={tr('Sélectionnez une note dans le coffre ou créez-en une nouvelle (Ctrl+N).', 'Select a note from the vault or create a new one (Ctrl+N).', 'Seleccione una nota en la caja o cree una nueva (Ctrl+N).')}
                 action={
-                  <Button variant="gold" onClick={() => create()}>
+                  <Button onClick={() => create()}>
                     {tr('Nouvelle note', 'New note', 'Nueva nota')}
                   </Button>
                 }
@@ -250,7 +250,7 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
           <IconTrash size={13} />
         </Button>
         {selection && mode !== 'apercu' && (
-          <Button size="sm" variant="gold" onClick={() => onBranch(selection)}>
+          <Button size="sm" onClick={() => onBranch(selection)}>
             {tr('Brancher', 'Branch', 'Ramificar')}
           </Button>
         )}

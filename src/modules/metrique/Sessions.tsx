@@ -330,7 +330,7 @@ const SessionRow = memo(function SessionRow({
           ))}
         </div>
       </td>
-      <td className="gold">{x.rating ? '★'.repeat(x.rating) : ''}</td>
+      <td>{x.rating ? '★'.repeat(x.rating) : ''}</td>
       <td className="muted">{sourceLabel(x.source)}</td>
     </tr>
   );

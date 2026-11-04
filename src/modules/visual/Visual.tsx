@@ -213,7 +213,7 @@ export default function Visual() {
                   title={tr('Aucune série de barres', 'No bar series', 'Ninguna serie de barras')}
                   text={tr('Importez un export OHLCV NinjaTrader ou régénérez le jeu synthétique pour afficher le graphique.', 'Import a NinjaTrader OHLCV export or regenerate the synthetic set to display the chart.', 'Importe una exportación OHLCV de NinjaTrader o regenere el juego sintético para mostrar el gráfico.')}
                   action={
-                    <Button variant="gold" onClick={() => demoBars(5, { days: 12 }).then((bars) => saveDemoSeries(bars, 5))}>
+                    <Button onClick={() => demoBars(5, { days: 12 }).then((bars) => saveDemoSeries(bars, 5))}>
                       {tr('Générer la démo', 'Generate demo', 'Generar la demo')}
                     </Button>
                   }
@@ -258,7 +258,7 @@ export default function Visual() {
                     <Tag tone="ice">{tr('Import CSV', 'CSV import', 'Importación CSV')}</Tag>
                   )}
                 </div>
-                <Chart bars={chartBars ?? []} timeframe={active.timeframe} lines={lines} trades={sessionTrades} onHover={onHover} />
+                <Chart bars={chartBars ?? []} timeframe={active.timeframe} lines={lines} trades={sessionTrades} onHover={onHover} live={source !== 'demo'} />
               </>
             )}
           </div>

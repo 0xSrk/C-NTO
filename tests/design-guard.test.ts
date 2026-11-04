@@ -58,6 +58,155 @@ function token(css: string, name: string): string {
   return match[1];
 }
 
+/**
+ * OROS5.44 — l'or dit ce que tient l'opérateur (Système 5, décision 1 de l'ADMIN, 2026-11-01) : maintenant, l'objet
+ * ouvert, la décision qui l'attend avec sa barre de 45 s, et la LED ; le focus clavier garde l'anneau d'or que lui donne
+ * `tokens.css`, gelé (décision 4). Le cliquet nomme chaque usage de l'or hors de `tokens.css` : une règle CSS par son
+ * sélecteur (« fichier › sélecteur »), un fichier de code par son compte (« fichier ×n » : `var(--gold…)`, `'--gold'`, et
+ * les tons, variantes et classes `'gold'`). Chacun dit son sens ; « reste · » nomme ce qui ne le dit pas encore. La liste
+ * ne fait que décroître : un usage rendu à l'ivoire en sort, son plafond baisse avec lui, aucun ne s'y ajoute.
+ */
+const OR_SENS = ['maintenant', 'objet ouvert', 'décision', 'LED', 'focus', 'reste'] as const;
+const OR: Readonly<Record<string, string>> = {
+  'src/app/ErrorBoundary.tsx ×1': 'reste · Réessayer, au bouton d’or',
+  'src/app/Shell.tsx ×1': 'décision · Confirmer, dans le dialogue qui attend l’opérateur',
+  'src/app/boot.module.css › .seam i::after': 'LED · la LED de relais de la construction du démarrage',
+  'src/app/boot.module.css › .led': 'LED · la LED du démarrage',
+  'src/app/boot.module.css › .sous i': 'LED · le point du démarrage',
+  'src/app/boot.module.css › .barDone span::after': 'LED · la barre du démarrage achevée',
+  'src/app/frise.module.css › .dayHeld': 'maintenant · la journée que tient le curseur',
+  'src/app/frise.module.css › .now, .cursor': 'maintenant · la ligne de maintenant et le curseur de la frise',
+  'src/app/frise.module.css › .headHeld': 'maintenant · l’heure que tient le curseur',
+  'src/app/gate.module.css › .slash': 'reste · la barre oblique du titre du verrou',
+  'src/app/gate.module.css › .led': 'LED · la LED du verrou',
+  'src/app/gate.module.css › .inputRow:focus-within': 'focus · le champ de la phrase',
+  'src/app/objects/fiche.module.css › .headGlyph': 'objet ouvert · le glyphe de la fiche',
+  'src/app/objects/fiche.module.css › .studyChosen': 'objet ouvert · la journée du catalyseur ouvert',
+  'src/app/objects/fiche.module.css › .studyKey .studyKeyChosen': 'objet ouvert · sa légende',
+  'src/app/objects/proposal.module.css › .bar i': 'décision · la barre de 45 s',
+  'src/app/seatMark.module.css › .name': 'reste · le nom du siège, au halo de la LED de version',
+  'src/app/seatMark.module.css › .prompt, .input, .rest': 'reste · le geste de la marque du siège',
+  'src/app/seatMark.module.css › .input': 'focus · le curseur de saisie du siège',
+  'src/app/shell.module.css › .updateAvail .updateDot': 'LED · une mise à jour disponible',
+  'src/app/shell.module.css › .navItem.on:hover .navEmblem': 'objet ouvert · l’emblème de l’onglet ouvert, au passage du pointeur',
+  'src/app/shell.module.css › .navItem:focus-visible::before, .navItem.on:focus-visible::before': 'focus · le filet d’une cartouche',
+  'src/app/shell.module.css › .navItem.on .navEmblem': 'objet ouvert · l’emblème de l’onglet ouvert',
+  'src/app/shell.module.css › .lienBadge': 'reste · le badge LIEN d’une cartouche',
+  "src/app/shell.module.css › .gate[data-state='pending']": 'décision · la porte dont la décision attend l’opérateur',
+  'src/app/shell.module.css › .voyantOn': 'LED · le voyant du pont, exécutions en direct',
+  'src/app/shell.module.css › .voyantVeille': 'LED · le voyant du pont, en veille',
+  'src/app/shell.module.css › .answerAt': 'maintenant · l’instant que tient le curseur',
+  'src/app/shell.module.css › .versionDot': 'LED · une version pas encore lue',
+  'src/app/unlockCircuit.ts ×1': 'LED · la voie et le point d’or de l’ouverture (unlockCircuit.ts ne change pas, décision 7)',
+  'src/design/OptionsMenu.tsx ×1': 'reste · le ton or d’une option (type)',
+  'src/design/Wordmark.tsx ×6': 'LED · la LED du logotype',
+  'src/design/charts/Fan.tsx ×2': 'reste · la cible de la projection',
+  'src/design/instruments/instruments.module.css › .hour[data-cursor]': 'maintenant · l’heure du curseur dans M.003',
+  'src/design/instruments/instruments.module.css › .hour[data-cursor]:hover': 'maintenant · la même, au passage du pointeur',
+  'src/design/modal.module.css › .corner': 'reste · les coins d’une fenêtre',
+  'src/design/optionsMenu.module.css › .mark.gold': 'LED · l’état d’une option qui vit',
+  'src/design/optionsMenu.module.css › .item::before': 'focus · l’option active du menu',
+  'src/design/optionsMenu.module.css › .item.gold .glyph': 'LED · l’option dont l’état vit',
+  'src/design/optionsMenu.module.css › .item.gold .state': 'LED · sa lecture',
+  'src/design/primitives.module.css › .btn.gold': 'reste · le bouton d’or : Confirmer, et les actions qui le gardent encore',
+  'src/design/primitives.module.css › .btn.gold:hover:not(:disabled)': 'reste · le même, au passage du pointeur',
+  'src/design/primitives.module.css › .tag.gold': 'reste · l’étiquette d’or',
+  'src/design/primitives.module.css › .segmented button.on': 'objet ouvert · la puce choisie, au filet du pied',
+  'src/design/primitives.module.css › .progress.gold > span': 'reste · la progression d’or',
+  'src/design/primitives.module.css › .table tbody tr:global(.selected)': 'objet ouvert · la ligne choisie',
+  'src/design/primitives.module.css › .table tbody tr:global(.clickable):focus-visible': 'focus · une ligne du tableau',
+  'src/design/primitives.module.css › .led i': 'LED · la primitive Led',
+  'src/design/primitives.tsx ×4': 'reste · les tons et la variante or des primitives (types)',
+  'src/modules/agent/Agent.tsx ×3': 'reste · Envoyer et Ouvrir la passerelle (MCP, orchestrateur), au bouton d’or',
+  'src/modules/agent/CloudOptions.tsx ×2': 'LED · l’agent cloud en service',
+  'src/modules/agent/agent.module.css › .subtab::after': 'objet ouvert · le sous-onglet ouvert',
+  'src/modules/agent/agent.module.css › .subtabCount': 'LED · des rapports pas encore lus',
+  'src/modules/agent/agent.module.css › .msg.assistant .msgHead': 'reste · l’en-tête d’une réponse de l’agent',
+  'src/modules/agent/agent.module.css › .msg.assistant .bubble': 'reste · le filet d’une réponse de l’agent',
+  'src/modules/agent/agent.module.css › .cue': 'décision · un brief ou un débrief qui attend l’opérateur',
+  'src/modules/agent/agent.module.css › .deskTools:focus-visible': 'focus · l’interrupteur des outils du desk',
+  'src/modules/agent/reports.module.css › .fiche.on': 'objet ouvert · le rapport ouvert',
+  'src/modules/bot/bot.module.css › .botItem.on': 'objet ouvert · l’automate ouvert',
+  'src/modules/bot/bot.module.css › .stage.current': 'maintenant · l’étape en cours',
+  'src/modules/bot/bot.module.css › .stage.current b': 'maintenant · son numéro',
+  'src/modules/bot/bot.module.css › .phase i': 'reste · le numéro d’une phase',
+  'src/modules/calendrier/Calendrier.tsx ×1': 'maintenant · la synchronisation en cours',
+  'src/modules/calendrier/calendrier.module.css › .day.selected': 'objet ouvert · le jour ouvert',
+  'src/modules/calendrier/calendrier.module.css › .day.today .dayNum': 'maintenant · aujourd’hui',
+  'src/modules/calendrier/calendrier.module.css › .noteDot': 'reste · une note du jour',
+  'src/modules/calendrier/calendrier.module.css › .fluxDay.selected': 'objet ouvert · le jour ouvert, au flux',
+  'src/modules/calendrier/calendrier.module.css › .fluxDayHead.today b': 'maintenant · aujourd’hui, au flux',
+  'src/modules/calendrier/calendrier.module.css › .persoItem time': 'reste · l’heure d’un rappel',
+  'src/modules/calendrier/calendrier.module.css › .helpList li::marker': 'reste · la puce d’une aide',
+  'src/modules/calendrier/calendrier.module.css › .nowMark': 'maintenant · la marque de maintenant',
+  'src/modules/calendrier/calendrier.module.css › .nowGlyph': 'maintenant · son glyphe',
+  'src/modules/copieur/Copieur.tsx ×2': 'reste · les fills routés et l’étiquette du compte maître',
+  'src/modules/copieur/copieur.module.css › .acc.master': 'reste · le compte maître',
+  'src/modules/crypto/Crypto.tsx ×1': 'maintenant · le flux en direct',
+  'src/modules/metrique/Analyse.tsx ×1': 'reste · la diagonale de référence',
+  'src/modules/metrique/BridgeModal.tsx ×5': 'reste · les actions du pont et un avertissement',
+  'src/modules/metrique/EquityChart.tsx ×1': 'LED · le dernier pas de A.02',
+  'src/modules/metrique/ImportModal.tsx ×2': 'reste · Importer et sa progression',
+  'src/modules/metrique/MonteCarloView.tsx ×1': 'maintenant · le tirage en cours',
+  'src/modules/metrique/PropFirmView.tsx ×3': 'reste · l’objectif du plan',
+  'src/modules/metrique/Sessions.tsx ×1': 'reste · les étiquettes de la séance',
+  'src/modules/metrique/SettingsModal.tsx ×1': 'reste · Fermer, au bouton d’or',
+  'src/modules/metrique/dashboard.module.css › .eqPinned': 'maintenant · la séance que tient le curseur sur A.02',
+  'src/modules/metrique/dashboard.module.css › .eqKeyPixel': 'LED · le dernier pas, à la légende de A.02',
+  'src/modules/metrique/dashboard.module.css › .objOn td:first-child': 'objet ouvert · la ligne de l’objet ouvert',
+  'src/modules/metrique/dashboard.module.css › .objOn .objGlyph': 'objet ouvert · son glyphe',
+  'src/modules/metrique/dashboard.module.css › .subtab::after': 'objet ouvert · le sous-onglet ouvert',
+  "src/modules/metrique/metrique.module.css › .openFiche[aria-current='true']": 'objet ouvert · la séance dont la fiche est ouverte',
+  "src/modules/metrique/metrique.module.css › .openFiche[aria-current='true']:hover": 'objet ouvert · la même, au passage du pointeur',
+  'src/modules/metrique/metrique.module.css › .planItem.on': 'objet ouvert · le plan choisi',
+  'src/modules/metrique/metrique.module.css › .dropzone.over': 'reste · un fichier tenu au-dessus de la zone',
+  'src/modules/metrique/metrique.module.css › .checkCol input': 'reste · la case d’une ligne',
+  'src/modules/metrique/metrique.module.css › .insightRail': 'reste · le filet des constats',
+  'src/modules/metrique/metrique.module.css › .cascadeLabel em': 'reste · le mot appuyé de la cascade',
+  'src/modules/metrique/metrique.module.css › .cascadeNested': 'reste · le filet d’une règle imbriquée',
+  'src/modules/note/Graph.tsx ×1': 'reste · la note active et la stratégie du graphe',
+  'src/modules/note/Note.tsx ×1': 'reste · les étiquettes de la note',
+  'src/modules/note/note.module.css › .item.on': 'objet ouvert · la note ouverte',
+  'src/modules/note/note.module.css › .tagBtn.on': 'reste · l’étiquette choisie',
+  'src/modules/note/note.module.css › .titleInput:focus': 'focus · le titre de la note',
+  'src/modules/note/note.module.css › .preview h3': 'reste · un intertitre de l’aperçu',
+  'src/modules/note/note.module.css › .preview blockquote': 'reste · une citation de l’aperçu',
+  'src/modules/note/note.module.css › .preview :global(.ntag)': 'reste · une étiquette de l’aperçu',
+  "src/modules/note/note.module.css › .preview input[type='checkbox']": 'reste · une case de l’aperçu',
+  'src/modules/note/note.module.css › .graphEntities.on': 'reste · les entités du graphe allumées',
+  'src/modules/portefeuille/Portefeuille.tsx ×2': 'reste · une couleur de poche',
+  'src/modules/portefeuille/Projection.tsx ×1': 'maintenant · la projection en cours',
+  'src/modules/portefeuille/Synthese.tsx ×3': 'reste · une couleur de poche, le repère et le seuil de levier',
+  'src/modules/portefeuille/synthese.module.css › .alert i': 'LED · une alerte du portefeuille',
+  'src/modules/visual/Chart.tsx ×1': 'maintenant · le dernier prix vivant (celui d’une démo reste à l’acier)',
+  'src/modules/visual/Visual.tsx ×2': 'reste · Choisir un fichier et sa progression',
+  'src/modules/visual/visual.module.css › .catalogItem small': 'reste · le code d’un indicateur du catalogue',
+};
+
+/** Le plafond de chaque liste : il baisse avec elle et ne se relève jamais. */
+const OR_PLAFOND = { total: 113, reste: 45 };
+
+/** Les usages de l'or hors de tokens.css, tels que le cliquet les nomme. */
+function goldCarriers(): string[] {
+  const css = /var\(--gold\b/;
+  const code = /var\(--gold\b|['"`]--gold\b|(?<![\w-])['"]gold['"]/g;
+  const found: string[] = [];
+  for (const path of walk('src').filter((p) => /\.(css|tsx?|mjs)$/.test(p))) {
+    const rel = posix('.', path);
+    if (rel === 'src/design/tokens.css') continue;
+    const text = readFileSync(path, 'utf8');
+    if (rel.endsWith('.css')) {
+      for (const rule of cssRules(text)) if (css.test(rule.body)) found.push(`${rel} › ${rule.selector.replace(/\s+/g, ' ')}`);
+    } else {
+      // Les commentaires ne portent pas d'or.
+      const bare = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
+      const n = bare.match(code)?.length ?? 0;
+      if (n > 0) found.push(`${rel} ×${n}`);
+    }
+  }
+  return found;
+}
+
 describe('garde du système visuel', () => {
   it('n’appelle aucune police Google', () => {
     const roots = ['src', 'electron', 'index.html'].flatMap((entry) => (entry.endsWith('.html') ? [entry] : walk(entry)));
@@ -227,6 +376,67 @@ describe('garde du système visuel', () => {
     expect(users.filter((rel) => !allowed.has(rel))).toEqual([]);
     const writes = walk('src').filter((path) => /(?:^|[\s;{])color:\s*var\(--signal\)/m.test(readFileSync(path, 'utf8')));
     expect(writes.map((path) => posix('src', path))).toEqual([]);
+  });
+
+  it('OROS5.44 l’or dit ce que tient l’opérateur : chaque usage figure au cliquet, qui ne fait que décroître ; il quitte les étoiles d’Éval., les boutons de création, le modèle non testé, la démo, le curseur et les interrupteurs', () => {
+    const found = goldCarriers();
+    const listed = Object.keys(OR);
+    // Aucun usage hors du cliquet : un or nouveau dit l'un des sens, et le cliquet le nomme.
+    expect(found.filter((where) => !listed.includes(where))).toEqual([]);
+    // Le cliquet ne garde que des usages réels : un usage rendu à l'ivoire en sort.
+    expect(listed.filter((where) => !found.includes(where))).toEqual([]);
+    expect(listed).toHaveLength(OR_PLAFOND.total);
+    for (const [where, dit] of Object.entries(OR)) expect(OR_SENS.some((sens) => dit.startsWith(`${sens} · `)), `${where} : ${dit}`).toBe(true);
+    expect(Object.values(OR).filter((dit) => dit.startsWith('reste · '))).toHaveLength(OR_PLAFOND.reste);
+
+    // Les étoiles d'Éval. de B · Séances : ni la classe d'or dans la table, ni l'or sur l'étoile cochée.
+    expect(listed.some((where) => /Éval|\.stars/.test(where))).toBe(false);
+    const sessions = readFileSync('src/modules/metrique/Sessions.tsx', 'utf8');
+    expect(sessions).not.toMatch(/className="gold">\{x\.rating/);
+    const star = cssRules(readFileSync('src/modules/metrique/metrique.module.css', 'utf8')).find((rule) => rule.selector === '.stars button.on');
+    expect(star?.body).toMatch(/color: var\(--text-0\)/);
+    // Les boutons de création : Nouvel automate, Nouvelle note, Brancher, Ajouter (Copieur), Créer l'alerte, la séance
+    // manuelle et Générer la démo passent au bouton d'action ordinaire.
+    const creation: readonly (readonly [string, string])[] = [
+      ['src/modules/bot/Bot.tsx', 'Nouvel automate'],
+      ['src/modules/note/Note.tsx', 'Nouvelle note'],
+      ['src/modules/note/Note.tsx', 'Brancher'],
+      ['src/modules/copieur/Copieur.tsx', "tr('Ajouter'"],
+      ['src/modules/crypto/AlertModal.tsx', 'Créer l’alerte'],
+      ['src/modules/metrique/ManualSessionModal.tsx', "tr('Enregistrer'"],
+      ['src/modules/visual/Visual.tsx', 'Générer la démo'],
+    ];
+    for (const [path, label] of creation) {
+      const source = readFileSync(path, 'utf8');
+      let at = source.indexOf(label);
+      expect(at, `${path} : ${label}`).toBeGreaterThan(-1);
+      for (; at > -1; at = source.indexOf(label, at + 1)) {
+        const button = source.slice(source.lastIndexOf('<Button', at), at);
+        expect(button, `${path} : ${label}`).not.toMatch(/variant="gold"/);
+      }
+    }
+    // Le modèle non testé n'a pas de ton ; testé, la menthe ; en échec, la braise.
+    expect(readFileSync('src/modules/agent/Agent.tsx', 'utf8')).toMatch(/<Tag tone=\{probeState \? \(probeState\.ok \? 'mint' : 'ember'\) : undefined\} dot/);
+    // Le curseur de température : la règle locale l'emporte sur celle de tokens.css (spécificité 0,2,0 contre 0,1,1).
+    const agentCss = cssRules(readFileSync('src/modules/agent/agent.module.css', 'utf8'));
+    expect(agentCss.find((rule) => rule.selector === ".temperature[type='range']")?.body).toMatch(/accent-color: var\(--text-1\)/);
+    expect(readFileSync('src/modules/agent/Agent.tsx', 'utf8')).toMatch(/<input type="range" className=\{s\.temperature\}/);
+    expect(readFileSync('src/design/tokens.css', 'utf8')).toMatch(/input\[type='range'\] \{\s*accent-color: var\(--gold\);/);
+    // Les interrupteurs : allumés, à l'ivoire — celui des outils du desk, la primitive Toggle, la case du menu Options.
+    expect(agentCss.find((rule) => rule.selector === ".deskTools[aria-checked='true'] .toggleGlyph")?.body).toMatch(/--k: var\(--text-0\)/);
+    const primitives = cssRules(readFileSync('src/design/primitives.module.css', 'utf8'));
+    expect(primitives.find((rule) => rule.selector === '.toggle.on .toggleTrack::after')?.body).toMatch(/background: var\(--text-0\)/);
+    expect(cssRules(readFileSync('src/design/optionsMenu.module.css', 'utf8')).find((rule) => rule.selector === '.check.checked')?.body).toMatch(/background-color: var\(--text-0\)/);
+    expect(readFileSync('src/modules/portefeuille/Portefeuille.tsx', 'utf8')).not.toMatch(/tone: discrete \? 'gold'/);
+
+    // DESIGN.md écrit le sens retenu, au § 00 et au § 02.
+    const doc = readFileSync('docs/DESIGN.md', 'utf8').replace(/\r\n/g, '\n');
+    const doctrine = doc.slice(doc.indexOf('## 00.'), doc.indexOf('## 01.'));
+    expect(doctrine).toMatch(/\*\*L’or dit ce que tient l’opérateur ; seul ce qui franchit la borne est rouge\.\*\*/);
+    for (const sens of ['maintenant', 'l’objet ouvert', 'la décision qui l’attend avec sa barre de 45 s', 'la LED']) expect(doctrine, sens).toContain(sens);
+    expect(doctrine).not.toMatch(/Ce qui vit est or|or pour ce qui vit/);
+    const signals = doc.slice(doc.indexOf('## 02.'), doc.indexOf('## 03.'));
+    expect(signals).toMatch(/^\| LED · ce que tient l’opérateur \| `--gold` \|/m);
   });
 
   it('OROS5.21 la plaque vissée quitte A.01 et B.01 : ni vis, ni languette, ni dégradé, ni rayon, ni ombre ; le filet d’un pixel reste', () => {

@@ -365,4 +365,26 @@ describe('OROS3.5f › Chart › le dernier prix est or', () => {
     expect(candles.options.priceLineVisible).not.toBe(false);
     document.documentElement.style.removeProperty('--gold');
   });
+
+  it('OROS5.44 le dernier prix d’une démo n’est pas vivant : sa ligne reste, à l’acier, sans l’or ; revenir au vivant rend l’or', async () => {
+    document.documentElement.style.setProperty('--gold', '#ccb066');
+    document.documentElement.style.setProperty('--text-1', '#b9b4a9');
+    try {
+      await render({ live: false });
+      const { candles } = current();
+      expect(candles.options.priceLineColor).toBe('#b9b4a9');
+      expect(candles.options.priceLineVisible).not.toBe(false);
+      // Rien n'est renvoyé au démarrage : la couleur est posée à la création.
+      expect(candles.applied).toEqual([]);
+      await render({ live: true });
+      expect(current().candles.options.priceLineColor).toBe('#ccb066');
+      expect(current().candles.applied).toEqual([{ priceLineColor: '#ccb066' }]);
+      // Visual le dit pour une série de démonstration, et pour elle seule.
+      const { readFileSync } = await import('node:fs');
+      expect(readFileSync('src/modules/visual/Visual.tsx', 'utf8')).toMatch(/<Chart [^>]*live=\{source !== 'demo'\}/);
+    } finally {
+      document.documentElement.style.removeProperty('--gold');
+      document.documentElement.style.removeProperty('--text-1');
+    }
+  });
 });

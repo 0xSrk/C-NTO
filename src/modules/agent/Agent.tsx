@@ -267,7 +267,7 @@ export default function Agent() {
   const views = agentViews(lab);
   const current = views.find((v) => v.value === view) ?? views[0]!;
   const modelTag = (
-    <Tag tone={probeState?.ok ? 'mint' : 'gold'} dot live={streaming}>
+    <Tag tone={probeState ? (probeState.ok ? 'mint' : 'ember') : undefined} dot live={streaming}>
       {agent.provider === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'} · {agent.model}
     </Tag>
   );
@@ -538,10 +538,10 @@ export default function Agent() {
               </Field>
               <div className={s.row2}>
                 <Field label={`${tr('Température', 'Temperature', 'Temperatura')} · ${fmtNum(agent.temperature, 1)}`}>
-                  <input type="range" min={0} max={1} step={0.1} value={agent.temperature} onChange={(e) => updateAgent({ temperature: Number(e.target.value) })} />
+                  <input type="range" className={s.temperature} min={0} max={1} step={0.1} value={agent.temperature} onChange={(e) => updateAgent({ temperature: Number(e.target.value) })} />
                 </Field>
                 <Field label={tr('Outils du desk', 'Desk tools', 'Herramientas del desk')}>
-                  {/* Interrupteur au composant de la bascule : allumé, il passe à l'or ; le rôle et l'état restent ceux d'un switch. */}
+                  {/* Interrupteur au composant de la bascule : allumé, il passe à l'ivoire ; le rôle et l'état restent ceux d'un switch. */}
                   <button type="button" role="switch" aria-checked={agent.toolsEnabled} className={s.deskTools} onClick={() => updateAgent({ toolsEnabled: !agent.toolsEnabled })}>
                     <Glyph name="toggle" className={s.toggleGlyph} />
                     <span>{agent.toolsEnabled ? tr('activés', 'enabled', 'activadas') : tr('désactivés', 'disabled', 'desactivadas')}</span>

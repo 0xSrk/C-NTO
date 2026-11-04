@@ -222,7 +222,7 @@ export default function Copieur() {
                     <option value="maitre">{tr('Maître', 'Master', 'Maestro')}</option>
                     <option value="suiveur">{tr('Suiveur', 'Follower', 'Seguidor')}</option>
                   </select>
-                  <Button variant="gold" onClick={add}>
+                  <Button onClick={add}>
                     {tr('Ajouter', 'Add', 'Añadir')}
                   </Button>
                 </div>

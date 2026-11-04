@@ -398,7 +398,7 @@
   line-height: 1.5;
 }
 
-/* ─── Interrupteur ─── */
+/* ─── Interrupteur : allumé, il passe à l'ivoire ; l'état d'une option n'est pas l'or (OROS5.44, décision 1). ─── */
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -432,11 +432,11 @@
   transition: transform 160ms var(--ease-out), background 120ms linear, box-shadow 120ms linear;
 }
 .toggle.on .toggleTrack {
-  border-color: var(--gold-line);
+  border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
 }
 .toggle.on .toggleTrack::after {
   transform: translateX(16px);
-  background: var(--gold);
+  background: var(--text-0);
 }
 .toggle.on {
   color: var(--text-0);
@@ -453,7 +453,7 @@
     box-shadow: 0 0 14px -6px color-mix(in srgb, var(--ivory) 42%, transparent);
   }
   .toggle.on:hover:not(:disabled) .toggleTrack {
-    border-color: var(--gold);
+    border-color: var(--text-0);
   }
 }
 

@@ -199,8 +199,9 @@
   font-size: 13px;
   line-height: 1;
 }
+/* Une étoile cochée s'allume à l'ivoire : l'auto-évaluation n'est pas ce que tient l'opérateur (OROS5.44). */
 .stars button.on {
-  color: var(--gold);
+  color: var(--text-0);
 }
 .detailHead {
   display: flex;

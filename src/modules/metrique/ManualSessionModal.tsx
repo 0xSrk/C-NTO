@@ -41,7 +41,7 @@ export function ManualSessionModal({ onClose }: { onClose: () => void }) {
           <Button variant="ghost" onClick={onClose}>
             {tr('Annuler', 'Cancel', 'Cancelar')}
           </Button>
-          <Button variant="gold" onClick={submit}>
+          <Button onClick={submit}>
             {tr('Enregistrer', 'Save', 'Guardar')}
           </Button>
         </>

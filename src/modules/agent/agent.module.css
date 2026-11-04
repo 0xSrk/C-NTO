@@ -713,7 +713,14 @@ pre.proto {
   --p: var(--bg-0);
 }
 
-/* Interrupteur des outils du desk : le composant de la bascule, à l'or quand il est allumé. */
+/* Le curseur de température : un réglage, pas ce que tient l'opérateur ; il quitte l'or que tokens.css donne à tout
+   curseur (OROS5.44, décision 1 ; tokens.css ne change pas, la règle locale l'emporte par sa spécificité). */
+.temperature[type='range'] {
+  accent-color: var(--text-1);
+}
+
+/* Interrupteur des outils du desk : le composant de la bascule, à l'ivoire quand il est allumé (OROS5.44 : l'état d'une
+   option n'est pas l'or). */
 .deskTools {
   display: inline-flex;
   align-items: center;
@@ -743,7 +750,7 @@ pre.proto {
   color: var(--text-0);
 }
 .deskTools[aria-checked='true'] .toggleGlyph {
-  --k: var(--gold);
+  --k: var(--text-0);
 }
 
 /* Flèche de la planche au bout d'un bouton. */

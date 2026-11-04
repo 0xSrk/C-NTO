@@ -6,7 +6,7 @@ Révision du système, pas de la version de l’application. Le Système 4.0 fon
 
 Un desk est un instrument de bornes : perte du jour, plancher de drawdown, plafond de 1 à 1000, comptes `Sim*`, kill switch. En grec, ὅρος est la borne, et la racine d’ὁρίζων, l’horizon — « ce qui borne ». Le sceau du Lab trace déjà cette ligne ; le lanceur AUBE se lève sur elle. Le 4.0 en fait la grammaire du desk.
 
-- **Ce qui vit est or ; seul ce qui franchit la borne est rouge.** `--gold` est la LED : la dernière séance, le direct, la mise à jour, l’autorité. `--signal` est le niveau 3 et lui seul. Le rouge marque — triangle, filet, hachure — et n’écrit jamais : le texte d’un niveau 3 reste ivoire.
+- **L’or dit ce que tient l’opérateur ; seul ce qui franchit la borne est rouge.** `--gold` dit maintenant (le direct, aujourd’hui, l’instant que tient le curseur, l’étape en cours), l’objet ouvert (la fiche, l’onglet, la ligne ou le jour choisis), la décision qui l’attend avec sa barre de 45 s, et la LED (la dernière séance, la mise à jour, le voyant du pont) ; le focus clavier garde l’anneau d’or que lui donne `tokens.css` (Système 5, décision 1 de l’ADMIN, 2026-11-01). L’or quitte ce qui ne fait que se régler ou se créer : les étoiles d’Éval. de B · Séances, les boutons de création, le modèle non testé, le dernier prix d’une démo, le curseur de température et les interrupteurs — allumé, un interrupteur passe à l’ivoire (OROS5.44). Hors de `tokens.css`, chaque usage de l’or figure au cliquet de la garde de design, nommé par son sens ; ce qui ne dit pas encore ce sens y reste nommé, et la liste ne fait que décroître. `--signal` est le niveau 3 et lui seul. Le rouge marque — triangle, filet, hachure — et n’écrit jamais : le texte d’un niveau 3 reste ivoire.
 - **Le passage du pointeur est une lumière.** L’appui, le focus et la sélection se voient ; le survol aussi, depuis la 4.1 (décision de l’ADMIN, 2026-10-27) : la lumière monte sur le contour, tamisée et lente, sans rien déplacer. Chaque règle `:hover` vit sous `@media (hover: hover)` et ne change que `color`, `background-color`, `border-color`, `box-shadow`, `opacity`, `text-shadow` ou `--k` (garde de design). Restent à part la lecture d’un graphique sous le curseur et le geste de la marque du siège, décidés avant la 4.0.
 - **Une plaque n’est jamais décorative.** Elle affiche un état réel du système qu’elle accompagne.
 
@@ -15,7 +15,7 @@ Quatre axes, repris de la Ligne V2 :
 - **Forme → catégorie.** Triangle : un signal. Plaque : l’artefact. Fiche : un document. Disque : le siège.
 - **Code → identité.** `SK-ART-002-{version}`, en clair et en Code 128.
 - **Trait → état.** Plein : publié, en service. Tireté : prévu, proposé, en conception. Pointillé : au-delà de l’horizon. Éteint : fermé. La table d’états, ci-dessous, en fait la règle.
-- **Couleur → autorité.** Ivoire selon le fond, or pour ce qui vit, glacier pour la technique, rouge pour le niveau 3.
+- **Couleur → autorité.** Ivoire selon le fond, or pour ce que tient l’opérateur, glacier pour la technique, rouge pour le niveau 3.
 
 **Table d’états** (Système 5 « Fiche et Frise », décision de l’ADMIN, 2026-11-01) : une seule, `src/design/etat.module.css`, tenue par `tests/etat-table.test.ts`. Le trait dit l’état, et lui seul ; une classe par état, un état par classe.
 
@@ -64,7 +64,7 @@ Encre, encre douce et or d’encre se lisent à 4,5:1 au moins sur l’ivoire (g
 
 | Rôle | Jeton | Valeur |
 | --- | --- | --- |
-| LED · ce qui vit, l’autorité | `--gold` | `#CCB066` |
+| LED · ce que tient l’opérateur | `--gold` | `#CCB066` |
 | Signal · niveau 3, et lui seul | `--signal` | `#E10600` |
 | Gain | `--mint` | `#74C69D` |
 | Perte | `--ember` | `#E0735F` |

@@ -97,7 +97,7 @@ export default function Bot() {
             <Tag tone="amber" dot>
               {tr('CONCEPTION', 'DESIGN', 'CONCEPCIÓN')}
             </Tag>
-            <Button variant="gold" onClick={() => create()}>
+            <Button onClick={() => create()}>
               <IconPlus size={14} /> {tr('Nouvel automate', 'New automaton', 'Nuevo autómata')}
             </Button>
           </>
