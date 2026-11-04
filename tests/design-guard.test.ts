@@ -694,6 +694,13 @@ describe('garde du système visuel', () => {
       }
       for (const [, n] of numero.matchAll(/C\.(\d{3})/g)) expect(glyphIds.has(Number(n)), `${piece} : C.${n}`).toBe(true);
     }
+    // L'omnibar dit en toutes lettres le nombre de ses groupes, celui d'`OMNI_GROUPS` (OROS5.46a).
+    const groups = /export const OMNI_GROUPS = \[([^\]]*)\]/.exec(readFileSync('src/app/objects/index.ts', 'utf8'))![1]!.split(',').filter((g) => g.trim()).length;
+    const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze'];
+    const omnibar = rows.find(([piece]) => piece!.startsWith('Omnibar'));
+    expect(omnibar).toBeDefined();
+    expect(groups).toBeGreaterThanOrEqual(9);
+    expect(omnibar![2]).toContain(`en ${WORDS[groups]} groupes`);
     // Chaque pièce M. que le desk pose a sa ligne.
     const posed = new Set<string>();
     for (const path of walk('src')) {

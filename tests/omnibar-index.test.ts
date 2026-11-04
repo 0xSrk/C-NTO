@@ -20,8 +20,8 @@ import type { Session, Trade } from '@/engine/types';
 import { useI18n } from '@/i18n';
 
 /**
- * OROS5.15 — l'index de Ctrl+J (`src/app/objects/index.ts`) : huit groupes, trades et stratégies compris (correction du
- * juge Palantir, GROUPS) ; une liste de commandes fermée, qui ne fait que naviguer ; un tri par proximité de date ; des
+ * OROS5.15 — l'index de Ctrl+J (`src/app/objects/index.ts`) : neuf groupes depuis OROS5.39 (les propositions), trades et
+ * stratégies compris (correction du juge Palantir, GROUPS) ; une liste de commandes fermée, qui ne fait que naviguer ; un tri par proximité de date ; des
  * catalyseurs bornés à la fenêtre de la fiche.
  */
 
