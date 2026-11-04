@@ -38,8 +38,9 @@
   border-style: dashed;
   border-color: var(--line-2);
 }
-.plate.dotted {
-  border-style: dotted;
+/* En pause, en défaut, archivé : le filet graphite de la table d'états, sans motif (décision 3, OROS5.45b). */
+.plate.off {
+  border-style: solid;
   border-color: var(--line-2);
 }
 .plateHead {

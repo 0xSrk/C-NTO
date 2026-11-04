@@ -65,16 +65,13 @@ const PORTEURS: Readonly<Record<string, string>> = {
   'src/design/wordmark.module.css › .pointe': 'tracé · la pointe lumineuse de la construction',
   'src/engine/crypto/indicators.ts ×7': 'tracé · bandes σ et niveaux de la veille (crypto)',
   'src/engine/indicators.ts ×9': 'tracé · bandes σ et niveaux de la veille',
-  'src/modules/agent/CloudReports.tsx ×4': 'état · trait d’un rapport : en pause, en construction, en panne, archivé',
-  'src/modules/agent/reports.module.css › .plate.dashed': 'état · rapport en pause ou en construction',
-  'src/modules/agent/reports.module.css › .plate.dotted': 'état · rapport en panne ou archivé',
+  'src/modules/agent/CloudReports.tsx ×1': 'état · trait d’un rapport en construction',
+  'src/modules/agent/reports.module.css › .plate.dashed': 'état · rapport en construction',
   'src/modules/agent/reports.module.css › .fiche.planned': 'état · rapport prévu',
-  'src/modules/bot/bot.module.css › .stage.locked': 'état · étape verrouillée',
   'src/modules/bot/bot.module.css › .template': 'état · modèle proposé, pas encore en service',
   "src/modules/calendrier/calendrier.module.css › .ev[data-stroke='prevu'], .fluxEv[data-stroke='prevu'], .evCard[data-stroke='prevu']": 'état · publication prévue dans la fenêtre',
   "src/modules/calendrier/calendrier.module.css › .ev[data-stroke='horizon'], .fluxEv[data-stroke='horizon'], .evCard[data-stroke='horizon']": 'état · publication au-delà de l’horizon',
   'src/modules/crypto/crypto.module.css › .alertRow .planTag': 'état · alerte armée, prévue',
-  'src/modules/crypto/crypto.module.css › .alertRow .pauseTag': 'état · alerte en pause',
   'src/modules/metrique/Analyse.tsx ×1': 'tracé · diagonale de référence',
   'src/modules/metrique/EquityChart.tsx ×3': 'tracé · grille et réticule de la courbe A.02',
   'src/modules/metrique/PropFirmView.tsx ×2': 'tracé · plancher et objectif sur la courbe du plan',
@@ -86,7 +83,7 @@ const PORTEURS: Readonly<Record<string, string>> = {
 };
 
 /** Le plafond de chaque liste : il baisse avec elle et ne se relève jamais. */
-const PLAFOND = { decor: 0, porteurs: 25 };
+const PLAFOND = { decor: 0, porteurs: 22 };
 
 /** tokens.css tel que la décision 4 le fige (fins de ligne ramenées à LF). */
 const TOKENS_SHA256 = '6f1d2accfe2f3dd99f5ca6be447396dcb9bc5494548fe51cf3449089c9e31a81';
@@ -271,5 +268,26 @@ describe('OROS5.1 la table d’états du desk', () => {
       act(() => root.unmount());
       host.remove();
     }
+  });
+});
+
+describe('OROS5.45b la pause, la panne et le fermé au filet graphite', () => {
+  it('un rapport en pause, en défaut ou archivé, une alerte en pause et une étape verrouillée : le filet --line-2, sans motif (décision 3)', () => {
+    const rule = (path: string, selector: string) => cssRules(readFileSync(path, 'utf8')).find((r) => r.selector.replace(/\s+/g, ' ') === selector)?.body ?? '';
+    for (const [path, selector] of [
+      ['src/modules/agent/reports.module.css', '.plate.off'],
+      ['src/modules/crypto/crypto.module.css', '.alertRow .pauseTag'],
+      ['src/modules/bot/bot.module.css', '.stage.locked'],
+    ] as const) {
+      const body = rule(path, selector);
+      expect(body, `${path} › ${selector}`).toMatch(/border-color: var\(--line-2\)/);
+      expect(new RegExp(DASH.source).test(body), `${path} › ${selector}`).toBe(false);
+    }
+    const reports = readFileSync('src/modules/agent/CloudReports.tsx', 'utf8');
+    expect(reports).toMatch(/paused: r\.off/);
+    expect(reports).toMatch(/fault: r\.off/);
+    expect(reports).toMatch(/archived: r\.off/);
+    // le prévu garde son tireté : un dossier en construction
+    expect(reports).toMatch(/construction: r\.dashed/);
   });
 });

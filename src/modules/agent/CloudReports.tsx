@@ -13,7 +13,8 @@ import r from './reports.module.css';
 
 /**
  * Dossier des rapports de l'agent cloud (Système 4.0) : à gauche la plaque de l'agent et les fiches, à droite le lecteur.
- * Le trait dit l'état — plein : en service ; tireté : prévu, en construction, en pause ; pointillé : hors d'atteinte. La LED
+ * Le trait dit l'état (la table d'états, décision 3) — plein : en service ; tireté : en construction ; filet graphite sans
+ * motif : en pause, en défaut, archivé. La LED
  * or marque ce qui vit (une fiche non lue, un agent en service). Chaque fiche porte son code en clair, sans code-barres.
  */
 
@@ -27,7 +28,7 @@ export function cloudState(status: AgentCloudStatus | null): CloudState {
   return status.deployment.state === 'paused' ? 'paused' : 'service';
 }
 
-const TRAIT: Record<CloudState, string | undefined> = { service: r.solid, paused: r.dashed, construction: r.dashed, fault: r.dotted, archived: r.dotted };
+const TRAIT: Record<CloudState, string | undefined> = { service: r.solid, paused: r.off, construction: r.dashed, fault: r.off, archived: r.off };
 
 function stateLabel(state: CloudState): string {
   switch (state) {
