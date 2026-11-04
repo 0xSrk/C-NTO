@@ -43,7 +43,7 @@ L'agent écrit un seul fichier, `/mnt/session/outputs/rapport.json`, en JSON UTF
 | `title` | texte sur une ligne | 160 signes |
 | `summary` | texte, sauts de ligne gardés | 1 200 signes |
 | `sections` | `[{ heading, body }]`, `body` en Markdown | 1 à 24 ; titre 160, corps 24 000 |
-| `sources` | `[{ title, url }]`, https seulement | 40 ; une source sans https est écartée |
+| `sources` | `[{ title, url }]`, https seulement | 40 ; une source sans https est écartée, et une source hors des domaines que l'agent peut lire aussi (domaines officiels et quantmemo.com pour le rapport quotidien, quantmemo.com seul pour la formation), ce qu'une section « Sources écartées par le desk » dit (CLD55) |
 | `generatedAt` | instant ISO 8601 | facultatif |
 
 Le refus porte sur tout le rapport : forme, `format`, date, titre vide, aucune section, section sans titre ou sans corps. Les caractères de contrôle et les marques bidirectionnelles tombent ; une URL porteuse d'identifiants est écartée. Le process principal refuse aussi une journée à plus de sept jours de la création de la session (`isDateNear`) : le dossier se trie sur cette date. Le lecteur rend le Markdown par `renderMarkdown` (DOMPurify : ni script, ni style, ni formulaire). Les images restent masquées, et la CSP du desk les bloquerait de toute façon. Chaque lien du corps affiche à côté l'hôte où il mène : son texte vient du modèle. Un lien https s'ouvre dans le navigateur du système, au clic comme au clic du milieu, par `setWindowOpenHandler` ; un lien hors https perd son adresse.

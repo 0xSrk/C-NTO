@@ -609,6 +609,62 @@ describe('agent cloud · hôte du process principal', () => {
     expect((await o.host.train()).error).toBe('HTTP 404 · not_found_error');
   });
 
+  it('CLD55 une source hors des domaines que l’agent peut lire n’est jamais rangée en lien ; l’écart est dit dans le rapport', async () => {
+    const withSources = (sources: { title: string; url: string }[], title = 'Brief pré-séance') =>
+      JSON.stringify({ format: 'canto.rapport/1', date: '2026-10-27', title, summary: 'Résumé.', sections: [{ heading: 'Calendrier', body: '- 14:30 CPI' }], sources, generatedAt: '2026-10-27T06:10:00Z' });
+    const daily = [
+      { title: 'BLS', url: 'https://www.bls.gov/schedule/news_release/cpi.htm' },
+      { title: 'Fed', url: 'https://federalreserve.gov/calendar.htm' },
+      { title: 'Savoir CΛNTO — d’après quantmemo.com : Volatilité implicite', url: 'https://quantmemo.com/learn/volatility' },
+      { title: 'Savoir CΛNTO — d’après quantmemo.com : Connexion', url: 'https://quantmemo-login.example/auth' },
+      { title: 'Suffixe trompeur', url: 'https://evilbls.gov/x' },
+      { title: 'Domaine en préfixe', url: 'https://bls.gov.evil.example/x' },
+    ];
+    const api = fakeApi({
+      listSessions: async () => [session(1)],
+      listOutputFiles: async () => [{ id: fid(1), filename: 'rapport.json', sizeBytes: 900, createdAt: NOW }],
+      downloadText: async () => withSources(daily),
+    });
+    const h = await configured(api);
+    await h.host.pull();
+    const stored = h.host.read(sid(1));
+    expect(stored?.sources.map((s) => s.url)).toEqual(['https://www.bls.gov/schedule/news_release/cpi.htm', 'https://federalreserve.gov/calendar.htm', 'https://quantmemo.com/learn/volatility']);
+    expect(stored?.sections.at(-1)).toEqual({
+      heading: 'Sources écartées par le desk',
+      body: 'Hors des domaines que l’agent peut lire, elles ne sont pas affichées en lien : `quantmemo-login.example`, `evilbls.gov`, `bls.gov.evil.example`.',
+    });
+    expect(h.logs).toContain('agent cloud · 3 source(s) hors des domaines autorisés écartée(s)');
+    // Sans écart, le rapport est rangé tel quel.
+    const clean = fakeApi({ listSessions: async () => [session(2)], listOutputFiles: async () => [{ id: fid(2), filename: 'rapport.json', sizeBytes: 900, createdAt: NOW }], downloadText: async () => withSources(daily.slice(0, 3)) });
+    const c = await configured(clean);
+    await c.host.pull();
+    expect(c.host.read(sid(2))?.sections).toHaveLength(1);
+
+    // Le rapport de formation : quantmemo.com seul, sous-domaines compris (l'agent ne lit que lui).
+    const formation = { sessionId: sid(40), startedAt: NOW - 3_600_000, settled: false, history: [{ id: sid(40), startedAt: NOW - 3_600_000, costCents: null }] };
+    const probe = harness();
+    writeFileSync(path.join(probe.dir, AGENT_CLOUD_FILE), JSON.stringify({ v: 1, key: seal().encrypt(KEY), memoryStoreId: MEMSTORE, formation }));
+    const trainApi = fakeApi({
+      getSession: async () => session(40, { status: 'idle', deploymentId: null, updatedAt: NOW - 120_000 }),
+      listOutputFiles: async () => [{ id: fid(40), filename: 'rapport.json', sizeBytes: 900, createdAt: NOW }],
+      downloadText: async () =>
+        withSources(
+          [
+            { title: 'robots.txt', url: 'https://quantmemo.com/robots.txt' },
+            { title: 'Cours', url: 'https://learn.quantmemo.com/greeks' },
+            { title: 'BLS', url: 'https://www.bls.gov/cpi/' },
+          ],
+          'Formation quant · session du 2026-10-27',
+        ),
+    });
+    const t = harness({ api: trainApi, dir: probe.dir });
+    await t.host.pull();
+    const filed = t.host.read(sid(40));
+    expect(filed).toMatchObject({ kind: 'formation' });
+    expect(filed?.sources.map((s) => s.url)).toEqual(['https://quantmemo.com/robots.txt', 'https://learn.quantmemo.com/greeks']);
+    expect(filed?.sections.at(-1)?.body).toContain('`www.bls.gov`');
+  });
+
   it('CLD53 un accès interdit ne se perd pas pour un champ annexe de l’état court ; « prochain » nul et l’heure sans fuseau sont lus', async () => {
     const SCHEMA = 'canto.formation-etat/1';
     const text = (o: Record<string, unknown>) => JSON.stringify({ schema: SCHEMA, ...o });

@@ -1,9 +1,9 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportSummary } from './agent/cloudReport';
+import { coerceStoredReport, isApiId, isDateNear, parseReport, REPORT_BOUNDS, REPORT_FILE, REPORT_MAX_BYTES, reportSummary, sortReports, type CloudReport, type CloudReportBody, type CloudReportSummary } from './agent/cloudReport';
 import { CloudApiError, createCloudApi, isWorkspaceId, type CloudApi, type DeploymentView, type FetchLike, type MemoryStoreView, type SessionView } from './agent-cloud-api';
 import { BUDGET_CENTS_PER_RUN, cloudAgentBody, cloudDeploymentBody, cloudEnvironmentBody, cloudMemoryStoreBody, DEPLOYMENT_NAME, MEMORY_STORE_NAME, OFFICIAL_DOMAINS } from './agent-cloud-definition';
-import { coordinatorAgentBody, FORMATION_BUDGET_CENTS, FORMATION_STATE_PATH, formationEnvironmentBody, formationSessionBody, parseFormationState, readerAgentBody, type FormationState } from './agent-cloud-formation';
+import { coordinatorAgentBody, FORMATION_BUDGET_CENTS, FORMATION_DOMAINS, FORMATION_STATE_PATH, formationEnvironmentBody, formationSessionBody, parseFormationState, readerAgentBody, type FormationState } from './agent-cloud-formation';
 import { uiText, type AppLocale } from './locale';
 
 /**
@@ -262,6 +262,25 @@ interface CloudConfig {
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Les domaines d'où une source peut venir (CLD55) : ceux que l'agent peut lire. L'analyste quotidien lit les domaines
+ * officiels et cite le savoir d'après quantmemo.com (CLD47) ; la formation ne lit que quantmemo.com. Sous-domaines compris.
+ */
+export const DAILY_SOURCE_DOMAINS: readonly string[] = [...OFFICIAL_DOMAINS, ...FORMATION_DOMAINS];
+export const FORMATION_SOURCE_DOMAINS: readonly string[] = [...FORMATION_DOMAINS];
+/** Hôtes écartés cités au plus dans la section que le desk ajoute. */
+const DROPPED_HOSTS_SHOWN = 10;
+
+/** L'hôte de `url` est l'un des domaines, ou l'un de leurs sous-domaines (`www.bls.gov` pour `bls.gov`, jamais `evilbls.gov`). */
+export function onDomains(url: string, domains: readonly string[]): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return domains.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
 
 /** Cinq champs cron POSIX, chiffres et `* , / -` seulement (le serveur valide le reste). */
 export function isCron(v: unknown): v is string {
@@ -1707,7 +1726,7 @@ export class AgentCloudHost {
         continue;
       }
       downloads += 1;
-      const fetched = await this.fetchReport(session);
+      const fetched = await this.fetchReport(session, DAILY_SOURCE_DOMAINS);
       if (!fetched.ok) {
         if (fetched.kind === 'missing') {
           const cost = session.costCents !== null ? this.money(session.costCents) : null;
@@ -1734,7 +1753,7 @@ export class AgentCloudHost {
    * Le `rapport.json` d'une session au repos, lu au contrat : absent, trop lourd, hors contrat, ou la fiche à ranger. Une panne
    * passagère (clé refusée, quota, serveur, réseau) remonte : le relevé échoue et la session sera reprise.
    */
-  private async fetchReport(session: SessionView): Promise<{ ok: true; report: CloudReport } | { ok: false; kind: 'missing' | 'too_large' | 'invalid'; detail: string }> {
+  private async fetchReport(session: SessionView, domains: readonly string[]): Promise<{ ok: true; report: CloudReport } | { ok: false; kind: 'missing' | 'too_large' | 'invalid'; detail: string }> {
     const files = await this.api.listOutputFiles(session.id);
     const file = files.find((f) => f.filename === REPORT_FILE);
     if (!file) return { ok: false, kind: 'missing', detail: '' };
@@ -1758,11 +1777,34 @@ export class AgentCloudHost {
       report: {
         v: 1,
         id: session.id,
-        ...parsed.report,
+        ...this.sourcesOn(parsed.report, domains),
         receivedAt: this.now(),
         session: { id: session.id, createdAt: session.createdAt, costCents: session.costCents, agentVersion: session.agentVersion },
       },
     };
+  }
+
+  /**
+   * Une source que l'agent n'a pas pu lire (son réseau et ses outils web n'ouvrent que `domains`) vient d'un texte injecté ou
+   * d'une erreur : elle n'est jamais rangée, donc jamais affichée en lien (CLD55). Le rapport le dit dans une section du desk,
+   * hôtes entre accents graves (jamais un lien), s'il reste une place ; le journal le dit toujours.
+   */
+  private sourcesOn(report: CloudReportBody, domains: readonly string[]): CloudReportBody {
+    const kept = report.sources.filter((s) => onDomains(s.url, domains));
+    const dropped = report.sources.length - kept.length;
+    if (dropped === 0) return report;
+    this.deps.log(`agent cloud · ${dropped} source(s) hors des domaines autorisés écartée(s)`);
+    const hosts = [...new Set(report.sources.filter((s) => !onDomains(s.url, domains)).map((s) => new URL(s.url).hostname.toLowerCase()))].slice(0, DROPPED_HOSTS_SHOWN);
+    const list = hosts.map((h) => `\`${h}\``).join(', ');
+    const note = {
+      heading: this.t('Sources écartées par le desk', 'Sources set aside by the desk', 'Fuentes descartadas por el desk'),
+      body: this.t(
+        `Hors des domaines que l’agent peut lire, elles ne sont pas affichées en lien : ${list}.`,
+        `Outside the domains the agent can read, they are not shown as links: ${list}.`,
+        `Fuera de los dominios que el agente puede leer, no se muestran como enlace: ${list}.`,
+      ),
+    };
+    return { ...report, sources: kept, sections: report.sections.length < REPORT_BOUNDS.sections ? [...report.sections, note] : report.sections };
   }
 
   /**
@@ -1805,7 +1847,7 @@ export class AgentCloudHost {
         this.trainingView.settling = true;
         return 0;
       }
-      const fetched = await this.fetchReport(session);
+      const fetched = await this.fetchReport(session, FORMATION_SOURCE_DOMAINS);
       if (stale()) return 0;
       if (fetched.ok) {
         this.store({ ...fetched.report, kind: 'formation' });
