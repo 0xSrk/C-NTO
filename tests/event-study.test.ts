@@ -123,7 +123,7 @@ describe('OROS5.37 l’étude d’événement à côté du miroir', () => {
     expect(tableRow(node, 'without').querySelector('[data-n]')!.textContent).toBe(String(cmp.without.n));
   });
 
-  it('n exact : séances alignées sur publications passées, et le n de chaque ligne', async () => {
+  it('n exact : journées alignées sur publications passées, et le n de chaque ligne', async () => {
     const cmp = compareEvent(EVENTS, 'cpi', SESSIONS, TRADES, NOW);
     expect([cmp.series.length, cmp.occurrences.length, cmp.with.n, cmp.without.n]).toEqual([4, 5, 4, 12]);
     const node = await study();
@@ -164,11 +164,37 @@ describe('OROS5.37 l’étude d’événement à côté du miroir', () => {
   it('role="img" dit la lecture, en trois langues', async () => {
     const node = await study();
     const label = node.querySelector('svg[role="img"]')!.getAttribute('aria-label') ?? '';
-    expect(label).toMatch(/^Inflation CPI : 4 séances alignées sur la publication, de t0 − 30 à t0 \+ 90 min ; moyenne [−+]?[\d\s,]+\s\$ à t0 \+ 90 min$/u);
+    expect(label).toMatch(/^Inflation CPI : 4 journées alignées sur la publication, de t0 − 30 à t0 \+ 90 min ; moyenne [−+]?[\d\s,]+\s\$ à t0 \+ 90 min$/u);
     await act(async () => useI18n.setState({ locale: 'en' }));
-    expect(node.querySelector('svg[role="img"]')!.getAttribute('aria-label')).toMatch(/^CPI inflation: 4 sessions aligned on the release, from t0 − 30 to t0 \+ 90 min; mean /);
+    expect(node.querySelector('svg[role="img"]')!.getAttribute('aria-label')).toMatch(/^CPI inflation: 4 days aligned on the release, from t0 − 30 to t0 \+ 90 min; mean /);
     await act(async () => useI18n.setState({ locale: 'es' }));
-    expect(node.querySelector('svg[role="img"]')!.getAttribute('aria-label')).toMatch(/: 4 sesiones alineadas en la publicación, de t0 − 30 a t0 \+ 90 min; media /);
+    expect(node.querySelector('svg[role="img"]')!.getAttribute('aria-label')).toMatch(/: 4 jornadas alineadas en la publicación, de t0 − 30 a t0 \+ 90 min; media /);
+  });
+
+  it('OROS5.37a l’en-tête compte des journées, la table des séances : chacun nomme son unité, même à plusieurs comptes par jour', async () => {
+    // Le Copieur sur trois comptes Sim : chaque publication tombée un jour de séance en porte trois.
+    const accounts = ['Sim101', 'Sim102', 'Sim103'];
+    const sessions = SESSIONS.flatMap((s) => accounts.map((account) => ({ ...s, id: `${s.id}-${account}`, account })));
+    const trades = TRADES.flatMap((t) => accounts.map((account) => ({ ...t, id: `${t.id}-${account}`, sessionId: `${t.sessionId}-${account}`, account })));
+    const cmp = compareEvent(EVENTS, 'cpi', sessions, trades, NOW);
+    expect([cmp.series.length, cmp.occurrences.length, cmp.with.n]).toEqual([4, 5, 12]);
+    const node = await study('2026-10-14', sessions, trades);
+    const head = node.querySelector<HTMLElement>('[data-study-n]')!;
+    expect(head.textContent).toBe('n = 4 / 5');
+    expect(head.getAttribute('title')).toBe('Journées alignées sur la publication, les comptes du jour ensemble / publications passées de la famille');
+    expect(node.querySelector('svg[role="img"]')!.getAttribute('aria-label')).toMatch(/^Inflation CPI : 4 journées alignées sur la publication/);
+    expect(node.querySelector('[data-study-key="series"]')!.textContent?.trim()).toBe('journées');
+    // La table compte les séances, une par compte et par jour, et le dit.
+    expect(tableRow(node, 'with').querySelector('[data-n]')!.textContent).toBe('12');
+    expect(node.querySelector('th[data-study-unit]')!.getAttribute('title')).toBe('Séances : une par compte et par jour');
+    // Plus aucun « séances » pour le nombre de l'en-tête.
+    expect(`${head.getAttribute('title')} ${node.querySelector('svg[role="img"]')!.getAttribute('aria-label')}`).not.toMatch(/séances/);
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect(head.getAttribute('title')).toBe('Days aligned on the release, the day’s accounts together / past releases of the family');
+    expect(node.querySelector('th[data-study-unit]')!.getAttribute('title')).toBe('Sessions: one per account and day');
+    await act(async () => useI18n.setState({ locale: 'es' }));
+    expect(head.getAttribute('title')).toBe('Jornadas alineadas en la publicación, las cuentas del día juntas / publicaciones pasadas de la familia');
+    expect(node.querySelector('th[data-study-unit]')!.getAttribute('title')).toBe('Sesiones: una por cuenta y día');
   });
 
   it('dans la fiche Catalyseur, la seconde lecture d’« Autour de… », après le miroir, dans le périmètre des puces', async () => {

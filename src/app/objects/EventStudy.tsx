@@ -15,10 +15,12 @@ import s from './fiche.module.css';
  * L'étude d'événement (OROS5.37, Système 5 « Fiche et Frise » ; reprise du prototype C · Frise, d3) : la seconde lecture
  * d'« Autour de… » dans la fiche d'un catalyseur, à côté du miroir M.036. Chaque publication passée de la famille tombée
  * un jour de séance du périmètre (les puces de la sélection partagée) s'aligne sur t0, de t0 − 30 à t0 + 90 min, rebasée à
- * zéro sur la publication (`compareEvent`, le modèle pur de la frise, OROS5.12) : les séances au trait fin, la bande
+ * zéro sur la publication (`compareEvent`, le modèle pur de la frise, OROS5.12) : les journées au trait fin (une par
+ * publication, les comptes du jour ensemble ; OROS5.37a), la bande
  * min–max au glacier, la moyenne en escalier à l'ivoire, la journée du catalyseur ouvert à l'or (décision 1). La table
  * avec / sans lit la même fenêtre — le P&L des sorties de t0 − 30 à t0 + 90, les jours sans à la même heure de New York —,
- * avec son n ; sous `SAMPLE_FAIBLE`, une ligne se lit en veille et dit son échantillon. Lecture seule.
+ * avec son n, en séances (une par compte et par jour) ; sous `SAMPLE_FAIBLE`, une ligne se lit en veille et dit son
+ * échantillon. Lecture seule.
  */
 
 /** Le tracé, en unités de son `viewBox` : la fiche fait 400 px (mesure locale, décision 4). */
@@ -86,9 +88,9 @@ export function EventStudy({ events, family, sessions, trades, now, chosen }: { 
   const meanEnd = cmp.mean.length ? cmp.mean[cmp.mean.length - 1]![1] : null;
   const weakMean = cmp.with.weak;
   const label = tr(
-    `${title} : ${cmp.series.length} séances alignées sur la publication, de t0 − ${COMPARE_BEFORE_MIN} à t0 + ${COMPARE_AFTER_MIN} min ; moyenne ${meanEnd === null ? '—' : signed(meanEnd)} à t0 + ${COMPARE_AFTER_MIN} min`,
-    `${title}: ${cmp.series.length} sessions aligned on the release, from t0 − ${COMPARE_BEFORE_MIN} to t0 + ${COMPARE_AFTER_MIN} min; mean ${meanEnd === null ? '—' : signed(meanEnd)} at t0 + ${COMPARE_AFTER_MIN} min`,
-    `${title}: ${cmp.series.length} sesiones alineadas en la publicación, de t0 − ${COMPARE_BEFORE_MIN} a t0 + ${COMPARE_AFTER_MIN} min; media ${meanEnd === null ? '—' : signed(meanEnd)} a t0 + ${COMPARE_AFTER_MIN} min`,
+    `${title} : ${cmp.series.length} journées alignées sur la publication, de t0 − ${COMPARE_BEFORE_MIN} à t0 + ${COMPARE_AFTER_MIN} min ; moyenne ${meanEnd === null ? '—' : signed(meanEnd)} à t0 + ${COMPARE_AFTER_MIN} min`,
+    `${title}: ${cmp.series.length} days aligned on the release, from t0 − ${COMPARE_BEFORE_MIN} to t0 + ${COMPARE_AFTER_MIN} min; mean ${meanEnd === null ? '—' : signed(meanEnd)} at t0 + ${COMPARE_AFTER_MIN} min`,
+    `${title}: ${cmp.series.length} jornadas alineadas en la publicación, de t0 − ${COMPARE_BEFORE_MIN} a t0 + ${COMPARE_AFTER_MIN} min; media ${meanEnd === null ? '—' : signed(meanEnd)} a t0 + ${COMPARE_AFTER_MIN} min`,
   );
   const row = (key: 'with' | 'without', name: string, stats: CompareStats) => (
     <tr key={key} className={cx(stats.weak && s.studyWeak)} data-study-row={key} data-weak={stats.weak ? '' : undefined}>
@@ -105,7 +107,7 @@ export function EventStudy({ events, family, sessions, trades, now, chosen }: { 
     <div className={s.study} data-study="">
       <div className={s.studyHead}>
         <span className={s.predicatesHead}>{tr('Étude d’événement', 'Event study', 'Estudio de evento')}</span>
-        <span className={s.studyN} data-study-n="" title={tr('Séances alignées sur la publication / publications passées de la famille', 'Sessions aligned on the release / past releases of the family', 'Sesiones alineadas en la publicación / publicaciones pasadas de la familia')}>
+        <span className={s.studyN} data-study-n="" title={tr('Journées alignées sur la publication, les comptes du jour ensemble / publications passées de la famille', 'Days aligned on the release, the day’s accounts together / past releases of the family', 'Jornadas alineadas en la publicación, las cuentas del día juntas / publicaciones pasadas de la familia')}>
           n = {cmp.series.length} / {cmp.occurrences.length}
         </span>
       </div>
@@ -136,8 +138,8 @@ export function EventStudy({ events, family, sessions, trades, now, chosen }: { 
         {mine ? <path className={s.studyChosen} data-series={mine.date} data-chosen={mine.date} d={frame.step(mine.points)} /> : null}
       </svg>
       <div className={s.studyKey}>
-        <span>
-          <i className={s.studyKeySeries} /> {tr('séances', 'sessions', 'sesiones')}
+        <span data-study-key="series">
+          <i className={s.studyKeySeries} /> {tr('journées', 'days', 'jornadas')}
         </span>
         <span>
           <i className={s.studyKeyBand} /> {tr('min–max', 'min–max', 'mín–máx')}
@@ -156,7 +158,9 @@ export function EventStudy({ events, family, sessions, trades, now, chosen }: { 
             <th />
             <th scope="col">{tr('P&L moyen', 'Mean P&L', 'P&L medio')}</th>
             <th scope="col">{tr('Réussite', 'Win rate', 'Acierto')}</th>
-            <th scope="col">n</th>
+            <th scope="col" data-study-unit="" title={tr('Séances : une par compte et par jour', 'Sessions: one per account and day', 'Sesiones: una por cuenta y día')}>
+              n
+            </th>
           </tr>
         </thead>
         <tbody>
