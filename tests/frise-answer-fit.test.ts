@@ -28,6 +28,8 @@ let wanted = 420;
 let root: Root | null = null;
 let host: HTMLElement | null = null;
 const observers: ResizeObserverCallback[] = [];
+/** Ce que chaque observateur vivant observe (OROS5.47m) : un observateur déconnecté n'observe plus rien. */
+const watched = new Map<ResizeObserverCallback, Set<Element>>();
 
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get() { return (this as HTMLElement).dataset.status === 'answer' ? room : 0; } });
@@ -42,11 +44,18 @@ beforeEach(() => {
   vi.stubGlobal(
     'ResizeObserver',
     class {
+      private readonly cb: ResizeObserverCallback;
       constructor(cb: ResizeObserverCallback) {
+        this.cb = cb;
         observers.push(cb);
+        watched.set(cb, new Set());
       }
-      observe() {}
-      disconnect() {}
+      observe(target: Element) {
+        watched.get(this.cb)?.add(target);
+      }
+      disconnect() {
+        watched.delete(this.cb);
+      }
     },
   );
 });
@@ -57,6 +66,7 @@ afterEach(() => {
   root = null;
   host = null;
   observers.length = 0;
+  watched.clear();
   vi.unstubAllGlobals();
   delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
   delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
@@ -64,6 +74,8 @@ afterEach(() => {
 
 const answer = () => host!.querySelector<HTMLElement>('[data-status="answer"]')!;
 const resize = () => act(() => observers.forEach((cb) => cb([], {} as ResizeObserver)));
+/** Seuls les observateurs vivants de `target` sont appelés : la boîte de `target` a changé, et elle seule (OROS5.47m). */
+const resizeOf = (target: Element) => act(() => [...watched].filter(([, targets]) => targets.has(target)).forEach(([cb]) => cb([], {} as ResizeObserver)));
 
 describe('OROS5.47e · la réponse du temps ne se coupe jamais', () => {
   it('trop longue pour sa place, elle prend sa forme courte ; la place revenue, la longue', () => {
@@ -103,13 +115,15 @@ describe('OROS5.47e · la réponse du temps ne se coupe jamais', () => {
     act(() => root!.render(createElement(FriseAnswer)));
     expect(answer().dataset.fit).toBe('short');
     expect(answer().clientWidth).toBe(SHORT);
-    // La ligne rend de la place, sans suffire : la forme courte reste.
+    // La ligne rend de la place, sans suffire : la forme courte reste. Seule la boîte de la ligne change : seuls ses
+    // observateurs sont appelés, comme dans un rendu réel (OROS5.47m).
+    expect(answer().parentElement).toBe(host);
     room = 400;
-    resize();
+    resizeOf(host);
     expect(answer().dataset.fit).toBe('short');
     // Elle suffit : la forme longue revient, bien que la boîte de la forme courte n'ait pas grandi.
     room = 430;
-    resize();
+    resizeOf(host);
     expect(answer().dataset.fit).toBeUndefined();
     spy.mockRestore();
   });
