@@ -331,6 +331,84 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
+/* M.060, la garde d'écriture de l'agent (OROS5.42) : l'état des ordres, les trois limites sur leurs bornes, le pied. Le
+   trait vient de la table d'états (src/design/etat.module.css) : en service, plein ; en attente de vous, halo tireté ;
+   désactivés ou fermés, filet graphite. Aucun or : la décision qui attend l'opérateur se dit sur la proposition. */
+.access {
+  --k: var(--text-2);
+  display: grid;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  background: var(--bg-1);
+}
+.accessState {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-1);
+}
+.accessState b {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.accessBars {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.accessBars li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 52px;
+  align-items: center;
+  gap: 10px;
+}
+.accessLabel {
+  font-size: 11px;
+  color: var(--text-1);
+}
+.accessTrack {
+  height: 2px;
+  background: var(--line-1);
+}
+.accessTrack i {
+  display: block;
+  height: 100%;
+  background: var(--text-1);
+}
+.accessBars b {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  text-align: right;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+.accessFoot {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+/* C.070, l'écrou de la garde : sur Autoriser… et Relever les limites…, qui ouvrent le dialogue du process principal. */
+.gateNut {
+  width: 12px;
+  height: 14px;
+  margin-right: 6px;
+  --k: currentColor;
+  --p: var(--bg-2);
+}
+
 /* La trace des outils sous chaque réponse (OROS5.41) : le nom de l'outil en Geist Mono au glacier (la technique), ses
    arguments bornés, son issue et sa durée. L'appel en cours garde le halo tireté de la table d'états jusqu'à son résultat :
    rien ne pulse, et l'or reste à l'opérateur. */
