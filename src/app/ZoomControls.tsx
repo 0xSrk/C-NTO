@@ -4,6 +4,7 @@ import { computeAutoZoom, formatZoomPercent, UI_ZOOM_MAX, UI_ZOOM_MIN } from '@/
 import { desk, isDesk, type ZoomSnapshot } from '@/lib/desk';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
+import { matchShortcut } from './shortcuts';
 import s from './shell.module.css';
 
 /** Contrôles zoom + calibrage écran, dans la barre de titre. */
@@ -112,18 +113,14 @@ export function ZoomControls() {
   }, [applyBrowser, snap?.factor, toast, uiZoom, uiZoomAuto, update]);
 
   useEffect(() => {
+    // Les touches du zoom, lues dans le registre des raccourcis (OROS5.18).
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-      if (e.key === '=' || e.key === '+') {
-        e.preventDefault();
-        void step(1);
-      } else if (e.key === '-') {
-        e.preventDefault();
-        void step(-1);
-      } else if (e.key === '0') {
-        e.preventDefault();
-        void reset();
-      }
+      const hit = matchShortcut('zoom', e);
+      if (!hit) return;
+      e.preventDefault();
+      if (hit.id === 'zoomIn') void step(1);
+      else if (hit.id === 'zoomOut') void step(-1);
+      else void reset();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

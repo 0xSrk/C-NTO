@@ -1,5 +1,7 @@
+import type { CalEvent } from '@/engine/calendar';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
 import { getInstrument, hasInstrument, resolveSymbol, tradingDayOf } from '@/engine/instruments';
+import { catalystSource, yearsSpanned } from '@/engine/macroMerge';
 import type { Session, Trade } from '@/engine/types';
 import { parseNoteHeader, slugifyTitle } from './header';
 import { linkId, type EntityRef, type Link, type Predicate } from './schema';
@@ -12,7 +14,11 @@ export interface OntologyNote {
   tags: string[];
 }
 
-export type OntologyEvent = Pick<CalendarEventRow, 'id' | 'date' | 'title' | 'impact' | 'instruments'>;
+/**
+ * Un catalyseur tel que l'ontologie le lit : une ligne de la source unique (`catalystSource`), repère local ou ligne
+ * officielle. Sans instrument : il vaut pour tous.
+ */
+export type OntologyEvent = Pick<CalEvent, 'id' | 'date' | 'title' | 'impact'> & { instruments?: readonly string[] };
 
 export interface StructuralInput {
   notes: readonly OntologyNote[];
@@ -104,16 +110,44 @@ function put(bag: Map<string, Link>, from: EntityRef, predicate: Predicate, to: 
   bag.set(id, { id, from, to, predicate, kind: 'structurel', by: 'moteur', createdAt: 0, updatedAt: 0 });
 }
 
-function eventCovers(instruments: readonly string[], symbol: string): boolean {
-  if (instruments.length === 0) return true;
+function eventCovers(instruments: readonly string[] | undefined, symbol: string): boolean {
+  if (!instruments || instruments.length === 0) return true;
   const want = symbol.toUpperCase();
   return instruments.some((s) => s.toUpperCase() === want);
 }
 
-function eventCoversNote(instruments: readonly string[], mentioned: readonly string[]): boolean {
-  if (instruments.length === 0 || mentioned.length === 0) return true;
+function eventCoversNote(instruments: readonly string[] | undefined, mentioned: readonly string[]): boolean {
+  if (!instruments || instruments.length === 0 || mentioned.length === 0) return true;
   const set = new Set(mentioned.map((s) => s.toUpperCase()));
   return instruments.some((s) => set.has(s.toUpperCase()));
+}
+
+/** Les journées que lit le calcul des liens « pendant » : celles des séances, des trades sans séance, des notes datées. */
+export function ontologyDays(input: Pick<StructuralInput, 'notes' | 'sessions' | 'trades'>): string[] {
+  const days = new Set<string>();
+  const sessionIds = new Set<string>();
+  for (const session of input.sessions) {
+    days.add(session.date);
+    sessionIds.add(session.id);
+  }
+  for (const trade of input.trades) {
+    if (sessionIds.has(trade.sessionId) || !hasInstrument(trade.instrument) || !Number.isFinite(trade.exitTime)) continue;
+    days.add(tradingDayOf(trade.exitTime, getInstrument(trade.instrument)));
+  }
+  for (const note of input.notes) {
+    const day = noteTradingDay(note);
+    if (day) days.add(day);
+  }
+  return [...days].sort();
+}
+
+/**
+ * Les catalyseurs de l'ontologie : la source unique du Calendrier (`catalystSource`, repères locaux et lignes officielles
+ * fusionnés), sur les années du journal et des notes. Un CPI embarqué et son jumeau officiel n'en font qu'un, et les
+ * liens « pendant » existent hors ligne, vers l'estimé local.
+ */
+export function ontologyEvents(rows: readonly CalendarEventRow[], input: Pick<StructuralInput, 'notes' | 'sessions' | 'trades'>): CalEvent[] {
+  return catalystSource(rows, yearsSpanned(ontologyDays(input)));
 }
 
 /**

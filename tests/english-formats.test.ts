@@ -141,7 +141,17 @@ describe('R3.7h l’interface anglaise parle anglais : libellés de période, jo
   }, 15_000);
 
   it('Portefeuille : 7D · 30D, « 0 / 0 D » en K.01, levier au point décimal en K.02', async () => {
-    usePortfolio.setState({ ready: true, pockets: [], positions: [], cash: [], fx: [], load: async () => undefined, replaceEquity: async () => undefined });
+    // OROS5.5 : sans poche, le levier est inconnu et s'écrit « — ». Le point décimal se lit sur des liquidités seules,
+    // où le levier nul est une vraie valeur.
+    usePortfolio.setState({
+      ready: true,
+      pockets: [{ id: 'cash', name: 'Liquidités', kind: 'liquidites', currency: 'USD', createdAt: NOW }],
+      positions: [],
+      cash: [{ id: 'usd', pocketId: 'cash', currency: 'USD', amount: 10_000, at: NOW }],
+      fx: [],
+      load: async () => undefined,
+      replaceEquity: async () => undefined,
+    });
     useI18n.setState({ locale: 'en' });
     const node = await render(createElement(Portefeuille));
     expect(pressable(node).slice(0, 2)).toEqual(['7D', '30D']);

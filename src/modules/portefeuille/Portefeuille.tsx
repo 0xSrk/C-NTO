@@ -398,7 +398,7 @@ export default function Portefeuille() {
         }
         options={[
           // Le mode discret se lit sur le bouton : le point s'allume à l'or tant que les montants sont masqués.
-          { id: 'discret', label: tr('Mode discret', 'Discrete mode', 'Modo discreto'), checked: discrete, state: discrete ? tr('montants masqués', 'amounts hidden', 'importes ocultos') : undefined, tone: discrete ? 'gold' : undefined, onSelect: toggleDiscrete },
+          { id: 'discret', label: tr('Mode discret', 'Discrete mode', 'Modo discreto'), checked: discrete, state: discrete ? tr('montants masqués', 'amounts hidden', 'importes ocultos') : undefined, onSelect: toggleDiscrete },
         ]}
       />
       <ModuleContent>

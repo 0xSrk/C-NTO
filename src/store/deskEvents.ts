@@ -2,15 +2,19 @@ import { create } from 'zustand';
 import type { DeskEventKind } from '@/engine/agent/catalog';
 import { DeskEventLog, dueCatalysts, fillData, linkTransition, orderData, propBufferAlert, propLiveBuffer, type DeskEvent, type PropBufferInput } from '@/engine/agent/events';
 import { dailyLossAlert, ThresholdWatch, type DailyLossInput } from '@/engine/agent/events';
+import { matchAccount, sameAccount } from '@/engine/accounts';
+import { dayCloseFor } from '@/engine/agent/dayClose';
 import { AGENT_TRADER_RULES, type AgentTraderRuleBlock } from '@/engine/agent/orders';
-import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, majorCatalysts, tradingDayNow, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
+import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, limitReachedAt, lossOfDay, majorCatalysts, tradingDayNow, type DailyLimit, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
 import { mergeCalendarEvents } from '@/engine/macroMerge';
 import { evaluatePlan, findPlan, planMargin } from '@/engine/propfirm';
 import { tr } from '@/i18n';
 import { desk, type NtBridgeStatus } from '@/lib/desk';
+import { cmeClock } from '@/engine/tradingDay';
 import { addDays, etDateKey } from '@/lib/time';
 import { useBridge } from './bridge';
+import { useDayClose } from './dayClose';
 import { useJournal } from './journal';
 import { useMacro } from './macro';
 import { useSettings } from './settings';
@@ -38,12 +42,13 @@ interface DeskEventsState {
 
 let stop: (() => void) | null = null;
 
-/** Range un événement, le compte et le pousse aux clients de l'orchestrateur. */
-export function recordDeskEvent(kind: DeskEventKind, data: Record<string, unknown>): void {
+/** Range un événement, le compte et le pousse aux clients de l'orchestrateur ; rend l'événement rangé (son numéro). */
+export function recordDeskEvent(kind: DeskEventKind, data: Record<string, unknown>): DeskEvent {
   const event = deskEventLog.push(kind, data);
   useDeskEvents.setState((s) => ({ count: s.count + 1, last: event }));
   // L'orchestrateur ne pousse qu'à ses clients authentifiés ; le main borne type et taille.
   desk?.orchestrator?.broadcast(kind, { seq: event.seq, cursor: `${deskEventLog.epoch}.${event.seq}`, data });
+  return event;
 }
 
 /** Plan suivi, rejoué sur le journal, avec le latent du pont : `null` sans plan. */
@@ -104,21 +109,18 @@ function propWatcher(): { check: () => void; dispose: () => void } {
   };
 }
 
-/** Nom de compte replié, comme le process principal le lit : casse et espaces ignorés (`heldPosition`, electron/agent-orders.ts). */
-const foldAccountName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
-
 /**
  * Comptes du pont vivant que désigne `account` ('' = tous) ; aucun hors pont. Le nom exact d'abord, sinon le nom
- * replié : la règle de `heldPosition` dans le process principal, pour que la marge et la perte du jour transmises à
- * la garde portent le latent du compte qu'elle juge (A18).
+ * replié (`matchAccount`) : la règle de `heldPosition` dans le process principal, pour que la marge et la perte du jour
+ * transmises à la garde portent le latent du compte qu'elle juge (A18). Les bornes du jour lisent de même.
  */
 function liveAccounts(account: string): NtBridgeStatus['accounts'] {
   const nt = useBridge.getState().nt;
   if (nt?.link !== 'live') return [];
   if (!account) return nt.accounts;
-  const folded = foldAccountName(account);
-  const match = nt.accounts.find((a) => a.name === account) ?? nt.accounts.find((a) => foldAccountName(a.name) === folded);
-  return match ? [match] : [];
+  const match = matchAccount(nt.accounts.map((a) => a.name), account);
+  const row = match ? nt.accounts.find((a) => a.name === match.name) : undefined;
+  return row ? [row] : [];
 }
 
 /** Latent du compte suivi ('' = tous), d'après le pont vivant ; 0 hors pont. */
@@ -142,13 +144,84 @@ function trackedDailyLoss(now = Date.now()): { input: DailyLossInput; key: strin
 }
 
 /**
- * Perte de la journée CME à 100 % de la limite retenue, sur le compte suivi : le seuil de l'événement
- * `daily_loss` à 100 %, recalculé du journal, des réglages et du pont (`dayLoss`, `dailyLimit`). Il tient
- * après un redémarrage du desk, quand l'anneau d'événements repart vide.
+ * La journée fermée qui vaut pour `account` à `now` (décision 15 de l'ADMIN, 2026-11-03 : « On ferme la journée une fois
+ * la limite touchée ») : depuis quand, ou `null`. La plus ancienne de trois lectures : la fermeture retenue au coffre
+ * (`useDayClose`, une perte vue au latent comprise), la première sortie de la journée CME qui a porté la perte réalisée à la
+ * limite (`limitReachedAt`, sur le compte de la limite), et la perte relue à l'instant (`current`, latent négatif compris).
+ * Un gain qui ramène ensuite la perte sous la limite n'y change rien ; la journée CME suivante la lève.
  */
-export function dailyLossReached(now = Date.now()): boolean {
+function dayClosedSince(account: string, now: number, current: boolean): number | null {
+  const { traderRules, planId, planAccount } = useSettings.getState().settings;
+  const since: number[] = [];
+  const stored = dayCloseFor(useDayClose.getState().closes, account, now);
+  if (stored) since.push(stored.at);
+  const limit = dailyLimit(traderRules, findPlan(planId));
+  if (limit && (!planAccount || planAccount === account)) {
+    const reached = limitReachedAt(useJournal.getState().trades, { day: tradingDayNow(now), account: planAccount, limit: limit.amount, until: now });
+    if (reached !== null) since.push(reached);
+    if (current) since.push(now);
+  }
+  return since.length ? Math.min(...since) : null;
+}
+
+/** La perte du jour relue à l'instant sur le compte suivi, latent négatif du pont compris, au moins à la limite. */
+function dailyLossNow(now: number): boolean {
   const tracked = trackedDailyLoss(now);
   return !!tracked && tracked.input.loss >= tracked.input.limit;
+}
+
+/**
+ * Depuis quand la journée CME est fermée sur le compte suivi (décision 15), d'après la fermeture retenue et le journal ;
+ * `null` : rien de tel. La perte relue à l'instant n'y est pas : la barre d'état la lit d'elle-même (`dayBornes`), sans
+ * rejouer la journée à chaque statut du pont.
+ */
+export function trackedDayClosedSince(now = Date.now()): number | null {
+  return dayClosedSince(useSettings.getState().settings.planAccount, now, false);
+}
+
+/**
+ * Perte de la journée CME à 100 % de la limite retenue, sur le compte suivi : le seuil de l'événement
+ * `daily_loss` à 100 %, recalculé du journal, des réglages et du pont (`dayLoss`, `dailyLimit`). Il tient
+ * après un redémarrage du desk, quand l'anneau d'événements repart vide. Une fois atteinte, la journée reste fermée
+ * jusqu'à la journée CME suivante (décision 15, `dayClosedSince`).
+ */
+export function dailyLossReached(now = Date.now()): boolean {
+  return dailyLossNow(now) || trackedDayClosedSince(now) !== null;
+}
+
+/** Le réalisé de la journée et sa première atteinte de la limite, pour une journée, un compte suivi et une limite. */
+let closeReplay: { sessions: unknown; trades: unknown; key: string; realized: number; reached: number | null } | null = null;
+
+/**
+ * Le réalisé de la journée (`dayLoss`) et la première sortie qui a porté la perte à la limite (`limitReachedAt`), rejoués une
+ * fois par journal, journée, compte suivi et limite (OROS5.48d) : un statut du pont ne relit que le latent, comme les bornes
+ * du jour (OROS5.11).
+ */
+function dayCloseReplay(day: string, account: string, limit: number): { realized: number; reached: number | null } {
+  const { sessions, trades } = useJournal.getState();
+  const key = `${day}|${account}|${limit}`;
+  if (closeReplay && closeReplay.sessions === sessions && closeReplay.trades === trades && closeReplay.key === key) return closeReplay;
+  closeReplay = { sessions, trades, key, realized: dayLoss({ sessions, trades, day, account }).realized, reached: limitReachedAt(trades, { day, account, limit }) };
+  return closeReplay;
+}
+
+/**
+ * Retient la journée fermée du compte suivi dès que la perte du jour atteint la limite (décision 15) : au coffre, et au
+ * process principal (`useDayClose`, `closeDay`). Depuis la sortie qui l'a portée à la limite, ou depuis maintenant quand le
+ * latent l'y porte (la perte de `trackedDailyLoss` : le réalisé du jour plus le latent négatif du pont, `lossOfDay`). Rien
+ * ne rouvre ; la veille du desk l'appelle à chaque statut du pont, journal ou réglage, et chaque proposition de l'agent
+ * avant de lire la règle.
+ */
+export function recordDayClose(now = Date.now()): void {
+  const { traderRules, planId, planAccount } = useSettings.getState().settings;
+  const limit = dailyLimit(traderRules, findPlan(planId));
+  if (!limit) return;
+  const day = tradingDayNow(now);
+  const { realized, reached } = dayCloseReplay(day, planAccount, limit.amount);
+  const since: number[] = [];
+  if (reached !== null && reached <= now) since.push(reached);
+  if (lossOfDay(realized, liveUnrealized(planAccount)).loss >= limit.amount) since.push(now);
+  if (since.length) useDayClose.getState().close({ day, account: planAccount, at: Math.min(...since) });
 }
 
 /** Perte du jour : un niveau par journée, compte et limite ; le premier calcul pose le niveau sans alerter. */
@@ -246,21 +319,95 @@ function ruleDetail(finding: DisciplineFinding): string {
 }
 
 /**
- * Règle du trader qu'une ouverture proposée par l'agent enfreindrait à `now` : perte du jour atteinte, fenêtre
- * d'un catalyseur majeur, instrument hors de la liste (décision 1 de l'ADMIN, 2026-10-06). Même lecture que la
- * veille discipline au fill d'entrée (`detectRuleBreaches`) ; le process principal la relit et refuse l'ouverture.
+ * « journée fermée depuis hh:mm ET » (décision 15), à l'heure de New York : la garde, la frise, la barre d'état et le miroir
+ * de la garde le disent ainsi, dans la langue du desk.
  */
-export function traderRuleFor(proposal: { account: string; instrument: string; qty: number }, now = Date.now()): AgentTraderRuleBlock | null {
+export function dayClosedText(since: number): string {
+  const at = cmeClock(since);
+  return tr(`journée fermée depuis ${at} ET`, `day closed since ${at} ET`, `jornada cerrada desde ${at} ET`);
+}
+
+/**
+ * Le motif de la journée fermée (décision 15) : depuis quand, puis la perte relue si elle tient encore à la limite, sinon
+ * la limite atteinte.
+ */
+function closedDetail(since: number, found: DisciplineFinding | undefined, limit: DailyLimit | null): string {
+  const head = `${dayClosedText(since)}${tr(' : ', ': ', ': ')}`;
+  if (found) return `${head}${ruleDetail(found)}`;
+  if (!limit) return `${head}${tr('perte du jour atteinte', 'day loss reached', 'pérdida del día alcanzada')}`;
+  const source = limit.source === 'plan' ? tr('plan prop', 'prop plan', 'plan prop') : tr('règle du trader', 'trader rule', 'regla del trader');
+  return `${head}${tr(`limite ${limit.amount} $ atteinte (${source})`, `limit ${limit.amount} $ reached (${source})`, `límite ${limit.amount} $ alcanzado (${source})`)}`;
+}
+
+/**
+ * Règles du trader qu'une ouverture proposée par l'agent enfreindrait à `now`, toutes, dans l'ordre de la garde
+ * (`AGENT_TRADER_RULES`) : perte du jour atteinte, fenêtre d'un catalyseur majeur, instrument hors de la liste
+ * (décision 1 de l'ADMIN, 2026-10-06). Même lecture que la veille discipline au fill d'entrée (`detectRuleBreaches`). La
+ * perte du jour atteinte ferme la journée CME jusqu'à la suivante, même si un gain la ramène ensuite sous la limite
+ * (décision 15, `dayClosedSince`) : la règle dit depuis quand.
+ */
+export function traderRuleBlocks(proposal: { account: string; instrument: string; qty: number }, now = Date.now()): AgentTraderRuleBlock[] {
   const { traderRules, planId, planAccount } = useSettings.getState().settings;
   const { trades } = useJournal.getState();
   const limit = dailyLimit(traderRules, findPlan(planId));
   const entry: DisciplineEntry = { id: 'proposition', account: proposal.account, instrument: proposal.instrument, qty: proposal.qty, time: now };
   const findings = detectRuleBreaches([entry], { rules: traderRules, closed: trades, catalysts: catalystsAround(now), limit, limitAccount: planAccount, unrealized: liveUnrealized(planAccount) });
+  const out: AgentTraderRuleBlock[] = [];
   for (const rule of AGENT_TRADER_RULES) {
     const found = findings.find((f) => f.kind === rule);
-    if (found) return { rule, detail: ruleDetail(found) };
+    if (rule === 'after_daily_limit') {
+      const since = dayClosedSince(proposal.account, now, !!found);
+      if (since !== null) out.push({ rule, detail: closedDetail(since, found, limit) });
+      continue;
+    }
+    if (found) out.push({ rule, detail: ruleDetail(found) });
   }
-  return null;
+  return out;
+}
+
+/**
+ * Règle du trader qu'une ouverture proposée par l'agent enfreindrait à `now` : la première de `traderRuleBlocks`.
+ * Le process principal la relit (`parseTraderRule`) et refuse l'ouverture.
+ */
+export function traderRuleFor(proposal: { account: string; instrument: string; qty: number }, now = Date.now()): AgentTraderRuleBlock | null {
+  return traderRuleBlocks(proposal, now)[0] ?? null;
+}
+
+/* ─── Ce que le renderer transmet à la garde du process principal à chaque proposition (OROS5.9) ─── */
+
+function clip(v: unknown, max: number): string {
+  return typeof v === 'string' ? v.trim().slice(0, max) : '';
+}
+
+/** Le compte du plan suivi, s'il est celui que désigne `account` (règle de la garde, `sameAccount`) ; sinon `account`. */
+function trackedName(account: string): string {
+  const { planAccount } = useSettings.getState().settings;
+  return planAccount && sameAccount(planAccount, account) ? planAccount : account;
+}
+
+/**
+ * Marge du plan suivi pour le compte proposé, telle que le renderer la transmet au process principal. Le process
+ * principal lit le pont sans tenir compte de la casse ni des espaces (`SimAPEX1` y désigne `SimApex1`) : le compte du
+ * plan est reconnu de même (`sameAccount`), sinon la garde de marge sauterait.
+ */
+export function propShareFor(account: string): number | null {
+  return trackedPropShare(trackedName(account));
+}
+
+/** La proposition telle que la règle du trader la lit : compte reconnu comme pour la marge, noms bornés, quantité finie. */
+function ruleProposal(args: Record<string, unknown>): { account: string; instrument: string; qty: number } {
+  const qty = typeof args.qty === 'number' && Number.isFinite(args.qty) ? args.qty : 0;
+  return { account: trackedName(clip(args.account, 128)), instrument: clip(args.instrument, 64), qty };
+}
+
+/** Règle du trader que l'ouverture enfreindrait, telle que le renderer la transmet au process principal. */
+export function traderRuleOf(args: Record<string, unknown>, now = Date.now()): AgentTraderRuleBlock | null {
+  return traderRuleFor(ruleProposal(args), now);
+}
+
+/** Toutes les règles que l'ouverture enfreindrait, du même calcul que `traderRuleOf` : le miroir de la garde les lit. */
+export function traderRulesOf(args: Record<string, unknown>, now = Date.now()): AgentTraderRuleBlock[] {
+  return traderRuleBlocks(ruleProposal(args), now);
 }
 
 const localYears = new Map<number, CalEvent[]>();
@@ -357,6 +504,20 @@ export const useDeskEvents = create<DeskEventsState>((set) => ({
       }),
     );
     daily.check();
+
+    // La journée fermée (décision 15) : retenue dès que la perte du jour atteint la limite, à chaque statut du pont, journal
+    // ou réglage, sans attendre la cadence de l'alerte : un latent qui la touche un instant la ferme.
+    const closeDay = () => recordDayClose();
+    disposers.push(useBridge.subscribe((s, prev) => s.nt !== prev.nt && closeDay()));
+    disposers.push(useJournal.subscribe((s, prev) => (s.sessions !== prev.sessions || s.trades !== prev.trades) && closeDay()));
+    disposers.push(
+      useSettings.subscribe((s, prev) => {
+        const a = s.settings;
+        const b = prev.settings;
+        if (a.planId !== b.planId || a.planAccount !== b.planAccount || a.traderRules !== b.traderRules || a.userPlans !== b.userPlans) closeDay();
+      }),
+    );
+    closeDay();
 
     // Discipline : chaque fill d'entrée rangé est jugé une fois le journal à jour.
     const discipline = disciplineWatcher();

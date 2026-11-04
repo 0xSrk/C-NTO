@@ -35,7 +35,7 @@
   align-items: baseline;
   width: 100%;
   padding: 4px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
   font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -129,13 +129,14 @@
 .dirGlyph :global(.g107-2) {
   stroke-width: 5px;
 }
-/* Le trait de l'étiquette dit l'état : tireté, armée (prévu) ; plein, déclenchée ; pointillé, en pause. */
+/* Le trait de l'étiquette dit l'état : tireté, armée (prévu) ; plein, déclenchée ; en pause, le filet graphite sans motif
+   (la table d'états, décision 3, OROS5.45b). */
 .alertRow .planTag {
   border-style: dashed;
   border-color: var(--line-2);
 }
 .alertRow .pauseTag {
-  border-style: dotted;
+  border-style: solid;
   border-color: var(--line-2);
   color: var(--text-2);
 }

@@ -1,0 +1,69 @@
+/* Les critères en miroir d'Armer et d'Activer (OROS5.43). Le trait du cadre vient de la table d'états
+   (src/design/etat.module.css) : désarmé ou désactivé, filet graphite ; armé ou activé, plein. Aucun or : la décision
+   revient au dialogue du process principal. Un critère manquant porte C.042, jamais le rouge. */
+.criteria {
+  --k: var(--text-2);
+  display: grid;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  background: var(--bg-1);
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+/* C.070, l'écrou de la garde. */
+.nut {
+  width: 12px;
+  height: 14px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.list {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.list li {
+  display: grid;
+  grid-template-columns: 12px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-1);
+}
+.list b {
+  font-weight: 500;
+  color: var(--text-0);
+}
+.list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mark {
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  margin-left: 2px;
+  --k: var(--text-1);
+}
+.stop {
+  align-self: center;
+  width: 12px;
+  height: 12px;
+  --k: var(--text-0);
+}
+.first {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-0);
+}

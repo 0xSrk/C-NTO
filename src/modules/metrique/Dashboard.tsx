@@ -1,6 +1,9 @@
-import { useMemo, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { samplePhrase } from '@/app/objects/sample';
+import { SetCount } from '@/app/objects/Selection';
+import { Butterfly, butterflyRows, hourLabel } from '@/design/instruments/Butterfly';
 import { Glyph, Signal } from '@/design/Micro';
-import { Button, Empty, Etiquette, Jauge, Lecteur, Montant, PlaqueVissee } from '@/design/primitives';
+import { Button, cx, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
 import { computeDailyStats, computeTradeStats } from '@/engine/metrics';
 import { allocatedRiskStats, autocorrelations, cusum, dailyResultSeries, ratioIntervals, rollingBands, sessionWinRateSeries } from '@/engine/inference';
 import { aggregatePoints } from '@/engine/tradeUnits';
@@ -8,7 +11,9 @@ import { findPlan } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { breakevenWinRate } from '@/lib/breakeven';
 import { fmtInt, fmtPct, fmtPoints, fmtRatio, fmtUsd, plural } from '@/lib/format';
-import { dateTimeFormatter, parseDateKey } from '@/lib/time';
+import { dateTimeFormatter, ET_ZONE, parseDateKey, zonedWallClock } from '@/lib/time';
+import { sampleOf, type EntityRef } from '@/engine/ontology';
+import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import s from './dashboard.module.css';
@@ -39,6 +44,25 @@ function Gauge(props: ComponentProps<typeof Jauge>) {
   );
 }
 
+/** Le nom accessible de l'échantillon de K.04, distinct de celui de la bande et de « Les N séances » (OROS5.34). */
+function k04SampleLabel(n: number, account: string): string {
+  return tr(
+    `Échantillon de K.04 : ${plural(n, 'séance')}, tout l’historique de ${account} ; ouvrir la fiche du compte`,
+    `K.04 sample: ${plural(n, 'session')}, the whole history of ${account}; open the account record`,
+    `Muestra de K.04: ${plural(n, 'sesión', 'sesiones')}, todo el historial de ${account}; abrir la ficha de la cuenta`,
+  );
+}
+
+/** L'horloge de M.003 : l'heure de maintenant change au plus une fois par minute. */
+function useMinute(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  return now;
+}
+
 function rangeTitle(range: MetricRange): string {
   if (range === '7j') return tr('7 JOURS', '7 DAYS', '7 DÍAS');
   if (range === '90j') return tr('90 JOURS', '90 DAYS', '90 DÍAS');
@@ -49,6 +73,7 @@ function rangeTitle(range: MetricRange): string {
 export function Dashboard({
   sessions,
   trades,
+  context,
   range,
   period,
   history,
@@ -57,8 +82,14 @@ export function Dashboard({
   onDemo,
   onSessions,
 }: {
+  /** La sélection partagée (OROS5.32) : le compte, la période et la puce Instrument. K, A.01 et A.05 la lisent. */
   sessions: Session[];
   trades: Trade[];
+  /**
+   * Le compte et la période, tous instruments : A.02, A.03 et A.04 le montrent et y allument la sélection, le reste
+   * atténué à 35 % (rien ne disparaît). Absent : la sélection elle-même.
+   */
+  context?: { sessions: Session[]; trades: Trade[] };
   range: MetricRange;
   /** Bornes de la période affichée : la base des ratios annualisés. `from` nul : depuis la première séance. */
   period: { from: string | null; to: string };
@@ -99,23 +130,53 @@ export function Dashboard({
   const borneUsed = borne != null ? consumed / borne : 0;
   const borneLevel = borneSignal(gauge);
   const breakeven = breakevenWinRate(stats.payoffRatio);
+  // L'échantillon de la bande, aux seuils du moteur (`SAMPLE_FAIBLE`, `SAMPLE_MOYEN`, `SAMPLE_SOLIDE`), en trades.
+  const sample = sampleOf(stats.count);
+  const bandSampleLabel = tr(
+    `Échantillon de la bande K : ${plural(stats.count, 'trade')}, ${samplePhrase(sample)} ; ouvrir l’ensemble dans B · Séances`,
+    `K band sample: ${plural(stats.count, 'trade')}, ${samplePhrase(sample)}; open the set in B · Sessions`,
+    `Muestra de la banda K: ${plural(stats.count, 'trade')}, ${samplePhrase(sample)}; abrir el conjunto en B · Sesiones`,
+  );
   const ordered = useMemo(() => [...sessions].sort((a, b) => a.date.localeCompare(b.date)), [sessions]);
-  const last = ordered.slice(-5).reverse();
+  // La sélection partagée (OROS5.32) : la puce Instrument recalcule K et A.01 ; A.02, A.03 et A.04 gardent le compte et
+  // la période et allument ce qu'elle garde, le reste à sa place, atténué.
+  const instrument = useUi((st) => st.metricInstrument);
+  const setInstrument = useUi((st) => st.setMetricInstrument);
+  // La puce Heure (OROS5.35), posée depuis M.003 : comme l'instrument, elle recalcule K et A.01 et allume A.02 et A.04.
+  const hour = useUi((st) => st.metricHour);
+  const setHour = useUi((st) => st.setMetricHour);
+  // L'heure du curseur de temps, ou de maintenant, à l'or sur M.003 (décision 1).
+  const cursor = useUi((st) => st.timeCursor);
+  const now = useMinute();
+  const cursorHour = zonedWallClock(cursor ?? now, ET_ZONE).hour;
+  const contextSessions = context?.sessions ?? sessions;
+  const contextTrades = context?.trades ?? trades;
+  const contextOrdered = useMemo(() => [...contextSessions].sort((a, b) => a.date.localeCompare(b.date)), [contextSessions]);
+  const contextStats = useMemo(() => (context ? computeTradeStats(context.trades) : stats), [context, stats]);
+  // M.003 lit le compte et la période, tous instruments, toutes heures : la puce Heure y allume son heure, comme A.03.
+  const hourRows = useMemo(() => butterflyRows(contextStats.byHour), [contextStats]);
+  const kept = useMemo(() => new Set(sessions.map((row) => row.id)), [sessions]);
+  const last = contextOrdered.slice(-5).reverse();
+  // Chaque séance est un objet (OROS5.26) : une ligne de A.04 et un pas de A.02 ouvrent sa fiche ; ↑ ↓ passent à la voisine.
+  const openObject = useObjects((o) => o.openObject);
+  const openId = useObjects((o) => (o.open?.type === 'session' ? o.open.id : null));
+  const lastRefs = useMemo<EntityRef[]>(() => last.map((row) => ({ type: 'session', id: row.id })), [last]);
+  const orderedRefs = useMemo<EntityRef[]>(() => contextOrdered.map((row) => ({ type: 'session', id: row.id })), [contextOrdered]);
   const bySession = useMemo(() => {
     const map = new Map<string, Trade[]>();
-    for (const trade of trades) {
+    for (const trade of contextTrades) {
       const list = map.get(trade.sessionId);
       if (list) list.push(trade);
       else map.set(trade.sessionId, [trade]);
     }
     return map;
-  }, [trades]);
+  }, [contextTrades]);
   const peak = Math.max(...ordered.map((row) => Math.abs(row.pnl)), 1);
-  const instruments = stats.byInstrument.filter((row) => row.count > 0);
+  const instruments = contextStats.byInstrument.filter((row) => row.count > 0);
   const instrumentPoints = useMemo(() => {
     const map = new Map<string, ReturnType<typeof aggregatePoints>>();
     const groups = new Map<string, Trade[]>();
-    for (const trade of trades) {
+    for (const trade of contextTrades) {
       if (!Number.isFinite(trade.pnl)) continue;
       const list = groups.get(trade.instrument);
       if (list) list.push(trade);
@@ -123,7 +184,7 @@ export function Dashboard({
     }
     for (const [key, list] of groups) map.set(key, aggregatePoints(list));
     return map;
-  }, [trades]);
+  }, [contextTrades]);
   const best = ordered.reduce<Session | null>((win, row) => (!win || row.pnl > win.pnl ? row : win), null);
   const names = [...new Set(ordered.flatMap((row) => row.instruments))].slice(0, 3);
   const winSessions = ordered.filter((row) => row.pnl > 0).length;
@@ -153,7 +214,7 @@ export function Dashboard({
     );
   }
 
-  if (ordered.length === 0) {
+  if (contextOrdered.length === 0) {
     return <Empty title={tr('Aucune séance sur cette période', 'No session in this range', 'Ninguna sesión en este período')} text={tr('Élargissez la période ou le compte.', 'Widen the range or the account.', 'Amplíe el período o la cuenta.')} />;
   }
 
@@ -165,13 +226,19 @@ export function Dashboard({
       <span className={`canto-plus ${s.plusR}`} aria-hidden>
         +
       </span>
-      <PlaqueVissee className={s.span7}>
+      {/* A.01 : la plaque du lecteur réduite à son filet d'un pixel (Système 5) ; ni vis, ni languette, ni dégradé, ni ombre. */}
+      <section className={`${s.plaque} ${s.span7}`}>
         <div className={s.plateBody}>
           <div className={s.plateTop}>
             <div>
               <div className={s.plateLabel}>
-                <span className={s.code}>A.01 / {tr('NET P&L', 'NET P&L', 'P&L NETO')} · {rangeTitle(range)}</span>
+                <span className={s.code}>
+                  A.01 / {tr('NET P&L', 'NET P&L', 'P&L NETO')} · {rangeTitle(range)}
+                  {instrument ? ` · ${instrument}` : ''}
+                  {hour != null ? ` · ${hourLabel(hour)} ET` : ''}
+                </span>
                 <span className={s.hint}>{tr('APRÈS COMMISSIONS', 'AFTER COMMISSIONS', 'DESPUÉS DE COMISIONES')} · USD</span>
+                <SetCount n={stats.count} total={contextStats.count} kind="trade" className={s.count} />
               </div>
               <Lecteur value={stats.netPnl} />
             </div>
@@ -209,12 +276,21 @@ export function Dashboard({
             </span>
           </div>
         </div>
-      </PlaqueVissee>
+      </section>
 
       <section className={`${s.card} ${s.kpis} ${s.span5}`}>
+        {/* L'échantillon de la bande, dit une fois, en tête (OROS5.34) : il ouvre l'ensemble qui fait les quatre chiffres. */}
+        <div className={s.kBandHead}>
+          <button type="button" className={s.kSample} data-sample="band" data-level={sample} aria-label={bandSampleLabel} onClick={onSessions}>
+            <span>
+              n = {plural(stats.count, 'trade', 'trades')} · {samplePhrase(sample)}
+            </span>
+            <Glyph name="arrowNext" className={s.btnGlyph} />
+          </button>
+        </div>
         <div className={s.tile} data-k="K.01">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.01 </span>
               <span className={s.kName}>{tr('Espérance', 'Expectancy', 'Esperanza')} / {tr('TRADE', 'TRADE', 'TRADE')}</span>
             </span>
@@ -237,13 +313,12 @@ export function Dashboard({
         </div>
         <div className={s.tile} data-k="K.02">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.02 </span>
               <span className={s.kName}>{tr('Taux de réussite', 'Win rate', 'Tasa de acierto')}</span>
             </span>
-            <span className={s.hint}>
-              {fmtInt(stats.wins)} / {fmtInt(stats.count)}
-            </span>
+            {/* Le total est dit en tête de la bande : K.02 dit ses gagnants. */}
+            <span className={s.hint}>{plural(stats.wins, tr('gagnant', 'winner', 'ganador'), tr('gagnants', 'winners', 'ganadores'))}</span>
           </div>
           <span className={s.kValue}>{fmtPct(stats.winRate, 1)}</span>
           <Gauge
@@ -261,7 +336,7 @@ export function Dashboard({
         </div>
         <div className={s.tile} data-k="K.03">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.03 </span>
               <span className={s.kName}>{tr('Profit factor', 'Profit factor', 'Profit factor')}</span>
             </span>
@@ -286,7 +361,7 @@ export function Dashboard({
         </div>
         <div className={s.tile} data-k="K.04">
           <div className={s.kHead}>
-            <span>
+            <span className={s.kTitle}>
               <span className={s.code}>K.04 </span>
               <span className={s.kName}>{gauge.kind === 'plan' ? tr('Marge au plancher', 'Margin to floor', 'Margen al suelo') : tr('Drawdown max', 'Max drawdown', 'Drawdown máx.')}</span>
             </span>
@@ -297,6 +372,14 @@ export function Dashboard({
             ) : null}
           </div>
           {gauge.kind === 'plan' ? <Montant className={`${s.kValue} ${gauge.margin < gauge.limit * 0.25 ? s.neg : ''}`} value={gauge.margin} /> : <Montant className={`${s.kValue} ${s.neg}`} value={-gauge.maxDrawdown} />}
+          {/* K.04 ne garde son n que s'il diffère de la bande : avec un plan, la marge se lit sur tout l'historique du compte. */}
+          {gauge.kind === 'plan' && metricAccount ? (
+            <button type="button" className={s.kSample} data-sample="k04" aria-label={k04SampleLabel(history.sessions.length, metricAccount)} onClick={(event) => openObject({ type: 'compte', id: metricAccount }, { origin: event.currentTarget })}>
+              <span>
+                n = {plural(history.sessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {tr('tout l’historique', 'whole history', 'todo el historial')}
+              </span>
+            </button>
+          ) : null}
           <div>
             {borne != null ? (
               <Gauge
@@ -312,10 +395,13 @@ export function Dashboard({
                 ]}
               />
             ) : (
-              <Gauge min={0} max={100} value={gauge.used * 100} ticks={[{ value: 0, label: '0' }, { value: 100, label: '100 %' }]} />
+              // Sans plan suivi, aucune borne : la jauge n'a rien à mesurer et le dit (« — »), au lieu de rapporter le
+              // drawdown à un capital nominal ; le drawdown sur clôtures reste écrit au-dessus (Système 5).
+              <Gauge min={0} max={100} value={null} ticks={[{ value: 0, label: '0' }, { value: 100, label: '100 %' }]} />
             )}
             {gauge.kind === 'plan' ? (
-              <div className={s.pair}>
+              // Le plan se desserre : une ligne par lecture, au lieu de deux colonnes serrées.
+              <div className={s.planLines} data-plan-lines="">
                 <span className={s.hint}>
                   {tr('PLANCHER', 'FLOOR', 'SUELO')} {fmtInt(gauge.floor)} · {tr('PLUS-HAUT', 'HIGH', 'MÁXIMO')} {fmtInt(gauge.highWater)}
                 </span>
@@ -334,7 +420,7 @@ export function Dashboard({
                   {gauge.limit != null && gauge.limit > 0 ? `${fmtPct(gauge.maxDrawdown / gauge.limit, 1)} ${tr('DE LA LIMITE', 'OF THE LIMIT', 'DEL LÍMITE')} · ` : ''}
                   {tr('SUR CLÔTURES, PÉRIODE AFFICHÉE', 'ON CLOSES, SHOWN RANGE', 'EN CIERRES, PERÍODO MOSTRADO')}
                 </span>
-                <span className={s.hint}>{plural(daily.maxDrawdownDays, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}</span>
+                <span className={s.hint}>{tr(`creux sur ${plural(daily.maxDrawdownDays, 'séance')}`, `trough over ${plural(daily.maxDrawdownDays, 'session')}`, `valle en ${plural(daily.maxDrawdownDays, 'sesión', 'sesiones')}`)}</span>
               </div>
             )}
             {borneLevel === 3 ? (
@@ -351,7 +437,20 @@ export function Dashboard({
         </div>
       </section>
 
-      <EquityCard className={s.span8} sessions={ordered} trades={trades} floor={limit} />
+      <EquityCard
+        className={s.span8}
+        sessions={contextOrdered}
+        trades={contextTrades}
+        floor={limit}
+        lit={instrument}
+        litHour={hour}
+        onStep={(step, origin) => {
+          // Un pas est une journée : sa séance, la première du jour quand plusieurs comptes y ont tradé.
+          const day = contextOrdered.find((row) => row.date === step.date);
+          if (day) openObject({ type: 'session', id: day.id }, { origin, siblings: orderedRefs });
+        }}
+        onCatalyst={(id, origin) => openObject({ type: 'evenement', id }, { origin })}
+      />
 
       <section className={`${s.card} ${s.pad} ${s.span4}`}>
         <div className={s.cardHead}>
@@ -359,27 +458,52 @@ export function Dashboard({
             <span className={s.code}>A.03 </span>
             <span className={s.kName}>{tr('Par instrument', 'By instrument', 'Por instrumento')}</span>
           </span>
-          <span className={s.hint}>{tr('NET · POINTS', 'NET · POINTS', 'NETO · PUNTOS')}</span>
+          <span className={s.cardTools}>
+            <SetCount n={stats.count} total={contextStats.count} kind="trade" className={s.count} />
+            <span className={s.hint}>{tr('NET · POINTS', 'NET · POINTS', 'NETO · PUNTOS')}</span>
+          </span>
         </div>
         <div>
-          {instruments.slice(0, 6).map((row) => (
-            <div key={row.key} className={s.inst}>
-              <span className={s.root}>{row.key}</span>
-              <span className={s.hint}>
-                {fmtInt(row.count)} TR · {fmtPct(stats.count ? row.count / stats.count : 0, 1)}
-              </span>
-              <span className={s.hint} style={{ gridColumn: '1 / -1', justifySelf: 'end' }}>
-                <Montant value={row.pnl} />
-                {' · '}
-                {fmtPoints(instrumentPoints.get(row.key)?.points)}
-              </span>
-              <div className={s.share}>
-                <i style={{ width: `${stats.count ? (row.count / stats.count) * 100 : 0}%` }} />
-              </div>
-            </div>
-          ))}
+          {/* Chaque instrument pose ou retire la puce Instrument de la sélection partagée ; les autres restent, atténués. */}
+          {instruments.slice(0, 6).map((row) => {
+            const on = instrument === row.key;
+            const out = instrument != null && !on;
+            return (
+              <button
+                key={row.key}
+                type="button"
+                className={cx(s.inst, s.instRow, on && s.instOn, out && s.out)}
+                data-instrument={row.key}
+                data-out={out ? '' : undefined}
+                aria-pressed={on}
+                title={on ? tr('Retirer la puce Instrument', 'Remove the Instrument chip', 'Quitar el chip Instrumento') : tr('Poser la puce Instrument', 'Set the Instrument chip', 'Poner el chip Instrumento')}
+                onClick={() => setInstrument(on ? null : row.key)}
+              >
+                <span className={s.root}>{row.key}</span>
+                <span className={s.hint}>
+                  {fmtInt(row.count)} TR · {fmtPct(contextStats.count ? row.count / contextStats.count : 0, 1)}
+                </span>
+                <span className={s.hint} style={{ gridColumn: '1 / -1', justifySelf: 'end' }}>
+                  <Montant value={row.pnl} />
+                  {' · '}
+                  {fmtPoints(instrumentPoints.get(row.key)?.points)}
+                </span>
+                <span className={s.share}>
+                  <i style={{ width: `${contextStats.count ? (row.count / contextStats.count) * 100 : 0}%` }} />
+                </span>
+              </button>
+            );
+          })}
         </div>
-        <span className={s.hint}>{tr('RÉPARTITION DES', 'SPLIT OF', 'REPARTO DE')} {fmtInt(stats.count)} {tr('TRADES', 'TRADES', 'TRADES')}</span>
+        <span className={s.hint}>{tr('RÉPARTITION DES', 'SPLIT OF', 'REPARTO DE')} {fmtInt(contextStats.count)} {tr('TRADES', 'TRADES', 'TRADES')}</span>
+        {/* M.003 occupe le vide de A.03 : gagnants et perdants par heure d'entrée à New York ; une heure pose la puce Heure. */}
+        <div className={s.hours}>
+          <div className={s.subHead}>
+            <span className={s.kName}>{tr('Heure d’entrée', 'Entry hour', 'Hora de entrada')}</span>
+            <span className={s.hint}>NEW YORK · ET</span>
+          </div>
+          <Butterfly rows={hourRows} cursorHour={cursorHour} hour={hour} onHour={setHour} />
+        </div>
       </section>
 
       <section className={`${s.card} ${s.span12}`}>
@@ -388,62 +512,84 @@ export function Dashboard({
             <span className={s.code}>A.04 </span>
             <span className={s.kName}>{tr('Dernières séances', 'Latest sessions', 'Últimas sesiones')}</span>
           </span>
-          <button type="button" className={s.more} onClick={onSessions}>
-            {tr(`Les ${fmtInt(ordered.length)} séances`, `All ${fmtInt(ordered.length)} sessions`, `Las ${fmtInt(ordered.length)} sesiones`)}
-            <Glyph name="arrowNext" className={s.btnGlyph} />
-          </button>
+          <span className={s.cardTools}>
+            <SetCount n={last.filter((row) => kept.has(row.id)).length} total={last.length} kind="session" className={s.count} />
+            <button type="button" className={s.more} onClick={onSessions}>
+              {tr(`Les ${fmtInt(contextOrdered.length)} séances`, `All ${fmtInt(contextOrdered.length)} sessions`, `Las ${fmtInt(contextOrdered.length)} sesiones`)}
+              <Glyph name="arrowNext" className={s.btnGlyph} />
+            </button>
+          </span>
         </div>
-        <table className={s.table}>
-          <thead>
-            <tr>
-              <th>{tr('Séance', 'Session', 'Sesión')}</th>
-              <th>{tr('Instruments', 'Instruments', 'Instrumentos')}</th>
-              <th>{tr('Tr.', 'Tr.', 'Tr.')}</th>
-              <th>{tr('Gagnants', 'Winners', 'Ganadores')}</th>
-              <th>{tr('Comm. USD', 'Comm. USD', 'Com. USD')}</th>
-              <th>{tr('Tag', 'Tag', 'Etiqueta')}</th>
-              <th>{tr('Net USD', 'Net USD', 'Neto USD')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {last.map((row) => {
-              const mine = bySession.get(row.id) ?? [];
-              const wins = mine.filter((trade) => trade.pnl > 0).length;
-              const total = mine.length || row.tradeCount;
-              const squares = Math.min(total, 8);
-              const tag = row.tags[0]?.trim() || tr('HORS PLAN', 'NO PLAN', 'SIN PLAN');
-              return (
-                <tr key={row.id}>
-                  <td>
-                    <span className={s.day}>
-                      {shortDay(row.date)}
-                      <span>{weekday(row.date)}</span>
-                    </span>
-                  </td>
-                  <td>{row.instruments.join(' · ') || '—'}</td>
-                  <td>{fmtInt(total)}</td>
-                  <td>
-                    <span className={s.squares} aria-hidden>
-                      {Array.from({ length: squares }, (_, i) => (
-                        <i key={i} className={`${s.sq} ${i < Math.min(wins, squares) ? s.on : ''}`} />
-                      ))}
-                    </span>
-                    {wins}/{total}
-                  </td>
-                  <td>
-                    <Montant value={-Math.abs(row.commission)} />
-                  </td>
-                  <td>
-                    <Etiquette>{tag}</Etiquette>
-                  </td>
-                  <td>
-                    <Montant value={row.pnl} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {/* A.04 défile dans sa carte, jamais la zone de travail (OROS5.47l). */}
+        <div className={s.tableScroll}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>{tr('Séance', 'Session', 'Sesión')}</th>
+                <th>{tr('Instruments', 'Instruments', 'Instrumentos')}</th>
+                <th>{tr('Tr.', 'Tr.', 'Tr.')}</th>
+                <th>{tr('Gagnants', 'Winners', 'Ganadores')}</th>
+                <th>{tr('Comm. USD', 'Comm. USD', 'Com. USD')}</th>
+                <th>{tr('Tag', 'Tag', 'Etiqueta')}</th>
+                <th>{tr('Net USD', 'Net USD', 'Neto USD')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {last.map((row) => {
+                const mine = bySession.get(row.id) ?? [];
+                const wins = mine.filter((trade) => trade.pnl > 0).length;
+                const total = mine.length || row.tradeCount;
+                const squares = Math.min(total, 8);
+                const tag = row.tags[0]?.trim() || tr('HORS PLAN', 'NO PLAN', 'SIN PLAN');
+                const on = openId === row.id;
+                const out = !kept.has(row.id);
+                const open = (origin: HTMLElement | null) => openObject({ type: 'session', id: row.id }, { origin, siblings: lastRefs });
+                return (
+                  <tr key={row.id} className={cx(s.objRow, on && s.objOn, out && s.out)} data-session={row.id} data-out={out ? '' : undefined} onClick={(event) => open(event.currentTarget.querySelector('button'))}>
+                    <td>
+                      {/* La séance C.094 : le glyphe et le jour, un bouton qui ouvre sa fiche ; la ligne entière y mène aussi. */}
+                      <button
+                        type="button"
+                        className={s.objOpen}
+                        aria-current={on ? 'true' : undefined}
+                        aria-label={tr(`Ouvrir la fiche de la séance du ${shortDay(row.date)}`, `Open the record of the ${shortDay(row.date)} session`, `Abrir la ficha de la sesión del ${shortDay(row.date)}`)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          open(event.currentTarget);
+                        }}
+                      >
+                        <Glyph name="session" className={s.objGlyph} />
+                        <span className={s.day}>
+                          {shortDay(row.date)}
+                          <span>{weekday(row.date)}</span>
+                        </span>
+                      </button>
+                    </td>
+                    <td>{row.instruments.join(' · ') || '—'}</td>
+                    <td>{fmtInt(total)}</td>
+                    <td>
+                      <span className={s.squares} aria-hidden>
+                        {Array.from({ length: squares }, (_, i) => (
+                          <i key={i} className={`${s.sq} ${i < Math.min(wins, squares) ? s.on : ''}`} />
+                        ))}
+                      </span>
+                      {wins}/{total}
+                    </td>
+                    <td>
+                      <Montant value={-Math.abs(row.commission)} />
+                    </td>
+                    <td>
+                      <Etiquette>{tag}</Etiquette>
+                    </td>
+                    <td>
+                      <Montant value={row.pnl} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <details className={`${s.card} ${s.span12} ${s.ratios}`}>

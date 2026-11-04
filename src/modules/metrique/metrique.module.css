@@ -105,6 +105,91 @@
   gap: 4px;
   flex-wrap: wrap;
 }
+/* ─── B · Séances (OROS5.33, décision 12) : le glyphe C.094 en tête de ligne ouvre la fiche, la ligne garde l'édition ─── */
+.dateCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.openFiche {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 22px;
+  margin: -4px 0 -4px -4px;
+  --k: var(--text-2);
+  transition: color 200ms linear;
+}
+/* La séance ouverte dans la fiche : son glyphe passe à l'or, comme l'objet ouvert partout (décision 1). */
+.openFiche[aria-current='true'] {
+  --k: var(--gold);
+}
+.openGlyph {
+  width: 18px;
+  height: 15px;
+}
+@media (hover: hover) {
+  .openFiche:hover {
+    --k: var(--text-0);
+  }
+  .openFiche[aria-current='true']:hover {
+    --k: var(--gold);
+  }
+}
+/* Ce que la grille abrège à l'étroit, et sa forme longue. */
+.short {
+  display: none;
+}
+/* La grille se mesure elle-même : sous 1 000 px, elle resserre ses cellules, dit la date court et abrège deux en-têtes,
+   sans couper Éval. ni Source ; sous 800 px, son corps descend d'un point. */
+.grille {
+  container: grille / inline-size;
+}
+@container grille (max-width: 1000px) {
+  .grilleTable th,
+  .grilleTable td {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .grilleTable .long {
+    display: none;
+  }
+  .grilleTable .short {
+    display: inline;
+  }
+  .grilleTable .dateCell {
+    gap: 6px;
+  }
+  .grilleTable .accountCell {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@container grille (max-width: 800px) {
+  .grilleTable th,
+  .grilleTable td {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+  .grilleTable td {
+    font-size: 12px;
+  }
+  .grilleTable td:global(.num) {
+    font-size: 11px;
+  }
+}
+/* Trop étroit pour la grille et l'édition côte à côte (fiche ouverte, petite fenêtre) : l'édition passe sous la grille,
+   qui prend toute la zone. */
+@container main (max-width: 1340px) {
+  .seancesSplit {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: auto;
+  }
+}
 .stars {
   display: inline-flex;
   gap: 2px;
@@ -114,8 +199,9 @@
   font-size: 13px;
   line-height: 1;
 }
+/* Une étoile cochée s'allume à l'ivoire : l'auto-évaluation n'est pas ce que tient l'opérateur (OROS5.44). */
 .stars button.on {
-  color: var(--gold);
+  color: var(--text-0);
 }
 .detailHead {
   display: flex;
@@ -257,6 +343,11 @@
 }
 .rowChecked td {
   background: rgba(196, 30, 58, 0.04);
+}
+/* Hors de la sélection partagée (OROS5.32) : la séance reste dans la liste, à sa place, atténuée à 35 %. */
+.rowOut td {
+  opacity: 0.35;
+  transition: opacity 220ms linear;
 }
 .selCount {
   font-family: var(--font-mono);
@@ -438,7 +529,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-3);
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
   padding: 4px 0;
 }
 .ringStats b {
@@ -626,7 +717,7 @@
   grid-template-columns: 1fr auto;
   gap: 8px;
   padding: 6px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
   font-size: 12px;
 }
 .cascadeRules dt {
@@ -655,4 +746,16 @@
   font-size: 11px;
   color: var(--text-3);
   line-height: 1.45;
+}
+
+/* Firme prop : les gestes du plan suivi, où la fiche Compte mène (OROS5.27) ; le focus s'y pose, jamais sur un bouton. */
+.planTarget {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  outline: none;
+}
+.planTarget:focus-visible {
+  box-shadow: 0 0 0 1px var(--line-3);
 }

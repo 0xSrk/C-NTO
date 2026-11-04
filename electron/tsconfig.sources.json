@@ -15,6 +15,7 @@
   },
   "files": [
     "../src/engine/sources.ts",
+    "../src/engine/tradingDay.ts",
     "../src/engine/execution/guards.ts",
     "../src/engine/execution/orderBook.ts",
     "../src/engine/copier/router.ts",
@@ -22,6 +23,7 @@
     "../src/engine/copier/sync.ts",
     "../src/engine/agent/catalog.ts",
     "../src/engine/agent/orders.ts",
+    "../src/engine/agent/dayClose.ts",
     "../src/engine/agent/routines.ts",
     "../src/engine/agent/cloudReport.ts",
     "../src/engine/crypto/markets.ts",

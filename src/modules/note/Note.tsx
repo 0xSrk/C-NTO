@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconPlus, IconSearch, IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { matchShortcut } from '@/app/shortcuts';
 import { Button, Empty, Segmented, Tag, cx } from '@/design/primitives';
-import type { CalendarEventRow } from '@/engine/calendarEvents';
-import { NOTE_STATUTS, claimConfidence, type EntityRef, type Link, type NoteStatut, type Predicate } from '@/engine/ontology';
+import type { CalEvent } from '@/engine/calendar';
+import { catalystLabel } from '@/engine/macroMerge';
+import { NOTE_STATUTS, claimConfidence, ontologyEvents, type EntityRef, type Link, type NoteStatut, type Predicate } from '@/engine/ontology';
 import type { Session, Trade } from '@/engine/types';
 import { tr, useI18n } from '@/i18n';
 import { saveTextFile } from '@/lib/desk';
@@ -57,8 +59,9 @@ export default function Note() {
   }, [loadLinks]);
 
   useEffect(() => {
+    // Ctrl+N, lu dans le registre des raccourcis du desk (OROS5.18).
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n' && !e.shiftKey) {
+      if (matchShortcut('note', e)?.id === 'newNote') {
         e.preventDefault();
         create();
       }
@@ -81,7 +84,7 @@ export default function Note() {
         tab="note"
         actions={
           <>
-            <Button variant="gold" onClick={() => create()}>
+            <Button onClick={() => create()}>
               <IconPlus size={14} /> {tr('Nouvelle note', 'New note', 'Nueva nota')}
             </Button>
             {!graph && <Segmented value={mode} onChange={setMode} options={[{ value: 'editer', label: tr('Éditer', 'Edit', 'Editar') }, { value: 'scinde', label: tr('Scindé', 'Split', 'Dividido') }, { value: 'apercu', label: tr('Aperçu', 'Preview', 'Vista previa') }]} />}
@@ -146,7 +149,7 @@ export default function Note() {
                 title={tr('Aucune note ouverte', 'No note open', 'Ninguna nota abierta')}
                 text={tr('Sélectionnez une note dans le coffre ou créez-en une nouvelle (Ctrl+N).', 'Select a note from the vault or create a new one (Ctrl+N).', 'Seleccione una nota en la caja o cree una nueva (Ctrl+N).')}
                 action={
-                  <Button variant="gold" onClick={() => create()}>
+                  <Button onClick={() => create()}>
                     {tr('Nouvelle note', 'New note', 'Nueva nota')}
                   </Button>
                 }
@@ -247,7 +250,7 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
           <IconTrash size={13} />
         </Button>
         {selection && mode !== 'apercu' && (
-          <Button size="sm" variant="gold" onClick={() => onBranch(selection)}>
+          <Button size="sm" onClick={() => onBranch(selection)}>
             {tr('Brancher', 'Branch', 'Ramificar')}
           </Button>
         )}
@@ -282,9 +285,19 @@ function Editor({ note, mode, notes, onChange, onOpenTitle, onTag, onDelete, onE
   );
 }
 
+/** Les catalyseurs que lisent les liens de l'ontologie : la source unique (OROS5.13), estimés marqués. */
+function useOntologyEvents(): CalEvent[] {
+  const rows = useMacro((m) => m.events);
+  const sessions = useJournal((j) => j.sessions);
+  const trades = useJournal((j) => j.trades);
+  const notes = useNotes((n) => n.notes);
+  return useMemo(() => ontologyEvents(rows, { notes, sessions, trades }), [rows, notes, sessions, trades]);
+}
+
 function NoteGraph({ notes, activeId, onOpen }: { notes: NoteType[]; activeId: string | null; onOpen: (id: string) => void }) {
   const links = useLinks((st) => st.links);
-  const events = useMacro((m) => m.events);
+  const catalysts = useOntologyEvents();
+  const events = useMemo(() => catalysts.map((event) => ({ id: event.id, title: catalystLabel(event) })), [catalysts]);
   return <Graph notes={notes} activeId={activeId} onOpen={onOpen} links={links} events={events} />;
 }
 
@@ -326,7 +339,7 @@ function noteHit(ref: EntityRef, noteId: string): boolean {
   return (ref.type === 'note' || ref.type === 'strategie') && ref.id === noteId;
 }
 
-function entityLabel(ref: EntityRef, notes: NoteType[], sessions: Session[], trades: Trade[], events: CalendarEventRow[]): string {
+function entityLabel(ref: EntityRef, notes: NoteType[], sessions: Session[], trades: Trade[], events: readonly CalEvent[]): string {
   if (ref.type === 'note' || ref.type === 'strategie') return notes.find((n) => n.id === ref.id)?.title ?? ref.id;
   if (ref.type === 'session') {
     const session = sessions.find((row) => row.id === ref.id);
@@ -336,7 +349,10 @@ function entityLabel(ref: EntityRef, notes: NoteType[], sessions: Session[], tra
     const trade = trades.find((row) => row.id === ref.id);
     return trade ? `${trade.instrument}` : ref.id;
   }
-  if (ref.type === 'evenement') return events.find((event) => event.id === ref.id)?.title ?? ref.id;
+  if (ref.type === 'evenement') {
+    const event = events.find((row) => row.id === ref.id);
+    return event ? catalystLabel(event) : ref.id;
+  }
   return ref.id;
 }
 
@@ -348,7 +364,7 @@ function Meta({ note, notes, onOpen, onOpenTitle, onStatut }: { note: NoteType; 
   const removeLink = useLinks((st) => st.remove);
   const sessions = useJournal((j) => j.sessions);
   const trades = useJournal((j) => j.trades);
-  const events = useMacro((m) => m.events);
+  const events = useOntologyEvents();
   const [choice, setChoice] = useState<Record<string, Predicate>>({});
   const outgoing = extractLinks(note.body);
   const related = links.filter((link) => link.kind !== 'rejete' && (noteHit(link.from, note.id) || noteHit(link.to, note.id)));

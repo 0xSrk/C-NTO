@@ -12,8 +12,11 @@ import {
   type AgentOrderPolicy,
   type AgentOrderProposal,
   type AgentOrderRefusal,
+  type AgentTraderRuleBlock,
 } from './agent/orders';
+import { coerceDayCloses, dayCloseFor, parseDayClose, withDayClose, type AgentDayClose } from './agent/dayClose';
 import { uiText, type AppLocale } from './locale';
+import { cmeClock, cmeTradingDay } from './tradingDay';
 
 /**
  * Ordres proposés par un agent (A5), côté process principal. L'agent propose ; ici on garde, on demande
@@ -22,6 +25,11 @@ import { uiText, type AppLocale } from './locale';
  */
 
 const POLICY_FILE = 'agent-orders.json';
+/**
+ * La journée fermée, telle que le process principal l'a vue (décision 15 de l'ADMIN, OROS5.48a) : elle survit à un
+ * redémarrage du desk le même jour, et la journée CME suivante la lève. Le renderer ne peut que l'étendre.
+ */
+const DAY_CLOSE_FILE = 'agent-day-close.json';
 /** Le trader a 45 s pour répondre ; au-delà, la proposition est refusée. Sous le délai des clients MCP (60 s). */
 export const AGENT_CONFIRM_TIMEOUT_MS = 45_000;
 
@@ -30,8 +38,23 @@ export type AgentOrderOrigin = 'llm' | 'mcp' | 'orch';
 export type AgentOrderOutcome =
   | { status: 'sent'; orderId: string; latencyMs?: number; account: string; instrument: string; side: 'buy' | 'sell'; qty: number; resulting: number }
   | { status: 'refused'; reason: AgentOrderRefusal | 'invalid'; detail: string }
-  | { status: 'declined'; detail: string }
+  | { status: 'declined'; detail: string; timeout: boolean }
   | { status: 'failed'; code?: number; detail: string };
+
+/**
+ * L'étape d'une proposition, poussée au renderer en lecture seule (OROS5.40, décision 9 de l'ADMIN) : gardée (les noms du
+ * pont et la position avant et après, ceux du dialogue), puis le dialogue ouvert, avec l'instant du refus par défaut. Le
+ * ticket est l'étiquette que le renderer a donnée à la proposition, renvoyée telle quelle : elle ne décide rien. Ni jeton
+ * ni secret ; la garde, le dialogue (Refuser par défaut, 45 s) et les limites ne changent pas.
+ */
+export type AgentProposalStep =
+  | { ticket: string; stage: 'guarded'; at: number; account: string; instrument: string; position: number; resulting: number }
+  | { ticket: string; stage: 'dialog'; at: number; deadline: number };
+
+/** Le ticket d'une proposition : une étiquette courte, sinon rien (aucune étape n'est publiée). */
+export function proposalTicket(raw: unknown): string | null {
+  return typeof raw === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(raw) ? raw : null;
+}
 
 export interface AgentOrderStatus extends AgentOrderPolicy {
   pending: boolean;
@@ -73,6 +96,8 @@ export interface AgentOrderDeps {
     tag: string;
   }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number }>;
   log: (line: string) => void;
+  /** Pousse au renderer l'étape d'une proposition, en lecture seule (OROS5.40) ; absent : rien n'est publié. */
+  publish?: (step: AgentProposalStep) => void;
   now?: () => number;
   confirmTimeoutMs?: number;
 }
@@ -135,11 +160,14 @@ export class AgentOrderHost {
   private policy: AgentOrderPolicy;
   private pending = false;
   private recent: number[] = [];
+  private closes: AgentDayClose[];
   private readonly file: string;
+  private readonly closeFile: string;
   private readonly now: () => number;
 
   constructor(private readonly deps: AgentOrderDeps) {
     this.file = path.join(deps.userDataDir, POLICY_FILE);
+    this.closeFile = path.join(deps.userDataDir, DAY_CLOSE_FILE);
     this.now = deps.now ?? Date.now;
     let raw: unknown = null;
     try {
@@ -149,6 +177,15 @@ export class AgentOrderHost {
     }
     // Les limites survivent au redémarrage ; l'activation, jamais.
     this.policy = coerceAgentPolicy(raw, false);
+    let closes: unknown = null;
+    try {
+      closes = JSON.parse(readFileSync(this.closeFile, 'utf8'));
+    } catch {
+      /* aucune journée fermée */
+    }
+    // Une journée fermée survit au redémarrage du desk ; seule la journée CME suivante la lève (`dayCloseFor`). La journée en
+    // cours de l'horloge reste à côté d'une journée à venir (OROS5.48f).
+    this.closes = coerceDayCloses(closes, this.now());
   }
 
   status(): AgentOrderStatus {
@@ -166,6 +203,55 @@ export class AgentOrderHost {
       writeFileSync(this.file, JSON.stringify({ maxQty, maxPosition, perMinute }), { encoding: 'utf8', mode: 0o600 });
     } catch {
       /* limites gardées en mémoire */
+    }
+  }
+
+  /** Retient une journée fermée ; rien ne rouvre (`withDayClose`). Écrite à chaque changement, lue au démarrage. */
+  private recordClose(close: AgentDayClose): void {
+    const next = withDayClose(this.closes, close);
+    if (JSON.stringify(next) === JSON.stringify(this.closes)) return;
+    this.closes = next;
+    this.deps.log(`agent journée fermée ${close.day} compte=${close.account || 'tous'} depuis ${cmeClock(close.at)} ET`);
+    try {
+      mkdirSync(this.deps.userDataDir, { recursive: true });
+      writeFileSync(this.closeFile, JSON.stringify(this.closes), { encoding: 'utf8', mode: 0o600 });
+    } catch {
+      /* fermeture gardée en mémoire jusqu'à la fermeture du desk */
+    }
+  }
+
+  /**
+   * La journée fermée que le renderer a vue (`agent-orders:close-day`) : le compte de la limite ('' : tous les comptes) et
+   * l'instant où la perte l'a atteinte. La journée est celle de l'horloge du process principal ; un instant hors de cette
+   * journée, ou à venir, cède la place à maintenant. Rend vrai si la fermeture est retenue. Aucune IPC ne rouvre.
+   */
+  closeDay(raw: unknown): boolean {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+    const r = raw as Record<string, unknown>;
+    const now = this.now();
+    const day = cmeTradingDay(now);
+    const at = typeof r.at === 'number' && Number.isFinite(r.at) && r.at <= now && cmeTradingDay(r.at) === day ? r.at : now;
+    const close = parseDayClose({ day, account: r.account, at });
+    if (!close) return false;
+    this.recordClose(close);
+    return true;
+  }
+
+  /** Le motif d'une ouverture refusée par la journée fermée, dans la langue du desk. */
+  private closedRule(close: AgentDayClose): AgentTraderRuleBlock {
+    const since = cmeClock(close.at);
+    return {
+      rule: 'after_daily_limit',
+      detail: this.t(`journée fermée depuis ${since} ET : perte du jour atteinte`, `day closed since ${since} ET: day loss reached`, `jornada cerrada desde ${since} ET: pérdida del día alcanzada`),
+    };
+  }
+
+  /** Une étape publiée ne retient jamais la proposition : un envoi qui échoue est ignoré. */
+  private publish(step: AgentProposalStep): void {
+    try {
+      this.deps.publish?.(step);
+    } catch {
+      /* le renderer n'écoute pas : la garde et le dialogue suivent leur cours */
     }
   }
 
@@ -238,8 +324,12 @@ export class AgentOrderHost {
    * Une proposition de l'agent : gardes, dialogue (45 s, Refuser par défaut), puis soumission par le pont
    * avec le tag `canto-agent`. `propShare` : marge du plan suivi si le compte est le sien, calculée par le renderer.
    * `traderRule` : règle du trader que l'ouverture enfreindrait, évaluée par le renderer ; relue ici (`parseTraderRule`).
+   * La perte du jour atteinte ferme la journée CME pour ce compte (décision 15, OROS5.48a) : le process principal la retient
+   * et refuse ensuite les ouvertures de la journée, même quand le renderer ne transmet plus la règle.
+   * `ticket` : l'étiquette que le renderer donne à la proposition (`proposalTicket`) ; elle ne sert qu'à lui renvoyer, en
+   * lecture seule, l'étape de la proposition (gardée, dialogue ouvert). Elle ne décide rien.
    */
-  async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule: unknown = null): Promise<AgentOrderOutcome> {
+  async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule: unknown = null, ticket: unknown = null): Promise<AgentOrderOutcome> {
     // La cadence compte chaque proposition, refusées comprises (mal formée, agent désactivé, en attente) :
     // la garde lit les précédentes. Au plus le plafond de la cadence est retenu (10).
     const now = this.now();
@@ -252,6 +342,17 @@ export class AgentOrderHost {
     const held = heldPosition(view, parsed.proposal.account, parsed.proposal.instrument);
     const p: AgentOrderProposal = { ...parsed.proposal, account: held.account, instrument: held.instrument };
     const position = held.quantity;
+    // La journée fermée (décision 15) : vue dans la règle du renderer, retenue ici jusqu'à la journée CME suivante. Une règle
+    // relue d'abord celle de la journée fermée ; une réduction de risque passe toujours (`guardProposal`).
+    const fromRenderer = parseTraderRule(traderRule);
+    if (fromRenderer?.rule === 'after_daily_limit') {
+      const day = cmeTradingDay(now);
+      // Le nom du pont, sinon celui de la proposition (lu par `parseProposal`) : la fermeture se relit au démarrage.
+      const seen = parseDayClose({ day, account: p.account, at: now }) ?? parseDayClose({ day, account: parsed.proposal.account, at: now });
+      if (seen) this.recordClose(seen);
+    }
+    const closed = dayCloseFor(this.closes, p.account, now);
+    const rule = closed && fromRenderer?.rule !== 'after_daily_limit' ? this.closedRule(closed) : fromRenderer;
     const verdict = guardProposal(p, this.policy, {
       now,
       link: view?.link ?? 'absent',
@@ -260,7 +361,7 @@ export class AgentOrderHost {
       recent,
       busy: this.pending,
       propShare: typeof propShare === 'number' && Number.isFinite(propShare) ? propShare : null,
-      traderRule: parseTraderRule(traderRule),
+      traderRule: rule,
     });
     const summary = `${p.side} ${p.qty} ${p.instrument} ${p.type} compte=${p.account} origine=${origin}`;
     if (!verdict.ok) {
@@ -269,14 +370,29 @@ export class AgentOrderHost {
     }
     this.pending = true;
     try {
-      const timeout = AbortSignal.timeout(this.deps.confirmTimeoutMs ?? AGENT_CONFIRM_TIMEOUT_MS);
+      const timeoutMs = this.deps.confirmTimeoutMs ?? AGENT_CONFIRM_TIMEOUT_MS;
+      const timeout = AbortSignal.timeout(timeoutMs);
+      // L'étape, en lecture seule : la garde a laissé passer, puis le dialogue s'ouvre, à l'instant même (OROS5.40).
+      const id = proposalTicket(ticket);
+      if (id) {
+        this.publish({ ticket: id, stage: 'guarded', at: now, account: p.account, instrument: p.instrument, position, resulting: verdict.resulting });
+        const win = this.deps.window();
+        if (win && !win.isDestroyed()) this.publish({ ticket: id, stage: 'dialog', at: now, deadline: now + timeoutMs });
+      }
       const accepted = await this.ask({ ...proposalDialog(p, position, verdict.resulting, origin, this.deps.locale()), signal: timeout });
       if (!accepted || !this.policy.enabled) {
         const detail = timeout.aborted
           ? this.t('sans réponse du trader en 45 s : non envoyé', 'no answer from the trader within 45 s: not sent', 'sin respuesta del trader en 45 s: no enviada')
           : this.t('refusé par le trader', 'declined by the trader', 'rechazada por el trader');
         this.deps.log(`agent proposition non envoyée ${summary} (${timeout.aborted ? 'délai' : 'refus'})`);
-        return { status: 'declined', detail };
+        // L'issue est typée : sans réponse dans le délai, ou refusée (OROS5.40) ; le renderer ne relit pas le texte.
+        return { status: 'declined', detail, timeout: timeout.aborted };
+      }
+      // La journée fermée pendant le dialogue (OROS5.48p) : le verrou se relit avant l'envoi ; une réduction de risque passe.
+      const closedNow = verdict.reducing ? null : dayCloseFor(this.closes, p.account, this.now());
+      if (closedNow) {
+        this.deps.log(`agent proposition refusée ${summary} motif=trader_rule`);
+        return { status: 'refused', reason: 'trader_rule', detail: this.closedRule(closedNow).detail };
       }
       const ack = await this.deps.submit({
         op: 'submit',

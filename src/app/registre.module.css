@@ -1,0 +1,202 @@
+/* Le registre en tiroir bas (OROS5.38) : 240 px, mesure locale (décision 4), au-dessus de la barre d'état, sans pousser la
+   zone de travail. Mode liste ; la ligne active à l'ivoire, jamais à l'or (l'or dit ce que tient l'opérateur). */
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  height: 240px;
+  background: var(--bg-0);
+  border-top: 1px solid var(--line-0);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  --k: var(--text-1);
+  --p: var(--bg-0);
+  animation: enter var(--t-med) linear both;
+}
+/* Le tiroir entre par l'opacité, rien ne bouge ; mouvement réduit, il paraît. */
+@keyframes enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    animation: none;
+  }
+}
+.head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 48px 6px 16px;
+  border-bottom: 1px solid var(--line-1);
+}
+.title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-0);
+}
+.scope {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.total {
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1 1 auto;
+}
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: none;
+  border: 1px solid var(--line-1);
+  cursor: pointer;
+  transition:
+    color 200ms linear,
+    border-color 200ms linear;
+}
+.kind b {
+  font-weight: 500;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.kind:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.kindOn {
+  color: var(--text-0);
+  border-color: var(--text-1);
+}
+.kindGlyph {
+  width: 12px;
+  height: 12px;
+  --k: currentColor;
+}
+.close {
+  position: absolute;
+  top: 5px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--text-1);
+  background: none;
+  border: 1px solid var(--line-1);
+  cursor: pointer;
+}
+.close path {
+  stroke: currentColor;
+  stroke-width: 1.2;
+  fill: none;
+}
+.kind:focus-visible,
+.close:focus-visible,
+.list:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: -1px;
+}
+@media (hover: hover) {
+  .kind:not(:disabled):hover,
+  .close:hover {
+    color: var(--text-0);
+    border-color: var(--line-2);
+  }
+  .rowGo:hover {
+    background-color: var(--bg-2);
+  }
+}
+.list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.row {
+  display: grid;
+  grid-template-columns: 64px 14px 110px minmax(0, 1fr) 44px;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 20px;
+  padding: 3px 16px;
+  border-bottom: 1px solid var(--line-1);
+}
+.rowGo {
+  cursor: pointer;
+}
+/* La ligne active : l'ivoire et le filet d'une ligne posée, jamais l'or. */
+.rowOn {
+  color: var(--text-0);
+  box-shadow: inset var(--active-line) 0 0 var(--text-0);
+  background-color: var(--bg-2);
+}
+.time {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.glyph {
+  width: 12px;
+  height: 12px;
+  align-self: center;
+}
+.kindName {
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+/* L'objet et ce qui s'est passé, côte à côte ; à l'étroit, ils passent à la ligne, jamais dans une ellipse. */
+.text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  min-width: 0;
+}
+.object {
+  flex: 0 0 auto;
+  min-width: 200px;
+  color: var(--text-0);
+}
+.detail {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.seq {
+  justify-self: end;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  margin: 0;
+  padding: 12px 16px;
+  max-width: 96ch;
+  line-height: 1.5;
+  color: var(--text-2);
+}

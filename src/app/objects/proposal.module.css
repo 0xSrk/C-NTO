@@ -1,0 +1,279 @@
+/* La carte d'une proposition de l'agent (OROS5.39) : la colonne Propositions d'Agent IA et la fiche la posent. Le trait de
+   la carte vient de la table d'états (src/design/etat.module.css) : décidée, pleine ; en cours, tiretée. Un refus porte
+   C.042 et l'encre des libellés, jamais le rouge. Le glacier dit la technique (le nom des gardes) ; l'ivoire, l'ordre. */
+
+.card {
+  --k: var(--line-3);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Le halo tireté d'une proposition en cours se pose à 5 px hors de la boîte : la marge le garde visible. */
+  margin: 6px;
+  padding: 12px;
+  background: var(--bg-1);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.open {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: opacity 200ms linear;
+}
+.open:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .open:hover {
+    opacity: 0.8;
+  }
+}
+/* C.092 : la chaîne de la proposition, de l'agent au siège de l'opérateur. */
+.chainGlyph {
+  width: 24px;
+  height: 8px;
+  --k: var(--text-1);
+  --p: var(--bg-1);
+}
+.author {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+.time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le diff du dialogue du process principal, mot pour mot. */
+.diff p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.diffOrder {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--text-0);
+}
+.diffSub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-1);
+}
+
+.reduce {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-1);
+}
+.reduceGlyph {
+  width: 12px;
+  height: 12px;
+  --k: var(--text-1);
+}
+
+/* La raison de l'agent, citée : une citation, jamais un fait vérifié. */
+.reason {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--line-2);
+}
+.reason figcaption {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.reason blockquote {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+/* Les trois pas de C.092 : l'agent propose, la garde du desk lit, vous décidez. */
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.chain li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.chain li[data-state='done'],
+.chain li[data-state='current'],
+.chain li[data-state='stopped'] {
+  color: var(--text-1);
+}
+.chainMark {
+  width: 6px;
+  height: 6px;
+  --k: var(--text-1);
+}
+.chainStop {
+  width: 12px;
+  height: 12px;
+  --k: var(--text-1);
+}
+
+/* Le dialogue du desk (OROS5.40) : ouvert à, refus par défaut à, puis la barre qui se vide jusqu'au refus par défaut. */
+.window {
+  display: grid;
+  gap: 6px;
+}
+.window p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-1);
+}
+/* La seule pièce à l'or de la carte : la décision qui attend l'opérateur, avec sa barre (décision 1). */
+.bar {
+  height: 2px;
+  overflow: hidden;
+  background: var(--line-1);
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transform-origin: left center;
+  animation-name: deadline;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes deadline {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar i {
+    animation: none;
+  }
+}
+
+/* M.040 : douze cases, chacune son nom en clair. */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cell {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cellMark {
+  width: 6px;
+  height: 6px;
+  margin-left: 3px;
+  --k: var(--text-1);
+}
+.cellStop {
+  width: 12px;
+  height: 12px;
+  --k: var(--text-0);
+}
+.cellSkip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+}
+.cellName {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ice);
+  overflow-wrap: anywhere;
+}
+.cell[data-state='idle'] .cellName {
+  color: var(--text-3);
+}
+
+.outcome {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-1);
+}
+.outcomeGlyph {
+  width: 14px;
+  height: 14px;
+  --k: var(--text-0);
+}
+.outcome b {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-0);
+}
+.outcome span {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+.foot {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+/* Ce que la marque d'une case ou d'un pas dit aux yeux, dit aux lecteurs d'écran (OROS5.39a). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

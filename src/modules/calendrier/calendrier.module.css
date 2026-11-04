@@ -5,6 +5,10 @@
   height: 100%;
   min-height: 0;
 }
+/* Une fiche ouverte prend la place de la colonne du Jour (OROS5.16) : la grille garde toute la zone de travail. */
+.layout.solo {
+  grid-template-columns: minmax(0, 1fr);
+}
 .main {
   display: flex;
   flex-direction: column;
@@ -362,11 +366,6 @@
   min-height: 0;
   overflow: auto;
 }
-.sideStack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 .sideBlock {
   border: 1px solid var(--line-0);
   background: rgba(255, 255, 255, 0.015);
@@ -395,62 +394,6 @@
   letter-spacing: var(--track-11);
   text-transform: uppercase;
   color: var(--text-3);
-}
-.evCard {
-  border: 1px solid var(--line-1);
-  padding: 6px 8px;
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.015);
-}
-.evCard.evPublished {
-  border-color: var(--line-1);
-}
-.evCardHead {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.evCardHead b {
-  font-size: 12px;
-  color: var(--text-0);
-  font-weight: 500;
-  flex: 1;
-  min-width: 0;
-  overflow: visible;
-  white-space: normal;
-}
-.evCardHead time {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--gold);
-  flex: none;
-}
-.evMeta {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.catHelp {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: var(--track-11);
-  text-transform: uppercase;
-  color: var(--text-3);
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.catHelp span {
-  color: var(--gold);
-  opacity: 0.85;
 }
 .evDesc {
   font-size: 12px;
@@ -483,7 +426,7 @@
   font-size: 11px;
   color: var(--text-2);
   padding: 2px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
 }
 .markerCompact:last-child {
   border-bottom: none;
@@ -524,41 +467,6 @@
   text-transform: uppercase;
   color: var(--mint);
 }
-.prints {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: var(--track-11);
-  color: var(--text-2);
-}
-.prints span {
-  border: 1px solid var(--line-0);
-  padding: 3px 5px;
-  min-width: 0;
-}
-.prints em {
-  display: block;
-  font-style: normal;
-  color: var(--text-4);
-  margin-bottom: 1px;
-  text-transform: uppercase;
-  font-size: 9px;
-}
-.prints .mint {
-  color: var(--mint);
-  border-color: var(--mint-line);
-}
-.prints .ember {
-  color: var(--ember);
-  border-color: var(--ember-line);
-}
-.prints .amber {
-  color: var(--amber);
-  border-color: var(--amber-line);
-}
 .feedStatus {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -581,7 +489,7 @@
   align-items: baseline;
   text-align: left;
   padding: 4px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
   color: var(--text-2);
   width: 100%;
   background: transparent;
@@ -677,13 +585,11 @@
 
 /* ─── Système 4.0 : le trait dit l'état (plein : publié · tireté : prévu dans la fenêtre · pointillé : au-delà) ─── */
 .ev[data-stroke='prevu'],
-.fluxEv[data-stroke='prevu'],
-.evCard[data-stroke='prevu'] {
+.fluxEv[data-stroke='prevu'] {
   border-style: dashed;
 }
 .ev[data-stroke='horizon'],
-.fluxEv[data-stroke='horizon'],
-.evCard[data-stroke='horizon'] {
+.fluxEv[data-stroke='horizon'] {
   border-style: dotted;
   border-color: var(--line-2);
 }
@@ -692,11 +598,36 @@
   color: var(--text-1);
 }
 
-/* Légendes L.01 / L.02 */
+/* Légendes L.01 / L.02, en tête de la colonne du Jour (OROS5.29) : une ligne chacune, la clé et son mot. */
 .legends {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 2px 10px;
+}
+.legendLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  min-height: 28px;
+  font-size: 11px;
+  color: var(--text-1);
+}
+.legendLine + .legendLine {
+  border-top: 1px solid var(--line-1);
+}
+.legendKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.legendKey small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
 }
 .legendCode {
   font-family: var(--font-mono);
@@ -704,25 +635,163 @@
   letter-spacing: 0.12em;
   color: var(--text-2);
 }
-.legendRow {
+/* L.01 : le trait vient de la table d'états (src/design/etat.module.css) ; la légende donne l'encre, l'ivoire. Le halo
+   sort de 5 px : l'échantillon s'écarte d'autant. */
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  margin: 0 5px;
+  --k: var(--text-0);
+}
+
+/* ─── La vue du Jour (OROS5.29) : les séances, les publications, les trois notes ; chaque ligne ouvre sa fiche ─── */
+.dayView {
+  gap: 0;
+}
+.dayViewHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-2);
+}
+.dayViewHead h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+.dayViewHead span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.dayTotal {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0 4px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+.dayTotal small {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.dayRow {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: auto 16px minmax(0, 1fr) auto;
   align-items: center;
-  padding: 3px 0;
-  font-size: 11px;
-  line-height: 1.3;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--line-1);
+  text-align: left;
+  color: var(--text-0);
+  --k: var(--text-1);
+  transition: background-color 220ms var(--ease-out);
+}
+.dayRow:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: -1px;
+}
+@media (hover: hover) {
+  .dayRow:hover {
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+    --k: var(--text-0);
+  }
+}
+.dayGlyph {
+  width: 16px;
+  height: 14px;
+}
+/* Le trait de la publication, tiré de la table d'états. */
+.daySwatch {
+  display: inline-block;
+  width: 10px;
+  height: 6px;
+  margin: 0 5px;
+  --k: var(--text-1);
+}
+.dayRow[data-day-session] {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+}
+.dayMain {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.dayMain b {
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.dayMain small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.dayRowPnl {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.dayLabel {
+  padding: 10px 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-1);
 }
-.swatch {
-  height: 12px;
-  border: 1px solid var(--text-0);
+.dayNote,
+.dayNoteLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-1);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  color: var(--text-0);
 }
-.swatch[data-stroke='prevu'] {
-  border-style: dashed;
+.dayNoteLink {
+  width: 100%;
+  transition: color 200ms linear;
 }
-.swatch[data-stroke='horizon'] {
-  border-style: dotted;
+.dayNoteLink:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: -1px;
+}
+@media (hover: hover) {
+  .dayNoteLink:hover {
+    color: var(--ivory);
+  }
+}
+.dayNoteSrc {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ice);
+}
+.dayNoteEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
 }
 
 /* « Maintenant » : la lentille du sceau ; le glyphe de l'instant et l'heure à l'or, le vivant */

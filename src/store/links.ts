@@ -1,5 +1,5 @@
 import { listInstruments } from '@/engine/instruments';
-import { ONTOLOGY_WORKER_NOTES, ONTOLOGY_WORKER_TRADES, recomputeOntology, type EntityRef, type Link, type Predicate, type StructuralInput } from '@/engine/ontology';
+import { ONTOLOGY_WORKER_NOTES, ONTOLOGY_WORKER_TRADES, ontologyEvents, recomputeOntology, type EntityRef, type Link, type Predicate, type StructuralInput } from '@/engine/ontology';
 import { linkId, unorderedPairKey, type LinkAuthor } from '@/engine/ontology/schema';
 import { listenWorker } from '@/lib/worker';
 import { create } from 'zustand';
@@ -133,7 +133,7 @@ export const useLinks = create<LinksState>((set, get) => ({
   recompute: () =>
     enqueue(async () => {
       const gen = currentOntologyGeneration();
-      const [notes, sessions, trades, events, existing] = await Promise.all([
+      const [notes, sessions, trades, rows, existing] = await Promise.all([
         db.notes.toArray(),
         db.sessions.toArray(),
         db.trades.toArray(),
@@ -145,7 +145,8 @@ export const useLinks = create<LinksState>((set, get) => ({
         notes,
         sessions,
         trades,
-        events,
+        // Une seule source du catalyseur (OROS5.13) : celle du Calendrier, repères locaux et lignes officielles fusionnés.
+        events: ontologyEvents(rows, { notes, sessions, trades }),
         instruments: listInstruments().map((spec) => spec.symbol),
       };
       const now = Date.now();

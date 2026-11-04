@@ -1,4 +1,4 @@
-import { memo, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { IconSend } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { Glyph } from '@/design/Micro';
@@ -17,10 +17,10 @@ import { count } from '@/app/railQuantity';
 import type { TitleCell } from '@/app/Shell';
 import type { AgentCloudStatus } from '@/lib/desk';
 import { useAgentCloud } from '@/store/agentCloud';
-import { useAgentOrders } from '@/store/agentOrders';
 import { useCrypto } from '@/store/crypto';
 import { dailyLossReached, useDeskEvents } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
+import { useObjects } from '@/store/objects';
 import { defaultAgentPrompt, isDefaultAgentPrompt, useSettings, type AgentProvider } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { renderMarkdown } from '../note/markdown';
@@ -29,6 +29,8 @@ import { CloudOptions } from './CloudOptions';
 import { CloudReports, LabPlate } from './CloudReports';
 import { claudeCodeCommand, claudeDesktopConfig, codexConfig, mcpJsonConfig } from './mcpClients';
 import { PRESETS } from './presets';
+import { Propositions } from './Propositions';
+import { ToolTrace } from './ToolTrace';
 import s from './agent.module.css';
 
 function suggestions(): string[] {
@@ -62,11 +64,14 @@ function suggestions(): string[] {
 }
 
 
-/** Le flux en cours est affiché en texte brut (Markdown seulement pour le message final) : O(n) par jeton au lieu de O(n²). */
+/**
+ * Le flux en cours est affiché en texte brut (Markdown seulement pour le message final) : O(n) par jeton au lieu de O(n²).
+ * Aucun curseur qui pulse (OROS5.41) : le texte qui arrive dit que l'agent écrit.
+ */
 function StreamBubble({ text }: { text: string }) {
   const deferred = useDeferredValue(text);
   return (
-    <div className={cx(s.bubble, s.cursor)} style={{ whiteSpace: 'pre-wrap' }}>
+    <div className={s.bubble} style={{ whiteSpace: 'pre-wrap' }}>
       {deferred}
     </div>
   );
@@ -76,6 +81,8 @@ const NEAR_BOTTOM_PX = 40;
 
 /** Sous-onglets de l'agent : le dossier des rapports d'abord, la conversation, puis toutes les options. */
 export type AgentView = 'rapports' | 'conversation' | 'options' | 'lab';
+const AGENT_VIEWS: readonly AgentView[] = ['rapports', 'conversation', 'options', 'lab'];
+const isAgentView = (value: string | undefined): value is AgentView => (AGENT_VIEWS as readonly (string | undefined)[]).includes(value);
 
 const clock = (ms: number | null | undefined) => (ms ? dateTimeFormatter({ day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(ms) : '—');
 
@@ -144,11 +151,14 @@ export default function Agent() {
   const updateAgent = useSettings((st) => st.updateAgent);
   const update = useSettings((st) => st.update);
   const toast = useUi((u) => u.toast);
-  const [view, setView] = useState<AgentView>('rapports');
+  // La vue est confiée au store des objets (OROS5.25), comme celle de Métrique : une porte du rail ouvre les Options, et
+  // Retour arrière la rend. Sans vue confiée, l'onglet s'ouvre toujours sur les rapports (CLD8, CLD17 ; décision 14).
+  const stored = useObjects((o) => o.views.agent);
+  const view: AgentView = isAgentView(stored) ? stored : 'rapports';
+  const setView = useCallback((next: AgentView) => useObjects.getState().setView('agent', next), []);
   const cloudStatus = useAgentCloud((c) => c.status);
   const pullCloud = useAgentCloud((c) => c.pull);
   const openCloudFolder = useAgentCloud((c) => c.openFolder);
-  const ordersStatus = useAgentOrders((a) => a.status);
   const [draft, setDraft] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [seen, setSeen] = useState<RoutineSeen>({});
@@ -189,7 +199,7 @@ export default function Agent() {
   const labSeat = cloudStatus?.lab === true;
   useEffect(() => {
     if (view === 'lab' && !labSeat) setView('rapports');
-  }, [view, labSeat]);
+  }, [view, labSeat, setView]);
 
   // Un nouvel envoi ramène toujours en bas.
   useEffect(() => {
@@ -239,6 +249,15 @@ export default function Agent() {
   };
 
   const visibleMessages = messages.filter((m) => m.role !== 'system');
+  // La trace des outils (OROS5.41) se pose sous la réponse qui les appelle : ses résultats s'y lisent, plus en bulles à part.
+  const toolResults = useMemo(() => visibleMessages.filter((m) => m.role === 'tool'), [messages]);
+  // Le tour en cours : ce qui suit la dernière question de l'opérateur. Seules ses réponses courent pendant le flux ; une
+  // réponse plus ancienne restée sans résultat (le desk fermé pendant un outil) reste « sans résultat ».
+  const turnStart = visibleMessages.map((m) => m.role).lastIndexOf('user');
+  const answered = useMemo(() => {
+    const calls = new Set(visibleMessages.flatMap((m) => (m.role === 'assistant' ? (m.toolCalls ?? []).map((c) => c.id) : [])));
+    return new Set(toolResults.filter((m) => calls.has(m.toolCallId ?? m.id)).map((m) => m.id));
+  }, [messages, toolResults]);
 
   const cloudOn = isDesk && !!desk?.agentCloud;
   // Le siège du Lab, dit par le process principal : lui seul voit et pilote l'agent cloud ; les autres lisent le dossier.
@@ -248,7 +267,7 @@ export default function Agent() {
   const views = agentViews(lab);
   const current = views.find((v) => v.value === view) ?? views[0]!;
   const modelTag = (
-    <Tag tone={probeState?.ok ? 'mint' : 'gold'} dot live={streaming}>
+    <Tag tone={probeState ? (probeState.ok ? 'mint' : 'ember') : undefined} dot live={streaming}>
       {agent.provider === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'} · {agent.model}
     </Tag>
   );
@@ -307,105 +326,105 @@ export default function Agent() {
           <CloudReports active={view === 'rapports'} />
         </div>
         <div className={s.view} role="tabpanel" id="agent-panel-conversation" aria-labelledby="agent-tab-conversation" hidden={view !== 'conversation'}>
-          <section className={s.chat}>
-            <div className={s.messages} ref={listRef}>
-              {visibleMessages.length === 0 && !streaming && (
-                <div className={s.welcome}>
-                  {/* L'emblème de l'agent, muet : le titre le nomme. */}
-                  <Glyph name="agent" className={s.emblem} />
-                  <h2>{tr('Passerelle agent', 'Agent gateway', 'Pasarela del agente')}</h2>
-                  <p>
-                    {tr(
-                      'L’agent lit le desk par des outils natifs — métriques, séances, notes, calendrier, plan prop firm — et peut écrire des notes ou annoter des séances. Connectez un modèle local (Ollama, LM Studio) ou distant dans Options, puis posez une question.',
-                      'The agent reads the desk through native tools — metrics, sessions, notes, calendar, prop firm plan — and can write notes or annotate sessions. Connect a local model (Ollama, LM Studio) or a remote one in Options, then ask a question.',
-                      'El agente lee el desk con herramientas nativas — métricas, sesiones, notas, calendario, plan prop firm — y puede escribir notas o anotar sesiones. Conecte un modelo local (Ollama, LM Studio) o remoto en Opciones, luego formule una pregunta.',
-                    )}
-                  </p>
-                  <div className={s.suggestions} style={{ justifyContent: 'center' }}>
-                    {sugs.map((sg) => (
+          {/* La conversation, puis la colonne Propositions (OROS5.39) : chaque ordre que l'agent a proposé, objet de la fiche. */}
+          <div className={s.conversation}>
+            <section className={s.chat}>
+              <div className={s.messages} ref={listRef}>
+                {visibleMessages.length === 0 && !streaming && (
+                  <div className={s.welcome}>
+                    {/* L'emblème de l'agent, muet : le titre le nomme. */}
+                    <Glyph name="agent" className={s.emblem} />
+                    <h2>{tr('Passerelle agent', 'Agent gateway', 'Pasarela del agente')}</h2>
+                    <p>
+                      {tr(
+                        'L’agent lit le desk par des outils natifs — métriques, séances, notes, calendrier, plan prop firm — et peut écrire des notes ou annoter des séances. Connectez un modèle local (Ollama, LM Studio) ou distant dans Options, puis posez une question.',
+                        'The agent reads the desk through native tools — metrics, sessions, notes, calendar, prop firm plan — and can write notes or annotate sessions. Connect a local model (Ollama, LM Studio) or a remote one in Options, then ask a question.',
+                        'El agente lee el desk con herramientas nativas — métricas, sesiones, notas, calendario, plan prop firm — y puede escribir notas o anotar sesiones. Conecte un modelo local (Ollama, LM Studio) o remoto en Opciones, luego formule una pregunta.',
+                      )}
+                    </p>
+                    <div className={s.suggestions} style={{ justifyContent: 'center' }}>
+                      {sugs.map((sg) => (
+                        <button key={sg} className={s.suggestion} onClick={() => setDraft(sg)}>
+                          {sg}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {visibleMessages.map((m, i) =>
+                  m.role === 'tool' && answered.has(m.id) ? null : <Message key={m.id} m={m} results={m.role === 'assistant' && m.toolCalls?.length ? toolResults : undefined} streaming={streaming && i > turnStart} />,
+                )}
+                {streaming && (
+                  <div className={cx(s.msg, s.assistant)}>
+                    <div className={s.msgHead}>
+                      <span>Agent</span>
+                    </div>
+                    {/* L'appel en cours se lit dans la trace de la réponse, au tireté : rien ne pulse ici. */}
+                    {streamText ? <StreamBubble text={streamText} /> : <div className={s.bubble}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
+                  </div>
+                )}
+                {error && (
+                  <div className={s.error}>
+                    {tr('Erreur fournisseur :', 'Provider error:', 'Error del proveedor:')} {error}
+                  </div>
+                )}
+                {notice && !error && (
+                  <div className={s.notice} role="status">
+                    {notice}
+                  </div>
+                )}
+              </div>
+              <div className={s.composer}>
+                <div className={s.routines}>
+                  <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('brief')}>
+                    {tr('Brief', 'Brief', 'Brief')}
+                    {due.brief ? <i className={s.cue} aria-hidden /> : null}
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('debrief')}>
+                    {tr('Débrief', 'Debrief', 'Debrief')}
+                    {due.debrief ? <i className={s.cue} aria-hidden /> : null}
+                  </Button>
+                </div>
+                {visibleMessages.length > 0 && (
+                  <div className={s.suggestions}>
+                    {sugs.slice(0, 3).map((sg) => (
                       <button key={sg} className={s.suggestion} onClick={() => setDraft(sg)}>
-                        {sg}
+                        {sg.length > 60 ? `${sg.slice(0, 58)}…` : sg}
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-              {visibleMessages.map((m) => (
-                <Message key={m.id} m={m} />
-              ))}
-              {streaming && (
-                <div className={cx(s.msg, s.assistant)}>
-                  <div className={s.msgHead}>
-                    <span>Agent</span>
-                    {pendingTool && (
-                      <span className={cx(s.toolChip, s.pending)}>
-                        <i /> {pendingTool}
-                      </span>
-                    )}
-                  </div>
-                  {streamText ? <StreamBubble text={streamText} /> : <div className={cx(s.bubble, s.cursor)}>{pendingTool ? tr('Lecture du desk…', 'Reading the desk…', 'Leyendo el desk…') : tr('Réflexion', 'Thinking', 'Reflexión')}</div>}
-                </div>
-              )}
-              {error && (
-                <div className={s.error}>
-                  {tr('Erreur fournisseur :', 'Provider error:', 'Error del proveedor:')} {error}
-                </div>
-              )}
-              {notice && !error && (
-                <div className={s.notice} role="status">
-                  {notice}
-                </div>
-              )}
-            </div>
-            <div className={s.composer}>
-              <div className={s.routines}>
-                <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('brief')}>
-                  {tr('Brief', 'Brief', 'Brief')}
-                  {due.brief ? <i className={s.cue} aria-hidden /> : null}
-                </Button>
-                <Button size="sm" variant="ghost" disabled={streaming} onClick={() => void launch('debrief')}>
-                  {tr('Débrief', 'Debrief', 'Debrief')}
-                  {due.debrief ? <i className={s.cue} aria-hidden /> : null}
-                </Button>
-              </div>
-              {visibleMessages.length > 0 && (
-                <div className={s.suggestions}>
-                  {sugs.slice(0, 3).map((sg) => (
-                    <button key={sg} className={s.suggestion} onClick={() => setDraft(sg)}>
-                      {sg.length > 60 ? `${sg.slice(0, 58)}…` : sg}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className={s.composerRow}>
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                  placeholder={tr(
-                    'Demander à l’agent… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)',
-                    'Ask the agent… (Enter to send, Shift+Enter for a new line)',
-                    'Preguntar al agente… (Entrar para enviar, Mayús+Entrar para una nueva línea)',
-                  )}
-                  rows={2}
-                />
-                {streaming ? (
-                  <Button variant="danger" onClick={stop}>
-                    {tr('Arrêter', 'Stop', 'Detener')}
-                  </Button>
-                ) : (
-                  <Button variant="gold" onClick={submit} disabled={!draft.trim()}>
-                    <IconSend size={14} /> {tr('Envoyer', 'Send', 'Enviar')}
-                  </Button>
                 )}
+                <div className={s.composerRow}>
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        submit();
+                      }
+                    }}
+                    placeholder={tr(
+                      'Demander à l’agent… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)',
+                      'Ask the agent… (Enter to send, Shift+Enter for a new line)',
+                      'Preguntar al agente… (Entrar para enviar, Mayús+Entrar para una nueva línea)',
+                    )}
+                    rows={2}
+                  />
+                  {streaming ? (
+                    <Button variant="danger" onClick={stop}>
+                      {tr('Arrêter', 'Stop', 'Detener')}
+                    </Button>
+                  ) : (
+                    <Button variant="gold" onClick={submit} disabled={!draft.trim()}>
+                      <IconSend size={14} /> {tr('Envoyer', 'Send', 'Enviar')}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+            <Propositions />
+          </div>
         </div>
         <div className={s.view} role="tabpanel" id="agent-panel-options" aria-labelledby="agent-tab-options" hidden={view !== 'options'}>
           <div className={s.options}>
@@ -424,12 +443,7 @@ export default function Agent() {
                     orchestrator.running ? tr(`en service · ${orchestrator.clients} lien(s)`, `running · ${orchestrator.clients} link(s)`, `en servicio · ${orchestrator.clients} enlace(s)`) : tr('en veille', 'idle', 'en espera'),
                     orchestrator.running,
                   ],
-                  [tr('Écriture des agents', 'Agents writing', 'Escritura de los agentes'), allowWrite ? tr('autorisée', 'allowed', 'autorizada') : tr('lecture seule', 'read only', 'solo lectura'), false],
-                  [
-                    tr('Ordres de l’agent', 'Agent orders', 'Órdenes del agente'),
-                    ordersStatus.pending ? tr('en attente du trader', 'waiting for the trader', 'esperando al trader') : ordersStatus.enabled ? tr('autorisés · Sim', 'allowed · Sim', 'autorizadas · Sim') : tr('désactivés', 'off', 'desactivadas'),
-                    ordersStatus.enabled,
-                  ],
+                  // L'écriture des agents et les ordres de l'agent se lisent une fois, aux portes du rail (OROS5.25).
                 ] as const
               ).map(([label, value, live]) => (
                 <div key={label}>
@@ -524,10 +538,10 @@ export default function Agent() {
               </Field>
               <div className={s.row2}>
                 <Field label={`${tr('Température', 'Temperature', 'Temperatura')} · ${fmtNum(agent.temperature, 1)}`}>
-                  <input type="range" min={0} max={1} step={0.1} value={agent.temperature} onChange={(e) => updateAgent({ temperature: Number(e.target.value) })} />
+                  <input type="range" className={s.temperature} min={0} max={1} step={0.1} value={agent.temperature} onChange={(e) => updateAgent({ temperature: Number(e.target.value) })} />
                 </Field>
                 <Field label={tr('Outils du desk', 'Desk tools', 'Herramientas del desk')}>
-                  {/* Interrupteur au composant de la bascule : allumé, il passe à l'or ; le rôle et l'état restent ceux d'un switch. */}
+                  {/* Interrupteur au composant de la bascule : allumé, il passe à l'ivoire ; le rôle et l'état restent ceux d'un switch. */}
                   <button type="button" role="switch" aria-checked={agent.toolsEnabled} className={s.deskTools} onClick={() => updateAgent({ toolsEnabled: !agent.toolsEnabled })}>
                     <Glyph name="toggle" className={s.toggleGlyph} />
                     <span>{agent.toolsEnabled ? tr('activés', 'enabled', 'activadas') : tr('désactivés', 'disabled', 'desactivadas')}</span>
@@ -561,7 +575,8 @@ export default function Agent() {
               </Field>
             </div>
 
-            <div className={s.section}>
+            {/* La porte « écriture des agents » du rail mène ici : le focus se pose sur la section, jamais sur l'interrupteur. */}
+            <div className={s.section} data-gate-target="agentWrite">
               <div className={s.sectionTitle}>
                 <span>{tr('Agents externes · MCP', 'External agents · MCP', 'Agentes externos · MCP')}</span>
                 <Tag tone={mcp.running ? 'mint' : undefined} dot live={mcp.running}>
@@ -773,7 +788,10 @@ export default function Agent() {
               )}
             </div>
 
-            <AgentOrdersPanel available={isDesk && !!desk?.agentOrders} />
+            {/* La porte « ordres de l'agent » du rail mène ici : le focus se pose sur la section, jamais sur Autoriser. */}
+            <div data-gate-target="agentOrders">
+              <AgentOrdersPanel available={isDesk && !!desk?.agentOrders} />
+            </div>
 
             <div className={s.section}>
               <div className={s.sectionTitle}>
@@ -818,8 +836,11 @@ function prettyToolContent(content: string): string {
   }
 }
 
-/** Mémorisé : les messages passés ne sont pas réaffichés (ni re-rendus en Markdown) à chaque jeton du flux. */
-const Message = memo(function Message({ m }: { m: AgentMessage }) {
+/**
+ * Mémorisé : les messages passés ne sont pas réaffichés (ni re-rendus en Markdown) à chaque jeton du flux. Une réponse qui
+ * appelle des outils porte leur trace (OROS5.41) ; un résultat sans réponse rangée garde sa bulle.
+ */
+const Message = memo(function Message({ m, results, streaming = false }: { m: AgentMessage; results?: readonly AgentMessage[]; streaming?: boolean }) {
   useI18n((s) => s.locale);
   const html = useMemo(() => (m.role === 'assistant' && m.content ? renderMarkdown(m.content) : ''), [m.role, m.content]);
   const pretty = useMemo(() => (m.role === 'tool' ? prettyToolContent(m.content) : ''), [m.role, m.content]);
@@ -840,13 +861,9 @@ const Message = memo(function Message({ m }: { m: AgentMessage }) {
       <div className={cx(s.msg, s.assistant)}>
         <div className={s.msgHead}>
           <span>Agent</span>
-          {m.toolCalls?.map((tc) => (
-            <span key={tc.id} className={s.toolChip}>
-              <i /> {tc.name}
-            </span>
-          ))}
         </div>
         {html && <div className={s.bubble} dangerouslySetInnerHTML={{ __html: html }} />}
+        {m.toolCalls?.length ? <ToolTrace answer={m} results={results ?? []} streaming={streaming} /> : null}
       </div>
     );
   }

@@ -78,6 +78,71 @@
   min-width: 0;
 }
 
+/* La conversation et la colonne Propositions (OROS5.39) : 320 px, mesure locale (décision 4 : aucun jeton). La colonne passe
+   sous la conversation quand la zone de travail se resserre (la fiche ouverte, 1180 px). */
+.conversation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  height: 100%;
+  min-height: 0;
+}
+.proposals {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line-1);
+  background: var(--bg-1);
+}
+.proposalsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--line-1);
+}
+.proposalsHead h2 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.proposalsHead span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+}
+.proposalsEmpty {
+  margin: 0;
+  padding: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.proposalsList {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 4px;
+  list-style: none;
+}
+@container main (max-width: 860px) {
+  .conversation {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .proposals {
+    max-height: 240px;
+    border-left: 0;
+    border-top: 1px solid var(--line-1);
+  }
+}
+
 /* Options : chaque bloc est une plaque, rangée en colonnes. */
 .options {
   display: grid;
@@ -248,9 +313,6 @@
   padding: 2px 8px;
   border-radius: var(--radius);
 }
-.toolChip.pending i {
-  animation: pulse-dot 1s ease-in-out infinite;
-}
 .toolChip i {
   width: 4px;
   height: 4px;
@@ -269,10 +331,211 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
-.cursor::after {
-  content: '▍';
-  color: var(--gold);
-  animation: pulse-dot 0.8s ease-in-out infinite;
+/* M.060, la garde d'écriture de l'agent (OROS5.42) : l'état des ordres, les trois limites sur leurs bornes, le pied. Le
+   trait vient de la table d'états (src/design/etat.module.css) : en service, plein ; en attente de vous, halo tireté ;
+   désactivés ou fermés, filet graphite. Aucun or : la décision qui attend l'opérateur se dit sur la proposition. */
+.access {
+  --k: var(--text-2);
+  display: grid;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  background: var(--bg-1);
+}
+.accessState {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-1);
+}
+.accessState b {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.accessBars {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.accessBars li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 52px;
+  align-items: center;
+  gap: 10px;
+}
+.accessLabel {
+  font-size: 11px;
+  color: var(--text-1);
+}
+.accessTrack {
+  height: 2px;
+  background: var(--line-1);
+}
+.accessTrack i {
+  display: block;
+  height: 100%;
+  background: var(--text-1);
+}
+.accessBars b {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  text-align: right;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+.accessFoot {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+/* C.070, l'écrou de la garde : sur Autoriser… et Relever les limites…, qui ouvrent le dialogue du process principal. */
+.gateNut {
+  width: 12px;
+  height: 14px;
+  margin-right: 6px;
+  --k: currentColor;
+  --p: var(--bg-2);
+}
+
+/* La trace des outils sous chaque réponse (OROS5.41) : le nom de l'outil en Geist Mono au glacier (la technique), ses
+   arguments bornés, son issue et sa durée. L'appel en cours garde le halo tireté de la table d'états jusqu'à son résultat :
+   rien ne pulse, et l'or reste à l'opérateur. */
+.trace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 820px;
+}
+.traceList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.traceRow {
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-1);
+}
+.traceMark {
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  --k: var(--text-1);
+}
+.traceName {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ice);
+}
+.traceArgs {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.traceIssue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-1);
+}
+.traceGlyph {
+  width: 12px;
+  height: 12px;
+  --k: var(--text-1);
+}
+.traceMs {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.traceResult {
+  grid-column: 2 / -1;
+}
+.traceResult summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.traceResult pre {
+  margin: 4px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line-0);
+  background: var(--bg-0);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+/* « Contexte lu » : les objets que l'agent a lus ; chacun ouvre sa fiche. */
+.contextRead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.contextHead {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--track-11);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.contextItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--line-1);
+  background: none;
+  font-size: 11px;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: border-color 200ms linear, color 200ms linear;
+}
+.contextItem:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .contextItem:hover {
+    border-color: var(--line-2);
+    color: var(--text-0);
+  }
+}
+.contextGlyph {
+  width: 12px;
+  height: 12px;
+  --k: var(--ice);
 }
 .routines {
   display: flex;
@@ -399,7 +662,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
 }
 .toolItem b {
   font-family: var(--font-mono);
@@ -450,7 +713,14 @@ pre.proto {
   --p: var(--bg-0);
 }
 
-/* Interrupteur des outils du desk : le composant de la bascule, à l'or quand il est allumé. */
+/* Le curseur de température : un réglage, pas ce que tient l'opérateur ; il quitte l'or que tokens.css donne à tout
+   curseur (OROS5.44, décision 1 ; tokens.css ne change pas, la règle locale l'emporte par sa spécificité). */
+.temperature[type='range'] {
+  accent-color: var(--text-1);
+}
+
+/* Interrupteur des outils du desk : le composant de la bascule, à l'ivoire quand il est allumé (OROS5.44 : l'état d'une
+   option n'est pas l'or). */
 .deskTools {
   display: inline-flex;
   align-items: center;
@@ -480,7 +750,7 @@ pre.proto {
   color: var(--text-0);
 }
 .deskTools[aria-checked='true'] .toggleGlyph {
-  --k: var(--gold);
+  --k: var(--text-0);
 }
 
 /* Flèche de la planche au bout d'un bouton. */

@@ -3,7 +3,7 @@
  * écarts aux règles. Pur : le desk lit le journal, le pont et le calendrier, puis appelle ces fonctions.
  * Une règle à 0 (ou une liste vide) est inactive : elle ne signale rien.
  */
-import { ET_ZONE, tradingDayKey } from '@/lib/time';
+import { cmeTradingDay } from './tradingDay';
 import { CATALYST_MIN_IMPACT, catalystInstant } from './agent/events';
 import type { CalEvent } from './calendar';
 import { getInstrument, resolveSymbol, standardCounterpart } from './instruments';
@@ -103,10 +103,11 @@ export function hasActiveRules(rules: TraderRules): boolean {
 
 /**
  * Journée CME en cours (18 h → 17 h, heure de New York) : la date de séance du journal (`tradeDay`,
- * `Session.date`). Un instant du dimanche 18 h 30 compte pour le lundi.
+ * `Session.date`). Un instant du dimanche 18 h 30 compte pour le lundi. La définition est celle du moteur, que lit aussi
+ * le process principal (`cmeTradingDay`, `src/engine/tradingDay.ts`, OROS5.48).
  */
 export function tradingDayNow(now: number): string {
-  return tradingDayKey(now, 18, ET_ZONE);
+  return cmeTradingDay(now);
 }
 
 export interface DayLossInput {
@@ -152,6 +153,15 @@ const DAY_REPLAY: PropPlan = {
   source: 'user',
 };
 
+/**
+ * La perte du jour d'un réalisé et d'un latent : seul un latent négatif compte, et la perte n'est jamais négative.
+ * `dayLoss` la calcule ainsi ; les bornes de la journée (`src/engine/bornes.ts`) y ajoutent le latent du pont.
+ */
+export function lossOfDay(realized: number, unrealized?: number): { unrealized: number; loss: number } {
+  const latent = Math.min(0, typeof unrealized === 'number' && Number.isFinite(unrealized) ? unrealized : 0);
+  return { unrealized: latent, loss: Math.max(0, -(realized + latent)) };
+}
+
 /** Perte de la journée CME : réalisé du jour plus latent négatif, et plus-bas du rejeu. */
 export function dayLoss(input: DayLossInput): DayLoss {
   const account = input.account ?? '';
@@ -160,16 +170,39 @@ export function dayLoss(input: DayLossInput): DayLoss {
   const trades = input.trades.filter((t) => ids.has(t.sessionId));
   const realized = sessions.reduce((sum, s) => sum + s.pnl, 0);
   const point = sessions.length ? evaluatePlan(DAY_REPLAY, [...sessions], [...trades]).timeline[0] : undefined;
-  const unrealized = Math.min(0, typeof input.unrealized === 'number' && Number.isFinite(input.unrealized) ? input.unrealized : 0);
+  const { unrealized, loss } = lossOfDay(realized, input.unrealized);
   return {
     day: input.day,
     account: account || null,
     realized,
     unrealized,
-    loss: Math.max(0, -(realized + unrealized)),
+    loss,
     intradayLow: point?.intradayLow ?? 0,
     trades: sessions.reduce((sum, s) => sum + s.tradeCount, 0),
   };
+}
+
+/**
+ * Premier instant de la journée CME `day` où la perte réalisée du compte suivi ('' : tous les comptes) atteint `limit`,
+ * les sorties relues dans l'ordre jusqu'à `until` ; `null` sinon. La lecture de `detectRuleBreaches` (sorties de la même
+ * journée CME, compte de la limite), faite sortie après sortie : un gain qui ramène ensuite la perte sous la limite n'efface
+ * pas l'instant où elle l'a atteinte (décision 15 de l'ADMIN, 2026-11-03 : la journée reste fermée).
+ */
+export function limitReachedAt(closed: readonly Trade[], ctx: { day: string; account: string; limit: number; until?: number }): number | null {
+  if (!(ctx.limit > 0)) return null;
+  const until = ctx.until ?? Number.POSITIVE_INFINITY;
+  // Une journée CME dure au plus 25 h : lue à un instant de cette journée, aucune sortie plus ancienne n'en est ; le jour
+  // de chaque sortie candidate reste celui de `tradingDayNow`.
+  const floor = Number.isFinite(until) && tradingDayNow(until) === ctx.day ? until - 26 * 3_600_000 : Number.NEGATIVE_INFINITY;
+  const exits = closed
+    .filter((t) => Number.isFinite(t.pnl) && Number.isFinite(t.exitTime) && t.exitTime <= until && t.exitTime >= floor && (!ctx.account || (t.account ?? '') === ctx.account) && tradingDayNow(t.exitTime) === ctx.day)
+    .sort((a, b) => a.exitTime - b.exitTime || a.id.localeCompare(b.id));
+  let realized = 0;
+  for (const t of exits) {
+    realized += t.pnl;
+    if (-realized >= ctx.limit) return t.exitTime;
+  }
+  return null;
 }
 
 export interface DailyLimit {
@@ -290,6 +323,8 @@ export function detectDrifts(entries: readonly DisciplineEntry[], closed: readon
 
 /** Catalyseur majeur daté (impact 3, heure de New York connue). */
 export interface MajorCatalyst {
+  /** L'identifiant de la publication dans la source unique : la fiche Catalyseur qu'elle ouvre (OROS5.45m). */
+  id?: string;
   /** Epoch ms de la publication. */
   at: number;
   title: string;
@@ -297,6 +332,8 @@ export interface MajorCatalyst {
   timeET: string;
   /** Vide = tous les instruments. */
   instruments: string[];
+  /** Date déduite d'une récurrence, pas encore publiée (un estimé, « ≈ ») : la source unique la marque (OROS5.13). */
+  estimated?: boolean;
 }
 
 /** Catalyseurs majeurs avec heure, triés ; un événement sans heure (fenêtre de résultats) n'a pas de fenêtre. */
@@ -306,7 +343,7 @@ export function majorCatalysts(events: readonly CalEvent[], minImpact = CATALYST
     if (e.impact < minImpact) continue;
     const at = catalystInstant(e);
     if (at === null || !e.timeET) continue;
-    out.push({ at, title: e.title, date: e.date, timeET: e.timeET, instruments: e.instruments ?? [] });
+    out.push({ id: e.id, at, title: e.title, date: e.date, timeET: e.timeET, instruments: e.instruments ?? [], estimated: e.estimated });
   }
   return out.sort((a, b) => a.at - b.at);
 }

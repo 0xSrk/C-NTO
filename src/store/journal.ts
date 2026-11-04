@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { generateDemoJournal } from '@/engine/demo';
+import { demoPocket, demoSettingsPatch, generateDemoJournal, generateDemoOntology, generateDemoSimJournal } from '@/engine/demo';
 import { DEFAULT_FUTURE } from '@/engine/instruments';
 import { CSV_WORKER_MIN_LINES, csvLineCount, detectFormat, importCsvAuto, type ImportOptions, type ImportResult } from '@/engine/import';
 import { importExecutionsCsv, openLotKey, type OpenLot } from '@/engine/import/executions';
@@ -13,6 +13,9 @@ import { stampTradeTags } from '@/engine/tradeUnits';
 import { uid } from '@/lib/id';
 import { db, type ImportedExecution, type StoredOpenLot } from './db';
 import { withJournalLock } from './lock';
+import { useNotes } from './notes';
+import { usePortfolio } from './portfolio';
+import { useSettings } from './settings';
 import { scheduleOntologyRecompute } from './ontology-schedule';
 import { useUi } from './ui';
 
@@ -77,13 +80,29 @@ export const useJournal = create<JournalState>((set, get) => ({
     const count = Math.min(140, room);
     if (count <= 0) return 0;
     const { sessions, trades } = generateDemoJournal({ sessions: count });
-    await db.transaction('rw', [db.sessions, db.trades], async () => {
-      await db.sessions.bulkAdd(sessions);
-      await db.trades.bulkAdd(trades);
+    // Décision 14 : deux notes que le moteur rapproche (une hypothèse) et un lien écrit par l'agent ; aucun ordre.
+    const ontology = generateDemoOntology({ sessions });
+    // Décision 14 (OROS5.30a) : un compte Sim au plan suivi encore en cours, sa poche prop, et la perte du jour réglée ;
+    // un réglage du trader n'est jamais remplacé.
+    const sim = room - count >= 5 ? generateDemoSimJournal() : { sessions: [], trades: [] };
+    const pocket = sim.sessions.length ? demoPocket(await db.pockets.toArray()) : null;
+    await db.transaction('rw', [db.sessions, db.trades, db.notes, db.links, db.pockets], async () => {
+      await db.sessions.bulkAdd([...sessions, ...sim.sessions]);
+      await db.trades.bulkAdd([...trades, ...sim.trades]);
+      await db.notes.bulkPut(ontology.notes);
+      await db.links.bulkPut(ontology.links);
+      if (pocket) await db.pockets.put(pocket);
     });
+    if (sim.sessions.length) {
+      const { planAccount, planId, traderRules } = useSettings.getState().settings;
+      const patch = demoSettingsPatch({ planAccount, planId, traderRules });
+      if (Object.keys(patch).length) await useSettings.getState().update(patch);
+    }
     await get().load();
+    await useNotes.getState().load();
+    await usePortfolio.getState().load();
     scheduleOntologyRecompute();
-    return sessions.length;
+    return sessions.length + sim.sessions.length;
   },
 
   async addManualSession(input) {

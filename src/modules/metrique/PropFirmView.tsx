@@ -282,7 +282,7 @@ export function PropFirmView({ scope }: { scope: TabScope }) {
             <Panel
               title={tr('Rejeu du compte', 'Account replay', 'Repetición de la cuenta')}
               actions={
-                <>
+                <span className={s.planTarget} data-plan-target="">
                   {tracking === 'suivre' && scope.account && (
                     <Button size="sm" variant="ghost" onClick={() => update({ planAccount: scope.account ?? '' })}>
                       {tr(`Suivre ce plan pour ${scope.account}`, `Track this plan for ${scope.account}`, `Seguir este plan para ${scope.account}`)}
@@ -304,7 +304,7 @@ export function PropFirmView({ scope }: { scope: TabScope }) {
                       {plural(planEval.dailyLossBreaches.length, tr('dépassement', 'breach', 'exceso'), tr('dépassements', 'breaches', 'excesos'))} {tr('perte/jour', 'loss/day', 'pérdida/día')}
                     </Tag>
                   )}
-                </>
+                </span>
               }
             >
               {timelineSeries[0]?.points.length ? <LineArea series={timelineSeries} height={260} formatY={(v) => fmtUsd(v)} baseline={null} legend /> : <p className={s.note}>{tr('Aucune séance à rejouer.', 'No session to replay.', 'Ninguna sesión que repetir.')}</p>}

@@ -1,4 +1,10 @@
 import { customSeriesDefaultOptions, type AutoscaleInfo, type CustomData, type CustomSeriesOptions, type ICustomSeriesPaneRenderer, type ICustomSeriesPaneView, type PaneRendererCustomData, type PriceToCoordinateConverter, type Time } from 'lightweight-charts';
+import type { DisciplineFinding, MajorCatalyst } from '@/engine/discipline';
+import type { EquityCurveData } from '@/engine/equityCurve';
+import { catalystLabel } from '@/engine/macroMerge';
+import { OUT_OF_SELECTION } from '@/engine/selection';
+import type { Trade } from '@/engine/types';
+import { cmeDay } from '@/lib/frise';
 import { hatch, leader, lens, rulerTick, signaturePixel, trame, type Dot, type Pt } from './equityPaint';
 
 /**
@@ -47,6 +53,112 @@ export interface Marks {
 
 /** Composants de la planche que la courbe dessine : ⊕ la cible (plus haut), ⊗ la mire (creux), la borne (plancher). */
 export type GlyphKey = 'target' | 'mire' | 'borne';
+
+/** Composants qu'une puce allume (OROS5.36) : la tête d'un catalyseur (C.090), l'écart de discipline (C.024). */
+export type EventGlyphKey = 'catalyst' | 'drift';
+/** Image prête d'un composant d'événement, ou `null` : la puce éteinte n'en charge aucun. */
+export type EventGlyphSource = (key: EventGlyphKey) => CanvasImageSource | null;
+
+/**
+ * Les jeux d'événements de A.02 (OROS5.36), posés sur les pas de la courbe : les catalyseurs majeurs en tiges nommées,
+ * les écarts rejoués au pied, ×n quand un pas en porte plusieurs. Vides : la puce est éteinte.
+ */
+export interface EventMarks {
+  catalysts: { index: number; label: string; count: number }[];
+  drifts: { index: number; count: number }[];
+}
+
+export const NO_EVENTS: EventMarks = { catalysts: [], drifts: [] };
+
+/**
+ * Le pas que tient le curseur de temps (OROS5.36) : au grain séance, la séance de sa journée CME (`cmeDay`, bascule à
+ * 18:00 ET) ; au grain trade, le dernier trade de cette journée sorti avant lui, ou le premier du jour. `null` au présent,
+ * −1 quand la journée n'a pas de pas.
+ */
+export function cursorStep(curve: Pick<EquityCurveData, 'grain' | 'steps'>, cursor: number | null): number | null {
+  if (cursor === null) return null;
+  const day = cmeDay(cursor);
+  if (curve.grain === 'session') return curve.steps.findIndex((step) => !step.origin && step.date === day);
+  let best = -1;
+  curve.steps.forEach((step, i) => {
+    if (step.origin || step.date !== day) return;
+    if (best < 0 || (step.at !== null && step.at <= cursor)) best = i;
+  });
+  return best;
+}
+
+/** Les pas de chaque journée de la courbe, et le pas où tombe un catalyseur : sa séance, ou le premier trade sorti après lui. */
+function stepsByDay(curve: Pick<EquityCurveData, 'grain' | 'steps'>): { byDay: Map<string, number[]>; catalystStep: (c: MajorCatalyst) => number | null } {
+  const byDay = new Map<string, number[]>();
+  curve.steps.forEach((step, i) => {
+    if (step.origin) return;
+    const list = byDay.get(step.date);
+    if (list) list.push(i);
+    else byDay.set(step.date, [i]);
+  });
+  const catalystStep = (c: MajorCatalyst): number | null => {
+    const day = byDay.get(c.date);
+    if (!day?.length) return null;
+    if (curve.grain === 'session') return day[0]!;
+    return day.find((i) => (curve.steps[i]!.at ?? -Infinity) >= c.at) ?? day[day.length - 1]!;
+  };
+  return { byDay, catalystStep };
+}
+
+/**
+ * Les catalyseurs des tiges, un par publication, dans l'ordre de la courbe (OROS5.45m) : la toile ne s'atteint pas au
+ * clavier, chacun devient un bouton hors de la toile qui ouvre sa fiche. Seuls ceux que la source unique identifie.
+ */
+export function catalystStems(curve: Pick<EquityCurveData, 'grain' | 'steps'>, catalysts: readonly MajorCatalyst[], name: (title: string) => string = (title) => title): { index: number; id: string; label: string; date: string }[] {
+  const { catalystStep } = stepsByDay(curve);
+  const seen = new Set<string>();
+  const out: { index: number; id: string; label: string; date: string }[] = [];
+  for (const c of catalysts) {
+    const index = catalystStep(c);
+    if (index === null || !c.id || seen.has(c.id)) continue;
+    seen.add(c.id);
+    out.push({ index, id: c.id, label: catalystLabel({ title: name(c.title), estimated: c.estimated === true }), date: c.date });
+  }
+  return out.sort((a, b) => a.index - b.index);
+}
+
+/**
+ * Les marques des jeux d'événements sur la courbe : chaque catalyseur au pas de sa journée (au grain trade, le premier
+ * trade du jour sorti après la publication, sinon le dernier du jour), chaque écart au pas du trade qu'il marque (au
+ * grain séance, sa journée). Ce qui ne tombe sur aucun pas n'est pas sur la courbe. Plusieurs marques d'un même pas se
+ * comptent ; les catalyseurs s'y nomment ensemble (`name` : le titre dans la langue du desk), « ≈ » devant un estimé
+ * (`catalystLabel`, C.054 ; décision 13). Pur.
+ */
+export function eventMarks(curve: Pick<EquityCurveData, 'grain' | 'steps'>, input: { catalysts: readonly MajorCatalyst[]; findings: readonly DisciplineFinding[]; trades: readonly Trade[] }, name: (title: string) => string = (title) => title): EventMarks {
+  const { byDay, catalystStep } = stepsByDay(curve);
+  const tradeOf = new Map(input.trades.map((t) => [t.id, t]));
+  const findingStep = (f: DisciplineFinding): number | null => {
+    const day = byDay.get(f.day);
+    if (!day?.length) return null;
+    if (curve.grain === 'session') return day[0]!;
+    const t = tradeOf.get(f.entryId);
+    return (t && day.find((i) => curve.steps[i]!.at === t.exitTime && curve.steps[i]!.instrument === t.instrument)) ?? day[0]!;
+  };
+  const stems = new Map<number, { titles: string[]; count: number }>();
+  for (const c of input.catalysts) {
+    const index = catalystStep(c);
+    if (index === null) continue;
+    const row = stems.get(index) ?? { titles: [], count: 0 };
+    row.count += 1;
+    const title = catalystLabel({ title: name(c.title), estimated: c.estimated === true });
+    if (!row.titles.includes(title)) row.titles.push(title);
+    stems.set(index, row);
+  }
+  const feet = new Map<number, number>();
+  for (const f of input.findings) {
+    const index = findingStep(f);
+    if (index !== null) feet.set(index, (feet.get(index) ?? 0) + 1);
+  }
+  return {
+    catalysts: [...stems].sort((a, b) => a[0] - b[0]).map(([index, row]) => ({ index, label: row.titles.join(' · '), count: row.count })),
+    drifts: [...feet].sort((a, b) => a[0] - b[0]).map(([index, count]) => ({ index, count })),
+  };
+}
 /**
  * Image prête d'un composant, ou `null` tant qu'elle ne l'est pas. Une fonction, pas un objet : `applyOptions`
  * fusionne les objets en profondeur et recopierait une image dans l'autre.
@@ -62,6 +174,16 @@ export interface TraitOptions extends CustomSeriesOptions {
   /** Drawdown maximal du plan suivi (> 0) : la borne du volet sous l'eau ; 0 sans plan. */
   floor: number;
   floorLabel: string;
+  /**
+   * La puce Instrument est posée (OROS5.32) ; `inSelection` dit si un pas lui appartient. La courbe reste celle du compte
+   * et de la période : les pas de la sélection s'allument d'un carré, les autres restent à leur place, leur fil atténué à
+   * 35 %. Une fonction, pas un tableau : `applyOptions` fusionne les objets en profondeur.
+   */
+  selecting: boolean;
+  inSelection: (index: number) => boolean;
+  /** Les jeux d'événements allumés (OROS5.36) : les tiges des catalyseurs et les écarts au pied du volet d'équité. */
+  events: EventMarks;
+  eventGlyph: EventGlyphSource;
 }
 
 type Scope = Parameters<Parameters<Parameters<ICustomSeriesPaneRenderer['draw']>[0]['useBitmapCoordinateSpace']>[0]>[0];
@@ -70,6 +192,8 @@ type Bars = PaneRendererCustomData<Time, EquityRow>['bars'];
 const NO_MARKS: Marks = { high: NONE, highLabel: '', trough: NONE, troughLabel: '' };
 const NO_INK: Ink = { line: 'gray', pos: 'gray', neg: 'gray', red: 'gray', faint: 'gray', label: 'gray', zero: 'gray', paper: 'transparent', mono: 'monospace' };
 const NO_GLYPH: GlyphSource = () => null;
+const NO_EVENT_GLYPH: EventGlyphSource = () => null;
+const ALL_STEPS = () => true;
 
 /**
  * Échelle du volet sous l'eau avec la borne du plan : la plage des données, étendue jusqu'au plancher (−`floor`) pour
@@ -309,6 +433,75 @@ function pixel(ctx: CanvasRenderingContext2D, scope: Scope, at: Pt, ink: Ink): v
   ctx.globalAlpha = 1;
 }
 
+/**
+ * Les jeux d'événements du volet d'équité (OROS5.36). Un catalyseur : une tige d'un pixel depuis la tête C.090, en haut,
+ * jusqu'au pied du volet, son nom à droite de la tête quand il tient avant la tige suivante (toujours pour le pas lu).
+ * Un écart : C.024 au pied du volet, et ×n quand le pas en porte plusieurs. Les traits sont pleins : le tireté dit un état.
+ */
+/** Une boîte du volet que le nom d'une tige ne doit pas couvrir (l'étiquette du plus haut). */
+interface Box {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+function paintEvents(ctx: CanvasRenderingContext2D, scope: Scope, pts: readonly (Pt & { index: number })[], events: EventMarks, focus: number, ink: Ink, glyph: EventGlyphSource, avoid: readonly Box[]): void {
+  const h = scope.horizontalPixelRatio;
+  const v = scope.verticalPixelRatio;
+  const width = scope.bitmapSize.width;
+  const height = scope.bitmapSize.height;
+  const xOf = (index: number) => pts.find((p) => p.index === index)?.x;
+  const ctxLs = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+  ctx.font = `500 ${Math.round(9 * v)}px ${ink.mono}`;
+  ctxLs.letterSpacing = `${(1.1 * h).toFixed(1)}px`;
+  ctx.textBaseline = 'middle';
+  const stems = events.catalysts.map((m) => ({ ...m, x: xOf(m.index) })).filter((m): m is typeof m & { x: number } => m.x !== undefined);
+  const head = glyph('catalyst');
+  stems.forEach((m, i) => {
+    const x = Math.round(m.x);
+    const read = m.index === focus;
+    const top = Math.round(16 * v);
+    ctx.globalAlpha = read ? 0.9 : 0.45;
+    ctx.fillStyle = ink.label;
+    ctx.fillRect(x, top, Math.max(1, Math.round(h)), height - top);
+    ctx.globalAlpha = 1;
+    const size = 12 * h;
+    if (head) ctx.drawImage(head, x - size / 2, 2 * v, size, size);
+    const text = m.count > 1 && !m.label.includes(' · ') ? `${m.label} ×${m.count}` : m.label;
+    const room = (stems[i + 1]?.x ?? width) - x - 14 * h;
+    const textWidth = ctx.measureText(text).width;
+    const left = Math.min(x + 8 * h, width - textWidth - 2 * h);
+    // Un nom ne couvre jamais l'étiquette d'un repère : la lecture au-dessus de la courbe le dit alors pour le pas lu.
+    const covers = avoid.some((b) => left - 2 * h < b.x1 && left + textWidth + 2 * h > b.x0 && 3 * v < b.y1 && 14 * v > b.y0);
+    if ((read || textWidth <= room) && !covers) {
+      ctx.fillStyle = ink.paper;
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(Math.round(left - 2 * h), Math.round(3 * v), Math.round(textWidth + 4 * h), Math.round(11 * v));
+      ctx.globalAlpha = read ? 1 : 0.8;
+      ctx.fillStyle = read ? ink.line : ink.label;
+      ctx.fillText(text, left, 8.5 * v);
+      ctx.globalAlpha = 1;
+    }
+  });
+  const cross = glyph('drift');
+  for (const m of events.drifts) {
+    const at = xOf(m.index);
+    if (at === undefined) continue;
+    const x = Math.round(at);
+    const y = height - 9 * v;
+    const size = 10 * h;
+    ctx.fillStyle = ink.paper;
+    ctx.fillRect(Math.round(x - size / 2 - h), Math.round(y - size / 2 - v), Math.round(size + 2 * h), Math.round(size + 2 * v));
+    if (cross) ctx.drawImage(cross, x - size / 2, y - size / 2, size, size);
+    if (m.count > 1) {
+      ctx.fillStyle = ink.label;
+      ctx.fillText(`×${m.count}`, x + 7 * h, y);
+    }
+  }
+  ctxLs.letterSpacing = '0px';
+}
+
 /** Pas survolé : un carré creux d'un pixel, à peine lumineux. */
 function focusMark(ctx: CanvasRenderingContext2D, scope: Scope, at: Pt, color: string): void {
   const s = Math.round(6 * scope.horizontalPixelRatio);
@@ -332,7 +525,7 @@ abstract class TraitView implements ICustomSeriesPaneView<Time, EquityRow, Trait
   }
 
   defaultOptions(): TraitOptions {
-    return { ...customSeriesDefaultOptions, ink: NO_INK, marks: NO_MARKS, focus: NONE, glyph: NO_GLYPH, floor: 0, floorLabel: '' };
+    return { ...customSeriesDefaultOptions, ink: NO_INK, marks: NO_MARKS, focus: NONE, glyph: NO_GLYPH, floor: 0, floorLabel: '', selecting: false, inSelection: ALL_STEPS, events: NO_EVENTS, eventGlyph: NO_EVENT_GLYPH };
   }
 
   renderer(): ICustomSeriesPaneRenderer {
@@ -408,6 +601,30 @@ export class EquityTrait extends TraitView {
     glowLine(ctx, pts, ink.neg, lineWidth, 6 * h);
     ctx.restore();
 
+    // Les jeux d'événements allumés par leur puce : sous les repères, au-dessus de la trame. Le nom d'une tige laisse sa
+    // place à l'étiquette du plus haut (même police, même pose que `glyphMark`).
+    if (this.options.events.catalysts.length || this.options.events.drifts.length) {
+      const avoid: Box[] = [];
+      const top = pts.find((p) => p.index === marks.high);
+      const lastIndex = this.data?.bars[this.data.bars.length - 1]?.time;
+      if (top && marks.high !== lastIndex && marks.highLabel) {
+        const ctxLs = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+        ctx.font = `500 ${Math.round(9 * scope.verticalPixelRatio)}px ${ink.mono}`;
+        ctxLs.letterSpacing = `${(1.3 * h).toFixed(1)}px`;
+        const half = ctx.measureText(marks.highLabel).width / 2 + 3 * h;
+        ctxLs.letterSpacing = '0px';
+        avoid.push({ x0: top.x - half, x1: top.x + half, y0: top.y - 34 * scope.verticalPixelRatio, y1: top.y - 23 * scope.verticalPixelRatio });
+      }
+      paintEvents(ctx, scope, pts, this.options.events, focus, ink, this.options.eventGlyph, avoid);
+    }
+
+    // La sélection s'allume sur la courbe du compte : un carré plein sur chacun de ses pas.
+    if (this.options.selecting) {
+      const size = Math.max(3, Math.round(3 * h));
+      ctx.fillStyle = ink.line;
+      for (const p of pts) if (this.options.inSelection(p.index)) ctx.fillRect(Math.round(p.x - size / 2), Math.round(p.y - size / 2), size, size);
+    }
+
     const last = this.data?.bars[this.data.bars.length - 1]?.time;
     const at = (index: number | undefined) => (index === undefined || index === NONE ? undefined : pts.find((p) => p.index === index));
     // Repères de la planche : ⊕ la cible au plus haut, ⊗ la mire au creux du plus grand drawdown.
@@ -430,7 +647,7 @@ export class StemTrait extends TraitView {
 
   protected paint(scope: Scope, bars: Bars, conv: PriceToCoordinateConverter): void {
     const ctx = scope.context;
-    const { ink, focus } = this.options;
+    const { ink, focus, selecting, inSelection } = this.options;
     const h = scope.horizontalPixelRatio;
     const v = scope.verticalPixelRatio;
     const zero = conv(0);
@@ -445,9 +662,11 @@ export class StemTrait extends TraitView {
       const x = Math.round(bar.x * h);
       const top = Math.round(y * v);
       const lit = bar.time === focus;
-      ctx.globalAlpha = lit ? 1 : 0.78;
+      // Hors de la sélection : le pas reste à sa place, atténué à 35 %, sans lueur.
+      const out = selecting && !inSelection(bar.time);
+      ctx.globalAlpha = lit ? 1 : out ? 0.78 * OUT_OF_SELECTION : 0.78;
       ctx.shadowColor = color;
-      ctx.shadowBlur = (lit ? 6 : 3) * h;
+      ctx.shadowBlur = out ? 0 : (lit ? 6 : 3) * h;
       ctx.fillStyle = color;
       ctx.fillRect(x, Math.min(top, base), 1, Math.abs(top - base));
       ctx.fillRect(x - Math.floor(cap / 2), top - Math.floor(cap / 2), cap, cap);

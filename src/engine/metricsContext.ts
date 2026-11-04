@@ -69,8 +69,11 @@ export interface DailyBar {
 /** Unité, en minutes, à partir de laquelle une barre porte une date civile (barre journalière ou plus). */
 export const DAILY_TIMEFRAME = 1440;
 
-/** Portée des publications retenues autour d'une entrée : au-delà des réglages (10 min avant, 60 min après au plus). */
-const RELEASE_REACH_MIN = 180;
+/**
+ * Portée des publications retenues autour d'une entrée : au-delà des réglages (10 min avant, 60 min après au plus).
+ * C'est aussi la fenêtre de la distance d'un trade à sa publication (`releaseDistance`) : au-delà, aucune.
+ */
+export const RELEASE_REACH_MIN = 180;
 
 /**
  * Date civile d'une barre journalière. Un CSV journalier est lu à minuit **local** (`importBarsCsv`),
@@ -236,9 +239,47 @@ export function mergeCopies(trades: readonly Trade[]): Trade[] {
   return groups.map((row) => row.lead);
 }
 
-function releaseMs(date: string, timeET: string | undefined): number | null {
-  if (!timeET || !/^\d{2}:\d{2}$/.test(timeET)) return null;
-  return zonedToUtc(date, timeET, ET_ZONE);
+/** L'instant d'une publication, à l'heure de New York ; sans heure lisible (`HH:mm`), aucun. */
+export function releaseInstant(event: Pick<ContextEvent, 'date' | 'timeET'>): number | null {
+  if (!event.timeET || !/^\d{2}:\d{2}$/.test(event.timeET)) return null;
+  return zonedToUtc(event.date, event.timeET, ET_ZONE);
+}
+
+/** Une publication au sens d'Analyse et de la fiche : officielle (jamais un estimé), d'impact 2 ou 3, à une heure connue. */
+export function isRelease(event: Pick<ContextEvent, 'date' | 'timeET' | 'impact' | 'estimated'>): boolean {
+  return !event.estimated && event.impact >= 2 && releaseInstant(event) !== null;
+}
+
+/** La distance d'une entrée à une publication. */
+export interface ReleaseDistance {
+  /** Minutes signées de la publication à l'entrée : positives quand l'entrée la suit (« CPI +69 min »). */
+  minutes: number;
+  /** Famille du catalyseur (`eventTypeOf`) : CPI, NFP, FOMC… */
+  family: string;
+  /** La publication retenue, telle que la source l'écrit. */
+  title: string;
+  date: string;
+  timeET: string;
+}
+
+/**
+ * La distance d'un trade à sa publication : la plus proche de l'entrée parmi `events` (des publications au sens
+ * d'`isRelease`), en minutes signées, avec sa famille. Au-delà de `reach` minutes de toute publication, `null`,
+ * jamais 0. La fiche lit les publications de ses liens « pendant » (`tradeReleaseDistance`) ; Analyse calcule les
+ * mêmes minutes par la même publication (`buildMetricsContext`, `releaseMinutes`).
+ */
+export function releaseDistance(entryTime: number, events: readonly ContextEvent[], reach = RELEASE_REACH_MIN): ReleaseDistance | null {
+  if (!Number.isFinite(entryTime)) return null;
+  let best: ReleaseDistance | null = null;
+  for (const event of events) {
+    if (!isRelease(event)) continue;
+    const at = releaseInstant(event);
+    if (at === null) continue;
+    const minutes = (entryTime - at) / 60_000;
+    if (!(Math.abs(minutes) <= reach)) continue;
+    if (best === null || Math.abs(minutes) < Math.abs(best.minutes)) best = { minutes, family: eventTypeOf(event.title), title: event.title, date: event.date, timeET: event.timeET ?? '' };
+  }
+  return best;
 }
 
 function tertile(value: number, history: readonly number[]): VolBand | undefined {
@@ -407,7 +448,7 @@ export function buildMetricsContext(input: {
     list.sort((a, b) => a.entryTime - b.entryTime || a.id.localeCompare(b.id));
     list.forEach((trade, index) => ranked.set(trade.id, index + 1));
   }
-  const releases = events.filter((event) => !event.estimated && event.impact >= 2);
+  const releases = events.filter(isRelease);
   const tradesOut: TradeContext[] = mine.map((trade) => {
     const date = dayOf(trade);
     const sheet = dayByDate.get(date);
@@ -417,7 +458,7 @@ export function buildMetricsContext(input: {
     const around: number[] = [];
     let straddles = false;
     for (const event of releases) {
-      const at = releaseMs(event.date, event.timeET);
+      const at = releaseInstant(event);
       if (at == null) continue;
       const minutes = (at - trade.entryTime) / 60_000;
       if (nearest == null || Math.abs(minutes) < Math.abs(nearest)) nearest = minutes;

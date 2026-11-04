@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BraceCode, Button, Led, cx } from '@/design/primitives';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
+import { BraceCode, Button, cx } from '@/design/primitives';
 import { Glyph } from '@/design/Micro';
 import { Seal } from '@/design/Seal';
 import { Wordmark } from '@/design/Wordmark';
@@ -8,8 +8,7 @@ import { OptionsMenu, type OptionItem } from '@/design/OptionsMenu';
 import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
-import { cmeSession } from '@/lib/cmeClosed';
-import { dateKeyLocal, ET_ZONE, etDateKey, globexState, type GlobexState } from '@/lib/time';
+import { dateKeyLocal, ET_ZONE, etDateKey } from '@/lib/time';
 import { useJournal } from '@/store/journal';
 import { useUi, type TabId } from '@/store/ui';
 import { useAgent } from '@/store/agent';
@@ -19,8 +18,12 @@ import { useCopier } from '@/store/copier';
 import { useCrypto } from '@/store/crypto';
 import { useLinks } from '@/store/links';
 import { useNotes } from '@/store/notes';
+import { useObjects } from '@/store/objects';
+import { useSettings } from '@/store/settings';
 import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
+import { FriseDrawer } from './Frise';
+import { FriseAnswer } from './FriseAnswer';
 import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
@@ -29,6 +32,14 @@ import { followerCount, railQuantity, type RailSnapshot } from './railQuantity';
 import { LAYER_GLYPH, MODULE_LAYERS, layerCode, layerName } from './moduleLayers';
 import { KillBand } from './KillBand';
 import { useKillSwitch } from './killState';
+import { ObjectCrumb, ObjectDrawer } from './objects/Fiche';
+import { Omnibar } from './objects/Omnibar';
+import { RailGates } from './RailGates';
+import { useRegistre } from './registre';
+import { RegistreDrawer } from './RegistreDrawer';
+import { matchShortcut } from './shortcuts';
+import { ShortcutHelp, useShortcutHelp } from './ShortcutHelp';
+import { StatusBornes } from './StatusBornes';
 import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
 
@@ -41,19 +52,33 @@ function useClock(everyMs = 1000) {
   return now;
 }
 
-function globexLabel(state: GlobexState): string {
-  if (state === 'FERMÉ') return tr('FERMÉ', 'CLOSED', 'CERRADO');
-  if (state === 'FERMÉ · FÉRIÉ') return tr('FERMÉ · FÉRIÉ', 'CLOSED · HOLIDAY', 'CERRADO · FESTIVO');
-  return state;
+/** Les zones du châssis que F6 parcourt, dans l'ordre : le rail, la zone de travail, la fiche, la barre d'état. */
+const ZONES = ['[data-chassis="rail"]', 'main', 'aside[data-drawer]', '[data-chassis="status"]'] as const;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * F6 (ou Maj+F6) : le focus passe à la zone suivante (ou précédente). La fiche le prend elle-même (↑ ↓ y passent d'un
+ * objet à l'autre) ; une autre zone, sur son premier élément actif ; une zone sans élément actif est sautée.
+ */
+function moveZone(step: 1 | -1): void {
+  const zones = ZONES.map((selector) => document.querySelector<HTMLElement>(selector)).flatMap((zone) => {
+    if (!zone) return [];
+    const target = zone.matches('aside[data-drawer]') ? zone : zone.querySelector<HTMLElement>(FOCUSABLE);
+    return target ? [{ zone, target }] : [];
+  });
+  if (zones.length === 0) return;
+  const here = zones.findIndex(({ zone }) => zone.contains(document.activeElement));
+  const next = zones[here < 0 ? (step > 0 ? 0 : zones.length - 1) : (here + step + zones.length) % zones.length]!;
+  next.target.focus();
 }
 
 type ClockFace = '24' | '12';
 
-const CLOCKS = [
-  { zone: 'Asia/Tokyo', code: 'TYO', city: ['Tokyo', 'Tokyo', 'Tokio'] },
-  { zone: 'Europe/Paris', code: 'PAR', city: ['Paris', 'Paris', 'París'] },
-  { zone: 'America/New_York', code: 'NYC', city: ['New York', 'New York', 'Nueva York'] },
-] as const;
+/**
+ * L'horloge de la barre d'état : New York seule (Système 5, décision 7 de l'ADMIN). Tokyo, Paris et le libellé de séance
+ * « CME GLOBEX · ETH » cèdent leur place à la ligne de la journée ; l'ET est l'heure de la frise et des fiches.
+ */
+const NEW_YORK = { zone: ET_ZONE, code: 'NYC', city: ['New York', 'New York', 'Nueva York'] } as const;
 
 /** Date de séance (New York), même ordre dans les trois langues : jour, quantième, mois. */
 function sessionStamp(ms: number, localeTag: string): string {
@@ -76,6 +101,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const setTab = useUi((u) => u.setTab);
   const crumb = useUi((u) => u.crumb);
   const metricAccount = useUi((u) => u.metricAccount);
+  const planAccount = useSettings((st) => st.settings.planAccount);
   const toasts = useUi((u) => u.toasts);
   const dismiss = useUi((u) => u.dismiss);
   const sessions = useJournal((j) => j.sessions);
@@ -93,6 +119,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const copierFollowers = useCopier((c) => followerCount(c.accounts));
   const cryptoEnabled = useCrypto((c) => c.enabled);
   const cryptoMarkets = useCrypto((c) => c.watchlist.length);
+  const openRef = useObjects((o) => o.open);
+  const friseOpen = useUi((u) => u.friseOpen);
+  const registreOpen = useRegistre((st) => st.open);
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const activeCopy = active ? tabCopy(active) : null;
   const [maximized, setMaximized] = useState(false);
@@ -109,23 +138,71 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     void desk.version().then(setAppVersion);
   }, []);
 
+  // Le verrou du châssis tient aussi la fiche et ses sauts : sous lui, rien ne répond (src/store/objects.ts).
+  useLayoutEffect(() => {
+    useObjects.getState().setLocked(inert);
+  }, [inert]);
+
+  // Les touches du châssis, lues dans le registre des raccourcis (OROS5.18) : aucune n'est comparée ici.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const m = /^Digit([1-9])$/.exec(e.code);
-      if ((e.ctrlKey || e.metaKey) && m && !e.shiftKey && !e.altKey) {
+      const hit = matchShortcut('desk', e);
+      if (!hit) return;
+      // Les modules du rail répondent comme avant, verrou compris.
+      if (hit.id === 'module') {
         e.preventDefault();
-        const next = TABS[Number(m[1]) - 1];
+        const next = TABS[hit.index];
         if (next) setTab(next.id);
+        return;
+      }
+      // Le reste ne répond pas sous le verrou.
+      if (inert || e.defaultPrevented) return;
+      const dialog = !!document.querySelector('[role="dialog"][aria-modal="true"]');
+      const objects = useObjects.getState();
+      // L'omnibar (OROS5.17) : Ctrl+J, jamais Ctrl+K, voisin du kill switch Ctrl+Maj+K. Jamais par-dessus un dialogue ;
+      // d'un champ, oui, comme toute fenêtre de navigation.
+      if (hit.id === 'omnibar') {
+        if (objects.omnibar) {
+          e.preventDefault();
+          objects.setOmnibar(false);
+        } else if (!dialog) {
+          e.preventDefault();
+          objects.setOmnibar(true);
+        }
+        return;
+      }
+      if (dialog) return;
+      // F6 passe d'une zone du châssis à l'autre, d'un champ comme d'ailleurs : la barre d'état s'atteint ainsi.
+      if (hit.id === 'zones') {
+        e.preventDefault();
+        moveZone(hit.index === 0 ? 1 : -1);
+        return;
+      }
+      // Le reste : jamais dans un champ, où la touche s'écrit ou édite.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (hit.id === 'help') {
+        e.preventDefault();
+        useShortcutHelp.setState({ open: true });
+      } else if (hit.id === 'close' && objects.open) {
+        // Échap ferme la fiche et rend le focus à la ligne d'origine.
+        e.preventDefault();
+        objects.close();
+      } else if (hit.id === 'back' && objects.history.length > 0) {
+        // Retour arrière défait le dernier saut : le module, sa vue, la fiche et le fil reviennent.
+        e.preventDefault();
+        objects.back();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setTab]);
+  }, [setTab, inert]);
 
   const accounts = useMemo(() => [...new Set(sessions.map((row) => row.account).filter((name): name is string => !!name))].sort(), [sessions]);
   const accountLine = metricAccount
     ? metricAccount
     : tr(`Tous les comptes · ${accounts.length}`, `All accounts · ${accounts.length}`, `Todas las cuentas · ${accounts.length}`);
+  const accountTarget = metricAccount || planAccount || (accounts.length === 1 ? accounts[0]! : null);
   const bridgeUp = nt?.link === 'live' || isBridgeLive(bridgeStatus);
   const source = bridgeUp ? 'NinjaTrader 8' : tr('Import CSV', 'CSV import', 'Importación CSV');
   const live = useMemo(() => {
@@ -145,8 +222,6 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       : tr('Hors ligne · import CSV', 'Offline · CSV import', 'Fuera de línea · importación CSV');
 
   const localeTag = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR';
-  const session = cmeSession(etDateKey(now));
-  const phase = globexState(now, session.closed, session.earlyCloseMinute);
   const sessionDate = sessionStamp(now, localeTag);
   const hour = (zone: string) =>
     new Intl.DateTimeFormat(localeTag, {
@@ -157,7 +232,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     }).format(now);
   const moduleName = (activeCopy?.label ?? '').toLocaleUpperCase(localeTag);
   const third = crumb && crumb.tab === tab ? crumb.label : '';
-  const reported = nt?.accountNames?.filter(Boolean) ?? [];
+  // L'« aujourd'hui » du rail et du Calendrier reste la date locale (décision 7) : la journée CME n'est que celle de la frise.
   const todayKey = dateKeyLocal(new Date(now));
   /** Bordereau du rail : ce que chaque module contient, lu dans les stores du démarrage. */
   const snapshot: RailSnapshot = {
@@ -181,7 +256,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   };
 
   return (
-    <div className={cx(s.shell, revealed ? s.intro : s.pending)} inert={inert}>
+    <div className={cx(s.shell, !revealed && s.pending, openRef && s.withDrawer)} inert={inert}>
       <div className={s.texture} aria-hidden />
       {/* Les trois lignes du châssis : le circuit de l'ouverture les trace là où elles sont (src/app/unlockCircuit.ts). */}
       <header className={s.title} data-chassis="title">
@@ -200,6 +275,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
                 <span>{third}</span>
               </>
             ) : null}
+            {/* Le fil va jusqu'à l'objet ouvert, et porte celui d'où vient le dernier saut. */}
+            {openRef ? <ObjectCrumb slash={s.slash} /> : null}
           </span>
         </div>
         <div className={s.titleRight}>
@@ -251,6 +328,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             <RailButton key={item.id} itemId={item.id} index={item.index} label={tabCopy(item).label} qty={railQuantity(item.id, snapshot)} on={tab === item.id} onClick={() => setTab(item.id)} link={item.id === 'agent' && orchestrator.running} />
           ))}
         </nav>
+        {/* Les portes du process principal, en lecture, sous les cartouches (OROS5.25, décision 11) : compactées à l'étroit,
+            elles ne déplacent ni le compte ni le sceau, qui restent au pied du rail. */}
+        <RailGates />
         <div className={s.railFoot}>
           {/* Le compte (4.1) : une cartouche du Lab, sans intitulé. Sa micro assemble le pont (composant 1), dont la
               borne devient le coffre (composant 124), et le voyant au cœur du coffre ; puis le nom et la source. L'état
@@ -267,7 +347,21 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
                 <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
               </span>
             </span>
-            <span className={s.accountName}>{accountLine}</span>
+            {/* La cartouche est l'entrée de la fiche Compte (OROS5.27, décision 11) : le compte filtré, sinon le compte suivi,
+                sinon le seul compte du journal. Sans compte à nommer, le nom reste un texte. */}
+            {accountTarget ? (
+              <button
+                type="button"
+                className={cx(s.accountName, s.accountOpen)}
+                data-account-open={accountTarget}
+                aria-label={tr(`Ouvrir la fiche du compte ${accountTarget}`, `Open the ${accountTarget} account record`, `Abrir la ficha de la cuenta ${accountTarget}`)}
+                onClick={(event) => void useObjects.getState().openObject({ type: 'compte', id: accountTarget }, { jump: true, focus: true, origin: event.currentTarget })}
+              >
+                {accountLine}
+              </button>
+            ) : (
+              <span className={s.accountName}>{accountLine}</span>
+            )}
             <span className={s.accountSource}>{source}</span>
           </div>
           {/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit, le même qu'au verrou, puis les langues. */}
@@ -286,7 +380,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
       </aside>
 
-      <main className={s.main}>
+      {/* Un tiroir déplié (la frise, 64 px ; le registre, 240 px) recouvre le bas de la zone de travail : les messages montent
+          au-dessus de lui. Les deux ne s'ouvrent pas ensemble. */}
+      <main className={s.main} data-frise-open={friseOpen ? '' : undefined} data-registre-open={registreOpen ? '' : undefined}>
         {children}
         <div className={s.toasts} role="status" aria-live="polite">
           {toasts.map((toast) => (
@@ -310,27 +406,30 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         </div>
       </main>
 
+      {/* La fiche d'objet : la troisième colonne du châssis, hors de la zone de travail, inerte avec lui sous le verrou. */}
+      <ObjectDrawer />
+
       <footer className={s.status} data-chassis="status">
+        {/* Le tiroir de la frise (OROS5.24), déplié par la réponse au-dessus de la barre ; premier de la zone pour F6. */}
+        <FriseDrawer className={s.friseDrawer} />
+        {/* Le registre du lancement (OROS5.38), en tiroir bas de 240 px, ouvert par « Registre n » ou une fiche. */}
+        <RegistreDrawer className={s.registreDrawer} />
+        {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. */}
         <div className={s.statusLeft}>
-          <span className={s.statusLive}>
-            <Led on={nt?.link === 'live'}>{tr('PONT NT8', 'NT8 BRIDGE', 'PUENTE NT8')}</Led>
-            {' · '}
-            {nt?.link === 'live' ? 'LIVE' : tr('HORS LIGNE', 'OFFLINE', 'FUERA DE LÍNEA')}
-          </span>
-          {reported.length > 0 ? <span>{reported.join(' · ')}</span> : null}
-          {nt?.heartbeatLatencyMs != null ? <span>{tr('LATENCE', 'LATENCY', 'LATENCIA')} {nt.heartbeatLatencyMs} MS</span> : null}
+          <StatusBornes />
           <i className={s.statusSep} aria-hidden />
-          <span className={s.session}>CME GLOBEX · {globexLabel(phase)}</span>
-          <time className={s.sessionDate} dateTime={etDateKey(now)}>
-            {sessionDate}
-          </time>
-          <span className={s.clocks} role="group" aria-label={tr('Heures Tokyo, Paris, New York', 'Tokyo, Paris, New York times', 'Horas Tokio, París, Nueva York')}>
-            {CLOCKS.map((city) => (
-              <span key={city.code} className={s.clock} title={tr(city.city[0], city.city[1], city.city[2])}>
-                <b>{hour(city.zone)}</b>
-                {city.code}
-              </span>
-            ))}
+          <FriseAnswer />
+        </div>
+        <div className={s.statusRight}>
+          {/* New York reste (décision 7) : la date et l'heure de la séance, sur 24 ou 12 h. */}
+          <span className={s.clocks} role="group" aria-label={tr('Heure de New York', 'New York time', 'Hora de Nueva York')}>
+            <time className={s.sessionDate} dateTime={etDateKey(now)}>
+              {sessionDate}
+            </time>
+            <span className={s.clock} title={tr(NEW_YORK.city[0], NEW_YORK.city[1], NEW_YORK.city[2])}>
+              <b>{hour(NEW_YORK.zone)}</b>
+              {NEW_YORK.code}
+            </span>
             <span className={s.clockFace}>
               <button type="button" className={face === '24' ? s.on : undefined} aria-pressed={face === '24'} onClick={() => chooseFace('24')}>
                 24
@@ -340,8 +439,6 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               </button>
             </span>
           </span>
-        </div>
-        <div className={s.statusRight}>
           <span className={s.sigEnd}>
             <SeatMark>
               <BraceCode />
@@ -355,6 +452,8 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
       </footer>
 
       <ConfirmDialog />
+      <Omnibar />
+      <ShortcutHelp />
     </div>
   );
 }
@@ -451,7 +550,7 @@ export function ModuleHeader({ tab, actions, options, crumb = '', meta, cells }:
   const layer = MODULE_LAYERS[tab];
   return (
     <div className={s.moduleHead}>
-      <h1 className={s.modulePlate}>
+      <h1 className={s.modulePlate} data-plate={tab}>
         <span className={s.moduleNum} aria-hidden>
           {def.index}
         </span>

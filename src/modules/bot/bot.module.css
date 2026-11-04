@@ -76,9 +76,10 @@
 .stage.current b {
   color: var(--gold);
 }
+/* Verrouillée : fermée, au filet graphite sans motif (la table d'états, décision 3, OROS5.45b). */
 .stage.locked {
   cursor: not-allowed;
-  border-style: dashed;
+  border-color: var(--line-2);
 }
 .stage.locked b,
 .stage.locked small {
@@ -119,7 +120,7 @@
   font-size: 12px;
   color: var(--text-1);
   padding: 4px 0;
-  border-bottom: 1px dashed var(--line-0);
+  border-bottom: 1px solid var(--line-1);
 }
 .guard::before {
   content: '▮';

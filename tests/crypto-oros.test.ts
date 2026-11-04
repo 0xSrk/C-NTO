@@ -150,13 +150,14 @@ describe('OROS3.5a les alertes sont des signaux', () => {
     expect(down!.textContent).toContain(formatTimeLocal(TRIGGERED_AT));
   });
 
-  it('en pause : aucun signal, étiquette au trait pointillé', async () => {
+  it('en pause : aucun signal, étiquette au filet graphite sans motif (OROS5.45b, décision 3)', async () => {
     const node = await mount({ alerts: ALERTS });
     const paused = alertRows(node)[3]!;
     expect(levelOf(paused)).toBeNull();
     expect(tagOf(paused)?.textContent).toBe('En pause');
     expect(tagOf(paused)?.classList.contains(c.pauseTag as string)).toBe(true);
-    expect(rule('pauseTag')).toMatch(/border-style:\s*dotted/);
+    expect(rule('pauseTag')).toMatch(/border-style:\s*solid/);
+    expect(rule('pauseTag')).toMatch(/border-color:\s*var\(--line-2\)/);
   });
 
   it('le sens du seuil est un glyphe de la planche : flèche montante pour ≥, descendante pour ≤, nommée pour les lecteurs d’écran', async () => {

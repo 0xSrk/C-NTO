@@ -1,0 +1,74 @@
+/* ─── Table d'états du desk (Système 5 « Fiche et Frise », décision 3 de l'ADMIN, 2026-11-01) ─────────────────────────
+   Une seule feuille : le trait dit l'état, et lui seul (Ligne V2 « Poinçon », pl. 02). Quatre traits :
+   - .plein     contour plein : en service, publié, décidé ;
+   - .tirete    contour plein et halo tireté à 3 px : prévu, proposé, hypothèse, en attente ;
+   - .pointille contour plein et halo pointillé à 3 px : au-delà de l'horizon ;
+   - .eteint    filet graphite --line-2, sans motif : fermé, en pause, désarmé, désactivé, hors service, en panne.
+   Le halo est le second contour de la V2, posé à 3 px hors de la boîte : il ne déplace rien, n'intercepte rien et garde
+   la forme (rayon 0). Ce n'est pas la lueur de la LED. Le contour prend l'encre de la zone (--k) : elle dit l'autorité,
+   jamais l'état ; l'éteint garde son graphite. Hors de cette feuille, aucun trait nouveau n'est tireté ni pointillé
+   (tests/etat-table.test.ts). Aucun jeton : tokens.css ne change pas. */
+
+.plein,
+.tirete,
+.pointille {
+  border: 1px solid var(--k);
+}
+
+.tirete,
+.pointille {
+  position: relative;
+}
+
+/* Le halo : 5 px hors de la boîte de remplissage, soit 3 px entre le contour (1 px) et lui (1 px). */
+.tirete::after,
+.pointille::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  pointer-events: none;
+}
+
+.tirete::after {
+  border: 1px dashed var(--k);
+}
+
+.pointille::after {
+  border: 1px dotted var(--k);
+}
+
+.eteint {
+  border: 1px solid var(--line-2);
+}
+
+/* Les marques tracées (le tiroir de la frise, OROS5.24) : la même classe dit le même état, par le trait du tracé. Un tracé
+   n'a pas de halo : le tireté et le pointillé sont son trait même ; l'éteint garde son graphite. Seuls les tracés SVG sont
+   visés : une boîte HTML de la même classe garde son contour et son halo, et rien ne s'hérite. */
+line.plein,
+rect.plein,
+path.plein {
+  stroke: var(--k);
+  stroke-dasharray: none;
+}
+
+line.tirete,
+rect.tirete,
+path.tirete {
+  stroke: var(--k);
+  stroke-dasharray: 3 2;
+}
+
+line.pointille,
+rect.pointille,
+path.pointille {
+  stroke: var(--k);
+  stroke-dasharray: 0.01 2.6;
+  stroke-linecap: round;
+}
+
+line.eteint,
+rect.eteint,
+path.eteint {
+  stroke: var(--line-2);
+  stroke-dasharray: none;
+}

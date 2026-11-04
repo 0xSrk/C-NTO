@@ -12,6 +12,16 @@
     'status status';
   background: transparent;
 }
+/* Un objet ouvert (OROS5.16) : la fiche est la troisième colonne du châssis, 400 px (mesure locale, décision 4) ; la zone
+   de travail se range à sa gauche, rien n'est caché ni recouvert. */
+.shell.withDrawer {
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) 400px;
+  grid-template-areas:
+    'title title title'
+    'band band band'
+    'rail main drawer'
+    'status status status';
+}
 
 .texture {
   position: fixed;
@@ -509,6 +519,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Le nom du compte, entrée de la fiche Compte (OROS5.27, décision 11) : le même texte, qui s'ouvre. */
+.accountOpen {
+  justify-self: start;
+  max-width: 100%;
+  text-align: left;
+  transition: color 200ms linear;
+}
+.accountOpen:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .accountOpen:hover {
+    color: var(--ivory);
+  }
+}
 .accountSource {
   grid-column: 2;
   grid-row: 2;
@@ -531,11 +557,13 @@
    garde ses 76 px. */
 @container rail (max-height: 704px) {
   .nav {
-    gap: 4px;
+    gap: 3px;
   }
+  /* Les cartouches se resserrent d'un cran (OROS5.25) : à 1180 × 720 au zoom 100 %, la ligne des portes tient sous elles,
+     orchestrateur en service compris, sans faire défiler les cartouches ni bouger le compte et le sceau. */
   .navItem {
-    min-height: 44px;
-    padding-block: 4px;
+    min-height: 40px;
+    padding-block: 3px;
   }
   .railFoot {
     gap: 12px;
@@ -547,6 +575,123 @@
   .accountMark {
     margin-block: -6px;
   }
+}
+
+/* ─── Les portes du rail (OROS5.25, décision 11) : sous les cartouches, en lecture, l'écrou de la garde (C.070) et son
+   trait de la table d'états ; à l'étroit, une ligne d'écrous. L'or ne dit qu'une décision qui attend l'opérateur. ─── */
+.gates {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  min-width: 0;
+}
+.gatesLine {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  height: 16px;
+  padding: 0 4px;
+}
+/* Une porte en ligne : l'écrou en tête, le nom, l'état dessous en code, comme ce que contient une cartouche. */
+.gate {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-rows: 16px 12px;
+  align-items: center;
+  column-gap: 8px;
+  height: 30px;
+  padding: 1px 4px;
+  font: inherit;
+  text-align: left;
+  color: var(--text-1);
+  --k: var(--text-2);
+  transition: color 200ms linear;
+}
+.gatesLine .gate {
+  grid-template-columns: 16px;
+  grid-template-rows: 16px;
+  height: 16px;
+  padding: 0;
+}
+.gate[data-state='open'] {
+  color: var(--text-0);
+  --k: var(--text-0);
+}
+.gate[data-state='pending'] {
+  color: var(--text-0);
+  --k: var(--gold);
+}
+@media (hover: hover) {
+  .gate:hover {
+    color: var(--text-0);
+  }
+}
+.gateNut {
+  grid-row: 1 / -1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+/* C.070 (14 × 16) à 12 px de haut, dans l'écrou de 16 px (OROS5.45 : une micro à 12 px au moins). */
+.gateGlyph {
+  width: 11px;
+  height: 12px;
+}
+.gateName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+}
+.gateWord,
+.registry {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.gateWord {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 12px;
+  /* Sans approche : « fermés jusqu’au redémarrage » tient entier dans sa colonne (162 px sur 163, tests/rail-gates). */
+  letter-spacing: 0;
+}
+.registry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  padding: 0 4px;
+  background: none;
+  cursor: pointer;
+  transition: color 200ms linear;
+}
+.registry:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 1px;
+}
+@media (hover: hover) {
+  .registry:hover {
+    color: var(--text-0);
+  }
+}
+.registry b {
+  font-weight: 500;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.gatesLine .registry {
+  margin-left: auto;
+  padding: 0;
 }
 
 /* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit du rail, le même qu'au verrou — encre
@@ -615,6 +760,8 @@
   }
 }
 
+/* La zone de travail se mesure elle-même (OROS5.16) : un module range ses panneaux sur la largeur qu'elle a, fiche
+   ouverte ou fenêtre étroite (le Tableau de bord sous 900 px, OROS5.45h). */
 .main {
   grid-area: main;
   position: relative;
@@ -625,6 +772,7 @@
   gap: 18px;
   background: transparent;
   overflow: hidden;
+  container: main / inline-size;
 }
 
 :global(.canto-plus) {
@@ -763,7 +911,10 @@
 }
 
 /* La barre d'état est du noir du châssis, comme la barre de titre : la bande d'étiquette ivoire de la 3.7.0 est
-   retirée (décision de l'ADMIN, 2026-10-26). Ses jetons sont ceux du desk ; l'or y redevient l'or. */
+   retirée (décision de l'ADMIN, 2026-10-26). Ses jetons sont ceux du desk ; l'or y redevient l'or. Au Système 5
+   (décision 7), elle devient la ligne de la journée : le pont, les bornes, la réponse du temps ; New York et la signature
+   à droite. Elle se mesure elle-même : à l'étroit, les noms des bornes passent à leur forme courte, puis à leur seul
+   signe (le nom accessible et l'infobulle les gardent entiers). */
 .status {
   grid-area: status;
   height: 28px;
@@ -779,6 +930,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
+  container: status / inline-size;
 }
 .statusLeft,
 .statusRight {
@@ -786,6 +938,7 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
+  height: 100%;
 }
 .statusLeft {
   flex: 1;
@@ -797,9 +950,20 @@
   background: var(--line-2);
   flex: none;
 }
-.session,
-.sessionDate,
-.clocks,
+/* Les comptes que rapporte le pont et sa latence restent lisibles, jamais dans une ellipse. */
+.statusKeep {
+  flex: none;
+  white-space: nowrap;
+}
+.statusAge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: pre;
+}
+.statusWords {
+  white-space: pre;
+}
 /* Le nom d'un siège peut céder à l'ellipse ; les barres et [ SIΞRRΛSKΛ ] ne rétrécissent pas. */
 .sigEnd {
   flex: 0 1 auto;
@@ -807,11 +971,197 @@
 }
 .sessionDate {
   color: var(--text-0);
+  white-space: nowrap;
 }
 .clocks {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: none;
+}
+
+/* ─── Les bornes de la journée (OROS5.22) : une cellule par borne réglée, chacune ouvre sa coupe ─── */
+.bornes {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  height: 100%;
+}
+/* Une borne : le signal (niveau 2 ou 3), le signe de la borne, son nom, sa valeur, la source de sa limite. Au graphite ;
+   la plus proche de sa limite à l'ivoire. */
+.borne {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 2px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  white-space: nowrap;
+  color: var(--text-2);
+  --k: currentColor;
+  transition: color 200ms linear;
+}
+.borneNear {
+  color: var(--text-0);
+}
+.borneValue {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.borneSource {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.borneShort,
+.valueShort,
+.valueNarrow {
+  display: none;
+}
+.borneSignal {
+  flex: none;
+}
+.borneSignal > span {
+  width: 12px;
+  height: 12px;
+}
+.borneGlyph {
+  width: 12px;
+  height: 12px;
+}
+.borneMargin {
+  width: 18px;
+  height: 6px;
+}
+.borneStale {
+  width: 15px;
+  height: 4px;
+}
+.borneMatrix {
+  flex: none;
+}
+@media (hover: hover) {
+  .borne:hover {
+    color: var(--text-0);
+  }
+}
+/* ─── Le tiroir de la frise (OROS5.24) : au-dessus de la barre, sur la largeur de la zone de travail ; la fiche ouverte
+   garde sa colonne. Il recouvre le bas de la zone sans la pousser : la grille du châssis ne change pas. ─── */
+.friseDrawer {
+  position: absolute;
+  left: var(--rail-w);
+  right: 0;
+  bottom: 100%;
+  z-index: 3;
+}
+.withDrawer .friseDrawer {
+  right: 400px;
+}
+/* Le registre (OROS5.38) : le même tiroir bas, 240 px ; il recouvre le bas de la zone de travail sans la pousser. */
+.registreDrawer {
+  position: absolute;
+  left: var(--rail-w);
+  right: 0;
+  bottom: 100%;
+  z-index: 3;
+}
+.withDrawer .registreDrawer {
+  right: 400px;
+}
+
+/* ─── La réponse du temps (OROS5.23) : au bout de la ligne, ce qui vaut ou ce qui vient, puis sa source ─── */
+.answer {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  line-height: 14px;
+  color: var(--text-1);
+  --k: var(--text-1);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .answer:hover {
+    color: var(--text-0);
+  }
+}
+/* Le curseur tiré : l'instant qu'il tient, à l'or (décision 1 : l'or dit ce que tient l'opérateur). */
+.answerAt {
+  color: var(--gold);
+}
+.answerSignal {
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.answerSignal > span {
+  width: 12px;
+  height: 12px;
+}
+.answerDelay {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-0);
+}
+.answerDot,
+.answerSource {
+  color: var(--text-2);
+}
+.answerShort {
+  display: none;
+}
+/* La forme longue déborde (OROS5.47e) : la réponse prend sa forme courte plutôt que l'ellipse. */
+.answer[data-fit='short'] .answerLong {
+  display: none;
+}
+.answer[data-fit='short'] .answerShort {
+  display: inline;
+}
+.answerSource {
+  --k: var(--text-2);
+}
+/* C.054, une source incomplète : le calendrier local, estimé ; il reste seul à l'étroit. */
+.answerGlyph {
+  width: 12px;
+  height: 12px;
+  margin: 0 5px 0 8px;
+  vertical-align: -1px;
+}
+@container status (max-width: 1800px) {
+  .borneLong,
+  .valueLong,
+  .answerSourceText {
+    display: none;
+  }
+  .borneShort,
+  .valueShort {
+    display: inline;
+  }
+}
+@container status (max-width: 1480px) {
+  .statusWord,
+  .valueShort,
+  .answerLong {
+    display: none;
+  }
+  .valueNarrow,
+  .answerShort {
+    display: inline;
+  }
+}
+@container status (max-width: 1240px) {
+  .borneName,
+  .sessionDate {
+    display: none;
+  }
 }
 .clock {
   display: inline-flex;
@@ -846,6 +1196,13 @@
 .statusLive {
   color: var(--text-1);
   font-weight: 500;
+}
+/* Le pont et l'âge de sa lecture, d'un seul tenant. */
+.statusLive {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  white-space: pre;
 }
 
 .versionBtn {
@@ -986,6 +1343,13 @@
   width: min(420px, calc(100% - 80px));
   pointer-events: none;
 }
+.main[data-frise-open] .toasts {
+  bottom: 80px;
+}
+/* Le registre déplié (240 px) : les messages montent au-dessus de lui, comme au-dessus de la frise (OROS5.45f). */
+.main[data-registre-open] .toasts {
+  bottom: 256px;
+}
 .toast {
   pointer-events: auto;
   background: var(--bg-2);
@@ -1027,16 +1391,21 @@
   --k: var(--text-0);
   --p: var(--bg-0);
 }
-/* La cartouche SK-SIG-3 : le seul rouge de la bande (.skl.is-signal). */
+/* C.123, le cercle barré du niveau 3, par la primitive Signal (classe sig-l3) : avec les filets, le seul rouge de la
+   bande (Système 5, décision 8 de l'ADMIN). La cartouche SK-SIG-3 et la plaque critique figée en anglais sont sorties. */
 .bandSignal {
-  width: 85px;
-  height: 46px;
+  flex: none;
 }
+.bandSignal > span {
+  width: 28px;
+  height: 28px;
+}
+/* Le titre et le sous-titre gardent leur largeur, raccourci compris : à l'étroit, c'est le rapport qui cède la place. */
 .bandText {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;
+  flex: none;
 }
 .bandText b {
   font-family: var(--font-mono);
@@ -1059,18 +1428,64 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* La plaque critique : ce qui est fermé, et jusqu'à quand. */
-.bandPlate {
-  width: 118px;
-  height: 54px;
+/* Le rapport de coupure, à droite, derrière un filet : le geste qui reste à faire en tête, à l'ivoire, marqué de C.042
+   (ce qui n'a pas eu lieu, sans rouge) ; puis les ordres d'aplatir et n / N, au gris du sous-titre. */
+.bandReport {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
   margin-left: auto;
+  padding-left: 18px;
+  border-left: 1px solid var(--signal-line);
+}
+.bandReport p {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+/* À l'étroit (fenêtre minimale, zoom relevé), chaque ligne du rapport passe à la ligne au lieu de s'abréger, deux lignes au
+   plus, dans la hauteur de la bande : chaque compte reste nommé. */
+.bandGesture > span:last-child,
+.bandCut {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
+}
+.bandGesture {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-0);
+  --k: var(--text-0);
+}
+.bandGesture b {
+  font-weight: 600;
+}
+.bandRefused {
+  width: 14px;
+  height: 14px;
+}
+.bandCut {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.bandCut b {
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
 }
 
 .pending .main { visibility: hidden; }
-
-.intro .navItem,
-.intro .brand,
-.intro .titleRight,
-.intro .status > * {
-  animation: fade-in 0.35s linear both;
-}

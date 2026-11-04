@@ -17,6 +17,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
   const target = path.normalize(path.resolve(path.dirname(importer), source));
   const rel = path.relative(path.join(root, 'electron'), target).split(path.sep).join('/');
   const map: Record<string, string> = {
+    tradingDay: 'src/engine/tradingDay.ts',
     'execution/guards': 'src/engine/execution/guards.ts',
     'execution/port': 'src/engine/execution/port.ts',
     'execution/orderBook': 'src/engine/execution/orderBook.ts',
@@ -25,6 +26,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'copier/sync': 'src/engine/copier/sync.ts',
     'agent/catalog': 'src/engine/agent/catalog.ts',
     'agent/orders': 'src/engine/agent/orders.ts',
+    'agent/dayClose': 'src/engine/agent/dayClose.ts',
     'agent/routines': 'src/engine/agent/routines.ts',
     'agent/cloudReport': 'src/engine/agent/cloudReport.ts',
     'crypto/markets': 'src/engine/crypto/markets.ts',

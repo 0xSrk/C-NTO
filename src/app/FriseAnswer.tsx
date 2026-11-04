@@ -1,0 +1,369 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { Glyph, Signal } from '@/design/Micro';
+import { dayClosesFor } from '@/engine/agent/dayClose';
+import { calendarSourcesState, type CalendarSources } from '@/engine/bornes';
+import type { CalEvent } from '@/engine/calendar';
+import { dailyLimit } from '@/engine/discipline';
+import { findPlan } from '@/engine/propfirm';
+import type { Trade } from '@/engine/types';
+import { tr, useI18n } from '@/i18n';
+import { cmeSession } from '@/lib/cmeClosed';
+import { trEventTitle } from '@/lib/eventTitles';
+import { catalystSource } from '@/engine/macroMerge';
+import { addDays, dateTimeFormatter, ET_ZONE, etDateKey } from '@/lib/time';
+import { daySpan, hourAt, isWeekday, MIN, nextCatalyst, type Boundary, type HourAnswer, type InForce, type InForceKind } from '@/lib/frise';
+import { useDayClose } from '@/store/dayClose';
+import { dayClosedText } from '@/store/deskEvents';
+import { useJournal } from '@/store/journal';
+import { useObjects } from '@/store/objects';
+import { useMacro } from '@/store/macro';
+import { useSettings } from '@/store/settings';
+import { useUi } from '@/store/ui';
+import { useKillSwitch } from './killState';
+import { etClock, shortDay } from './objects/index';
+import { BORNES_TICK_MS, useDayBornes } from './useDayBornes';
+import s from './shell.module.css';
+
+/**
+ * La réponse du temps, au bout de la ligne de la journée (OROS5.23, Système 5 « Fiche et Frise » ; repris du prototype
+ * C · Frise, d3) : ce qui borne l'heure qui vient, tiré du modèle pur de la frise (`hourAt`, `src/lib/frise.ts`). D'abord
+ * ce qui est en vigueur — C.123 « soumission fermée », « journée fermée depuis 10:56 ET », « fenêtre ± 15 · CPI
+ * jusqu'à 08:45 » —, sinon ce qui vient et son délai — « 20 min · 09:30 Ouverture RTH » —, puis sa source : « calendrier
+ * local · estimé ». L'heure est celle de New York (décision 7). L'axe des heures n'entre pas dans la barre : il vit dans le
+ * tiroir de la frise. La journée CME n'est que celle de la frise : l'« aujourd'hui » du rail et du Calendrier reste la
+ * date locale.
+ *
+ * La perte du jour atteinte ferme la journée CME jusqu'à la suivante (décision 15 de l'ADMIN, 2026-11-03) : la réponse dit
+ * « journée fermée depuis hh:mm ET » comme la garde le lit (`traderRuleBlocks`, `dailyLossReached`), latent négatif du
+ * pont et fermeture retenue au coffre compris, même si un gain ramène ensuite la perte relue sous la limite. Lecture seule.
+ */
+
+/** Ce que dit la réponse : ce qui vaut, ce qui vient dans l'heure, le prochain catalyseur majeur, ou rien. */
+export type FriseLineKind = InForceKind | 'ahead' | 'next' | 'none';
+
+/** La source d'une réponse tirée du calendrier : le calendrier local (estimé ou non) ou l'officiel. */
+export interface FriseSource {
+  kind: 'local' | 'official';
+  estimated: boolean;
+}
+
+export interface FriseLine {
+  kind: FriseLineKind;
+  /** Le délai de ce qui vient : « 20 min », « 1 h 05 », « 3 j », « maintenant ». */
+  delay: string | null;
+  /** Ce qui vaut ou ce qui vient, dans la langue du desk ; puis sa forme courte, à l'étroit. */
+  text: string;
+  short: string;
+  source: FriseSource | null;
+  /** Le nom accessible complet : la ligne, ce qui vaut d'autre, la source, l'heure de New York. */
+  label: string;
+}
+
+/** Un délai : « maintenant », « 20 min », « 1 h 05 », « 3 j ». */
+export function delayText(ms: number): string {
+  const m = Math.round(Math.max(0, ms) / MIN);
+  if (m < 1) return tr('maintenant', 'now', 'ahora');
+  if (m < 60) return `${m} min`;
+  if (m < 24 * 60) return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+  const d = Math.round(m / (24 * 60));
+  return tr(`${d} j`, `${d} d`, `${d} d`);
+}
+
+/** Le nom d'une publication dans la langue du desk ; plusieurs à la même minute, réunies. */
+const titles = (events: readonly CalEvent[] | undefined) => (events ?? []).map((event) => trEventTitle(event.title)).join(' · ');
+
+/** La source d'une publication : un repère local (estimé ou non), sinon l'officiel. */
+function sourceOf(event: CalEvent | undefined): FriseSource | null {
+  if (!event) return null;
+  return event.source === 'local' ? { kind: 'local', estimated: event.estimated === true } : { kind: 'official', estimated: false };
+}
+
+/** La source, en mots. */
+export function sourceText(source: FriseSource): string {
+  if (source.kind === 'official') return tr('calendrier officiel', 'official calendar', 'calendario oficial');
+  return source.estimated ? tr('calendrier local · estimé', 'local calendar · estimated', 'calendario local · estimado') : tr('calendrier local', 'local calendar', 'calendario local');
+}
+
+/** Le jour de la semaine et la date d'un instant, à New York, comme la barre d'état les écrit : « dim 01.11 », « Sun 11/01 ». */
+export function etDay(ms: number): string {
+  const weekday = dateTimeFormatter({ weekday: 'short', timeZone: ET_ZONE }).format(ms).replace(/\./g, '');
+  return `${weekday} ${shortDay(etDateKey(ms))}`;
+}
+
+/** La prochaine ouverture de Globex après une journée fermée : 18:00 ET la veille d'une séance. */
+function reopenAfter(day: string): number {
+  let d = day;
+  for (let i = 0; i < 10; i++) {
+    d = addDays(d, 1);
+    if (isWeekday(d) && !cmeSession(d).closed) return daySpan(d).start;
+  }
+  return daySpan(addDays(day, 1)).start;
+}
+
+/** « Journée fermée depuis hh:mm ET » (décision 15) : les mots de la garde (`dayClosedText`), en tête de ligne. */
+export function dayClosedWords(since: number): string {
+  const text = dayClosedText(since);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Ce qui vaut, en mots : la forme entière et la courte. */
+function inForceWords(item: InForce, day: string): { text: string; short: string } {
+  switch (item.kind) {
+    case 'kill':
+      // La bande du kill switch dit le reste (jusqu'au redémarrage, les comptes à aplatir) : la réponse dit ce qui vaut.
+      return { text: tr('Soumission fermée', 'Submission closed', 'Envío cerrado'), short: tr('Soumission fermée', 'Submission closed', 'Envío cerrado') };
+    case 'dayClosed': {
+      // La journée fermée (décision 15) : les mots mêmes de la barre d'état et du miroir de la garde.
+      const since = etClock(item.since ?? 0);
+      return { text: dayClosedWords(item.since ?? 0), short: tr(`Journée fermée · ${since}`, `Day closed · ${since}`, `Jornada cerrada · ${since}`) };
+    }
+    case 'window': {
+      const name = titles(item.event ? [item.event] : []);
+      const until = etClock(item.until ?? 0);
+      return {
+        text: tr(`Fenêtre ± ${item.minutes} · ${name} jusqu’à ${until}`, `± ${item.minutes} window · ${name} until ${until}`, `Ventana ± ${item.minutes} · ${name} hasta ${until}`),
+        short: tr(`± ${item.minutes} · ${name} · ${until}`, `± ${item.minutes} · ${name} · ${until}`, `± ${item.minutes} · ${name} · ${until}`),
+      };
+    }
+    case 'closed': {
+      const reopen = reopenAfter(day);
+      const when = `${etDay(reopen)} ${etClock(reopen)}`;
+      const why = item.closed === 'weekend' ? tr('week-end', 'weekend', 'fin de semana') : tr('férié', 'holiday', 'festivo');
+      return { text: tr(`CME fermé · ${why} · reprise ${when}`, `CME closed · ${why} · reopens ${when}`, `CME cerrado · ${why} · reapertura ${when}`), short: tr(`CME fermé · ${when}`, `CME closed · ${when}`, `CME cerrado · ${when}`) };
+    }
+    case 'pause': {
+      const until = etClock(item.until ?? 0);
+      return { text: tr(`Pause du CME · reprise ${until}`, `CME pause · reopens ${until}`, `Pausa del CME · reapertura ${until}`), short: tr(`Pause · ${until}`, `Pause · ${until}`, `Pausa · ${until}`) };
+    }
+  }
+}
+
+/** Le nom d'une borne à venir. */
+export function boundaryWords(b: Boundary): string {
+  switch (b.kind) {
+    case 'catalyst':
+      return titles(b.events ?? (b.event ? [b.event] : []));
+    case 'windowOpen':
+      return tr(`Fenêtre ± ${b.minutes} · ${titles(b.event ? [b.event] : [])}`, `± ${b.minutes} window · ${titles(b.event ? [b.event] : [])}`, `Ventana ± ${b.minutes} · ${titles(b.event ? [b.event] : [])}`);
+    case 'windowClose':
+      return tr(`Fin de fenêtre · ${titles(b.event ? [b.event] : [])}`, `Window ends · ${titles(b.event ? [b.event] : [])}`, `Fin de ventana · ${titles(b.event ? [b.event] : [])}`);
+    case 'rthOpen':
+      return tr('Ouverture RTH', 'RTH open', 'Apertura RTH');
+    case 'rthReopen':
+      return tr('Fin de la pause déjeuner', 'Lunch pause ends', 'Fin de la pausa del almuerzo');
+    case 'lunch':
+      return tr('Pause déjeuner', 'Lunch pause', 'Pausa del almuerzo');
+    case 'moc':
+      return tr('Clôture cash (MOC)', 'Cash close (MOC)', 'Cierre cash (MOC)');
+    case 'rthClose':
+      return tr('Clôture RTH', 'RTH close', 'Cierre RTH');
+    case 'globexClose':
+      return tr('Fermeture Globex', 'Globex close', 'Cierre Globex');
+  }
+}
+
+/**
+ * La ligne de la réponse, à l'instant lu : ce qui vaut d'abord (le premier, dans l'ordre de la frise : le kill switch en
+ * tête), sinon ce qui vient dans l'heure et son délai, sinon le prochain catalyseur majeur, sinon rien. Pur.
+ */
+export function friseLine(answer: HourAnswer, ctx: { at: number; events: readonly CalEvent[]; sources: CalendarSources }): FriseLine {
+  const day = answer.span.day;
+  const ny = tr('heure de New York', 'New York time', 'hora de Nueva York');
+  const partial = ctx.sources === 'complete' ? '' : tr(', sources officielles incomplètes', ', official sources incomplete', ', fuentes oficiales incompletas');
+  const close = (text: string, source: FriseSource | null) => `${text}${source ? `, ${sourceText(source)}` : ''}${partial}, ${ny}`;
+  const [first, ...others] = answer.inForce;
+  if (first) {
+    const words = inForceWords(first, day);
+    const source = first.kind === 'window' ? sourceOf(first.event) : null;
+    const said = first.kind === 'kill' ? tr('Soumission fermée jusqu’au redémarrage du desk', 'Submission closed until the desk restarts', 'Envío cerrado hasta el reinicio del desk') : words.text;
+    const also = others.map((item) => inForceWords(item, day).text);
+    return { kind: first.kind, delay: null, text: words.text, short: words.short, source, label: close([said, ...also].join(' ; '), source) };
+  }
+  const next = answer.ahead[0];
+  if (next) {
+    const delay = delayText(next.delayMs);
+    const text = `${etClock(next.at)} ${boundaryWords(next)}`;
+    const source = sourceOf(next.event);
+    // À l'étroit, le délai dit déjà quand : l'heure cède, la borne reste (OROS5.45, la barre tient à 1180 × 720).
+    return { kind: 'ahead', delay, text, short: boundaryWords(next), source, label: close(`${delay} · ${text}`, source) };
+  }
+  const major = nextCatalyst(ctx.events, ctx.at);
+  if (major) {
+    const delay = delayText(major.at - ctx.at);
+    const same = major.event.date === day;
+    const text = `${same ? '' : `${etDay(major.at)} `}${etClock(major.at)} ${trEventTitle(major.event.title)}`;
+    const source = sourceOf(major.event);
+    return {
+      kind: 'next',
+      delay,
+      text,
+      short: trEventTitle(major.event.title),
+      source,
+      label: close(tr(`Rien ne borne l’heure qui vient ; prochain majeur dans ${delay} : ${text}`, `Nothing bounds the coming hour; next major in ${delay}: ${text}`, `Nada acota la próxima hora; próximo mayor en ${delay}: ${text}`), source),
+    };
+  }
+  const none = tr('Rien ne borne l’heure qui vient', 'Nothing bounds the coming hour', 'Nada acota la próxima hora');
+  return { kind: 'none', delay: null, text: none, short: tr('Rien dans l’heure', 'Nothing this hour', 'Nada en la hora'), source: null, label: close(none, null) };
+}
+
+/**
+ * Les publications que la frise lit à l'instant `at` : la source unique du catalyseur (OROS5.13), sur l'année de l'instant
+ * et la suivante (le prochain majeur peut tomber en janvier), et la veille d'un 1er janvier (la journée CME commence la
+ * veille à 18:00 ET).
+ */
+export function useFriseEvents(at: number): CalEvent[] {
+  const official = useMacro((m) => m.events);
+  const year = Number(etDateKey(at).slice(0, 4));
+  const first = Number(etDateKey(at - 86_400_000).slice(0, 4));
+  return useMemo(() => catalystSource(official, [first, year, year + 1]), [official, first, year]);
+}
+
+/** L'horloge de la réponse : elle parle en minutes, un tic toutes les 15 s suffit. */
+function useTick(): number {
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), BORNES_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+  return Math.max(tick, Date.now());
+}
+
+/** Ce que lit la frise à l'instant lu : la réponse, sa ligne, et ce dont le tiroir dessine ses couloirs. */
+export interface HourRead {
+  answer: HourAnswer;
+  line: FriseLine;
+  /** L'instant lu : le curseur tiré, sinon maintenant. */
+  at: number;
+  now: number;
+  /** Le curseur est tiré (Métrique et le Calendrier seuls). */
+  pulled: boolean;
+  events: CalEvent[];
+  /** Les trades du compte suivi, comme la garde les lit (`limitAccount`). */
+  own: Trade[];
+}
+
+/**
+ * La réponse de la frise à l'instant lu — le curseur tiré, sinon maintenant (OROS5.24) —, depuis les stores du desk : la
+ * source unique du catalyseur, les trades du compte suivi (comme la garde : `limitAccount`), la limite du jour retenue,
+ * le kill switch, le latent négatif du pont tel que la garde le lit (les bornes du jour), et les fermetures de la journée
+ * que le desk a retenues pour le compte suivi (`useDayClose`, décision 15).
+ */
+export function useHourAnswer(): HourRead {
+  useI18n((st) => st.locale);
+  const now = useTick();
+  const cursor = useUi((u) => u.timeCursor);
+  const at = cursor ?? now;
+  const events = useFriseEvents(at);
+  const trades = useJournal((j) => j.trades);
+  const planAccount = useSettings((st) => st.settings.planAccount);
+  const planId = useSettings((st) => st.settings.planId);
+  const userPlans = useSettings((st) => st.settings.userPlans);
+  const rules = useSettings((st) => st.settings.traderRules);
+  const kill = useKillSwitch().engaged;
+  const stored = useDayClose((d) => d.closes);
+  const bornes = useDayBornes();
+  const official = useMacro((m) => m.events);
+  const sources = useMacro((m) => m.sources);
+  const lastError = useMacro((m) => m.lastError);
+  const own = useMemo(() => trades.filter((t) => !planAccount || (t.account ?? '') === planAccount), [trades, planAccount]);
+  // `userPlans` : un plan saisi change ce que rend `findPlan`.
+  const limit = useMemo(() => dailyLimit(rules, findPlan(planId))?.amount ?? null, [rules, planId, userPlans]);
+  const unrealized = bornes.day.live ? (bornes.loss.unrealized ?? 0) : 0;
+  const closes = useMemo(() => dayClosesFor(stored, planAccount), [stored, planAccount]);
+  const answer = useMemo(() => hourAt({ at, now, events, trades: own, rules, limit, kill, unrealized, closes }), [at, now, events, own, rules, limit, kill, unrealized, closes]);
+  const line = friseLine(answer, { at, events, sources: calendarSourcesState(sources, lastError, official.length) });
+  return { answer, line, at, now, pulled: cursor !== null, events, own };
+}
+
+/**
+ * La réponse ne se coupe jamais (OROS5.47e) : les seuils de la barre d'état (1800, 1480, 1240 px) la replient selon la
+ * largeur, mais une langue plus longue, l'espagnol à 1600 px, coupait encore la forme longue en ellipse. Quand elle
+ * déborde, la réponse prend sa forme courte ; elle reprend la longue dès que la place qu'elle demandait revient, ou que son
+ * texte change.
+ *
+ * La place, c'est celle que la ligne lui laisse (OROS5.47j) : sa boîte, plus ce qui reste libre au bout de la ligne. La
+ * réponse est un élément flexible sans croissance ; en forme courte, sa boîte suit la forme courte et ne dit jamais la
+ * place revenue. La ligne et chacun de ses éléments sont observés : un pont qui se perd, une fenêtre qui s'élargit.
+ */
+function useAnswerFit(text: string): { ref: RefObject<HTMLButtonElement | null>; short: boolean } {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const [needed, setNeeded] = useState<number | null>(null);
+  useLayoutEffect(() => setNeeded(null), [text]);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const line = el.parentElement;
+    const room = () => {
+      if (!line) return el.clientWidth;
+      const end = line.getBoundingClientRect().right - (parseFloat(getComputedStyle(line).paddingRight) || 0);
+      return el.clientWidth + Math.max(0, end - el.getBoundingClientRect().right);
+    };
+    const check = () => {
+      if (needed === null) {
+        if (el.scrollWidth > el.clientWidth + 1) setNeeded(el.scrollWidth);
+      } else if (room() >= needed) setNeeded(null);
+    };
+    check();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    if (line) for (const node of [line, ...Array.from(line.children)]) if (node !== el) observer.observe(node);
+    return () => observer.disconnect();
+  }, [needed, text]);
+  return { ref, short: needed !== null };
+}
+
+/** L'identifiant de la réponse : Échap, le tiroir replié, lui rend le focus. */
+export const FRISE_ANSWER_ID = 'frise-answer';
+export const FRISE_DRAWER_ID = 'frise-drawer';
+
+/**
+ * La réponse, au bout de la ligne de la journée : ce qui vaut, ou ce qui vient et son délai, puis sa source. Elle déplie
+ * le tiroir de la frise (OROS5.24) : un clic, ou sa touche (Entrée, Espace), ouvre ou replie ; rien sous le verrou. Le
+ * curseur tiré, elle dit l'instant qu'il tient, à l'or.
+ */
+export function FriseAnswer() {
+  const { answer, line, at, pulled } = useHourAnswer();
+  const open = useUi((u) => u.friseOpen);
+  const toggle = () => {
+    if (useObjects.getState().locked) return;
+    useUi.getState().setFriseOpen(!open);
+  };
+  const held = pulled ? `${etDay(at)} ${etClock(at)}` : null;
+  const fit = useAnswerFit(`${held ?? ''}|${line.text}|${line.short}`);
+  return (
+    <button
+      ref={fit.ref}
+      type="button"
+      id={FRISE_ANSWER_ID}
+      className={s.answer}
+      data-fit={fit.short ? 'short' : undefined}
+      data-status="answer"
+      data-answer={line.kind}
+      data-day={answer.span.day}
+      aria-label={held ? `${held} · ${line.label}` : line.label}
+      title={line.label}
+      aria-expanded={open}
+      aria-controls={FRISE_DRAWER_ID}
+      onClick={toggle}
+    >
+      {held ? <span className={s.answerAt}>{held} · </span> : null}
+      {line.kind === 'kill' ? <Signal level={3} className={s.answerSignal} /> : null}
+      {line.delay ? <b className={s.answerDelay}>{line.delay}</b> : null}
+      {line.delay ? <span className={s.answerDot}> · </span> : null}
+      <span className={s.answerLong}>{line.text}</span>
+      <span className={s.answerShort} aria-hidden>
+        {line.short}
+      </span>
+      {line.source ? (
+        <span className={s.answerSource} data-source={line.source.kind}>
+          {line.source.kind === 'local' ? <Glyph name="partial" className={s.answerGlyph} /> : null}
+          <span className={s.answerSourceText}>
+            {line.source.kind === 'local' ? '' : ' · '}
+            {sourceText(line.source)}
+          </span>
+        </span>
+      ) : null}
+    </button>
+  );
+}

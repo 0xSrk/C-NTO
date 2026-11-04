@@ -163,7 +163,7 @@ export function AlertModal({
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {tr('Annuler', 'Cancel', 'Cancelar')}
           </Button>
-          <Button variant="gold" disabled={busy} onClick={() => void create()}>
+          <Button disabled={busy} onClick={() => void create()}>
             {tr('Créer l’alerte', 'Create alert', 'Crear la alerta')}
           </Button>
         </>

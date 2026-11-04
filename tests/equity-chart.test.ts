@@ -16,7 +16,8 @@ interface FakeSeries {
 
 interface FakeChart {
   series: FakeSeries[];
-  crosshair: ((param: { time?: number; point?: { x: number; y: number } }) => void) | null;
+  /** Le pointeur passe son événement d'origine (`sourceEvent`), comme la bibliothèque le fait pour un vrai survol. */
+  crosshair: ((param: { time?: number; point?: { x: number; y: number }; sourceEvent?: object }) => void) | null;
   fits: number;
   range: { from: number; to: number };
   removed: boolean;
@@ -179,7 +180,7 @@ describe('Métrique › A.02 courbe d’équité', () => {
   it('le survol allume le pas sur les trois volets, puis s’éteint', async () => {
     const chart = await mount();
     const step = equityCurve(sessions, trades, 'session').steps[3]!;
-    await act(async () => chart.crosshair!({ time: step.time, point: { x: 10, y: 10 } }));
+    await act(async () => chart.crosshair!({ time: step.time, point: { x: 10, y: 10 }, sourceEvent: {} }));
     expect(chart.series.map((row) => row.options.focus)).toEqual([3, 3, 3]);
     await act(async () => chart.crosshair!({}));
     expect(chart.series.map((row) => row.options.focus)).toEqual([-1, -1, -1]);
@@ -197,7 +198,7 @@ describe('Métrique › A.02 courbe d’équité', () => {
     expect(readout()).toMatch(/04\/09/);
     expect(readout()).toMatch(/\+150,00/);
     const step = equityCurve(sessions, trades, 'session').steps[3]!;
-    await act(async () => chart.crosshair!({ time: step.time, point: { x: 10, y: 10 } }));
+    await act(async () => chart.crosshair!({ time: step.time, point: { x: 10, y: 10 }, sourceEvent: {} }));
     expect(readout()).toMatch(/03\/09/);
     expect(readout()).toMatch(/−50,00/);
     expect(readout()).toMatch(/−450,00/);

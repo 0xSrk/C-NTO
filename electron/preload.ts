@@ -58,6 +58,9 @@ contextBridge.exposeInMainWorld('canto', {
     setMaxContracts: (n: number) => ipcRenderer.invoke('ntbridge:max-contracts', n),
     order: (payload: unknown) => ipcRenderer.invoke('ntbridge:order', payload),
     killSwitch: () => ipcRenderer.invoke('ntbridge:killswitch'),
+    // Le rapport de coupure du kill switch, en lecture seule : redemandé, puis poussé à chaque coupure (raccourci global compris).
+    lastKill: () => ipcRenderer.invoke('ntbridge:last-kill'),
+    onKillReport: (cb: (report: unknown) => void) => subscribe('ntbridge:kill-report', cb),
     orders: () => ipcRenderer.invoke('ntbridge:orders'),
     onOrder: (cb: (change: unknown) => void) => subscribe('ntbridge:order-state', cb),
     onStatus: (cb: (status: unknown) => void) => subscribe('ntbridge:status', cb),
@@ -91,7 +94,12 @@ contextBridge.exposeInMainWorld('canto', {
     enable: () => ipcRenderer.invoke('agent-orders:enable'),
     disable: () => ipcRenderer.invoke('agent-orders:disable'),
     limits: (raw: unknown) => ipcRenderer.invoke('agent-orders:limits', raw),
-    propose: (raw: unknown, origin: string, propShare: number | null, traderRule: unknown = null) => ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare, traderRule),
+    propose: (raw: unknown, origin: string, propShare: number | null, traderRule: unknown = null, ticket: string | null = null) =>
+      ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare, traderRule, ticket),
+    // La journée fermée que le renderer a vue (OROS5.48a) : le process principal la retient ; rien ne la rouvre.
+    closeDay: (close: { account: string; at: number }) => ipcRenderer.invoke('agent-orders:close-day', close),
+    // L'étape d'une proposition (gardée, dialogue ouvert), poussée en lecture seule par le process principal (OROS5.40).
+    onStep: (cb: (step: unknown) => void) => subscribe('agent-orders:step', cb),
   },
   agentCloud: {
     status: () => ipcRenderer.invoke('agent-cloud:status'),

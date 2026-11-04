@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { CriteriaMirror } from '@/app/Criteria';
+import { copierCriteria } from '@/app/criteriaMirror';
 import { IconTrash } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { Glyph } from '@/design/Micro';
 import { Button, Field, Panel, Stat, Tag, Toggle, cx } from '@/design/primitives';
 import { ignoredFollowers } from '@/engine/copier/sync';
-import { PROP_FIRMS } from '@/engine/propfirm';
+import { findPlan, PROP_FIRMS } from '@/engine/propfirm';
 import { tr, useI18n } from '@/i18n';
 import { desk, type CopierHostStatus } from '@/lib/desk';
 import { plural } from '@/lib/format';
 import { useBridge } from '@/store/bridge';
 import type { CopierAccount } from '@/store/db';
 import { replicatedQty, useCopier } from '@/store/copier';
+import { useJournal } from '@/store/journal';
 import { useUi } from '@/store/ui';
 import { cutSummary } from './cutSummary';
 import s from './copieur.module.css';
@@ -68,6 +72,24 @@ export default function Copieur() {
   const masters = accounts.filter((a) => a.role === 'maitre');
   const followers = accounts.filter((a) => a.role === 'suiveur');
   const ignored = ignoredFollowers(accounts);
+  // Les critères d'Armer en miroir (OROS5.43) : lus des gardes du Copieur, sur ce que le process principal relit ; le
+  // latent des suiveurs au nom exact, comme le Copieur du process principal. Armer ouvre toujours son dialogue.
+  const sessions = useJournal((j) => j.sessions);
+  const trades = useJournal((j) => j.trades);
+  const armCriteria = useMemo(
+    () =>
+      copierCriteria({
+        accounts,
+        config,
+        sessions,
+        trades,
+        planById: findPlan,
+        unrealized: Object.fromEntries((nt?.accounts ?? []).filter((a) => Number.isFinite(a.unrealizedPnl)).map((a) => [a.name, a.unrealizedPnl])),
+        maxContractsPerOrder: nt?.maxContractsPerOrder ?? 20,
+        now: Date.now(),
+      }),
+    [accounts, config, sessions, trades, nt],
+  );
 
   const add = async () => {
     if (!newName.trim()) return;
@@ -82,12 +104,14 @@ export default function Copieur() {
         tab="copieur"
         actions={
           <>
-            <Tag tone={host?.armed ? 'ember' : 'mint'} dot>
+            {/* Désarmé à chaque ouverture : la pastille reste au graphite tant qu'on n'arme pas (OROS5.43). */}
+            <Tag tone={host?.armed ? 'ember' : undefined} dot>
               {host?.armed ? tr('ARMÉ', 'ARMED', 'ARMADO') : tr('DÉSARMÉ', 'DISARMED', 'DESARMADO')}
             </Tag>
+            {/* C.070 : Armer ouvre toujours le dialogue du process principal (Annuler par défaut), qui seul décide. */}
             <Button
               size="sm"
-              variant="gold"
+              title={tr('Dialogue du desk, Annuler par défaut', 'Desk dialog, Cancel by default', 'Diálogo del desk, Cancelar por defecto')}
               disabled={host?.armed || arming || !desk?.copier}
               onClick={() => {
                 const api = desk?.copier;
@@ -99,6 +123,7 @@ export default function Copieur() {
                 });
               }}
             >
+              <Glyph name="guard" className={s.gateNut} />
               {tr('Armer', 'Arm', 'Armar')}
             </Button>
             <Button
@@ -128,11 +153,12 @@ export default function Copieur() {
               <Stat
                 small
                 label={tr('Maîtres · suiveurs', 'Masters · followers', 'Maestros · seguidores')}
-                value={`${masters.length} · ${followers.length}`}
-                hint={plural(followers.filter((f) => f.enabled).length, tr('suiveur actif', 'active follower', 'seguidor activo'), tr('suiveurs actifs', 'active followers', 'seguidores activos'))}
+                value={ready ? `${masters.length} · ${followers.length}` : '—'}
+                hint={ready ? plural(followers.filter((f) => f.enabled).length, tr('suiveur actif', 'active follower', 'seguidor activo'), tr('suiveurs actifs', 'active followers', 'seguidores activos')) : undefined}
                 tone="ice"
               />
-              <Stat small label={tr('Fills routés', 'Routed fills', 'Fills enrutados')} value={String(host?.routed ?? 0)} hint={tr('depuis l’ouverture', 'since launch', 'desde la apertura')} tone="gold" />
+              {/* Zéro n'est pas l'absence (Système 5) : sans le process principal, ou avant le chargement, rien n'est connu. */}
+              <Stat small label={tr('Fills routés', 'Routed fills', 'Fills enrutados')} value={host ? String(host.routed) : '—'} hint={tr('depuis l’ouverture', 'since launch', 'desde la apertura')} tone="gold" />
               <Stat
                 small
                 label={tr('Dernier refus', 'Last refusal', 'Último rechazo')}
@@ -140,6 +166,13 @@ export default function Copieur() {
                 hint={host?.lastRefusal ? `${host.lastRefusal.account} · ${host.lastRefusal.qty}` : tr('aucun', 'none', 'ninguno')}
               />
             </div>
+
+            <CriteriaMirror
+              id="copier"
+              mirror={armCriteria}
+              on={host?.armed === true}
+              opening={tr('Armer · désarmé à chaque ouverture du desk ; le dialogue du desk décide', 'Arm · disarmed each time the desk opens; the desk dialog decides', 'Armar · desarmado en cada apertura del desk; el diálogo del desk decide')}
+            />
 
             <div className={s.banner}>
               <b>{tr('Sim.', 'Sim.', 'Sim.')}</b>{' '}
@@ -189,7 +222,7 @@ export default function Copieur() {
                     <option value="maitre">{tr('Maître', 'Master', 'Maestro')}</option>
                     <option value="suiveur">{tr('Suiveur', 'Follower', 'Seguidor')}</option>
                   </select>
-                  <Button variant="gold" onClick={add}>
+                  <Button onClick={add}>
                     {tr('Ajouter', 'Add', 'Añadir')}
                   </Button>
                 </div>

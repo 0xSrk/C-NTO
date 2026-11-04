@@ -28,11 +28,51 @@
   border-radius: 2px;
   min-width: 0;
 }
+/* A.01 : la plaque du lecteur ne garde que son filet d'un pixel (Système 5, OROS5.21) ; la plaque vissée sort, avec ses
+   vis, sa languette d'or, sa trame, son dégradé, son rayon et son ombre. */
+.plaque {
+  overflow: hidden;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  padding: 20px 30px 18px;
+}
 
 .kpis {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: auto 1fr 1fr;
+}
+/* L'échantillon de la bande, dit une fois, en tête (OROS5.34) : un lien vers l'ensemble, au glacier (la technique). */
+.kBandHead {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line-1);
+}
+.kSample {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  color: var(--ice);
+  background: none;
+  cursor: pointer;
+  transition: color 200ms linear;
+}
+.kSample:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .kSample:hover {
+    color: var(--text-0);
+  }
 }
 
 .tile {
@@ -45,8 +85,9 @@
   border-right: 1px solid var(--line-1);
   border-bottom: 1px solid var(--line-1);
 }
-.tile:nth-child(2n) { border-right: none; }
-.tile:nth-child(n + 3) { border-bottom: none; }
+/* La tête est le premier enfant : les filets des tuiles se recomptent à partir du deuxième. */
+.tile:nth-child(2n + 1) { border-right: none; }
+.tile:nth-child(n + 4) { border-bottom: none; }
 
 .kHead,
 .cardHead {
@@ -54,6 +95,17 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
+}
+/* Le titre d'une carte K tient sur une ligne ; s'il manque de place, le complément passe dessous, à droite. */
+.kHead {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.kTitle {
+  white-space: nowrap;
+}
+.kHead > .hint {
+  margin-left: auto;
 }
 .cardHead {
   padding-bottom: 10px;
@@ -200,6 +252,14 @@
   gap: 8px;
   margin-top: 6px;
 }
+/* K.04 avec un plan : une ligne par lecture, desserrées. */
+.planLines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  line-height: 1.35;
+}
 
 .pad {
   padding: 14px 22px 16px;
@@ -230,6 +290,73 @@
   display: inline-flex;
   flex-direction: column;
   gap: 4px;
+}
+/* Le pas que tient le curseur de temps : l'or dit ce que tient l'opérateur (décision 1). */
+.eqPinned {
+  color: var(--gold);
+}
+/* Le catalyseur du pas lu, nommé après sa date. */
+.eqWhenEvent {
+  color: var(--text-0);
+}
+/* Les jeux d'événements de A.02, en puces (OROS5.36) : éteinte, le graphite ; allumée, l'ivoire et son filet. */
+.eqSets {
+  display: inline-flex;
+  gap: 6px;
+}
+.eqSet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: none;
+  border: 1px solid var(--line-1);
+  cursor: pointer;
+  transition:
+    color 200ms linear,
+    border-color 200ms linear;
+}
+.eqSet b {
+  font-weight: 500;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.eqSetOn {
+  color: var(--text-0);
+  border-color: var(--text-1);
+}
+.eqSetOn b {
+  color: var(--text-0);
+}
+.eqSetGlyph {
+  width: 12px;
+  height: 12px;
+  --k: currentColor;
+}
+/* Les catalyseurs des tiges, hors de la toile (OROS5.45m) : un bouton chacun, au clavier comme au pointeur. */
+.eqStems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.eqSet:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .eqSet:hover {
+    color: var(--text-0);
+    border-color: var(--line-2);
+  }
 }
 .eqRead .pos { color: var(--pos); }
 .eqRead .neg { color: var(--neg); }
@@ -382,6 +509,15 @@
   background: var(--text-1);
 }
 
+/*
+ * A.04 tient dans sa carte (OROS5.47l) : la fiche ouverte à 1180 × 720 ne laisse que 560 px à la zone de travail, et ses
+ * cellules sur une ligne l'élargissaient au-delà, sous le bord de la fiche. À l'étroit, les cellules passent à la ligne et
+ * se resserrent ; si la table reste plus large, elle défile dans sa carte, jamais la zone de travail.
+ */
+.tableScroll {
+  min-width: 0;
+  overflow-x: auto;
+}
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -418,6 +554,46 @@
   color: var(--text-2);
   font-weight: 500;
 }
+/* A.04 (OROS5.26) : chaque ligne est une séance, C.094 en tête, qui ouvre sa fiche ; l'objet ouvert garde son glyphe à l'or
+   et le filet de 2 px à gauche (décision 1 : l'or dit ce que tient l'opérateur). */
+.objRow {
+  cursor: pointer;
+  --k: var(--text-1);
+}
+.objRow td {
+  transition: background-color 200ms linear;
+}
+.objOpen {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.objOpen:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+.objGlyph {
+  width: 18px;
+  height: 15px;
+}
+.objOn td {
+  background-color: var(--bg-3);
+}
+.objOn td:first-child {
+  box-shadow: inset var(--active-line) 0 0 var(--gold);
+}
+.objOn .objGlyph {
+  --k: var(--gold);
+}
+@media (hover: hover) {
+  .objRow:hover td {
+    background-color: color-mix(in srgb, var(--ivory) 2.5%, transparent);
+  }
+  .objRow:hover {
+    --k: var(--text-0);
+  }
+}
 .squares {
   display: inline-flex;
   gap: 3px;
@@ -433,6 +609,77 @@
 .sq.on { background: var(--text-0); border-color: var(--text-0); }
 .sq.win { background: var(--pos); border-color: var(--pos); }
 .sq.loss { background: var(--neg); border-color: var(--neg); }
+
+/* ─── La sélection partagée (OROS5.32) : n / N en tête de chaque panneau ; ce qui en sort, à sa place, à 35 % ─── */
+/* Le titre d'un panneau garde sa ligne ; à l'étroit, ce sont ses outils (n / N, l'unité, le lien) qui passent à la ligne,
+   à droite. */
+.cardHead > span:first-child {
+  flex: none;
+}
+.cardTools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-width: 0;
+}
+.cardTools > * {
+  white-space: nowrap;
+}
+.count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.out {
+  opacity: 0.35;
+  transition: opacity 220ms linear;
+}
+/* A.03 : M.003 occupe le vide sous les instruments, toute la largeur de la carte (OROS5.35). */
+.hours {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-1);
+}
+.subHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+/* A.03 : chaque instrument pose ou retire la puce Instrument ; la ligne posée garde son filet d'ivoire à gauche. */
+.instRow {
+  width: 100%;
+  padding: 0 0 0 10px;
+  text-align: left;
+  color: inherit;
+  box-shadow: inset 1px 0 0 transparent;
+  transition:
+    opacity 220ms linear,
+    box-shadow 220ms linear;
+}
+.instOn {
+  box-shadow: inset var(--active-line) 0 0 var(--text-0);
+}
+.instRow:focus-visible {
+  outline: 1px solid var(--line-3);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .instRow:hover {
+    box-shadow: inset 1px 0 0 var(--line-3);
+  }
+  .instOn:hover {
+    box-shadow: inset var(--active-line) 0 0 var(--text-0);
+  }
+}
 
 .more {
   display: inline-flex;
@@ -565,4 +812,30 @@
   .span4,
   .span12 { grid-column: 1 / -1; }
   .plateTop { grid-template-columns: 1fr; }
+}
+
+/* La zone de travail se mesure elle-même (OROS5.16, le châssis en fait un conteneur) : sous 900 px — la fiche ouverte à la
+   fenêtre minimale —, A.01 prend toute la largeur et la bande K passe dessous, ses quatre cartes sur une ligne. Sans fiche,
+   la fenêtre minimale laisse 960 px : A.01 et la bande K restent côte à côte (OROS5.45h). */
+@container main (max-width: 900px) {
+  .span7,
+  .span5,
+  .span8,
+  .span4,
+  .span12 { grid-column: 1 / -1; }
+  .grid { grid-template-rows: minmax(206px, auto) auto minmax(258px, auto) auto; }
+  .kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+  }
+  .tile:nth-child(n) {
+    border-right: 1px solid var(--line-1);
+    border-bottom: none;
+  }
+  .tile:last-child { border-right: none; }
+}
+@container main (max-width: 700px) {
+  .table th,
+  .table td { padding: 8px 4px; }
+  .table td { white-space: normal; }
 }

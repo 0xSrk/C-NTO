@@ -243,7 +243,7 @@
 .item.ice .state {
   color: var(--ice);
 }
-/* Interrupteur : un carré de 8 px, à l'or quand l'option est cochée. */
+/* Interrupteur : un carré de 8 px, à l'ivoire quand l'option est cochée (OROS5.44 : l'état d'une option n'est pas l'or). */
 .check {
   width: 8px;
   height: 8px;
@@ -251,6 +251,6 @@
   transition: background-color 200ms linear, box-shadow 240ms var(--ease-out);
 }
 .check.checked {
-  background-color: var(--gold);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent);
+  background-color: var(--text-0);
+  box-shadow: none;
 }

@@ -91,6 +91,7 @@ import { useCrypto } from '@/store/crypto';
 import { db } from '@/store/db';
 import { deskEventLog } from '@/store/deskEvents';
 import { useJournal } from '@/store/journal';
+import { useObjects } from '@/store/objects';
 import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
 
 let root: Root | null = null;
@@ -131,6 +132,8 @@ beforeEach(() => {
   useJournal.setState({ sessions: [], trades: [] });
   useAgent.setState({ messages: [], streaming: false, streamText: '', pendingTool: null, error: null, notice: null });
   useI18n.setState({ locale: 'fr' });
+  // La vue de l'onglet est confiée au store des objets (OROS5.25) : chaque test repart de l'ouverture, sur les rapports.
+  useObjects.setState(useObjects.getInitialState(), true);
 });
 
 afterEach(() => {
@@ -521,14 +524,19 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     expect(fake.puts).toEqual([]);
   });
 
-  it('LAB3 la vue Options s’ouvre sur une bande d’état du desk : modèle, passerelles, écriture, ordres ; plus d’agent cloud', async () => {
+  it('LAB3 la vue Options s’ouvre sur une bande d’état du desk : modèle et passerelles ; plus d’agent cloud', async () => {
     const node = await mount();
+    const options = panel(node, 'options')!;
     const strip = node.querySelector('dl[aria-label="État des services de l’agent"]');
-    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Modèle', 'Passerelle MCP', 'Orchestrateur', 'Écriture des agents', 'Ordres de l’agent']);
-    expect(panel(node, 'options')?.textContent).not.toContain('Agent cloud · Anthropic');
-    expect(strip?.textContent).toContain('lecture seule');
-    expect(strip?.textContent).toContain('désactivés');
-    expect(panel(node, 'options')?.contains(strip ?? null)).toBe(true);
+    // OROS5.25 : l'écriture des agents et les ordres de l'agent se lisent une fois, aux portes du rail ; la bande ne les
+    // redit plus (réécrit : elle les disait jusqu'ici).
+    expect([...(strip?.querySelectorAll('dt') ?? [])].map((dt) => dt.textContent)).toEqual(['Modèle', 'Passerelle MCP', 'Orchestrateur']);
+    expect(strip?.textContent).not.toMatch(/lecture seule|désactivés|autorisé/);
+    expect(options.textContent).not.toContain('Agent cloud · Anthropic');
+    expect(options.contains(strip ?? null)).toBe(true);
+    // les portes mènent aux sections qui les règlent, dans cette vue : la passerelle MCP, les ordres proposés
+    expect(options.querySelector('[data-gate-target="agentWrite"]')).toBe(section(node, 'Agents externes · MCP'));
+    expect(options.querySelector('[data-gate-target="agentOrders"]')?.contains(section(node, 'Ordres proposés par l’agent'))).toBe(true);
   });
 
   it('CLD17 la conversation descend au dernier message quand on l’ouvre (elle était cachée au montage)', async () => {
@@ -586,5 +594,46 @@ describe('CLD8 sous-onglets de l’agent : rapports d’abord, conversation, opt
     expect(tab(node, 'Informes')).toBeDefined();
     expect(tab(node, 'Conversación')).toBeDefined();
     expect(tab(node, 'Opciones')).toBeDefined();
+  });
+});
+
+describe('OROS5.41b la trace d’une ancienne réponse ne repasse pas « en cours »', () => {
+  it('un appel resté sans résultat (desk fermé pendant le dialogue) reste éteint pendant le flux d’une nouvelle question ; celui du tour en cours court', async () => {
+    // Le coffre : une question, puis une réponse qui appelait `propose_order`, rangée sans résultat.
+    const u1 = { id: 'u1', conversationId: 'default', role: 'user', content: 'propose un ordre', createdAt: 1_000 };
+    const a1 = { id: 'a1', conversationId: 'default', role: 'assistant', content: '', createdAt: 2_000, toolCalls: [{ id: 'c1', name: 'propose_order', args: '{"account":"Sim101","qty":1}' }] };
+    (db as unknown as { agentMessages: Record<string, unknown> }).agentMessages.where = () => ({ equals: () => ({ sortBy: async () => [u1, a1] }) });
+    await useAgent.getState().load();
+    let finish: (value: { text: string; toolCalls: unknown[] }) => void = () => undefined;
+    vi.mocked(streamChat).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve as typeof finish;
+        }) as never,
+    );
+    const node = await mount();
+    const issue = (call: string) => node.querySelector<HTMLElement>(`[data-tool="${call}"]`)?.dataset.issue;
+    expect(issue('propose_order')).toBe('interrupted');
+    // Une nouvelle question : le flux tourne, le modèle n'a pas encore répondu.
+    let sent!: Promise<void>;
+    await act(async () => {
+      sent = useAgent.getState().send('nouvelle question');
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    });
+    expect(useAgent.getState().streaming).toBe(true);
+    expect(issue('propose_order')).toBe('interrupted');
+    // Le tour en cours : sa réponse, rangée avec un appel sans résultat encore, court au tireté.
+    await act(async () =>
+      useAgent.setState((st) => ({ messages: [...st.messages, { id: 'a2', conversationId: 'default', role: 'assistant', content: '', createdAt: 4_000, toolCalls: [{ id: 'c2', name: 'bridge_status', args: '{}' }] }] })),
+    );
+    expect(issue('bridge_status')).toBe('running');
+    expect(issue('propose_order')).toBe('interrupted');
+    await act(async () => {
+      finish({ text: 'fin', toolCalls: [] });
+      await sent;
+    });
+    await settle();
+    expect(useAgent.getState().streaming).toBe(false);
+    expect(issue('propose_order')).toBe('interrupted');
   });
 });

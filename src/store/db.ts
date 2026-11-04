@@ -8,6 +8,7 @@ import { buildEquityPoints } from '@/engine/portfolio/equity';
 import { TRADE_LEVEL_KEYS, tradeLevelIssue } from '@/engine/riskConsole';
 import { CREATABLE_POCKET_KINDS, assertNoCryptoPockets, type CashBalance, type EquityPoint, type FxRate, type Pocket, type Position } from '@/engine/portfolio/types';
 import type { Instrument, Session, Trade } from '@/engine/types';
+import { coerceDayCloses, mergeDayCloses } from '@/engine/agent/dayClose';
 import { coerceRoutineSeen } from '@/engine/agent/routineDue';
 import { sanitizeAlerts } from '@/engine/crypto/alerts';
 import { sanitizeCryptoChart, sanitizeDrawings, sanitizeWatchlist } from '@/engine/crypto/persist';
@@ -601,6 +602,8 @@ const CHECKS: Record<string, Check> = {
 const SETTING_ROW_SANITIZERS: Record<string, (v: unknown) => unknown> = {
   'agent.conversation': (v) => (isStr(v, 64) && v.length > 0 ? v : undefined),
   'agent.routineSeen': (v) => coerceRoutineSeen(v),
+  // La journée fermée (décision 15, OROS5.48b) : une liste de fermetures relues une à une ; une autre forme écarte la ligne.
+  'agent.dayClose': (v) => (Array.isArray(v) ? coerceDayCloses(v, Date.now()) : undefined),
   'chart.active': (v) => (v === null || isStr(v, 200) ? v : undefined),
   'chart.indicators': (v) => {
     if (!Array.isArray(v) || v.length > 50) return undefined;
@@ -808,6 +811,15 @@ export function prepareVaultRestore(json: string): PreparedVault {
   };
 }
 
+/**
+ * La valeur qu'une ligne restaurée de la table `settings` écrit : la sienne, sauf la journée fermée (OROS5.48b), réunie à
+ * celle en place. Un coffre restauré ne rouvre jamais une journée que le desk a fermée (décision 15 de l'ADMIN), pas même
+ * par une fermeture d'une journée à venir (OROS5.48f) : la journée en cours de l'horloge reste.
+ */
+export function restoredSettingValue(key: string, current: unknown, incoming: unknown, now = Date.now()): unknown {
+  return key === 'agent.dayClose' ? mergeDayCloses(current, incoming, now) : incoming;
+}
+
 export interface RestoreSummary {
   sessions: number;
   trades: number;
@@ -867,7 +879,7 @@ export function restoreVault(json: string): Promise<RestoreSummary> {
           const current = (await db.settings.get('settings'))?.value;
           await db.settings.put({ key: 'settings', value: mergeRestoredSettings(current, v.settingsPatch) });
         }
-        for (const row of v.otherSettings) await db.settings.put(row);
+        for (const row of v.otherSettings) await db.settings.put({ key: row.key, value: restoredSettingValue(row.key, (await db.settings.get(row.key))?.value, row.value) });
         if (v.pendingApiKey) {
           const current = ((await db.settings.get('settings'))?.value as Record<string, unknown> | undefined) ?? {};
           const prevAgent = isRec(current.agent) ? current.agent : {};

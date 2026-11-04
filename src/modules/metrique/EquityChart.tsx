@@ -1,15 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ColorType, createChart, CrosshairMode, LineStyle, type AutoscaleInfo, type IChartApi, type ISeriesApi, type SeriesPartialOptions, type Time, type UTCTimestamp, type WhitespaceData } from 'lightweight-charts';
-import { Montant, Segmented } from '@/design/primitives';
+import { shortDay } from '@/app/objects/index';
+import { SetCount } from '@/app/objects/Selection';
+import { Glyph } from '@/design/Micro';
+import { cx, Montant, Segmented } from '@/design/primitives';
+import { majorCatalysts } from '@/engine/discipline';
 import { equityCurve, type EquityCurveData, type EquityGrain, type EquityStep } from '@/engine/equityCurve';
+import { catalystSource } from '@/engine/macroMerge';
+import { findPlan } from '@/engine/propfirm';
+import { entryHourET } from '@/engine/selection';
 import type { Session, Trade } from '@/engine/types';
 import { intlTag, tr, useI18n } from '@/i18n';
+import { trEventTitle } from '@/lib/eventTitles';
 import { fmtInt } from '@/lib/format';
+import { cmeDay, replayDiscipline } from '@/lib/frise';
 import { dateTimeFormatter } from '@/lib/time';
 import { chartHostReady, safePaneHeight } from '@/modules/visual/chartBox';
+import { useMacro } from '@/store/macro';
+import { useSettings } from '@/store/settings';
+import { useUi } from '@/store/ui';
 import s from './dashboard.module.css';
 import { sessionMarks } from './equityPaint';
-import { EquityTrait, floorRange, NONE, StemTrait, UnderwaterTrait, type EquityRow, type GlyphKey, type Ink, type Marks, type TraitOptions } from './equitySeries';
+import { catalystStems, cursorStep, EquityTrait, eventMarks, floorRange, NONE, StemTrait, UnderwaterTrait, type EquityRow, type EventGlyphKey, type EventMarks, type GlyphKey, type Ink, type Marks, type TraitOptions } from './equitySeries';
 import { glyphImage, readyImage } from './glyphSprite';
 
 /**
@@ -21,6 +33,11 @@ import { glyphImage, readyImage } from './glyphSprite';
  */
 
 const CHART_HEIGHT = 300;
+/**
+ * La fenêtre du double-clic : un pas cliqué n'ouvre sa fiche qu'une fois passée (OROS5.45c). 500 ms, celle de
+ * lightweight-charts (`Delay.ResetClick`, depuis le premier appui) et de Windows par défaut (OROS5.45j).
+ */
+export const DOUBLE_CLICK_MS = 500;
 const PNL_PANE = 58;
 const DD_PANE = 64;
 
@@ -70,6 +87,8 @@ type Trait = ISeriesApi<'Custom', Time, EquityRow | WhitespaceData<Time>, TraitO
 
 interface Refs {
   chart: IChartApi;
+  /** Charge à la demande un composant que seule une puce allume (C.090, C.024) : rien n'est chargé tant qu'elle est éteinte. */
+  ensure: (key: EventGlyphKey, px: number) => void;
   traits: Trait[];
   /** Dernière courbe dessinée : un rendu sans changement ne redessine pas. */
   drawn: EquityCurveData | null;
@@ -87,6 +106,41 @@ const GLYPHS: readonly [GlyphKey, number][] = [
 ];
 
 const floorLabel = (floor: number) => (floor > 0 ? `${tr('PLANCHER', 'FLOOR', 'SUELO')} −${fmtInt(floor)}` : '');
+
+/** Les composants qu'une puce allume (OROS5.36), et leur taille (px CSS) : la tête du catalyseur, l'écart au pied. */
+const EVENT_GLYPHS: Readonly<Record<'catalysts' | 'drifts', readonly [EventGlyphKey, number]>> = { catalysts: ['catalyst', 12], drifts: ['drift', 10] };
+
+/** Les années que couvre la courbe : la source unique du catalyseur s'y lit (repères locaux et lignes officielles). */
+function yearsOf(sessions: readonly Session[]): number[] {
+  const years = sessions.map((row) => Number(row.date.slice(0, 4))).filter((y) => Number.isInteger(y));
+  if (!years.length) return [];
+  const out: number[] = [];
+  for (let y = Math.min(...years); y <= Math.max(...years); y++) out.push(y);
+  return out;
+}
+
+const ALL_STEPS = () => true;
+
+/**
+ * Les pas qu'allument les puces Instrument (OROS5.32) et Heure (OROS5.35) : au grain séance, chaque journée où la
+ * sélection a un trade ; au grain trade, chacun de ses trades (sa sortie et son instrument). Le départ n'en est jamais.
+ * `null` sans puce.
+ */
+export function litSteps(curve: EquityCurveData, sessions: readonly Session[], trades: readonly Trade[], instrument: string | null, hour: number | null = null): { on: boolean[]; count: number } | null {
+  if (!instrument && hour == null) return null;
+  const keep = (row: Trade) => (!instrument || row.instrument === instrument) && (hour == null || entryHourET(row) === hour);
+  const dateOf = new Map(sessions.map((row) => [row.id, row.date]));
+  const days = new Set<string>();
+  const exits = new Set<string>();
+  for (const row of trades) {
+    if (!keep(row)) continue;
+    days.add(dateOf.get(row.sessionId) ?? '');
+    exits.add(`${row.exitTime}|${row.instrument}`);
+  }
+  const onTrade = (step: EquityStep) => (hour == null ? step.instrument === instrument : exits.has(`${step.at}|${step.instrument}`));
+  const on = curve.steps.map((step) => !step.origin && (curve.grain === 'trade' ? onTrade(step) : days.has(step.date)));
+  return { on, count: on.filter(Boolean).length };
+}
 
 /** Repères du volet principal : le plus haut et le creux du plus grand drawdown, au trait. */
 function marksOf(curve: EquityCurveData): Marks {
@@ -121,16 +175,54 @@ export function EquityCard({
   trades,
   className,
   floor,
+  lit,
+  litHour,
+  onStep,
+  onCatalyst,
 }: {
   sessions: Session[];
   trades: Trade[];
   className?: string;
+  /**
+   * La puce Instrument de la sélection partagée (OROS5.32) : ses pas s'allument sur la courbe du compte, les autres
+   * restent, atténués. Au grain séance, les journées où l'instrument a un trade ; au grain trade, ses trades.
+   */
+  lit?: string | null;
+  /** La puce Heure (OROS5.35) : ses pas s'allument de même, une journée ou un trade entré à cette heure de New York. */
+  litHour?: number | null;
   /** Drawdown maximal du plan suivi pour le compte filtré : la borne du volet sous l'eau. Absent : aucune borne inventée. */
   floor?: number | null;
+  /**
+   * Un pas cliqué (OROS5.26) : chaque pas est une séance, qui ouvre sa fiche. La bibliothèque ne compte pas un glisser
+   * pour un clic (au-delà de 5 px) : glisser déplace toujours la courbe.
+   */
+  onStep?: (step: EquityStep, origin: HTMLElement | null) => void;
+  /** Un catalyseur d'une tige, choisi hors de la toile (OROS5.45m) : il ouvre sa fiche. */
+  onCatalyst?: (id: string, origin: HTMLElement | null) => void;
 }) {
   const locale = useI18n((st) => st.locale);
   const [grain, setGrain] = useState<EquityGrain>('session');
   const curve = useMemo(() => equityCurve(sessions, trades, grain), [sessions, trades, grain]);
+  // Le curseur de temps (OROS5.36) : le réticule unique s'épingle au pas qu'il tient ; le survol garde la priorité.
+  const cursor = useUi((u) => u.timeCursor);
+  const cursorIndex = useMemo(() => cursorStep(curve, cursor), [curve, cursor]);
+  const pinned = cursorIndex !== null && cursorIndex >= 0 ? cursorIndex : null;
+  // Les jeux d'événements, en puces : les catalyseurs majeurs de la source unique (OROS5.13) et les écarts rejoués comme
+  // le couloir Desk de la frise (`replayDiscipline`). Éteints au départ : la courbe reste la même tant qu'on ne les allume pas.
+  const [sets, setSets] = useState({ catalysts: false, drifts: false });
+  const official = useMacro((m) => m.events);
+  const rules = useSettings((st) => st.settings.traderRules);
+  const planId = useSettings((st) => st.settings.planId);
+  const planAccount = useSettings((st) => st.settings.planAccount);
+  const years = yearsOf(sessions).join(',');
+  const calendar = useMemo(() => (years ? catalystSource(official, years.split(',').map(Number)) : []), [official, years]);
+  const majors = useMemo(() => majorCatalysts(calendar), [calendar]);
+  const findings = useMemo(() => (trades.length ? replayDiscipline(trades, calendar, rules, findPlan(planId), planAccount) : []), [trades, calendar, rules, planId, planAccount]);
+  const marksOfEvents = useMemo(() => eventMarks(curve, { catalysts: majors, findings, trades }, trEventTitle), [curve, majors, findings, trades, locale]);
+  // Les tiges sont peintes sur la toile : chacun de leurs catalyseurs est aussi un bouton, au clavier (OROS5.45m).
+  const stems = useMemo(() => catalystStems(curve, majors, trEventTitle), [curve, majors, locale]);
+  const counts = { catalysts: marksOfEvents.catalysts.reduce((n, m) => n + m.count, 0), drifts: marksOfEvents.drifts.reduce((n, m) => n + m.count, 0) };
+  const [booted, setBooted] = useState(0);
   const floorValue = floor != null && floor > 0 ? floor : 0;
   const floorRef = useRef(floorValue);
   floorRef.current = floorValue;
@@ -142,12 +234,21 @@ export function EquityCard({
   curveRef.current = curve;
   const grainRef = useRef(grain);
   grainRef.current = grain;
+  const onStepRef = useRef(onStep);
+  onStepRef.current = onStep;
+  const selectionRef = useRef<((index: number) => boolean) | null>(null);
 
   useEffect(() => {
     const el = host.current;
     if (!el) return;
     let disposed = false;
-    const sprites: Partial<Record<GlyphKey, HTMLImageElement>> = {};
+    /** Le clic d'un pas, en attente de la fenêtre du double-clic. */
+    let pending: number | null = null;
+    const cancelPending = () => {
+      if (pending !== null) window.clearTimeout(pending);
+      pending = null;
+    };
+    const sprites: Partial<Record<GlyphKey | EventGlyphKey, HTMLImageElement>> = {};
     const boot = () => {
       if (disposed || refs.current) return;
       const width = Math.floor(el.clientWidth);
@@ -212,6 +313,9 @@ export function EquityCard({
         if (pnlHeight) panes[1]?.setHeight(pnlHeight);
         if (ddHeight) panes[2]?.setHeight(ddHeight);
         chart.subscribeCrosshairMove((param) => {
+          // Un point sans événement d'origine n'est pas le pointeur : c'est la position posée par `setCrosshairPosition`,
+          // que la bibliothèque relance à chaque `applyOptions` d'une série (`updateCrosshair`). Ce n'est pas un survol.
+          if (param.point && !param.sourceEvent) return;
           if (param.time === undefined || !param.point) {
             setHover(null);
             return;
@@ -219,19 +323,46 @@ export function EquityCard({
           const index = curveRef.current.steps.findIndex((step) => step.time === (param.time as number));
           setHover(index >= 0 ? index : null);
         });
-        refs.current = { chart, traits: [equity, pnl, drawdown], drawn: null, rows: [], floor: floorNow };
+        // Le clic, hors glisser : le pas ouvre la fiche de sa séance ; le départ n'est pas une séance. Il attend la fenêtre
+        // du double-clic : un second clic dans la fenêtre, ou le double-clic qui recadre la courbe, n'ouvre rien (OROS5.45c).
+        // Dans sa fenêtre, la bibliothèque rend le second clic à son double-clic, jamais à `subscribeClick` (OROS5.45j).
+        chart.subscribeDblClick?.(() => cancelPending());
+        chart.subscribeClick?.((param) => {
+          if (pending !== null) {
+            window.clearTimeout(pending);
+            pending = null;
+            return;
+          }
+          if (param.time === undefined) return;
+          const step = curveRef.current.steps.find((row) => row.time === (param.time as number));
+          if (!step || step.origin) return;
+          pending = window.setTimeout(() => {
+            pending = null;
+            if (!disposed) onStepRef.current?.(step, el);
+          }, DOUBLE_CLICK_MS);
+        });
         // Composants de la planche (⊕ ⊗ borne) : images du master, encrées en ivoire, à la densité de l'écran ; le trait
         // ne les reçoit qu'une fois chargées, et chaque chargement redessine.
         const dpr = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
         const lookup = (key: GlyphKey) => readyImage(sprites[key]);
+        const eventLookup = (key: EventGlyphKey) => readyImage(sprites[key]);
         const repaint = () => {
           if (disposed) return;
           const glyph = (key: GlyphKey) => lookup(key);
-          for (const trait of refs.current?.traits ?? []) trait.applyOptions({ glyph });
+          const eventGlyph = (key: EventGlyphKey) => eventLookup(key);
+          for (const trait of refs.current?.traits ?? []) trait.applyOptions({ glyph, eventGlyph });
         };
-        for (const [key, px] of GLYPHS) sprites[key] = glyphImage(key, colors.line, colors.paper, Math.ceil(px * dpr), repaint, Math.max(1, 0.6 * dpr));
-        for (const trait of refs.current.traits) trait.applyOptions({ glyph: lookup });
+        const load = (key: GlyphKey | EventGlyphKey, px: number) => {
+          if (!sprites[key]) sprites[key] = glyphImage(key, colors.line, colors.paper, Math.ceil(px * dpr), repaint, Math.max(1, 0.6 * dpr));
+        };
+        refs.current = { chart, ensure: load, traits: [equity, pnl, drawdown], drawn: null, rows: [], floor: floorNow };
+        for (const [key, px] of GLYPHS) load(key, px);
+        for (const trait of refs.current.traits) trait.applyOptions({ glyph: lookup, eventGlyph: eventLookup });
         draw(refs.current, curveRef.current);
+        const selected = selectionRef.current;
+        for (const trait of refs.current.traits) trait.applyOptions({ selecting: selected != null, inSelection: selected ?? ALL_STEPS });
+        // Le graphique posé : le réticule du curseur et les jeux allumés s'y reportent.
+        setBooted((n) => n + 1);
       } catch {
         if (!disposed) setFault(true);
       }
@@ -261,16 +392,23 @@ export function EquityCard({
       const ratio = span > 0 ? (anchor - range.from) / span : 1;
       scale.setVisibleLogicalRange({ from: anchor - next * ratio, to: anchor + next * (1 - ratio) });
     };
-    const onDoubleClick = () => refs.current?.chart.timeScale().fitContent();
+    const onDoubleClick = () => {
+      cancelPending();
+      refs.current?.chart.timeScale().fitContent();
+    };
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('dblclick', onDoubleClick);
+    // Un second appui dans la fenêtre l'annule dès qu'il commence, même tenu : le double-clic ne se dit qu'au relâché.
+    el.addEventListener('mousedown', cancelPending);
     boot();
     return () => {
       disposed = true;
+      if (pending !== null) window.clearTimeout(pending);
       for (const img of Object.values(sprites)) img.onload = null;
       ro.disconnect();
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('dblclick', onDoubleClick);
+      el.removeEventListener('mousedown', cancelPending);
       refs.current?.chart.remove();
       refs.current = null;
     };
@@ -298,13 +436,50 @@ export function EquityCard({
     for (const trait of refs.current?.traits ?? []) trait.applyOptions({ marks: marksOf(curveRef.current) });
   }, [locale]);
 
-  // Pas survolé : carré creux sur la crête, fil allumé, lueur sous l'eau.
+  // Pas survolé, ou pas du curseur : carré creux sur la crête, fil allumé, lueur sous l'eau. Le survol passe devant.
+  // Une courbe nouvelle repasse par `draw`, qui remet le focus : il se repose après elle.
   useEffect(() => {
-    for (const trait of refs.current?.traits ?? []) trait.applyOptions({ focus: hover ?? NONE });
-  }, [hover]);
+    for (const trait of refs.current?.traits ?? []) trait.applyOptions({ focus: hover ?? pinned ?? NONE });
+  }, [hover, pinned, curve, booted]);
+
+  // Le réticule unique de la bibliothèque, posé sur le pas du curseur tant que le pointeur n'est pas sur la courbe. La
+  // position posée ainsi (« synthétique ») ne déclenche pas d'événement ; la bibliothèque la relance ensuite à chaque
+  // `applyOptions`, sans événement d'origine, et le gestionnaire du survol l'ignore.
+  useEffect(() => {
+    const current = refs.current;
+    if (!current || hover !== null) return;
+    const row = pinned !== null ? curve.steps[pinned] : undefined;
+    const series = current.traits[0];
+    if (row && series && current.drawn === curve) current.chart.setCrosshairPosition?.(row.equity, row.time as UTCTimestamp, series);
+    else current.chart.clearCrosshairPosition?.();
+  }, [pinned, hover, curve, booted]);
+
+  // Les jeux d'événements allumés : leurs marques au trait d'équité ; un composant ne se charge qu'à sa première puce.
+  useEffect(() => {
+    const current = refs.current;
+    if (!current) return;
+    for (const set of ['catalysts', 'drifts'] as const) if (sets[set] && marksOfEvents[set].length) current.ensure(...EVENT_GLYPHS[set]);
+    const events: EventMarks = { catalysts: sets.catalysts ? marksOfEvents.catalysts : [], drifts: sets.drifts ? marksOfEvents.drifts : [] };
+    for (const trait of current.traits) trait.applyOptions({ events });
+  }, [sets, marksOfEvents, booted]);
+
+  // La sélection allumée : les pas de l'instrument, un par journée qui en a un trade, ou un par trade de l'instrument.
+  const lighting = useMemo(() => litSteps(curve, sessions, trades, lit ?? null, litHour ?? null), [curve, sessions, trades, lit, litHour]);
+  const selection = useMemo(() => (lighting ? (index: number) => lighting.on[index] ?? false : null), [lighting]);
+  selectionRef.current = selection;
+  useEffect(() => {
+    for (const trait of refs.current?.traits ?? []) trait.applyOptions({ selecting: selection != null, inSelection: selection ?? ALL_STEPS });
+  }, [selection]);
+  const counted = curve.steps.filter((row) => !row.origin).length;
 
   const last = curve.steps.length - 1;
-  const step = curve.steps[hover ?? last];
+  const step = curve.steps[hover ?? pinned ?? last];
+  // Le curseur tient une journée sans pas : la lecture le dit, sans pas à lire.
+  const noStep = hover === null && cursorIndex === -1 && cursor !== null;
+  const held = hover === null && pinned !== null;
+  // Le pas lu porte un catalyseur allumé : la lecture le nomme, même quand la tige n'a pas la place de le dire.
+  const readIndex = hover ?? pinned ?? last;
+  const readCatalyst = sets.catalysts ? marksOfEvents.catalysts.find((m) => m.index === readIndex)?.label : undefined;
   return (
     <section className={`${s.card} ${s.pad} ${className ?? ''}`}>
       <div className={s.cardHead}>
@@ -312,18 +487,47 @@ export function EquityCard({
           <span className={s.code}>A.02 </span>
           <span className={s.kName}>{tr('Courbe d’équité', 'Equity curve', 'Curva de equidad')}</span>
         </span>
-        <Segmented<EquityGrain>
-          value={grain}
-          onChange={setGrain}
-          options={[
-            { value: 'session', label: tr('Séance', 'Session', 'Sesión') },
-            { value: 'trade', label: tr('Trade', 'Trade', 'Trade') },
-          ]}
-        />
+        <span className={s.cardTools}>
+          {/* Les jeux d'événements, en puces, chacun son n : ils s'allument sur la courbe, sans la changer. */}
+          <span className={s.eqSets} role="group" aria-label={tr('Jeux d’événements', 'Event sets', 'Conjuntos de eventos')}>
+            <button type="button" className={cx(s.eqSet, sets.catalysts && s.eqSetOn)} data-event-set="catalysts" aria-pressed={sets.catalysts} onClick={() => setSets((v) => ({ ...v, catalysts: !v.catalysts }))}>
+              <Glyph name="catalyst" className={s.eqSetGlyph} />
+              {tr('Catalyseurs', 'Catalysts', 'Catalizadores')} <b>{fmtInt(counts.catalysts)}</b>
+            </button>
+            <button type="button" className={cx(s.eqSet, sets.drifts && s.eqSetOn)} data-event-set="drifts" aria-pressed={sets.drifts} onClick={() => setSets((v) => ({ ...v, drifts: !v.drifts }))}>
+              <Glyph name="drift" className={s.eqSetGlyph} />
+              {tr('Écarts', 'Breaches', 'Desvíos')} <b>{fmtInt(counts.drifts)}</b>
+            </button>
+          </span>
+          <SetCount n={lighting ? lighting.count : counted} total={counted} kind={grain === 'trade' ? 'trade' : 'session'} className={s.count} />
+          <Segmented<EquityGrain>
+            value={grain}
+            onChange={setGrain}
+            options={[
+              { value: 'session', label: tr('Séance', 'Session', 'Sesión') },
+              { value: 'trade', label: tr('Trade', 'Trade', 'Trade') },
+            ]}
+          />
+        </span>
       </div>
-      {step ? (
+      {noStep && cursor !== null ? (
         <div className={s.eqRead} aria-live="off">
-          <span className={s.eqWhen}>{stepLabel(step, grain)}</span>
+          <span className={cx(s.eqWhen, s.eqPinned)} data-pinned="">
+            {dateTimeFormatter(DAY_LONG).format(new Date(`${cmeDay(cursor)}T12:00:00Z`))} · {cmeDay(cursor) < (curve.steps[1]?.date ?? '') || cmeDay(cursor) > (curve.steps[last]?.date ?? '') ? tr('hors période', 'outside the range', 'fuera del período') : tr('aucune séance', 'no session', 'ninguna sesión')}
+          </span>
+          {[tr('Cumul', 'Cumulative', 'Acumulado'), grain === 'session' ? tr('Séance', 'Session', 'Sesión') : tr('Trade', 'Trade', 'Trade'), tr('Sous le plus haut', 'Below the high', 'Bajo el máximo'), tr('Trades', 'Trades', 'Trades')].map((name) => (
+            <span key={name} className={s.eqCell}>
+              <span className={s.hint}>{name}</span>
+              <span>—</span>
+            </span>
+          ))}
+        </div>
+      ) : step ? (
+        <div className={s.eqRead} aria-live="off">
+          <span className={cx(s.eqWhen, held && s.eqPinned)} data-pinned={held ? '' : undefined}>
+            {stepLabel(step, grain)}
+            {readCatalyst ? <span className={s.eqWhenEvent}> · {readCatalyst}</span> : null}
+          </span>
           <span className={s.eqCell}>
             <span className={s.hint}>{tr('Cumul', 'Cumulative', 'Acumulado')}</span>
             <Montant value={step.equity} className={step.equity < 0 ? s.neg : step.equity > 0 ? s.pos : undefined} />
@@ -347,6 +551,17 @@ export function EquityCard({
       ) : (
         <div ref={host} className={s.eqChart} style={{ height: CHART_HEIGHT }} role="img" aria-label={tr(`P&L cumulé ${signed(curve.net)} USD`, `Cumulative P&L ${signed(curve.net)} USD`, `P&L acumulado ${signed(curve.net)} USD`)} />
       )}
+      {sets.catalysts && stems.length ? (
+        <ul className={s.eqStems} data-stems="" aria-label={tr('Catalyseurs de la courbe', 'Catalysts on the curve', 'Catalizadores de la curva')}>
+          {stems.map((stem) => (
+            <li key={stem.id}>
+              <button type="button" className={s.eqSet} onClick={(event) => onCatalyst?.(stem.id, event.currentTarget)}>
+                {`${stem.label} · ${shortDay(stem.date)}`}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className={s.eqLegend}>
         <span>
           <i className={s.eqKeyLine} /> {tr('Équité', 'Equity', 'Equidad')}

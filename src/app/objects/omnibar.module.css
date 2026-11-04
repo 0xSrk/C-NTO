@@ -1,0 +1,187 @@
+/* L'omnibar (OROS5.17, Système 5 « Fiche et Frise ») : une superposition de 500 px à 20 vh (mesure locale, décision 4),
+   qui entre par l'opacité, sans flou. Jetons de tokens.css seulement ; aucun or : la ligne choisie se dit à l'ivoire
+   (décision 1, l'or ne marque que ce que tient l'opérateur). Le trait d'état de chaque ligne vient de la table d'états. */
+
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--bg-void) 62%, transparent);
+  animation: omniIn var(--t-med) linear both;
+}
+@keyframes omniIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.panel {
+  position: absolute;
+  top: 20vh;
+  left: calc(50% - 250px);
+  display: flex;
+  flex-direction: column;
+  width: 500px;
+  max-height: 60vh;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  --k: var(--text-1);
+  --p: var(--bg-2);
+}
+
+/* Le champ porte la cible (C.085). */
+.field {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--line-1);
+}
+.target {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+/* Le master, tracé pour 68 unités, relevé à environ un demi-pixel rendu à 16 px, son dessin intact. */
+.target :global(path) {
+  stroke: var(--k);
+  stroke-width: 2.2px;
+}
+.target :global(.g85-1) {
+  stroke-width: 2.6px;
+}
+.field input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text-0);
+}
+.field input::placeholder {
+  color: var(--text-2);
+}
+.kbd {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--line-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+
+.list {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0 8px;
+}
+.empty {
+  margin: 0;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.groupHead {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* Une ligne : le trait d'état, le glyphe du type, le nom, sa mesure. */
+.item {
+  display: grid;
+  grid-template-columns: 20px 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 16px 4px 12px;
+  cursor: pointer;
+  --k: var(--text-1);
+  transition: background-color 160ms linear;
+}
+.item b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-1);
+}
+.item b mark {
+  background: none;
+  color: var(--text-0);
+  font-weight: 600;
+}
+/* La ligne choisie au clavier : le fond usiné et un filet d'ivoire de 2 px à gauche. */
+.item.active {
+  background-color: var(--bg-3);
+  box-shadow: inset var(--active-line) 0 0 var(--text-0);
+  --k: var(--text-0);
+}
+.item.active b {
+  color: var(--text-0);
+}
+@media (hover: hover) {
+  .item:hover {
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+  }
+  .item.active:hover {
+    background-color: var(--bg-3);
+  }
+}
+.glyph {
+  width: 16px;
+  height: 16px;
+}
+/* Les masters fins des modules (Visual 26, Note 91, Portefeuille 130, Agent 29), relevés pour 16 px. */
+.glyph :global(.g26-1),
+.glyph :global(.g26-2),
+.glyph :global(.g26-3) {
+  stroke-width: 4.4px;
+}
+.glyph :global(.g91-1) {
+  stroke-width: 2.4px;
+}
+.glyph :global(.g130-1),
+.glyph :global(.g130-2),
+.glyph :global(.g130-3) {
+  stroke-width: 2.8px;
+}
+.glyph :global(.g29-1) {
+  stroke-width: 4.4px;
+}
+.meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.meta.pos {
+  color: var(--pos);
+}
+.meta.neg {
+  color: var(--neg);
+}
+
+/* Le pied ne dit que les touches. */
+.foot {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}

@@ -1,37 +1,12 @@
 import { aggregateByDate } from '@/engine/metrics';
+import { filterJournal, type MetricRange } from '@/engine/selection';
 import type { Session, Trade } from '@/engine/types';
 
-export type MetricRange = '7j' | '30j' | '90j' | 'tout';
+// La période, le filtre du journal et la puce Instrument vivent au moteur (OROS5.32) : la sélection est partagée avec
+// « Autour de… », hors des modules. Ce module les rend sous leurs noms, et garde ce qui est propre aux onglets.
+export { byInstrument, filterJournal, rangeFrom, selectJournal, shiftDateKey, type MetricRange } from '@/engine/selection';
 
-export function shiftDateKey(date: string, days: number): string {
-  const [y, m, d] = date.split('-').map(Number);
-  const dt = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
-}
-
-/** Premier jour inclus, ou `null` pour tout le journal. `asOf` est un jour civil `YYYY-MM-DD`. */
-export function rangeFrom(range: MetricRange, asOf: string): string | null {
-  if (range === 'tout') return null;
-  const back = range === '7j' ? -6 : range === '30j' ? -29 : -89;
-  return shiftDateKey(asOf, back);
-}
-
-/** Filtre le journal avant les fonctions de statistiques existantes. */
-export function filterJournal(sessions: readonly Session[], trades: readonly Trade[], range: MetricRange, asOf: string, account: string | null): { sessions: Session[]; trades: Trade[] } {
-  const from = rangeFrom(range, asOf);
-  const nextSessions = sessions.filter((row) => {
-    if (account && (row.account ?? '') !== account) return false;
-    if (from && row.date < from) return false;
-    if (row.date > asOf) return false;
-    return true;
-  });
-  const ids = new Set(nextSessions.map((row) => row.id));
-  const nextTrades = trades.filter((row) => ids.has(row.sessionId));
-  return { sessions: nextSessions, trades: nextTrades };
-}
-
-/** Onglets qui lisent les filtres de l'en-tête (les Séances ont les leurs). */
+/** Onglets qui lisent les filtres de l'en-tête comme un journal filtré (les Séances les lisent en atténuant, OROS5.32). */
 export type ScopedTab = 'bord' | 'analyse' | 'prop' | 'mc';
 
 export interface TabScope {

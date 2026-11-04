@@ -505,6 +505,10 @@ app.whenReady().then(() => {
     bridge: () => ntBridge?.publicStatus() ?? null,
     submit: (order) => (ntBridge ? ntBridge.order(order) : Promise.resolve({ ok: false, code: -32011, message: 'pont indisponible' })),
     log: (line) => mainLog('info', line),
+    // L'étape d'une proposition, poussée au renderer en lecture seule (OROS5.40) : gardée, puis dialogue ouvert.
+    publish: (step) => {
+      if (win && !win.isDestroyed()) win.webContents.send('agent-orders:step', step);
+    },
   });
   // Tout le réseau crypto vit dans `crypto-electron.ts` ; un module allumé au dernier lancement reprend ici, sans dialogue.
   cryptoRuntime = createCryptoRuntime({
@@ -546,7 +550,8 @@ app.whenReady().then(() => {
   agentCloud.start();
   void ntBridge.start();
   const shortcut = globalShortcut.register(KILL_SWITCH_SHORTCUT, () => {
-    // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont.
+    // Les envois partent tout de suite ; les réponses de l'AddOn sont consignées par le pont, qui garde le rapport et le
+    // pousse au renderer en lecture seule (`ntbridge:kill-report`) : la bande dit quel compte reste à aplatir.
     void ntBridge?.killSwitchReport();
   });
   if (!shortcut) mainLog('warn', `raccourci kill switch non enregistré (${KILL_SWITCH_SHORTCUT})`);
@@ -803,6 +808,8 @@ ipcMain.handle('ntbridge:max-contracts', async (e, n: unknown) => {
 });
 ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
 ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitchReport() : { accounts: [], sent: false, results: [] }));
+// Le dernier rapport de coupure, redemandé par le renderer (chargement, rechargement) : lecture seule, sans argument.
+ipcMain.handle('ntbridge:last-kill', (e) => (trusted(e) ? ntBridge?.lastKillReport() ?? null : null));
 
 ipcMain.handle('copier:status', (e) => (trusted(e) && ntBridge ? ntBridge.copierStatus() : null));
 ipcMain.handle('copier:configure', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.configureCopier(payload) : false));
@@ -911,11 +918,15 @@ ipcMain.handle('agent-orders:status', (e) => (trusted(e) && agentOrders ? agentO
 ipcMain.handle('agent-orders:enable', (e) => (trusted(e) && agentOrders ? agentOrders.enable() : AGENT_ORDERS_OFF));
 ipcMain.handle('agent-orders:disable', (e) => (trusted(e) && agentOrders ? agentOrders.disable() : AGENT_ORDERS_OFF));
 ipcMain.handle('agent-orders:limits', (e, raw: unknown) => (trusted(e) && agentOrders ? agentOrders.setLimits(raw) : AGENT_ORDERS_OFF));
-ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propShare: unknown, traderRule: unknown) => {
+// La journée fermée que le renderer a vue (décision 15, OROS5.48a) : le process principal la retient jusqu'à la journée CME
+// suivante. Forme relue par `closeDay` (`parseDayClose`) ; aucun canal ne rouvre une journée.
+ipcMain.handle('agent-orders:close-day', (e, raw: unknown) => (trusted(e) && agentOrders ? agentOrders.closeDay(raw) : false));
+ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propShare: unknown, traderRule: unknown, ticket: unknown) => {
   if (!trusted(e) || !agentOrders) return { status: 'refused', reason: 'disabled', detail: 'desk indisponible' };
   const from = typeof origin === 'string' && AGENT_ORIGINS.has(origin) ? (origin as 'llm' | 'mcp' | 'orch') : 'orch';
   // La règle enfreinte est relue par le process principal (`parseTraderRule`) : une des trois règles décidées, sinon rien.
-  return agentOrders.propose(raw, from, typeof propShare === 'number' ? propShare : null, traderRule);
+  // Le ticket n'est qu'une étiquette renvoyée avec l'étape de la proposition (`proposalTicket`) : il ne décide rien.
+  return agentOrders.propose(raw, from, typeof propShare === 'number' ? propShare : null, traderRule, ticket);
 });
 
 /* ─── Siège nominatif : le nom vient du code signé, vérifié ici (docs/SIEGE-NOMINATIF.md) ─── */

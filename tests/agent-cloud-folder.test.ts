@@ -218,7 +218,8 @@ describe('agent cloud · dossier des rapports (Système 4.0)', () => {
     const levels = [...node.querySelectorAll('[data-level]')].map((el) => el.getAttribute('data-level'));
     expect(levels).toEqual(['2', '1']);
     expect(text(node)).toContain('Session finie sans rapport · terminated');
-    expect(node.querySelector('section[aria-label="Agent cloud"]')?.className).toMatch(/dotted/);
+    // en défaut : le filet graphite sans motif de la table d'états (OROS5.45b), plus le pointillé
+    expect(node.querySelector('section[aria-label="Agent cloud"]')?.className).toMatch(/off/);
   });
 
   it('CLD17 un rapport plus récent et non lu prend la place d’une fiche déjà ouverte, une fois ; un choix de l’opérateur est gardé', async () => {

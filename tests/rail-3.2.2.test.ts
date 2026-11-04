@@ -20,27 +20,27 @@ describe('rail 3.2.2', () => {
     expect(between(shell, '<footer', '</footer>')).not.toContain('ChangelogJournal');
   });
 
-  it('le sigle et l’heure quittent la barre de titre ; le zoom s’y place', () => {
+  it('le sigle et l’heure quittent la barre de titre ; le zoom s’y place ; Système 5 (décision 7) : New York reste, Tokyo, Paris et le libellé de séance cèdent à la ligne de la journée', () => {
     const header = between(shell, '<header', '</header>');
     const status = between(shell, '<footer', '</footer>');
     expect(header).not.toContain('SRK—LAB / ART-002');
     expect(header).toContain('<ZoomControls />');
     expect(status).not.toContain('ART-002');
     expect(status).not.toContain('127.0.0.1');
-    expect(status).toContain('CME GLOBEX');
-    expect(status).toContain('city.code');
+    // la ligne de la journée (OROS5.22) : le pont et les bornes à gauche ; TYO, PAR et « CME GLOBEX · ETH » cèdent leur place
+    expect(between(status, 'statusLeft', 'statusRight')).toContain('<StatusBornes />');
+    expect(status).not.toContain('CME GLOBEX');
+    expect(shell).not.toMatch(/Asia\/Tokyo|Europe\/Paris|code: 'TYO'|code: 'PAR'|globexLabel/);
+    // New York reste, sur 24 ou 12 h, avant la signature
+    expect(shell).toMatch(/const NEW_YORK = \{ zone: ET_ZONE, code: 'NYC'/);
     expect(status).toContain("chooseFace('24')");
     expect(status).toContain("chooseFace('12')");
-    expect(shell).toContain("zone: 'Asia/Tokyo'");
-    expect(shell).toContain("zone: 'Europe/Paris'");
-    expect(shell).toContain("zone: 'America/New_York'");
-    expect(shell).toContain("code: 'TYO'");
-    expect(shell).toContain("code: 'PAR'");
-    expect(shell).toContain("code: 'NYC'");
     const right = between(status, 'statusRight', '</footer>');
+    expect(right).toContain('{NEW_YORK.code}');
     expect(right).toContain('BraceCode');
     expect(right).toContain('SIΞRRΛSKΛ');
     expect(right).not.toContain('SignatureGlyphs');
+    expect(right.indexOf('{NEW_YORK.code}')).toBeLessThan(right.indexOf('BraceCode'));
     expect(right.indexOf('BraceCode')).toBeLessThan(right.indexOf('SIΞRRΛSKΛ'));
     expect(right).not.toContain('CME GLOBEX');
     expect(between(shell, '<div className={s.railFoot}>', '</aside>')).not.toContain('PlaqueSignature');

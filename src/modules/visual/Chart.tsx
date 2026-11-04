@@ -39,6 +39,16 @@ interface Props {
   /** Absent : deux décimales et un pas de 0,25, comme pour les futures de Visual. */
   priceFormat?: ChartPriceFormat;
   priceLines?: readonly ChartPriceLine[];
+  /**
+   * Faux : le dernier prix n'est pas vivant (une démo, des bougies synthétiques). Sa ligne reste, à l'acier, sans l'or
+   * (OROS5.44, décision 1 : l'or dit maintenant). Absent : vivant, comme avant.
+   */
+  live?: boolean;
+}
+
+/** La couleur du dernier prix : l'or quand il est vivant, l'acier d'une démo. */
+function lastPriceColor(live: boolean): string {
+  return live ? cssToken('--gold', '#ccb066') : cssToken('--text-1', '#b9b4a9');
 }
 
 const DEFAULT_PRICE_FORMAT: ChartPriceFormat = { precision: 2, minMove: 0.25 };
@@ -151,7 +161,12 @@ function syncPriceLines(series: ISeriesApi<'Candlestick'>, drawn: Map<string, Dr
   }
 }
 
-export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, priceLines }: Props) {
+export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, priceLines, live: liveProp }: Props) {
+  const live = liveProp !== false;
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  /** Ce que la ligne du dernier prix porte : la suivante se compare à lui. */
+  const appliedLiveRef = useRef<boolean | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -236,8 +251,8 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
       borderDownColor: '#e0776c',
       wickUpColor: 'rgba(127,207,154,0.8)',
       wickDownColor: 'rgba(224,119,108,0.8)',
-      // le dernier prix est vivant : il prend l'or (jeton --gold), ligne et étiquette
-      priceLineColor: cssToken('--gold', '#ccb066'),
+      // le dernier prix vivant prend l'or (jeton --gold), ligne et étiquette ; celui d'une démo, l'acier
+      priceLineColor: lastPriceColor(liveRef.current),
       priceLineStyle: LineStyle.Dotted,
       priceFormat: { type: 'price', precision: format.precision, minMove: format.minMove },
     });
@@ -250,6 +265,7 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
     volumeRef.current = volume;
     markersRef.current = createSeriesMarkers(candles, []);
     appliedFormatRef.current = format;
+    appliedLiveRef.current = liveRef.current;
     syncPriceLines(candles, drawnLinesRef.current, priceLinesRef.current);
 
     chart.subscribeCrosshairMove((param) => {
@@ -415,6 +431,14 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
     if (!ready || !candles) return;
     syncPriceLines(candles, drawnLinesRef.current, priceLines);
   }, [ready, priceLines]);
+
+  // Passer d'une démo à une série importée (ou l'inverse) recolore le dernier prix sans recréer le graphique.
+  useEffect(() => {
+    const candles = candleRef.current;
+    if (!ready || !candles || appliedLiveRef.current === live) return;
+    appliedLiveRef.current = live;
+    candles.applyOptions({ priceLineColor: lastPriceColor(live) });
+  }, [ready, live]);
 
   if (fault) throw fault;
   return <div ref={containerRef} className={s.chart} />;

@@ -1,22 +1,28 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import e from '@/design/etat.module.css';
 import { Glyph } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
-import { Button, Panel, Segmented, Tag, cx } from '@/design/primitives';
-import { CATEGORY_HELP, generateNasdaqEvents, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
-import { eventProvenance, mergeCalendarEvents, surpriseTone } from '@/engine/macroMerge';
+import { Button, Montant, Segmented, Tag, cx } from '@/design/primitives';
+import { CATEGORY_HELP, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
+import { noteTradingDay, type EntityRef } from '@/engine/ontology';
+import { TYPE_GLYPH } from '@/design/micro/meaning';
+import { catalystSource, eventProvenance, surpriseTone } from '@/engine/macroMerge';
 import { intlTag, tr, useI18n } from '@/i18n';
+import { impactBars, strokeOf, STROKES, type Stroke } from '@/lib/calendarMarks';
+import { trEventDesc, trEventTitle } from '@/lib/eventTitles';
 import { fmtUsd, plural, signClass } from '@/lib/format';
 import { addDays, dateKeyLocal, dateTimeFormatter, etDateKey, ET_ZONE, formatDateFr, formatTimeLocal, parseDateKey, weekday, zonedToUtc } from '@/lib/time';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
+import { useNotes } from '@/store/notes';
+import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
-import { horizonDay, impactBars, LENS_PATH, nowIndex, strokeOf, STROKES, type Stroke } from './calState';
+import { horizonDay, LENS_PATH, nowIndex } from './calState';
 import s from './calendrier.module.css';
-import { trEventTitle } from './eventTitles';
 
 /**
  * Catégories de publication, dans l'ordre des filtres. Système 4.0 : aucune couleur de catégorie — le trait dit l'état,
@@ -211,53 +217,6 @@ function trMarkerNote(note: string): string {
   }
 }
 
-const EVENT_DESC: Record<string, [string, string]> = {
-  'Communiqué du comité de politique monétaire puis conférence de presse du président de la Fed à 14:30 ET. Projections économiques (dot plot) en mars, juin, septembre et décembre.': ['Policy statement, then the Fed chair press conference at 14:30 ET. Economic projections (dot plot) in March, June, September, and December.', 'Comunicado del comité de política monetaria y luego rueda de prensa del presidente de la Fed a las 14:30 ET. Proyecciones económicas (dot plot) en marzo, junio, septiembre y diciembre.'],
-  'Compte rendu détaillé de la réunion précédente, publié trois semaines après. Peut réévaluer la trajectoire des taux.': ['Detailed account of the previous meeting, released three weeks later. Can reprice the rate path.', 'Acta detallada de la reunión anterior, publicada tres semanas después. Puede reevaluar la trayectoria de tipos.'],
-  'Réunion FOMC estimée par récurrence : vérifier le calendrier officiel de la Réserve fédérale.': ['FOMC meeting estimated by recurrence: check the Federal Reserve’s official calendar.', 'Reunión FOMC estimada por recurrencia: compruebe el calendario oficial de la Reserva Federal.'],
-  'Créations d’emplois non agricoles, taux de chômage et salaires horaires. Date de publication BLS (Employment Situation, 8:30 ET).': ['Nonfarm payrolls, unemployment rate, and hourly earnings. BLS release date (Employment Situation, 8:30 ET).', 'Creación de empleo no agrícola, tasa de desempleo y salarios por hora. Fecha BLS (Employment Situation, 8:30 ET).'],
-  'Date estimée hors calendrier BLS publié. Vérifier bls.gov avant un blackout : l’impact est plafonné tant que la date n’est pas confirmée.': ['Estimated date outside the published BLS calendar. Check bls.gov before a blackout: impact is capped until the date is confirmed.', 'Fecha estimada fuera del calendario BLS publicado. Compruebe bls.gov antes de un blackout: el impacto queda limitado hasta confirmar la fecha.'],
-  'Indice des prix à la consommation (headline et core). Publié par le BLS autour de la deuxième semaine du mois.': ['Consumer price index (headline and core). Released by the BLS around the second week of the month.', 'Índice de precios al consumo (general y subyacente). Publicado por el BLS alrededor de la segunda semana del mes.'],
-  'Inflation côté producteurs, souvent publiée le lendemain du CPI.': ['Producer-side inflation, often released the day after CPI.', 'Inflación del lado productor, a menudo publicada al día siguiente del CPI.'],
-  'Mesure d’inflation privilégiée par la Fed, publiée en fin de mois avec les revenus et dépenses des ménages.': ['The Fed’s preferred inflation gauge, released at month-end with household income and spending.', 'Medida de inflación preferida por la Fed, publicada a fin de mes con ingresos y gasto de los hogares.'],
-  'PMI manufacturier : activité, nouvelles commandes, prix payés. Premier jour ouvré du mois.': ['Manufacturing PMI: activity, new orders, prices paid. First business day of the month.', 'PMI manufacturero: actividad, nuevos pedidos, precios pagados. Primer día laborable del mes.'],
-  'PMI des services, secteur dominant de l’économie américaine. Troisième jour ouvré du mois.': ['Services PMI, the dominant sector of the US economy. Third business day of the month.', 'PMI de servicios, sector dominante de la economía estadounidense. Tercer día laborable del mes.'],
-  'Consommation des ménages, publiée vers le milieu du mois.': ['Household spending, released around mid-month.', 'Consumo de los hogares, publicado hacia mediados de mes.'],
-  'Sentiment des consommateurs et anticipations d’inflation à 1 an / 5 ans.': ['Consumer sentiment and 1-year / 5-year inflation expectations.', 'Sentimiento del consumidor y expectativas de inflación a 1 año / 5 años.'],
-  'Indice de confiance publié le dernier mardi du mois.': ['Confidence index released on the last Tuesday of the month.', 'Índice de confianza publicado el último martes del mes.'],
-  'Croissance trimestrielle annualisée, première lecture, fin de mois suivant le trimestre.': ['Annualized quarterly growth, advance reading, at the end of the month after the quarter.', 'Crecimiento trimestral anualizado, primera lectura, a fin del mes siguiente al trimestre.'],
-  'Semaine où la majorité des poids lourds du Nasdaq-100 publient, après la clôture. Gaps fréquents à la réouverture Globex 18:00 ET.': ['Week when most Nasdaq-100 heavyweights report, after the close. Gaps are common at the 18:00 ET Globex reopen.', 'Semana en la que publica la mayoría de los pesos pesados del Nasdaq-100, tras el cierre. Gaps frecuentes en la reapertura Globex de las 18:00 ET.'],
-  'Premier poids du Nasdaq-100 par capitalisation : publication après clôture, réaction immédiate sur NQ en Globex.': ['Largest Nasdaq-100 weight by market cap: after-close release, immediate NQ reaction in Globex.', 'Mayor peso del Nasdaq-100 por capitalización: publicación tras el cierre, reacción inmediata en NQ en Globex.'],
-  'Règlement final du contrat E-mini Nasdaq-100 à l’ouverture (prix spécial d’ouverture). Expiration simultanée des options et futures sur indices.': ['Final settlement of the E-mini Nasdaq-100 at the open (special opening price). Simultaneous expiration of index options and futures.', 'Liquidación final del E-mini Nasdaq-100 en la apertura (precio especial de apertura). Vencimiento simultáneo de opciones y futuros sobre índices.'],
-  'Jour de bascule conventionnel (jeudi précédant la semaine d’expiration) : le volume migre vers l’échéance suivante.': ['Conventional roll day (Thursday before expiration week): volume migrates to the next expiry.', 'Día de cambio convencional (jueves anterior a la semana de vencimiento): el volumen migra al vencimiento siguiente.'],
-  'Troisième vendredi : expiration des options sur indices et actions, flux de couverture en fin de séance.': ['Third Friday: index and equity options expire, hedging flows into the close.', 'Tercer viernes: vencen las opciones sobre índices y acciones, flujos de cobertura al cierre.'],
-  'Marchés américains fermés. Pas de séance RTH ; Globex fermé ou très partiel.': ['US markets closed. No RTH session; Globex closed or very thin.', 'Mercados estadounidenses cerrados. Sin sesión RTH; Globex cerrado o muy parcial.'],
-  'Good Friday : les futures sur indices cotent en séance écourtée, pas une journée fermée. L’horaire exact dépend du produit — vérifier le calendrier CME. Un NFP peut tomber le même jour.': ['Good Friday: index futures trade a shortened session, not a closed day. Exact hours depend on the product — check the CME calendar. An NFP can fall the same day.', 'Good Friday: los futuros sobre índices cotizan en sesión corta, no es un día cerrado. El horario exacto depende del producto — compruebe el calendario CME. Un NFP puede caer el mismo día.'],
-  'Jour férié américain : les futures sur indices cotent avec une clôture anticipée vers 13:00 ET. Vérifier les horaires publiés par le CME.': ['US holiday: index futures trade with an early close around 13:00 ET. Check the hours published by the CME.', 'Festivo estadounidense: los futuros sobre índices cotizan con cierre anticipado hacia las 13:00 ET. Compruebe los horarios publicados por el CME.'],
-  'Séance écourtée, volumes très faibles.': ['Shortened session, very light volume.', 'Sesión corta, volúmenes muy bajos.'],
-  'Retour au décalage habituel : ouverture RTH à 15:30 Paris.': ['Back to the usual offset: RTH open at 15:30 Paris.', 'Vuelta al desfase habitual: apertura RTH a las 15:30 París.'],
-};
-
-function trEventDesc(desc: string): string {
-  if (desc.startsWith('Publication ')) {
-    return desc;
-  }
-  if (desc.includes('Attendu ') || desc.includes('Préc. ') || desc.includes('Publié ')) {
-    return desc
-      .replaceAll('Attendu ', tr('Attendu ', 'Expected ', 'Esperado '))
-      .replaceAll('Préc. ', tr('Préc. ', 'Prev. ', 'Ant. '))
-      .replaceAll('Publié ', tr('Publié ', 'Actual ', 'Publicado '));
-  }
-  const untilBoth = /^Jusqu’au ([^,]+), ouverture RTH à 14:30 Paris, publications 8:30 ET à 13:30 Paris\.$/.exec(desc);
-  if (untilBoth?.[1]) {
-    return tr(desc, `Until ${untilBoth[1]}, RTH opens at 14:30 Paris, 8:30 ET releases at 13:30 Paris.`, `Hasta el ${untilBoth[1]}, apertura RTH a las 14:30 París, publicaciones 8:30 ET a las 13:30 París.`);
-  }
-  const untilOpen = /^Jusqu’au ([^,]+), ouverture RTH à 14:30 Paris\.$/.exec(desc);
-  if (untilOpen?.[1]) return tr(desc, `Until ${untilOpen[1]}, RTH opens at 14:30 Paris.`, `Hasta el ${untilOpen[1]}, apertura RTH a las 14:30 París.`);
-  const row = EVENT_DESC[desc];
-  return row ? tr(desc, row[0], row[1]) : desc;
-}
-
 function localTime(date: string, timeET?: string): string | null {
   if (!timeET) return null;
   return formatTimeLocal(zonedToUtc(date, timeET, ET_ZONE));
@@ -312,6 +271,8 @@ export default function Calendrier() {
   const loadMacro = useMacro((m) => m.load);
   const syncMacro = useMacro((m) => m.sync);
   const nowAt = useNow();
+  // Une fiche ouverte prend la place de la colonne du Jour (OROS5.16) : jamais deux colonnes à droite.
+  const ficheOpen = useObjects((o) => o.open !== null);
 
   useEffect(() => {
     void loadMacro().then(() => syncMacro());
@@ -332,11 +293,8 @@ export default function Calendrier() {
   const [yearRaw, monthRaw] = cursor.split('-').map(Number);
   const year = yearRaw ?? new Date().getFullYear();
   const month = monthRaw ?? 1;
-  const events = useMemo(() => {
-    const years = new Set([year - 1, year, year + 1]);
-    const local = [...years].flatMap((y) => generateNasdaqEvents(y));
-    return mergeCalendarEvents(local, eventsMacro);
-  }, [year, eventsMacro]);
+  // La source unique du catalyseur (OROS5.13), appelée ici directement : les mêmes objets que la fiche et l'ontologie.
+  const events = useMemo(() => catalystSource(eventsMacro, [year - 1, year, year + 1]), [year, eventsMacro]);
 
   const visible = useMemo(() => events.filter((e) => !hidden.has(e.category) && (showEstimated || !e.estimated) && e.impact >= minImpact), [events, hidden, showEstimated, minImpact]);
 
@@ -350,7 +308,18 @@ export default function Calendrier() {
     for (const arr of m.values()) arr.sort((a, b) => b.impact - a.impact || (a.timeET ?? '99').localeCompare(b.timeET ?? '99'));
     return m;
   }, [visible]);
-  const sessionByDate = useMemo(() => new Map(sessions.map((x) => [x.date, x])), [sessions]);
+  // Toutes les séances d'une date (OROS5.29) : la case et le flux disent leur total, plus seulement l'une d'elles.
+  const sessionsByDate = useMemo(() => {
+    const m = new Map<string, typeof sessions>();
+    for (const x of sessions) m.set(x.date, [...(m.get(x.date) ?? []), x]);
+    return m;
+  }, [sessions]);
+  const dayTotal = (d: string) => {
+    const rows = sessionsByDate.get(d) ?? [];
+    return rows.length ? { pnl: rows.reduce((sum, x) => sum + x.pnl, 0), trades: rows.reduce((sum, x) => sum + x.tradeCount, 0), count: rows.length } : null;
+  };
+  /** Un repère ouvre la fiche Catalyseur ; ↑ ↓ passent aux repères voisins du jour. */
+  const openEvent = (event: CalEvent, origin: HTMLElement, siblings: readonly EntityRef[]) => useObjects.getState().openObject({ type: 'evenement', id: event.id }, { origin, siblings });
   const entriesByDate = useMemo(() => {
     const m = new Map<string, typeof entries>();
     for (const e of entries) {
@@ -453,7 +422,7 @@ export default function Calendrier() {
         ]}
       />
       <ModuleContent>
-        <div className={s.layout}>
+        <div className={cx(s.layout, ficheOpen && s.solo)}>
           <div className={s.main}>
             <div className={s.toolbar}>
               <Button size="sm" variant="ghost" onClick={() => shift(-1)} aria-label={tr('Mois précédent', 'Previous month', 'Mes anterior')}>
@@ -521,7 +490,7 @@ export default function Calendrier() {
                 <div className={s.grid}>
                   {gridDays.map((d) => {
                     const evs = byDate.get(d) ?? [];
-                    const sess = sessionByDate.get(d);
+                    const sess = dayTotal(d);
                     const wd = weekday(d);
                     const holiday = evs.some((e) => e.category === 'horaire' && e.title.includes('CME fermé'));
                     const hasNote = (entriesByDate.get(d) ?? []).length > 0;
@@ -541,7 +510,12 @@ export default function Calendrier() {
                             {Number(d.slice(-2))}
                           </span>
                           {d === hzDay && <Glyph name="horizon" className={s.hzGlyph} label={tr('Horizon', 'Horizon', 'Horizonte')} />}
-                          {sess && <span className={cx(s.dayPnl, signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>}
+                          {sess && (
+                            <span className={cx(s.dayPnl, signClass(sess.pnl))} title={sess.count > 1 ? plural(sess.count, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones')) : undefined}>
+                              {fmtUsd(sess.pnl, { sign: true })}
+                              {sess.count > 1 ? ` ·${sess.count}` : ''}
+                            </span>
+                          )}
                         </div>
                         <div className={s.evs}>
                           {evs.slice(0, 3).map((e) => (
@@ -565,7 +539,7 @@ export default function Calendrier() {
               <div className={s.flux}>
                 {fluxDays.map((d) => {
                   const evs = byDate.get(d) ?? [];
-                  const sess = sessionByDate.get(d);
+                  const sess = dayTotal(d);
                   const perso = entriesByDate.get(d) ?? [];
                   const ordered = [...evs].sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'));
                   const split = d === etToday ? nowIndex(ordered, nowAt) : -1;
@@ -573,7 +547,7 @@ export default function Calendrier() {
                     <div key={d} className={cx(s.fluxDay, d === selected && s.selected)}>
                       <div className={cx(s.fluxDayHead, d === today && s.today)} data-day={d} role="button" tabIndex={0} aria-pressed={d === selected} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
                         <b>{formatDateFr(d, { weekday: true, short: true })}</b>
-                        {sess ? <span className={signClass(sess.pnl)}>{fmtUsd(sess.pnl, { sign: true })} · {plural(sess.tradeCount, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}</span> : <span>{evs.length ? plural(evs.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos')) : tr('calme', 'quiet', 'calma')}</span>}
+                        {sess ? <span className={signClass(sess.pnl)}>{fmtUsd(sess.pnl, { sign: true })} · {plural(sess.trades, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}{sess.count > 1 ? ` · ${plural(sess.count, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))}` : ''}</span> : <span>{evs.length ? plural(evs.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos')) : tr('calme', 'quiet', 'calma')}</span>}
                         {d === hzDay && (
                           <span className={s.hzMark}>
                             <Glyph name="horizon" className={s.hzGlyph} />
@@ -586,7 +560,24 @@ export default function Calendrier() {
                         {ordered.map((e, i) => (
                           <Fragment key={e.id}>
                             {i === split && <NowMark at={nowAt} />}
-                            <div className={cx(s.fluxEv, e.actual && s.evPublished)} data-stroke={strokeNow(e)} role="button" tabIndex={0} onClick={() => setSelected(d)} onKeyDown={onActivate(() => setSelected(d))}>
+                            <div
+                              className={cx(s.fluxEv, e.actual && s.evPublished)}
+                              data-stroke={strokeNow(e)}
+                              data-event={e.id}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${tr('Ouvrir la fiche', 'Open the record', 'Abrir la ficha')} · ${trEventTitle(e.title)}`}
+                              onClick={(ev) => {
+                                setSelected(d);
+                                openEvent(e, ev.currentTarget, ordered.map((x) => ({ type: 'evenement', id: x.id })));
+                              }}
+                              onKeyDown={(ev) => {
+                                if (ev.key !== 'Enter' && ev.key !== ' ') return;
+                                ev.preventDefault();
+                                setSelected(d);
+                                openEvent(e, ev.currentTarget, ordered.map((x) => ({ type: 'evenement', id: x.id })));
+                              }}
+                            >
                               <div className={s.fluxTime}>
                                 {e.timeET ? localTime(d, e.timeET) : tr('journée', 'all day', 'jornada')}
                                 {e.timeET && <small>{e.timeET} ET</small>}
@@ -616,8 +607,9 @@ export default function Calendrier() {
             )}
           </div>
 
-          {/* Système 4.1 : la colonne s'ouvre sur la légende, sans plaque — la séance est dite par la barre d'état, la synchro par la barre d'outils, les catalyseurs par le jour. */}
-          <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} onHelp={setHelpCat} />
+          {/* Système 4.1 : la colonne s'ouvre sur la légende, sans plaque — la séance est dite par la barre d'état, la synchro par la barre d'outils, les catalyseurs par le jour.
+              Une fiche ouverte la remplace : elle est la colonne de droite du châssis. */}
+          {ficheOpen ? null : <DaySide key={selected} date={selected} events={byDate.get(selected) ?? []} history={history} onSelectDate={setSelected} />}
         </div>
       </ModuleContent>
 
@@ -668,45 +660,45 @@ function Impact({ level }: { level: number }) {
   );
 }
 
-/** Légendes du calendrier : le trait dit l'état (L.01), la forme dit l'impact (L.02). */
+/** L.01 renvoie à la table d'états du desk (`src/design/etat.module.css`) : le trait d'une publication en est un état. */
+const STROKE_ETAT: Record<Stroke, string | undefined> = { publie: e.plein, prevu: e.tirete, horizon: e.pointille };
+
+/**
+ * Légendes du calendrier, en tête de la colonne du Jour (OROS5.29), une ligne chacune : le trait dit l'état (L.01, tiré de
+ * la table d'états), la forme dit l'impact (L.02). Chaque clé est son mot et son échantillon, sans plaque ni titre.
+ */
 function CalLegend() {
   useI18n((s) => s.locale);
-  const strokes: Record<Stroke, string> = {
-    publie: tr('Plein · publié, passé', 'Solid · released, past', 'Continuo · publicado, pasado'),
-    prevu: tr('Tireté · prévu dans la fenêtre', 'Dashed · due in the window', 'Discontinuo · previsto en la ventana'),
-    horizon: tr('Pointillé · au-delà de l’horizon', 'Dotted · beyond the horizon', 'Punteado · más allá del horizonte'),
+  const strokes: Record<Stroke, [string, string]> = {
+    publie: [tr('Plein', 'Solid', 'Continuo'), tr('publié', 'released', 'publicado')],
+    prevu: [tr('Tireté', 'Dashed', 'Discontinuo'), tr('prévu', 'due', 'previsto')],
+    horizon: [tr('Pointillé', 'Dotted', 'Punteado'), tr('horizon', 'horizon', 'horizonte')],
   };
   const levels: [1 | 2 | 3, string][] = [
     [1, tr('Repère', 'Marker', 'Hito')],
     [2, tr('Attention', 'Watch', 'Atención')],
-    [3, tr('Catalyseur majeur', 'Major catalyst', 'Catalizador mayor')],
+    [3, tr('Majeur', 'Major', 'Mayor')],
   ];
   return (
-    <section className={cx(s.sideBlock, s.legends)}>
-      <div data-legend="trait">
-        <header className={s.sideBlockHead}>
-          <h4>
-            <span className={s.legendCode}>L.01</span> {tr('Le trait dit l’état', 'The stroke tells the state', 'El trazo dice el estado')}
-          </h4>
-        </header>
+    <section className={cx(s.sideBlock, s.legends)} aria-label={tr('Légendes : le trait, l’impact', 'Legends: stroke, impact', 'Leyendas: trazo, impacto')}>
+      <div data-legend="trait" className={s.legendLine}>
+        <span className={s.legendCode}>L.01</span>
         {STROKES.map((stroke) => (
-          <div key={stroke} className={s.legendRow}>
-            <i className={s.swatch} data-stroke={stroke} aria-hidden />
-            <span>{strokes[stroke]}</span>
-          </div>
+          <span key={stroke} className={s.legendKey}>
+            <i className={cx(s.swatch, STROKE_ETAT[stroke])} data-stroke={stroke} aria-hidden />
+            <span>
+              {strokes[stroke][0]} <small>{strokes[stroke][1]}</small>
+            </span>
+          </span>
         ))}
       </div>
-      <div data-legend="impact">
-        <header className={s.sideBlockHead}>
-          <h4>
-            <span className={s.legendCode}>L.02</span> {tr('Impact', 'Impact', 'Impacto')}
-          </h4>
-        </header>
+      <div data-legend="impact" className={s.legendLine}>
+        <span className={s.legendCode}>L.02</span>
         {levels.map(([level, label]) => (
-          <div key={level} className={s.legendRow}>
+          <span key={level} className={s.legendKey}>
             <Impact level={level} />
             <span>{label}</span>
-          </div>
+          </span>
         ))}
       </div>
     </section>
@@ -736,48 +728,26 @@ function LinePrint({ e, detailed }: { e: CalEvent; detailed?: boolean }) {
   return null;
 }
 
-function Prints({ e }: { e: CalEvent }) {
-  useI18n((s) => s.locale);
-  if (!e.forecast && !e.previous && !e.actual) return null;
-  const tone = surpriseTone(e.actual, e.forecast);
-  return (
-    <div className={s.prints}>
-      <span>
-        <em>{tr('Attendu', 'Expected', 'Esperado')}</em> {e.forecast ?? '—'}
-      </span>
-      <span>
-        <em>{tr('Préc.', 'Prev.', 'Ant.')}</em> {e.previous ?? '—'}
-      </span>
-      <span className={tone ? s[tone] : undefined}>
-        <em>{tr('Publié', 'Actual', 'Publicado')}</em> {e.actual ?? '—'}
-      </span>
-    </div>
-  );
-}
-
 function DaySide({
   date,
   events,
   history,
   onSelectDate,
-  onHelp,
 }: {
   date: string;
   events: CalEvent[];
   history: ReturnType<typeof useMacro.getState>['events'];
   onSelectDate: (d: string) => void;
-  onHelp: (c: EventCategory) => void;
 }) {
   useI18n((s) => s.locale);
   const sessions = useJournal((j) => j.sessions);
   const entries = useCalendar((c) => c.entries);
+  const notes = useNotes((n) => n.notes);
   const setDayNote = useCalendar((c) => c.setDayNote);
   const add = useCalendar((c) => c.add);
   const remove = useCalendar((c) => c.remove);
-  const setTab = useUi((u) => u.setTab);
-  const focusSession = useUi((u) => u.focusSession);
   const toast = useUi((u) => u.toast);
-  const sess = sessions.find((x) => x.date === date);
+  const openObject = useObjects((o) => o.openObject);
   const dayEntries = entries.filter((e) => e.date === date);
   const noteEntry = dayEntries.find((e) => e.kind === 'note');
   const [note, setNote] = useState(noteEntry?.body ?? '');
@@ -836,79 +806,115 @@ function DaySide({
   };
 
   const sorted = [...events].sort((a, b) => (a.timeET ?? '00:00').localeCompare(b.timeET ?? '00:00'));
+  // La vue du Jour (OROS5.29) : toutes les séances de la date, ses publications, ses trois notes, chacune avec sa source.
+  const daySessions = sessions.filter((x) => x.date === date).sort((a, b) => (a.account ?? '').localeCompare(b.account ?? ''));
+  const total = daySessions.reduce((sum, x) => sum + x.pnl, 0);
+  const sessionRefs: EntityRef[] = daySessions.map((x) => ({ type: 'session', id: x.id }));
+  const eventRefs: EntityRef[] = sorted.map((e) => ({ type: 'evenement', id: e.id }));
+  const vaultNotes = notes.filter((n) => noteTradingDay(n) === date);
+  const sessionNotes = daySessions.filter((x) => x.note?.trim());
 
   return (
     <aside className={s.side}>
       <CalLegend />
-      <Panel title={formatDateFr(date, { weekday: true })} sub={plural(events.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos'))} accent tight>
-        <div className={s.sideStack}>
-          {sess && (
-            <div className={s.evCard} data-stroke="publie">
-              <div className={s.evCardHead}>
-                <b>{tr('Séance', 'Session', 'Sesión')}</b>
-                <span className={cx('mono', signClass(sess.pnl))}>{fmtUsd(sess.pnl, { sign: true })}</span>
-              </div>
-              <div className={s.evDesc}>
-                {plural(sess.tradeCount, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))}
-                {sess.account ? ` · ${sess.account}` : ''}
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  focusSession(sess.id);
-                  setTab('visual');
-                }}
-              >
-                {tr('Projeter Visual', 'Project Visual', 'Proyectar Visual')}
-              </Button>
-            </div>
-          )}
-          {sorted.length === 0 && !sess && <div className={s.evDesc}>{tr('Aucun catalyseur — conditions « normales ».', 'No catalyst — “normal” conditions.', 'Ningún catalizador — condiciones « normales ».')}</div>}
-          {sorted.map((e) => (
-            <div key={e.id} className={cx(s.evCard, e.actual && s.evPublished)} data-stroke={strokeNow(e)}>
-              <div className={s.evCardHead}>
-                <b title={trEventTitle(e.title)}>{trEventTitle(e.title)}</b>
-                {e.timeET && (
-                  <time>
-                    {localTime(date, e.timeET)}
-                  </time>
-                )}
-              </div>
-              <div className={s.evMeta}>
-                <Impact level={e.impact} />
-                <button type="button" className={s.catHelp} onClick={() => onHelp(e.category)} title={`${tr('Aide', 'Help', 'Ayuda')} : ${trCatLabel(e.category)}`}>
-                  {trCatLabel(e.category)} <span>?</span>
-                </button>
-                {e.actual != null && e.actual !== '' && <Tag tone="mint">{tr('publié', 'actual', 'publicado')}</Tag>}
-                {e.estimated && <Tag tone="amber">{tr('estimé', 'estimated', 'estimado')}</Tag>}
-                {eventProvenance(e.source, e.origin) && <span className="mono">{eventProvenance(e.source, e.origin)}</span>}
-              </div>
-              <Prints e={e} />
-              {e.description && !e.actual && !e.forecast && <div className={s.evDesc}>{trEventDesc(e.description)}</div>}
-            </div>
-          ))}
+      <section className={cx(s.sideBlock, s.dayView)} data-day-view={date} aria-label={tr('Le jour', 'The day', 'El día')}>
+        <header className={s.dayViewHead}>
+          <h4>{formatDateFr(date, { weekday: true })}</h4>
+          <span>
+            {plural(daySessions.length, tr('séance', 'session', 'sesión'), tr('séances', 'sessions', 'sesiones'))} · {plural(events.length, tr('repère', 'marker', 'hito'), tr('repères', 'markers', 'hitos'))}
+          </span>
+        </header>
+        {/* Le total ne se dit qu'à partir de deux séances : une séance seule porte son P&L sur sa ligne. */}
+        {daySessions.length > 1 ? (
+          <div className={s.dayTotal} data-day-total="">
+            <Montant value={total} className={signClass(total)} />
+            <small>{tr(`total des ${daySessions.length} séances`, `total of the ${daySessions.length} sessions`, `total de las ${daySessions.length} sesiones`)}</small>
+          </div>
+        ) : null}
+        {daySessions.map((x) => (
+          <button key={x.id} type="button" className={s.dayRow} data-day-session={x.id} onClick={(ev) => openObject({ type: 'session', id: x.id }, { origin: ev.currentTarget, siblings: sessionRefs })} aria-label={`${tr('Ouvrir la fiche', 'Open the record', 'Abrir la ficha')} · ${tr('séance', 'session', 'sesión')} ${x.account ?? ''}`}>
+            <Glyph name={TYPE_GLYPH.session} className={s.dayGlyph} />
+            <span className={s.dayMain}>
+              <b>{x.account?.trim() || tr('sans compte', 'no account', 'sin cuenta')}</b>
+              <small>
+                {plural(x.tradeCount, tr('trade', 'trade', 'trade'), tr('trades', 'trades', 'trades'))} · {x.instruments.join(' · ') || '—'}
+              </small>
+            </span>
+            <Montant value={x.pnl} className={cx(s.dayRowPnl, signClass(x.pnl))} />
+          </button>
+        ))}
+
+        <div className={s.dayLabel}>{tr('Publications', 'Releases', 'Publicaciones')}</div>
+        {sorted.length === 0 ? <div className={s.evDesc}>{tr('Aucun catalyseur — conditions « normales ».', 'No catalyst — “normal” conditions.', 'Ningún catalizador — condiciones « normales ».')}</div> : null}
+        {sorted.map((e) => {
+          const stroke = strokeNow(e);
+          return (
+            <button
+              key={e.id}
+              type="button"
+              className={s.dayRow}
+              data-day-event={e.id}
+              title={[trCatLabel(e.category), e.description && !e.actual && !e.forecast ? trEventDesc(e.description) : '', eventProvenance(e.source, e.origin) ?? ''].filter(Boolean).join(' · ')}
+              onClick={(ev) => openObject({ type: 'evenement', id: e.id }, { origin: ev.currentTarget, siblings: eventRefs })}
+            >
+              <i className={cx(s.daySwatch, STROKE_ETAT[stroke])} data-stroke={stroke} aria-hidden />
+              <Glyph name={TYPE_GLYPH.evenement} className={s.dayGlyph} />
+              <span className={s.dayMain}>
+                <b>
+                  {e.estimated && !e.actual ? '≈ ' : ''}
+                  {trEventTitle(e.title)}
+                </b>
+                <small>
+                  {e.timeET ? `${e.timeET} ET · ${localTime(date, e.timeET)} ${tr('poste', 'local', 'local')}` : tr('journée', 'all day', 'jornada')}
+                  {' · '}
+                  {tr('att.', 'exp.', 'esp.')} {e.forecast ?? '—'} · {tr('préc.', 'prev.', 'ant.')} {e.previous ?? '—'} · {tr('publ.', 'act.', 'publ.')} {e.actual ?? '—'}
+                </small>
+              </span>
+              <Impact level={e.impact} />
+            </button>
+          );
+        })}
+
+        <div className={s.dayLabel}>{tr('Notes du jour', 'Day notes', 'Notas del día')}</div>
+        {sessionNotes.map((x) => (
+          <p key={x.id} className={s.dayNote} data-day-note="seance">
+            <span className={s.dayNoteSrc}>
+              {tr('séance', 'session', 'sesión')} · {x.account?.trim() || tr('sans compte', 'no account', 'sin cuenta')}
+            </span>
+            {x.note}
+          </p>
+        ))}
+        {vaultNotes.map((n) => (
+          <button key={n.id} type="button" className={s.dayNoteLink} data-day-note="coffre" onClick={(ev) => openObject({ type: 'note', id: n.id }, { origin: ev.currentTarget })}>
+            <span className={s.dayNoteSrc}>{tr('coffre · Note', 'vault · Note', 'caja · Nota')}</span>
+            {n.title.trim() || tr('Sans titre', 'Untitled', 'Sin título')}
+          </button>
+        ))}
+        {sessionNotes.length === 0 && vaultNotes.length === 0 ? <div className={s.evDesc}>{tr('Ni note de séance, ni note du coffre ce jour-là.', 'No session note, no vault note that day.', 'Ni nota de sesión, ni nota de la caja ese día.')}</div> : null}
+        <div className={s.dayNoteEdit} data-day-note="calendrier">
+          <span className={s.dayNoteSrc}>{tr('calendrier · personnel', 'calendar · personal', 'calendario · personal')}</span>
+          <textarea
+            rows={2}
+            value={note}
+            onChange={(e) => queueNoteSave(e.target.value)}
+            onBlur={() => void flushNote(false).catch(() => undefined)}
+            placeholder={tr('Biais, niveaux, intention…', 'Bias, levels, intent…', 'Sesgo, niveles, intención…')}
+            className={s.noteArea}
+            aria-label={tr('Note personnelle du jour', 'Personal day note', 'Nota personal del día')}
+          />
+          <div className={s.noteActions}>
+            <Button size="sm" variant="ghost" onClick={() => void flushNote(true)}>
+              {tr('Enregistrer', 'Save', 'Guardar')}
+            </Button>
+            {noteSaved && <span className={s.noteOk}>OK</span>}
+          </div>
         </div>
-      </Panel>
+      </section>
 
       <section className={s.sideBlock}>
         <header className={s.sideBlockHead}>
-          <h4>{tr('Personnel', 'Personal', 'Personal')}</h4>
+          <h4>{tr('Rappels', 'Reminders', 'Recordatorios')}</h4>
         </header>
-        <textarea
-          rows={2}
-          value={note}
-          onChange={(e) => queueNoteSave(e.target.value)}
-          onBlur={() => void flushNote(false).catch(() => undefined)}
-          placeholder={tr('Biais, niveaux, intention…', 'Bias, levels, intent…', 'Sesgo, niveles, intención…')}
-          className={s.noteArea}
-        />
-        <div className={s.noteActions}>
-          <Button size="sm" variant="ghost" onClick={() => void flushNote(true)}>
-            {tr('Enregistrer', 'Save', 'Guardar')}
-          </Button>
-          {noteSaved && <span className={s.noteOk}>OK</span>}
-        </div>
         {dayEntries
           .filter((e) => e.kind === 'event')
           .map((e) => (

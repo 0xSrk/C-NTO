@@ -14,6 +14,8 @@ export interface Bucket {
   count: number;
   pnl: number;
   wins: number;
+  /** Trades perdants (pnl < 0) ; un trade nul n'est ni gagnant ni perdant, comme dans `computeTradeStats`. */
+  losses: number;
   winRate: number;
 }
 
@@ -275,17 +277,18 @@ export function streakZScore(signs: number[]): number {
 
 function bucketize(trades: Trade[], keyOf: (t: Trade) => string, keys: string[]): Bucket[] {
   const map = new Map<string, Bucket>();
-  for (const k of keys) map.set(k, { key: k, count: 0, pnl: 0, wins: 0, winRate: 0 });
+  for (const k of keys) map.set(k, { key: k, count: 0, pnl: 0, wins: 0, losses: 0, winRate: 0 });
   for (const t of trades) {
     const k = keyOf(t);
     let b = map.get(k);
     if (!b) {
-      b = { key: k, count: 0, pnl: 0, wins: 0, winRate: 0 };
+      b = { key: k, count: 0, pnl: 0, wins: 0, losses: 0, winRate: 0 };
       map.set(k, b);
     }
     b.count++;
     b.pnl += t.pnl;
     if (t.pnl > 0) b.wins++;
+    else if (t.pnl < 0) b.losses++;
   }
   for (const b of map.values()) b.winRate = b.count ? b.wins / b.count : 0;
   return [...map.values()];

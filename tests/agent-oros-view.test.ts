@@ -101,9 +101,9 @@ describe('OROS3.3b Agent IA : emblème, interrupteur des outils, test de connexi
     expect(textOf(toggle)).toBe('désactivés');
   });
 
-  it('allumée, la bascule est à l’or (le vivant) ; éteinte, à l’encre des libellés', () => {
+  it('allumée, la bascule est à l’ivoire (OROS5.44 : l’état d’une option n’est pas l’or) ; éteinte, à l’encre des libellés', () => {
     const css = readFileSync('src/modules/agent/agent.module.css', 'utf8');
-    expect(css).toMatch(/\[aria-checked='true'\]\s+\.toggleGlyph\s*\{[^}]*--k:\s*var\(--gold\)/);
+    expect(css).toMatch(/\[aria-checked='true'\]\s+\.toggleGlyph\s*\{[^}]*--k:\s*var\(--text-0\)/);
     expect(css).toMatch(/\.toggleGlyph\s*\{[^}]*--k:\s*var\(--text-2\)/);
   });
 

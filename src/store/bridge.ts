@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Bar } from '@/engine/bars';
-import { killSwitchSummary } from '@/engine/execution/killSwitch';
+import { killSwitchSummary, type KillSwitchReport } from '@/engine/execution/killSwitch';
 import { FORMAT_LABEL } from '@/engine/import';
 import { QuoteBook } from '@/engine/marketdata/quotes';
 import { tr } from '@/i18n';
@@ -24,11 +24,49 @@ export interface BridgeLogEntry {
   error?: string;
 }
 
+/** Le dernier rapport de coupure du kill switch, daté du départ des ordres d'aplatir (epoch ms). Lecture seule. */
+export type LastKill = KillSwitchReport & { at: number };
+
+/** Bornes du rapport reçu : un nom de compte comme le protocole du pont (1 à 128 caractères), une raison de l'AddOn (500). */
+const KILL_MAX_ACCOUNTS = 1000;
+const KILL_MAX_NAME = 128;
+const KILL_MAX_ERROR = 500;
+
+const plainObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * La forme d'un rapport de coupure reçu du process principal (poussé par `ntbridge:kill-report` ou redemandé), validée
+ * à la réception : `null` pour un rapport mal formé, que ni le store ni la bande ne lisent. Seuls les champs connus
+ * sont recopiés ; rien d'autre n'entre dans le renderer. Un nombre de positions fermées (`closed`) négatif ou non fini
+ * n'est pas gardé (la bande ne le lit pas), plutôt que d'effacer le rapport.
+ */
+export function parseKillReport(raw: unknown): LastKill | null {
+  if (!plainObject(raw)) return null;
+  const { at, sent, accounts, results } = raw;
+  if (typeof at !== 'number' || !Number.isSafeInteger(at) || at <= 0 || typeof sent !== 'boolean') return null;
+  if (!Array.isArray(accounts) || accounts.length > KILL_MAX_ACCOUNTS) return null;
+  if (!accounts.every((name): name is string => typeof name === 'string' && name.length > 0 && name.length <= KILL_MAX_NAME)) return null;
+  if (!Array.isArray(results) || results.length > accounts.length) return null;
+  const outcomes: LastKill['results'] = [];
+  for (const row of results) {
+    if (!plainObject(row) || typeof row.account !== 'string' || !accounts.includes(row.account) || typeof row.ok !== 'boolean') return null;
+    if (row.closed !== undefined && typeof row.closed !== 'number') return null;
+    if (row.error !== undefined && (typeof row.error !== 'string' || row.error.length > KILL_MAX_ERROR)) return null;
+    const outcome: LastKill['results'][number] = { account: row.account, ok: row.ok };
+    if (typeof row.closed === 'number' && Number.isFinite(row.closed) && row.closed >= 0) outcome.closed = row.closed;
+    if (typeof row.error === 'string') outcome.error = row.error;
+    outcomes.push(outcome);
+  }
+  return { at, accounts: [...accounts], sent, results: outcomes };
+}
+
 interface BridgeState {
   ready: boolean;
   available: boolean;
   status: BridgeStatus | null;
   nt: NtBridgeStatus | null;
+  /** Rapport de la dernière coupure : la bande de niveau 3 le lit ; `null` tant qu'aucun n'est connu. */
+  lastKill: LastKill | null;
   log: BridgeLogEntry[];
   busy: boolean;
   /** Vrai si l'écriture de bridge.json n'a pas pu restreindre les ACL Windows. */
@@ -80,6 +118,7 @@ export const useBridge = create<BridgeState>((set, get) => ({
   available: !!desk,
   status: null,
   nt: null,
+  lastKill: null,
   log: [],
   busy: false,
   aclUnrestricted: false,
@@ -151,8 +190,16 @@ export const useBridge = create<BridgeState>((set, get) => ({
       api.onStatus((status) => set({ status }));
     }
     const ntApi = desk?.ntbridge;
+    /** Un rapport de coupure validé remplace le dernier connu, sauf s'il date d'avant : l'ordre d'arrivée ne compte pas. */
+    const takeKill = (raw: unknown) => {
+      const cut = parseKillReport(raw);
+      const known = get().lastKill;
+      if (cut && (!known || cut.at >= known.at)) set({ lastKill: cut });
+    };
     if (ntApi && !unsubscribeNt) {
       unsubscribeNt = ntApi.onStatus((nt) => set({ nt }));
+      // Le rapport d'une coupure, poussé en lecture seule (raccourci global compris) : la bande dit quel compte reste à aplatir.
+      ntApi.onKillReport?.(takeKill);
       ntApi.onExecution((payload) => {
         void importExecutionCsv(payload.csv, payload.executionId || 'ws').catch((e) => {
           useUi.getState().toast(e instanceof Error ? e.message : String(e), 'error');
@@ -170,6 +217,8 @@ export const useBridge = create<BridgeState>((set, get) => ({
       });
     }
     set({ status: (await api.status()) ?? IDLE, nt: (await ntApi?.status()) ?? null, ready: true });
+    // Abonné d'abord, puis redemandé : une coupure faite avant le chargement (verrou, rechargement) garde son rapport.
+    takeKill(await ntApi?.lastKill?.());
   },
 
   async pickFolder() {
@@ -251,8 +300,14 @@ export const useBridge = create<BridgeState>((set, get) => ({
   async killSwitch() {
     const api = desk?.ntbridge;
     if (!api) return;
+    // Le process principal date son rapport du départ des ordres d'aplatir ; le même rapport lui est poussé. Il se lit,
+    // validé, comme le rapport poussé ; à défaut de date, celle de l'appel, l'envoi partant dès sa réception.
+    const at = Date.now();
     const report = await api.killSwitch();
-    set({ nt: (await api.status()) ?? get().nt });
+    const cut = parseKillReport({ at, ...report });
+    const nt = (await api.status()) ?? get().nt;
+    const known = get().lastKill;
+    set({ nt, ...(cut && (!known || cut.at >= known.at) ? { lastKill: cut } : {}) });
     const { tone, text } = killSwitchSummary(report);
     useUi.getState().toast(text, tone);
   },

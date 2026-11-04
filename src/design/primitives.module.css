@@ -9,39 +9,7 @@
   min-width: 0;
   min-height: 0;
   transition: border-color 160ms linear;
-  animation: rise-in 320ms var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 35ms);
   transform: translateZ(0);
-}
-.panel:nth-child(2) {
-  --i: 1;
-}
-.panel:nth-child(3) {
-  --i: 2;
-}
-.panel:nth-child(4) {
-  --i: 3;
-}
-.panel:nth-child(5) {
-  --i: 4;
-}
-.panel:nth-child(6) {
-  --i: 5;
-}
-.panel:nth-child(7) {
-  --i: 6;
-}
-.panel:nth-child(8) {
-  --i: 7;
-}
-.panel:nth-child(9) {
-  --i: 8;
-}
-.panel:nth-child(10) {
-  --i: 9;
-}
-.panel:nth-child(n + 11) {
-  --i: 10;
 }
 /* Repères de calage aux quatre coins de chaque panneau (Ligne V2) : une croix de 7 px, encre fantôme, hors du filet. */
 .panel::after {
@@ -398,7 +366,7 @@
   line-height: 1.5;
 }
 
-/* ─── Interrupteur ─── */
+/* ─── Interrupteur : allumé, il passe à l'ivoire ; l'état d'une option n'est pas l'or (OROS5.44, décision 1). ─── */
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -432,11 +400,11 @@
   transition: transform 160ms var(--ease-out), background 120ms linear, box-shadow 120ms linear;
 }
 .toggle.on .toggleTrack {
-  border-color: var(--gold-line);
+  border-color: color-mix(in srgb, var(--ivory) 40%, transparent);
 }
 .toggle.on .toggleTrack::after {
   transform: translateX(16px);
-  background: var(--gold);
+  background: var(--text-0);
 }
 .toggle.on {
   color: var(--text-0);
@@ -453,7 +421,7 @@
     box-shadow: 0 0 14px -6px color-mix(in srgb, var(--ivory) 42%, transparent);
   }
   .toggle.on:hover:not(:disabled) .toggleTrack {
-    border-color: var(--gold);
+    border-color: var(--text-0);
   }
 }
 
@@ -514,7 +482,7 @@
   padding: 40px 20px;
   text-align: center;
   color: var(--text-2);
-  border: 1px dashed var(--line-2);
+  border: 1px solid var(--line-1);
   min-height: 184px;
   position: relative;
   background: var(--bg-1);
@@ -543,8 +511,6 @@
   position: absolute;
   inset: 0 auto 0 0;
   background: var(--text-0);
-  transform-origin: left;
-  animation: grow-x 600ms var(--ease-out) both;
   transition: width var(--t-med) var(--ease-out);
 }
 .progress > span::after {
@@ -645,8 +611,10 @@
 .groupGap {
   margin-left: 0.22em;
 }
+/* Les décimales à 60 % du montant, jamais sous 10 px (§ 04) : sous Electron, un montant de 12 px de la fiche les mettait à
+   7,2 px (OROS5.47c). */
 .decimals {
-  font-size: 0.6em;
+  font-size: max(10px, 0.6em);
   color: var(--text-2);
 }
 .masked {
@@ -679,48 +647,6 @@
 .lecteur .decimals {
   color: inherit;
   opacity: 0.6;
-}
-
-.plaque {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(#1a1b20 0%, #141519 100%);
-  border: 1px solid #2b2e34;
-  box-shadow: rgba(255, 255, 255, 0.06) 0 1px 0 inset, rgba(0, 0, 0, 0.6) 0 -1px 0 inset, rgba(0, 0, 0, 0.35) 0 2px 0;
-  border-radius: 2px;
-  padding: 20px 30px 18px;
-}
-.trame {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(237, 235, 228, 0.08) 1px, transparent 1.6px);
-  background-size: 6px 6px;
-  mask-image: linear-gradient(100deg, transparent 20%, #000 75%);
-  pointer-events: none;
-}
-.vis {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #2e3036, #08090a 70%);
-  box-shadow: rgba(255, 255, 255, 0.06) 0 1px 0;
-}
-.visTl { left: 9px; top: 9px; }
-.visTr { right: 9px; top: 9px; }
-.visBl { left: 9px; bottom: 9px; }
-.visBr { right: 9px; bottom: 9px; }
-.languette {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 22px;
-  height: 4px;
-  margin-left: -11px;
-  background: var(--lab);
-}
-.plaqueBody {
-  position: relative;
 }
 
 .led {
@@ -798,6 +724,10 @@
 }
 .jaugeScale span:first-child {
   transform: none;
+}
+/* Rien n'est connu (Système 5) : ni remplissage ni curseur, « — » au milieu de l'échelle ; zéro n'est pas l'absence. */
+.jaugeNone {
+  left: 50%;
 }
 
 .etiquette {

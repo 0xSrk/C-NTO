@@ -21,13 +21,13 @@ export const MODULE_LAYERS: Readonly<Record<TabId, LayerId>> = {
 };
 
 /** Le composant de la planche qui dit la couche : matrice, cadran, rayonnement, réseau, étoile. */
-export const LAYER_GLYPH: Readonly<Record<LayerId, GlyphName>> = {
+export const LAYER_GLYPH = {
   L01: 'layerData',
   L02: 'layerCockpit',
   L03: 'layerAlerts',
   L04: 'layerAi',
   L05: 'layerDoctrine',
-};
+} as const satisfies Readonly<Record<LayerId, GlyphName>>;
 
 /** « L.02 » : le code de la couche tel que la planche l'imprime. */
 export function layerCode(id: LayerId): string {
