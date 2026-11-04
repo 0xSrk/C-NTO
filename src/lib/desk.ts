@@ -143,6 +143,11 @@ export interface AgentOrdersApi {
   propose: (raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule?: { rule: string; detail: string } | null, ticket?: string | null) => Promise<AgentOrderOutcome>;
   /** L'étape d'une proposition, en lecture seule ; rend le désabonnement. */
   onStep?: (cb: (step: unknown) => void) => () => void;
+  /**
+   * La journée fermée que le renderer a vue (décision 15, OROS5.48a) : le compte de la limite ('' : tous) et l'instant où la
+   * perte l'a atteinte. Le process principal la retient jusqu'à la journée CME suivante ; rien ne la rouvre.
+   */
+  closeDay?: (close: { account: string; at: number }) => Promise<boolean>;
 }
 
 /** Siège nominatif : le process principal vérifie le code ; le renderer ne reçoit que le nom signé. */

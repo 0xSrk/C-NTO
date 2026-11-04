@@ -918,6 +918,9 @@ ipcMain.handle('agent-orders:status', (e) => (trusted(e) && agentOrders ? agentO
 ipcMain.handle('agent-orders:enable', (e) => (trusted(e) && agentOrders ? agentOrders.enable() : AGENT_ORDERS_OFF));
 ipcMain.handle('agent-orders:disable', (e) => (trusted(e) && agentOrders ? agentOrders.disable() : AGENT_ORDERS_OFF));
 ipcMain.handle('agent-orders:limits', (e, raw: unknown) => (trusted(e) && agentOrders ? agentOrders.setLimits(raw) : AGENT_ORDERS_OFF));
+// La journée fermée que le renderer a vue (décision 15, OROS5.48a) : le process principal la retient jusqu'à la journée CME
+// suivante. Forme relue par `closeDay` (`parseDayClose`) ; aucun canal ne rouvre une journée.
+ipcMain.handle('agent-orders:close-day', (e, raw: unknown) => (trusted(e) && agentOrders ? agentOrders.closeDay(raw) : false));
 ipcMain.handle('agent-orders:propose', (e, raw: unknown, origin: unknown, propShare: unknown, traderRule: unknown, ticket: unknown) => {
   if (!trusted(e) || !agentOrders) return { status: 'refused', reason: 'disabled', detail: 'desk indisponible' };
   const from = typeof origin === 'string' && AGENT_ORIGINS.has(origin) ? (origin as 'llm' | 'mcp' | 'orch') : 'orch';

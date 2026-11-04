@@ -26,6 +26,7 @@ function engineSource(importer: string | undefined, source: string): string | nu
     'copier/sync': 'src/engine/copier/sync.ts',
     'agent/catalog': 'src/engine/agent/catalog.ts',
     'agent/orders': 'src/engine/agent/orders.ts',
+    'agent/dayClose': 'src/engine/agent/dayClose.ts',
     'agent/routines': 'src/engine/agent/routines.ts',
     'agent/cloudReport': 'src/engine/agent/cloudReport.ts',
     'crypto/markets': 'src/engine/crypto/markets.ts',

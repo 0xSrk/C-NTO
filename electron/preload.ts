@@ -96,6 +96,8 @@ contextBridge.exposeInMainWorld('canto', {
     limits: (raw: unknown) => ipcRenderer.invoke('agent-orders:limits', raw),
     propose: (raw: unknown, origin: string, propShare: number | null, traderRule: unknown = null, ticket: string | null = null) =>
       ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare, traderRule, ticket),
+    // La journée fermée que le renderer a vue (OROS5.48a) : le process principal la retient ; rien ne la rouvre.
+    closeDay: (close: { account: string; at: number }) => ipcRenderer.invoke('agent-orders:close-day', close),
     // L'étape d'une proposition (gardée, dialogue ouvert), poussée en lecture seule par le process principal (OROS5.40).
     onStep: (cb: (step: unknown) => void) => subscribe('agent-orders:step', cb),
   },
