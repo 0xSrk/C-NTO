@@ -34,3 +34,11 @@ describe('OROS5.47p · la ligne d’OROS5.47l cite la feuille de A.04', () => {
     expect(lines.filter((line) => /Dashboard\.tsx:8\d\d$/.test(line))).toEqual([]);
   });
 });
+
+describe('OROS5.47q · la ligne d’OROS5.47k cite la feuille de la légende de Visual', () => {
+  it('.legendMain et .stamp sont cités dans visual.module.css, et non dans Visual.tsx', () => {
+    const lines = cited('OROS5.47k');
+    expect(lines).toEqual(expect.arrayContaining(['src/modules/visual/visual.module.css:29', 'src/modules/visual/Visual.tsx:225', 'src/modules/visual/visual.module.css:52', 'src/modules/visual/visual.module.css:217']));
+    expect(lines.filter((line) => /Visual\.tsx:(52|217)$/.test(line))).toEqual([]);
+  });
+});
