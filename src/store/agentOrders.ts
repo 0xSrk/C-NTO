@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { EVENT_LOG_MAX } from '@/engine/agent/events';
 import { AGENT_ORDER_DEFAULTS, AGENT_RATE_WINDOW_MS, AGENT_REASON_MAX, parseProposal } from '@/engine/agent/orders';
-import { desk, type AgentOrderOrigin, type AgentOrderOutcome, type AgentOrderStatus } from '@/lib/desk';
+import { desk, type AgentOrderOrigin, type AgentOrderOutcome, type AgentOrderStatus, type AgentOrderStep } from '@/lib/desk';
 // Ce que le renderer transmet à la garde du process principal vit dans `deskEvents` (OROS5.9) : le miroir de la garde le relit.
 import { propShareFor, recordDeskEvent, traderRuleOf } from './deskEvents';
 
@@ -28,6 +28,13 @@ export interface AgentProposal {
   stop?: number;
   /** La raison donnée par l'agent : une citation, sur une ligne, jamais un fait vérifié. */
   reason: string;
+  /**
+   * Ce que la garde du process principal a lu en la laissant passer (OROS5.40) : les noms du pont et la position avant et
+   * après, ceux du dialogue ; `null` tant qu'il ne l'a pas dit.
+   */
+  held?: { account: string; instrument: string; position: number; resulting: number } | null;
+  /** Le dialogue du process principal : ouvert à, refus par défaut à (OROS5.40) ; `null` tant qu'il ne s'est pas ouvert. */
+  dialog?: { opened: number; deadline: number } | null;
   /** `null` tant que le process principal n'a pas répondu. */
   outcome: AgentOrderOutcome | null;
   /** Le numéro de son événement `agent_order` au registre du desk ; `null` tant qu'il n'y est pas, ou quand la cadence l'a tu. */
@@ -100,9 +107,37 @@ export function proposalOf(id: string, at: number, args: Record<string, unknown>
     ...(limit !== undefined ? { limit } : {}),
     ...(stop !== undefined ? { stop } : {}),
     reason: p?.reason ?? line(args.reason, AGENT_REASON_MAX),
+    held: null,
+    dialog: null,
     outcome: null,
     seq: null,
   };
+}
+
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * L'étape d'une proposition, poussée par le process principal en lecture seule (OROS5.40), relue avant d'être crue : un
+ * ticket, une étape connue, des instants et des positions finis, des noms bornés sur une ligne. Sinon rien.
+ */
+export function parseStep(raw: unknown): AgentOrderStep | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const ticket = typeof r.ticket === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(r.ticket) ? r.ticket : null;
+  if (!ticket || !finite(r.at)) return null;
+  if (r.stage === 'guarded') {
+    if (!finite(r.position) || !finite(r.resulting)) return null;
+    return { ticket, stage: 'guarded', at: r.at, account: line(r.account, 128), instrument: line(r.instrument, 64), position: r.position, resulting: r.resulting };
+  }
+  if (r.stage === 'dialog' && finite(r.deadline) && r.deadline >= r.at) return { ticket, stage: 'dialog', at: r.at, deadline: r.deadline };
+  return null;
+}
+
+/** Une proposition en cours, avec son étape ; une proposition décidée, ou inconnue, ne bouge plus. */
+export function withStep(p: AgentProposal, step: AgentOrderStep): AgentProposal {
+  if (p.id !== step.ticket || p.outcome) return p;
+  if (step.stage === 'guarded') return { ...p, held: { account: step.account || p.account, instrument: step.instrument || p.instrument, position: step.position, resulting: step.resulting } };
+  return { ...p, dialog: { opened: step.at, deadline: step.deadline } };
 }
 
 /** Données de l'événement `agent_order` : bornées, sans rien que l'agent n'ait déjà vu. */
@@ -120,6 +155,8 @@ export function agentOrderEventData(args: Record<string, unknown>, origin: Agent
   };
   if (outcome.status === 'sent') Object.assign(data, { orderId: outcome.orderId, resulting: outcome.resulting });
   if (outcome.status === 'refused') data.reason = outcome.reason;
+  // L'issue `declined` est typée par le process principal (OROS5.40) : sans réponse dans le délai, ou refusée.
+  if (outcome.status === 'declined') data.timeout = outcome.timeout === true;
   if (outcome.status === 'failed' && outcome.code !== undefined) data.code = outcome.code;
   if (outcome.status !== 'sent') data.detail = text(outcome.detail, AGENT_REASON_MAX);
   return data;
@@ -193,15 +230,30 @@ export const useAgentOrders = create<AgentOrdersState>((set, get) => ({
     } else {
       set({ status: { ...get().status, pending: true } });
       try {
-        outcome = await api.propose(args, origin, propShareFor(text(args.account, 128)), traderRuleOf(args));
+        // L'identifiant de la proposition part comme ticket : le process principal le renvoie avec chaque étape (OROS5.40).
+        outcome = await api.propose(args, origin, propShareFor(text(args.account, 128)), traderRuleOf(args), proposal.id);
       } catch (e) {
         outcome = { status: 'failed', detail: e instanceof Error ? e.message : String(e) };
       }
       set({ status: await api.status().catch(() => ({ ...get().status, pending: false })) });
     }
     const seq = journalProposal(agentOrderEventData(args, origin, outcome), outcome.status);
-    const trace: AgentOrderTrace = { ...proposal, outcome, seq };
+    // L'étape reçue en chemin (gardée, dialogue ouvert) reste à la proposition décidée.
+    const current = get().proposals.find((p) => p.id === proposal.id) ?? proposal;
+    const trace: AgentOrderTrace = { ...current, outcome, seq };
     set({ last: trace, proposals: replaceProposal(get().proposals, trace) });
     return outcome;
   },
 }));
+
+/**
+ * L'étape de chaque proposition, telle que le process principal la pousse (OROS5.40) : la carte la suit sans relire le
+ * statut, ni minuterie ni relecture. Hors desk, rien ne s'abonne.
+ */
+desk?.agentOrders?.onStep?.((raw) => {
+  const step = parseStep(raw);
+  if (!step) return;
+  const { proposals } = useAgentOrders.getState();
+  if (!proposals.some((p) => p.id === step.ticket && !p.outcome)) return;
+  useAgentOrders.setState({ proposals: proposals.map((p) => withStep(p, step)) });
+});

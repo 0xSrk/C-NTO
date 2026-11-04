@@ -26,6 +26,7 @@ import {
   proposalTitle,
   proposalView,
   reasonCaption,
+  windowWords,
   type CellState,
   type ChainStep,
   type ProposalView,
@@ -41,8 +42,8 @@ import s from './proposal.module.css';
  * jamais le rouge. Aucun bouton ici n'accepte l'ordre : la décision se prend dans le dialogue du process principal.
  */
 
-/** Le trait d'une case de M.040 : franchie, pleine ; pas encore lue, sans trait. */
-const CELL_ETAT: Partial<Record<CellState, string>> = { pass: e.plein };
+/** Le trait d'une case de M.040 : franchie, pleine ; « vous », tant qu'elle attend, tiretée ; pas encore lue, sans trait. */
+const CELL_ETAT: Partial<Record<CellState, string>> = { pass: e.plein, pending: e.tirete };
 
 /** Le trait d'un pas de la chaîne : fait, plein ; en cours, tireté ; à venir, sans trait. */
 const STEP_ETAT: Partial<Record<string, string>> = { done: e.plein, current: e.tirete };
@@ -71,6 +72,29 @@ function GuardCells({ cells }: { cells: readonly CellState[] }) {
         );
       })}
     </ol>
+  );
+}
+
+/**
+ * La barre du dialogue (OROS5.40) : du dialogue ouvert au refus par défaut, elle se vide d'elle-même, sans minuterie ni
+ * relecture (une animation CSS, partie de l'instant d'ouverture que publie le process principal). La seule pièce à l'or :
+ * la décision qui attend l'opérateur (décision 1). En mouvement réduit, elle reste pleine et l'heure dit le reste.
+ */
+function DeadlineBar({ window }: { window: { opened: number; deadline: number } }) {
+  const total = Math.max(1, window.deadline - window.opened);
+  const elapsed = Math.min(total, Math.max(0, Date.now() - window.opened));
+  return (
+    <div
+      className={s.bar}
+      data-deadline=""
+      role="progressbar"
+      aria-label={tr('Temps laissé à votre décision', 'Time left for your decision', 'Tiempo que queda para su decisión')}
+      aria-valuemin={0}
+      aria-valuemax={Math.round(total / 1000)}
+      aria-valuenow={Math.round((total - elapsed) / 1000)}
+    >
+      <i style={{ animationDuration: `${total}ms`, animationDelay: `${-elapsed}ms` }} />
+    </div>
   );
 }
 
@@ -131,6 +155,12 @@ export function ProposalCard({ p, onOpen, compact = false }: { p: ProposalView; 
           })}
         </ol>
       )}
+      {p.window ? (
+        <div className={s.window} data-window={p.stage === 'dialog' ? 'open' : 'closed'}>
+          <p>{windowWords(p.window)}</p>
+          {p.stage === 'dialog' ? <DeadlineBar window={p.window} /> : null}
+        </div>
+      ) : null}
       <GuardCells cells={cellStates(p)} />
       <div className={s.outcome} data-refusal={refusal ? '' : undefined}>
         {refusal ? <Glyph name="refused" className={s.outcomeGlyph} label={tr('n’a pas eu lieu', 'did not happen', 'no tuvo lugar')} /> : <span className={s.outcomeGlyph} aria-hidden />}

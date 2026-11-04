@@ -30,8 +30,23 @@ export type AgentOrderOrigin = 'llm' | 'mcp' | 'orch';
 export type AgentOrderOutcome =
   | { status: 'sent'; orderId: string; latencyMs?: number; account: string; instrument: string; side: 'buy' | 'sell'; qty: number; resulting: number }
   | { status: 'refused'; reason: AgentOrderRefusal | 'invalid'; detail: string }
-  | { status: 'declined'; detail: string }
+  | { status: 'declined'; detail: string; timeout: boolean }
   | { status: 'failed'; code?: number; detail: string };
+
+/**
+ * L'étape d'une proposition, poussée au renderer en lecture seule (OROS5.40, décision 9 de l'ADMIN) : gardée (les noms du
+ * pont et la position avant et après, ceux du dialogue), puis le dialogue ouvert, avec l'instant du refus par défaut. Le
+ * ticket est l'étiquette que le renderer a donnée à la proposition, renvoyée telle quelle : elle ne décide rien. Ni jeton
+ * ni secret ; la garde, le dialogue (Refuser par défaut, 45 s) et les limites ne changent pas.
+ */
+export type AgentProposalStep =
+  | { ticket: string; stage: 'guarded'; at: number; account: string; instrument: string; position: number; resulting: number }
+  | { ticket: string; stage: 'dialog'; at: number; deadline: number };
+
+/** Le ticket d'une proposition : une étiquette courte, sinon rien (aucune étape n'est publiée). */
+export function proposalTicket(raw: unknown): string | null {
+  return typeof raw === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(raw) ? raw : null;
+}
 
 export interface AgentOrderStatus extends AgentOrderPolicy {
   pending: boolean;
@@ -73,6 +88,8 @@ export interface AgentOrderDeps {
     tag: string;
   }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number }>;
   log: (line: string) => void;
+  /** Pousse au renderer l'étape d'une proposition, en lecture seule (OROS5.40) ; absent : rien n'est publié. */
+  publish?: (step: AgentProposalStep) => void;
   now?: () => number;
   confirmTimeoutMs?: number;
 }
@@ -169,6 +186,15 @@ export class AgentOrderHost {
     }
   }
 
+  /** Une étape publiée ne retient jamais la proposition : un envoi qui échoue est ignoré. */
+  private publish(step: AgentProposalStep): void {
+    try {
+      this.deps.publish?.(step);
+    } catch {
+      /* le renderer n'écoute pas : la garde et le dialogue suivent leur cours */
+    }
+  }
+
   private async ask(options: AgentDialogOptions): Promise<boolean> {
     const win = this.deps.window();
     if (!win || win.isDestroyed()) return false;
@@ -238,8 +264,10 @@ export class AgentOrderHost {
    * Une proposition de l'agent : gardes, dialogue (45 s, Refuser par défaut), puis soumission par le pont
    * avec le tag `canto-agent`. `propShare` : marge du plan suivi si le compte est le sien, calculée par le renderer.
    * `traderRule` : règle du trader que l'ouverture enfreindrait, évaluée par le renderer ; relue ici (`parseTraderRule`).
+   * `ticket` : l'étiquette que le renderer donne à la proposition (`proposalTicket`) ; elle ne sert qu'à lui renvoyer, en
+   * lecture seule, l'étape de la proposition (gardée, dialogue ouvert). Elle ne décide rien.
    */
-  async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule: unknown = null): Promise<AgentOrderOutcome> {
+  async propose(raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule: unknown = null, ticket: unknown = null): Promise<AgentOrderOutcome> {
     // La cadence compte chaque proposition, refusées comprises (mal formée, agent désactivé, en attente) :
     // la garde lit les précédentes. Au plus le plafond de la cadence est retenu (10).
     const now = this.now();
@@ -269,14 +297,23 @@ export class AgentOrderHost {
     }
     this.pending = true;
     try {
-      const timeout = AbortSignal.timeout(this.deps.confirmTimeoutMs ?? AGENT_CONFIRM_TIMEOUT_MS);
+      const timeoutMs = this.deps.confirmTimeoutMs ?? AGENT_CONFIRM_TIMEOUT_MS;
+      const timeout = AbortSignal.timeout(timeoutMs);
+      // L'étape, en lecture seule : la garde a laissé passer, puis le dialogue s'ouvre, à l'instant même (OROS5.40).
+      const id = proposalTicket(ticket);
+      if (id) {
+        this.publish({ ticket: id, stage: 'guarded', at: now, account: p.account, instrument: p.instrument, position, resulting: verdict.resulting });
+        const win = this.deps.window();
+        if (win && !win.isDestroyed()) this.publish({ ticket: id, stage: 'dialog', at: now, deadline: now + timeoutMs });
+      }
       const accepted = await this.ask({ ...proposalDialog(p, position, verdict.resulting, origin, this.deps.locale()), signal: timeout });
       if (!accepted || !this.policy.enabled) {
         const detail = timeout.aborted
           ? this.t('sans réponse du trader en 45 s : non envoyé', 'no answer from the trader within 45 s: not sent', 'sin respuesta del trader en 45 s: no enviada')
           : this.t('refusé par le trader', 'declined by the trader', 'rechazada por el trader');
         this.deps.log(`agent proposition non envoyée ${summary} (${timeout.aborted ? 'délai' : 'refus'})`);
-        return { status: 'declined', detail };
+        // L'issue est typée : sans réponse dans le délai, ou refusée (OROS5.40) ; le renderer ne relit pas le texte.
+        return { status: 'declined', detail, timeout: timeout.aborted };
       }
       const ack = await this.deps.submit({
         op: 'submit',

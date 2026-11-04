@@ -145,6 +145,47 @@
   --k: var(--text-1);
 }
 
+/* Le dialogue du desk (OROS5.40) : ouvert à, refus par défaut à, puis la barre qui se vide jusqu'au refus par défaut. */
+.window {
+  display: grid;
+  gap: 6px;
+}
+.window p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-1);
+}
+/* La seule pièce à l'or de la carte : la décision qui attend l'opérateur, avec sa barre (décision 1). */
+.bar {
+  height: 2px;
+  overflow: hidden;
+  background: var(--line-1);
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transform-origin: left center;
+  animation-name: deadline;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes deadline {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar i {
+    animation: none;
+  }
+}
+
 /* M.040 : douze cases, chacune son nom en clair. */
 .cells {
   display: grid;

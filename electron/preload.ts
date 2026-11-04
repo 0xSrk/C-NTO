@@ -94,7 +94,10 @@ contextBridge.exposeInMainWorld('canto', {
     enable: () => ipcRenderer.invoke('agent-orders:enable'),
     disable: () => ipcRenderer.invoke('agent-orders:disable'),
     limits: (raw: unknown) => ipcRenderer.invoke('agent-orders:limits', raw),
-    propose: (raw: unknown, origin: string, propShare: number | null, traderRule: unknown = null) => ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare, traderRule),
+    propose: (raw: unknown, origin: string, propShare: number | null, traderRule: unknown = null, ticket: string | null = null) =>
+      ipcRenderer.invoke('agent-orders:propose', raw, origin, propShare, traderRule, ticket),
+    // L'étape d'une proposition (gardée, dialogue ouvert), poussée en lecture seule par le process principal (OROS5.40).
+    onStep: (cb: (step: unknown) => void) => subscribe('agent-orders:step', cb),
   },
   agentCloud: {
     status: () => ipcRenderer.invoke('agent-cloud:status'),

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { GlyphName } from '@/design/Micro';
 import { sameAccount } from '@/engine/accounts';
 import { DESK_EVENT_KINDS, type DeskEventKind } from '@/engine/agent/catalog';
-import { AGENT_ORDER_REFUSALS, type AgentOrderRefusal } from '@/engine/agent/orders';
+import { AGENT_CONFIRM_TIMEOUT_MS, AGENT_ORDER_REFUSALS, type AgentOrderRefusal } from '@/engine/agent/orders';
 import { EVENT_LOG_MAX, EVENTS_PAGE_MAX, type DeskEvent, type DeskEventLog } from '@/engine/agent/events';
 import type { CalEvent } from '@/engine/calendar';
 import { resolveSymbol } from '@/engine/instruments';
@@ -272,7 +272,10 @@ export function eventLine(ev: DeskEvent): { object: string; detail: string } {
           : status === 'refused'
             ? `${tr('refusée par la garde', 'refused by the guard', 'rechazada por la guardia')}${typed}`
             : status === 'declined'
-              ? tr('non envoyée', 'not sent', 'no enviada')
+              ? // Sans réponse dans le délai : l'issue que le process principal type (OROS5.40), le délai lu de la constante.
+                d.timeout === true
+                ? tr(`sans réponse en ${AGENT_CONFIRM_TIMEOUT_MS / 1000} s`, `no answer within ${AGENT_CONFIRM_TIMEOUT_MS / 1000} s`, `sin respuesta en ${AGENT_CONFIRM_TIMEOUT_MS / 1000} s`)
+                : tr('non envoyée', 'not sent', 'no enviada')
               : tr('en échec', 'failed', 'fallida');
       return { object: pair(d.instrument, d.account), detail: `${side(d.side)} ${num(d.qty) ?? '—'} · ${outcome}` };
     }

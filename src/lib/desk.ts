@@ -117,8 +117,17 @@ export type AgentOrderOrigin = 'llm' | 'mcp' | 'orch';
 export type AgentOrderOutcome =
   | { status: 'sent'; orderId: string; latencyMs?: number; account: string; instrument: string; side: 'buy' | 'sell'; qty: number; resulting: number }
   | { status: 'refused'; reason: AgentOrderRefusal | 'invalid'; detail: string }
-  | { status: 'declined'; detail: string }
+  | { status: 'declined'; detail: string; timeout?: boolean }
   | { status: 'failed'; code?: number; detail: string };
+
+/**
+ * L'étape d'une proposition, poussée par le process principal en lecture seule (OROS5.40) : gardée (les noms du pont et la
+ * position avant et après, ceux du dialogue), puis dialogue ouvert, avec l'instant du refus par défaut. `ticket` : l'étiquette
+ * que le renderer a donnée à la proposition.
+ */
+export type AgentOrderStep =
+  | { ticket: string; stage: 'guarded'; at: number; account: string; instrument: string; position: number; resulting: number }
+  | { ticket: string; stage: 'dialog'; at: number; deadline: number };
 
 export interface AgentOrdersApi {
   status: () => Promise<AgentOrderStatus>;
@@ -127,8 +136,13 @@ export interface AgentOrdersApi {
   disable: () => Promise<AgentOrderStatus>;
   /** Relever une limite passe par un dialogue du process principal. */
   limits: (raw: Partial<Pick<AgentOrderStatus, 'maxQty' | 'maxPosition' | 'perMinute'>>) => Promise<AgentOrderStatus>;
-  /** `traderRule` : règle du trader que l'ouverture enfreindrait (`traderRuleFor`), relue par le process principal. */
-  propose: (raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule?: { rule: string; detail: string } | null) => Promise<AgentOrderOutcome>;
+  /**
+   * `traderRule` : règle du trader que l'ouverture enfreindrait (`traderRuleFor`), relue par le process principal. `ticket` :
+   * l'étiquette de la proposition, que le process principal renvoie avec son étape (OROS5.40).
+   */
+  propose: (raw: unknown, origin: AgentOrderOrigin, propShare: number | null, traderRule?: { rule: string; detail: string } | null, ticket?: string | null) => Promise<AgentOrderOutcome>;
+  /** L'étape d'une proposition, en lecture seule ; rend le désabonnement. */
+  onStep?: (cb: (step: unknown) => void) => () => void;
 }
 
 /** Siège nominatif : le process principal vérifie le code ; le renderer ne reçoit que le nom signé. */

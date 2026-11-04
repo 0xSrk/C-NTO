@@ -102,7 +102,9 @@ describe('OROS5.9 · isoler les entrées que le renderer passe à la garde', () 
     const sent: unknown[][] = [];
     const { useAgentOrders } = await bench(c, sent);
     await useAgentOrders.getState().propose(c.args, 'llm');
-    expect(sent).toEqual([[c.args, 'llm', ...c.before]]);
+    // OROS5.40 : le ticket de la proposition part en plus, étiquette que le process principal renvoie avec l'étape ; la
+    // marge et la règle que lit la garde restent celles d'avant.
+    expect(sent).toEqual([[c.args, 'llm', ...c.before, expect.stringMatching(/^p\d+$/)]]);
   });
 
   it.each(CASES.map((c) => [c.name, c] as const))('%s : propShareFor et traderRuleOf, exposés, rendent ce que reçoit le process principal', async (_name, c) => {
