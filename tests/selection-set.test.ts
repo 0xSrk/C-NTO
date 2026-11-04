@@ -349,3 +349,33 @@ describe('OROS5.32 A.02 : les pas de la sélection allumés, le reste atténué 
     expect(squares({ selecting: true, inSelection: lit }).map((call) => call.args[0])).toEqual([Math.round(120 - 1.5), Math.round(320 - 1.5)]);
   });
 });
+
+describe('OROS5.35b la note de portée dit chaque puce que l’onglet ignore', () => {
+  it('Instrument et Heure posées ensemble : Analyse, Monte-Carlo et Firme prop disent les deux, en trois langues', async () => {
+    useUi.setState({ metricAccount: APEX, metricInstrument: null, metricHour: null });
+    const node = await mount(createElement(Metrique));
+    const note = () => node.querySelector<HTMLElement>(`.${d.scopeNote}`)?.textContent ?? null;
+    const read = async (view: 'analyse' | 'mc' | 'prop') => {
+      await act(async () => useObjects.getState().setView('metrique', view));
+      await act(async () => useUi.setState({ metricInstrument: null, metricHour: 10 }));
+      const hour = note();
+      await act(async () => useUi.setState({ metricInstrument: 'NQ' }));
+      return { hour, both: note() };
+    };
+    expect(await read('analyse')).toEqual({ hour: 'Heure ignorée : l’onglet lit toutes les heures', both: 'Instrument et heure ignorés : l’onglet lit tous les instruments et toutes les heures' });
+    expect(await read('mc')).toEqual({ hour: 'Heure ignorée : l’onglet lit toutes les heures', both: 'Instrument et heure ignorés : l’onglet lit tous les instruments et toutes les heures' });
+    expect(await read('prop')).toEqual({
+      hour: 'Période et heure ignorées : le plancher dépend de tout l’historique du compte',
+      both: 'Période, instrument et heure ignorés : le plancher dépend de tout l’historique du compte',
+    });
+    await act(async () => useI18n.setState({ locale: 'en' }));
+    expect(note()).toBe('Range, instrument and hour ignored: the floor depends on the account’s whole history');
+    await act(async () => useObjects.getState().setView('metrique', 'analyse'));
+    expect(note()).toBe('Instrument and hour ignored: the tab reads every instrument and every hour');
+    await act(async () => useI18n.setState({ locale: 'es' }));
+    expect(note()).toBe('Instrumento y hora ignorados: la pestaña lee todos los instrumentos y todas las horas');
+    await act(async () => useObjects.getState().setView('metrique', 'prop'));
+    expect(note()).toBe('Período, instrumento y hora ignorados: el suelo depende de todo el historial de la cuenta');
+    useUi.setState({ metricHour: null });
+  });
+});

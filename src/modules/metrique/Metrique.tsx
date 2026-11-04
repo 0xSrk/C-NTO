@@ -196,20 +196,25 @@ export default function Metrique() {
   const scope = useMemo(() => (view === 'analyse' || view === 'prop' || view === 'mc' ? scopeFor(view, sessions, trades, range, asOf, metricAccount) : null), [view, sessions, trades, range, asOf, metricAccount]);
   // Ce que l'onglet fait des filtres de l'en-tête, seulement quand il s'en écarte : le cas ordinaire se tait (4.1). Les
   // Séances lisent la sélection partagée comme le Tableau de bord, en atténuant ce qui en sort (OROS5.32) : elles se taisent.
+  // Chaque puce posée que l'onglet ignore est dite, l'Instrument et l'Heure ensemble quand les deux le sont.
   const scopeNote =
     view === 'prop'
-      ? instrument
-        ? tr('Période et instrument ignorés : le plancher dépend de tout l’historique du compte', 'Range and instrument ignored: the floor depends on the account’s whole history', 'Período e instrumento ignorados: el suelo depende de todo el historial de la cuenta')
-        : hour != null
-          ? tr('Période et heure ignorées : le plancher dépend de tout l’historique du compte', 'Range and hour ignored: the floor depends on the account’s whole history', 'Período y hora ignorados: el suelo depende de todo el historial de la cuenta')
-          : tr('Période ignorée : le plancher dépend de tout l’historique du compte', 'Range ignored: the floor depends on the account’s whole history', 'Período ignorado: el suelo depende de todo el historial de la cuenta')
+      ? instrument && hour != null
+        ? tr('Période, instrument et heure ignorés : le plancher dépend de tout l’historique du compte', 'Range, instrument and hour ignored: the floor depends on the account’s whole history', 'Período, instrumento y hora ignorados: el suelo depende de todo el historial de la cuenta')
+        : instrument
+          ? tr('Période et instrument ignorés : le plancher dépend de tout l’historique du compte', 'Range and instrument ignored: the floor depends on the account’s whole history', 'Período e instrumento ignorados: el suelo depende de todo el historial de la cuenta')
+          : hour != null
+            ? tr('Période et heure ignorées : le plancher dépend de tout l’historique du compte', 'Range and hour ignored: the floor depends on the account’s whole history', 'Período y hora ignorados: el suelo depende de todo el historial de la cuenta')
+            : tr('Période ignorée : le plancher dépend de tout l’historique du compte', 'Range ignored: the floor depends on the account’s whole history', 'Período ignorado: el suelo depende de todo el historial de la cuenta')
       : view === 'mc' && !metricAccount
         ? tr('Compte obligatoire : choisissez-en un en haut', 'Account required: pick one above', 'Cuenta obligatoria: elija una arriba')
-        : (view === 'analyse' || view === 'mc') && instrument
-          ? tr('Instrument ignoré : l’onglet lit tous les instruments', 'Instrument ignored: the tab reads every instrument', 'Instrumento ignorado: la pestaña lee todos los instrumentos')
-          : (view === 'analyse' || view === 'mc') && hour != null
-            ? tr('Heure ignorée : l’onglet lit toutes les heures', 'Hour ignored: the tab reads every hour', 'Hora ignorada: la pestaña lee todas las horas')
-            : null;
+        : (view === 'analyse' || view === 'mc') && instrument && hour != null
+          ? tr('Instrument et heure ignorés : l’onglet lit tous les instruments et toutes les heures', 'Instrument and hour ignored: the tab reads every instrument and every hour', 'Instrumento y hora ignorados: la pestaña lee todos los instrumentos y todas las horas')
+          : (view === 'analyse' || view === 'mc') && instrument
+            ? tr('Instrument ignoré : l’onglet lit tous les instruments', 'Instrument ignored: the tab reads every instrument', 'Instrumento ignorado: la pestaña lee todos los instrumentos')
+            : (view === 'analyse' || view === 'mc') && hour != null
+              ? tr('Heure ignorée : l’onglet lit toutes les heures', 'Hour ignored: the tab reads every hour', 'Hora ignorada: la pestaña lee todas las horas')
+              : null;
   const span = ordered.length > 0 ? `${shortDay(ordered[0]?.date ?? '')} → ${shortDay(ordered[ordered.length - 1]?.date ?? '')}` : '—';
   const crumbs: Record<View, string> = {
     bord: tr('TABLEAU DE BORD', 'DASHBOARD', 'TABLERO'),
