@@ -516,7 +516,8 @@ async function main() {
   }
   const opts = parseArgs(process.argv.slice(2));
   const modulePath = process.env.PLAYWRIGHT_MODULE;
-  const playwright = await import(modulePath ? pathToFileURL(path.resolve(modulePath)).href : 'playwright');
+  // `@vite-ignore` : Vite n'analyse pas cet import, et son avertissement bouclait sur un fichier CRLF (OROS5.47r).
+  const playwright = await import(/* @vite-ignore */ modulePath ? pathToFileURL(path.resolve(modulePath)).href : 'playwright');
   const report = await run(opts, { playwright: playwright.default ?? playwright, phrase });
   console.log(`${report.shots.length} captures dans ${opts.out} · ${report.errors.length} erreur(s) · ${report.skipped.length} étape(s) non éprouvée(s)`);
   process.exit(report.ok ? 0 : 1);

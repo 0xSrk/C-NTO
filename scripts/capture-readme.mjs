@@ -209,7 +209,8 @@ async function main() {
   const outFlag = process.argv.indexOf('--out');
   const out = outFlag > 0 && process.argv[outFlag + 1] ? path.resolve(process.argv[outFlag + 1]) : path.resolve(__dirname, '../docs/media');
   mkdirSync(out, { recursive: true });
-  const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+  // `@vite-ignore` : Vite n'analyse pas cet import, et son avertissement bouclait sur un fichier CRLF (OROS5.47r).
+  const { chromium } = await import(/* @vite-ignore */ process.env.PLAYWRIGHT_MODULE || 'playwright');
   const browser = await chromium.launch({
     headless: true,
     executablePath: process.env.CHROME_PATH || undefined,
