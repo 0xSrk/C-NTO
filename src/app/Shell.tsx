@@ -1,11 +1,10 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { BraceCode, Button, cx } from '@/design/primitives';
 import { Glyph } from '@/design/Micro';
 import { Seal } from '@/design/Seal';
 import { Wordmark } from '@/design/Wordmark';
 import { Modal } from '@/design/Modal';
 import { OptionsMenu, type OptionItem } from '@/design/OptionsMenu';
-import { BRIDGE_MAX_AGE_MS } from '@/engine/portfolio/types';
 import { desk, isDesk } from '@/lib/desk';
 import { APP_VERSION } from '@/lib/version';
 import { dateKeyLocal, ET_ZONE, etDateKey } from '@/lib/time';
@@ -19,11 +18,10 @@ import { useCrypto } from '@/store/crypto';
 import { useLinks } from '@/store/links';
 import { useNotes } from '@/store/notes';
 import { useObjects } from '@/store/objects';
-import { useSettings } from '@/store/settings';
-import { isBridgeLive, useBridge } from '@/store/bridge';
 import { ChangelogJournal } from './ChangelogJournal';
 import { FriseDrawer } from './Frise';
 import { FriseAnswer } from './FriseAnswer';
+import { RailAccounts } from './RailAccounts';
 import { SeatMark } from './SeatMark';
 import { UpdateButton } from './UpdateButton';
 import { ZoomControls } from './ZoomControls';
@@ -100,16 +98,11 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const tab = useUi((u) => u.tab);
   const setTab = useUi((u) => u.setTab);
   const crumb = useUi((u) => u.crumb);
-  const metricAccount = useUi((u) => u.metricAccount);
-  const planAccount = useSettings((st) => st.settings.planAccount);
   const toasts = useUi((u) => u.toasts);
   const dismiss = useUi((u) => u.dismiss);
   const sessions = useJournal((j) => j.sessions);
-  const trades = useJournal((j) => j.trades);
   const orchestrator = useAgent((a) => a.orchestrator);
   const reportsUnread = useAgentCloud((c) => c.status?.unread ?? null);
-  const bridgeStatus = useBridge((b) => b.status);
-  const nt = useBridge((b) => b.nt);
   const kill = useKillSwitch();
   const now = useClock();
   const noteCount = useNotes((n) => n.notes.length);
@@ -198,29 +191,6 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
     return () => window.removeEventListener('keydown', onKey);
   }, [setTab, inert]);
 
-  const accounts = useMemo(() => [...new Set(sessions.map((row) => row.account).filter((name): name is string => !!name))].sort(), [sessions]);
-  const accountLine = metricAccount
-    ? metricAccount
-    : tr(`Tous les comptes · ${accounts.length}`, `All accounts · ${accounts.length}`, `Todas las cuentas · ${accounts.length}`);
-  const accountTarget = metricAccount || planAccount || (accounts.length === 1 ? accounts[0]! : null);
-  const bridgeUp = nt?.link === 'live' || isBridgeLive(bridgeStatus);
-  const source = bridgeUp ? 'NinjaTrader 8' : tr('Import CSV', 'CSV import', 'Importación CSV');
-  const live = useMemo(() => {
-    if (nt?.link !== 'live') return false;
-    const cutoff = now - BRIDGE_MAX_AGE_MS;
-    return trades.some((trade) => {
-      if (metricAccount && (trade.account ?? '') !== metricAccount) return false;
-      return Math.max(trade.entryTime || 0, trade.exitTime || 0) >= cutoff;
-    });
-  }, [nt?.link, trades, metricAccount, now]);
-  /** Voyant du compte : allumé quand les exécutions arrivent, en veille quand le pont est ouvert, éteint sinon. */
-  const linkState = live ? 'voyantOn' : bridgeUp ? 'voyantVeille' : 'voyantOff';
-  const linkLabel = live
-    ? tr('Pont NT8 · exécutions en direct', 'NT8 bridge · live executions', 'Puente NT8 · ejecuciones en directo')
-    : bridgeUp
-      ? tr('Pont NT8 connecté · en veille', 'NT8 bridge connected · standing by', 'Puente NT8 conectado · en espera')
-      : tr('Hors ligne · import CSV', 'Offline · CSV import', 'Fuera de línea · importación CSV');
-
   const localeTag = locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'fr-FR';
   const sessionDate = sessionStamp(now, localeTag);
   const hour = (zone: string) =>
@@ -280,12 +250,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
-          {/* En haut à droite (4.1), la version seule, qui ouvre le journal : plus aucune micro à côté. */}
-          <div className={s.versionCell}>
-            <span className={s.titleVersion}>
-              <ChangelogJournal version={appVersion} />
-            </span>
-          </div>
+          {/* La version a quitté la barre de titre pour le pied, en bas à gauche (décision de l'ADMIN, 2026-11-07). */}
           <UpdateButton />
           <div className={s.titleZoom}>
             <ZoomControls />
@@ -332,38 +297,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
             elles ne déplacent ni le compte ni le sceau, qui restent au pied du rail. */}
         <RailGates />
         <div className={s.railFoot}>
-          {/* Le compte (4.1) : une cartouche du Lab, sans intitulé. Sa micro assemble le pont (composant 1), dont la
-              borne devient le coffre (composant 124), et le voyant au cœur du coffre ; puis le nom et la source. L'état
-              du pont se dit une fois, par le voyant ; l'infobulle vit sur la micro, pas sur le groupe qui le redisait. */}
-          <div className={s.account} role="group" aria-label={tr('Compte actif', 'Active account', 'Cuenta activa')}>
-            <span className={s.accountMark} data-part="account-mark" title={linkLabel}>
-              <span className={s.accountArt}>
-                <span className={s.accountBridge}>
-                  <Glyph name="bridge" />
-                </span>
-                <span className={s.accountVault}>
-                  <Glyph name="vault" />
-                </span>
-                <span className={cx(s.voyant, s[linkState])} role="img" aria-label={linkLabel} />
-              </span>
-            </span>
-            {/* La cartouche est l'entrée de la fiche Compte (OROS5.27, décision 11) : le compte filtré, sinon le compte suivi,
-                sinon le seul compte du journal. Sans compte à nommer, le nom reste un texte. */}
-            {accountTarget ? (
-              <button
-                type="button"
-                className={cx(s.accountName, s.accountOpen)}
-                data-account-open={accountTarget}
-                aria-label={tr(`Ouvrir la fiche du compte ${accountTarget}`, `Open the ${accountTarget} account record`, `Abrir la ficha de la cuenta ${accountTarget}`)}
-                onClick={(event) => void useObjects.getState().openObject({ type: 'compte', id: accountTarget }, { jump: true, focus: true, origin: event.currentTarget })}
-              >
-                {accountLine}
-              </button>
-            ) : (
-              <span className={s.accountName}>{accountLine}</span>
-            )}
-            <span className={s.accountSource}>{source}</span>
-          </div>
+          {/* Les comptes connectés au pont NT8, à la place de la cartouche « Tous les comptes » (décision de l'ADMIN,
+              2026-11-07) : la micro, son voyant vert, le nom ; empilés s'ils sont plusieurs ; rien sans compte connecté. */}
+          <RailAccounts />
           {/* La plaque réduite à sa marque (4.1) : le sceau du Lab gravé dans la nuit, le même qu'au verrou, puis les langues. */}
           <div className={s.signature}>
             <span className={s.sealMark} data-part="lab-seal">
@@ -414,8 +350,13 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         <FriseDrawer className={s.friseDrawer} />
         {/* Le registre du lancement (OROS5.38), en tiroir bas de 240 px, ouvert par « Registre n » ou une fiche. */}
         <RegistreDrawer className={s.registreDrawer} />
-        {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. */}
+        {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. La version la
+            précède, premier indicateur en bas à gauche du desk, et ouvre le journal (décision de l'ADMIN, 2026-11-07). */}
         <div className={s.statusLeft}>
+          <span className={s.statusVersion} data-status="version">
+            <ChangelogJournal version={appVersion} />
+          </span>
+          <i className={s.statusSep} aria-hidden />
           <StatusBornes />
           <i className={s.statusSep} aria-hidden />
           <FriseAnswer />
@@ -439,14 +380,13 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               </button>
             </span>
           </span>
+          {/* La signature : le code d'accolades sous le geste du siège, puis le nom du Lab, sans losange entre eux
+              (décision de l'ADMIN, 2026-11-07). */}
           <span className={s.sigEnd}>
             <SeatMark>
               <BraceCode />
             </SeatMark>
-            <span className={s.stripName}>
-              <Glyph name="lozenge" className={s.lozenge} />
-              [ SIΞRRΛSKΛ ]
-            </span>
+            <span className={s.stripName}>[ SIΞRRΛSKΛ ]</span>
           </span>
         </div>
       </footer>

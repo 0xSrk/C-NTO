@@ -12,9 +12,10 @@ import { useDayBornes } from './useDayBornes';
 import s from './shell.module.css';
 
 /**
- * La ligne de la journée dans la barre d'état (OROS5.22, Système 5 « Fiche et Frise », décision 7 de l'ADMIN) : le pont
- * et son âge, les comptes qu'il rapporte et sa latence, puis les bornes du jour lues du calcul unique (`useDayBornes`,
- * `src/engine/bornes.ts`) — la perte du jour sur sa limite et sa source, les trades sur leur maximum, la marge datée.
+ * La ligne de la journée dans la barre d'état (OROS5.22, Système 5 « Fiche et Frise », décision 7 de l'ADMIN) : le pont,
+ * son âge et sa latence, puis les bornes du jour lues du calcul unique (`useDayBornes`, `src/engine/bornes.ts`) — la perte
+ * du jour sur sa limite et sa source, les trades sur leur maximum, la marge datée. Les comptes que le pont rapporte ne s'y
+ * disent plus : le pied du rail les nomme (`RailAccounts`, décision de l'ADMIN, 2026-11-07).
  * Faute de valeur, « — », jamais 0 ; rien de réglé, « Bornes à régler ». La borne la plus proche passe à l'ivoire, les
  * autres restent au graphite ; à 75 % de la limite, C.012 ; au-delà, le niveau 3 par la primitive Signal.
  *
@@ -353,15 +354,14 @@ function Words({ parts }: { parts: readonly [before: string, core: string, after
 }
 
 /**
- * La ligne de la journée, à gauche de la barre d'état : le pont, l'âge de sa lecture, ses comptes et sa latence — lisibles,
- * jamais dans une ellipse —, puis les bornes du jour.
+ * La ligne de la journée, à gauche de la barre d'état : le pont, l'âge de sa lecture et sa latence — lisibles, jamais dans
+ * une ellipse —, puis les bornes du jour. Les comptes connectés se lisent au pied du rail, plus ici.
  */
 export function StatusBornes() {
   useI18n((st) => st.locale);
   const b = useDayBornes();
   const nt = useBridge((st) => st.nt);
   const live = nt?.link === 'live';
-  const reported = nt?.accountNames?.filter(Boolean) ?? [];
   const cells = borneCells(b);
   const bridge = bridgeLabel(b, nt?.link ?? null);
   const age = live && b.day.ageMs !== null ? ageText(b.day.ageMs) : null;
@@ -382,11 +382,6 @@ export function StatusBornes() {
           </span>
         ) : null}
       </span>
-      {reported.length > 0 ? (
-        <span className={s.statusKeep} data-status="accounts" title={tr('Comptes rapportés par le pont', 'Accounts reported by the bridge', 'Cuentas informadas por el puente')}>
-          {reported.join(' · ')}
-        </span>
-      ) : null}
       {latency !== null ? (
         <span className={s.statusKeep} data-status="latency" title={tr(`Latence du pont : ${latency} ms`, `Bridge latency: ${latency} ms`, `Latencia del puente: ${latency} ms`)}>
           <Words parts={[tr('LATENCE ', 'LATENCY ', 'LATENCIA '), `${latency} MS`, '']} />

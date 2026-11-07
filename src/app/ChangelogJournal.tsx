@@ -63,7 +63,10 @@ function points(highlights: { fr: string[]; en: string[]; es: string[] }, locale
   return highlights.fr;
 }
 
-/** Barre de titre, en haut à droite après le losange du secteur (4.1) : le numéro ouvre le journal. Aucun message ne s'ouvre seul. */
+/**
+ * Barre d'état, en bas à gauche : le premier indicateur du desk, avant le pont NT8 (décision de l'ADMIN, 2026-11-07 ; il
+ * était en haut à droite de la barre de titre depuis la 4.1). Le numéro ouvre le journal. Aucun message ne s'ouvre seul.
+ */
 export function ChangelogJournal({ version }: { version: string }) {
   const [seen, setSeen] = useState<string | null>(null);
   const [ready, setReady] = useState(false);

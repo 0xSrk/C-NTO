@@ -471,17 +471,25 @@ describe('OROS5.27 la fiche Compte', () => {
     act(() => host!.querySelector<HTMLButtonElement>('[data-chassis="status"] [data-borne="loss"]')!.click());
     expect(useObjects.getState().open).toEqual({ type: 'compte', id: APEX });
     act(() => void useObjects.getState().close(false));
-    // la cartouche du rail : le compte suivi, sans filtre de Métrique
-    const rail = host!.querySelector<HTMLButtonElement>('aside [role="group"][aria-label="Compte actif"] [data-account-open]')!;
-    expect(rail.dataset.accountOpen).toBe(APEX);
-    expect(rail.textContent).toBe('Tous les comptes · 2');
+    // OROS5.51 les lignes du rail (décision de l'ADMIN, 2026-11-07) : une par compte que le pont rapporte, dans son ordre ;
+    // chacune ouvre la fiche de son compte
+    const rows = [...host!.querySelectorAll<HTMLButtonElement>('aside [role="group"][aria-label="Comptes connectés"] [data-account-open]')];
+    expect(rows.map((row) => row.dataset.accountOpen)).toEqual([SIM, APEX]);
+    const rail = rows[1]!;
+    expect(rail.querySelector('[class*="accountName"]')!.textContent).toBe(APEX);
     expect(rail.hasAttribute('title')).toBe(false);
     act(() => rail.click());
     expect(useObjects.getState().open).toEqual({ type: 'compte', id: APEX });
     expect(drawer().dataset.drawer).toBe('compte');
-    // le compte filtré l'emporte
-    act(() => useUi.setState({ metricAccount: SIM }));
-    expect(host!.querySelector<HTMLElement>('[data-account-open]')!.dataset.accountOpen).toBe(SIM);
+    // le filtre de Métrique ne change pas ce qu'une ligne ouvre : chacune garde son compte
+    act(() => void useObjects.getState().close(false));
+    act(() => useUi.setState({ metricAccount: APEX }));
+    act(() => host!.querySelector<HTMLButtonElement>(`aside [data-account-open="${SIM}"]`)!.click());
+    expect(useObjects.getState().open).toEqual({ type: 'compte', id: SIM });
+    // le pont hors ligne : les lignes s'effacent, la fiche ouverte reste
+    act(() => useBridge.setState({ nt: { ...useBridge.getState().nt!, link: 'lost' } }));
+    expect(host!.querySelector('aside [data-account-open]')).toBeNull();
+    expect(useObjects.getState().open).toEqual({ type: 'compte', id: SIM });
   });
 });
 
