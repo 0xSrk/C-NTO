@@ -79,4 +79,37 @@ describe('README', () => {
     expect(readme).not.toContain('The agent reads official sources only');
     expect(readme).toContain('the training is started, resumed and stopped from the Lab\'s own desk only');
   });
+
+  it('R3.9c le README suit le desk de main : la version au pied, les comptes connectés, la ligne de la journée, la fiche et la frise, des plates recapturées avec le pont', () => {
+    const desk = readme.slice(readme.indexOf('<a id="the-desk"></a>'), readme.indexOf('<a id="metrics"></a>'));
+    // La section dit qu'elle montre main, en avance sur les installeurs de la version publiée.
+    expect(desk).toContain('This section and its plates show the desk on `main`.');
+    // Le pied du rail : les comptes connectés, et plus la cartouche du compte ; rien sans compte connecté.
+    expect(desk).toContain('**connected accounts**');
+    expect(desk).toContain('its lamp lit green');
+    expect(desk).toContain('nothing at all when none is connected');
+    expect(readme).not.toMatch(/the \*\*account\*\* in the same cartouche|then the name and the source/);
+    // La version au pied, premier indicateur de la barre d'état : plus en haut à droite.
+    expect(desk).toContain('The version comes first and opens the changelog.');
+    expect(readme).not.toMatch(/At the top right of the title bar, the version|the version at the top right|beside the version in the title bar|opened from the version at the top right/);
+    // La barre d'état est la ligne de la journée : ni Tokyo, ni Paris, ni la phase Globex.
+    expect(desk).toContain("The **status bar** is the day's line.");
+    expect(readme).not.toMatch(/Tokyo, Paris and New York clocks|the CME Globex phase|The status bar gives the CME Globex session/);
+    // Le Système 5 : les portes, la fiche, l'omnibar, la frise et le registre, et la plate de la fiche Compte.
+    for (const piece of ['**gates**', '**Every object has its record.**', '**omnibar**', '**The frise and the log.**']) expect(desk, piece).toContain(piece);
+    expect(desk).toContain('<img src="docs/media/fiche.png"');
+    // Le système visuel suit la doctrine du Système 5 et le voyant à la menthe.
+    const visual = readme.slice(readme.indexOf('### Visual system'), readme.indexOf('<a id="develop">'));
+    expect(visual).toContain('Gold `#CCB066` says what you hold');
+    expect(visual).not.toMatch(/marks what is alive|one is left on the desk, on the kill-switch band/);
+    expect(visual).toMatch(/mint `#74C69D`[^.]*connected account/);
+    expect(visual).toContain('the version at the bottom left of the status bar');
+    // La journée fermée dans les gardes de l'agent (décision 15).
+    expect(readme).toContain('the CME day stays closed to openings until the next CME day');
+    // Le script des plates pose un pont vivant qui rapporte les deux comptes de la démo, et capture la fiche Compte.
+    const script = readFileSync('scripts/capture-readme.mjs', 'utf8');
+    expect(script).toContain("export const BRIDGE_ACCOUNTS = ['Sim101', 'Apex-PA-50K'];");
+    expect(script).toMatch(/await liveBridge\(page\);\s*await page\.getByRole\('button', \{ name: 'Demo dataset'/);
+    expect(script).toContain("await shot(page, out, 'fiche.png');");
+  });
 });

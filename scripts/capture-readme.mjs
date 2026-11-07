@@ -12,7 +12,8 @@
  * Données : le jeu de démonstration (140 séances), plus trois poches, des positions et une topologie Sim
  * saisies dans le navigateur de capture, comme le ferait un trader. Rien n'est envoyé hors de la machine.
  * Le build navigateur n'a ni siège ni pont Electron : aucun nom au pied, et Agent IA est pris sur
- * B · Conversation (A · Rapports y est vide).
+ * B · Conversation (A · Rapports y est vide). Le pont NT8 est simulé dans le navigateur de capture
+ * (`liveBridge`) : il rapporte les deux comptes du jeu de démonstration, que le pied du rail nomme.
  */
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -79,17 +80,73 @@ export async function unlock(page, phrase, out) {
   await page.waitForTimeout(3000);
 }
 
+/** Les comptes que le pont simulé rapporte : ceux du jeu de démonstration. */
+export const BRIDGE_ACCOUNTS = ['Sim101', 'Apex-PA-50K'];
+
+/**
+ * Le pont NT8 vivant, tel que l'AddOn le rapporte (OROS5.51 : le pied du rail nomme les comptes connectés). Le build
+ * navigateur n'a pas de pont Electron : le navigateur de capture pose son statut dans le store, que le serveur de
+ * développement sert à son chemin, et le renouvelle chaque seconde comme le ferait l'AddOn. Chaque compte rapporte le
+ * solde que lui donne le journal (50 000 $ et son P&L), sans latent ni position : aucun chiffre du desk ne change. Sans
+ * process principal, aucun ordre n'est possible.
+ */
+export async function liveBridge(page, names = BRIDGE_ACCOUNTS) {
+  await page.evaluate(async (accountNames) => {
+    const [{ useBridge }, { useJournal }] = await Promise.all([import('/src/store/bridge.ts'), import('/src/store/journal.ts')]);
+    const beat = () => {
+      const sessions = useJournal.getState().sessions;
+      const accounts = accountNames.map((name) => ({
+        name,
+        cashValue: 50_000 + sessions.filter((row) => row.account === name).reduce((sum, row) => sum + row.pnl, 0),
+        realizedPnl: 0,
+        unrealizedPnl: 0,
+        positions: [],
+      }));
+      useBridge.setState({
+        nt: {
+          link: 'live',
+          port: 48231,
+          addonVersion: '2.2.0',
+          ntVersion: '8.1',
+          accounts,
+          accountsAt: Date.now() - 4000,
+          accountNames: [...accountNames],
+          heartbeatLatencyMs: 12,
+          ordersOpen: true,
+          ordersClosed: false,
+          hasToken: true,
+          extraAccounts: [],
+          maxContractsPerOrder: 20,
+          killSwitchShortcut: 'CommandOrControl+Shift+K',
+          auth: 'mutual',
+        },
+      });
+    };
+    beat();
+    window.setInterval(beat, 1000);
+  }, names);
+}
+
 /** Toutes les plaques, desk ouvert. */
 export async function capture(page, out) {
   // Chaque cartouche du rail porte l'identifiant de son module (4.1 : le numéro est au coin, plus en tête du nom).
   const nav = (id) => page.locator(`aside button[data-tab="${id}"]`);
   const tab = (label) => page.getByRole('tab', { name: new RegExp(label, 'i') });
 
+  await liveBridge(page);
   await page.getByRole('button', { name: 'Demo dataset', exact: true }).click();
   await page.getByText(/net p&l/i).first().waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: 'ALL', exact: true }).first().click();
   await page.waitForTimeout(1800);
   await shot(page, out, 'metrique.png');
+
+  // La fiche Compte (Système 5) : la ligne du compte suivi, au pied du rail, l'ouvre en troisième colonne.
+  await page.locator(`aside [data-account-open="${BRIDGE_ACCOUNTS[0]}"]`).click();
+  await page.locator('aside[data-drawer="compte"]').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  await shot(page, out, 'fiche.png');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
 
   await tab('Analysis').click();
   await page.waitForTimeout(2500);
