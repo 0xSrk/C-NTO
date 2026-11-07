@@ -312,15 +312,30 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     expect(el.querySelector('[data-part="panel-code"]')).toBeNull();
   });
 
-  it('la bande d’étiquette : le losange strié devant le nom, et un seul code-barres dans tout le desk', () => {
+  it('OROS5.49 la signature : le nom suit le code d’accolades sans losange entre eux, et un seul code-barres dans tout le desk', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     const footer = el.querySelector('footer')!;
     const name = [...footer.querySelectorAll('span')].find((span) => [...span.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.includes('[ SIΞRRΛSKΛ ]')));
     expect(name).toBeDefined();
-    expect(name!.firstElementChild?.querySelector(`svg.skg-${GLYPH_ID.lozenge}`)).not.toBeNull();
+    // le losange strié (composant 10) qui séparait les barres du nom est retiré (décision de l'ADMIN, 2026-11-07)
+    expect(name!.children).toHaveLength(0);
+    expect(name!.textContent).toBe('[ SIΞRRΛSKΛ ]');
+    expect(footer.querySelector(`svg.skg-${GLYPH_ID.lozenge}`)).toBeNull();
+    expect(el.querySelector(`svg.skg-${GLYPH_ID.lozenge}`)).toBeNull();
+    // le nom vient juste après le geste du siège, qui enveloppe les barres
+    const sig = name!.parentElement!;
+    expect(sig.className).toMatch(/sigEnd/);
+    expect(sig.lastElementChild).toBe(name);
+    expect(name!.previousElementSibling?.querySelector('svg[shape-rendering="crispEdges"]')).not.toBeNull();
     // le code d'accolades du pied (crispEdges) est le seul : ni la plaque, ni la barre de titre, ni l'en-tête n'en portent
     expect(el.querySelectorAll('svg[shape-rendering="crispEdges"]')).toHaveLength(1);
     expect(footer.querySelectorAll('svg[shape-rendering="crispEdges"]')).toHaveLength(1);
-    expect(rule(shellCss, '.lozenge')).toMatch(/--k: currentColor/);
+    expect(rule(shellCss, '.lozenge')).toBe('');
+    expect(rule(shellCss, '.stripName')).not.toMatch(/gap:/);
+    // DESIGN.md § 07 dit la signature telle qu'elle est
+    const doc = readFileSync('docs/DESIGN.md', 'utf8').replace(/\r\n/g, '\n');
+    const signature = doc.slice(doc.indexOf('## 07.'), doc.indexOf('## 08.'));
+    expect(signature).not.toMatch(/puis le losange strié et `\[ SIΞRRΛSKΛ \]`/);
+    expect(signature).toMatch(/puis `\[ SIΞRRΛSKΛ \]`, qui suit les barres sans le losange strié \(10\)[^.]*2026-11-07/);
   });
 });

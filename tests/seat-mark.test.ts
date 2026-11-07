@@ -238,8 +238,10 @@ describe('geste du siège dans le pied', () => {
 describe('garde du siège', () => {
   it('le pied enveloppe les barres, sans plaque ; couleurs du nom limitées au rouge du desk', () => {
     const shell = readFileSync('src/app/Shell.tsx', 'utf8');
-    // OROS2.11 : le losange strié de la planche précède le nom ; le pied n'enveloppe toujours que les barres.
-    expect(shell).toMatch(/<SeatMark>\s*<BraceCode \/>\s*<\/SeatMark>\s*<span className=\{s\.stripName\}>\s*<Glyph name="lozenge" className=\{s\.lozenge\} \/>\s*\[ SIΞRRΛSKΛ \]\s*<\/span>/);
+    // OROS5.49 : le nom suit les barres, sans le losange strié qu'OROS2.11 posait entre eux (décision de l'ADMIN,
+    // 2026-11-07) ; le pied n'enveloppe toujours que les barres.
+    expect(shell).toMatch(/<SeatMark>\s*<BraceCode \/>\s*<\/SeatMark>\s*<span className=\{s\.stripName\}>\[ SIΞRRΛSKΛ \]<\/span>\s*<\/span>/);
+    expect(shell).not.toMatch(/name="lozenge"|s\.lozenge/);
     expect(shell).not.toContain('<PlaqueSignature');
     const css = readFileSync('src/app/seatMark.module.css', 'utf8');
     const colors = [...css.matchAll(/(?:^|\s)(?:color|text-shadow|caret-color):\s*([^;]+);/g)].map((m) => m[1]!.trim());

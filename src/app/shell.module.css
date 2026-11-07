@@ -1227,21 +1227,14 @@
   align-items: center;
   gap: 10px;
 }
-/* Le nom du Lab, précédé du losange strié (composant 10), dans la couleur du texte de la barre. */
+/* Le nom du Lab, dans la couleur du texte de la barre : il suit le code d'accolades, sans le losange strié (composant 10)
+   qui les séparait (décision de l'ADMIN, 2026-11-07). */
 .stripName {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   font-family: var(--font-name);
   font-weight: 500;
   letter-spacing: 0.1em;
   color: var(--text-0);
   white-space: nowrap;
-}
-.lozenge {
-  width: 7px;
-  height: 12px;
-  --k: currentColor;
 }
 
 .zoom {

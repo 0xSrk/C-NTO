@@ -439,14 +439,13 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
               </button>
             </span>
           </span>
+          {/* La signature : le code d'accolades sous le geste du siège, puis le nom du Lab, sans losange entre eux
+              (décision de l'ADMIN, 2026-11-07). */}
           <span className={s.sigEnd}>
             <SeatMark>
               <BraceCode />
             </SeatMark>
-            <span className={s.stripName}>
-              <Glyph name="lozenge" className={s.lozenge} />
-              [ SIΞRRΛSKΛ ]
-            </span>
+            <span className={s.stripName}>[ SIΞRRΛSKΛ ]</span>
           </span>
         </div>
       </footer>
