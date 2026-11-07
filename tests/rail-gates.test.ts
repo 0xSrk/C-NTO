@@ -76,7 +76,7 @@ vi.mock('@/modules/metrique/Dashboard', () => ({ Dashboard: () => null }));
 
 import { useKillLatch } from '@/app/killState';
 import { readGates, type GateInput } from '@/app/RailGates';
-import { GATE_LINE_H, GATE_ROW_GAP, GATE_ROW_H, GATE_ROWS_H, railFit, railFree, REGISTRY_ROW_H } from '@/app/railFit';
+import { accountsFit, ACCOUNT_ROW_GAP, ACCOUNT_ROW_H, GATE_LINE_H, GATE_ROW_GAP, GATE_ROW_H, GATE_ROWS_H, railFit, railFree, REGISTRY_ROW_H } from '@/app/railFit';
 import { Shell } from '@/app/Shell';
 import e from '@/design/etat.module.css';
 import { useI18n } from '@/i18n';
@@ -222,7 +222,7 @@ describe('OROS5.25 · les quatre portes du rail, en lecture', () => {
     expect(gate('channel').textContent).toContain('fermé jusqu’au redémarrage');
   });
 
-  it('railFit à 720 px, bande du kill switch comprise : la ligne d’écrous sous les cartouches, sans les faire défiler ni bouger le compte et le sceau', () => {
+  it('railFit à 720 px, bande du kill switch comprise : la ligne d’écrous sous les cartouches, sans les faire défiler ni bouger les comptes et le sceau', () => {
     // Les hauteurs du rail, recalculées de ses feuilles comme le fait tests/rail-hauteur.test.ts.
     const shell = cssRules(readFileSync('src/app/shell.module.css', 'utf8').replace(/\r\n/g, '\n'));
     const tokens = readFileSync('src/design/tokens.css', 'utf8');
@@ -249,20 +249,26 @@ describe('OROS5.25 · les quatre portes du rail, en lecture', () => {
     const lh = (selector: string, fontFrom = selector) => Number(value(selector, 'line-height', false)) * px(value(fontFrom, 'font-size', false));
     const item = (lines: number, compact: boolean) => Math.max(px(value('.navItem', 'min-height', compact)), block('.navItem', compact) + lh('.navLabel', '.navItem') + (lines > 0 ? px(value('.navText', 'gap', false)) + lines * lh('.navQty') : 0));
     const nav = (lines: number[], compact: boolean) => lines.reduce((sum, n) => sum + item(n, compact), 0) + px(value('.nav', 'gap', compact)) * (lines.length - 1);
-    const foot = (compact: boolean) => {
-      const account = Math.max(px(value('.account', 'min-height', compact)), block('.account', compact) + lh('.accountName') + px(value('.account', 'row-gap', false)) + lh('.accountSource'));
+    // Le pied : les comptes connectés (OROS5.51, une ligne chacun, la pile plafonnée), puis le sceau et les langues ; sans
+    // compte connecté, le sceau seul, sans l'écart qui l'en séparait.
+    // La pile prend d'abord les lignes qu'`accountsFit` lui laisse, la ligne d'écrous réservée.
+    const foot = (compact: boolean, accounts: number, c: number, navH: number) => {
+      const footGap = px(value('.railFoot', 'gap', compact));
       const [, , w, h] = /SEAL_VIEWBOX = '([^']+)'/.exec(seal)![1]!.split(' ').map(Number);
-      return account + px(value('.railFoot', 'gap', compact)) + (px(value('.sealMark', 'width', false)) * h!) / w! + px(value('.signature', 'gap', false)) + px(value('.langBtn', 'height', false));
+      const signature = (px(value('.sealMark', 'width', false)) * h!) / w! + px(value('.signature', 'gap', false)) + px(value('.langBtn', 'height', false));
+      const rows = Math.min(accounts, accountsFit({ content: c, nav: navH, gap: px(value('.rail', 'gap', false)), footGap, signature }));
+      return (rows > 0 ? rows * ACCOUNT_ROW_H + (rows - 1) * ACCOUNT_ROW_GAP + footGap : 0) + signature;
     };
     const token = (name: string) => px(new RegExp(`${name}:\\s*([\\d.]+px)`).exec(tokens)![1]!);
     const content = (windowH: number, band = 0) => windowH - token('--titlebar-h') - token('--statusbar-h') - band - block('.rail', false);
     const band = px(value('.band', 'height', false));
     const gap = px(value('.rail', 'gap', false));
     const threshold = Number(COMPACT.exec(shell.flatMap((r) => r.at).find((at) => COMPACT.test(at))!)![1]);
-    const space = (windowH: number, lines: number[], withBand = false) => {
+    const space = (windowH: number, lines: number[], withBand = false, accounts = 1) => {
       const c = content(windowH, withBand ? band : 0);
       const compact = c <= threshold;
-      return { content: c, nav: nav(lines, compact), foot: foot(compact), gap };
+      const navH = nav(lines, compact);
+      return { content: c, nav: navH, foot: foot(compact, accounts, c, navH), gap };
     };
     // Les hauteurs que railFit compte sont celles des feuilles : la porte en ligne, l'écart, le registre, la ligne d'écrous.
     expect(px(value('.gate', 'height', false))).toBe(GATE_ROW_H);
@@ -303,17 +309,36 @@ describe('OROS5.25 · les quatre portes du rail, en lecture', () => {
     const orchestrator = [1, 0, 1, 1, 0, 2, 0, 1, 1];
     const busy = [1, 0, 1, 2, 0, 2, 0, 1, 1];
     for (const lines of [idle, orchestrator, busy]) {
-      // 1180 × 720 au zoom 100 % : la ligne d'écrous tient sous les cartouches, sans les faire défiler
-      expect(railFit(space(720, lines)), `720 ${lines}`).toBe('line');
-      expect(railFree(space(720, lines))).toBeGreaterThanOrEqual(gap + GATE_LINE_H);
-      // la bande du kill switch comprise : plus de place ; les portes s'effacent, la bande dit ce qui est fermé
-      expect(railFit(space(720, lines, true)), `720 + bande ${lines}`).toBe('none');
-      // 1600 × 1000 au zoom 100 % : les portes en lignes, et le registre ; avec la bande, la ligne d'écrous
-      expect(railFit(space(1000, lines)), `1000 ${lines}`).toBe('rows');
-      expect(railFit(space(1000, lines, true)), `1000 + bande ${lines}`).toBe('line');
+      // Aucun compte connecté ou un seul (OROS5.51) : à 1180 × 720 au zoom 100 %, la ligne d'écrous tient sous les
+      // cartouches, sans les faire défiler
+      for (const accounts of [0, 1]) {
+        expect(railFit(space(720, lines, false, accounts)), `720 ${lines} · ${accounts} compte(s)`).toBe('line');
+        expect(railFree(space(720, lines, false, accounts))).toBeGreaterThanOrEqual(gap + GATE_LINE_H);
+      }
+      // Deux comptes et plus, la pile plafonnée : les cartouches tiennent toujours ; les portes cèdent la place s'il le faut
+      for (const accounts of [2, 3, 10]) {
+        expect(railFree(space(720, lines, false, accounts)), `720 ${lines} · ${accounts} comptes`).toBeGreaterThanOrEqual(0);
+        expect(railFit(space(720, lines, false, accounts)), `720 ${lines} · ${accounts} comptes`).not.toBe('rows');
+      }
+      // 1600 × 1000 au zoom 100 % : les portes en lignes, et le registre, jusqu'à deux comptes ; au-delà, la pile prend la
+      // place et laisse aux portes leur ligne d'écrous
+      for (const accounts of [0, 1, 2]) expect(railFit(space(1000, lines, false, accounts)), `1000 ${lines} · ${accounts}`).toBe('rows');
+      expect(railFit(space(1000, lines, false, 10)), `1000 ${lines} · 10`).toBe('line');
+      for (const accounts of [1, 2, 10]) {
+        // la bande du kill switch comprise : à 720, plus de place ; les portes s'effacent, la bande dit ce qui est fermé ;
+        // à 1000, elles restent, en ligne d'écrous ou, la ligne de compte étant plus basse que l'ancienne cartouche, en lignes
+        expect(railFit(space(720, lines, true, accounts)), `720 + bande ${lines} · ${accounts}`).toBe('none');
+        expect(railFit(space(1000, lines, true, accounts)), `1000 + bande ${lines} · ${accounts}`).not.toBe('none');
+      }
+      expect(railFit(space(1000, lines, true, 2)), `1000 + bande ${lines} · 2`).toBe('line');
+      // sans compte connecté, sa place revient aux portes : jamais moins qu'avec un compte
+      const rank = { none: 0, line: 1, rows: 2 } as const;
+      for (const windowH of [720, 1000]) {
+        expect(rank[railFit(space(windowH, lines, true, 0))], `${windowH} + bande ${lines} · 0`).toBeGreaterThanOrEqual(rank[railFit(space(windowH, lines, true, 1))]);
+      }
     }
     expect(GATE_ROWS_H).toBeGreaterThan(GATE_LINE_H);
-    // le compte et le sceau restent au pied du rail : les portes se posent entre la nav et lui, sans marge automatique
+    // les comptes et le sceau restent au pied du rail : les portes se posent entre la nav et eux, sans marge automatique
     const shellTsx = readFileSync('src/app/Shell.tsx', 'utf8');
     const rail = shellTsx.slice(shellTsx.indexOf('<aside className={s.rail}'), shellTsx.indexOf('</aside>'));
     expect(rail.indexOf('</nav>')).toBeLessThan(rail.indexOf('<RailGates />'));

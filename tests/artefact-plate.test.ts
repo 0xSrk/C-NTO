@@ -15,10 +15,13 @@ const rule = (selector: string) => {
 describe('OROS4.5 la plaque réduite à la marque du Lab', () => {
   it('le pied du rail porte le sceau du Lab, gravé, puis les langues ; plus de cartouche ni de version', () => {
     const foot = between(shell, '<div className={s.railFoot}>', '</aside>');
-    // OROS4.20 le compte, dans sa cartouche, précède le sceau ; son intitulé visible est retiré
+    // OROS5.51 les comptes connectés précèdent le sceau, là où se tenait la cartouche du compte (décision de l'ADMIN,
+    // 2026-11-07) ; ni intitulé, ni cartouche
     expect(foot).not.toContain('COMPTE ACTIF');
-    expect(foot.indexOf('data-part="account-mark"')).toBeGreaterThan(-1);
-    expect(foot.indexOf('data-part="account-mark"')).toBeLessThan(foot.indexOf('<Seal'));
+    expect(foot.indexOf('<RailAccounts />')).toBeGreaterThan(-1);
+    expect(foot.indexOf('<RailAccounts />')).toBeLessThan(foot.indexOf('<Seal'));
+    expect(foot).not.toMatch(/className=\{s\.account\}/);
+    expect(shell).not.toMatch(/tr\(`Tous les comptes/);
     expect(foot).toMatch(/<Seal kind="negative" className=\{s\.sealMarkSvg\} label="SIΞRRΛSKΛ Lab" \/>/);
     expect(foot.indexOf('<Seal')).toBeLessThan(foot.indexOf('role="radiogroup"'));
     expect(foot).not.toContain('<Cartouche');
@@ -35,11 +38,22 @@ describe('OROS4.5 la plaque réduite à la marque du Lab', () => {
     expect(css).not.toMatch(/border-radius: 3px/);
   });
 
-  it('OROS4.20 le compte se pose dans une cartouche du Lab ; le sceau le suit sans filet', () => {
-    // la cartouche est dessinée par ses deux calques découpés au chanfrein, jamais par un cadre arrondi ni une ombre
-    const account = rule('.account');
-    expect(account).not.toMatch(/border-radius|box-shadow/);
-    expect(rule('.account::before')).toMatch(/clip-path: var\(--chamfer\)/);
+  it('OROS5.51 les comptes connectés se posent sans cartouche : ni filet, ni fond, ni chanfrein ; le sceau les suit sans filet', () => {
+    // OROS4.20 dessinait la cartouche par deux calques découpés au chanfrein ; l'ADMIN la retire (2026-11-07)
+    for (const selector of ['.accounts', '.account']) expect(rule(selector), selector).not.toMatch(/border|background|clip-path|box-shadow|^$/);
+    expect(rule('.account::before')).toBe('');
+    expect(rule('.account::after')).toBe('');
     expect(rule('.signature')).not.toMatch(/border-top/);
+    // DESIGN.md dit la décision : § 06 les comptes et le seuil du rail court, § 02 la seule LED à la menthe
+    const doc = readFileSync('docs/DESIGN.md', 'utf8').replace(/\r\n/g, '\n');
+    const details = doc.slice(doc.indexOf('## 06.'), doc.indexOf('## 07.'));
+    expect(details).not.toMatch(/Compte : la même cartouche|le compte les suit|Quand le rail n’a plus que 704 px/);
+    expect(details).toMatch(/Comptes \(décision de l’ADMIN, 2026-11-07\) : la cartouche « Tous les comptes » est retirée/);
+    expect(details).toMatch(/rien tant qu’aucun compte n’est connecté/);
+    expect(details).toMatch(/allumé à la menthe \(`--mint`\), fixe/);
+    expect(details).toMatch(/Quand le rail n’a plus que 716 px de haut/);
+    expect(details).toMatch(/autant de lignes que la place le permet sans faire défiler les cartouches, la ligne d’écrous des portes réservée, deux au moins \(`accountsFit`/);
+    const signals = doc.slice(doc.indexOf('## 02.'), doc.indexOf('## 03.'));
+    expect(signals).toMatch(/Le voyant d’un compte connecté est la seule LED à la menthe/);
   });
 });

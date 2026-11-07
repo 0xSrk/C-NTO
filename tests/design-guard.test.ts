@@ -95,8 +95,6 @@ const OR: Readonly<Record<string, string>> = {
   'src/app/shell.module.css › .navItem.on .navEmblem': 'objet ouvert · l’emblème de l’onglet ouvert',
   'src/app/shell.module.css › .lienBadge': 'reste · le badge LIEN d’une cartouche',
   "src/app/shell.module.css › .gate[data-state='pending']": 'décision · la porte dont la décision attend l’opérateur',
-  'src/app/shell.module.css › .voyantOn': 'LED · le voyant du pont, exécutions en direct',
-  'src/app/shell.module.css › .voyantVeille': 'LED · le voyant du pont, en veille',
   'src/app/shell.module.css › .answerAt': 'maintenant · l’instant que tient le curseur',
   'src/app/shell.module.css › .versionDot': 'LED · une version pas encore lue',
   'src/app/unlockCircuit.ts ×1': 'LED · la voie et le point d’or de l’ouverture (unlockCircuit.ts ne change pas, décision 7)',
@@ -186,7 +184,7 @@ const OR: Readonly<Record<string, string>> = {
 };
 
 /** Le plafond de chaque liste : il baisse avec elle et ne se relève jamais. */
-const OR_PLAFOND = { total: 113, reste: 45 };
+const OR_PLAFOND = { total: 111, reste: 45 };
 
 /**
  * Les jetons qui portent l'or : `--gold…`, et chaque jeton de tokens.css dont la valeur le cite (`--lab: var(--gold)`) —

@@ -6,11 +6,15 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { ACCOUNT_ROW_GAP, ACCOUNT_ROW_H, ACCOUNT_ROWS_MIN } from '@/app/railFit';
 import { Shell } from '@/app/Shell';
 import { TABS } from '@/app/tabs';
 import { ZoomControls } from '@/app/ZoomControls';
 import { GLYPH_ID } from '@/design/micro/assets';
 import { Panel } from '@/design/primitives';
+import { useI18n } from '@/i18n';
+import type { NtBridgeStatus } from '@/lib/desk';
+import { useBridge } from '@/store/bridge';
 import { useUi } from '@/store/ui';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -39,6 +43,26 @@ afterEach(() => {
   root = null;
   host = null;
   useUi.setState({ tab: 'metrique' });
+  useBridge.setState({ nt: null });
+  useI18n.setState({ locale: 'fr' });
+});
+
+/** Le statut du pont tel que le process principal le pousse : le lien et les comptes qu'il rapporte. */
+const bridge = (link: NtBridgeStatus['link'], accountNames: string[]): NtBridgeStatus => ({
+  link,
+  port: 0,
+  addonVersion: '2.2.0',
+  ntVersion: '8.1',
+  accounts: [],
+  accountsAt: null,
+  accountNames,
+  heartbeatLatencyMs: 12,
+  ordersOpen: link === 'live',
+  ordersClosed: false,
+  hasToken: true,
+  extraAccounts: [],
+  maxContractsPerOrder: 5,
+  killSwitchShortcut: 'CommandOrControl+Shift+K',
 });
 
 const shellCss = readFileSync('src/app/shell.module.css', 'utf8').replace(/\r\n/g, '\n');
@@ -167,35 +191,77 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     for (const [layer, glyph] of Object.entries(LAYER_GLYPH)) check(GLYPH_ID[glyph], 18, '.layerGlyph', `couche ${layer}`);
   });
 
-  it('OROS4.20 le compte se pose dans sa cartouche : la micro assemble le pont (1) et le coffre (124), le voyant au cœur ; plus d’intitulé visible', async () => {
+  it('OROS5.51 au pied du rail, les comptes connectés : rien sans compte connecté ; une ligne par compte que rapporte le pont vivant — la micro qui assemble le pont (1) et le coffre (124), son voyant à la menthe, le nom — empilées ; ni cartouche, ni filet, ni « Tous les comptes »', async () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
-    const account = el.querySelector<HTMLElement>('aside [role="group"][aria-label="Compte actif"]');
-    expect(account).not.toBeNull();
-    // la ligne « COMPTE ACTIF ····· » est retirée : le nom de l'encart ne vit plus que pour les lecteurs d'écran
-    expect(account!.textContent).not.toMatch(/COMPTE ACTIF/i);
-    const mark = account!.querySelector<HTMLElement>('[data-part="account-mark"]')!;
-    expect(mark).not.toBeNull();
-    expect(account!.firstElementChild).toBe(mark);
-    const bridge = mark.querySelector(`svg.skg-${GLYPH_ID.bridge}`);
-    const vault = mark.querySelector(`svg.skg-${GLYPH_ID.vault}`);
-    expect(bridge).not.toBeNull();
-    expect(vault).not.toBeNull();
-    // le pont entre par la gauche dans le coffre ; le voyant, au cœur, garde son rôle et son libellé
-    expect(bridge!.compareDocumentPosition(vault!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const voyant = mark.querySelector<HTMLElement>('[role="img"][class*="voyant"]');
-    expect(voyant?.getAttribute('aria-label')).toBe('Hors ligne · import CSV');
-    // le nom puis la source, après la micro
-    const name = account!.querySelector('[class*="accountName"]');
-    expect(name?.textContent).toMatch(/^Tous les comptes · \d+$/);
-    expect(mark.compareDocumentPosition(name!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const rail = el.querySelector<HTMLElement>('aside[data-chassis="rail"]')!;
+    const group = () => rail.querySelector<HTMLElement>('[role="group"][aria-label="Comptes connectés"]');
+    const foot = () => rail.lastElementChild as HTMLElement;
+    // sans pont : rien au-dessus du sceau (décision de l'ADMIN, 2026-11-07) ; la cartouche et ses mots sont retirés
+    expect(group()).toBeNull();
+    expect(rail.querySelector('[data-account-open], [data-part="account-mark"], [aria-label="Compte actif"]')).toBeNull();
+    expect(rail.textContent).not.toMatch(/Tous les comptes|Import CSV|NinjaTrader 8/);
+    expect(foot().firstElementChild!.querySelector('[data-part="lab-seal"]')).not.toBeNull();
+    // hors ligne, le process principal garde les derniers noms reçus : ils ne comptent pas ; un pont vivant sans compte non plus
+    for (const [link, names] of [['lost', ['Sim101']], ['stale', ['Sim101']], ['connecting', ['Sim101']], ['live', []], ['live', ['', '  ']]] as const) {
+      act(() => useBridge.setState({ nt: bridge(link, [...names]) }));
+      expect(group(), `${link} ${names.join(',')}`).toBeNull();
+    }
+    // un compte connecté : sa ligne, au-dessus du sceau
+    act(() => useBridge.setState({ nt: bridge('live', ['Sim101']) }));
+    expect(foot().firstElementChild).toBe(group());
+    expect(group()!.querySelectorAll('[data-account-open]')).toHaveLength(1);
+    // plusieurs : empilés dans l'ordre où le pont les rapporte, une fois chacun
+    act(() => useBridge.setState({ nt: bridge('live', ['Sim101', 'Apex-PA-50K', 'Sim101']) }));
+    const rows = [...group()!.querySelectorAll<HTMLButtonElement>(':scope > button')];
+    expect(rows.map((row) => row.dataset.accountOpen)).toEqual(['Sim101', 'Apex-PA-50K']);
+    for (const row of rows) {
+      // la micro, puis le nom ; rien d'autre : ni source, ni intitulé
+      const mark = row.querySelector<HTMLElement>('[data-part="account-mark"]')!;
+      expect(row.firstElementChild).toBe(mark);
+      expect(row.children).toHaveLength(2);
+      expect(row.lastElementChild!.textContent).toBe(row.dataset.accountOpen);
+      // le pont entre par la gauche dans le coffre ; le voyant au cœur
+      const bridgeGlyph = mark.querySelector(`svg.skg-${GLYPH_ID.bridge}`);
+      const vault = mark.querySelector(`svg.skg-${GLYPH_ID.vault}`);
+      expect(bridgeGlyph).not.toBeNull();
+      expect(vault).not.toBeNull();
+      expect(bridgeGlyph!.compareDocumentPosition(vault!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(mark.querySelector('[data-voyant]')).not.toBeNull();
+    }
+    // la lumière verte : le voyant, fixe, à la menthe ; plus d'or, de veille ni d'anneau éteint
+    const voyant = rule(shellCss, '.voyant');
+    expect(voyant).toMatch(/background: var\(--mint\);/);
+    expect(voyant).toMatch(/box-shadow: 0 0 1\.5px var\(--mint\), 0 0 6px color-mix\(in srgb, var\(--mint\) 75%, transparent\);/);
+    expect(voyant).not.toMatch(/--gold|animation/);
+    expect(shellCss).not.toMatch(/\.voyantOn|\.voyantVeille|\.voyantOff|\.accountSource|\.accountOpen/);
+    // ni cartouche, ni filet, ni fond : ni calques au chanfrein, ni compartiment
+    for (const selector of ['.accounts', '.account', '.accountMark']) {
+      const body = rule(shellCss, selector);
+      expect(body, selector).not.toBe('');
+      expect(body, selector).not.toMatch(/border|background|clip-path|box-shadow/);
+    }
+    expect(rule(shellCss, '.account::before')).toBe('');
+    expect(rule(shellCss, '.account::after')).toBe('');
+    // la pile : 28 px par ligne, 4 px entre deux, les mesures que compte `accountsFit` ; autant de lignes que la place le
+    // permet (`--rows`), deux au moins, puis elle défile d'une ligne à l'autre
+    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`(?:^|[\\s;{])${prop}: ([\\d.-]+)px`).exec(body)?.[1] ?? 'NaN');
+    const stack = rule(shellCss, '.accounts');
+    const row = rule(shellCss, '.account');
+    expect(px(row, 'min-height')).toBe(ACCOUNT_ROW_H);
+    expect(px(row, 'min-height')).toBeGreaterThanOrEqual(px(rule(shellCss, '.accountArt'), 'height'));
+    expect(px(stack, 'gap')).toBe(ACCOUNT_ROW_GAP);
+    expect(stack).toMatch(/max-height: calc\(var\(--rows, 2\) \* 28px \+ \(var\(--rows, 2\) - 1\) \* 4px\);/);
+    expect(ACCOUNT_ROWS_MIN).toBe(2);
+    expect(group()!.style.getPropertyValue('--rows')).toBe('2');
+    expect(stack).toMatch(/overflow-y: auto;/);
+    expect(stack).toMatch(/scroll-snap-type: y mandatory;/);
+    expect(row).toMatch(/scroll-snap-align: start;/);
+    // la barre de la pile, fine, dans la marge droite du rail, comme celle de la nav ; la ligne garde la largeur de la nav
+    expect(stack).toMatch(/margin-right: -12px;/);
+    expect(row).toMatch(/width: min\(100cqw, 100%\);/);
     expect(rule(shellCss, '.accountName')).toMatch(/font-size: 12px/);
-    // la cartouche du compte parle la langue des onglets : filet découpé au chanfrein, fond retiré d'un pixel
-    expect(rule(shellCss, '.account::before')).toMatch(/clip-path: var\(--chamfer\)/);
-    expect(rule(shellCss, '.account::after')).toMatch(/inset: 1px/);
-    expect(shellCss).not.toMatch(/\.railLabel|\.accountLine/);
     // chaque composant montre la part de son dessin qui sert : le pont jusqu'au bout de sa ligne, le coffre depuis son carré
     const { COMPONENTS } = await import('@/design/micro/assets');
-    const px = (body: string, prop: string) => Number.parseFloat(new RegExp(`${prop}: ([\\d.-]+)px`).exec(body)?.[1] ?? 'NaN');
     const bridgeWin = rule(shellCss, '.accountBridge');
     const bridgeGlyph = rule(shellCss, '.accountBridge > span');
     const vaultWin = rule(shellCss, '.accountVault');
@@ -215,18 +281,29 @@ describe('OROS2.11 composants de la planche dans le châssis', () => {
     }
   });
 
-  it('OROS4.45 le compte dit l’état du pont une fois : par son voyant ; l’infobulle vit sur la micro, plus sur le groupe', () => {
+  it('OROS5.51 une ligne de compte se dit une fois : son nom accessible porte le lien au pont, l’infobulle vit sur la micro, cachée aux lecteurs d’écran ; trois langues', () => {
+    useBridge.setState({ nt: bridge('live', ['Sim101']) });
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
-    const account = el.querySelector<HTMLElement>('aside [role="group"][aria-label="Compte actif"]')!;
-    const mark = account.querySelector<HTMLElement>('[data-part="account-mark"]')!;
-    const voyant = mark.querySelector<HTMLElement>('[role="img"][class*="voyant"]')!;
-    // Le title du groupe devenait sa description : Chromium lisait « Hors ligne · import CSV » deux fois de suite.
-    expect(account.hasAttribute('title')).toBe(false);
-    expect(account.querySelectorAll('[title]')).toHaveLength(1);
-    expect(mark.getAttribute('title')).toBe(voyant.getAttribute('aria-label'));
-    expect(voyant.getAttribute('aria-label')).toBe('Hors ligne · import CSV');
-    // le nom et la source restent du texte, sans infobulle
-    expect(account.querySelector('[class*="accountName"]')?.hasAttribute('title')).toBe(false);
+    const group = el.querySelector<HTMLElement>('aside [role="group"][aria-label="Comptes connectés"]')!;
+    const row = group.querySelector<HTMLButtonElement>('button[data-account-open="Sim101"]')!;
+    const mark = row.querySelector<HTMLElement>('[data-part="account-mark"]')!;
+    expect(row.getAttribute('aria-label')).toBe('Ouvrir la fiche du compte Sim101, connecté au pont NT8');
+    // une seule infobulle, sur la micro : ni le groupe, ni la ligne, ni le nom ne la redisent
+    expect(group.hasAttribute('title')).toBe(false);
+    expect(row.hasAttribute('title')).toBe(false);
+    expect([...group.querySelectorAll('[title]')]).toEqual([mark]);
+    expect(mark.getAttribute('title')).toBe('Connecté au pont NT8');
+    expect(mark.getAttribute('aria-hidden')).toBe('true');
+    // le voyant ne parle plus seul : la ligne le dit
+    expect(group.querySelector('[role="img"]')).toBeNull();
+    act(() => useI18n.setState({ locale: 'en' }));
+    expect(el.querySelector('aside [data-part="accounts"]')?.getAttribute('aria-label')).toBe('Connected accounts');
+    expect(row.getAttribute('aria-label')).toBe('Open the Sim101 account record, connected to the NT8 bridge');
+    expect(mark.getAttribute('title')).toBe('Connected to the NT8 bridge');
+    act(() => useI18n.setState({ locale: 'es' }));
+    expect(el.querySelector('aside [data-part="accounts"]')?.getAttribute('aria-label')).toBe('Cuentas conectadas');
+    expect(row.getAttribute('aria-label')).toBe('Abrir la ficha de la cuenta Sim101, conectada al puente NT8');
+    expect(mark.getAttribute('title')).toBe('Conectada al puente NT8');
   });
 
   it('OROS4.11 la quantité du rail n’est jamais coupée : elle passe à la ligne, deux lignes au plus, entre ses parties', async () => {

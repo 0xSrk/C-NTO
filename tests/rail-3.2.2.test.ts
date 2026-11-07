@@ -6,11 +6,15 @@ const css = readFileSync('src/app/shell.module.css', 'utf8');
 const between = (text: string, from: string, to: string) => text.slice(text.indexOf(from), text.indexOf(to, text.indexOf(from)));
 
 describe('rail 3.2.2', () => {
-  it('le compte garde son voyant, OROS4.20 au cœur de sa micro', () => {
+  it('OROS5.51 chaque compte connecté garde son voyant au cœur de sa micro (OROS4.20), allumé à la menthe ; plus d’or, de veille ni d’anneau éteint', () => {
     expect(shell).not.toContain('accountCard');
     expect(css).not.toMatch(/\.accountCard\b/);
-    for (const state of ['voyantOn', 'voyantVeille', 'voyantOff']) expect(css).toContain(`.${state}`);
-    expect(shell).toMatch(/className=\{cx\(s\.voyant, s\[linkState\]\)\} role="img" aria-label=\{linkLabel\}/);
+    for (const state of ['voyantOn', 'voyantVeille', 'voyantOff']) expect(css).not.toContain(`.${state}`);
+    expect(shell).not.toMatch(/linkState|linkLabel/);
+    expect(readFileSync('src/app/RailAccounts.tsx', 'utf8')).toMatch(/<span className=\{s\.voyant\} data-voyant="" \/>/);
+    const voyant = css.slice(css.indexOf('.voyant {'), css.indexOf('}', css.indexOf('.voyant {')));
+    expect(voyant).toMatch(/background: var\(--mint\);/);
+    expect(voyant).not.toMatch(/--gold/);
   });
 
   it('OROS5.50 la version quitte la barre de titre pour la barre d’état : en bas à gauche, le premier indicateur, avant le pont ; jamais au rail', () => {

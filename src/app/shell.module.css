@@ -393,46 +393,43 @@
   gap: 20px;
 }
 
-/* Le compte (4.1, décision de l'ADMIN, 2026-10-27) : la cartouche des onglets, sans intitulé. Un compartiment, séparé du
-   nom par un filet d'un pixel comme une étiquette du Lab, porte sa micro ; puis le nom, plus petit, et la source. */
+/* Les comptes connectés (décision de l'ADMIN, 2026-11-07) : là où se tenait la cartouche « Tous les comptes », sans
+   cartouche, sans filet ni fond. Une ligne par compte que le pont NT8 rapporte tant que son lien vit : sa micro, le voyant
+   allumé à la menthe, puis son nom. Plusieurs comptes s'empilent dans la colonne, 28 px par ligne, 4 px entre deux
+   (`ACCOUNT_ROW_H`, `ACCOUNT_ROW_GAP`) : autant de lignes que la place le permet sans faire défiler les cartouches, la ligne
+   d'écrous des portes réservée, deux au moins (`--rows`, mesuré par `accountsFit`) ; au-delà, la pile défile d'une ligne à
+   l'autre, sa barre fine dans la marge droite du rail, comme la nav. Aucun compte connecté : rien. */
+.accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: calc(var(--rows, 2) * 28px + (var(--rows, 2) - 1) * 4px);
+  margin-right: -12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scroll-snap-type: y mandatory;
+}
+/* Une ligne : la micro centrée sous les emblèmes des cartouches (colonne de 44 px), puis le nom ; elle ouvre la fiche
+   Compte. */
 .account {
-  position: relative;
-  isolation: isolate;
+  flex: none;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
-  grid-template-rows: auto auto;
   align-items: center;
   column-gap: 12px;
-  row-gap: 2px;
-  min-height: 48px;
-  padding: 8px 12px 8px 0;
+  width: min(100cqw, 100%);
+  min-height: 28px;
+  text-align: left;
+  color: var(--text-0);
+  scroll-snap-align: start;
 }
-.account::before {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  inset: 0;
-  z-index: -2;
-  background: color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
-  clip-path: var(--chamfer);
-}
-.account::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  inset: 1px;
-  z-index: -1;
-  background: color-mix(in srgb, var(--ivory) 1.5%, var(--bg-0));
-  clip-path: polygon(0 0, calc(100% - 9.4px) 0, 100% 9.4px, 100% 100%, 0 100%);
+/* La pile défile et rogne : l'anneau du focus se pose en dedans de la ligne. */
+.account:focus-visible {
+  outline-offset: -1px;
 }
 .accountMark {
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  align-self: stretch;
-  margin-block: -8px;
   display: grid;
   place-items: center;
-  border-right: 1px solid color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
 }
 /* La micro du compte : le pont (composant 1) dont la borne ⊗ devient le coffre (composant 124), le voyant au cœur du
    coffre. Chaque composant montre la part de son dessin qui sert, et leurs traits se rejoignent : le pont jusqu'au bout
@@ -444,6 +441,12 @@
   width: 40px;
   height: 26px;
   --k: var(--text-1);
+}
+/* Au passage du pointeur, la micro s'éclaire : son encre passe à l'ivoire. */
+@media (hover: hover) {
+  .account:hover .accountArt {
+    --k: var(--text-0);
+  }
 }
 .accountBridge {
   display: flex;
@@ -478,62 +481,33 @@
 .accountVault :global(.g124-2) {
   stroke-width: 5px;
 }
-/* Le voyant au cœur du coffre : 19,69 − 5,69 + 13 − 3 = 24 ; 13 − 3 = 10. */
-.accountArt .voyant {
+/* Le voyant au cœur du coffre, allumé à la menthe : le compte est connecté au pont NT8 (décision de l'ADMIN,
+   2026-11-07). LED fixe, jamais animée. Sa place : 19,69 − 5,69 + 13 − 3 = 24 ; 13 − 3 = 10. */
+.voyant {
   position: absolute;
   left: 24px;
   top: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 1.5px var(--mint), 0 0 6px color-mix(in srgb, var(--mint) 75%, transparent);
 }
 .accountName {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: end;
   min-width: 0;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--text-0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-/* Le nom du compte, entrée de la fiche Compte (OROS5.27, décision 11) : le même texte, qui s'ouvre. */
-.accountOpen {
-  justify-self: start;
-  max-width: 100%;
-  text-align: left;
-  transition: color 200ms linear;
-}
-.accountOpen:focus-visible {
-  outline: 1px solid var(--line-3);
-  outline-offset: 2px;
-}
-@media (hover: hover) {
-  .accountOpen:hover {
-    color: var(--ivory);
-  }
-}
-.accountSource {
-  grid-column: 2;
-  grid-row: 2;
-  align-self: start;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.3;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-2);
 }
 
-/* Le rail court (fenêtre minimale, zoom relevé) : à 704 px de haut et moins, marges ôtées, le rail ordinaire ne tiendrait
-   plus neuf cartouches dont deux quantités sur deux lignes. Les cartouches passent à 44 px, 4 px entre deux, le compte
-   les suit et le pied se resserre ; à 1180 × 720 au zoom 100 %, les neuf et le compte tiennent sans défiler. Le sceau
-   garde ses 76 px. */
-@container rail (max-height: 704px) {
+/* Le rail court (fenêtre minimale, zoom relevé) : à 716 px de haut et moins, marges ôtées, le rail ordinaire ne tiendrait
+   plus neuf cartouches dont deux quantités sur deux lignes, et deux comptes connectés (le seuil passe de 704 à 716 px
+   avec eux, le 2026-11-07). Les cartouches se resserrent et le pied aussi ; à 1180 × 720 au zoom 100 %, les neuf et deux
+   comptes tiennent sans défiler. Le sceau garde ses 76 px. */
+@container rail (max-height: 716px) {
   .nav {
     gap: 3px;
   }
@@ -545,13 +519,6 @@
   }
   .railFoot {
     gap: 12px;
-  }
-  .account {
-    min-height: 44px;
-    padding-block: 6px;
-  }
-  .accountMark {
-    margin-block: -6px;
   }
 }
 
@@ -690,24 +657,6 @@
   width: 100%;
   height: auto;
   filter: drop-shadow(0 -1px 0 color-mix(in srgb, var(--bg-void) 95%, transparent)) drop-shadow(0 1px 0 color-mix(in srgb, var(--ivory) 7%, transparent));
-}
-
-/* Voyant : LED fixe, jamais animée. Allumé = exécutions en direct, veille = pont ouvert, éteint = hors ligne. */
-.voyant {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  justify-self: center;
-}
-.voyantOn {
-  background: var(--gold);
-  box-shadow: 0 0 1.5px var(--gold), 0 0 6px color-mix(in srgb, var(--gold) 75%, transparent);
-}
-.voyantVeille {
-  background: color-mix(in srgb, var(--gold) 40%, transparent);
-}
-.voyantOff {
-  box-shadow: inset 0 0 0 1px var(--ghost);
 }
 
 .langRow {
