@@ -91,36 +91,14 @@
   color: var(--ghost);
 }
 
+/* En haut à droite : la mise à jour quand il y en a une, le zoom, la fenêtre. Le filet qui ouvre la rangée est celui que
+   portait la version, passée au pied en bas à gauche (décision de l'ADMIN, 2026-11-07). */
 .titleRight {
   display: flex;
   align-items: stretch;
   height: 100%;
-  -webkit-app-region: no-drag;
-}
-
-/* En haut à droite (4.1) : la version seule, qui ouvre le journal. */
-.versionCell {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 0 14px;
   border-left: 1px solid var(--line-0);
-  border-right: 1px solid var(--line-0);
-}
-.titleVersion {
-  display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-}
-.titleVersion .versionBtn {
-  color: var(--text-1);
-  transition: color 200ms linear;
-}
-@media (hover: hover) {
-  .titleVersion .versionBtn:hover {
-    color: var(--text-0);
-  }
+  -webkit-app-region: no-drag;
 }
 
 .titleZoom {
@@ -940,9 +918,31 @@
   min-width: 0;
   height: 100%;
 }
+/* Trois pixels pris sur la marge de la barre : l'anneau du focus de la version, premier élément de la ligne, n'est pas
+   rogné à gauche ; le texte garde son bord à 16 px. */
 .statusLeft {
   flex: 1;
   overflow: hidden;
+  padding-left: 3px;
+  margin-left: -3px;
+}
+/* La version, premier indicateur en bas à gauche du desk, avant le pont (décision de l'ADMIN, 2026-11-07) : elle ouvre le
+   journal, le point LED la suit tant qu'elle n'est pas lue. Elle garde sa minuscule (« v3.9.0 ») et ne cède jamais. */
+.statusVersion {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  font-weight: 500;
+  text-transform: none;
+}
+.statusVersion .versionBtn {
+  color: var(--text-1);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .statusVersion .versionBtn:hover {
+    color: var(--text-0);
+  }
 }
 .statusSep {
   width: 1px;

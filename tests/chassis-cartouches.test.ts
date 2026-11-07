@@ -51,7 +51,7 @@ const rule = (selector: string) => {
 const shellSource = readFileSync('src/app/Shell.tsx', 'utf8');
 
 describe('OROS2.10 cartouches du châssis', () => {
-  it('OROS4.5 le pied du rail porte le sceau du Lab et les trois langues ; la version, en haut à droite, ouvre le journal', () => {
+  it('OROS4.5 le pied du rail porte le sceau du Lab et les trois langues ; OROS5.50 la version, en bas à gauche de la barre d’état, ouvre le journal', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     const seal = el.querySelector<HTMLElement>('aside [data-part="lab-seal"]');
     expect(seal).not.toBeNull();
@@ -62,10 +62,21 @@ describe('OROS2.10 cartouches du châssis', () => {
     // plus de cartouche SK-ART-002 au rail, plus de version au rail
     expect(el.querySelector('aside svg.lbl-plaque')).toBeNull();
     expect(el.querySelector('aside button[aria-label="Journal des versions"]')).toBeNull();
-    // la version vit dans la barre de titre et ouvre le journal des versions
-    const version = el.querySelector<HTMLButtonElement>('header button[aria-label="Journal des versions"]');
-    expect(version?.textContent).toContain(`v${APP_VERSION}`);
-    act(() => version!.click());
+    // la version vit au pied, premier indicateur en bas à gauche, avant le pont, et ouvre le journal des versions
+    // (décision de l'ADMIN, 2026-11-07) ; la barre de titre n'en porte plus
+    expect(el.querySelector('header button[aria-label="Journal des versions"]')).toBeNull();
+    const status = el.querySelector<HTMLElement>('[data-chassis="status"]')!;
+    const versions = status.querySelectorAll<HTMLButtonElement>('button[aria-label="Journal des versions"]');
+    expect(versions).toHaveLength(1);
+    const version = versions[0]!;
+    expect(version.textContent).toContain(`v${APP_VERSION}`);
+    const cell = version.closest<HTMLElement>('[data-status="version"]')!;
+    const line = cell.parentElement!;
+    expect(line.firstElementChild).toBe(cell);
+    expect(cell.compareDocumentPosition(line.querySelector('[data-status="bridge"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // un filet la sépare du pont
+    expect(cell.nextElementSibling?.className).toMatch(/statusSep/);
+    act(() => version.click());
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Journal des versions');
     // FR / EN / ES, sous le sceau
     const radios = [...el.querySelectorAll<HTMLButtonElement>('aside [role="radiogroup"] [role="radio"]')];
@@ -74,15 +85,21 @@ describe('OROS2.10 cartouches du châssis', () => {
     expect(useI18n.getState().locale).toBe('en');
   });
 
-  it('OROS4.17 la barre de titre ne porte plus de micro : la version seule, avant la cellule de mise à jour', () => {
+  it('OROS4.17 la barre de titre ne porte plus de micro ; OROS5.50 ni de version : la cellule de mise à jour ouvre sa droite', () => {
     const el = mount(createElement(Shell, null, createElement('div', null, 'module')));
     // la demande était « Supprimer », pas « S'imprimer » : plus de losange du secteur à gauche de la version
     expect(el.querySelector('header [role="img"][aria-label^="Secteur S.01"]')).toBeNull();
     expect(el.querySelector('header svg.lbl-losange')).toBeNull();
     const header = shellSource.slice(shellSource.indexOf('<header'), shellSource.indexOf('</header>'));
     expect(header).not.toMatch(/<Cartouche\b/);
-    expect(header.indexOf('<ChangelogJournal')).toBeGreaterThan(-1);
-    expect(header.indexOf('<ChangelogJournal')).toBeLessThan(header.indexOf('<UpdateButton />'));
+    // la version est descendue au pied (décision de l'ADMIN, 2026-11-07) : la mise à jour, puis le zoom
+    expect(header).not.toContain('ChangelogJournal');
+    const right = header.slice(header.indexOf('className={s.titleRight}'));
+    expect(right.indexOf('<UpdateButton />')).toBeGreaterThan(-1);
+    expect(right.indexOf('<UpdateButton />')).toBeLessThan(right.indexOf('<ZoomControls />'));
+    // le filet qui ouvrait la rangée, celui de la cellule de la version, passe à la rangée elle-même
+    expect(rule('.titleRight')).toMatch(/border-left: 1px solid var\(--line-0\)/);
+    expect(rule('.versionCell')).toBe('');
     expect(rule('.sector')).toBe('');
   });
 

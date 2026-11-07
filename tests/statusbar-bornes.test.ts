@@ -421,6 +421,10 @@ describe('OROS5.22 · la barre d’état selon la décision 7 : TYO, PAR et le l
     const [left, right] = [...bar.children] as HTMLElement[];
     expect(left!.querySelector('[data-status="bridge"]')).not.toBeNull();
     expect(left!.querySelector('[data-status="bornes"]')).not.toBeNull();
+    // OROS5.50 la version ouvre la ligne, avant le pont (décision de l'ADMIN, 2026-11-07)
+    const keyed = [...left!.querySelectorAll<HTMLElement>(':scope > [data-status]')].map((item) => item.dataset.status);
+    expect(keyed.slice(0, 2)).toEqual(['version', 'bridge']);
+    expect(left!.firstElementChild?.getAttribute('data-status')).toBe('version');
     expect(right!.contains(clocks)).toBe(true);
     expect(right!.textContent).toContain('SIΞRRΛSKΛ');
     expect(clocks.compareDocumentPosition(right!.querySelector('[class*="sigEnd"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

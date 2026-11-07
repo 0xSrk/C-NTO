@@ -13,11 +13,24 @@ describe('rail 3.2.2', () => {
     expect(shell).toMatch(/className=\{cx\(s\.voyant, s\[linkState\]\)\} role="img" aria-label=\{linkLabel\}/);
   });
 
-  it('OROS4.5 la version quitte le rail pour la barre de titre, en haut à droite ; jamais dans la barre d’état', () => {
+  it('OROS5.50 la version quitte la barre de titre pour la barre d’état : en bas à gauche, le premier indicateur, avant le pont ; jamais au rail', () => {
     const rail = between(shell, '<div className={s.railFoot}>', '</aside>');
     expect(rail).not.toContain('<ChangelogJournal');
-    expect(between(shell, '<header', '</header>')).toContain('<ChangelogJournal version={appVersion} />');
-    expect(between(shell, '<footer', '</footer>')).not.toContain('ChangelogJournal');
+    // OROS4.5 l'avait posée en haut à droite ; l'ADMIN la descend au pied (décision du 2026-11-07)
+    expect(between(shell, '<header', '</header>')).not.toContain('ChangelogJournal');
+    const left = between(shell, 'statusLeft', 'statusRight');
+    expect(left).toContain('<ChangelogJournal version={appVersion} />');
+    expect(left.indexOf('<ChangelogJournal')).toBeLessThan(left.indexOf('<StatusBornes />'));
+    expect(between(shell, '<footer', '</footer>').match(/<ChangelogJournal\b/g)).toHaveLength(1);
+    expect(css).not.toMatch(/\.versionCell\b|\.titleVersion\b/);
+    // la version ne cède jamais sa place à l'étroit, et garde sa minuscule dans la barre en capitales
+    const version = css.slice(css.indexOf('.statusVersion {'), css.indexOf('}', css.indexOf('.statusVersion {')));
+    expect(version).toMatch(/flex: none;/);
+    expect(version).toMatch(/text-transform: none;/);
+    // DESIGN.md § 06 et § 09 disent où elle vit
+    const doc = readFileSync('docs/DESIGN.md', 'utf8').replace(/\r\n/g, '\n');
+    expect(doc).not.toMatch(/Version \(4\.1\) : seule en haut à droite|la version se lit en haut à droite du desk/);
+    expect(doc).toMatch(/Version : en bas à gauche, le premier indicateur de la barre d’état, avant le pont NT8[^.]*2026-11-07/);
   });
 
   it('le sigle et l’heure quittent la barre de titre ; le zoom s’y place ; Système 5 (décision 7) : New York reste, Tokyo, Paris et le libellé de séance cèdent à la ligne de la journée', () => {

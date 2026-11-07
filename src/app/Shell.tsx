@@ -280,12 +280,7 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
           </span>
         </div>
         <div className={s.titleRight}>
-          {/* En haut à droite (4.1), la version seule, qui ouvre le journal : plus aucune micro à côté. */}
-          <div className={s.versionCell}>
-            <span className={s.titleVersion}>
-              <ChangelogJournal version={appVersion} />
-            </span>
-          </div>
+          {/* La version a quitté la barre de titre pour le pied, en bas à gauche (décision de l'ADMIN, 2026-11-07). */}
           <UpdateButton />
           <div className={s.titleZoom}>
             <ZoomControls />
@@ -414,8 +409,13 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
         <FriseDrawer className={s.friseDrawer} />
         {/* Le registre du lancement (OROS5.38), en tiroir bas de 240 px, ouvert par « Registre n » ou une fiche. */}
         <RegistreDrawer className={s.registreDrawer} />
-        {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. */}
+        {/* La ligne de la journée (Système 5, décision 7) : le pont, les bornes, puis la réponse du temps. La version la
+            précède, premier indicateur en bas à gauche du desk, et ouvre le journal (décision de l'ADMIN, 2026-11-07). */}
         <div className={s.statusLeft}>
+          <span className={s.statusVersion} data-status="version">
+            <ChangelogJournal version={appVersion} />
+          </span>
+          <i className={s.statusSep} aria-hidden />
           <StatusBornes />
           <i className={s.statusSep} aria-hidden />
           <FriseAnswer />
