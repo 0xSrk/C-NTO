@@ -20,7 +20,7 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 <br/><br/>
 
 [![Version](https://img.shields.io/badge/version-3.9.0-CCB066?style=flat-square)](#versions)
-[![Tests](https://img.shields.io/badge/tests-2742%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-3159%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
 [![MCP](https://img.shields.io/badge/MCP-local%20gateway-000000?style=flat-square)](docs/PROTOCOLE-AGENT.md)
@@ -30,9 +30,9 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 <br/>
 
-<img src="docs/media/metrique.png" alt="CΛNTO — Metrics dashboard: net P&L, expectancy, win rate, profit factor, the K.04 gauge, interactive equity curve over 140 sessions" width="920"/>
+<img src="docs/media/metrique.png" alt="CΛNTO — Metrics dashboard with the NT8 bridge live: the tracked account's session strip, net P&L, expectancy, win rate, profit factor, the K.04 gauge, the equity curve; two connected accounts at the foot of the rail; the version and the day's line in the status bar" width="920"/>
 
-<sub><code>01 · MET</code> Metrics — 140 demo sessions: net P&L after fees, the K.04 gauge, the interactive equity curve with its drawdown.</sub>
+<sub><code>01 · MET</code> Metrics — the demo journal, NinjaTrader 8 connected: the tracked account's session strip, net P&L after fees, the K gauges, the interactive equity curve. At the foot of the rail, the two connected accounts, their lamp lit green; along the bottom, the version, the bridge and the day's bounds.</sub>
 
 <br/><br/>
 
@@ -184,7 +184,7 @@ On Windows, `CANTO.cmd` downloads Electron without the `extract-zip` native modu
 
 <br/>
 
-The launcher checks at start-up and shows **Update and relaunch**, ruled in gold, only when there is something to install: a newer published Release for an installer, new commits on `origin/main` for a git clone. Inside the desk, an **UPD** cell with a gold dot appears beside the version in the title bar.
+The launcher checks at start-up and shows **Update and relaunch**, ruled in gold, only when there is something to install: a newer published Release for an installer, new commits on `origin/main` for a git clone. Inside the desk, an **UPD** cell with a gold dot appears at the top right of the title bar, before the zoom.
 
 | Install | What the button does |
 |---|---|
@@ -223,7 +223,7 @@ Every install opens on the **AUBE launcher**: the horizon draws itself and the g
 </tr>
 </table>
 
-1. **Bring your journal.** Metrics › **Import a CSV**: a NinjaTrader *Trades* or *Executions* export, or a CΛNTO CSV. To explore first, load the **Demo dataset** (140 sessions) from the empty journal or from Options.
+1. **Bring your journal.** Metrics › **Import a CSV**: a NinjaTrader *Trades* or *Executions* export, or a CΛNTO CSV. To explore first, load the **Demo dataset** from the empty journal or from Options: 140 sessions on an Apex account, and five on `Sim101` under a tracked plan.
 2. **Set your plan and your rules.** Metrics › Options › **Desk settings**: the tracked prop-firm plan and account, then *Discipline* — max daily loss, trades per day, catalyst window, revenge window, allowed instruments.
 3. **Connect NinjaTrader 8.** Compile the AddOn once, then **Write the NinjaTrader configuration** in Metrics › Options › NinjaTrader bridge. See [the bridge](#ninjatrader-8-bridge).
 4. **Meet the agent.** **AI agent** (`06`) opens on **A · Reports**, the Lab's report folder, read-only. In **C · Options**, pick a provider preset — a local model (Ollama, LM Studio) or a cloud API with your own key — then, in **B · Conversation**, **Brief** before the open and **Debrief** after the close.
@@ -233,6 +233,9 @@ Every install opens on the **AUBE launcher**: the horizon draws itself and the g
 <a id="the-desk"></a>
 
 ## The desk
+
+> [!NOTE]
+> This section and its plates show the desk on `main`. Its records, the frise, the day's line in the status bar and the connected accounts at the foot of the rail reach the installers with the next release.
 
 | | Module | What it does | Status |
 |---|---|---|---|
@@ -246,7 +249,17 @@ Every install opens on the **AUBE launcher**: the horizon draws itself and the g
 | <code>08&nbsp;·&nbsp;CPY</code> | [Copier](#copier) | Position-based replication from a master to Sim followers | Sim only · disarmed on launch |
 | <code>09&nbsp;·&nbsp;CRY</code> | [Crypto](#crypto) | Live crypto chart with its CVD, market temperature and local alerts; read and driven by the agent | Optional · off by default |
 
-**Nine modules, one chassis.** On the **rail**, each module has its cartouche: its emblem, its name and, under it, what it holds right now — sessions in the journal, today's markers, notes and links, unread reports or the orchestrator's state, the copier's followers, the crypto markets on the watchlist. The number in its corner is its shortcut: `Ctrl` or `⌘` + `1` … `9` switches modules. At the foot of the rail, the **account** in the same cartouche — the bridge and the vault in one micrograph, its lamp at the heart, then the name and the source — then the Lab's Horizon seal, engraved, and FR · EN · ES. At the top right of the title bar, the version opens the changelog; beside it, the zoom: − value +. The **status bar** keeps the chassis black: the NT8 bridge live or offline, the CME Globex phase and the New York session date, Tokyo, Paris and New York clocks in 24 h or 12 h; it ends on the Lab's signature, eleven bars between braces drawn anew at each launch, and `[ SIΞRRΛSKΛ ]`. Once the kill switch is engaged, a level-3 band stays under the title bar until the desk restarts.
+**Nine modules, one chassis.** On the **rail**, each module has its cartouche: its emblem, its name and, under it, what it holds right now — sessions in the journal, today's markers, notes and links, unread reports or the orchestrator's state, the copier's followers, the crypto markets on the watchlist. The number in its corner is its shortcut: `Ctrl` or `⌘` + `1` … `9` switches modules. Under the cartouches, the **gates**, read-only: the four writes the main process guards — agent orders, the Copier, agents writing, the order channel — each with its state, *offline* never confused with *closed until restart*. A gate opens what sets it and never arms anything. Then **Log n**, the launch log. At the foot of the rail, the **connected accounts**: one line per account the NinjaTrader bridge reports while it is live — the bridge-and-vault micrograph, its lamp lit green, then the name — stacked when there are several, and nothing at all when none is connected; a line opens its account's record. Then the Lab's Horizon seal, engraved, and FR · EN · ES. The title bar carries the trail — module, view, open object — and, at the top right, the update cell when one is ready, then the zoom: − value +.
+
+The **status bar** is the day's line. The version comes first and opens the changelog. Then the NT8 bridge, live or offline, the age of its reading and its latency; the day's bounds — the day loss on its limit, with a warning at 75 % and level 3 beyond, the trades on their maximum, the dated margin to the floor — the nearest one in ivory, each cell opening the tracked account's record; then the answer of time: what holds now, the kill switch first, or what comes next and when, or the next major catalyst. On the right, New York's date and clock in 24 h or 12 h, and the Lab's signature: eleven bars between braces, drawn anew at each launch, then `[ SIΞRRΛSKΛ ]`. Once the kill switch is engaged, a level-3 band stays under the title bar until the desk restarts.
+
+**Every object has its record.** A session, a trade, a catalyst, an account, an instrument, a note, a strategy, a proposal of the agent: each opens its **record** as a third column of 400 px, beside the work area — nothing hidden, nothing covered. A record shows the identifier in clear, three actions at most, the object's properties (— where nothing is known), its links by predicate with their author, its provenance and its activity; **Around…** opens its neighbours as a shared selection. It only reads, except to confirm or reject a proposed link. `↑` `↓` move to the neighbouring object of the list, `Esc` closes it and returns the focus to its row, `Backspace` undoes the last jump: module, view, record and trail come back. `Ctrl` or `⌘` + `J` opens the **omnibar**, an index of every object and module in nine groups; `F6` moves between the rail, the work area, the record and the status bar; `?` lists every shortcut.
+
+<img src="docs/media/fiche.png" alt="CΛNTO — the record of the Sim101 account in the third column: today's margin, ΟΡΟΣ · Bounds with the nested bounds, the agent order guard read as a mirror, the tracked plan, the bridge and the Copier" width="920"/>
+
+<sub><b>Account record</b> — opened from its line at the foot of the rail: today's margin and the cumulative net; ΟΡΟΣ · Bounds — the day loss on its limit, the trades, the margin to the floor nested in the max drawdown; the agent's order guard read as a mirror; the tracked plan; the bridge and the Copier.</sub>
+
+**The frise and the log.** The answer at the end of the day's line unfolds the **frise**, a 64 px drawer over the work area: four lanes — Session, Catalysts, Windows, Desk — across the CME day, *now* in gold, and a time cursor on the keyboard: `←` `→` by 5 minutes, with `Shift` by the hour, `PgUp` `PgDn` by trading day, `Home` `End`, `Esc` back to the present, `Enter` to open the record under the cursor. **Log n** opens the launch log, a 240 px drawer: the desk's events in memory, 500 at most, one glyph per kind. A record's activity is that log, filtered on its object.
 
 <a id="metrics"></a>
 <a id="métrique"></a>
@@ -262,7 +275,7 @@ Every install opens on the **AUBE launcher**: the horizon draws itself and the g
 
 Five views — **A Dashboard · B Sessions · C Analysis · D Prop firm · E Monte Carlo** — read the range (7, 30 or 90 days, or all) and the account chosen at the top; Prop firm ignores the range, Sessions keeps its own filters. The **Options** menu, top right, holds the NinjaTrader bridge, a manual session, CSV export, vault export and restore, and the desk settings. Underneath, a pure TypeScript engine (`src/engine`) that never touches the interface.
 
-- **The dashboard.** Net P&L after commissions, four gauges — K.01 expectancy, K.02 win rate, K.03 profit factor before and after fees, K.04 drawdown — and the A.02 equity curve by session or by trade, with its high, the trough of the largest drawdown and an underwater pane; `Ctrl` + wheel zooms, a double-click shows all. With one account filtered and its plan tracked, K.04 becomes the margin to the floor and the plan's limit is drawn under the curve; the gauge turns to watch at 80 % of the limit used and to critical once it is crossed.
+- **The dashboard.** Net P&L after commissions, four gauges — K.01 expectancy, K.02 win rate, K.03 profit factor before and after fees, K.04 drawdown — and the A.02 equity curve by session or by trade, with its high, the trough of the largest drawdown and an underwater pane; `Ctrl` + wheel zooms, a double-click shows all, a click on a step opens that session's record. Chips light the major catalysts and the replayed rule breaches on the curve without changing it; A.03 splits the trades by instrument and, by entry hour in New York, winners against losers. With one account filtered and its plan tracked, K.04 becomes the margin to the floor and the plan's limit is drawn under the curve; the gauge turns to watch at 80 % of the limit used and to critical once it is crossed.
 - **During the session.** With the AddOn live, a strip at the top reads the tracked account: realized, unrealized, balance, positions, the day loss against its limit (the plan's or your rule's), trades against your daily cap, fresh or stale. Working orders follow, read-only; those the agent proposed are marked.
 - **A journal you can trust.** Up to 1,000 sessions, each with its account, its CME trading date (Globex, 18:00 New York) and its trades; past that, a warning and an export, never a silent drop. P&L is recomputed from price × point value (the registry cites CME Group), commissions deducted.
 - **Ratios with their uncertainty.** Profit factor before and after fees, expectancy in $ and in R, Sharpe / Sortino / Calmar with intervals, SQN, Kelly, MAE / MFE, drawdown and recovery.
@@ -273,11 +286,11 @@ Five views — **A Dashboard · B Sessions · C Analysis · D Prop firm · E Mon
 
 <table>
 <tr>
-<td width="50%"><img src="docs/media/analyse.png" alt="CΛNTO — Analysis: reading by context, week ring, duration spectrum, excursion field, R multiples"/></td>
+<td width="50%"><img src="docs/media/analyse.png" alt="CΛNTO — Analysis: the session strip of the tracked account, reading by context one axis at a time, here by weekday, and the week ring"/></td>
 <td width="50%"><img src="docs/media/propfirm.png" alt="CΛNTO — Prop firm: Apex Full 50K replay, balance, floor, target"/></td>
 </tr>
 <tr>
-<td><sub><b>Analysis</b> — reading by context, week ring, duration spectrum, excursion field, R multiples.</sub></td>
+<td><sub><b>Analysis</b> — reading by context, one axis at a time (here the weekday, with its 90 % interval and verdict), and the week ring; the duration spectrum, the excursion field and the R multiples follow below.</sub></td>
 <td><sub><b>Prop firm</b> — an Apex Full 50K replay: balance, floor, target, consistency.</sub></td>
 </tr>
 <tr>
@@ -343,7 +356,7 @@ Five views — **A Dashboard · B Sessions · C Analysis · D Prop firm · E Mon
 - Catalysts from the official pages — **BLS, BEA, the Federal Reserve, the ECB, EIA and TreasuryDirect** — with a 2026 snapshot inside the binary, so a fresh install still shows NFP and CPI when a host refuses. FRED only with a key you type.
 - CME expirations and rollovers computed locally (marked estimated), US and EU clock changes, shortened sessions.
 - Monthly grid or chronological feed, filtered by impact (all, notable and up, major) and by family, each family with a beginner's guide; estimated dates shown, marked ≈, and hidden on request; local and New York times, your journal P&L in each cell. Beside it, the selected day: its session (projected onto Visual in one click), each release with expected, previous and actual, your note and timed reminders.
-- **The stroke tells the state.** Solid once released, dashed when due within seven days, dotted beyond that horizon; three bars tell the impact. *Now* is drawn in gold. The status bar gives the CME Globex session; the toolbar and the **Options** button give the state of the sync.
+- **The stroke tells the state.** Solid once released, dashed when due within seven days, dotted beyond that horizon; three bars tell the impact. *Now* is drawn in gold. At the end of the status bar, the answer of time says whether the CME is open and what comes next; the toolbar and the **Options** button give the state of the sync.
 
 <a id="notes"></a>
 <a id="04-nte"></a>
@@ -400,7 +413,7 @@ The tab opens on the reports; a draft, a scroll or a setting in progress survive
 | View | What it holds |
 |---|---|
 | **A · Reports** | The folder of the Lab's analysis reports, read the same way on every desk; the Lab's own desk adds **Pull now** and the next planned sheet. One sheet per report, coded `AGT-RPT-YYYYMMDD`, with a gold LED until you open it; the latest report opens by itself. The reader shows the day, when the report was written and received, its sections and its sources; each link shows the host it leads to, and an `https` link opens in your system browser. The header and the rail count unread reports; **Open the folder** shows them on disk. Where they come from: [Lab reports](#lab-reports). |
-| **B · Conversation** | The conversational model with the native desk tools, suggested questions, and the **Brief** and **Debrief** routines, marked when they are due. |
+| **B · Conversation** | The conversational model with the native desk tools, suggested questions, and the **Brief** and **Debrief** routines, marked when they are due. Under each answer, the trace of its tool calls: name, bounded arguments, outcome, duration. Beside it, the **Proposals** since the desk opened, kept in memory: each card shows the order as the dialog shows it, the reason quoted, the guard's twelve outcomes in its order and the 45 s bar; no button accepts an order. |
 | **C · Options** | A status strip — model, MCP gateway, orchestrator, agents writing, agent orders — then the provider, external agents over MCP, the external orchestrator, orders proposed by the agent, and the native tools. |
 
 The Lab's own desk has a fourth view, **D · Lab**, to steer the cloud agent that writes the reports; no other desk shows it. The embedded agent and any external MCP client read the desk through the same typed tools. Providers go through the main process: a local model (Ollama, LM Studio) or a cloud API with your own key. **How it reads, watches and proposes — and what stops it — is in [The agent](#the-agent).**
@@ -505,7 +518,7 @@ sequenceDiagram
     end
 ```
 
-- **Guards before any dialog.** Sim accounts only. The NinjaTrader bridge must be live and its order channel open; after the kill switch the channel stays closed until the desk restarts. One proposal may wait at a time. The agent has its own limits: contracts per order, resulting position and proposals per minute, 1, 2 and 3 by default. The tracked prop plan's dated buffer (the K.04 gauge, unrealized loss included) must stay above 25 % of max drawdown. Your rules apply: day loss reached, catalyst window, instrument not allowed. An order that reduces the position is exempt from the position cap, the prop buffer and your rules, but not from the per-order size or the cadence.
+- **Guards before any dialog.** Sim accounts only. The NinjaTrader bridge must be live and its order channel open; after the kill switch the channel stays closed until the desk restarts. One proposal may wait at a time. The agent has its own limits: contracts per order, resulting position and proposals per minute, 1, 2 and 3 by default. The tracked prop plan's dated buffer (the K.04 gauge, unrealized loss included) must stay above 25 % of max drawdown. Your rules apply: day loss reached, catalyst window, instrument not allowed. Once the day loss is reached, the CME day stays closed to openings until the next CME day, even if a gain brings it back under the limit; the main process keeps its own lock, which the interface cannot lift, and the status bar says *day closed since hh:mm ET*. An order that reduces the position is exempt from the position cap, the prop buffer and your rules, but not from the per-order size or the cadence.
 - **You decide.** Each order waits for you in a main-process dialog for 45 seconds, **Decline** by default. The dialog shows the order, the account, the position before and after, and the agent's reason; without an answer, nothing is sent. Agent-proposed orders are off each time the desk opens. Turning them on in **AI agent › C · Options › Orders proposed by the agent**, or raising the agent's limits, takes a main-process dialog; lowering a limit is immediate. An MCP client or the orchestrator reaches `propose_order` only once *write allowed* is on, and the guards and the dialog stay the same.
 - **No agent submits.** `copy.order` is not an agent tool, and the Lab's cloud agent has no order tool at all. Other writes (notes, links, annotations, crypto tab edits: chart, indicators, drawings, alerts, watchlist) are confirmed by you. For external agents they are allowed by one switch, *write allowed*, shared by the MCP gateway and the orchestrator and off by default.
 
@@ -666,7 +679,7 @@ A trading desk that can send orders earns trust by what it refuses to do. These 
 |---|---|
 | **Orders** | Accounts whose name starts with `Sim` by default; a live account only after an explicit main-process dialog. Contract ceiling from 1 to 1,000 (default 20); raising it takes a main-process dialog. Mandatory tag. Kill switch <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd> on macOS); after it, submission stays closed until the desk restarts, and a level-3 band stays under the title bar, AddOn connected or not. |
 | **NinjaTrader AddOn** | Its own guard, read from `bridge.json`: allowed accounts, ceiling, tag. The token never travels — desk and AddOn prove they hold it by HMAC challenge–response — and the AddOn sends nothing and executes nothing before the desk has proven itself. |
-| **Agent** | Never submits; `copy.order` is not an agent tool. `propose_order` passes the main-process guards — Sim accounts only, the agent's limits and cadence, the dated prop buffer (K.04), your rules, a channel closed after the kill switch; an order that reduces risk is exempt from the position cap, the prop buffer and your rules — then waits for your confirmation in a main-process dialog (Decline by default, 45 s). Other writes — notes, links, annotations, crypto tab edits — are confirmed by you, or allowed for external agents by a flag that is off by default. Agent-proposed orders are off at every launch; turning them on and raising the agent's limits each take a main-process dialog, while lowering a limit is immediate. It subscribes to no market data on its own: it reads what you opened, and a read never opens a feed. In the crypto tab, a write that changes the market or the timeframe, the watchlist or the Binance CVD has the desk open the matching feed — after your confirmation, or without a dialog for an external agent allowed to write. |
+| **Agent** | Never submits; `copy.order` is not an agent tool. `propose_order` passes the main-process guards — Sim accounts only, the agent's limits and cadence, the dated prop buffer (K.04), your rules, a CME day closed to openings from the moment the day loss is reached until the next one, a channel closed after the kill switch; an order that reduces risk is exempt from the position cap, the prop buffer and your rules — then waits for your confirmation in a main-process dialog (Decline by default, 45 s). Other writes — notes, links, annotations, crypto tab edits — are confirmed by you, or allowed for external agents by a flag that is off by default. Agent-proposed orders are off at every launch; turning them on and raising the agent's limits each take a main-process dialog, while lowering a limit is immediate. It subscribes to no market data on its own: it reads what you opened, and a read never opens a feed. In the crypto tab, a write that changes the market or the timeframe, the watchlist or the Binance CVD has the desk open the matching feed — after your confirmation, or without a dialog for an external agent allowed to write. |
 | **Bot** | Design only: no automaton sends an order. |
 | **Copier** | Disarmed at every launch; Sim followers only, never the master or a duplicate; arming through a main-process dialog. A risk reduction is never blocked and never exceeds the follower's real position; an opening passes the follower's floor: its dated buffer (K.04), unrealized loss included. |
 | **Crypto** | Off at the first launch, and until you consent in a main-process dialog (Cancel by default); turning it off closes every feed. Network only in the main process, to pinned exchange hosts over `https:` and `wss:` only, with no redirects and no credentials. Public data only — no order, no account. An agent's write can open a feed: see **Agent**. |
@@ -708,7 +721,8 @@ electron/            shell: window, launcher, updates, dialogs, folder bridge, s
                      cloud agent pickup
 electron/nt-bridge/  dedicated JSON-RPC server on 127.0.0.1:48231 (protocol, guards, copier host)
 ninjatrader/         CantoBridge AddOn (atomic CSV and .seen file, WebSocket client)
-src/app/             boot, gate, shell (title bar 44 · rail 220 · status 28), tabs
+src/app/             boot, gate, shell (title bar 44 · rail 220 · status 28 · record 400), records, frise,
+                     omnibar, log, tabs
 src/design/          tokens, fonts, primitives, CΛNTO wordmark, Horizon seal,
                      Lab micrographics, SVG charts
 src/engine/          metrics, Monte Carlo, imports, prop firm, portfolio, instruments,
@@ -728,7 +742,7 @@ docs/                DESIGN · PONT-NINJATRADER · PROTOCOLE-AGENT · THESE-AGEN
 
 ### Visual system
 
-System 4.1 « ΟΡΟΣ » — **[docs/DESIGN.md](docs/DESIGN.md)**. The Lab's night, ivory and gold: night `#07080C` for the chassis, floor `#0D0E12`, plate `#14151A`, ivory ink `#F5F2EA`, labels at 4.5:1 or more. Gold `#CCB066` marks what is alive — the LED, the last price, “now”; signal red `#E10600` marks level 3 only; hover is a light, dim and slow, that rises on the outline and moves nothing. The line tells the state: solid in service, dashed planned or in design, dotted beyond the horizon. Instrument Sans for display and interface, Geist Mono capitals for labels, IBM Plex Sans for the name and the Greek, Doto for one readout per screen. A plate is never decoration: one is left on the desk, on the kill-switch band, and it says what is closed. The Horizon seal strikes at start-up, closes the lock and, engraved, signs the foot of the rail; the chassis carries one barcode, an eleven-bar code between braces, just before `[ SIΞRRΛSKΛ ]` at the end of the status bar. Chrome: title bar 44 · rail 220 · status 28; the version at the top right of the title bar; one cartouche per module on the rail, with no category; a module's secondary tools in one Options menu at the top right of its header.
+System 4.1 « ΟΡΟΣ » — **[docs/DESIGN.md](docs/DESIGN.md)**. The Lab's night, ivory and gold: night `#07080C` for the chassis, floor `#0D0E12`, plate `#14151A`, ivory ink `#F5F2EA`, labels at 4.5:1 or more. Gold `#CCB066` says what you hold — now, the open object, the decision waiting for you with its 45 s bar, and the LED; signal red `#E10600` marks level 3 only, and never writes; mint `#74C69D`, the colour of a gain, also lights the lamp of a connected account. Hover is a light, dim and slow, that rises on the outline and moves nothing. The line tells the state, from one table: solid in service, dashed planned or proposed, dotted beyond the horizon, a graphite rule when closed, paused or disarmed. Instrument Sans for display and interface, Geist Mono capitals for labels, IBM Plex Sans for the name and the Greek — ΟΡΟΣ appears once, over the bounds of the account record —, Doto for one readout per screen. No plate is left on the desk: the kill-switch band says what is closed with its crossed circle and its red rule. The Horizon seal strikes at start-up, closes the lock and, engraved, signs the foot of the rail; the chassis carries one barcode, an eleven-bar code between braces, just before `[ SIΞRRΛSKΛ ]` at the end of the status bar. Chrome: title bar 44 · rail 220 · status 28 · record 400; the version at the bottom left of the status bar; one cartouche per module on the rail, with no category; a module's secondary tools in one Options menu at the top right of its header.
 
 ---
 
@@ -777,7 +791,7 @@ Installers land in `release/`, each built on its own OS.
 
 ## Versions
 
-The journal inside the desk, opened from the version at the top right, lists every release in French, English and Spanish.
+The journal inside the desk, opened from the version at the bottom left of the status bar, lists every release in French, English and Spanish.
 
 - **3.9.0** — Quant training on the Lab’s desk: the cloud agent follows the quantmemo.com courses and writes a quant knowledge base, in a memory store, one capped session at a time; the daily analyst reads it read-only; report sources stay on the domains the agent can read. The agent’s order guard reads the bridge’s open P&L the way the main process does. (2026-11-04)
 - <a id="whats-new-in-380"></a>**3.8.0** — Visual system 4.1: a lighter desk, the rail and the account in cartouches, the secondary tools in an Options menu, hover as a dim light; the lock opens by a circuit; AI Agent opens on the Lab’s reports; English and Spanish labels and decimals; updates without cookies. (2026-11-01)
