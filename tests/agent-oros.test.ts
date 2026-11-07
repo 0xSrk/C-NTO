@@ -3,7 +3,7 @@
  */
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { NtBridgeStatus } from '@/lib/desk';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -17,6 +17,15 @@ afterEach(() => {
   root = null;
   host = null;
 });
+
+// OROS4.10a : le premier test payait sur son délai de 5 s l'import à froid du panneau et de ses modules (plus de 3 s seul,
+// davantage sous la charge de la suite complète). Ils se chargent ici, une fois, sous le délai propre au hook.
+beforeAll(async () => {
+  await import('@/store/bridge');
+  await import('@/modules/agent/AgentOrdersPanel');
+  await import('@/i18n');
+  await import('@/modules/agent/agentGuard');
+}, 30_000);
 
 /** Statut du pont tel que l'envoie le process principal (seul le raccourci du kill switch compte ici). */
 function nt(killSwitchShortcut: string): NtBridgeStatus {
