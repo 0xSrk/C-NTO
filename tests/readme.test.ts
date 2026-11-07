@@ -82,8 +82,7 @@ describe('README', () => {
 
   it('R3.9c le README suit le desk de main : la version au pied, les comptes connectés, la ligne de la journée, la fiche et la frise, des plates recapturées avec le pont', () => {
     const desk = readme.slice(readme.indexOf('<a id="the-desk"></a>'), readme.indexOf('<a id="metrics"></a>'));
-    // La section dit qu'elle montre main, en avance sur les installeurs de la version publiée.
-    expect(desk).toContain('This section and its plates show the desk on `main`.');
+    // R3.10a la note « main, en avance sur les installeurs » est tombée avec la 3.10.0, qui porte ce desk (test R3.10a).
     // Le pied du rail : les comptes connectés, et plus la cartouche du compte ; rien sans compte connecté.
     expect(desk).toContain('**connected accounts**');
     expect(desk).toContain('its lamp lit green');
@@ -96,7 +95,7 @@ describe('README', () => {
     expect(desk).toContain("The **status bar** is the day's line.");
     expect(readme).not.toMatch(/Tokyo, Paris and New York clocks|the CME Globex phase|The status bar gives the CME Globex session/);
     // Le Système 5 : les portes, la fiche, l'omnibar, la frise et le registre, et la plate de la fiche Compte.
-    for (const piece of ['**gates**', '**Every object has its record.**', '**omnibar**', '**The frise and the log.**']) expect(desk, piece).toContain(piece);
+    for (const piece of ['**gates**', '**Every object has its record.**', '**omnibar**', '**The timeline and the log.**']) expect(desk, piece).toContain(piece);
     expect(desk).toContain('<img src="docs/media/fiche.png"');
     // Le système visuel suit la doctrine du Système 5 et le voyant à la menthe.
     const visual = readme.slice(readme.indexOf('### Visual system'), readme.indexOf('<a id="develop">'));
@@ -111,5 +110,21 @@ describe('README', () => {
     expect(script).toContain("export const BRIDGE_ACCOUNTS = ['Sim101', 'Apex-PA-50K'];");
     expect(script).toMatch(/await liveBridge\(page\);\s*await page\.getByRole\('button', \{ name: 'Demo dataset'/);
     expect(script).toContain("await shot(page, out, 'fiche.png');");
+  });
+
+  it("R3.10a le README suit la 3.10.0 : la note sur main tombe, « What's new » et l'historique passent à la 3.10.0, la frise se dit timeline en anglais", () => {
+    expect(version).toBe('3.10.0');
+    // Les installeurs portent désormais ce que la section décrit : la note qui l'annonçait pour la prochaine version tombe.
+    expect(readme).not.toContain('show the desk on `main`');
+    // « What's new » à la 3.10.0, son ancre ; la 3.9.0 garde la sienne dans l'historique, sous la ligne 3.10.0.
+    expect(readme).toContain('<a id="whats-new-in-3100"></a>');
+    expect(readme).toContain("## What's new in 3.10.0");
+    const history = readme.slice(readme.indexOf('<a id="versions"></a>'), readme.indexOf('<a id="disclaimer"></a>'));
+    expect(history.indexOf('- **3.10.0** — ')).toBeGreaterThan(-1);
+    expect(history.indexOf('- **3.10.0** — ')).toBeLessThan(history.indexOf('<a id="whats-new-in-390"></a>**3.9.0**'));
+    expect(history).toContain('(2026-11-07)');
+    // En anglais, la frise est la timeline, comme dans l'interface (« CME day timeline ») ; « Fiche et Frise » reste un nom.
+    expect(readme).not.toMatch(/\bfrise\b/);
+    expect(readme).toContain('**The timeline and the log.**');
   });
 });

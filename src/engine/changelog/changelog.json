@@ -554,6 +554,34 @@
           "Guarda de las órdenes del agente: el latente del puente se lee como lo lee el proceso principal, primero el nombre exacto de la cuenta, luego sin mayúsculas ni espacios. Una cuenta llamada «simapex1» frente a un plan en «SimApex1» ya no cuenta como cero en el margen y la pérdida del día."
         ]
       }
+    },
+    {
+      "version": "3.10.0",
+      "date": "2026-11-07",
+      "kind": "fonctionnalite",
+      "highlights": {
+        "fr": [
+          "Fiche et Frise : chaque objet du desk — séance, trade, catalyseur, compte, instrument, note, stratégie, proposition de l’agent — ouvre sa fiche en troisième colonne, sans rien recouvrir : ses propriétés, ses liens et leur auteur, sa provenance, son activité, « Autour de… ». Ctrl+J ouvre l’omnibar, Retour arrière défait le dernier saut, F6 passe d’une zone à l’autre, « ? » montre tous les raccourcis.",
+          "La barre d’état devient la ligne de la journée : la version en tête, puis le pont, l’âge de sa lecture et sa latence, les bornes du jour — la perte sur sa limite, les trades sur leur maximum, la marge datée — et la réponse du temps, qui déplie la frise : séance, catalyseurs, fenêtres et desk sur la journée CME, un curseur au clavier. New York reste ; Tokyo et Paris cèdent leur place.",
+          "Journée fermée : une fois la perte du jour atteinte, la journée CME reste fermée aux ouvertures que propose l’agent jusqu’à la suivante, même si un gain la ramène sous la limite. Le process principal tient son propre verrou ; la barre, la frise et le refus de l’agent disent « journée fermée depuis hh:mm ET ». Une réduction de risque passe toujours.",
+          "Le rail : sous les cartouches, les quatre portes que garde le process principal, en lecture, puis le registre du lancement ; au pied, les comptes connectés au pont, une micro au voyant vert et leur nom, empilés, rien sans compte. Chaque ligne ouvre la fiche Compte : ses bornes ΟΡΟΣ, la garde de l’agent en miroir, le plan suivi.",
+          "Agent IA : chaque proposition a sa carte — l’ordre tel que le dialogue le montre, les douze issues de la garde, la barre de 45 s — et chaque réponse, la trace de ses outils. L’or ne dit plus que ce que l’on tient : maintenant, l’objet ouvert, la décision qui attend, la LED."
+        ],
+        "en": [
+          "Records and the timeline: every object of the desk — session, trade, catalyst, account, instrument, note, strategy, agent proposal — opens its record in a third column, covering nothing: its properties, its links and their author, its provenance, its activity, “Around…”. Ctrl+J opens the omnibar, Backspace undoes the last jump, F6 moves from one zone to the next, “?” shows every shortcut.",
+          "The status bar becomes the day’s line: the version first, then the bridge, the age of its reading and its latency, the day’s bounds — the loss on its limit, trades on their maximum, the dated margin — and the answer of time, which unfolds the timeline: session, catalysts, windows and desk across the CME day, with a keyboard cursor. New York stays; Tokyo and Paris give way.",
+          "Closed day: once the day loss is reached, the CME day stays closed to the openings the agent proposes until the next one, even if a gain brings it back under the limit. The main process holds its own lock; the bar, the timeline and the agent’s refusal say “day closed since hh:mm ET”. A risk reduction always goes through.",
+          "The rail: under the cartouches, the four gates the main process guards, read-only, then the launch log; at the foot, the accounts connected to the bridge, a micrograph with a green lamp and their name, stacked, nothing without an account. Each line opens the account record: its ΟΡΟΣ bounds, the agent’s guard as a mirror, the tracked plan.",
+          "AI Agent: each proposal has its card — the order as the dialog shows it, the guard’s twelve outcomes, the 45 s bar — and each answer the trace of its tools. Gold now says only what you hold: now, the open object, the decision waiting, the LED."
+        ],
+        "es": [
+          "Fichas y friso: cada objeto del desk — sesión, trade, catalizador, cuenta, instrumento, nota, estrategia, propuesta del agente — abre su ficha en una tercera columna, sin tapar nada: sus propiedades, sus vínculos y su autor, su procedencia, su actividad, «Alrededor de…». Ctrl+J abre la omnibar, Retroceso deshace el último salto, F6 pasa de una zona a otra, «?» muestra todos los atajos.",
+          "La barra de estado se vuelve la línea de la jornada: la versión primero, luego el puente, la antigüedad de su lectura y su latencia, los límites del día — la pérdida sobre su límite, los trades sobre su máximo, el margen fechado — y la respuesta del tiempo, que despliega el friso: sesión, catalizadores, ventanas y desk sobre la jornada CME, con un cursor de teclado. Nueva York se queda; Tokio y París ceden su lugar.",
+          "Jornada cerrada: una vez alcanzada la pérdida del día, la jornada CME queda cerrada a las aperturas que propone el agente hasta la siguiente, aunque una ganancia la devuelva bajo el límite. El proceso principal mantiene su propio cerrojo; la barra, el friso y el rechazo del agente dicen «jornada cerrada desde hh:mm ET». Una reducción de riesgo siempre pasa.",
+          "El raíl: bajo los cartuchos, las cuatro puertas que guarda el proceso principal, en lectura, luego el registro del lanzamiento; al pie, las cuentas conectadas al puente, una micrografía con luz verde y su nombre, apiladas, nada sin cuenta. Cada línea abre la ficha Cuenta: sus límites ΟΡΟΣ, la guarda del agente en espejo, el plan seguido.",
+          "Agente IA: cada propuesta tiene su tarjeta — la orden tal como la muestra el diálogo, los doce desenlaces de la guarda, la barra de 45 s — y cada respuesta, la traza de sus herramientas. El oro ya solo dice lo que se tiene: ahora, el objeto abierto, la decisión que espera, el LED."
+        ]
+      }
     }
   ]
 }

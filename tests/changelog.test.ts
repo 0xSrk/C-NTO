@@ -36,6 +36,16 @@ describe('journal des versions', () => {
     }
   });
 
+  it('R3.10a 3.10.0 suit 3.9.0 : la comparaison est numérique, au journal comme au process principal qui propose la mise à jour', async () => {
+    const { compareSemver: mainCompare } = await import('../electron/semver');
+    for (const compare of [compareSemver, mainCompare]) {
+      expect(compare('3.10.0', '3.9.0')).toBe(1);
+      expect(compare('v3.9.0', '3.10.0')).toBe(-1);
+      expect(compare('3.10.0', 'v3.10.0')).toBe(0);
+    }
+    expect(changelog.entries.at(-1)?.version).toBe(pkg.version);
+  });
+
   it('n’admet que des versions uniques, triées', () => {
     const versions = changelog.entries.map((entry) => entry.version);
     expect(new Set(versions).size).toBe(versions.length);
@@ -43,9 +53,9 @@ describe('journal des versions', () => {
     expect(versions).toEqual(sorted);
   });
 
-  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.9.0', () => {
-    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0', '3.9.0']);
-    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0', '3.9.0']);
+  it('entriesSince(2.2.1) renvoie 3.0.0 jusqu’à 3.10.0', () => {
+    expect(entriesSince('2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0', '3.9.0', '3.10.0']);
+    expect(entriesSince('v2.2.1').map((entry) => entry.version)).toEqual(['3.0.0', '3.1.0', '3.2.0', '3.2.1', '3.2.2', '3.3.0', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.4.0', '3.5.0', '3.6.0', '3.7.0', '3.8.0', '3.9.0', '3.10.0']);
     expect(entryFor('3.1.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.kind).toBe('fonctionnalite');
     expect(entryFor('3.2.0')?.date).toBe('2026-09-29');
@@ -105,6 +115,15 @@ describe('journal des versions', () => {
     expect(entryFor('3.9.0')?.highlights.en.join(' ')).toMatch(/\$25 cap/);
     expect(entryFor('3.9.0')?.highlights.fr.join(' ')).toMatch(/Former l’agent/);
     expect(entryFor('3.9.0')?.highlights.es.join(' ')).toMatch(/Formar al agente/);
+    // R3.10a la 3.10.0 porte le Système 5 « Fiche et Frise », la journée fermée et les derniers réglages du rail.
+    expect(entryFor('3.10.0')?.kind).toBe('fonctionnalite');
+    expect(entryFor('3.10.0')?.date).toBe('2026-11-07');
+    for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.10.0')?.highlights[lang]).toHaveLength(5);
+    expect(entryFor('3.10.0')?.highlights.fr.join(' ')).toMatch(/journée fermée depuis hh:mm ET/);
+    expect(entryFor('3.10.0')?.highlights.en.join(' ')).toMatch(/day closed since hh:mm ET/);
+    expect(entryFor('3.10.0')?.highlights.es.join(' ')).toMatch(/jornada cerrada desde hh:mm ET/);
+    expect(entryFor('3.10.0')?.highlights.en.join(' ')).toMatch(/opens its record in a third column/);
+    expect(entryFor('3.10.0')?.highlights.en.join(' ')).toMatch(/a micrograph with a green lamp/);
     expect(entryFor('3.0.1')).toBeNull();
   });
 
