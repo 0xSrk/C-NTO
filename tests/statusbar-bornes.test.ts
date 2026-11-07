@@ -270,13 +270,18 @@ describe('OROS5.22 · les bornes du jour dans la barre d’état', () => {
     act(() => bench('offline'));
     act(() => useJournal.setState({ sessions: [session('s0', '2026-10-26', -63, 4)], trades: [] }));
     expect(cell('loss')!.getAttribute('aria-label')).toBe(`Perte du jour 63 sur ${fmtUsd(500)}, reste 437, règle du trader, compte Apex-PA-50K, dernière séance, 26.10`);
-    // le pont, son âge, ses comptes et sa latence : lisibles, jamais dans une ellipse
+    // le pont, son âge et sa latence : lisibles, jamais dans une ellipse
     act(() => bench('live'));
     const bridge = status().querySelector<HTMLElement>('[data-status="bridge"]')!;
     expect(bridge.getAttribute('aria-label')).toBe('Pont NT8 en direct, comptes lus il y a 4 s');
     expect(bridge.textContent).toContain('il y a 4 s');
-    expect(status().querySelector('[data-status="accounts"]')!.textContent).toBe(`Sim101 · ${APEX}`);
     expect(status().querySelector('[data-status="latency"]')!.textContent).toBe('LATENCE 12 MS');
+    // OROS5.53 les comptes que le pont rapporte ne se redisent plus dans la barre : le pied du rail les nomme (décision de
+    // l'ADMIN, 2026-11-07)
+    expect(status().querySelector('[data-status="accounts"]')).toBeNull();
+    expect(status().textContent).not.toMatch(/Sim101|Apex-PA-50K/);
+    expect(bridge.nextElementSibling?.getAttribute('data-status')).toBe('latency');
+    expect([...host!.querySelectorAll<HTMLElement>('aside [data-account-open]')].map((row) => row.dataset.accountOpen)).toEqual(['Sim101', APEX]);
     const css = readFileSync('src/app/shell.module.css', 'utf8');
     expect(css).toMatch(/\.statusKeep \{\s*flex: none;\s*white-space: nowrap;\s*\}/);
   });
@@ -444,7 +449,7 @@ describe('OROS5.22 · la barre d’état selon la décision 7 : TYO, PAR et le l
     for (const r of narrow) for (const prop of r.props) expect(['display'], `${r.selector} ${prop}`).toContain(prop);
     const hidden = narrow.flatMap((r) => (/display:\s*none/.test(r.body) ? r.selector.split(/\s*,\s*/) : []));
     expect(hidden).toEqual(expect.arrayContaining(['.borneLong', '.statusWord', '.borneName']));
-    // jamais les comptes ni la latence
+    // jamais la latence
     expect(hidden).not.toContain('.statusKeep');
   });
 });

@@ -899,7 +899,8 @@
   background: var(--line-2);
   flex: none;
 }
-/* Les comptes que rapporte le pont et sa latence restent lisibles, jamais dans une ellipse. */
+/* La latence du pont reste lisible, jamais dans une ellipse. Les comptes qu'il rapporte ne sont plus redits ici : le pied
+   du rail les nomme (décision de l'ADMIN, 2026-11-07). */
 .statusKeep {
   flex: none;
   white-space: nowrap;

@@ -23,14 +23,14 @@ describe('OROS5.52 · les derniers réglages de l’ADMIN se consignent', () => 
   });
 
   it('une ligne par ticket, chacune avec ses citations et ses tests, qui existent', () => {
-    for (const id of ['OROS5.49', 'OROS5.50', 'OROS5.51', 'OROS5.52']) {
+    for (const id of ['OROS5.49', 'OROS5.50', 'OROS5.51', 'OROS5.52', 'OROS5.53']) {
       const lines = row(id);
       expect(lines, id).toHaveLength(1);
       const tests = [...lines[0]!.matchAll(/`(tests\/[\w.-]+\.test\.ts)`/g)].map((m) => m[1]!);
       expect(tests.length, id).toBeGreaterThan(0);
       for (const file of tests) expect(existsSync(file), `${id} : ${file}`).toBe(true);
     }
-    for (const id of ['OROS5.49', 'OROS5.50', 'OROS5.51']) expect(row(id)[0], id).toMatch(/`src\/app\/[\w.]+:\d+`/);
+    for (const id of ['OROS5.49', 'OROS5.50', 'OROS5.51', 'OROS5.53']) expect(row(id)[0], id).toMatch(/`src\/app\/[\w.]+:\d+`/);
     expect(row('OROS5.51')[0]).toContain('`src/app/railFit.ts:76`');
     expect(row('OROS5.51')[0]).toContain('113 → 111');
   });
@@ -43,6 +43,12 @@ describe('OROS5.52 · les derniers réglages de l’ADMIN se consignent', () => 
     expect(choices).toContain('`stale`');
     const open = section.slice(section.indexOf('**Points ouverts.**'));
     expect(open).toContain('README');
-    expect(open).toContain('`src/app/StatusBornes.tsx:385`');
+  });
+
+  it('OROS5.53 la liste des comptes quitte la barre d’état : le point ouvert qui la relevait est réglé', () => {
+    expect(row('OROS5.53')[0]).toContain('« retire aussi la liste des comptes de la barre d’état »');
+    expect(row('OROS5.53')[0]).toContain('`src/app/StatusBornes.tsx:371`');
+    const open = section.slice(section.indexOf('**Points ouverts.**'));
+    expect(open).not.toMatch(/redit les comptes du pont|StatusBornes\.tsx:385/);
   });
 });
