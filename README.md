@@ -2,7 +2,7 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.9.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.10.0 · DESK OUTPUT`**
 
 # CΛNTO
 
@@ -19,7 +19,7 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 <br/><br/>
 
-[![Version](https://img.shields.io/badge/version-3.9.0-CCB066?style=flat-square)](#versions)
+[![Version](https://img.shields.io/badge/version-3.10.0-CCB066?style=flat-square)](#versions)
 [![Tests](https://img.shields.io/badge/tests-3159%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
@@ -89,18 +89,20 @@ It reads the whole desk and your rules, prepares the brief and the debrief, and 
 ---
 
 <a id="whats-new"></a>
-<a id="whats-new-in-390"></a>
+<a id="whats-new-in-3100"></a>
 
-## What's new in 3.9.0
+## What's new in 3.10.0
 
 > [!NOTE]
-> **v3.9.0 · 2026-11-04.** The same three points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish). The training runs on the Lab’s own desk only; every other desk reads the report folder as before.
+> **v3.10.0 · 2026-11-07.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish). The chassis changes more than in any release since 3.8.0: [The desk](#the-desk) and its plates show it.
 
-- **Quant training, on the Lab’s desk.** Quant training, on the Lab’s desk: D · Lab gains “Train the agent”. The cloud agent follows the courses of the quantmemo.com roadmaps and writes a body of quant knowledge from them, in its own words and with its sources, into a memory store. Each session starts from a dialog that states its $25 cap, and first reads the site’s robots.txt and terms; a refused access stops it.
-- **The analyst reads it; sources stay on known domains.** The daily analyst mounts that knowledge read-only. The training report is filed in the folder, coded AGT-FRM. In every report, a source becomes a link only on a domain the agent can read; the others are set aside and named. On other desks nothing changes, and nothing from the desk goes to the cloud.
-- **The agent’s order guard reads the bridge like the main process.** The agent’s order guard: the bridge’s open P&L is read the way the main process reads it, exact account name first, then ignoring case and spaces. An account named “simapex1” facing a plan on “SimApex1” no longer counts as zero in the margin and the day’s loss.
+- **Every object has its record.** Records and the timeline: every object of the desk — session, trade, catalyst, account, instrument, note, strategy, agent proposal — opens its record in a third column, covering nothing: its properties, its links and their author, its provenance, its activity, “Around…”. Ctrl+J opens the omnibar, Backspace undoes the last jump, F6 moves from one zone to the next, “?” shows every shortcut.
+- **The day’s line and the timeline.** The status bar becomes the day’s line: the version first, then the bridge, the age of its reading and its latency, the day’s bounds — the loss on its limit, trades on their maximum, the dated margin — and the answer of time, which unfolds the timeline: session, catalysts, windows and desk across the CME day, with a keyboard cursor. New York stays; Tokyo and Paris give way.
+- **A closed day stays closed.** Closed day: once the day loss is reached, the CME day stays closed to the openings the agent proposes until the next one, even if a gain brings it back under the limit. The main process holds its own lock; the bar, the timeline and the agent’s refusal say “day closed since hh:mm ET”. A risk reduction always goes through.
+- **The rail: gates and connected accounts.** The rail: under the cartouches, the four gates the main process guards, read-only, then the launch log; at the foot, the accounts connected to the bridge, a micrograph with a green lamp and their name, stacked, nothing without an account. Each line opens the account record: its ΟΡΟΣ bounds, the agent’s guard as a mirror, the tracked plan.
+- **Proposal cards, tool traces, and gold for what you hold.** AI Agent: each proposal has its card — the order as the dialog shows it, the guard’s twelve outcomes, the 45 s bar — and each answer the trace of its tools. Gold now says only what you hold: now, the open object, the decision waiting, the LED.
 
-NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.9.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.9.0).
+NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.10.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.10.0).
 
 ---
 
@@ -112,9 +114,9 @@ NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.9.0](https://g
 
 | Platform | Download | Runs on |
 |---|---|---|
-| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
-| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-win-arm64-portable.exe) | Windows 10 and 11 |
-| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.9.0/CANTO-3.9.0-linux-arm64.deb) | x64 and ARM64 |
+| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
+| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-arm64-portable.exe) | Windows 10 and 11 |
+| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-arm64.deb) | x64 and ARM64 |
 
 The installers need neither Node.js nor a clone of the repository. Each Release lists every file in `SHA256SUMS.txt`, signed with the Lab's Ed25519 key: the desk's built-in update refuses an installer whose signature is missing, foreign, or bound to another version ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
 
@@ -139,7 +141,7 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-1. Run `CANTO-3.9.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.9.0-win-x64-portable.exe`.
+1. Run `CANTO-3.10.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.10.0-win-x64-portable.exe`.
 2. NinjaTrader 8 — real time, AddOn, CSV folder: [the bridge](#ninjatrader-8-bridge).
 
 **Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log`, and a start-up error is shown in a dialog rather than closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it. Check *Windows Security › App & browser control*, or use the source install below.
@@ -151,8 +153,8 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-- **AppImage** (no system install): `chmod +x CANTO-3.9.0-linux-x86_64.AppImage && ./CANTO-3.9.0-linux-x86_64.AppImage`
-- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.9.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
+- **AppImage** (no system install): `chmod +x CANTO-3.10.0-linux-x86_64.AppImage && ./CANTO-3.10.0-linux-x86_64.AppImage`
+- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.10.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
 - **NinjaTrader**: as on macOS, the Linux desk imports the CSV files the AddOn writes on Windows ([the bridge](#ninjatrader-8-bridge)); real time, orders and the Copier need the desk on the NinjaTrader machine.
 
 Without a GPU (remote session, no `/dev/dri`), Chromium can leave the window black and quit. The desk then switches to software rendering on its own, including at the next launch. Force it with `CANTO_DISABLE_GPU=1`.
@@ -234,9 +236,6 @@ Every install opens on the **AUBE launcher**: the horizon draws itself and the g
 
 ## The desk
 
-> [!NOTE]
-> This section and its plates show the desk on `main`. Its records, the frise, the day's line in the status bar and the connected accounts at the foot of the rail reach the installers with the next release.
-
 | | Module | What it does | Status |
 |---|---|---|---|
 | <code>01&nbsp;·&nbsp;MET</code> | [Metrics](#metrics) | Journal of up to 1,000 sessions, quantitative engine, risk and context, prop-plan replay, Monte Carlo | Live |
@@ -259,7 +258,7 @@ The **status bar** is the day's line. The version comes first and opens the chan
 
 <sub><b>Account record</b> — opened from its line at the foot of the rail: today's margin and the cumulative net; ΟΡΟΣ · Bounds — the day loss on its limit, the trades, the margin to the floor nested in the max drawdown; the agent's order guard read as a mirror; the tracked plan; the bridge and the Copier.</sub>
 
-**The frise and the log.** The answer at the end of the day's line unfolds the **frise**, a 64 px drawer over the work area: four lanes — Session, Catalysts, Windows, Desk — across the CME day, *now* in gold, and a time cursor on the keyboard: `←` `→` by 5 minutes, with `Shift` by the hour, `PgUp` `PgDn` by trading day, `Home` `End`, `Esc` back to the present, `Enter` to open the record under the cursor. **Log n** opens the launch log, a 240 px drawer: the desk's events in memory, 500 at most, one glyph per kind. A record's activity is that log, filtered on its object.
+**The timeline and the log.** The answer at the end of the day's line unfolds the **timeline**, a 64 px drawer over the work area: four lanes — Session, Catalysts, Windows, Desk — across the CME day, *now* in gold, and a time cursor on the keyboard: `←` `→` by 5 minutes, with `Shift` by the hour, `PgUp` `PgDn` by trading day, `Home` `End`, `Esc` back to the present, `Enter` to open the record under the cursor. **Log n** opens the launch log, a 240 px drawer: the desk's events in memory, 500 at most, one glyph per kind. A record's activity is that log, filtered on its object.
 
 <a id="metrics"></a>
 <a id="métrique"></a>
@@ -721,7 +720,7 @@ electron/            shell: window, launcher, updates, dialogs, folder bridge, s
                      cloud agent pickup
 electron/nt-bridge/  dedicated JSON-RPC server on 127.0.0.1:48231 (protocol, guards, copier host)
 ninjatrader/         CantoBridge AddOn (atomic CSV and .seen file, WebSocket client)
-src/app/             boot, gate, shell (title bar 44 · rail 220 · status 28 · record 400), records, frise,
+src/app/             boot, gate, shell (title bar 44 · rail 220 · status 28 · record 400), records, timeline,
                      omnibar, log, tabs
 src/design/          tokens, fonts, primitives, CΛNTO wordmark, Horizon seal,
                      Lab micrographics, SVG charts
@@ -793,7 +792,8 @@ Installers land in `release/`, each built on its own OS.
 
 The journal inside the desk, opened from the version at the bottom left of the status bar, lists every release in French, English and Spanish.
 
-- **3.9.0** — Quant training on the Lab’s desk: the cloud agent follows the quantmemo.com courses and writes a quant knowledge base, in a memory store, one capped session at a time; the daily analyst reads it read-only; report sources stay on the domains the agent can read. The agent’s order guard reads the bridge’s open P&L the way the main process does. (2026-11-04)
+- **3.10.0** — System 5 « Fiche et Frise »: every object opens its record in a third column; the status bar becomes the day’s line, the version first, and unfolds the timeline; a CME day closed to the agent’s openings once the day loss is reached, held by the main process; the rail’s gates and its connected accounts, lamp lit green; proposal cards and tool traces in AI Agent. (2026-11-07)
+- <a id="whats-new-in-390"></a>**3.9.0** — Quant training on the Lab’s desk: the cloud agent follows the quantmemo.com courses and writes a quant knowledge base, in a memory store, one capped session at a time; the daily analyst reads it read-only; report sources stay on the domains the agent can read. The agent’s order guard reads the bridge’s open P&L the way the main process does. (2026-11-04)
 - <a id="whats-new-in-380"></a>**3.8.0** — Visual system 4.1: a lighter desk, the rail and the account in cartouches, the secondary tools in an Options menu, hover as a dim light; the lock opens by a circuit; AI Agent opens on the Lab’s reports; English and Spanish labels and decimals; updates without cookies. (2026-11-01)
 - <a id="whats-new-in-370"></a>**3.7.0** — Not published on its own: shipped in 3.8.0. Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; the status bar in the chassis black, signed with an eleven-bar code between braces; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected; DOMPurify 3.4.17. (2026-10-26)
 - <a id="whats-new-in-360"></a>**3.6.0** — Optional crypto tab `09 · CRY`, off until you consent in a main-process dialog: live markets with their CVD and the desk's indicators, the Binance market temperature, local alerts, ten `crypto_*` tools for the agent and MCP clients. Network in the main process only, to pinned exchange hosts. (2026-10-13)
@@ -869,6 +869,6 @@ A model reached through an API and run as a service, a desk fitted to one trader
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.9.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.10.0 · DESK OUTPUT`**
 
 </div>
