@@ -20,7 +20,7 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 <br/><br/>
 
 [![Version](https://img.shields.io/badge/version-3.10.0-CCB066?style=flat-square)](#versions)
-[![Tests](https://img.shields.io/badge/tests-3159%20passed-000000?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-3167%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
 [![MCP](https://img.shields.io/badge/MCP-local%20gateway-000000?style=flat-square)](docs/PROTOCOLE-AGENT.md)
