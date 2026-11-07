@@ -27,7 +27,7 @@ describe('R3.10b · la publication de la 3.10.0 se consigne', () => {
   });
 
   it('une ligne par ticket, chacune avec ses tests, qui existent', () => {
-    for (const id of ['R3.9c', 'R3.10a', 'R3.10b']) {
+    for (const id of ['R3.9c', 'R3.10a', 'R3.10b', 'R3.10c']) {
       const lines = row(id);
       expect(lines, id).toHaveLength(1);
       const tests = [...lines[0]!.matchAll(/`(tests\/[\w.-]+\.test\.ts)`/g)].map((m) => m[1]!);
@@ -36,13 +36,32 @@ describe('R3.10b · la publication de la 3.10.0 se consigne', () => {
     }
   });
 
-  it('les vérifications disent les tests que dit le badge du README', () => {
+  it('les vérifications disent les tests de la publication ; le badge du README n’en dit jamais moins', () => {
+    // R3.10c les vérifications sont celles de la publication : le badge suit les versions suivantes sans les réécrire.
+    const checks = publication.text.slice(publication.text.indexOf('**Vérifications.**'), publication.text.indexOf('**Reste.**'));
+    expect(checks).toContain('`npm run check` vert (typecheck, 337 fichiers, 3 167 tests, build)');
+    expect(checks).not.toContain('@@');
     const badge = readme.match(/img\.shields\.io\/badge\/tests-(\d+)%20passed/);
     expect(badge).not.toBeNull();
-    const count = Number(badge![1]).toLocaleString('fr-FR').replace(/\s/g, ' ');
-    const checks = publication.text.slice(publication.text.indexOf('**Vérifications.**'), publication.text.indexOf('**Reste.**'));
-    expect(checks).toContain(`${count} tests`);
-    expect(checks).not.toContain('@@');
+    expect(Number(badge![1])).toBeGreaterThanOrEqual(3167);
+  });
+
+  it('R3.10c la publication et le contrôle croisé se consignent : le run, la signature, les empreintes, le tag, aucun écart', () => {
+    const head = '**Publication et contrôle croisé (2026-11-07).**';
+    expect(publication.text).toContain(head);
+    const cross = publication.text.slice(publication.text.indexOf(head));
+    // Le brouillon vient du workflow `release` lancé sur main, à la fusion de la montée.
+    expect(cross).toContain('lancé sur `main` à `62894e1`');
+    expect(cross).toContain('run 42367908957');
+    // Le second contrôle : les sommes contre le journal de la CI et contre GitHub, la signature par le vérificateur du desk.
+    expect(cross).toContain('identique, octet pour octet, au journal du job `publish`');
+    expect(cross).toContain('les 13 empreintes que GitHub calcule');
+    expect(cross).toContain('valide pour 3.10.0 avec la clé de `electron/release-keys.ts`, par `verifyReleaseSignature`');
+    expect(cross).toContain('refusé rejoué sous 3.9.0');
+    // Le tag pointe la fusion, et son run n'écrit rien.
+    expect(cross).toContain('le tag `v3.10.0` pointe `62894e1`');
+    expect(cross).toContain('« Release existante », sans rien écrire');
+    expect(cross.trim().endsWith('Aucun écart.')).toBe(true);
   });
 
   it('ce qui reste : la fusion, le workflow, la signature au poste de l’ADMIN, le contrôle croisé, la recette réelle', () => {
