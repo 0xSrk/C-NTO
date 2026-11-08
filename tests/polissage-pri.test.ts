@@ -50,6 +50,15 @@ describe('POL4 primitives et jetons : mouvement réduit, encre des micrographies
     expect(led?.body).toMatch(/transition:\s*none/);
   });
 
+  it('POL4.2a l’encre avance au pas de la lumière qui la porte : l’emblème du rail avec le filet et la lumière zénithale, le glyphe d’une ligne de la fiche avec son fond', () => {
+    const shell = sheet('src/app/shell.module.css');
+    const fiche = sheet('src/app/objects/fiche.module.css');
+    // L'onglet qui s'allume : filet et lumière zénithale en 280 ms --ease-out (POL1.1) ; l'or de l'emblème au même pas.
+    expect(exact(shell, '.navItem .navEmblem > svg', '.navItem .navEmblem > svg *')?.body).toMatch(/transition:\s*fill 280ms var\(--ease-out\),\s*stroke 280ms var\(--ease-out\)/);
+    // La lecture liée de la fiche : la ligne, le rayon et l'anneau en --t-med --ease-out (POL3.2) ; le glyphe de la ligne aussi.
+    expect(fiche.find((r) => /\.row\s*\{/.test(`${r.selector} {`) && r.at.length === 0)?.body).toMatch(/background-color var\(--t-med\) var\(--ease-out\)/);
+    expect(exact(fiche, '.row .rowGlyph > svg', '.row .rowGlyph > svg *')?.body).toMatch(/transition:\s*fill var\(--t-med\) var\(--ease-out\),\s*stroke var\(--t-med\) var\(--ease-out\)/);
+  });
   it('POL4.3 M.003 : ce qui s’atténue porte sa transition, si bien qu’il sort et revient au même pas, et que les filets se croisent', () => {
     const css = sheet('src/design/instruments/instruments.module.css');
     // `.out` ne dit que l'atténuation (à sa place, à 35 %) : posée après `.hour`, une transition à elle remplaçait celle de

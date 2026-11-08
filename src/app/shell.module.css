@@ -310,6 +310,12 @@
   --k: var(--gold);
   opacity: 1;
 }
+/* L'or de l'emblème arrive au pas du filet et de la lumière zénithale de sa cartouche (POL1.1), pas à celui, plus court,
+   de l'encre des micros (POL4.2a). */
+.navItem .navEmblem > svg,
+.navItem .navEmblem > svg * {
+  transition: fill 280ms var(--ease-out), stroke 280ms var(--ease-out);
+}
 /*
  * Un même trait pour tous les emblèmes : un trait de 0,75 sur une grande boîte (Visual 26, Note 91, Portefeuille 130,
  * Agent 29) tomberait sous 0,25 px à 20 px ; il est relevé à ≈ 0,5 px rendu, le poids des autres emblèmes. Le dessin du
