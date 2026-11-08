@@ -209,4 +209,27 @@ describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
     expect(sheet(REPORTS).filter((r) => /:hover\b/.test(r.selector)).every((r) => r.selector.startsWith('button.fiche'))).toBe(true);
     expect(readFileSync(REPORTS, 'utf8')).not.toMatch(/jamais de survol/);
   });
+
+  it('POL7.6 les filtres, l’aide, les jours et les lignes du flux, l’historique et le retrait d’un rappel du Calendrier s’éclairent au passage', () => {
+    const CAL = 'src/modules/calendrier/calendrier.module.css';
+    expectLit(CAL, '.filterChip', '.filterChip:not(.on):hover');
+    expectLit(CAL, '.filterBtn', '.filterChip:not(.on) .filterBtn:hover');
+    expectLit(CAL, '.helpDot', '.helpDot:hover');
+    expectLit(CAL, '.fluxDayHead', '.fluxDayHead:hover');
+    expectLit(CAL, '.fluxEv', '.fluxEv:hover');
+    expectLit(CAL, '.histRow', '.histRow:hover');
+    expectLit(CAL, '.persoItem button', '.persoItem button:hover');
+    // Un filtre qu'on allume ou éteint, le jour choisi du flux : l'état arrive d'un pas.
+    const chip = base(CAL, '.filterChip')!.body;
+    expect(timing(chip, 'border-color')).toBe(timing(chip, 'background-color'));
+    expect(timing(base(CAL, '.fluxDay')!.body, 'background-color')).toBe('220ms var(--ease-out)');
+    // Les lignes du flux s'éclairent par le fond : leur trait (tireté, pointillé) dit l'état et ne bouge pas. Le survol vient
+    // après le fond d'une publication, qu'il couvre à spécificité égale.
+    const rules = sheet(CAL);
+    const at = (selector: string) => rules.findIndex((r) => r.selector.split(',').map((x) => x.trim()).includes(selector));
+    expect(rules[at('.fluxEv:hover')]!.props).toEqual(['background-color']);
+    expect(at('.fluxEv:hover')).toBeGreaterThan(at('.fluxEv.evPublished'));
+    // Le filtre allumé garde sa lecture : son libellé reste le seul à l'ivoire.
+    expect(rules.find((r) => r.selector === '.filterChip:not(.on) .filterBtn:hover')!.body).toMatch(/color: var\(--text-1\)/);
+  });
 });
