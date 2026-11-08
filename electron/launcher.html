@@ -458,10 +458,28 @@
         transition: transform 0.32s var(--ease);
       }
       .actions {
+        position: relative;
         display: flex;
         flex-direction: column;
         gap: 8px;
         margin-top: 4px;
+      }
+      /* Le chanfrein rogne l'anneau du focus (la découpe rogne tout ce que l'élément peint, contour compris) : pour
+         l'action principale, l'anneau d'or est tracé par son conteneur, au-dehors, à 2 px, et suit le chanfrein. */
+      .actions::before {
+        content: '';
+        position: absolute;
+        left: -3px;
+        top: -3px;
+        width: calc(100% + 6px);
+        height: 50px;
+        background: var(--gold);
+        clip-path: polygon(evenodd, 0 0, calc(100% - 11.76px) 0, 100% 11.76px, 100% 100%, 0 100%, 0 0, 1px 1px, 1px calc(100% - 1px), calc(100% - 1px) calc(100% - 1px), calc(100% - 1px) 12.17px, calc(100% - 12.17px) 1px, 1px 1px);
+        opacity: 0;
+        pointer-events: none;
+      }
+      .actions:has(> .btn.primary:focus-visible)::before {
+        opacity: 1;
       }
       .btn {
         position: relative;
@@ -501,6 +519,10 @@
       }
       .btn.primary:active:not(:disabled) {
         background: var(--stone);
+      }
+      /* Son anneau propre, rogné, s'efface : celui du conteneur le remplace (.actions::before). */
+      .btn.primary:focus-visible {
+        outline-color: transparent;
       }
       /* Désactivée (une mise à jour s'applique) : la plaque d'ivoire se retire en filet, sans bloc gris. */
       .btn.primary:disabled {
