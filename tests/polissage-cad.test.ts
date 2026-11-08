@@ -25,6 +25,7 @@ import { FriseAnswer } from '@/app/FriseAnswer';
 import { useKillLatch, useKillSwitch } from '@/app/killState';
 import { Shell } from '@/app/Shell';
 import { StatusBornes } from '@/app/StatusBornes';
+import { useWallClock } from '@/app/useWallClock';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
 import { useI18n } from '@/i18n';
@@ -125,6 +126,26 @@ describe('POL9 · cadence et repos', () => {
     expect(delay()).toBe('15 min');
     act(() => void vi.advanceTimersByTime(20));
     expect(delay()).toBe('14 min');
+  });
+
+  it('POL9.1a une frontière franchie entre le rendu et l’effet se rattrape au premier minuteur : la minute ne reste pas une minute en retard', () => {
+    vi.useFakeTimers(TIMERS);
+    const boundary = Date.UTC(2026, 10, 8, 14, 31, 0);
+    vi.setSystemTime(boundary - 5); // rendu à 14:30:59.995
+    let heavy = true;
+    function Clock() {
+      const now = useWallClock(60_000);
+      // Le premier rendu du châssis est lourd (tout le desk se monte dessous) : son effet passe après la frontière.
+      if (heavy) {
+        heavy = false;
+        vi.setSystemTime(Date.now() + 20);
+      }
+      return createElement('b', null, new Date(now).toISOString().slice(11, 16));
+    }
+    const el = mount(createElement(Clock));
+    expect(el.textContent).toBe('14:30');
+    seconds(1);
+    expect(el.textContent).toBe('14:31');
   });
 
   it('POL9.2 un battement du pont ne re-rend pas le châssis : le kill switch ne lit que ses deux primitives', () => {

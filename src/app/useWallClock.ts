@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** Le délai jusqu'à la prochaine frontière de `stepMs` sur l'horloge murale. */
 export function msToNextBoundary(nowMs: number, stepMs: number): number {
@@ -8,12 +8,16 @@ export function msToNextBoundary(nowMs: number, stepMs: number): number {
 /**
  * L'instant, rendu à chaque frontière de `stepMs` de l'horloge murale, et à elle seule : une horloge qui dit la minute ne
  * re-rend plus ce qui l'entoure chaque seconde. Le minuteur attend au plus une seconde : une veille du poste, où les
- * minuteurs s'arrêtent, ou une horloge recalée se rattrapent en une seconde, comme avec un battement d'une seconde.
+ * minuteurs s'arrêtent, ou une horloge recalée se rattrapent en une seconde, comme avec un battement d'une seconde. La
+ * référence est la valeur rendue, pas l'heure de l'effet : une frontière franchie entre le rendu et l'effet (un montage
+ * lourd) se rattrape au premier minuteur, en une seconde au plus (POL9.1a).
  */
 export function useWallClock(stepMs: number): number {
   const [now, setNow] = useState(() => Date.now());
+  const rendered = useRef(now);
+  rendered.current = now;
   useEffect(() => {
-    let shown = Math.floor(Date.now() / stepMs);
+    let shown = Math.floor(rendered.current / stepMs);
     let id: ReturnType<typeof setTimeout>;
     const arm = () => {
       id = setTimeout(() => {
