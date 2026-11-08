@@ -341,8 +341,9 @@ button.activityRow:focus-visible {
   text-align: left;
   color: var(--text-0);
   --k: var(--text-1);
-  /* L'opacité est celle de la sélection (.out) : la ligne y entre et en sort au même pas. */
-  transition: background-color 220ms var(--ease-out), opacity 220ms linear;
+  /* L'opacité est celle de la sélection (.out) : la ligne y entre et en sort au même pas. Le fond est la lumière de la
+     lecture liée, que le rayon et l'anneau du nœud prennent aussi (décision 2). */
+  transition: background-color var(--t-med) var(--ease-out), opacity 220ms linear;
 }
 .rowGlyph {
   width: 16px;
@@ -602,7 +603,7 @@ button.activityRow:focus-visible {
   stroke-width: 1;
   opacity: 0.72;
   vector-effect: non-scaling-stroke;
-  transition: opacity 160ms linear;
+  transition: opacity var(--t-med) var(--ease-out);
 }
 .egoCore {
   fill: var(--bg-2);
@@ -620,7 +621,9 @@ button.activityRow:focus-visible {
   fill: none;
   stroke-width: 1;
   opacity: 0.35;
-  transition: opacity 260ms var(--ease-out);
+  /* L'anneau est un tracé plein de la table d'états (stroke: var(--k)) : --k change d'un coup, le trait s'interpole. Il
+     s'allume au pas de sa ligne. Le halo de l'hypothèse (.egoHypo) ne s'anime pas. */
+  transition: opacity var(--t-med) var(--ease-out), stroke var(--t-med) var(--ease-out);
 }
 .egoHypo {
   fill: none;
