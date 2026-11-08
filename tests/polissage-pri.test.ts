@@ -49,4 +49,16 @@ describe('POL4 primitives et jetons : mouvement réduit, encre des micrographies
     const led = exact(menu, '.item .glyph > svg', '.item .glyph > svg *');
     expect(led?.body).toMatch(/transition:\s*none/);
   });
+
+  it('POL4.3 M.003 : ce qui s’atténue porte sa transition, si bien qu’il sort et revient au même pas, et que les filets se croisent', () => {
+    const css = sheet('src/design/instruments/instruments.module.css');
+    // `.out` ne dit que l'atténuation (à sa place, à 35 %) : posée après `.hour`, une transition à elle remplaçait celle de
+    // l'heure (le filet quitté tombait d'un coup) et quittait les barres et le compte avec la classe (retour sec).
+    expect(find(css, '.out')?.props).toEqual(['opacity']);
+    expect(find(css, '.out')?.body).toMatch(/opacity:\s*0\.35/);
+    const opacity = (sel: string) => /transition:[^;]*\bopacity (var\(--t-med\)|220ms) linear/.exec(find(css, sel)?.body ?? '')?.[1];
+    for (const sel of ['.hour', '.count', '.bars g']) expect(opacity(sel), sel).toBe('var(--t-med)');
+    expect(find(css, '.hour')?.body).toMatch(/transition:[^;]*\bbox-shadow var\(--t-med\) linear/);
+    expect(find(css, '.hour')?.body).toMatch(/transition:[^;]*\bcolor 200ms linear/);
+  });
 });

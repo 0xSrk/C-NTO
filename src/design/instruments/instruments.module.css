@@ -38,8 +38,8 @@
   cursor: pointer;
   transition:
     color 200ms linear,
-    opacity 220ms linear,
-    box-shadow 220ms linear;
+    opacity var(--t-med) linear,
+    box-shadow var(--t-med) linear;
 }
 /* L'heure du curseur de temps, ou de maintenant : l'or dit ce que tient l'opérateur (décision 1). */
 .hour[data-cursor] {
@@ -67,6 +67,9 @@
   display: block;
   overflow: visible;
 }
+.bars g {
+  transition: opacity var(--t-med) linear;
+}
 /* L'axe, à la construction : le glacier, la technique. */
 .axis {
   stroke: var(--ice-line);
@@ -82,9 +85,10 @@
   align-self: center;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
+  transition: opacity var(--t-med) linear;
 }
-/* Hors de la puce Heure : à sa place, à 35 % ; rien ne disparaît. */
+/* Hors de la puce Heure : à sa place, à 35 % ; rien ne disparaît. L'heure, ses barres et son compte portent eux-mêmes leur
+   transition : ils sortent et reviennent au même pas, et le filet de l'heure quittée s'efface pendant que l'autre monte. */
 .out {
   opacity: 0.35;
-  transition: opacity 220ms linear;
 }
