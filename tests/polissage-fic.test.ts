@@ -86,5 +86,19 @@ describe('POL3 la fiche, troisième colonne : le mouvement et la lumière', () =
     // De la lumière seulement, sous @media (hover: hover) (garde OROS4.1).
     expect(hoverOffenses(readFileSync(FICHE, 'utf8')).offenders).toEqual([]);
   });
+
+  it('POL3.4 le bouton qui ouvre la fiche depuis la carte s’allume au lieu de s’éteindre : l’encre de C.092 monte', () => {
+    const PROPOSAL = 'src/app/objects/proposal.module.css';
+    const card = sheet(PROPOSAL);
+    const underHover = card.filter((rule) => rule.at.some((head) => /^@media\s*\(hover:\s*hover\)/.test(head)));
+    // Le seul survol du desk qui éteignait (opacité 0,8) : « la lumière monte » (DESIGN.md § 00).
+    expect(card.filter((rule) => /\.open:hover/.test(rule.selector)).some((rule) => /opacity/.test(rule.body))).toBe(false);
+    // `.chainGlyph` pose son propre --k : le bouton vise son glyphe, de --text-1 au repos à --text-0 sous le pointeur.
+    expect(top(card, '.chainGlyph')).toMatch(/--k: var\(--text-1\);/);
+    expect(underHover.find((rule) => rule.selector === '.open:hover .chainGlyph')?.body).toMatch(/--k: var\(--text-0\);/);
+    // Au repos, le bouton ne change pas ; sa transition d'opacité n'avait plus rien à animer.
+    expect(top(card, '.open')).not.toMatch(/opacity/);
+    expect(hoverOffenses(readFileSync(PROPOSAL, 'utf8')).offenders).toEqual([]);
+  });
 });
 

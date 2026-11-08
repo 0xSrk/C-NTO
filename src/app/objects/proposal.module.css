@@ -28,15 +28,16 @@
   border: 0;
   background: none;
   cursor: pointer;
-  transition: opacity 200ms linear;
 }
 .open:focus-visible {
   outline: 1px solid var(--line-3);
   outline-offset: 2px;
 }
+/* Au passage du pointeur, la lumière monte : l'encre de C.092 passe à l'ivoire. Le glyphe pose son propre --k, d'où la
+   règle sur lui. */
 @media (hover: hover) {
-  .open:hover {
-    opacity: 0.8;
+  .open:hover .chainGlyph {
+    --k: var(--text-0);
   }
 }
 /* C.092 : la chaîne de la proposition, de l'agent au siège de l'opérateur. */
