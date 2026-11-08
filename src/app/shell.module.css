@@ -1384,6 +1384,12 @@
 .toast.error { border-left: 2px solid var(--signal); }
 
 /* ─── Bande de niveau 3 (kill switch) : nuit, filets rouges, texte ivoire, jamais animée ─── */
+/* Ses micros non plus : l'encre des composants ne s'y interpole jamais (POL4.2b, DESIGN.md § 02). La classe du composant
+   vient d'une autre feuille : on la vise par l'attribut, plus précis que la règle de l'encre (micro.module.css). */
+.band [class] > svg,
+.band [class] > svg * {
+  transition: none;
+}
 .band {
   grid-area: band;
   position: relative;
