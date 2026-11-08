@@ -423,6 +423,16 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     expect(status.children).toHaveLength(1);
     expect(status.textContent).toBe('Essai');
   });
+  it('POL2.4a la colonne des messages ne redescend qu’une fois le tiroir parti : elle reste au-dessus de la frise ou du registre qui s’efface, sauf si l’autre tiroir s’ouvre', () => {
+    const css = 'src/app/shell.module.css';
+    const rules = sheet(css).filter((rule) => rule.at.length === 0 && /\.toasts\s*$/.test(rule.selector.split(',').at(-1)!.trim()));
+    const bottomOf = (selector: string) => rules.find((rule) => rule.selector.split(',').map((part) => part.trim()).includes(selector))?.body.match(/bottom: (\d+px)/)?.[1];
+    // Ouverts, comme avant ; en sortie, la colonne garde sa place, tant que l'autre tiroir ne s'ouvre pas à la place.
+    expect(bottomOf('.main[data-frise-open] .toasts')).toBe('80px');
+    expect(bottomOf('.main[data-registre-open] .toasts')).toBe('256px');
+    expect(bottomOf('.main:not([data-registre-open]):has(~ .status [data-frise][data-leaving]) .toasts')).toBe('80px');
+    expect(bottomOf('.main:not([data-frise-open]):has(~ .status [data-registre][data-leaving]) .toasts')).toBe('256px');
+  });
   it('POL2.5 la lumière du survol et du choix monte avec douceur au registre et à l’omnibar : chaque propriété allumée a sa transition, aux durées de la maison', () => {
     const transitions = (path: string, selector: string) =>
       Object.fromEntries(

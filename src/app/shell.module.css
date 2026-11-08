@@ -1329,6 +1329,14 @@
 .main[data-registre-open] .toasts {
   bottom: 256px;
 }
+/* Un tiroir qui s'efface occupe encore sa place : la colonne ne redescend qu'une fois qu'il est parti, sauf si l'autre
+   tiroir s'ouvre à sa place (POL2.4a). */
+.main:not([data-registre-open]):has(~ .status [data-frise][data-leaving]) .toasts {
+  bottom: 80px;
+}
+.main:not([data-frise-open]):has(~ .status [data-registre][data-leaving]) .toasts {
+  bottom: 256px;
+}
 .toast {
   pointer-events: auto;
   background: var(--bg-2);
