@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useMemo, type ComponentProps } from 'react';
 import { samplePhrase } from '@/app/objects/sample';
 import { SetCount } from '@/app/objects/Selection';
+import { useWallClock } from '@/app/useWallClock';
 import { Butterfly, butterflyRows, hourLabel } from '@/design/instruments/Butterfly';
 import { Glyph, Signal } from '@/design/Micro';
 import { Button, cx, Empty, Etiquette, Jauge, Lecteur, Montant } from '@/design/primitives';
@@ -51,16 +52,6 @@ function k04SampleLabel(n: number, account: string): string {
     `K.04 sample: ${plural(n, 'session')}, the whole history of ${account}; open the account record`,
     `Muestra de K.04: ${plural(n, 'sesión', 'sesiones')}, todo el historial de ${account}; abrir la ficha de la cuenta`,
   );
-}
-
-/** L'horloge de M.003 : l'heure de maintenant change au plus une fois par minute. */
-function useMinute(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(id);
-  }, []);
-  return now;
 }
 
 function rangeTitle(range: MetricRange): string {
@@ -147,7 +138,8 @@ export function Dashboard({
   const setHour = useUi((st) => st.setMetricHour);
   // L'heure du curseur de temps, ou de maintenant, à l'or sur M.003 (décision 1).
   const cursor = useUi((st) => st.timeCursor);
-  const now = useMinute();
+  // L'horloge de M.003 : la minute de l'horloge murale, à sa frontière, comme la barre d'état (POL9.3).
+  const now = useWallClock(60_000);
   const cursorHour = zonedWallClock(cursor ?? now, ET_ZONE).hour;
   const contextSessions = context?.sessions ?? sessions;
   const contextTrades = context?.trades ?? trades;

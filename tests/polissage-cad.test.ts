@@ -3,6 +3,7 @@
  */
 import { act, createElement, Profiler, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -25,6 +26,7 @@ import { useKillLatch, useKillSwitch } from '@/app/killState';
 import { Shell } from '@/app/Shell';
 import { StatusBornes } from '@/app/StatusBornes';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
+import type { CalendarEventRow } from '@/engine/calendarEvents';
 import { useI18n } from '@/i18n';
 import type { NtBridgeStatus } from '@/lib/desk';
 import { ET_ZONE, zonedToUtc } from '@/lib/time';
@@ -143,4 +145,21 @@ describe('POL9 · cadence et repos', () => {
     expect(el.querySelector('i')?.getAttribute('data-shortcut')).toBe('CommandOrControl+Shift+K');
   });
 
+  it('POL9.3 le « maintenant » du Calendrier tourne avec la minute de l’horloge murale, et M.003 lit la même horloge', async () => {
+    const NOW = et('2026-10-28', '11:04') + 50_000; // 11:04:50 ET
+    vi.useFakeTimers({ ...TIMERS, now: NOW });
+    const row = (id: string, timeET: string, title: string): CalendarEventRow => ({ id: `bls:${id}`, sourceId: 'bls', date: '2026-10-28', timeET, title, category: 'emploi', impact: 2, instruments: [], estimated: false, syncedAt: NOW - 3_600_000 });
+    useMacro.setState({ events: [row('a', '10:30', 'Publication passée'), row('b', '11:05', 'Publication témoin'), row('c', '14:00', 'Publication à venir')], sources: [{ sourceId: 'bls', state: 'ok', syncedAt: NOW - 3_600_000 }], syncing: false, lastError: undefined, load: async () => undefined, sync: async () => undefined });
+    useSettings.setState({ settings: { ...DEFAULT_SETTINGS, calendarView: 'flux' } });
+    const { default: Calendrier } = await import('@/modules/calendrier/Calendrier');
+    const el = mount(createElement(Calendrier));
+    const now = () => el.querySelector('[data-now]')?.textContent ?? '';
+    expect(now()).toContain('11:04 ET');
+    act(() => void vi.advanceTimersByTime(10_100));
+    expect(now()).toContain('11:05 ET');
+    // M.003 : l'heure courante vient de la même horloge murale, plus d'un intervalle de 60 s parti du montage.
+    const dashboard = readFileSync('src/modules/metrique/Dashboard.tsx', 'utf8');
+    expect(dashboard).toMatch(/useWallClock\(60_000\)/);
+    expect(dashboard).not.toMatch(/setInterval\(/);
+  });
 });
