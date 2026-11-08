@@ -9,6 +9,7 @@ import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { etClock, shortDay } from './objects/index';
 import { useDayBornes } from './useDayBornes';
+import { useSecondWhile } from './useWallClock';
 import s from './shell.module.css';
 
 /**
@@ -362,6 +363,8 @@ export function StatusBornes() {
   const b = useDayBornes();
   const nt = useBridge((st) => st.nt);
   const live = nt?.link === 'live';
+  // L'âge de la lecture se dit à la seconde : la barre bat d'elle-même tant que le pont vit, sans le châssis (POL9.1).
+  useSecondWhile(live);
   const cells = borneCells(b);
   const bridge = bridgeLabel(b, nt?.link ?? null);
   const age = live && b.day.ageMs !== null ? ageText(b.day.ageMs) : null;
