@@ -62,8 +62,9 @@ export function Sessions() {
   }, [trades]);
 
   // La sélection partagée (OROS5.32) : le compte, la période et l'instrument des puces. Rien ne disparaît : une séance
-  // qui en sort reste dans la liste, atténuée à 35 %, et le panneau dit n / N.
-  const selection = useSelection();
+  // qui en sort reste dans la liste, atténuée à 35 %, et le panneau dit n / N. La puce s'allume au geste ; la grille la
+  // suit derrière (POL6.4).
+  const selection = useDeferredValue(useSelection());
   const asOf = etDateKey(Date.now());
   const kept = useMemo(() => selectionIndex(sessions, trades, selection, asOf).sessions, [sessions, trades, selection, asOf]);
   const keptShown = useMemo(() => list.filter((x) => kept.has(x.id)).length, [list, kept]);

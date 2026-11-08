@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { readFileSync } from 'node:fs';
-import { act, createElement, type ReactElement } from 'react';
+import { act, createElement, Suspense, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import p from '@/design/primitives.module.css';
@@ -16,7 +16,27 @@ import { cssRules, HOVER_LIGHT, hoverOffenses } from './helpers/cssRules';
 // POL6.1 : le tirage reste en cours tant que le test le veut (sans Worker, `monteCarloOffthread` appelle `monteCarlo`).
 vi.mock('@/engine/montecarlo', async (orig) => ({ ...(await orig<typeof import('@/engine/montecarlo')>()), monteCarlo: () => new Promise(() => undefined) }));
 
+// POL6.4 : ce qui se calcule derrière l'onglet ou la période suspend sans fin ; un rendu urgent qui le calculerait
+// remplacerait la vue par le repli de Suspense, un rendu différé garde l'ancienne vue à l'écran.
+const { never } = vi.hoisted(() => ({
+  never: (): never => {
+    throw new Promise(() => undefined);
+  },
+}));
+vi.mock('@/modules/metrique/Analyse', () => ({ Analyse: never }));
+vi.mock('@/modules/metrique/Dashboard', async () => {
+  const { createElement: h } = await import('react');
+  return { Dashboard: ({ range }: { range: string }) => (range === '30j' ? h('p', { 'data-dash': range }) : never()) };
+});
+vi.mock('@/engine/selection', async (orig) => {
+  const real = await orig<typeof import('@/engine/selection')>();
+  return { ...real, selectionIndex: (...args: Parameters<typeof real.selectionIndex>) => (args[2].range === '30j' ? real.selectionIndex(...args) : never()) };
+});
+
+import Metrique from '@/modules/metrique/Metrique';
 import { MonteCarloView } from '@/modules/metrique/MonteCarloView';
+import { useObjects } from '@/store/objects';
+import { useUi } from '@/store/ui';
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -135,5 +155,34 @@ describe('POL6 Métrique et Visual : la dynamique se polit, le repos ne bouge pa
     expect(top(VIS, '.catalogItem')?.body).toMatch(/transition:[^;]*\bcolor 200ms linear/);
     expect(top(VIS, '.catalogItem')?.body).toMatch(/transition:[^;]*\bborder-color 260ms var\(--ease-out\)/);
     expect(top(VIS, '.indicatorHead > button:last-child')?.body).toMatch(/transition:\s*color 200ms linear/);
+  });
+
+  it('POL6.4 le sous-onglet et la période s’allument au geste ; ce qu’ils ouvrent se calcule derrière, sans repli', () => {
+    useUi.setState({ metricRange: '30j', metricAccount: null, metricInstrument: null, metricHour: null });
+    act(() => useObjects.getState().setView('metrique', 'bord'));
+    const node = mount(createElement(Suspense, { fallback: createElement('p', { 'data-fallback': '' }) }, createElement(Metrique)));
+    const tab = (letter: string) => [...node.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((b) => b.querySelector('i')?.textContent === letter)!;
+    const period = (label: string) => [...node.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].find((b) => b.textContent === label)!;
+    const fallback = () => node.querySelector('[data-fallback]');
+    expect(node.querySelector('[data-dash]')?.getAttribute('data-dash')).toBe('30j');
+    // C · Analyse : l'onglet s'allume aussitôt ; la vue qu'il ouvre se calcule derrière, A reste à l'écran entre-temps.
+    act(() => tab('C').click());
+    expect(tab('C').getAttribute('aria-selected')).toBe('true');
+    expect(fallback()).toBeNull();
+    expect(node.querySelector('[data-dash]')).not.toBeNull();
+    // Retour à A, puis 90J : la période s'allume aussitôt, A garde ses 30 jours tant que les 90 se calculent.
+    act(() => tab('A').click());
+    act(() => period('90J').click());
+    expect(period('90J').getAttribute('aria-pressed')).toBe('true');
+    expect(fallback()).toBeNull();
+    expect(node.querySelector('[data-dash]')?.getAttribute('data-dash')).toBe('30j');
+    // B · Séances lit la période au store : sa grille se recalcule derrière, elle aussi.
+    act(() => period('30J').click());
+    act(() => tab('B').click());
+    expect(node.textContent).toContain('Aucune séance');
+    act(() => period('90J').click());
+    expect(period('90J').getAttribute('aria-pressed')).toBe('true');
+    expect(fallback()).toBeNull();
+    expect(node.textContent).toContain('Aucune séance');
   });
 });
