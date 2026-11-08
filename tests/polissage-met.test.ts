@@ -294,4 +294,16 @@ describe('POL6 Métrique et Visual : la dynamique se polit, le repos ne bouge pa
       lots.mockRestore();
     }
   });
+
+  it('POL6.7 les encres qui sautaient suivent leur fond : le filet de la séance ouverte de A.04, le compte des puces de A.02', () => {
+    const DASH = 'src/modules/metrique/dashboard.module.css';
+    // A.04 : le fond de la ligne ouverte se fond en 200 ms ; son filet de 2 px arrive et part au même pas.
+    expect(top(DASH, '.objRow td')?.body).toMatch(/transition:[^;]*\bbackground-color 200ms linear/);
+    expect(top(DASH, '.objRow td')?.body).toMatch(/transition:[^;]*\bbox-shadow 200ms linear/);
+    // Le filet garde son trait et son or, à la même règle (cliquet OR inchangé).
+    expect(top(DASH, '.objOn td:first-child')?.body).toMatch(/box-shadow:\s*inset var\(--active-line\) 0 0 var\(--gold\)/);
+    // A.02 : le n d'une puce passe à l'ivoire avec son libellé, en 200 ms.
+    expect(top(DASH, '.eqSet b')?.body).toMatch(/transition:\s*color 200ms linear/);
+    expect(top(DASH, '.eqSetOn b')?.body).toMatch(/color:\s*var\(--text-0\)/);
+  });
 });

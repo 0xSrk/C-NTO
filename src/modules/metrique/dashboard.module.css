@@ -326,6 +326,8 @@
   font-weight: 500;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
+  /* Le n passe à l'ivoire avec le libellé de sa puce. */
+  transition: color 200ms linear;
 }
 .eqSetOn {
   color: var(--text-0);
@@ -562,8 +564,11 @@
   --k: var(--text-1);
   transition: opacity 220ms linear;
 }
+/* Le fond de la ligne ouverte se fond ; son filet de 2 px arrive et part au même pas. */
 .objRow td {
-  transition: background-color 200ms linear;
+  transition:
+    background-color 200ms linear,
+    box-shadow 200ms linear;
 }
 .objOpen {
   display: inline-flex;
