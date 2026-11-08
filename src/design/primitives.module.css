@@ -581,8 +581,9 @@
   vertical-align: middle;
   line-height: 1.3;
 }
+/* Le filet d'or de la ligne choisie arrive et part avec son fond, au même pas. */
 .table tbody tr {
-  transition: background 120ms linear;
+  transition: background var(--t-fast) linear, box-shadow var(--t-fast) linear;
 }
 .table tbody tr:global(.selected) {
   background: var(--bg-3);
