@@ -86,8 +86,11 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
   }, []);
 
   const [skipped, setSkipped] = useState(false);
+  // La fin se pose une fois, au début de la sortie : un geste pendant l'écartement ne la repousse pas.
+  const finishRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(finishRef.current), []);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || leaving) return;
     const min = fromLauncher ? MIN_FROM_LAUNCHER_MS : MIN_DURATION_MS;
     const remaining = skipped ? 0 : Math.max(0, min - (Date.now() - startedAt));
     const t1 = setTimeout(() => {
@@ -97,13 +100,10 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
       if (box && root && root.height > 0) setAxis(((box.top + box.height / 2 - root.top) / root.height) * 100);
       setLeaving(true);
       onReveal?.();
+      finishRef.current = setTimeout(onFinished, reduced ? 240 : LEAVE_MS);
     }, remaining);
-    const t2 = setTimeout(onFinished, remaining + (reduced ? 240 : LEAVE_MS));
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [ready, skipped, startedAt, onFinished, onReveal, fromLauncher, reduced]);
+    return () => clearTimeout(t1);
+  }, [ready, skipped, leaving, startedAt, onFinished, onReveal, fromLauncher, reduced]);
 
   useEffect(() => {
     const skip = () => setSkipped(true);
