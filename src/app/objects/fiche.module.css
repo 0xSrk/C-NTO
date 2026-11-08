@@ -349,6 +349,11 @@ button.activityRow:focus-visible {
   width: 16px;
   height: 16px;
 }
+/* Le glyphe de la ligne s'allume avec son fond, au pas de la lecture liée (POL3.2, POL4.2a). */
+.row .rowGlyph > svg,
+.row .rowGlyph > svg * {
+  transition: fill var(--t-med) var(--ease-out), stroke var(--t-med) var(--ease-out);
+}
 /* Les masters fins de l'instrument (C.100) et de la note (C.091), relevés pour 16 px, leur dessin intact. */
 .rowGlyph :global(.g100-1),
 .objLinkGlyph :global(.g100-1),
