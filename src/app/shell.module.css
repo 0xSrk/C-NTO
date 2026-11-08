@@ -180,6 +180,14 @@
   scrollbar-width: thin;
 }
 
+/* La lumière zénithale de l'onglet ouvert, déclarée couleur pour s'interpoler : chaque cartouche la porte, éteinte
+   (transparente) au repos ; elle monte et descend au pas du filet au lieu de basculer en une image. */
+@property --zenith {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: transparent;
+}
+
 /* Onglet en cartouche (4.1, décision de l'ADMIN, 2026-10-27) : un filet d'un pixel à l'ivoire très bas, le coin chanfreiné
    de la Ligne V2, un fond à peine levé ; l'emblème en tête, le nom et dessous ce que le module contient ; le numéro du
    raccourci en code, au coin, sous le chanfrein. Elle ne s'écrase jamais (flex: none) : à l'étroit, la nav défile. */
@@ -208,9 +216,11 @@
   pointer-events: none;
   inset: 0;
   z-index: -2;
-  background: color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
+  background:
+    linear-gradient(90deg, transparent 4%, var(--zenith) 50%, transparent 96%) top / 100% 1px no-repeat,
+    color-mix(in srgb, var(--ivory) 6%, var(--bg-0));
   clip-path: var(--chamfer);
-  transition: background-color 280ms var(--ease-out);
+  transition: background-color 280ms var(--ease-out), --zenith 280ms var(--ease-out);
 }
 /* Le chanfrein du fond, retiré d'un pixel : 10 − (2 − √2) ≈ 9,4 px ; le filet du biais garde son pixel. */
 .navItem::after {
@@ -219,9 +229,11 @@
   pointer-events: none;
   inset: 1px;
   z-index: -1;
-  background: color-mix(in srgb, var(--ivory) 1.5%, var(--bg-0));
+  background:
+    linear-gradient(var(--zenith), transparent 60%),
+    color-mix(in srgb, var(--ivory) 1.5%, var(--bg-0));
   clip-path: polygon(0 0, calc(100% - 9.4px) 0, 100% 9.4px, 100% 100%, 0 100%);
-  transition: background-color 280ms var(--ease-out);
+  transition: background-color 280ms var(--ease-out), --zenith 280ms var(--ease-out);
 }
 /* L'onglet ouvert : le filet s'éclaircit et la lumière zénithale se pose sur son arête haute ; le fond se lève à peine,
    éclairé d'en haut ; l'emblème passe à l'or. La nuit reste. */
@@ -229,13 +241,15 @@
   color: var(--text-0);
 }
 .navItem.on::before {
+  --zenith: color-mix(in srgb, var(--ivory) 70%, transparent);
   background:
-    linear-gradient(90deg, transparent 4%, color-mix(in srgb, var(--ivory) 70%, transparent) 50%, transparent 96%) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent 4%, var(--zenith) 50%, transparent 96%) top / 100% 1px no-repeat,
     color-mix(in srgb, var(--ivory) 18%, var(--bg-0));
 }
 .navItem.on::after {
+  --zenith: color-mix(in srgb, var(--ivory) 6%, transparent);
   background:
-    linear-gradient(color-mix(in srgb, var(--ivory) 6%, transparent), transparent 60%),
+    linear-gradient(var(--zenith), transparent 60%),
     color-mix(in srgb, var(--ivory) 2%, var(--bg-0));
 }
 /* Au passage du pointeur, la lumière monte sur le filet et le fond ; rien ne bouge. */
@@ -343,6 +357,7 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
   overflow-wrap: break-word;
+  transition: color 240ms linear;
 }
 .navQtyPart {
   white-space: nowrap;
