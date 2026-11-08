@@ -40,6 +40,8 @@
   border: 1px solid var(--line-1);
   border-radius: var(--radius);
   overflow: hidden;
+  /* Un filtre qu'on allume ou éteint : son filet et son fond arrivent d'un pas (primitives, `.btn`). */
+  transition: border-color 260ms var(--ease-out), background-color 260ms var(--ease-out);
 }
 .filterChip.on {
   border-color: var(--line-2);
@@ -59,6 +61,7 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  transition: color 200ms linear;
 }
 .filterChip.on .filterBtn {
   color: var(--text-0);
@@ -82,6 +85,20 @@
   font-size: 11px;
   cursor: pointer;
   line-height: 1;
+  transition: color 200ms linear;
+}
+/* Au passage du pointeur, le filtre éteint s'éclaire d'un ton — son filet, son libellé — sans prendre la lecture du filtre
+   allumé ; l'aide monte à l'ivoire. */
+@media (hover: hover) {
+  .filterChip:not(.on):hover {
+    border-color: var(--line-2);
+  }
+  .filterChip:not(.on) .filterBtn:hover {
+    color: var(--text-1);
+  }
+  .helpDot:hover {
+    color: var(--text-0);
+  }
 }
 
 /* ─── Grille ─────────────────────────────────── */
@@ -286,6 +303,8 @@
   display: grid;
   grid-template-columns: 150px 1fr;
   border-bottom: 1px solid var(--line-0);
+  /* Le jour choisi s'allume au pas d'une ligne du Jour (`.dayRow`). */
+  transition: background-color 220ms var(--ease-out);
 }
 .fluxDay.selected {
   background: var(--gold-soft);
@@ -297,6 +316,7 @@
   flex-direction: column;
   gap: 4px;
   cursor: pointer;
+  transition: background-color 220ms var(--ease-out);
 }
 .fluxDayHead b {
   font-size: 13px;
@@ -328,6 +348,7 @@
   margin: 3px 8px 3px 0;
   border: 1px solid var(--line-2);
   cursor: pointer;
+  transition: background-color 220ms var(--ease-out);
 }
 .fluxEv.evPublished {
   background: rgba(255, 255, 255, 0.02);
@@ -505,6 +526,7 @@
   border-right: 0;
   border-top: 0;
   cursor: pointer;
+  transition: background-color 220ms var(--ease-out);
 }
 .histRow time {
   font-family: var(--font-mono);
@@ -560,6 +582,12 @@
   background: transparent;
   border: 0;
   cursor: pointer;
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .persoItem button:hover {
+    color: var(--text-0);
+  }
 }
 .side > * {
   flex: none;
@@ -604,6 +632,15 @@
 .ev[data-stroke='publie'],
 .fluxEv[data-stroke='publie'] {
   color: var(--text-1);
+}
+/* Au passage du pointeur, les lignes du flux et de l'historique s'éclairent par le fond, comme une ligne du Jour : leur
+   trait dit l'état et ne bouge pas. Après le fond d'une publication (`.fluxEv.evPublished`), qu'il couvre. */
+@media (hover: hover) {
+  .fluxDayHead:hover,
+  .fluxEv:hover,
+  .histRow:hover {
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+  }
 }
 
 /* Légendes L.01 / L.02, en tête de la colonne du Jour (OROS5.29) : une ligne chacune, la clé et son mot. */
