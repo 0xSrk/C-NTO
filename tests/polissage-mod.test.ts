@@ -247,4 +247,34 @@ describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
     expect(rules.filter((r) => /:hover\b/.test(r.selector) && r.selector.includes("aria-checked='true'"))).toEqual([]);
     expect(base(AGENT, ".deskTools[aria-checked='true'] .toggleGlyph")!.body).toMatch(/--k: var\(--text-0\)/);
   });
+
+  it('POL7.8 les automates, les étapes, les modèles et le retrait d’une règle du Bot, les marchés et le retrait d’une alerte du Crypto, la corbeille du Copieur et « Exporter » du Portefeuille s’éclairent au passage', () => {
+    const BOT = 'src/modules/bot/bot.module.css';
+    const CRYPTO = 'src/modules/crypto/crypto.module.css';
+    const COPIEUR = 'src/modules/copieur/copieur.module.css';
+    const SYNTHESE = 'src/modules/portefeuille/synthese.module.css';
+    expectLit(BOT, '.botItem', '.botItem:not(.on):hover');
+    expectLit(BOT, '.stage', '.stage:not(.current):not(.locked):hover');
+    expectLit(BOT, '.template', '.template:hover');
+    expectLit(BOT, '.rule button', '.rule button:hover');
+    expectLit(CRYPTO, '.marketRow', '.marketRow:not(.active):hover');
+    expectLit(CRYPTO, '.alertRemove', '.alertRemove:hover');
+    expectLit(COPIEUR, '.accHead > button:last-child', '.accHead > button:last-child:hover');
+    expectLit(SYNTHESE, '.more', '.more:hover');
+    // L'automate ouvert et l'étape : leur filet, leur fond et leur libellé (or, menthe) arrivent d'un pas.
+    const item = base(BOT, '.botItem')!.body;
+    expect(timing(item, 'border-color')).toBe(timing(item, 'background-color'));
+    expect(timing(item, 'color')).toBeDefined();
+    const stage = base(BOT, '.stage')!.body;
+    expect(timing(stage, 'border-color')).toBe(timing(stage, 'background-color'));
+    expect(timing(base(BOT, '.stage b')!.body, 'color')).toBeDefined();
+    // Ce dont le trait dit l'état s'éclaire par le fond : le tireté du modèle proposé et le filet de l'étape ne bougent pas.
+    const hoverOf = (path: string, selector: string) => sheet(path).find((r) => r.selector === selector)!;
+    expect(hoverOf(BOT, '.template:hover').props).not.toContain('border-color');
+    expect(hoverOf(BOT, '.stage:not(.current):not(.locked):hover').props).toEqual(['background-color']);
+    // Le marché affiché garde seul l'ivoire ; la corbeille du Copieur seule s'éclaire, pas la bascule désactivée qui la précède.
+    expect(hoverOf(CRYPTO, '.marketRow:not(.active):hover').body).toMatch(/color: var\(--text-1\)/);
+    expect(sheet(COPIEUR).filter((r) => /:hover\b/.test(r.selector)).map((r) => r.selector)).toEqual(['.accHead > button:last-child:hover']);
+    expect(sheet(COPIEUR).find((r) => r.selector === '.accHead button')!.body).not.toMatch(/transition/);
+  });
 });

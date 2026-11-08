@@ -139,6 +139,12 @@
   letter-spacing: 0.1em;
   color: var(--text-1);
   background: none;
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .more:hover {
+    color: var(--text-0);
+  }
 }
 .bilanFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .custom { display: flex; gap: 8px; }
