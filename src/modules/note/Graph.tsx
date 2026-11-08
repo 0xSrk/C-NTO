@@ -99,6 +99,52 @@ function repelGrid(nodes: Node[]): void {
   });
 }
 
+/** Un pas de la simulation : répulsion, gravité, ressorts, amortissement ; l'arrêt anticipé à l'équilibre. */
+function step(st: { nodes: Node[]; edges: Edge[]; drag: number | null; frame: number }): void {
+  const { nodes, edges } = st;
+  if (nodes.length > GRID_THRESHOLD) repelGrid(nodes);
+  else repelAll(nodes);
+  for (const a of nodes) {
+    a.vx -= a.x * 0.004;
+    a.vy -= a.y * 0.004;
+  }
+  for (const edge of edges) {
+    const a = nodes[edge.i];
+    const b = nodes[edge.j];
+    if (!a || !b) continue;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const rest = 110 + 3.5 * Math.max(a.title.length, b.title.length);
+    const f = (d - rest) * 0.02;
+    a.vx += (dx / d) * f;
+    a.vy += (dy / d) * f;
+    b.vx -= (dx / d) * f;
+    b.vy -= (dy / d) * f;
+  }
+  let energy = 0;
+  nodes.forEach((n, i) => {
+    if (st.drag === i) return;
+    n.vx *= 0.82;
+    n.vy *= 0.82;
+    n.x += n.vx;
+    n.y += n.vy;
+    energy += n.vx * n.vx + n.vy * n.vy;
+  });
+  st.frame++;
+  // Arrêt anticipé dès que la mise en page ne bouge plus (le plafond de 600 reste la borne).
+  // Quelques images de sécurité pour laisser les positions initiales (angle) se dérouler.
+  if (st.frame > 10 && energy < REST_ENERGY && st.drag === null) st.frame = MAX_FRAMES;
+}
+
+/** Mouvement réduit : le graphe paraît posé, comme le verrou et le démarrage (DESIGN.md § 06, § 08). */
+function reducedMotion(): boolean {
+  return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** Sous mouvement réduit, la mise en page se calcule hors de la vue par tranches : aucune image du desk ne dure plus. */
+const SETTLE_SLICE_MS = 8;
+
 function token(canvas: HTMLCanvasElement, name: string, fallback: string): string {
   const value = getComputedStyle(canvas).getPropertyValue(name).trim();
   return value || fallback;
@@ -200,6 +246,7 @@ export function Graph({ notes, activeId, onOpen, links = [], events = [] }: { no
     if (!ctx) return;
     let raf = 0;
     let dirty = true;
+    const reduce = reducedMotion();
     const wake = () => {
       dirty = true;
       if (!raf) raf = requestAnimationFrame(tick);
@@ -209,6 +256,21 @@ export function Graph({ notes, activeId, onOpen, links = [], events = [] }: { no
     const tick = () => {
       raf = 0;
       const st = state.current;
+      if (st.frame < MAX_FRAMES) {
+        if (reduce && st.drag === null) {
+          // Mouvement réduit : la mise en page avance sans se peindre, tranche après tranche, puis paraît posée d'un coup,
+          // au même repos (la suite des pas ne dépend d'aucune horloge). Un nœud tenu suit la main, pas à pas. Le pas vient
+          // avant la mesure du canevas : une tranche qui ne peint pas ne le redimensionne pas, il garde sa dernière image.
+          const until = performance.now() + SETTLE_SLICE_MS;
+          do step(st);
+          while (st.frame < MAX_FRAMES && performance.now() < until);
+          if (st.frame < MAX_FRAMES) {
+            raf = requestAnimationFrame(tick);
+            return;
+          }
+        } else step(st);
+      }
+
       const { nodes, edges } = st;
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -218,42 +280,6 @@ export function Graph({ notes, activeId, onOpen, links = [], events = [] }: { no
       }
       const cx = rect.width / 2 + st.offset.x;
       const cy = rect.height / 2 + st.offset.y;
-
-      if (st.frame < MAX_FRAMES) {
-        if (nodes.length > GRID_THRESHOLD) repelGrid(nodes);
-        else repelAll(nodes);
-        for (const a of nodes) {
-          a.vx -= a.x * 0.004;
-          a.vy -= a.y * 0.004;
-        }
-        for (const edge of edges) {
-          const a = nodes[edge.i];
-          const b = nodes[edge.j];
-          if (!a || !b) continue;
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          const rest = 110 + 3.5 * Math.max(a.title.length, b.title.length);
-          const f = (d - rest) * 0.02;
-          a.vx += (dx / d) * f;
-          a.vy += (dy / d) * f;
-          b.vx -= (dx / d) * f;
-          b.vy -= (dy / d) * f;
-        }
-        let energy = 0;
-        nodes.forEach((n, i) => {
-          if (st.drag === i) return;
-          n.vx *= 0.82;
-          n.vy *= 0.82;
-          n.x += n.vx;
-          n.y += n.vy;
-          energy += n.vx * n.vx + n.vy * n.vy;
-        });
-        st.frame++;
-        // Arrêt anticipé dès que la mise en page ne bouge plus (le plafond de 600 reste la borne).
-        // Quelques images de sécurité pour laisser les positions initiales (angle) se dérouler.
-        if (st.frame > 10 && energy < REST_ENERGY && st.drag === null) st.frame = MAX_FRAMES;
-      }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
