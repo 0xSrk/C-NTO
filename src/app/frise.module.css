@@ -222,6 +222,11 @@
   line-height: 10px;
   font-variant-numeric: tabular-nums;
   color: var(--text-2);
+  transition: opacity var(--t-fast) linear;
+}
+/* Une heure que la tête recouvrirait, ou trop près de sa voisine, s'efface sans quitter l'axe (POL2.6). */
+.hour[data-off] {
+  opacity: 0;
 }
 .head {
   position: absolute;

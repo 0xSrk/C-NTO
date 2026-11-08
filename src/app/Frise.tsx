@@ -181,6 +181,9 @@ function Drawer({ className, sectionRef, leaving }: { className?: string; sectio
   const labels = ticks.filter((t, i) => i < ticks.length - 1 && (t.hour === 7 || !t.night || nightPx >= 26 || (t.hour - 18 + 24) % 2 === 0));
   const nowIn = now >= span.start && now <= span.end;
   const headX = x(at);
+  // L'heure lue, à la tête de la ligne, prend la place des heures qu'elle recouvrirait : celles-ci restent montées et
+  // s'effacent à l'opacité, sans clignoter au passage du curseur (POL2.6).
+  const shownHours = new Set(spaced(labels.filter((t) => Math.abs(x(t.at) - headX) >= 30), (t) => x(t.at)).map((t) => t.at));
   const valueText = `${etDay(at)} · ${etClock(at)} ET · ${line.label}`;
   // Une phase coupée à maintenant : ce qui a eu lieu, plein ; ce qui reste, prévu (tireté, pointillé au-delà de l'horizon).
   const ahead: EtatStroke = beyond ? 'pointille' : 'tirete';
@@ -297,12 +300,11 @@ function Drawer({ className, sectionRef, leaving }: { className?: string; sectio
             <i key={`k${t.at}`} className={f.tick} style={{ left: x(t.at) }} />
           ))}
           {/* L'heure lue, à la tête de la ligne, prend la place des heures qu'elle recouvrirait. */}
-          {spaced(labels.filter((t) => Math.abs(x(t.at) - headX) >= 30), (t) => x(t.at))
-            .map((t) => (
-              <span key={`h${t.at}`} className={f.hour} style={{ left: x(t.at) }}>
-                {String(t.hour).padStart(2, '0')}
-              </span>
-            ))}
+          {labels.map((t) => (
+            <span key={`h${t.at}`} className={f.hour} data-axis-hour="" data-off={shownHours.has(t.at) ? undefined : ''} style={{ left: x(t.at) }}>
+              {String(t.hour).padStart(2, '0')}
+            </span>
+          ))}
           <span className={cx(f.head, pulled && f.headHeld)} style={{ left: Math.min(width - 18, Math.max(18, headX)) }}>
             {etClock(at)}
           </span>
