@@ -215,4 +215,29 @@ describe('POL8 lanceur AUBE — la dynamique polie, le repos inchangé', () => {
       `polygon(evenodd, 0 0, calc(100% - ${outer}px) 0, 100% ${outer}px, 100% 100%, 0 100%, 0 0, ${t} ${t}, ${t} calc(100% - ${t}), calc(100% - ${t}) calc(100% - ${t}), calc(100% - ${t}) ${inner}px, calc(100% - ${inner}px) ${t}, ${t} ${t})`,
     );
   });
+
+  it('POL8.3 mouvement réduit : le départ se tait aussi — rien ne balaie ni ne glisse, les commandes s’effacent', () => {
+    // En mouvement réduit, la phase vaut 'rest' dès l'ouverture : l'extinction en bloc de l'aube ne couvre pas le départ.
+    const plain = RULES.filter((r) => !REDUCED(r) && !r.at.some((h) => h.startsWith('@keyframes')) && !r.selector.includes("data-phase='intro'"));
+    const quiet = RULES.filter(REDUCED);
+    /** La valeur qui l'emporte pour un sélecteur : la dernière règle qui la déclare (même spécificité). */
+    const effective = (sel: string, prop: string, rules: CssRule[]) =>
+      rules
+        .filter((r) => selectors(r).includes(sel) && decl(r.body, prop) !== undefined)
+        .map((r) => decl(r.body, prop))
+        .at(-1);
+    const missing: string[] = [];
+    for (const sel of new Set(plain.flatMap(selectors))) {
+      const anim = effective(sel, 'animation', plain);
+      if (anim && anim !== 'none' && effective(sel, 'animation', quiet) !== 'none') missing.push(`${sel} › animation`);
+      const move = effective(sel, 'transform', plain);
+      if (sel.startsWith('.frame.leaving') && move && move !== 'none' && effective(sel, 'transform', quiet) !== 'none') missing.push(`${sel} › transform`);
+    }
+    expect(missing).toEqual([]);
+    // Le fondu d'opacité du départ reste, comme au verrou du desk : « le mot paraît, le verrou s'efface ».
+    for (const rule of quiet.filter((r) => selectors(r).some((s) => s.startsWith('.frame.leaving')))) {
+      expect(rule.props.filter((p) => p !== 'transform' && p !== 'animation'), rule.selector).toEqual([]);
+    }
+    expect(effective('.frame.leaving .panel', 'transition', plain)).toMatch(/^opacity 0\.22s linear/);
+  });
 });
