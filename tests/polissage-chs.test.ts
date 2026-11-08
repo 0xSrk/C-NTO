@@ -1,5 +1,4 @@
-import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { cssRules, hoverOffenses } from './helpers/cssRules';
 
@@ -74,11 +73,18 @@ describe('POL1 châssis : rail, barre de titre, barre d’état', () => {
     expect(hoverOffenses(css).offenders).toEqual([]);
   });
   it('POL1.1a une propriété typée d’une feuille de module porte le nom de sa pièce : @property est global, que CSS Modules ne renomme pas', () => {
-    const files = execSync("git ls-files 'src/**/*.module.css'", { encoding: 'utf8' }).trim().split('\n');
+    // Un parcours du dossier, sans shell : sous Windows, cmd.exe garde les guillemets simples d'un motif git (POL1.1b).
+    const files = (readdirSync('src', { recursive: true }) as string[]).filter((file) => file.endsWith('.module.css')).map((file) => `src/${file.split('\\').join('/')}`);
+    expect(files).toContain('src/app/shell.module.css');
     const names = files.flatMap((file) => [...readFileSync(file, 'utf8').matchAll(/@property (--[\w-]+)/g)].map((m) => ({ file, name: m[1]! })));
     expect(names.length).toBeGreaterThan(0);
     for (const { file, name } of names) expect(name, file).toMatch(/^--[a-z]+-[a-z-]+$/);
     expect(new Set(names.map((n) => n.name)).size).toBe(names.length);
     expect(names.map((n) => n.name)).toContain('--nav-zenith');
+  });
+  it('POL1.1b les tests du polissage ne passent pas par le shell : ils tournent pareil sous Windows, macOS et Linux', () => {
+    for (const file of readdirSync('tests').filter((name) => /^polissage-\w+\.test\.ts$/.test(name))) {
+      expect(readFileSync(`tests/${file}`, 'utf8'), file).not.toMatch(/from ['"]node:child_process['"]/);
+    }
   });
 });
