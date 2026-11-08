@@ -6,6 +6,8 @@ import { act, createElement, Suspense, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import p from '@/design/primitives.module.css';
+import type { Bar } from '@/engine/bars';
+import type { IndicatorLine } from '@/engine/indicators';
 import type { Session } from '@/engine/types';
 import { useI18n } from '@/i18n';
 import m from '@/modules/metrique/metrique.module.css';
@@ -33,8 +35,37 @@ vi.mock('@/engine/selection', async (orig) => {
   return { ...real, selectionIndex: (...args: Parameters<typeof real.selectionIndex>) => (args[2].range === '30j' ? real.selectionIndex(...args) : never()) };
 });
 
+// POL6.5 : le canevas n'existe pas sous jsdom ; lightweight-charts est remplacé par un graphique qui garde l'écouteur du
+// réticule, et le cadre est déclaré prêt (comme tests/crypto-chart-live.test.ts).
+const chartCalls = vi.hoisted(() => ({ move: null as null | ((param: unknown) => void) }));
+vi.mock('lightweight-charts', () => {
+  const series = () => ({ setData: () => undefined, update: () => undefined, applyOptions: () => undefined, createPriceLine: () => ({ applyOptions: () => undefined }), removePriceLine: () => undefined });
+  return {
+    CandlestickSeries: 'Candlestick',
+    HistogramSeries: 'Histogram',
+    LineSeries: 'Line',
+    ColorType: { Solid: 'solid' },
+    CrosshairMode: { Normal: 0 },
+    LineStyle: { Solid: 0, Dotted: 1, Dashed: 2 },
+    createSeriesMarkers: () => ({ setMarkers: () => undefined }),
+    createChart: () => ({
+      addSeries: series,
+      panes: () => [{ setHeight: () => undefined }, { setHeight: () => undefined }],
+      subscribeCrosshairMove: (fn: (param: unknown) => void) => {
+        chartCalls.move = fn;
+      },
+      timeScale: () => ({ fitContent: () => undefined, setVisibleLogicalRange: () => undefined }),
+      applyOptions: () => undefined,
+      removeSeries: () => undefined,
+      remove: () => undefined,
+    }),
+  };
+});
+vi.mock('@/modules/visual/chartBox', () => ({ chartHostReady: () => true, safePaneHeight: (requested: number) => requested }));
+
 import Metrique from '@/modules/metrique/Metrique';
 import { MonteCarloView } from '@/modules/metrique/MonteCarloView';
+import { Chart } from '@/modules/visual/Chart';
 import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 
@@ -184,5 +215,53 @@ describe('POL6 Métrique et Visual : la dynamique se polit, le repos ne bouge pa
     expect(period('90J').getAttribute('aria-pressed')).toBe('true');
     expect(fallback()).toBeNull();
     expect(node.textContent).toContain('Aucune séance');
+  });
+
+  it('POL6.5 Visual : la légende sous le réticule ne se relit qu’à une bougie nouvelle, ou quand la série ou les indicateurs changent', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      const T0 = 1_791_500_400;
+      const bar = (i: number): Bar => ({ time: T0 + i * 300, open: 100 + i, high: 101 + i, low: 99 + i, close: 100.5 + i, volume: 10 });
+      const onHover = vi.fn();
+      const show = (bars: Bar[], lines: IndicatorLine[] = []) => act(() => root!.render(createElement(Chart, { bars, timeframe: 5, lines, trades: [], onHover })));
+      const bars = [bar(0), bar(1), bar(2)];
+      mount(createElement(Chart, { bars, timeframe: 5, lines: [], trades: [], onHover }));
+      const at = (time?: number) => act(() => chartCalls.move!({ time, point: time === undefined ? undefined : { x: 10, y: 10 }, seriesData: new Map() }));
+      // Trois pixels dans la même bougie : une seule lecture.
+      at(T0);
+      at(T0);
+      at(T0);
+      expect(onHover).toHaveBeenCalledTimes(1);
+      expect(onHover).toHaveBeenLastCalledWith({ time: T0, bar: bars[0], values: [] });
+      // Une bougie nouvelle : une lecture.
+      at(T0 + 300);
+      expect(onHover).toHaveBeenCalledTimes(2);
+      // Le pointeur sort : une seule lecture vide.
+      at();
+      at();
+      expect(onHover).toHaveBeenCalledTimes(3);
+      expect(onHover).toHaveBeenLastCalledWith(null);
+      // La bougie vivante change sous un pointeur immobile : la légende se relit, à ses nouvelles valeurs.
+      at(T0 + 600);
+      expect(onHover).toHaveBeenCalledTimes(4);
+      const live = [bars[0]!, bars[1]!, { ...bar(2), close: 104 }];
+      show(live);
+      at(T0 + 600);
+      expect(onHover).toHaveBeenCalledTimes(5);
+      expect(onHover).toHaveBeenLastCalledWith({ time: T0 + 600, bar: live[2], values: [] });
+      // Un indicateur change : la légende se relit aussi.
+      show(live, [{ key: 'ema', label: 'EMA 21', color: '#ffffff', pane: 'price', data: [] }]);
+      at(T0 + 600);
+      expect(onHover).toHaveBeenCalledTimes(6);
+      expect(onHover.mock.lastCall?.[0]).toMatchObject({ time: T0 + 600, values: [{ key: 'ema', value: null }] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

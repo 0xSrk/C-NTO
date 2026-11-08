@@ -268,13 +268,23 @@ export function Chart({ bars, timeframe, lines, trades, onHover, priceFormat, pr
     appliedLiveRef.current = liveRef.current;
     syncPriceLines(candles, drawnLinesRef.current, priceLinesRef.current);
 
+    // La légende ne se relit qu'à une bougie nouvelle, ou quand la série ou les indicateurs changent : un pixel dans la
+    // même bougie ne rend rien, ni ici ni chez le module qui écoute (le réticule bat à chaque pixel).
+    let lastTime: number | null = null;
+    let lastBars: readonly Bar[] | null = null;
+    let lastLines: readonly IndicatorLine[] | null = null;
     chart.subscribeCrosshairMove((param) => {
       if (!onHover) return;
-      if (!param.time || !param.point) {
+      const time = param.time && param.point ? (param.time as number) : null;
+      if (time === lastTime && barsRef.current === lastBars && linesRef.current === lastLines) return;
+      lastTime = time;
+      lastBars = barsRef.current;
+      lastLines = linesRef.current;
+      if (time === null) {
         onHover(null);
         return;
       }
-      const t = param.time as number;
+      const t = time;
       const bar = findBar(barsRef.current, t);
       const values = linesRef.current.map((l) => {
         let value: number | null = null;
