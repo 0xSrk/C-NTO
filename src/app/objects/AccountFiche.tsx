@@ -18,6 +18,7 @@ import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { landOn } from '../RailGates';
 import { ageText, readFrom } from '../StatusBornes';
+import { useSecondWhile } from '../useWallClock';
 import { useBornesReplay, useDayBornes } from '../useDayBornes';
 import { useGuardMirror } from '../useGuardMirror';
 import { ActivitySection, copyAction, EtatMark, FicheHead, FicheSection, ficheTitle, linkProvenance, LinksByPredicate, ObjectLink, Provenance, type FicheAction } from './Fiche';
@@ -243,7 +244,10 @@ export function AccountFiche({ target, ctx, now }: { target: EntityRef; ctx: Ind
     return hit ? { row: rows.find((row) => row.name === hit.name)!, by: hit.by } : null;
   }, [nt, id]);
   const live = nt?.link === 'live';
-  const age = live && nt?.accountsAt ? Math.max(0, now - nt.accountsAt) : null;
+  // L'âge de la lecture se lit à l'heure courante, à la seconde tant que le pont vit, comme dans la barre d'état : `now`
+  // est l'instant figé à l'ouverture de la fiche, d'où un âge qui décomptait puis restait à 0 s (POL9.4).
+  useSecondWhile(live);
+  const age = live && nt?.accountsAt ? Math.max(0, Date.now() - nt.accountsAt) : null;
   const stale = age !== null && age > BRIDGE_MAX_AGE_MS;
   const sim = isSimAccount(id);
 
