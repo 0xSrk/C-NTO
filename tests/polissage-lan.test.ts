@@ -168,4 +168,51 @@ describe('POL8 lanceur AUBE — la dynamique polie, le repos inchangé', () => {
     expect(rulesOf('.btn.update', true).some((r) => decl(r.body, 'animation') === 'none')).toBe(true);
     expect(UI).toContain(`PANEL_MS = ${Math.round(phase('--t-panel') * 1000)}`);
   });
+
+  it('POL8.2 l’action principale a son anneau de focus : tracé par son conteneur, au-dehors, à 2 px, il suit le chanfrein', () => {
+    // L'anneau de tous les boutons du lanceur : 1 px d'or à 2 px. Le chanfrein le rogne (la découpe rogne tout ce que
+    // l'élément peint, contour compris) : chaque bouton découpé porte son anneau sur un autre élément que lui.
+    const focus = rulesOf('button:focus-visible')[0]?.body ?? '';
+    const thick = parseFloat(decl(focus, 'outline') ?? '');
+    const offset = parseFloat(decl(focus, 'outline-offset') ?? '');
+    expect([thick, offset]).toEqual([1, 2]);
+    const clipped = RULES.filter((r) => !REDUCED(r) && !r.selector.includes('data-phase') && /\.btn/.test(r.selector) && r.props.includes('clip-path'));
+    expect(clipped.map((r) => r.selector)).toEqual(['.btn.primary']);
+    for (const rule of clipped) {
+      const on = RULES.find((r) => r.selector === `.actions:has(> ${rule.selector}:focus-visible)::before`);
+      expect(decl(on?.body ?? '', 'opacity'), rule.selector).toBe('1');
+      expect(decl(rulesOf(`${rule.selector}:focus-visible`)[0]?.body ?? '', 'outline-color'), rule.selector).toBe('transparent');
+    }
+
+    // Le porteur : le conteneur des actions, posé sans rien déplacer ; l'anneau, éteint au repos, ne capte rien.
+    // Il est taillé pour l'action principale en tête du conteneur, sur toute sa largeur : déplacée, l'anneau ne la
+    // suivrait pas.
+    const actions = new DOMParser().parseFromString(HTML, 'text/html').querySelector('.actions');
+    expect(actions?.firstElementChild?.matches('#btn-launch.btn.primary')).toBe(true);
+    expect(decl(rulesOf('.actions')[0]?.body ?? '', 'flex-direction')).toBe('column');
+    expect(decl(rulesOf('.actions')[0]?.body ?? '', 'align-items')).toBeUndefined();
+    expect(decl(rulesOf('.actions')[0]?.body ?? '', 'position')).toBe('relative');
+    const ring = rulesOf('.actions::before')[0]?.body ?? '';
+    expect(decl(ring, 'position')).toBe('absolute');
+    expect(decl(ring, 'background')).toBe('var(--gold)');
+    expect(decl(ring, 'opacity')).toBe('0');
+    expect(decl(ring, 'pointer-events')).toBe('none');
+
+    // Sa géométrie : la boîte du bouton agrandie de l'écart et de l'épaisseur de l'anneau, et le chanfrein décalé
+    // d'autant, au-dehors (bord extérieur à 3 px) comme au-dedans (bord intérieur à 2 px).
+    const pad = offset + thick;
+    const chamfer = Number(/--chamfer:\s*polygon\(0 0, calc\(100% - (\d+)px\) 0/.exec(CSS)?.[1]);
+    const height = parseFloat(decl(rulesOf('.btn')[0]?.body ?? '', 'height') ?? '');
+    expect([chamfer, height]).toEqual([10, 44]);
+    expect(decl(ring, 'left')).toBe(`-${pad}px`);
+    expect(decl(ring, 'top')).toBe(`-${pad}px`);
+    expect(decl(ring, 'width')).toBe(`calc(100% + ${2 * pad}px)`);
+    expect(decl(ring, 'height')).toBe(`${height + 2 * pad}px`);
+    const outer = (chamfer + 2 * pad - pad * Math.SQRT2).toFixed(2);
+    const inner = (chamfer + pad + offset - offset * Math.SQRT2).toFixed(2);
+    const t = `${thick}px`;
+    expect(decl(ring, 'clip-path')).toBe(
+      `polygon(evenodd, 0 0, calc(100% - ${outer}px) 0, 100% ${outer}px, 100% 100%, 0 100%, 0 0, ${t} ${t}, ${t} calc(100% - ${t}), calc(100% - ${t}) calc(100% - ${t}), calc(100% - ${t}) ${inner}px, calc(100% - ${inner}px) ${t}, ${t} ${t})`,
+    );
+  });
 });
