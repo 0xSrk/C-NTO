@@ -74,4 +74,13 @@ describe('POL4 primitives et jetons : mouvement réduit, encre des micrographies
     expect(both?.props).toEqual(['border-color']);
     expect(both?.body).toMatch(/border-color:\s*var\(--text-0\)/);
   });
+
+  it('POL4.5 l’interrupteur : son libellé monte avec sa piste, à la couleur du desk', () => {
+    const prim = sheet('src/design/primitives.module.css');
+    // Le libellé change de ton au survol et à l'allumage ; sa piste monte en 240 ms : il les suit, comme .btn (200 ms).
+    expect(find(prim, '.toggle:hover:not(:disabled)', /^@media\s*\(hover:\s*hover\)/)?.body).toMatch(/color:\s*var\(--text-1\)/);
+    expect(find(prim, '.toggle.on')?.body).toMatch(/color:\s*var\(--text-0\)/);
+    expect(find(prim, '.toggle')?.body).toMatch(/transition:\s*color 200ms linear\s*;/);
+    expect(find(prim, '.toggleTrack')?.body).toMatch(/transition:\s*border-color 240ms var\(--ease-out\)/);
+  });
 });
