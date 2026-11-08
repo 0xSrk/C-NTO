@@ -355,6 +355,52 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     expectLeave(css, '.backdrop[data-leaving]');
     expect(sheet(css).some((rule) => rule.selector.split(',').map((part) => part.trim()).includes('.backdrop') && rule.at.some((head) => /prefers-reduced-motion: reduce/.test(head)) && /animation: none/.test(rule.body))).toBe(true);
   });
+  it('POL2.3a la dernière image d’une fenêtre est bien la dernière : elle part de l’opacité où la fenêtre en est, et garde la lumière du bouton survolé ou au focus', async () => {
+    const animations = stubAnimations();
+    const { leaveInPlace } = await import('@/design/leaveInPlace');
+    const real = window.getComputedStyle.bind(window);
+    const lit = { color: 'rgb(245, 242, 234)', backgroundColor: 'rgba(245, 242, 234, 0.03)', borderTopColor: 'rgba(245, 242, 234, 0.4)', borderRightColor: 'rgba(245, 242, 234, 0.4)', borderBottomColor: 'rgba(245, 242, 234, 0.4)', borderLeftColor: 'rgba(245, 242, 234, 0.4)', boxShadow: '0 0 18px -6px rgba(245, 242, 234, 0.42)', textShadow: 'none', outlineColor: 'rgb(204, 176, 102)', outlineStyle: 'solid', outlineWidth: '1px', outlineOffset: '2px' };
+    const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation((el: Element, pseudo?: string | null) => {
+      if ((el as HTMLElement).dataset?.root !== undefined) return { opacity: '0.4' } as unknown as CSSStyleDeclaration;
+      if ((el as HTMLElement).dataset?.close !== undefined) return lit as unknown as CSSStyleDeclaration;
+      return real(el, pseudo);
+    });
+    try {
+      const parent = document.createElement('div');
+      document.body.append(parent);
+      const node = document.createElement('div');
+      node.dataset.root = '';
+      const close = document.createElement('button');
+      close.dataset.close = '';
+      const other = document.createElement('button');
+      node.append(close, other);
+      parent.append(node);
+      const matches = Element.prototype.matches;
+      vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+        if (selector === ':hover' || selector === ':focus-visible') return this === close;
+        return matches.call(this, selector);
+      });
+      leaveInPlace(node);
+      node.remove();
+      await act(async () => void (await Promise.resolve()));
+      const ghost = parent.querySelector<HTMLElement>('[data-leaving]')!;
+      expect(ghost).not.toBeNull();
+      // Fermée pendant son entrée, à 0,4 : sa dernière image part de 0,4, jamais de 1.
+      expect(ghost.style.getPropertyValue('--leave-from')).toBe('0.4');
+      // Le bouton survolé garde sa lumière dans l'image ; le voisin, éteint, n'en reçoit aucune.
+      const [ghostClose, ghostOther] = [...ghost.querySelectorAll<HTMLElement>('button')];
+      expect(ghostClose!.style.color).toBe(lit.color);
+      expect(ghostClose!.style.boxShadow).toBe(lit.boxShadow);
+      expect(ghostClose!.style.borderTopColor).toBe(lit.borderTopColor);
+      expect(ghostClose!.style.outlineColor).toBe(lit.outlineColor);
+      expect(ghostOther!.getAttribute('style')).toBeNull();
+      parent.remove();
+    } finally {
+      vi.restoreAllMocks();
+      spy.mockRestore();
+      animations.restore();
+    }
+  });
   it('POL2.4 un message entre par l’opacité, rien ne bouge ; sa colonne garde ses places, sans transition qui courrait sous l’entrée d’un tiroir', () => {
     const css = 'src/app/shell.module.css';
     const toast = bodyOf(css, '.toast');
