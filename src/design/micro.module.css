@@ -1,6 +1,12 @@
 /* Micrographies du Lab (Ligne V2 Rév. A) : encre --k, papier --p, réglés par zone. */
 .glyph, .plate, .cartouche { display: inline-flex; flex: none; line-height: 0; }
 .glyph > svg, .plate > svg, .cartouche > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+/* L'encre d'un composant suit la lumière de ce qui le porte : --k, non enregistrée, change d'un coup ; le trait et l'aplat
+   qu'elle teint s'interpolent, au pas de la couleur du desk. Rien ne joue à l'insertion ni au repos. */
+.glyph > svg,
+.glyph > svg * {
+  transition: fill 200ms linear, stroke 200ms linear;
+}
 .plate > svg, .cartouche > svg { font-family: var(--f-mono); font-weight: 450; letter-spacing: normal; text-transform: none; }
 .plate :global(text), .cartouche :global(text) { font-kerning: normal; }
 
