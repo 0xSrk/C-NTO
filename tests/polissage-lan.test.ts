@@ -240,4 +240,35 @@ describe('POL8 lanceur AUBE — la dynamique polie, le repos inchangé', () => {
     }
     expect(effective('.frame.leaving .panel', 'transition', plain)).toMatch(/^opacity 0\.22s linear/);
   });
+
+  it('POL8.4 au départ, les commandes se retirent avec le panneau : elles ne prennent pas l’air d’un bouton refusé', async () => {
+    // L'action principale garde sa plaque : la pierre, celle du pointeur et de l'appui, sans le filet gris du désactivé.
+    const leaving = rulesOf('.frame.leaving .btn.primary:disabled')[0]?.body ?? '';
+    expect(decl(leaving, 'background')).toBe('var(--stone)');
+    expect(decl(leaving, 'color')).toBe('var(--ink)');
+    expect(decl(leaving, 'box-shadow')).toBe('none');
+    expect(decl(leaving, '--k')).toBe('var(--ink)');
+    expect(decl(rulesOf('.btn.primary:hover:not(:disabled)')[0]?.body ?? '', 'background-color')).toBe('var(--stone)');
+    expect(decl(rulesOf('.btn.primary:active:not(:disabled)')[0]?.body ?? '', 'background')).toBe('var(--stone)');
+    // La mise à jour garde son plein : le voile de 0,4 du désactivé ne tombe pas sur elle en une image.
+    expect(decl(rulesOf('button:disabled')[0]?.body ?? '', 'opacity')).toBe('0.4');
+    expect(decl(rulesOf('.frame.leaving .btn.update:disabled')[0]?.body ?? '', 'opacity')).toBe('1');
+    // Hors du départ, le désactivé d'une mise à jour qui s'applique ne change pas.
+    const applying = rulesOf('.btn.primary:disabled')[0]?.body ?? '';
+    expect([decl(applying, 'background'), decl(applying, 'color'), decl(applying, 'box-shadow')]).toEqual(['transparent', 'var(--text-2)', 'inset 0 0 0 1px var(--line-2)']);
+
+    // Au clic, les deux boutons sont bien désactivés sous le cadre qui part : les règles du départ les tiennent.
+    vi.useFakeTimers({ toFake: [...FAKE] });
+    const frame = boot({ available: true });
+    await vi.advanceTimersByTimeAsync(Math.round(phase('--t-rest') * 1000) + 100);
+    const launch = byId<HTMLButtonElement>('btn-launch');
+    const update = byId<HTMLButtonElement>('btn-update');
+    expect([launch.disabled, update.hidden, update.disabled]).toEqual([false, false, false]);
+    launch.click();
+    expect(frame.classList.contains('leaving')).toBe(true);
+    expect(launch.matches('.frame.leaving .btn.primary:disabled')).toBe(true);
+    expect(update.matches('.frame.leaving .btn.update:disabled')).toBe(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(startDesk).toHaveBeenCalledTimes(1);
+  });
 });

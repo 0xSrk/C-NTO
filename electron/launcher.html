@@ -849,6 +849,17 @@
       .frame.leaving .strip {
         transform: none;
       }
+      /* Les commandes se retirent avec le panneau, elles ne se désactivent pas : l'action principale garde sa plaque
+         (la pierre de l'appui), sans le filet gris d'une mise à jour qui s'applique ; la mise à jour garde son plein. */
+      .frame.leaving .btn.primary:disabled {
+        background: var(--stone);
+        color: var(--ink);
+        box-shadow: none;
+        --k: var(--ink);
+      }
+      .frame.leaving .btn.update:disabled {
+        opacity: 1;
+      }
       /* La LED quitte la pointe dès le départ : la lumière de l'aube (aube.js) la ramène sur l'horizon. */
       .frame.leaving .led-path {
         opacity: 0;
