@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { tr, useI18n } from '@/i18n';
 import { desk, type SeatApi } from '@/lib/desk';
 import { useUi } from '@/store/ui';
-import { glyphDelays, glyphsAt, glyphsDuration, SEAT_DOMINO, SEAT_DWELL_MS, SEAT_EMERGE, SEAT_PROMPT, SEAT_REFORM_MS, SEAT_TICK_MS, type GlyphPlan } from './seatGlyphs';
+import { glyphDelays, glyphsAt, glyphsDuration, nextFrame, SEAT_DOMINO, SEAT_DWELL_MS, SEAT_EMERGE, SEAT_PROMPT, SEAT_REFORM_MS, type GlyphPlan } from './seatGlyphs';
 import s from './seatMark.module.css';
 
 /**
@@ -26,16 +26,23 @@ function reducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/** Ce qu'une rangée de glyphes montre au temps `t` : la phase et la lettre de chacun. */
+const stageOf = (text: string, plan: GlyphPlan) => (t: number) =>
+  glyphsAt(text, t, plan)
+    .map((g) => g.phase[0] + g.char)
+    .join('');
+
 /**
- * Horloge d'un geste : `t` avance par pas de 30 ms jusqu'à `duration`, après `delay` (pendant lequel
- * `t` vaut -1 : rien n'est encore paru). Sous mouvement réduit, `t` saute directement à la fin.
+ * Horloge d'un geste : `t` suit le temps écoulé, lu à chaque image, jusqu'à `duration`, après `delay` (pendant lequel
+ * `t` vaut -1 : rien n'est encore paru). Elle ne se rend que quand ce que montre `stage` change : chaque glyphe part
+ * et se pose à son temps, à une image près. Sous mouvement réduit, `t` saute directement à la fin.
  */
-function useGestureClock(): { t: number | null; start: (duration: number, delay?: number) => void; stop: () => void } {
+function useGestureClock(): { t: number | null; start: (duration: number, stage: (t: number) => string, delay?: number) => void; stop: () => void } {
   const [t, setT] = useState<number | null>(null);
-  const timers = useRef<{ wait?: ReturnType<typeof setTimeout>; tick?: ReturnType<typeof setInterval> }>({});
+  const timers = useRef<{ wait?: ReturnType<typeof setTimeout>; frame?: () => void }>({});
   const clear = useCallback(() => {
     clearTimeout(timers.current.wait);
-    clearInterval(timers.current.tick);
+    timers.current.frame?.();
     timers.current = {};
   }, []);
   const stop = useCallback(() => {
@@ -43,22 +50,31 @@ function useGestureClock(): { t: number | null; start: (duration: number, delay?
     setT(null);
   }, [clear]);
   const start = useCallback(
-    (duration: number, delay = 0) => {
+    (duration: number, stage: (t: number) => string, delay = 0) => {
       clear();
       if (reducedMotion()) {
         setT(duration);
         return;
       }
       const run = () => {
-        let now = 0;
+        const t0 = performance.now();
+        let shown = stage(0);
         setT(0);
-        timers.current.tick = setInterval(() => {
-          now += SEAT_TICK_MS;
+        const frame = () => {
+          const now = Math.min(duration, performance.now() - t0);
           if (now >= duration) {
-            clearInterval(timers.current.tick);
+            timers.current.frame = undefined;
             setT(duration);
-          } else setT(now);
-        }, SEAT_TICK_MS);
+            return;
+          }
+          const seen = stage(now);
+          if (seen !== shown) {
+            shown = seen;
+            setT(now);
+          }
+          timers.current.frame = nextFrame(frame);
+        };
+        timers.current.frame = nextFrame(frame);
       };
       if (delay > 0) {
         setT(-1);
@@ -135,7 +151,7 @@ function SeatGesture({ api, children }: { api: SeatApi; children: ReactNode }) {
       return;
     }
     setReform(false);
-    startPrompt(PROMPT_DURATION);
+    startPrompt(PROMPT_DURATION, stageOf(SEAT_PROMPT, SEAT_DOMINO));
   }, [armed, startPrompt, stopPrompt]);
 
   useEffect(() => {
@@ -157,7 +173,7 @@ function SeatGesture({ api, children }: { api: SeatApi; children: ReactNode }) {
     if (result.ok) {
       setClient(result.client);
       // Les barres se reforment, puis le nom en sort, glyphe après glyphe.
-      name.start(glyphsDuration([...result.client].length, SEAT_EMERGE), SEAT_REFORM_MS);
+      name.start(glyphsDuration([...result.client].length, SEAT_EMERGE), stageOf(result.client, SEAT_EMERGE), SEAT_REFORM_MS);
     } else {
       toast(tr('Siège refusé', 'Seat refused', 'Asiento rechazado'), 'warn');
     }
