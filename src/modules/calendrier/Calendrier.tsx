@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { IconChevron, IconPlus } from '@/app/icons';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
+import { useWallClock } from '@/app/useWallClock';
 import e from '@/design/etat.module.css';
 import { Glyph } from '@/design/Micro';
 import { Modal } from '@/design/Modal';
@@ -222,14 +223,12 @@ function localTime(date: string, timeET?: string): string | null {
   return formatTimeLocal(zonedToUtc(date, timeET, ET_ZONE));
 }
 
-/** L'instant, rafraîchi toutes les 30 s : « maintenant » avance dans le flux, les traits passent au plein. */
+/**
+ * L'instant, à chaque frontière de 30 s de l'horloge murale (:00, :30) : « maintenant » avance dans le flux et les traits
+ * passent au plein à la minute exacte, avec l'horloge de la barre d'état, plus jusqu'à 30 s après elle (POL9.3).
+ */
 function useNow(period = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), period);
-    return () => clearInterval(id);
-  }, [period]);
-  return now;
+  return useWallClock(period);
 }
 
 /** Le trait d'une publication, maintenant. */
