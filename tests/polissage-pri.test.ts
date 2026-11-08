@@ -83,4 +83,13 @@ describe('POL4 primitives et jetons : mouvement réduit, encre des micrographies
     expect(find(prim, '.toggle')?.body).toMatch(/transition:\s*color 200ms linear\s*;/);
     expect(find(prim, '.toggleTrack')?.body).toMatch(/transition:\s*border-color 240ms var\(--ease-out\)/);
   });
+
+  it('POL4.6 la ligne choisie d’un tableau : son filet d’or arrive et part avec son fond, au même pas', () => {
+    const prim = sheet('src/design/primitives.module.css');
+    // L'or reste où il est, au cliquet (« objet ouvert · la ligne choisie ») : seule la règle de la ligne au repos change.
+    expect(find(prim, '.table tbody tr:global(.selected)')?.body).toMatch(/box-shadow:\s*inset 2px 0 0 var\(--gold\)/);
+    const row = find(prim, '.table tbody tr')?.body ?? '';
+    expect(row).not.toMatch(/--gold/);
+    expect(row).toMatch(/transition:\s*background var\(--t-fast\) linear,\s*box-shadow var\(--t-fast\) linear\s*;/);
+  });
 });
