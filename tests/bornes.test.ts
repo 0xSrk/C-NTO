@@ -93,7 +93,8 @@ function bench(state: 'offline' | 'warn' | 'breach' | 'kill', planAccount = APEX
 }
 
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+  // Les tics des bornes passent par l'horloge murale (setTimeout, POL9.1b) : ses minuteurs sont simulés avec les autres.
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
   vi.setSystemTime(NOW);
 });
 

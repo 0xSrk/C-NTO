@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { foldAccount, matchAccount, sameAccount } from '@/engine/accounts';
 import { AGENT_SIM_PREFIX, type AgentOrderProposal } from '@/engine/agent/orders';
 import { guardMirror, type GuardMirror, type MirrorInput } from '@/engine/guardMirror';
@@ -12,6 +11,7 @@ import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useKillLatch } from './killState';
+import { useWallClock } from './useWallClock';
 
 /** L'horloge du miroir : une fenêtre de catalyseur s'ouvre et se ferme avec le temps. */
 export const MIRROR_TICK_MS = 15_000;
@@ -100,11 +100,8 @@ export function useGuardMirror(account?: string | null, side?: AgentOrderProposa
   // La journée fermée (décision 15) : une fermeture retenue au coffre change la règle que lit `traderRulesOf`.
   useDayClose((d) => d.closes);
   const trades = useJournal((j) => j.trades);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), MIRROR_TICK_MS);
-    return () => window.clearInterval(id);
-  }, []);
+  // Aux frontières de 15 s de l'horloge murale, avec les bornes et la frise (POL9.1b).
+  const now = useWallClock(MIRROR_TICK_MS);
   const input = deskMirrorInput({ now: Math.max(now, Date.now()), status, nt, killLatched, planAccount, trades, account, side });
   const mirror = guardMirror(input);
   const name = input.account;
