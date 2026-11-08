@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { cssRules } from './helpers/cssRules';
+import { cssRules, hoverOffenses } from './helpers/cssRules';
 
 const css = readFileSync('src/app/shell.module.css', 'utf8').replace(/\r\n/g, '\n');
 const rules = cssRules(css);
@@ -48,5 +48,28 @@ describe('POL1 châssis : rail, barre de titre, barre d’état', () => {
     expect(decl(body('.navQty'), 'transition')).toBe(decl(body('.navIndex'), 'transition'));
     expect(decl(body('.navItem'), 'transition')).toBe('color 240ms linear');
     expect(body('.navItem.on .navQty')).toMatch(/color: var\(--text-1\)/);
+  });
+
+  it('POL1.2 réduire, agrandir, fermer, la mise à jour et la bascule 24/12 s’éclairent au passage du pointeur, comme le zoom voisin', () => {
+    // La lumière du zoom, dans la même barre : le trait à l'ivoire, le carré levé de 6 %, aux mêmes horloges.
+    const zoomLight = hover('.zoomBtn:hover:not(:disabled)')!.replace(/\s+/g, ' ').trim();
+    const zoomClock = decl(body('.zoomBtn'), 'transition');
+    expect(zoomLight).toBe('color: var(--text-0); background-color: color-mix(in srgb, var(--ivory) 6%, transparent);');
+    expect(zoomClock).toBe('color 200ms linear, background-color 260ms var(--ease-out)');
+    for (const [rest, lit] of [
+      ['.winControls button', '.winControls button:hover'],
+      ['.updateBtn', '.updateBtn:hover:not(:disabled)'],
+      ['.clockFace button', '.clockFace button:not(.on):hover'],
+    ] as const) {
+      expect(hover(lit)?.replace(/\s+/g, ' ').trim(), lit).toBe(zoomLight);
+      expect(decl(body(rest), 'transition'), rest).toBe(zoomClock);
+    }
+    // Ni or ni rouge, pas même sur Fermer : aucune règle ne vise `.close`, et la face choisie de l'horloge garde son ivoire.
+    expect(css).not.toMatch(/\.close\b/);
+    expect(body('.clockFace button.on')).toMatch(/background: var\(--text-0\);\s*color: var\(--bg-0\)/);
+    // Le point de la mise à jour est une LED : jamais animé.
+    for (const sel of ['.updateDot', '.updateAvail .updateDot']) expect(body(sel), sel).not.toMatch(/transition|animation/);
+    expect(body('.updateBtn')).not.toMatch(/opacity/);
+    expect(hoverOffenses(css).offenders).toEqual([]);
   });
 });
