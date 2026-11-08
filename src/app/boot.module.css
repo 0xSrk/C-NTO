@@ -21,7 +21,6 @@
 
 /* ─── Sortie : couture lumineuse sur l'axe du logotype, puis écartement vertical ─── */
 .boot.leaving {
-  pointer-events: none;
   --cut-a: calc(var(--axis, 50%) - var(--gap));
   --cut-b: calc(var(--axis, 50%) + var(--gap));
   -webkit-mask-image: linear-gradient(to bottom, #000 var(--cut-a), transparent var(--cut-a), transparent var(--cut-b), #000 var(--cut-b));
