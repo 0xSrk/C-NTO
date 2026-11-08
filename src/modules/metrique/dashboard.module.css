@@ -693,6 +693,13 @@
   color: var(--text-1);
   background: none;
   cursor: pointer;
+  transition: color 200ms linear;
+}
+/* « Les N séances » s'éclaire comme ses voisins (`.kSample`, `.eqSet`) : l'encre monte à l'ivoire, la flèche la suit. */
+@media (hover: hover) {
+  .more:hover {
+    color: var(--text-0);
+  }
 }
 
 .subtabs {

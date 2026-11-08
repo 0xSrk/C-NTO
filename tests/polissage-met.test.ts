@@ -9,7 +9,7 @@ import p from '@/design/primitives.module.css';
 import type { Session } from '@/engine/types';
 import { useI18n } from '@/i18n';
 import m from '@/modules/metrique/metrique.module.css';
-import { cssRules } from './helpers/cssRules';
+import { cssRules, HOVER_LIGHT, hoverOffenses } from './helpers/cssRules';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -96,5 +96,44 @@ describe('POL6 Métrique et Visual : la dynamique se polit, le repos ne bouge pa
     expect(top('src/modules/metrique/dashboard.module.css', '.out')?.body).toMatch(/opacity:\s*0\.35/);
     expect(top('src/modules/metrique/metrique.module.css', '.rowOut td')?.body).toMatch(/opacity:\s*0\.35/);
     expect(top('src/modules/visual/visual.module.css', '.indicator.off')?.body).toMatch(/opacity:\s*0\.5\b/);
+  });
+
+  it('POL6.3 ce qui se clique s’éclaire au passage du pointeur : « Les N séances », les lignes de B · Séances, le catalogue et le × des indicateurs', () => {
+    const DASH = 'src/modules/metrique/dashboard.module.css';
+    const MET = 'src/modules/metrique/metrique.module.css';
+    const VIS = 'src/modules/visual/visual.module.css';
+    const lit = (path: string, base: string) =>
+      sheet(path).filter((rule) => rule.at.some((head) => /^@media\s*\(hover:\s*hover\)/.test(head)) && rule.selector.split(',').some((part) => part.trim().startsWith(base) && part.includes(':hover')));
+    for (const [path, base, light] of [
+      [DASH, '.more', /color:\s*var\(--text-0\)/],
+      [MET, '.grilleTable tbody tr', /background-color:\s*color-mix\(in srgb, var\(--ivory\) 2\.5%, transparent\)/],
+      [VIS, '.catalogItem', /border-color:\s*var\(--line-2\)/],
+      [VIS, '.catalogItem', /color:\s*var\(--text-0\)/],
+      [VIS, '.indicatorHead > button:last-child', /color:\s*var\(--text-0\)/],
+    ] as const) {
+      const rules = lit(path, base);
+      expect(rules.length, `${path} › ${base}:hover`).toBeGreaterThan(0);
+      expect(rules.some((rule) => light.test(rule.body)), `${path} › ${base}:hover ${light}`).toBe(true);
+      // De la lumière seulement, et jamais d'or.
+      for (const rule of rules) {
+        for (const prop of rule.props) expect(HOVER_LIGHT.has(prop), `${rule.selector} : ${prop}`).toBe(true);
+        expect(rule.body).not.toMatch(/--gold/);
+      }
+      expect(hoverOffenses(readFileSync(path, 'utf8')).offenders).toEqual([]);
+    }
+    // La lumière d'une ligne de B · Séances laisse leur teinte à la ligne cochée et à la ligne choisie.
+    const row = lit(MET, '.grilleTable tbody tr')[0]!.selector;
+    expect(row).toContain(':not(.rowChecked)');
+    expect(row).toContain(':not(:global(.selected))');
+    // Elle monte au pas de A.04 ; la règle qui la porte vient après `.rowOut td`, qui ne l'écrase donc pas.
+    expect(top(MET, '.grilleTable td')?.body).toMatch(/transition:[^;]*\bbackground-color 200ms linear/);
+    expect(top(MET, '.grilleTable td')?.body).toMatch(/transition:[^;]*\bopacity 220ms linear/);
+    const order = sheet(MET).map((rule) => (rule.at.length === 0 ? rule.selector : ''));
+    expect(order.lastIndexOf('.grilleTable td')).toBeGreaterThan(order.lastIndexOf('.rowOut td'));
+    // L'encre monte en 200 ms, un contour en 260 ms (la lumière d'un bouton de la maison, `.btn`).
+    expect(top(DASH, '.more')?.body).toMatch(/transition:\s*color 200ms linear/);
+    expect(top(VIS, '.catalogItem')?.body).toMatch(/transition:[^;]*\bcolor 200ms linear/);
+    expect(top(VIS, '.catalogItem')?.body).toMatch(/transition:[^;]*\bborder-color 260ms var\(--ease-out\)/);
+    expect(top(VIS, '.indicatorHead > button:last-child')?.body).toMatch(/transition:\s*color 200ms linear/);
   });
 });

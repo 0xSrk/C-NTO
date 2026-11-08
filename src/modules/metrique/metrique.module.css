@@ -362,9 +362,19 @@
   opacity: 0.35;
   transition: opacity 220ms linear;
 }
-/* Elle se défait comme elle se fait : la transition vit sur la cellule, pas sur l'état (après `.rowOut td`, qu'elle couvre). */
+/* Elle se défait comme elle se fait : la transition vit sur la cellule, pas sur l'état (après `.rowOut td`, qu'elle couvre).
+   Le fond de la ligne sous le pointeur monte au pas de A.04. */
 .grilleTable td {
-  transition: opacity 220ms linear;
+  transition:
+    opacity 220ms linear,
+    background-color 200ms linear;
+}
+/* Une ligne ouvre l'édition : elle s'éclaire sous le pointeur, comme une ligne de A.04. La ligne cochée et la ligne choisie
+   gardent leur teinte. */
+@media (hover: hover) {
+  .grilleTable tbody tr:not(:global(.selected)):not(.rowChecked):hover td {
+    background-color: color-mix(in srgb, var(--ivory) 2.5%, transparent);
+  }
 }
 .selCount {
   font-family: var(--font-mono);
