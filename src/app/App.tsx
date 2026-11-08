@@ -170,10 +170,11 @@ export function App() {
   }, []);
 
   // Le desk se monte sous le verrou dès que la phrase est admise : le rendu lourd
-  // se fait masqué, puis la couture s'ouvre sur un desk déjà composé.
+  // se fait masqué, puis la couture s'ouvre sur un desk déjà composé. Admise pendant
+  // l'écartement du démarrage, il se monte aussitôt, sous le démarrage et sous le verrou.
   return (
     <>
-      {booted && admitted && (
+      {(booted || revealed) && admitted && (
         <Shell revealed={revealed} inert={!open}>
           <ErrorBoundary resetKey={tab}>
             <Suspense fallback={<div className="micro" style={{ padding: 24 }} data-locale={locale}>{tr('Chargement du module…', 'Loading module…', 'Cargando el módulo…')}</div>}>
@@ -190,7 +191,8 @@ export function App() {
           </ErrorBoundary>
         </Shell>
       )}
-      {booted && !open && <Gate onAdmit={admit} onReveal={reveal} onOpen={() => setOpen(true)} />}
+      {/* Le verrou se monte sous le démarrage dès que sa couture s'ouvre : elle s'ouvre sur lui, non sur le vide. */}
+      {(booted || revealed) && !open && <Gate onAdmit={admit} onReveal={reveal} onOpen={() => setOpen(true)} />}
       {!booted && <Boot steps={steps} ready={ready} onReveal={reveal} onFinished={finish} />}
     </>
   );
