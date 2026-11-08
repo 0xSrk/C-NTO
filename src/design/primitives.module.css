@@ -785,6 +785,14 @@
 :global(.sig-l3) { --k: var(--signal); }
 :global(.skl.is-signal) { --k: var(--signal); }
 
+/* Une liste au focus, sous le pointeur : le survol de tokens.css (plus précis que le focus) ramenait son contour plein à
+   40 % ; il ajoute sa lueur sans éteindre le focus. tokens.css ne change pas (décision 4) : la règle vit ici. */
+@media (hover: hover) {
+  :global(select:focus:hover:not(:disabled)) {
+    border-color: var(--text-0);
+  }
+}
+
 /* Mouvement réduit : l'état de repos d'emblée. tokens.css ramène les durées à 1 ms et ne change pas (décision 4) ; les
    délais tombent ici, aussi largement : sans eux, une cascade (l'écart des options d'un menu, les lignes d'un classement)
    paraîtrait encore marche par marche. Un fondu qui doit garder sa durée la pose par une règle plus précise, à !important. */

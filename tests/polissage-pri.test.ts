@@ -61,4 +61,17 @@ describe('POL4 primitives et jetons : mouvement réduit, encre des micrographies
     expect(find(css, '.hour')?.body).toMatch(/transition:[^;]*\bbox-shadow var\(--t-med\) linear/);
     expect(find(css, '.hour')?.body).toMatch(/transition:[^;]*\bcolor 200ms linear/);
   });
+
+  it('POL4.4 une liste au focus garde son contour sous le pointeur : le survol ajoute sa lueur sans éteindre le focus', () => {
+    const HOVER = /^@media\s*\(hover:\s*hover\)/;
+    // Le focus (tokens.css, 0,1,1) pose le contour plein ; le survol (0,2,1) l'emportait et le ramenait à 40 % : la lumière
+    // baissait sous le pointeur. tokens.css ne change pas (décision 4) : la règle vit avec les primitives.
+    const tokens = sheet('src/design/tokens.css');
+    expect(find(tokens, 'select:focus')?.body).toMatch(/border-color:\s*var\(--text-0\)/);
+    expect(find(tokens, 'select:hover:not(:disabled)', HOVER)?.body).toMatch(/border-color:\s*color-mix\(in srgb, var\(--ivory\) 40%, transparent\)/);
+    const source = readFileSync('src/design/primitives.module.css', 'utf8');
+    const both = find(cssRules(source), ':global(select:focus:hover:not(:disabled))', HOVER);
+    expect(both?.props).toEqual(['border-color']);
+    expect(both?.body).toMatch(/border-color:\s*var\(--text-0\)/);
+  });
 });
