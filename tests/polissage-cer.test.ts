@@ -365,4 +365,44 @@ describe('POL5 cérémonies : démarrage, verrou et ouverture, geste du siège, 
     expect(found.get('split')).toEqual(['--boot-gap: 0px;', '--boot-gap: 100vh;']);
     expect([...found.keys()].filter((name) => /^seam-(up|down)$/.test(name))).toEqual([]);
   });
+
+  it('POL5.6 une touche ou un clic pendant l’écartement ne repousse pas la fin du démarrage : un geste abrège, il ne rallonge jamais', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] });
+    for (const gesture of [() => new KeyboardEvent('keydown', { key: 'Shift' }), () => new PointerEvent('pointerdown', { bubbles: true })]) {
+      const onReveal = vi.fn();
+      const onFinished = vi.fn();
+      render(createElement(Boot, { steps: [], ready: true, onReveal, onFinished }));
+      // la construction se voit en entier, puis la couture s'ouvre
+      act(() => vi.advanceTimersByTime(2500));
+      expect(onReveal).toHaveBeenCalledTimes(1);
+      expect(onFinished).not.toHaveBeenCalled();
+      // un geste au milieu de l'écartement : la fin reste à 760 ms du début de la sortie
+      act(() => vi.advanceTimersByTime(300));
+      act(() => void window.dispatchEvent(gesture()));
+      act(() => vi.advanceTimersByTime(760 - 300 - 1));
+      expect(onFinished).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(1));
+      expect(onFinished).toHaveBeenCalledTimes(1);
+      expect(onReveal).toHaveBeenCalledTimes(1);
+      // rien ne se rejoue ensuite
+      act(() => vi.advanceTimersByTime(2000));
+      expect(onFinished).toHaveBeenCalledTimes(1);
+      expect(onReveal).toHaveBeenCalledTimes(1);
+      act(() => root?.unmount());
+      host?.remove();
+      root = null;
+    }
+    // un geste pendant la construction l'abrège toujours : la sortie part aussitôt, la fin 760 ms plus tard
+    const onReveal = vi.fn();
+    const onFinished = vi.fn();
+    render(createElement(Boot, { steps: [], ready: true, onReveal, onFinished }));
+    act(() => vi.advanceTimersByTime(400));
+    act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift' })));
+    act(() => vi.advanceTimersByTime(0));
+    expect(onReveal).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(759));
+    expect(onFinished).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(onFinished).toHaveBeenCalledTimes(1);
+  });
 });
