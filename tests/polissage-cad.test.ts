@@ -173,6 +173,19 @@ describe('POL9 · cadence et repos', () => {
     expect(renders.mirror).toBe(before.mirror + 1);
   });
 
+  it('POL9.4 la fiche Compte dit l’âge de la lecture du pont à la seconde, comme la barre : il avance au lieu de rester figé à l’ouverture', async () => {
+    vi.useFakeTimers(TIMERS);
+    vi.setSystemTime(new Date('2026-11-09T15:00:05Z'));
+    const { ObjectDrawer } = await import('@/app/objects/Fiche');
+    useBridge.setState({ nt: status({ accountsAt: Date.now() - 4_000, accountNames: ['Sim101'], accounts: [{ name: 'Sim101', cashValue: 50_000, realizedPnl: 0, unrealizedPnl: 0, positions: [] }] as NtBridgeStatus['accounts'] }) });
+    const el = mount(createElement(ObjectDrawer));
+    act(() => void useObjects.getState().openObject({ type: 'compte', id: 'Sim101' } as never));
+    const meta = () => el.querySelector('[data-section="bridge"]')?.textContent ?? '';
+    expect(meta()).toContain('lu il y a 4 s');
+    seconds(3);
+    expect(meta()).toContain('lu il y a 7 s');
+  });
+
   it('POL9.2 un battement du pont ne re-rend pas le châssis : le kill switch ne lit que ses deux primitives', () => {
     let renders = 0;
     function Probe() {
