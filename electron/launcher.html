@@ -745,6 +745,14 @@
         -webkit-app-region: no-drag;
         scrollbar-width: thin;
         scrollbar-color: var(--ink-soft) var(--ivory);
+        /* Elle entre par l'opacité, comme la fiche d'objet du desk, sans rien tenir après la fin ; launcher-ui.js
+           la retire de même. */
+        animation: notes-in 220ms linear;
+      }
+      @keyframes notes-in {
+        from {
+          opacity: 0;
+        }
       }
       .notes .fh {
         position: sticky;
@@ -1261,8 +1269,9 @@
         .frame[data-phase='intro'] *::after {
           animation: none !important;
         }
-        /* La mise à jour paraît sans monter : la phase y est déjà 'rest'. */
-        .btn.update {
+        /* La mise à jour paraît sans monter : la phase y est déjà 'rest'. La fiche des nouveautés paraît et s'en va. */
+        .btn.update,
+        .notes {
           animation: none;
         }
         /* Le départ aussi se tait : rien ne balaie ni ne glisse, les commandes s'effacent. */
