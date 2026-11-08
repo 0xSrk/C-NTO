@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { ModuleContent, ModuleHeader } from '@/app/Shell';
 import { HourChip, InstrumentChip, rangeLabel } from '@/app/objects/Selection';
 import { Glyph } from '@/design/Micro';
@@ -57,6 +57,10 @@ export default function Metrique() {
   const setView = useCallback((next: View) => useObjects.getState().setView('metrique', next), []);
   // La sélection partagée (OROS5.32) : la période, le compte et l'instrument vivent au store, où « Autour de… » les lit.
   const range = useUi((u) => u.metricRange);
+  // L'onglet et la période s'allument au geste ; ce qu'ils ouvrent se calcule derrière. Les stores, lus par
+  // useSyncExternalStore, rendent toute mise à jour bloquante : `startTransition` n'y changeait rien.
+  const shownView = useDeferredValue(view);
+  const shownRange = useDeferredValue(range);
   const setRange = useUi((u) => u.setMetricRange);
   const metricAccount = useUi((u) => u.metricAccount);
   const setMetricAccount = useUi((u) => u.setMetricAccount);
@@ -167,7 +171,7 @@ export default function Metrique() {
       toast(e instanceof Error ? e.message : tr('Restauration impossible.', 'Restore failed.', 'Restauración imposible.'), 'error');
     }
   };
-  const onDemo = async () => {
+  const onDemo = useCallback(async () => {
     const n = await loadDemo();
     toast(
       n > 0
@@ -179,7 +183,7 @@ export default function Metrique() {
         : tr('Capacité atteinte.', 'Capacity reached.', 'Capacidad alcanzada.'),
       n > 0 ? 'ok' : 'warn',
     );
-  };
+  }, [loadDemo, toast]);
 
   const accounts = useMemo(() => journalAccounts(sessions), [sessions]);
   const instruments = useMemo(() => journalInstruments(sessions, trades), [sessions, trades]);
@@ -190,14 +194,43 @@ export default function Metrique() {
     if (instrument && !instruments.includes(instrument)) useUi.getState().setMetricInstrument(null);
   }, [instruments, instrument]);
   const asOf = etDateKey(Date.now());
-  const filtered = useMemo(() => filterJournal(sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
+  const filtered = useMemo(() => filterJournal(sessions, trades, shownRange, asOf, metricAccount), [sessions, trades, shownRange, asOf, metricAccount]);
   // Les puces Instrument et Heure : K et A.01 se recalculent sur leur part ; A.02, A.03 et A.04 gardent le compte et la
   // période, et allument la sélection (rien ne disparaît).
   const selected = useMemo(() => (instrument || hour != null ? narrowJournal(filtered, { instrument, hour }) : filtered), [filtered, instrument, hour]);
   const ordered = useMemo(() => [...filtered.sessions].sort((a, b) => a.date.localeCompare(b.date)), [filtered.sessions]);
   // Tout l'historique du compte filtré : la marge d'un plan suivi ne dépend pas de la période.
-  const history = useMemo(() => scopeFor('prop', sessions, trades, range, asOf, metricAccount), [sessions, trades, range, asOf, metricAccount]);
-  const scope = useMemo(() => (view === 'analyse' || view === 'prop' || view === 'mc' ? scopeFor(view, sessions, trades, range, asOf, metricAccount) : null), [view, sessions, trades, range, asOf, metricAccount]);
+  const history = useMemo(() => scopeFor('prop', sessions, trades, shownRange, asOf, metricAccount), [sessions, trades, shownRange, asOf, metricAccount]);
+  const scope = useMemo(
+    () => (shownView === 'analyse' || shownView === 'prop' || shownView === 'mc' ? scopeFor(shownView, sessions, trades, shownRange, asOf, metricAccount) : null),
+    [shownView, sessions, trades, shownRange, asOf, metricAccount],
+  );
+  // La vue ouverte, mémorisée : le rendu urgent du geste ne recalcule que l'en-tête et les onglets, la vue suit derrière.
+  const content = useMemo(
+    () => (
+      <>
+        {shownView === 'bord' && (
+          <Dashboard
+            sessions={selected.sessions}
+            trades={selected.trades}
+            context={filtered}
+            range={shownRange}
+            period={{ from: rangeFrom(shownRange, asOf), to: asOf }}
+            history={history}
+            journalEmpty={sessions.length === 0}
+            onImport={() => setModal('import')}
+            onDemo={onDemo}
+            onSessions={() => setView('seances')}
+          />
+        )}
+        {shownView === 'seances' && <Sessions />}
+        {shownView === 'analyse' && scope && <Analyse sessions={scope.sessions} trades={scope.trades} />}
+        {shownView === 'prop' && scope && <PropFirmView scope={scope} />}
+        {shownView === 'mc' && scope && <MonteCarloView scope={scope} />}
+      </>
+    ),
+    [shownView, shownRange, selected, filtered, history, sessions.length, scope, asOf, onDemo, setView],
+  );
   // Ce que l'onglet fait des filtres de l'en-tête, seulement quand il s'en écarte : le cas ordinaire se tait (4.1). Les
   // Séances lisent la sélection partagée comme le Tableau de bord, en atténuant ce qui en sort (OROS5.32) : elles se taisent.
   // Chaque puce posée que l'onglet ignore est dite, l'Instrument et l'Heure ensemble quand les deux le sont.
@@ -278,7 +311,7 @@ export default function Metrique() {
       />
       <div className={d.subtabs} role="tablist">
         {views.map((item) => (
-          <button key={item.value} type="button" role="tab" aria-selected={view === item.value} className={`${d.subtab} ${view === item.value ? d.on : ''}`} onClick={() => startTransition(() => setView(item.value))}>
+          <button key={item.value} type="button" role="tab" aria-selected={view === item.value} className={`${d.subtab} ${view === item.value ? d.on : ''}`} onClick={() => setView(item.value)}>
             <i>{item.letter}</i>
             {item.label}
           </button>
@@ -342,24 +375,7 @@ export default function Metrique() {
             )}
           </div>
         )}
-        {view === 'bord' && (
-          <Dashboard
-            sessions={selected.sessions}
-            trades={selected.trades}
-            context={filtered}
-            range={range}
-            period={{ from: rangeFrom(range, asOf), to: asOf }}
-            history={history}
-            journalEmpty={sessions.length === 0}
-            onImport={() => setModal('import')}
-            onDemo={onDemo}
-            onSessions={() => startTransition(() => setView('seances'))}
-          />
-        )}
-        {view === 'seances' && <Sessions />}
-        {view === 'analyse' && scope && <Analyse sessions={scope.sessions} trades={scope.trades} />}
-        {view === 'prop' && scope && <PropFirmView scope={scope} />}
-        {view === 'mc' && scope && <MonteCarloView scope={scope} />}
+        {content}
       </ModuleContent>
       {modal === 'import' && <ImportModal onClose={() => setModal(null)} />}
       {modal === 'pont' && <BridgeModal onClose={() => setModal(null)} onManualImport={() => setModal('import')} />}
