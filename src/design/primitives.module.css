@@ -784,3 +784,15 @@
 /* Micrographies : le rouge n'existe qu'au niveau 3 — le signal et la cartouche SK-SIG-3 */
 :global(.sig-l3) { --k: var(--signal); }
 :global(.skl.is-signal) { --k: var(--signal); }
+
+/* Mouvement réduit : l'état de repos d'emblée. tokens.css ramène les durées à 1 ms et ne change pas (décision 4) ; les
+   délais tombent ici, aussi largement : sans eux, une cascade (l'écart des options d'un menu, les lignes d'un classement)
+   paraîtrait encore marche par marche. Un fondu qui doit garder sa durée la pose par une règle plus précise, à !important. */
+@media (prefers-reduced-motion: reduce) {
+  :global(*),
+  :global(*::before),
+  :global(*::after) {
+    animation-delay: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
