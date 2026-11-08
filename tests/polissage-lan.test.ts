@@ -271,4 +271,23 @@ describe('POL8 lanceur AUBE — la dynamique polie, le repos inchangé', () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(startDesk).toHaveBeenCalledTimes(1);
   });
+
+  it('POL8.5 la fin de l’aube rend la main au repos : ni le reflet ni la montée des commandes ne tiennent leur dernière image', () => {
+    // Tenue après sa fin, l'animation du reflet garde le logotype dans une autre rastérisation jusqu'à 2,8 s, puis il se
+    // ré-aiguise d'un coup sur un écran immobile. Leur dernière image vaut déjà le repos : rien ne la tient.
+    const parts = introRules().flatMap((r) => splitOutside(decl(r.body, 'animation') ?? '', ',').map((part) => ({ selector: r.selector, part })));
+    const held = parts.filter(({ part }) => splitOutside(part, ' ').some((token) => token === 'glint' || token === 'aube-rise'));
+    expect(held.length).toBeGreaterThanOrEqual(4);
+    for (const { selector, part } of held) {
+      expect(part, selector).toMatch(/\bbackwards\b/);
+      expect(part, selector).not.toMatch(/\b(both|forwards)\b/);
+    }
+    // Sûr par construction : la dernière image du reflet est l'état de base de ses tracés (éteints), et la montée n'a
+    // qu'un départ.
+    const keyframes = (name: string) => RULES.filter((r) => r.at.some((h) => h === `@keyframes ${name}`));
+    const glintEnd = keyframes('glint').find((r) => r.selector === '100%')?.body ?? '';
+    expect(decl(glintEnd, 'opacity')).toBe('0');
+    expect(decl(rulesOf('.word .glint path')[0]?.body ?? '', 'opacity')).toBe('0');
+    expect(keyframes('aube-rise').map((r) => r.selector)).toEqual(['from']);
+  });
 });

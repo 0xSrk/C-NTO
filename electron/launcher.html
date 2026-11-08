@@ -962,7 +962,7 @@
         animation: aube-trace 0.78s var(--ease-in-out) calc(var(--t-trace) + var(--i) * 0.09s) both;
       }
       .frame[data-phase='intro'] .word .glint path {
-        animation: glint 0.78s var(--ease-in-out) calc(var(--t-trace) + var(--i) * 0.09s) both;
+        animation: glint 0.78s var(--ease-in-out) calc(var(--t-trace) + var(--i) * 0.09s) backwards;
       }
       .frame[data-phase='intro'] .word .anchors {
         animation:
@@ -981,13 +981,13 @@
       }
       /* 7 · Les commandes montent, l'état se pose, la bande d'étiquette sort de l'imprimante et son code avec elle. */
       .frame[data-phase='intro'] .rule {
-        animation: aube-rise 0.4s var(--ease) var(--t-panel) both;
+        animation: aube-rise 0.4s var(--ease) var(--t-panel) backwards;
       }
       .frame[data-phase='intro'] .lang-row {
-        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.05s) both;
+        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.05s) backwards;
       }
       .frame[data-phase='intro'] .btn.primary {
-        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.1s) both;
+        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.1s) backwards;
       }
       .frame[data-phase='intro'] .status {
         animation: aube-in 0.36s linear calc(var(--t-panel) + 0.22s) both;
