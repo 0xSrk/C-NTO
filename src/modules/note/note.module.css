@@ -56,6 +56,8 @@
   gap: 2px;
   color: var(--text-2);
   border: 1px solid transparent;
+  /* La note ouverte arrive et repart d'un pas : son filet, son fond et son encre ensemble (primitives, `.btn`). */
+  transition: color 200ms linear, border-color 260ms var(--ease-out), background-color 260ms var(--ease-out);
 }
 .item.on {
   background: var(--gold-soft);
@@ -91,10 +93,23 @@
   padding: 1px 8px;
   border: 1px solid var(--line-0);
   border-radius: var(--radius);
+  transition: color 200ms linear, border-color 260ms var(--ease-out);
 }
 .tagBtn.on {
   color: var(--gold);
   border-color: var(--gold-line);
+}
+/* Au passage du pointeur, la note s'éclaire comme une ligne de l'omnibar (le fond levé de 3 %, l'encre à l'ivoire) et
+   l'étiquette comme une puce du desk (l'encre à l'ivoire, le filet d'un ton plus haut) ; ce qui est choisi garde son or. */
+@media (hover: hover) {
+  .item:not(.on):hover {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+  }
+  .tagBtn:not(.on):hover {
+    color: var(--text-0);
+    border-color: var(--line-2);
+  }
 }
 
 .editor {
@@ -241,10 +256,17 @@
   color: var(--ice);
   border-bottom: 1px dotted var(--ice-line);
   cursor: pointer;
+  transition: color 200ms linear;
 }
 .preview :global(a.wikilink.missing) {
   color: var(--text-3);
   border-bottom-style: dashed;
+}
+/* Le lien wiki s'éclaire au passage du pointeur, l'encre seule : son trait (souligné, ou tireté d'une note à créer) reste. */
+@media (hover: hover) {
+  .preview :global(a.wikilink):hover {
+    color: var(--text-0);
+  }
 }
 .preview :global(.ntag) {
   color: var(--gold);
@@ -294,9 +316,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 200ms linear;
 }
 .linkItem.missing {
   color: var(--text-3);
+}
+/* Seul le lien qui s'ouvre s'éclaire : une relation vers un instrument ou un événement est un <div class=linkItem>. */
+@media (hover: hover) {
+  button.linkItem:hover {
+    color: var(--text-0);
+  }
 }
 .linkCtx {
   font-size: var(--fs-small);
@@ -331,10 +360,17 @@
   border: 1px solid var(--line-1);
   padding: 2px 8px;
   background: var(--bg-0);
+  transition: color 200ms linear, border-color 260ms var(--ease-out);
 }
 .graphEntities.on {
   color: var(--gold);
   border-color: var(--gold-line);
+}
+@media (hover: hover) {
+  .graphEntities:not(.on):hover {
+    color: var(--text-0);
+    border-color: var(--line-2);
+  }
 }
 .graphHint {
   position: absolute;

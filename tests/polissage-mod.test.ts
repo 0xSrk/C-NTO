@@ -178,4 +178,22 @@ describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
     // La case choisie garde son or au passage du pointeur : la lumière ne vise que les autres.
     expect(base(CAL, '.day.selected')!.body).toMatch(/border-color: var\(--gold-line\)/);
   });
+
+  it('POL7.4 la liste des notes, les étiquettes, les liens et « Entités » s’éclairent au passage, et la note ouverte arrive d’un pas', () => {
+    const NOTE = 'src/modules/note/note.module.css';
+    expectLit(NOTE, '.item', '.item:not(.on):hover');
+    expectLit(NOTE, '.tagBtn', '.tagBtn:not(.on):hover');
+    expectLit(NOTE, '.graphEntities', '.graphEntities:not(.on):hover');
+    expectLit(NOTE, '.linkItem', 'button.linkItem:hover');
+    expectLit(NOTE, '.preview :global(a.wikilink)', '.preview :global(a.wikilink):hover');
+    // La note ouverte : son filet d'or, son fond et son encre arrivent et repartent ensemble.
+    const item = base(NOTE, '.item')!.body;
+    for (const prop of ['border-color', 'background-color', 'color']) expect(timing(item, prop), prop).toBeDefined();
+    expect(timing(item, 'border-color')).toBe(timing(item, 'background-color'));
+    // Une relation vers un instrument ou un événement ne s'ouvre pas (un <div class=linkItem>) : elle ne s'éclaire pas.
+    const hovers = sheet(NOTE).filter((r) => /:hover\b/.test(r.selector));
+    for (const part of hovers.flatMap((r) => r.selector.split(',').map((x) => x.trim()))) if (/\.linkItem\b/.test(part)) expect(part).toMatch(/^button\.linkItem/);
+    // Le lien wiki garde son trait : le survol ne réécrit ni son motif ni sa couleur de filet.
+    for (const r of hovers.filter((h) => h.selector.includes('wikilink'))) expect(r.body).not.toMatch(/dotted|dashed|border/);
+  });
 });
