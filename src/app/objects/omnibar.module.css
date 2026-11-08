@@ -8,18 +8,20 @@
   z-index: 60;
   background: color-mix(in srgb, var(--bg-void) 62%, transparent);
   animation: omniIn var(--t-med) linear both;
+  animation-duration: calc(var(--t-med) * (1 - var(--enter-from, 0)));
 }
 @keyframes omniIn {
-  from { opacity: 0; }
+  from { opacity: var(--enter-from, 0); }
   to { opacity: 1; }
 }
 /* Elle sort comme elle est entrée, le voile et sa plaque ensemble ; fermée, elle ne retient ni le pointeur ni le focus. */
 .veil[data-leaving] {
   animation: omniOut var(--t-med) linear both;
+  animation-duration: calc(var(--t-med) * var(--leave-from, 1));
   pointer-events: none;
 }
 @keyframes omniOut {
-  from { opacity: 1; }
+  from { opacity: var(--leave-from, 1); }
   to { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
