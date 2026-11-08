@@ -84,4 +84,17 @@ describe('POL6 Métrique et Visual : la dynamique se polit, le repos ne bouge pa
     expect(node.querySelector(`.${p.progress}`)).toBeNull();
     expect(cancel()).toBeNull();
   });
+
+  it('POL6.2 ce qui s’atténue revient comme il est parti : la transition vit sur la ligne, la cellule et la carte, pas sur l’état', () => {
+    const fade = /transition:[^;]*\bopacity 220ms linear/;
+    // A.04 : la ligne hors sélection (`.out`, sur le `tr`) ; B · Séances : ses cellules (`.rowOut td`) ; la carte d'un
+    // indicateur éteint (`.indicator.off`), dans Visual comme dans Crypto.
+    expect(top('src/modules/metrique/dashboard.module.css', '.objRow')?.body).toMatch(fade);
+    expect(top('src/modules/metrique/metrique.module.css', '.grilleTable td')?.body).toMatch(fade);
+    expect(top('src/modules/visual/visual.module.css', '.indicator')?.body).toMatch(fade);
+    // Les états gardent leur valeur : 35 % hors sélection (OROS5.32), 50 % pour l'indicateur éteint.
+    expect(top('src/modules/metrique/dashboard.module.css', '.out')?.body).toMatch(/opacity:\s*0\.35/);
+    expect(top('src/modules/metrique/metrique.module.css', '.rowOut td')?.body).toMatch(/opacity:\s*0\.35/);
+    expect(top('src/modules/visual/visual.module.css', '.indicator.off')?.body).toMatch(/opacity:\s*0\.5\b/);
+  });
 });

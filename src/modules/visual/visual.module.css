@@ -113,6 +113,8 @@
   flex-direction: column;
   gap: 6px;
   background: rgba(255, 255, 255, 0.015);
+  /* Éteinte, la carte s'atténue et se rallume au même pas, dans les deux sens. */
+  transition: opacity 220ms linear;
 }
 .indicator.off {
   opacity: 0.5;
