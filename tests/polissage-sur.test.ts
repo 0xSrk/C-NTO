@@ -318,4 +318,24 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     expect(status.children).toHaveLength(1);
     expect(status.textContent).toBe('Essai');
   });
+  it('POL2.5 la lumière du survol et du choix monte avec douceur au registre et à l’omnibar : chaque propriété allumée a sa transition, aux durées de la maison', () => {
+    const transitions = (path: string, selector: string) =>
+      Object.fromEntries(
+        (/(?:^|;)\s*transition:\s*([^;]+)/.exec(bodyOf(path, selector))?.[1] ?? '')
+          .split(',')
+          .map((part) => part.trim().split(/\s+/))
+          .map(([prop, ...rest]) => [prop, rest.join(' ')]),
+      );
+    const registre = 'src/app/registre.module.css';
+    const omnibarCss = 'src/app/objects/omnibar.module.css';
+    // Le filet d'un bouton du tiroir, comme `.btn` : l'encre en 200 ms linéaire, le contour en 260 ms --ease-out.
+    for (const selector of ['.kind', '.close']) expect(transitions(registre, selector), selector).toEqual({ color: '200ms linear', 'border-color': '260ms var(--ease-out)' });
+    // Une ligne de liste, au pas de l'omnibar : le fond, le filet d'ivoire et l'encre de la ligne choisie, en 160 ms.
+    expect(transitions(registre, '.row')).toEqual({ color: '160ms linear', 'background-color': '160ms linear', 'box-shadow': '160ms linear' });
+    expect(transitions(omnibarCss, '.item')).toEqual({ 'background-color': '160ms linear', 'box-shadow': '160ms linear' });
+    expect(transitions(omnibarCss, '.item b')).toEqual({ color: '160ms linear' });
+    // Ce que le survol et le choix allument : rien d'autre, et rien de neuf.
+    expect(bodyOf(registre, '.rowOn')).toMatch(/color: var\(--text-0\);\s*box-shadow: inset var\(--active-line\) 0 0 var\(--text-0\);\s*background-color: var\(--bg-2\);/);
+    expect(bodyOf(omnibarCss, '.item.active')).toMatch(/background-color: var\(--bg-3\);\s*box-shadow: inset var\(--active-line\) 0 0 var\(--text-0\);/);
+  });
 });
