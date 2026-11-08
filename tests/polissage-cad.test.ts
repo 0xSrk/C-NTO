@@ -85,7 +85,8 @@ afterEach(() => {
 describe('POL9 · cadence et repos', () => {
   it('POL9.1 l’horloge du châssis dit la minute : aucun rendu du desk en dix secondes, la minute tourne à sa frontière, une veille se rattrape en une seconde', () => {
     vi.useFakeTimers(TIMERS);
-    vi.setSystemTime(new Date('2026-11-09T15:00:05Z')); // 10:00:05 à New York
+    // 10:00:01 à New York : les dix secondes qui suivent ne passent aucune frontière de 15 s (POL9.1b), ni de minute.
+    vi.setSystemTime(new Date('2026-11-09T15:00:01Z'));
     let commits = 0;
     const el = mount(createElement(Profiler, { id: 'desk', onRender: () => void (commits += 1) }, createElement(Shell, null, createElement('div', null, 'module'))));
     const clock = () => el.querySelector('[data-chassis="status"] time + span b')?.textContent;
@@ -93,9 +94,9 @@ describe('POL9 · cadence et repos', () => {
     commits = 0;
     seconds(10);
     expect(commits).toBe(0);
-    // 10:00:15 → 10:01:01 : la minute tourne à sa frontière. Restent les cadences voulues — les bornes du jour (15 s), la
-    // réponse du temps à sa demi-minute, la minute — et plus quarante-six rendus du desk entier.
-    seconds(46);
+    // 10:00:11 → 10:01:01 : la minute tourne à sa frontière. Restent les cadences voulues — les bornes du jour (15 s), la
+    // réponse du temps à sa demi-minute, la minute — et plus cinquante rendus du desk entier.
+    seconds(50);
     expect(clock()).toBe('10:01');
     expect(commits).toBeLessThan(10);
     // Veille du poste : les minuteurs s'arrêtent, l'horloge murale avance de deux minutes ; une seconde suffit au rattrapage.
@@ -146,6 +147,30 @@ describe('POL9 · cadence et repos', () => {
     expect(el.textContent).toBe('14:30');
     seconds(1);
     expect(el.textContent).toBe('14:31');
+  });
+
+  it('POL9.1b les bornes du jour et le miroir de la garde tournent aux frontières de 15 s de l’horloge murale, avec la frise', async () => {
+    vi.useFakeTimers(TIMERS);
+    vi.setSystemTime(new Date('2026-11-09T15:00:07Z'));
+    const { useDayBornes } = await import('@/app/useDayBornes');
+    const { useGuardMirror } = await import('@/app/useGuardMirror');
+    const renders = { bornes: 0, mirror: 0 };
+    function Bornes() {
+      useDayBornes();
+      renders.bornes += 1;
+      return null;
+    }
+    function Mirror() {
+      useGuardMirror();
+      renders.mirror += 1;
+      return null;
+    }
+    mount(createElement('div', null, createElement(Bornes), createElement(Mirror)));
+    const before = { ...renders };
+    // 15:00:07 → 15:00:15 : la frontière de 15 s passe ; un intervalle parti du montage attendrait 15:00:22.
+    act(() => void vi.advanceTimersByTime(8_100));
+    expect(renders.bornes).toBe(before.bornes + 1);
+    expect(renders.mirror).toBe(before.mirror + 1);
   });
 
   it('POL9.2 un battement du pont ne re-rend pas le châssis : le kill switch ne lit que ses deux primitives', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { calendarSourcesState, dayBornes, replayBornes, type BornesReplay, type BornesReplayInput, type DayBornes } from '@/engine/bornes';
 import { majorCatalysts } from '@/engine/discipline';
 import { catalystSource } from '@/engine/macroMerge';
@@ -11,6 +11,7 @@ import { useJournal } from '@/store/journal';
 import { useMacro } from '@/store/macro';
 import { useSettings } from '@/store/settings';
 import { useKillLatch } from './killState';
+import { useWallClock } from './useWallClock';
 
 /** L'horloge des bornes : l'âge d'une valeur vive et la fenêtre d'un catalyseur avancent avec elle. */
 export const BORNES_TICK_MS = 15_000;
@@ -62,11 +63,9 @@ export function useDayBornes(): DayBornes {
   const official = useMacro((m) => m.events);
   const sources = useMacro((m) => m.sources);
   const lastError = useMacro((m) => m.lastError);
-  const [tick, setTick] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setTick(Date.now()), BORNES_TICK_MS);
-    return () => clearInterval(id);
-  }, []);
+  // Aux frontières de 15 s de l'horloge murale, celles de la frise (:00, :30) comprises : une règle datée se dit au même
+  // instant dans la barre, la frise et la fiche (POL9.1b).
+  const tick = useWallClock(BORNES_TICK_MS);
   // Chaque statut du pont relit aussi l'heure : l'âge d'une valeur vive est juste entre deux tics.
   const now = Math.max(tick, Date.now());
   const year = Number(etDateKey(now).slice(0, 4));
