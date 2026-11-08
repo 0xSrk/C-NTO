@@ -5,6 +5,35 @@
   display: grid;
   place-items: center;
   z-index: 6000;
+  /* La fenêtre entre par l'opacité, son voile avec elle, comme l'omnibar : rien ne bouge ; mouvement réduit, elle paraît. */
+  animation: modalIn var(--t-med) linear both;
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Fermée, elle sort comme elle est entrée : sa dernière image, inerte et sans pointeur, s'efface (POL2.3, Modal.tsx). */
+.backdrop[data-leaving] {
+  animation: modalOut var(--t-med) linear both;
+  pointer-events: none;
+}
+@keyframes modalOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .backdrop[data-leaving] {
+    animation: none;
+  }
 }
 .modal::before {
   /* Lumière zénithale sur l'arête haute */
