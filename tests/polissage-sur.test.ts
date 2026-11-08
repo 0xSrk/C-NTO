@@ -296,4 +296,26 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     expectLeave(css, '.backdrop[data-leaving]');
     expect(sheet(css).some((rule) => rule.selector.split(',').map((part) => part.trim()).includes('.backdrop') && rule.at.some((head) => /prefers-reduced-motion: reduce/.test(head)) && /animation: none/.test(rule.body))).toBe(true);
   });
+  it('POL2.4 un message entre par l’opacité, rien ne bouge ; sa colonne garde ses places, sans transition qui courrait sous l’entrée d’un tiroir', () => {
+    const css = 'src/app/shell.module.css';
+    const toast = bodyOf(css, '.toast');
+    const name = /animation: ([\w-]+) var\(--t-med\) linear backwards/.exec(toast)?.[1];
+    expect(name).toBeDefined();
+    expect(sheet(css).filter((rule) => rule.at.includes(`@keyframes ${name}`)).map((rule) => `${rule.selector} { ${rule.body.trim()} }`)).toEqual(['from { opacity: 0; }', 'to { opacity: 1; }']);
+    expect(sheet(css).some((rule) => rule.selector === '.toast' && rule.at.some((head) => /prefers-reduced-motion: reduce/.test(head)) && /animation: none/.test(rule.body))).toBe(true);
+    // Au banc, la colonne qui glissait pendant l'entrée du tiroir le laissait translucide une fois entré : elle ne glisse pas.
+    const column = bodyOf(css, '.toasts');
+    expect(column).not.toMatch(/transition/);
+    // Les places de la colonne ne changent pas : 16 px, puis 64 + 16, puis 240 + 16 ; le filet du message d'erreur non plus.
+    expect(column).toMatch(/bottom: 16px;/);
+    expect(bodyOf(css, '.main[data-frise-open] .toasts')).toMatch(/^\s*bottom: 80px;\s*$/);
+    expect(bodyOf(css, '.main[data-registre-open] .toasts')).toMatch(/^\s*bottom: 256px;\s*$/);
+    expect(bodyOf(css, '.toast.error')).toMatch(/^\s*border-left: 2px solid var\(--signal\);\s*$/);
+    // Rendu : le message paraît dans sa colonne, rien d'autre ne change.
+    mount();
+    act(() => useUi.getState().toast('Essai', 'ok'));
+    const status = host!.querySelector<HTMLElement>('main [role="status"]')!;
+    expect(status.children).toHaveLength(1);
+    expect(status.textContent).toBe('Essai');
+  });
 });
