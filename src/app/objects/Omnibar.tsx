@@ -63,6 +63,15 @@ function OmnibarPanel() {
   const current = Math.min(active, Math.max(0, flat.length - 1));
   const words = useMemo(() => normalize(query).split(/\s+/).filter(Boolean), [query]);
 
+  // La ligne choisie au clavier reste en vue, comme au registre (OROS5.38c) : quand le choix ou la requête change, pas à
+  // chaque objet rangé. Celle qui ouvre un groupe ramène sa tête avec elle. À l'ouverture, elle est déjà en vue.
+  useEffect(() => {
+    const row = document.getElementById(`omni-${current}`);
+    row?.scrollIntoView?.({ block: 'nearest' });
+    const head = row?.previousElementSibling;
+    if (head?.getAttribute('aria-hidden') === 'true') head.scrollIntoView?.({ block: 'nearest' });
+  }, [current, query]);
+
   const dismiss = () => {
     setOmnibar(false);
     if (before.current?.isConnected) before.current.focus();
