@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Glyph } from '@/design/Micro';
 import { cx } from '@/design/primitives';
 import { DESK_EVENT_KINDS } from '@/engine/agent/catalog';
@@ -11,6 +11,7 @@ import { useUi } from '@/store/ui';
 import { useIndexSources } from './objects/index';
 import { closeRegistre, eventLine, eventTarget, KIND_GLYPH, kindLabel, logEvents, registreClock, registreScope, useRegistre, type RegistreContext } from './registre';
 import { matchShortcut } from './shortcuts';
+import { usePresence } from './usePresence';
 import r from './registre.module.css';
 
 /**
@@ -28,13 +29,17 @@ export function useRegistreEvents(): DeskEvent[] {
   return useMemo(() => logEvents(deskEventLog).reverse(), [count]);
 }
 
-/** Le tiroir, monté seulement ouvert : le lien « Registre n » du rail et la section Activité d'une fiche l'ouvrent. */
+/**
+ * Le tiroir, monté seulement ouvert, et le temps de sa sortie : le lien « Registre n » du rail et la section Activité d'une
+ * fiche l'ouvrent.
+ */
 export function RegistreDrawer({ className }: { className?: string }) {
   const open = useRegistre((st) => st.open);
-  return open ? <Drawer className={className} /> : null;
+  const { mounted, leaving, ref, generation } = usePresence<HTMLElement>(open);
+  return mounted ? <Drawer key={generation} className={className} sectionRef={ref} leaving={leaving} /> : null;
 }
 
-function Drawer({ className }: { className?: string }) {
+function Drawer({ className, sectionRef, leaving }: { className?: string; sectionRef: RefObject<HTMLElement | null>; leaving: boolean }) {
   useI18n((st) => st.locale);
   const events = useRegistreEvents();
   const kinds = useRegistre((st) => st.kinds);
@@ -88,7 +93,8 @@ function Drawer({ className }: { className?: string }) {
   };
 
   return (
-    <section className={cx(r.drawer, className)} data-registre="" aria-label={tr('Registre du lancement', 'Launch log', 'Registro del lanzamiento')} onKeyDown={onKeyDown}>
+    // Fermé, il sort par l'opacité, inerte : il ne retient ni le pointeur ni le focus (POL2.2).
+    <section ref={sectionRef} className={cx(r.drawer, className)} data-registre="" data-leaving={leaving ? '' : undefined} inert={leaving} aria-label={tr('Registre du lancement', 'Launch log', 'Registro del lanzamiento')} onKeyDown={onKeyDown}>
       <header className={r.head}>
         <h2 className={r.title}>{tr('Registre', 'Log', 'Registro')}</h2>
         <span className={r.scope} data-registre-scope="">
