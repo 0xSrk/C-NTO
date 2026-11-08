@@ -59,6 +59,14 @@ describe('POL4 primitives et jetons : mouvement réduit, encre des micrographies
     expect(fiche.find((r) => /\.row\s*\{/.test(`${r.selector} {`) && r.at.length === 0)?.body).toMatch(/background-color var\(--t-med\) var\(--ease-out\)/);
     expect(exact(fiche, '.row .rowGlyph > svg', '.row .rowGlyph > svg *')?.body).toMatch(/transition:\s*fill var\(--t-med\) var\(--ease-out\),\s*stroke var\(--t-med\) var\(--ease-out\)/);
   });
+  it('POL4.2b ce qui ne s’anime jamais ne prend pas la transition de l’encre : la bande du kill switch et tout signal de niveau 3, comme la LED du menu Options', () => {
+    const shell = sheet('src/app/shell.module.css');
+    const micro = sheet('src/design/micro.module.css');
+    const options = sheet('src/design/optionsMenu.module.css');
+    expect(exact(shell, '.band [class] > svg', '.band [class] > svg *')?.body).toMatch(/transition:\s*none/);
+    expect(exact(micro, ':global(.sig-l3) svg', ':global(.sig-l3) svg *')?.body).toMatch(/transition:\s*none/);
+    expect(exact(options, '.item .glyph > svg', '.item .glyph > svg *')?.body).toMatch(/transition:\s*none/);
+  });
   it('POL4.3 M.003 : ce qui s’atténue porte sa transition, si bien qu’il sort et revient au même pas, et que les filets se croisent', () => {
     const css = sheet('src/design/instruments/instruments.module.css');
     // `.out` ne dit que l'atténuation (à sa place, à 35 %) : posée après `.hour`, une transition à elle remplaçait celle de

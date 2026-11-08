@@ -7,6 +7,12 @@
 .glyph > svg * {
   transition: fill 200ms linear, stroke 200ms linear;
 }
+/* Ce qui ne s'anime jamais n'en prend rien : un signal de niveau 3 garde son rouge d'un coup, partout (DESIGN.md § 02) ;
+   la bande du kill switch et la LED du menu Options le disent dans leur feuille (POL4.2b). */
+:global(.sig-l3) svg,
+:global(.sig-l3) svg * {
+  transition: none;
+}
 .plate > svg, .cartouche > svg { font-family: var(--f-mono); font-weight: 450; letter-spacing: normal; text-transform: none; }
 .plate :global(text), .cartouche :global(text) { font-kerning: normal; }
 
