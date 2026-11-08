@@ -148,7 +148,11 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
             e.preventDefault();
             setOver(true);
           }}
-          onDragLeave={() => setOver(false)}
+          onDragLeave={(e) => {
+            // Le pointeur qui passe sur le texte de la zone n'en sort pas : seule une vraie sortie l'éteint.
+            if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+            setOver(false);
+          }}
           onDrop={onDrop}
         >
           {tr(
