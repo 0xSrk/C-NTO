@@ -510,13 +510,16 @@
         box-shadow: inset 0 0 0 1px var(--line-2);
         --k: var(--text-2);
       }
-      /* La mise à jour vit : filet or, flèche d'import en or. */
+      /* La mise à jour vit : filet or, flèche d'import en or. Elle paraît quand le contrôle répond : elle monte comme
+         les commandes, à toute phase, sans tenir sa dernière image ; launcher-ui.js règle son départ sur l'horloge
+         de l'aube. */
       .btn.update {
         height: 40px;
         font-size: 13px;
         color: var(--text-0);
         box-shadow: inset 0 0 0 1px var(--gold);
         --k: var(--gold);
+        animation: aube-rise 0.4s var(--ease) backwards;
       }
       .btn.update:active:not(:disabled) {
         background: var(--gold-soft);
@@ -953,9 +956,6 @@
       .frame[data-phase='intro'] .btn.primary {
         animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.1s) both;
       }
-      .frame[data-phase='intro'] .btn.update {
-        animation: aube-rise 0.4s var(--ease) calc(var(--t-panel) + 0.15s) both;
-      }
       .frame[data-phase='intro'] .status {
         animation: aube-in 0.36s linear calc(var(--t-panel) + 0.22s) both;
       }
@@ -1225,6 +1225,10 @@
         .frame[data-phase='intro'] *::before,
         .frame[data-phase='intro'] *::after {
           animation: none !important;
+        }
+        /* La mise à jour paraît sans monter : la phase y est déjà 'rest'. */
+        .btn.update {
+          animation: none;
         }
       }
     </style>

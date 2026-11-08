@@ -317,6 +317,7 @@
       return;
     }
     if (available) {
+      if (btnUpdate.hidden) paceUpdate();
       btnUpdate.hidden = false;
       btnUpdate.classList.add('update');
       btnUpdate.classList.toggle('busy', applying);
@@ -634,6 +635,7 @@
      Une touche ou un clic l'abrège (ce clic-là ne vise rien) ; Échap garde son sens ; le mouvement réduit
      donne le repos d'emblée. Le chronomètre T+ dit le temps réel de l'ouverture, puis s'éteint. */
   const INTRO_REST_MS = 2800; // miroir de --t-rest (tests/launcher-dawn.test.ts)
+  const PANEL_MS = 1950; // miroir de --t-panel (tests/polissage-lan.test.ts)
   const clock = $('clock');
   const introAt = performance.now();
   const raf = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : (cb) => setTimeout(cb, 16);
@@ -647,15 +649,30 @@
     return Number.isFinite(value) && value > 0 ? value * 1000 : INTRO_REST_MS;
   }
 
+  /** La mise à jour paraît quand le contrôle répond. Dans l'aube, elle garde son pas dans la montée des commandes
+      (--t-panel + 0,15 s depuis l'ouverture) ; venue plus tard, ou au repos, elle monte dès qu'elle paraît. */
+  function paceUpdate() {
+    const panel = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--t-panel'));
+    const slot = (Number.isFinite(panel) && panel > 0 ? panel * 1000 : PANEL_MS) + 150;
+    const wait = frame.dataset.phase === 'intro' ? slot - (performance.now() - introAt) : 0;
+    btnUpdate.style.animationDelay = `${Math.max(0, Math.round(wait))}ms`;
+  }
+
   function tickClock() {
     if (!clock || frame.dataset.phase !== 'intro') return;
     clock.textContent = 'T+' + ((performance.now() - introAt) / 1000).toFixed(3);
     clockFrame = raf(tickClock);
   }
 
-  function toRest() {
+  /** Le repos. Abrégée (une touche, un clic), l'aube y tombe d'un coup : la montée de la mise à jour s'y pose
+      avec les autres commandes. Venue à son heure, la montée en cours va à son terme. */
+  function toRest(abridged = false) {
     if (!frame || frame.dataset.phase === 'rest') return;
     frame.dataset.phase = 'rest';
+    if (!btnUpdate.hidden) {
+      btnUpdate.style.animationDelay = '0ms';
+      if (abridged) for (const a of btnUpdate.getAnimations?.() ?? []) if (a.animationName === 'aube-rise') a.finish();
+    }
     clearTimeout(introTimer);
     unraf(clockFrame);
     window.removeEventListener('keydown', skipByKey, true);
@@ -666,7 +683,7 @@
   // Une page, une aube : un cadre retiré du document n'écoute plus rien.
   function skipByKey(event) {
     if (!frame.isConnected) return;
-    toRest();
+    toRest(true);
     if (event.key === 'Escape') return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -675,7 +692,7 @@
   function skipByPointer() {
     if (!frame.isConnected) return;
     swallowUntil = performance.now() + 800;
-    toRest();
+    toRest(true);
   }
 
   window.addEventListener(
@@ -693,7 +710,7 @@
   else {
     window.addEventListener('keydown', skipByKey, true);
     window.addEventListener('pointerdown', skipByPointer, true);
-    introTimer = setTimeout(toRest, restMs());
+    introTimer = setTimeout(() => toRest(), restMs());
     clockFrame = raf(tickClock);
   }
 
