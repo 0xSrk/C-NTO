@@ -421,10 +421,14 @@
   background-color: color-mix(in srgb, var(--text-0) 42%, transparent);
   box-shadow: 0 0 12px color-mix(in srgb, var(--text-0) 16%, transparent);
 }
-/* Le point d'or se partage sur l'axe : la ligne s'efface sous l'axe d'or, le mot se déplie. */
+/* Le point d'or se partage sur l'axe : la ligne s'efface sous l'axe d'or, le mot se déplie. Sa lumière en cours garde ses
+   transitions : retirée de la liste, elle sauterait à sa fin avant de s'effacer (et, à l'abrègement, éclairerait l'écran). */
 .spreading .horizon {
   opacity: 0;
-  transition: opacity 0.3s linear;
+  transition:
+    opacity 0.3s linear,
+    background-color 0.42s linear var(--fold-at, 0.34s),
+    box-shadow 0.5s linear var(--fold-at, 0.34s);
 }
 .spreading .unlock {
   opacity: 1;

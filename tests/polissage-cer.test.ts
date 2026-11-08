@@ -152,4 +152,31 @@ describe('POL5 cérémonies : démarrage, verrou et ouverture, geste du siège, 
     expect(css.find((rule) => rule.selector === '.log')?.body).toMatch(/min-height: 136px;/);
     expect(css.findIndex((rule) => rule.selector === '.slot')).toBeGreaterThan(css.findIndex((rule) => rule.selector === '.line'));
   });
+
+  it('POL5.3 la ligne de l’écran ne saute pas à sa pleine lumière au pli : l’étape qui l’efface garde les transitions qui l’éclairent', () => {
+    const css = cssRules(readFileSync('src/app/gate.module.css', 'utf8'));
+    /** Les propriétés qu'une liste de transitions anime (les virgules des fonctions ne séparent rien). */
+    const listed = (body: string) => {
+      const value = /(?:^|;)\s*transition:\s*([^;]+)/.exec(body)?.[1] ?? '';
+      const flat = value.replace(/\([^()]*\)/g, (m) => m.replace(/,/g, ' '));
+      return new Set(flat.split(',').map((layer) => layer.trim().split(/\s+/)[0]!).filter(Boolean));
+    };
+    const rules = css.filter((rule) => /(^|\s)\.horizon$/.test(rule.selector) && !/reduced/.test(rule.selector));
+    const own = rules.find((rule) => rule.selector === '.horizon')!;
+    const lit = [...listed(own.body)].sort();
+    expect(lit).toEqual(['background-color', 'box-shadow']);
+    // une transition en cours dont la propriété sort de la liste est annulée et saute à sa fin : chaque étape qui règle la
+    // ligne garde donc la lumière en cours, avec ses durées et son délai
+    for (const rule of rules.filter((r) => /transition:/.test(r.body))) for (const prop of lit) expect(listed(rule.body), `${rule.selector} : ${prop}`).toContain(prop);
+    const spreading = rules.find((rule) => rule.selector === '.spreading .horizon')!;
+    expect(spreading.body).toMatch(/opacity 0\.3s linear/);
+    expect(spreading.body).toMatch(/background-color 0\.42s linear var\(--fold-at, 0\.34s\)/);
+    expect(spreading.body).toMatch(/box-shadow 0\.5s linear var\(--fold-at, 0\.34s\)/);
+    // l'éclairage lui-même ne change pas : la ligne monte à 42 %, son halo à 16 %
+    const gliding = rules.find((rule) => rule.selector === '.gliding .horizon')!;
+    expect(gliding.body).toMatch(/background-color: color-mix\(in srgb, var\(--text-0\) 42%, transparent\);/);
+    expect(gliding.body).toMatch(/box-shadow: 0 0 12px color-mix\(in srgb, var\(--text-0\) 16%, transparent\);/);
+    // en mouvement réduit, la ligne ne transite toujours pas
+    expect(css.find((rule) => rule.selector.split(/,\s*/).includes('.reduced .horizon'))?.body).toMatch(/transition: none;/);
+  });
 });
