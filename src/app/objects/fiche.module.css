@@ -965,6 +965,13 @@ button.activityRow:focus-visible {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
+  transition: color 200ms linear;
+}
+/* Le sommaire s'allume comme les liens en code de la fiche : l'encre monte, rien ne bouge. */
+@media (hover: hover) {
+  .gates summary:hover {
+    color: var(--text-0);
+  }
 }
 .gates ul {
   margin: 0;
@@ -1383,11 +1390,21 @@ button.activityRow:focus-visible {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
+  transition: color 200ms linear;
 }
 .rejectedGlyph {
   width: 14px;
   height: 14px;
   --k: var(--text-2);
+}
+/* Au passage du pointeur, l'encre du sommaire monte, et le glyphe du refus avec elle. */
+@media (hover: hover) {
+  .rejected summary:hover {
+    color: var(--text-0);
+  }
+  .rejected summary:hover .rejectedGlyph {
+    --k: var(--text-0);
+  }
 }
 .rowMuted {
   color: var(--text-2);
