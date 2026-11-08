@@ -63,9 +63,11 @@ vi.mock('lightweight-charts', () => {
 });
 vi.mock('@/modules/visual/chartBox', () => ({ chartHostReady: () => true, safePaneHeight: (requested: number) => requested }));
 
+import { ImportModal } from '@/modules/metrique/ImportModal';
 import Metrique from '@/modules/metrique/Metrique';
 import { MonteCarloView } from '@/modules/metrique/MonteCarloView';
 import { Chart } from '@/modules/visual/Chart';
+import { db } from '@/store/db';
 import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 
@@ -262,6 +264,34 @@ describe('POL6 Métrique et Visual : la dynamique se polit, le repos ne bouge pa
       expect(onHover.mock.lastCall?.[0]).toMatchObject({ time: T0 + 600, values: [{ key: 'ema', value: null }] });
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+
+  it('POL6.6 Import CSV : la zone de dépôt reste allumée quand le fichier tenu passe sur son texte, et s’éteint à la vraie sortie', async () => {
+    // Le coffre n'existe pas sous jsdom : les lots ouverts sont lus vides.
+    const lots = vi.spyOn(db.openLots, 'toArray').mockResolvedValue([]);
+    try {
+      mount(createElement(ImportModal, { onClose: () => undefined }));
+      await act(async () => undefined);
+      const zone = document.querySelector<HTMLDivElement>(`.${m.dropzone}`)!;
+      const child = zone.querySelector('span')!;
+      const lit = () => zone.classList.contains(m.over!);
+      act(() => void zone.dispatchEvent(new MouseEvent('dragover', { bubbles: true, cancelable: true })));
+      expect(lit()).toBe(true);
+      // Chromium envoie `dragleave` à la zone quand le pointeur entre dans son texte : ce n'est pas une sortie.
+      act(() => void zone.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: child })));
+      expect(lit()).toBe(true);
+      // Le texte quitté pour la zone elle-même : toujours dedans.
+      act(() => void child.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: zone })));
+      expect(lit()).toBe(true);
+      // La vraie sortie, vers le reste de la fenêtre ou hors d'elle (relatedTarget nul), éteint la zone.
+      act(() => void zone.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: document.body })));
+      expect(lit()).toBe(false);
+      act(() => void zone.dispatchEvent(new MouseEvent('dragover', { bubbles: true, cancelable: true })));
+      act(() => void zone.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: null })));
+      expect(lit()).toBe(false);
+    } finally {
+      lots.mockRestore();
     }
   });
 });
