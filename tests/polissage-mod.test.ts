@@ -1,11 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
+import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Graph } from '@/modules/note/Graph';
 import type { Note } from '@/store/db';
+import { cssRules } from './helpers/cssRules';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -77,6 +79,10 @@ function drain(frames: FrameRequestCallback[], limit = 2000): number {
   return n;
 }
 
+const sheet = (path: string) => cssRules(readFileSync(path, 'utf8'));
+/** La règle de `selector` hors de tout bloc @ (la règle de base d'une pièce). */
+const base = (path: string, selector: string) => sheet(path).find((r) => r.selector === selector && r.at.length === 0);
+
 describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
   it('POL7.1 sous mouvement réduit, le graphe des notes paraît posé : une seule peinture, au repos du mouvement normal, par tranches qui ne figent pas le desk', () => {
     // Mouvement normal : la mise en page se déroule sous les yeux, puis se pose.
@@ -118,5 +124,16 @@ describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
     expect(big.frames).toHaveLength(0);
     expect(ticks).toBeGreaterThan(1);
     expect(big.paints).toHaveLength(1);
+  });
+
+  it('POL7.2 le filet d’or du titre d’une note se pose dans sa boîte, au pas du focus d’un champ : l’en-tête ne grandit plus d’un pixel', () => {
+    const NOTE = 'src/modules/note/note.module.css';
+    const focus = base(NOTE, '.titleInput:focus')!;
+    // Ni contour ni marge au focus : la boîte du titre, donc l'éditeur et l'aperçu dessous, ne bougent pas.
+    expect(focus.props.filter((p) => /^(?:border|padding|margin|width|height|inset|top|bottom)/.test(p))).toEqual([]);
+    expect(focus.body).toMatch(/box-shadow:\s*inset 0 -1px 0 var\(--gold-line\)/);
+    // Il arrive et repart comme le contour d'un champ au focus (tokens.css : `border-color var(--t-fast) linear`).
+    expect(base(NOTE, '.titleInput')!.body).toMatch(/transition:\s*box-shadow var\(--t-fast\) linear/);
+    expect(readFileSync('src/design/tokens.css', 'utf8')).toMatch(/transition: border-color var\(--t-fast\) linear;/);
   });
 });
