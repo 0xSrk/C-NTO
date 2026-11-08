@@ -1319,6 +1319,8 @@
   gap: 8px;
   width: min(420px, calc(100% - 80px));
   pointer-events: none;
+  /* La colonne ne glisse pas avec le tiroir : au banc (Chromium), sa transition, courant pendant l'entrée du tiroir,
+     laissait le tiroir translucide une fois entré (POL2.4). */
 }
 .main[data-frise-open] .toasts {
   bottom: 80px;
@@ -1338,6 +1340,23 @@
   align-items: center;
   justify-content: space-between;
   font-size: 13px;
+  /* Un message entre par l'opacité, comme les tiroirs du pied : rien ne bouge ; `backwards` : entré, il ne garde aucun
+     effet d'animation (POL2.4). Le store le retire d'un coup : une image qui s'effacerait garderait sa place, et un second
+     clic passerait au travers jusqu'à la zone de travail. */
+  animation: toastIn var(--t-med) linear backwards;
+}
+@keyframes toastIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
 }
 .toastAction {
   font-family: var(--font-mono);
