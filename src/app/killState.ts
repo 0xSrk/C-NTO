@@ -24,7 +24,10 @@ useBridge.subscribe((state) => {
 
 /** La bande de niveau 3 est due : coupure vue (verrouillée) ou prouvée par le statut courant. */
 export function useKillSwitch(): { engaged: boolean; shortcut: string } {
-  const nt = useBridge((b) => b.nt);
+  // Deux primitives, pas le statut entier : un battement du pont (toutes les 2 s, les comptes toutes les 5 s) ne re-rend
+  // plus le châssis ; la coupure bascule le booléen dans le même commit qu'avant (POL9.2).
+  const bridgeEngaged = useBridge((b) => killEngaged(b.nt));
+  const shortcut = useBridge((b) => b.nt?.killSwitchShortcut || KILL_SHORTCUT_FALLBACK);
   const latched = useKillLatch((k) => k.engaged);
-  return { engaged: latched || killEngaged(nt), shortcut: nt?.killSwitchShortcut || KILL_SHORTCUT_FALLBACK };
+  return { engaged: latched || bridgeEngaged, shortcut };
 }

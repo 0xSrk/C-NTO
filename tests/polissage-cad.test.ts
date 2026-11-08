@@ -21,7 +21,7 @@ vi.mock('@/store/db', async (importOriginal) => ({
 }));
 
 import { FriseAnswer } from '@/app/FriseAnswer';
-import { useKillLatch } from '@/app/killState';
+import { useKillLatch, useKillSwitch } from '@/app/killState';
 import { Shell } from '@/app/Shell';
 import { StatusBornes } from '@/app/StatusBornes';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
@@ -123,6 +123,24 @@ describe('POL9 · cadence et repos', () => {
     expect(delay()).toBe('15 min');
     act(() => void vi.advanceTimersByTime(20));
     expect(delay()).toBe('14 min');
+  });
+
+  it('POL9.2 un battement du pont ne re-rend pas le châssis : le kill switch ne lit que ses deux primitives', () => {
+    let renders = 0;
+    function Probe() {
+      const kill = useKillSwitch();
+      renders += 1;
+      return createElement('i', { 'data-engaged': String(kill.engaged), 'data-shortcut': kill.shortcut });
+    }
+    useBridge.setState({ nt: status() });
+    const el = mount(createElement(Probe));
+    const before = renders;
+    for (let i = 0; i < 5; i++) act(() => useBridge.setState({ nt: status({ heartbeatLatencyMs: 10 + i, accountsAt: 1_000 + i }) }));
+    expect(renders).toBe(before);
+    // Le canal fermé par le kill switch bascule dans le même commit qu'avant.
+    act(() => useBridge.setState({ nt: status({ ordersOpen: false, ordersClosed: true }) }));
+    expect(el.querySelector('i')?.getAttribute('data-engaged')).toBe('true');
+    expect(el.querySelector('i')?.getAttribute('data-shortcut')).toBe('CommandOrControl+Shift+K');
   });
 
 });
