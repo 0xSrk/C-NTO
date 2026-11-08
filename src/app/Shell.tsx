@@ -61,7 +61,8 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 function moveZone(step: 1 | -1): void {
   const zones = ZONES.map((selector) => document.querySelector<HTMLElement>(selector)).flatMap((zone) => {
     if (!zone) return [];
-    const target = zone.matches('aside[data-drawer]') ? zone : zone.querySelector<HTMLElement>(FOCUSABLE);
+    // Un tiroir qui sort est inerte : son premier élément actif ne compte plus (POL2.2).
+    const target = zone.matches('aside[data-drawer]') ? zone : [...zone.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => !el.closest('[inert]'));
     return target ? [{ zone, target }] : [];
   });
   if (zones.length === 0) return;

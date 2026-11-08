@@ -29,8 +29,22 @@
     opacity: 1;
   }
 }
+/* Il sort comme il est entré, par l'opacité, rien ne bouge ; replié, il ne retient ni le pointeur ni le focus (POL2.2). */
+.drawer[data-leaving] {
+  animation: leave var(--t-med) linear both;
+  pointer-events: none;
+}
+@keyframes leave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .drawer {
+  .drawer,
+  .drawer[data-leaving] {
     animation: none;
   }
 }

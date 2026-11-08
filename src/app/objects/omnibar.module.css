@@ -13,6 +13,20 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* Elle sort comme elle est entrée, le voile et sa plaque ensemble ; fermée, elle ne retient ni le pointeur ni le focus. */
+.veil[data-leaving] {
+  animation: omniOut var(--t-med) linear both;
+  pointer-events: none;
+}
+@keyframes omniOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .veil[data-leaving] {
+    animation: none;
+  }
+}
 .panel {
   position: absolute;
   top: 20vh;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Glyph } from '@/design/Micro';
 import { cx } from '@/design/primitives';
@@ -7,6 +7,7 @@ import { fmtInt } from '@/lib/format';
 import { useObjects } from '@/store/objects';
 import { useUi } from '@/store/ui';
 import { matchShortcut } from '../shortcuts';
+import { usePresence } from '../usePresence';
 import { EtatMark } from './Fiche';
 import { normalize, omniGroupTitle, searchObjectIndex, useObjectIndex, type OmniGroupResult, type OmniItem } from './index';
 import s from './omnibar.module.css';
@@ -20,9 +21,11 @@ import s from './omnibar.module.css';
 export function Omnibar() {
   useI18n((st) => st.locale);
   const open = useObjects((o) => o.omnibar);
-  if (!open || typeof document === 'undefined') return null;
+  // Fermée, elle sort comme elle est entrée, par l'opacité, inerte ; rouverte pendant sa sortie, elle renaît (POL2.2).
+  const { mounted, leaving, ref, generation } = usePresence<HTMLDivElement>(open);
+  if (!mounted || typeof document === 'undefined') return null;
   // Hors du châssis, comme une fenêtre : la superposition ne suit pas sa grille.
-  return createPortal(<OmnibarPanel />, document.body);
+  return createPortal(<OmnibarPanel key={generation} veilRef={ref} leaving={leaving} />, document.body);
 }
 
 /** Le titre d'une ligne, la part trouvée en ivoire plein. */
@@ -41,7 +44,7 @@ function Marked({ text, words }: { text: string; words: readonly string[] }) {
   );
 }
 
-function OmnibarPanel() {
+function OmnibarPanel({ veilRef, leaving }: { veilRef: RefObject<HTMLDivElement | null>; leaving: boolean }) {
   const locale = useI18n((st) => st.locale);
   const setOmnibar = useObjects((o) => o.setOmnibar);
   const openObject = useObjects((o) => o.openObject);
@@ -110,8 +113,9 @@ function OmnibarPanel() {
 
   let n = -1;
   return (
-    <div className={s.veil} onMouseDown={(event) => event.target === event.currentTarget && dismiss()}>
-      <div className={s.panel} role="dialog" aria-modal="true" aria-label={tr('Aller à un objet', 'Go to an object', 'Ir a un objeto')} data-omnibar>
+    <div ref={veilRef} className={s.veil} data-leaving={leaving ? '' : undefined} inert={leaving} onMouseDown={(event) => event.target === event.currentTarget && dismiss()}>
+      {/* En sortie, elle n'est plus un dialogue : le châssis répond aussitôt (Ctrl+J, Échap, « ? », F6). */}
+      <div className={s.panel} role={leaving ? undefined : 'dialog'} aria-modal={leaving ? undefined : 'true'} aria-label={tr('Aller à un objet', 'Go to an object', 'Ir a un objeto')} data-omnibar>
         <div className={s.field}>
           <Glyph name="target" className={s.target} />
           <input

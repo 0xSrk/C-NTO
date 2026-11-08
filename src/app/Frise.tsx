@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import { Glyph, type GlyphName } from '@/design/Micro';
 import { cx } from '@/design/primitives';
 import e from '@/design/etat.module.css';
@@ -16,6 +16,7 @@ import { useUi } from '@/store/ui';
 import { dayClosedWords, etDay, FRISE_ANSWER_ID, FRISE_DRAWER_ID, useHourAnswer } from './FriseAnswer';
 import { etClock, STROKE_ETAT, type EtatStroke } from './objects/index';
 import { cursorMoveOf, matchShortcut } from './shortcuts';
+import { usePresence } from './usePresence';
 import f from './frise.module.css';
 
 /**
@@ -59,13 +60,14 @@ function stateAt(ms: number, now: number, beyond: boolean): EtatStroke {
   return beyond ? 'pointille' : 'tirete';
 }
 
-/** Le tiroir, monté seulement déplié : la réponse de la barre d'état l'ouvre. */
+/** Le tiroir, monté seulement déplié, et le temps de sa sortie : la réponse de la barre d'état l'ouvre. */
 export function FriseDrawer({ className }: { className?: string }) {
   const open = useUi((u) => u.friseOpen);
-  return open ? <Drawer className={className} /> : null;
+  const { mounted, leaving, ref, generation } = usePresence<HTMLElement>(open);
+  return mounted ? <Drawer key={generation} className={className} sectionRef={ref} leaving={leaving} /> : null;
 }
 
-function Drawer({ className }: { className?: string }) {
+function Drawer({ className, sectionRef, leaving }: { className?: string; sectionRef: RefObject<HTMLElement | null>; leaving: boolean }) {
   useI18n((st) => st.locale);
   const { answer, line, at, now, pulled, events, own } = useHourAnswer();
   const tab = useUi((u) => u.tab);
@@ -188,7 +190,8 @@ function Drawer({ className }: { className?: string }) {
   });
 
   return (
-    <section id={FRISE_DRAWER_ID} className={cx(f.drawer, className)} data-frise="" aria-label={tr('Frise de la journée CME', 'CME day timeline', 'Friso de la jornada CME')}>
+    // Replié, il sort par l'opacité, inerte : il ne retient ni le pointeur ni le focus (POL2.2).
+    <section ref={sectionRef} id={FRISE_DRAWER_ID} className={cx(f.drawer, className)} data-frise="" data-leaving={leaving ? '' : undefined} inert={leaving} aria-label={tr('Frise de la journée CME', 'CME day timeline', 'Friso de la jornada CME')}>
       <div className={f.gutter}>
         {LANE_NAMES.map((lane) => (
           <span key={lane.key} className={f.laneName} data-lane={lane.key}>

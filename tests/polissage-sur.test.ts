@@ -1,9 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
+import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cssRules } from './helpers/cssRules';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -15,7 +17,7 @@ vi.mock('@/store/db', async (importOriginal) => ({
 }));
 
 import { useKillLatch } from '@/app/killState';
-import { useRegistre } from '@/app/registre';
+import { closeRegistre, openRegistre, useRegistre } from '@/app/registre';
 import { Shell } from '@/app/Shell';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import type { Session } from '@/engine/types';
@@ -82,6 +84,37 @@ function type(text: string) {
   });
 }
 
+
+/** Une animation en cours, que le test termine à la main : jsdom n'a pas `getAnimations`, le banc mesure le reste. */
+function stubAnimations(): { finish: () => void; restore: () => void } {
+  let finish!: () => void;
+  let finished = new Promise<void>((resolve) => (finish = resolve));
+  Object.defineProperty(HTMLElement.prototype, 'getAnimations', { configurable: true, value: () => [{ playState: 'running', finished }] });
+  return {
+    finish: () => {
+      finish();
+      finished = new Promise<void>((resolve) => (finish = resolve));
+    },
+    restore: () => void delete (HTMLElement.prototype as { getAnimations?: unknown }).getAnimations,
+  };
+}
+/** L'animation finie, ce qui attend sa fin se joue. */
+const settle = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 0))));
+/** Les règles d'une feuille, et la règle hors de tout bloc @ d'un sélecteur. */
+const sheet = (path: string) => cssRules(readFileSync(path, 'utf8'));
+const bodyOf = (path: string, selector: string) => sheet(path).find((rule) => rule.selector === selector && rule.at.length === 0)?.body ?? '';
+/** Une sortie de la maison : l'opacité de 1 à 0, en --t-med, linéaire ; sans pointeur ; mouvement réduit, aucune. */
+function expectLeave(path: string, selector: string) {
+  const rules = sheet(path);
+  const body = bodyOf(path, selector);
+  const name = /animation: ([\w-]+) var\(--t-med\) linear both/.exec(body)?.[1];
+  expect(name, `${path} ${selector}`).toBeDefined();
+  expect(body, `${path} ${selector}`).toMatch(/pointer-events: none/);
+  const frames = rules.filter((rule) => rule.at.includes(`@keyframes ${name}`));
+  expect(frames.map((rule) => `${rule.selector} { ${rule.body.trim()} }`), path).toEqual(['from { opacity: 1; }', 'to { opacity: 0; }']);
+  expect(rules.some((rule) => rule.selector.split(',').map((part) => part.trim()).includes(selector) && rule.at.some((head) => /prefers-reduced-motion: reduce/.test(head)) && /animation: none/.test(rule.body)), `${path} ${selector}`).toBe(true);
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
   vi.setSystemTime(Date.parse('2026-10-27T16:00:00Z'));
@@ -139,5 +172,60 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     } finally {
       delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     }
+  });
+  it('POL2.2 la frise, le registre et l’omnibar sortent comme ils sont entrés : montés, inertes, le temps de leur fondu ; rouverts, ils renaissent ; le châssis répond aussitôt', async () => {
+    const animations = stubAnimations();
+    try {
+      mount();
+      const answer = () => host!.querySelector<HTMLButtonElement>('[data-status="answer"]')!;
+      const frise = () => [...host!.querySelectorAll<HTMLElement>('[data-frise]')];
+      const registre = () => [...host!.querySelectorAll<HTMLElement>('[data-registre]')];
+      // La frise : Échap, au présent, la replie et rend le focus à la réponse ; elle reste là, inerte, le temps de sa sortie.
+      act(() => answer().click());
+      press('Escape', {}, host!.querySelector<HTMLElement>('[role="slider"]')!);
+      expect(answer().getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(answer());
+      expect(frise()).toHaveLength(1);
+      expect(frise()[0]!.hasAttribute('data-leaving')).toBe(true);
+      expect(frise()[0]!.hasAttribute('inert')).toBe(true);
+      // F6 gagne la barre d'état sans s'arrêter au tiroir qui sort.
+      document.getElementById('ligne')!.focus();
+      press('F6');
+      expect(document.activeElement!.closest('[data-chassis="status"]')).not.toBeNull();
+      expect(document.activeElement!.closest('[inert]')).toBeNull();
+      animations.finish();
+      await settle();
+      expect(frise()).toHaveLength(0);
+      // Le registre : fermé, il sort ; rouvert pendant sa sortie, il renaît, entier et seul.
+      act(() => void openRegistre(null));
+      act(() => closeRegistre(false));
+      expect(registre()).toHaveLength(1);
+      expect(registre()[0]!.hasAttribute('data-leaving')).toBe(true);
+      act(() => void openRegistre(null));
+      expect(registre()).toHaveLength(1);
+      expect(registre()[0]!.hasAttribute('data-leaving')).toBe(false);
+      expect(registre()[0]!.hasAttribute('inert')).toBe(false);
+      act(() => closeRegistre(false));
+      animations.finish();
+      await settle();
+      expect(registre()).toHaveLength(0);
+      // L'omnibar : en sortie, elle n'est plus un dialogue ; Ctrl+J la rouvre aussitôt, le focus au champ.
+      const line = document.getElementById('ligne')!;
+      line.focus();
+      ctrl('j');
+      press('Escape');
+      expect(document.activeElement).toBe(line);
+      expect(document.querySelector('[data-leaving] [data-omnibar]')).not.toBeNull();
+      expect(document.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
+      ctrl('j');
+      expect(document.querySelectorAll('[data-omnibar]')).toHaveLength(1);
+      expect(document.querySelector('[data-leaving]')).toBeNull();
+      expect(document.activeElement).toBe(input());
+    } finally {
+      animations.restore();
+    }
+    expectLeave('src/app/frise.module.css', '.drawer[data-leaving]');
+    expectLeave('src/app/registre.module.css', '.drawer[data-leaving]');
+    expectLeave('src/app/objects/omnibar.module.css', '.veil[data-leaving]');
   });
 });
