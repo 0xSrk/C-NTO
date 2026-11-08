@@ -19,11 +19,12 @@
   --k: var(--text-1);
   --p: var(--bg-0);
   animation: enter var(--t-med) linear both;
+  animation-duration: calc(var(--t-med) * (1 - var(--enter-from, 0)));
 }
 /* Le tiroir entre par l'opacité, rien ne bouge ; mouvement réduit, il paraît. */
 @keyframes enter {
   from {
-    opacity: 0;
+    opacity: var(--enter-from, 0);
   }
   to {
     opacity: 1;
@@ -32,11 +33,12 @@
 /* Il sort comme il est entré, par l'opacité, rien ne bouge ; replié, il ne retient ni le pointeur ni le focus (POL2.2). */
 .drawer[data-leaving] {
   animation: leave var(--t-med) linear both;
+  animation-duration: calc(var(--t-med) * var(--leave-from, 1));
   pointer-events: none;
 }
 @keyframes leave {
   from {
-    opacity: 1;
+    opacity: var(--leave-from, 1);
   }
   to {
     opacity: 0;

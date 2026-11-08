@@ -115,7 +115,8 @@ function expectLeave(path: string, selector: string) {
   expect(name, `${path} ${selector}`).toBeDefined();
   expect(body, `${path} ${selector}`).toMatch(/pointer-events: none/);
   const frames = rules.filter((rule) => rule.at.includes(`@keyframes ${name}`));
-  expect(frames.map((rule) => `${rule.selector} { ${rule.body.trim()} }`), path).toEqual(['from { opacity: 1; }', 'to { opacity: 0; }']);
+  // POL2.2a : la sortie part de l'opacité où la surcouche en est (1 par défaut).
+  expect(frames.map((rule) => `${rule.selector} { ${rule.body.trim()} }`), path).toEqual(['from { opacity: var(--leave-from, 1); }', 'to { opacity: 0; }']);
   expect(rules.some((rule) => rule.selector.split(',').map((part) => part.trim()).includes(selector) && rule.at.some((head) => /prefers-reduced-motion: reduce/.test(head)) && /animation: none/.test(rule.body)), `${path} ${selector}`).toBe(true);
 }
 
@@ -234,6 +235,61 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     expectLeave('src/app/registre.module.css', '.drawer[data-leaving]');
     expectLeave('src/app/objects/omnibar.module.css', '.veil[data-leaving]');
   });
+  it('POL2.2a une surcouche fermée en chemin part de l’opacité où elle en est ; rouverte pendant sa sortie, elle y reprend : ni éclair ni chute', async () => {
+    const animations = stubAnimations();
+    const real = window.getComputedStyle.bind(window);
+    let opacity = '0.38';
+    const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation((el: Element, pseudo?: string | null) => {
+      const style = real(el, pseudo);
+      return el.matches?.('[data-registre]') ? ({ opacity } as unknown as CSSStyleDeclaration) : style;
+    });
+    try {
+      mount();
+      const registre = () => [...host!.querySelectorAll<HTMLElement>('[data-registre]')];
+      act(() => void openRegistre(null));
+      // Fermé pendant son entrée, à 0,38 : la sortie part de 0,38, sur ce qui reste de chemin, jamais de 1.
+      act(() => closeRegistre(false));
+      expect(registre()).toHaveLength(1);
+      expect(registre()[0]!.style.getPropertyValue('--leave-from')).toBe('0.38');
+      // Rouvert pendant sa sortie, à 0,62 : l'entrée reprend à 0,62, jamais de 0.
+      opacity = '0.62';
+      act(() => void openRegistre(null));
+      expect(registre()).toHaveLength(1);
+      expect(registre()[0]!.style.getPropertyValue('--enter-from')).toBe('0.62');
+      expect(registre()[0]!.style.getPropertyValue('--leave-from')).toBe('');
+      act(() => closeRegistre(false));
+      animations.finish();
+      await settle();
+      expect(registre()).toHaveLength(0);
+      // Une ouverture et une fermeture franches ne posent rien : l'entrée part de 0, la sortie de 1, comme avant.
+      opacity = '1';
+      act(() => void openRegistre(null));
+      expect(registre()[0]!.style.getPropertyValue('--enter-from')).toBe('');
+      act(() => closeRegistre(false));
+      expect(registre()[0]!.style.getPropertyValue('--leave-from')).toBe('');
+    } finally {
+      spy.mockRestore();
+      animations.restore();
+    }
+    // Les feuilles : chaque entrée part de var(--enter-from, 0) sur la part de chemin qui reste, chaque sortie de
+    // var(--leave-from, 1) de même ; les arrivées (1 et 0) ne changent pas, le repos non plus.
+    for (const [path, enter, leave] of [
+      ['src/app/frise.module.css', '.drawer', '.drawer[data-leaving]'],
+      ['src/app/registre.module.css', '.drawer', '.drawer[data-leaving]'],
+      ['src/app/objects/omnibar.module.css', '.veil', '.veil[data-leaving]'],
+      ['src/design/modal.module.css', '.backdrop', '.backdrop[data-leaving]'],
+    ] as const) {
+      const rules = sheet(path);
+      const frames = (selector: string) => {
+        const name = /animation: ([\w-]+) var\(--t-med\) linear both/.exec(bodyOf(path, selector))?.[1];
+        return rules.filter((rule) => rule.at.includes(`@keyframes ${name}`)).map((rule) => `${rule.selector} { ${rule.body.trim()} }`);
+      };
+      expect(frames(enter), path).toEqual(['from { opacity: var(--enter-from, 0); }', 'to { opacity: 1; }']);
+      expect(bodyOf(path, enter), path).toMatch(/animation-duration: calc\(var\(--t-med\) \* \(1 - var\(--enter-from, 0\)\)\);/);
+      expect(frames(leave), path).toEqual(['from { opacity: var(--leave-from, 1); }', 'to { opacity: 0; }']);
+      expect(bodyOf(path, leave), path).toMatch(/animation-duration: calc\(var\(--t-med\) \* var\(--leave-from, 1\)\);/);
+    }
+  });
   it('POL2.3 la fenêtre entre par l’opacité, son voile avec elle, et sort de même : sa dernière image, inerte et muette, s’efface ; la répétition de StrictMode n’en laisse aucune', async () => {
     const animations = stubAnimations();
     try {
@@ -291,7 +347,8 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     const backdrop = bodyOf(css, '.backdrop');
     const name = /animation: ([\w-]+) var\(--t-med\) linear both/.exec(backdrop)?.[1];
     expect(name).toBeDefined();
-    expect(sheet(css).filter((rule) => rule.at.includes(`@keyframes ${name}`)).map((rule) => `${rule.selector} { ${rule.body.trim()} }`)).toEqual(['from { opacity: 0; }', 'to { opacity: 1; }']);
+    // POL2.2a : l'entrée part de l'opacité où la fenêtre en est (0 par défaut).
+    expect(sheet(css).filter((rule) => rule.at.includes(`@keyframes ${name}`)).map((rule) => `${rule.selector} { ${rule.body.trim()} }`)).toEqual(['from { opacity: var(--enter-from, 0); }', 'to { opacity: 1; }']);
     // Rien sur la plaque : ni glissement, ni ombre ; la couleur du voile ne change pas.
     expect(bodyOf(css, '.modal')).not.toMatch(/animation|transform/);
     expect(backdrop).toMatch(/background: rgba\(0, 0, 0, 0\.72\)/);
