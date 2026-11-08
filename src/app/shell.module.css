@@ -122,6 +122,7 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   -webkit-app-region: no-drag;
+  transition: color 200ms linear, background-color 260ms var(--ease-out);
 }
 .updateAvail {
   color: var(--text-0);
@@ -150,6 +151,16 @@
   justify-content: center;
   color: var(--text-2);
   -webkit-app-region: no-drag;
+  transition: color 200ms linear, background-color 260ms var(--ease-out);
+}
+/* Les commandes de la barre de titre s'éclairent comme le zoom, leur voisin : le trait à l'ivoire, le carré levé de 6 %.
+   Ni or ni rouge, pas même sur Fermer ; le point de la mise à jour, une LED, ne bouge pas. */
+@media (hover: hover) {
+  .updateBtn:hover:not(:disabled),
+  .winControls button:hover {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 6%, transparent);
+  }
 }
 
 /* Le rail se mesure lui-même (conteneur de taille) : sa hauteur se lit en px CSS du rail sous le zoom natif du desk
@@ -1149,10 +1160,18 @@
   font: inherit;
   letter-spacing: 0.06em;
   color: var(--text-2);
+  transition: color 200ms linear, background-color 260ms var(--ease-out);
 }
 .clockFace button.on {
   background: var(--text-0);
   color: var(--bg-0);
+}
+/* La face qu'on peut choisir s'éclaire comme une case du zoom ; la face choisie garde son ivoire. */
+@media (hover: hover) {
+  .clockFace button:not(.on):hover {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 6%, transparent);
+  }
 }
 .statusItem {
   white-space: nowrap;
