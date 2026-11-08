@@ -7,7 +7,7 @@ import { opens } from '@/engine/gate';
 import { tr, useI18n } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { shortcutLabel } from './KillBand';
-import { glyphsAt, SEAT_ALPHABET, SEAT_TICK_MS } from './seatGlyphs';
+import { glyphsAt, nextFrame, SEAT_ALPHABET } from './seatGlyphs';
 import { FADE_MS, FOLD_AT_MS, glyphCapacity, reducedTimeline, runUnlockCircuit, UNLOCK_GLYPH_MAX, UNLOCK_GLYPHS, UNLOCK_SEAL, unlockTimeline, WORD_AT_MS, WORD_MS, type UnlockTimeline } from './unlockCircuit';
 import s from './gate.module.css';
 
@@ -33,8 +33,7 @@ const DOUBLE_TAP_MS = 500;
 
 /** Deux images plus tard : le rendu demandé avant est posé et peint. */
 function afterFrames(run: () => void) {
-  const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb: () => void) => window.setTimeout(cb, 16);
-  frame(() => frame(run));
+  nextFrame(() => nextFrame(run));
 }
 
 /** Ce que le champ masqué montre de points : sa largeur utile, et le pas d'un point (`1ch` de sa police et l'interlettre). */
@@ -50,6 +49,15 @@ function fieldCapacity(input: HTMLInputElement | null): number {
 
 function prefersReducedMotion(): boolean {
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Ce que l'ouverture montre au temps `at` : ses étapes passées, la phase et la lettre de chaque glyphe. L'horloge avance
+ * à chaque image ; le verrou ne se rend que quand cela change.
+ */
+function stageOf(tl: UnlockTimeline, at: number): string {
+  const steps = [tl.gold, tl.glide, tl.spread, tl.form, tl.reveal].map((moment) => (at >= moment ? '1' : '0')).join('');
+  return steps + glyphsAt(BULLET.repeat(tl.count), at, UNLOCK_GLYPHS).map((g) => g.phase[0] + g.char).join('');
 }
 
 function UnlockMark({ active }: { active: boolean }) {
@@ -143,29 +151,39 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
   useEffect(() => {
     if (!unlock) return;
     const tl = unlock;
-    // Une seule horloge pour les glyphes, les étapes de la feuille et le circuit ; l'abrègement l'avance.
+    // Une seule horloge pour les glyphes, les étapes de la feuille et le circuit ; l'abrègement l'avance. Elle est lue à
+    // chaque image, comme le circuit : chaque glyphe part et se pose à son temps, à une image près.
     const t0 = performance.now();
     let offset = 0;
     let abridged = false;
     const clock = () => performance.now() - t0 + offset;
     let revealed = false;
     let opened = false;
-    let id = 0;
+    let shown = '';
+    let cancelFrame: () => void = () => undefined;
     const tick = () => {
       const at = clock();
       if (!revealed && at >= tl.reveal) {
         revealed = true;
         revealRef.current();
       }
-      setT(at);
+      const stage = stageOf(tl, at);
+      if (stage !== shown) {
+        shown = stage;
+        setT(at);
+      }
       if (!opened && at >= tl.end) {
         opened = true;
-        window.clearInterval(id);
+        cancelFrame();
         openRef.current();
       }
     };
-    id = window.setInterval(tick, SEAT_TICK_MS);
+    const loop = () => {
+      tick();
+      if (!opened) cancelFrame = nextFrame(loop);
+    };
     tick();
+    cancelFrame = nextFrame(loop);
     const canvas = canvasRef.current;
     const stop =
       reduced || !canvas
@@ -213,7 +231,7 @@ export function Gate({ onAdmit, onReveal, onOpen }: { onAdmit: () => void; onRev
     window.addEventListener('keydown', abridge);
     window.addEventListener('pointerdown', tap);
     return () => {
-      window.clearInterval(id);
+      cancelFrame();
       stop();
       window.removeEventListener('mousedown', abridge);
       window.removeEventListener('keydown', abridge);

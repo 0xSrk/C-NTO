@@ -1,18 +1,24 @@
 /**
  * @vitest-environment jsdom
  */
-import { createElement } from 'react';
+import { createElement, Profiler } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Boot, type BootStep } from '@/app/Boot';
+import { Gate } from '@/app/Gate';
+import { glyphsDuration, SEAT_DOMINO, SEAT_DWELL_MS, SEAT_PROMPT } from '@/app/seatGlyphs';
+import { unlockTimeline } from '@/app/unlockCircuit';
 import { cssRules } from './helpers/cssRules';
 
 // La phrase du verrou : une doublure, seule « la phrase » ouvre (tests/gate-lock.test.ts).
 vi.mock('@/engine/gate', () => ({ opens: vi.fn(async (phrase: string) => phrase === 'la phrase') }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+/** Une image et un peu plus : l'écart toléré à un temps du plan quand l'horloge avance à l'image (16 ms simulées). */
+const FRAME = 1000 / 60 + 1;
 
 let root: Root | null = null;
 let host: HTMLElement | null = null;
@@ -178,5 +184,152 @@ describe('POL5 cérémonies : démarrage, verrou et ouverture, geste du siège, 
     expect(gliding.body).toMatch(/box-shadow: 0 0 12px color-mix\(in srgb, var\(--text-0\) 16%, transparent\);/);
     // en mouvement réduit, la ligne ne transite toujours pas
     expect(css.find((rule) => rule.selector.split(/,\s*/).includes('.reduced .horizon'))?.body).toMatch(/transition: none;/);
+  });
+
+  it('POL5.4 le domino des glyphes tient le pas du code d’accolades (85 ms d’écart, 340 ms de vie) à une image près, au verrou comme au siège', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    /** Départ et pose de chaque glyphe, lus dans le DOM à chaque pas de 2 ms. */
+    const watch = (read: () => ('wait' | 'turn' | 'set')[], until: number, each?: () => void) => {
+      const turn: number[] = [];
+      const set: number[] = [];
+      for (let ms = 0; ms < until; ms += 2) {
+        read().forEach((phase, i) => {
+          if (phase !== 'wait' && turn[i] === undefined) turn[i] = performance.now();
+          if (phase === 'set' && set[i] === undefined) set[i] = performance.now();
+        });
+        act(() => vi.advanceTimersByTime(2));
+        each?.();
+      }
+      return { turn, set };
+    };
+    const cadence = ({ turn, set }: { turn: number[]; set: number[] }, count: number) => {
+      expect(turn).toHaveLength(count);
+      expect(set).toHaveLength(count);
+      for (let i = 1; i < count; i++) expect(Math.abs(turn[i]! - turn[i - 1]! - SEAT_DOMINO.stagger), `écart ${i} : ${turn[i]! - turn[i - 1]!}`).toBeLessThanOrEqual(FRAME);
+      for (let i = 0; i < count; i++) expect(Math.abs(set[i]! - turn[i]! - SEAT_DOMINO.spin), `vie ${i} : ${set[i]! - turn[i]!}`).toBeLessThanOrEqual(FRAME);
+    };
+
+    // Le verrou : « la phrase », neuf glyphes ; le verrou ne se rend qu'aux changements de lettre ou d'étape.
+    let commits = 0;
+    const noop = () => undefined;
+    const el = render(createElement(Profiler, { id: 'gate', onRender: () => void commits++ }, createElement(Gate, { onAdmit: noop, onReveal: noop, onOpen: noop })));
+    const input = el.querySelector<HTMLInputElement>('input[type="password"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'la phrase');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      el.querySelector<HTMLFormElement>('form')!.requestSubmit();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const tl = unlockTimeline(9);
+    const cells = () => [...el.querySelectorAll<HTMLElement>('[data-part="unlock-glyphs"] [data-phase]')].map((c) => c.dataset.phase as 'wait' | 'turn' | 'set');
+    let quiet = -1;
+    const gate = watch(cells, tl.sets.at(-1)! + 120, () => {
+      // tous posés, rien ne bouge avant le point d'or : le verrou ne se rend plus
+      if (quiet < 0 && cells().every((p) => p === 'set')) quiet = commits;
+    });
+    cadence(gate, 9);
+    const settled = commits;
+    // image par image, chaque pas dans son propre `act` : un rendu demandé y serait compté
+    for (let ms = 0; ms < tl.gold - tl.sets.at(-1)! - 160; ms += 4) act(() => vi.advanceTimersByTime(4));
+    expect(commits, 'rendus du verrou entre la pose du dernier glyphe et le point d’or').toBe(settled);
+    expect(quiet).toBeGreaterThan(0);
+    act(() => root?.unmount());
+    host?.remove();
+
+    // Le siège : « <insert code> », treize glyphes, après 2 s sur les barres.
+    (window as unknown as { canto?: unknown }).canto = { seat: { status: async () => null, submit: vi.fn() } };
+    try {
+      vi.resetModules();
+      const { SeatMark } = await import('@/app/SeatMark');
+      const { useI18n } = await import('@/i18n');
+      useI18n.setState({ locale: 'fr' });
+      const seat = render(createElement('span', null, createElement(SeatMark, null, createElement('i', { 'data-bars': '' }))));
+      await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+      act(() => void seat.querySelector('button')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+      act(() => vi.advanceTimersByTime(SEAT_DWELL_MS));
+      const glyphs = () => [...seat.querySelectorAll('[class*="prompt"] > span')].map((g) => (/_wait_/.test(g.className) ? 'wait' : /_set_/.test(g.className) ? 'set' : 'turn'));
+      expect(glyphs()).toHaveLength([...SEAT_PROMPT].length);
+      cadence(watch(glyphs, glyphsDuration([...SEAT_PROMPT].length, SEAT_DOMINO) + 40), [...SEAT_PROMPT].length);
+      act(() => root?.unmount());
+      host?.remove();
+
+      // Sans `requestAnimationFrame` (hors navigateur), les deux horloges prennent un pas de 16 ms, comme les deux images du
+      // verrou (`afterFrames`) : rien ne lève, le verrou s'ouvre à son temps, le siège s'éveille et se pose.
+      vi.useRealTimers();
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance'] });
+      vi.stubGlobal('requestAnimationFrame', undefined);
+      vi.stubGlobal('cancelAnimationFrame', undefined);
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const onReveal = vi.fn();
+      const onOpen = vi.fn();
+      const bare = render(createElement(Gate, { onAdmit: noop, onReveal, onOpen }));
+      const field = bare.querySelector<HTMLInputElement>('input[type="password"]')!;
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'la phrase');
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await act(async () => {
+        bare.querySelector<HTMLFormElement>('form')!.requestSubmit();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      // les deux pas de 16 ms d'`afterFrames`, puis l'horloge part (à la fin de ce pas) et le premier glyphe tourne
+      act(() => vi.advanceTimersByTime(40));
+      expect(bare.querySelector('[data-part="unlock-glyphs"] [data-phase="turn"]'), 'le premier glyphe tourne').not.toBeNull();
+      // le voile se lève et le desk s'ouvre à leur temps, à un pas près
+      act(() => vi.advanceTimersByTime(tl.reveal - 1));
+      expect(onReveal).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(17));
+      expect(onReveal).toHaveBeenCalledTimes(1);
+      act(() => vi.advanceTimersByTime(tl.end - tl.reveal - 18));
+      expect(onOpen).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(17));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      act(() => root?.unmount());
+      host?.remove();
+      const bareSeat = render(createElement('span', null, createElement(SeatMark, null, createElement('i', { 'data-bars': '' }))));
+      await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+      act(() => void bareSeat.querySelector('button')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+      act(() => vi.advanceTimersByTime(SEAT_DWELL_MS));
+      act(() => vi.advanceTimersByTime(glyphsDuration([...SEAT_PROMPT].length, SEAT_DOMINO) + 40));
+      const settled = [...bareSeat.querySelectorAll('[class*="prompt"] > span')];
+      expect(settled).toHaveLength([...SEAT_PROMPT].length);
+      expect(settled.every((g) => /_set_/.test(g.className))).toBe(true);
+      act(() => root?.unmount());
+      host?.remove();
+
+      // Fenêtre cachée : plus d'image, l'horloge ne se lit plus et rien ne s'ouvre ; à la première image du retour, elle lit
+      // le temps écoulé, et le desk s'ouvre aussitôt (comportement gardé : l'horloge est celle de `performance`).
+      const queued: (() => void)[] = [];
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => queued.push(() => cb(performance.now())));
+      vi.stubGlobal('cancelAnimationFrame', () => undefined);
+      const paint = () => act(() => queued.splice(0).forEach((run) => run()));
+      const hidden = { reveal: vi.fn(), open: vi.fn() };
+      const away = render(createElement(Gate, { onAdmit: noop, onReveal: hidden.reveal, onOpen: hidden.open }));
+      const line = away.querySelector<HTMLInputElement>('input[type="password"]')!;
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(line, 'la phrase');
+        line.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await act(async () => {
+        away.querySelector<HTMLFormElement>('form')!.requestSubmit();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      paint();
+      paint();
+      expect(away.querySelector('[data-part="unlock-glyphs"] [data-phase="turn"]')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(tl.end + 1000));
+      expect(hidden.open).not.toHaveBeenCalled();
+      paint();
+      expect(hidden.reveal).toHaveBeenCalledTimes(1);
+      expect(hidden.open).toHaveBeenCalledTimes(1);
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      delete (window as unknown as { canto?: unknown }).canto;
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
   });
 });

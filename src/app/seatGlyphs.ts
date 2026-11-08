@@ -9,10 +9,21 @@ export const SEAT_PROMPT = '<insert code>';
 export const SEAT_ALPHABET = ['S', 'I', 'Ξ', 'R', 'Λ', 'K'] as const;
 /** Le curseur, ou le focus, reste 2 s sur les barres avant que le geste ne s'éveille. */
 export const SEAT_DWELL_MS = 2000;
-/** Pas de l'horloge du geste. */
-export const SEAT_TICK_MS = 30;
 /** Les barres se reforment avant que le nom n'en sorte. */
 export const SEAT_REFORM_MS = 600;
+
+/**
+ * L'image suivante, où les horloges des glyphes se lisent : `requestAnimationFrame`, et à défaut (hors navigateur) un
+ * pas de 16 ms. Rend de quoi l'annuler.
+ */
+export function nextFrame(run: () => void): () => void {
+  if (typeof requestAnimationFrame === 'function') {
+    const id = requestAnimationFrame(() => run());
+    return () => cancelAnimationFrame(id);
+  }
+  const id = setTimeout(run, 16);
+  return () => clearTimeout(id);
+}
 
 export interface GlyphPlan {
   /** Écart entre deux glyphes voisins (ms). */

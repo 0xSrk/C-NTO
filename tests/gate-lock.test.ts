@@ -49,7 +49,7 @@ function type(input: HTMLInputElement, text: string) {
   });
 }
 
-/** Sous horloge simulée : avance jusqu'à `ms` après `start`, plus un pas de l'horloge du verrou (30 ms). */
+/** Sous horloge simulée : avance jusqu'à `ms` après `start`, plus 31 ms (l'horloge du verrou se lit à chaque image, 16 ms simulées ; POL5.4). */
 function advanceTo(start: number, ms: number) {
   act(() => vi.advanceTimersByTime(Math.max(0, start + ms + 31 - performance.now())));
 }
