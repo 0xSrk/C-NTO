@@ -332,4 +332,37 @@ describe('POL5 cérémonies : démarrage, verrou et ouverture, geste du siège, 
       vi.resetModules();
     }
   });
+
+  it('POL5.5 l’écartement du démarrage ne recalcule plus tout le démarrage à chaque image : l’écart animé n’est plus hérité, la couture lit le même écart à la même horloge', () => {
+    const text = readFileSync('src/app/boot.module.css', 'utf8').replace(/\r\n/g, '\n');
+    const css = cssRules(text);
+    const body = (selector: string) => css.find((rule) => rule.selector === selector)?.body ?? '';
+    // l'écart est propre au démarrage, sous son nom : `@property` est global (les modules CSS ne le portent pas), et sous un
+    // nom générique, toute variable du même nom cesserait d'hériter dans tout le desk
+    expect(text).not.toMatch(/--gap\b/);
+    const property = /@property --boot-gap \{([^}]*)\}/.exec(text)?.[1] ?? '';
+    expect(property).toMatch(/syntax: '<length>';/);
+    expect(property).toMatch(/inherits: false;/);
+    expect(property).toMatch(/initial-value: 0px;/);
+    // ses descendants n'en héritent plus : seuls le démarrage et les deux lignes de la couture le lisent, chacun l'animant
+    const readers = css.filter((rule) => /var\(--boot-gap\)/.test(rule.body)).map((rule) => rule.selector);
+    expect(readers).toEqual(['.boot.leaving', '.boot.leaving .seam i:first-child', '.boot.leaving .seam i:last-child']);
+    expect(body('.boot.leaving')).not.toMatch(/(?:^|;)\s*--[\w-]+\s*:/);
+    // le masque garde sa géométrie et l'écartement son temps
+    const cut = 'calc(var(--axis, 50%) - var(--boot-gap))';
+    const cutB = 'calc(var(--axis, 50%) + var(--boot-gap))';
+    const mask = `linear-gradient(to bottom, #000 ${cut}, transparent ${cut}, transparent ${cutB}, #000 ${cutB})`;
+    expect(body('.boot.leaving')).toContain(`-webkit-mask-image: ${mask};`);
+    expect(body('.boot.leaving')).toContain(`mask-image: ${mask};`);
+    expect(body('.boot.leaving')).toMatch(/animation: split 0\.58s cubic-bezier\(0\.7, 0, 0\.2, 1\) 0\.18s both;/);
+    // la couture anime le même écart, par les mêmes images clés, au même temps, et le lit dans son décalage : le masque et
+    // elle se calculent ensemble à chaque image, sur le même fil, et restent alignés même s'il saccade
+    expect(body('.boot.leaving .seam i')).toMatch(/animation:\s*seam-draw 0\.2s cubic-bezier\(0\.16, 1, 0\.3, 1\) both,\s*split 0\.58s cubic-bezier\(0\.7, 0, 0\.2, 1\) 0\.18s both;/);
+    expect(body('.boot.leaving .seam i:first-child')).toMatch(/^\s*translate: 0 calc\(-1 \* var\(--boot-gap\)\);\s*$/);
+    expect(body('.boot.leaving .seam i:last-child')).toMatch(/^\s*translate: 0 var\(--boot-gap\);\s*$/);
+    const frames = /@keyframes ([\w-]+) \{\n  from \{\n    ([^}]*)\}\n  to \{\n    ([^}]*)\}\n\}/g;
+    const found = new Map([...text.matchAll(frames)].map((m) => [m[1]!, [m[2]!.trim(), m[3]!.trim()]]));
+    expect(found.get('split')).toEqual(['--boot-gap: 0px;', '--boot-gap: 100vh;']);
+    expect([...found.keys()].filter((name) => /^seam-(up|down)$/.test(name))).toEqual([]);
+  });
 });

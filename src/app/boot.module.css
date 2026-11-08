@@ -1,7 +1,9 @@
-/* Écartement de l'ouverture finale — hérité par la couture pour la suivre au pixel près. */
-@property --gap {
+/* Écartement de l'ouverture finale, propre au démarrage et sous son nom (`@property` est global) : ses descendants n'en
+   héritent pas, ils ne se recalculent pas à chaque image. La couture anime le même écart, aux mêmes images clés et au même
+   temps, et le suit au pixel près, à la même image. */
+@property --boot-gap {
   syntax: '<length>';
-  inherits: true;
+  inherits: false;
   initial-value: 0px;
 }
 
@@ -16,23 +18,21 @@
   justify-items: center;
   overflow: hidden;
   -webkit-app-region: drag;
-  --gap: 0px;
+  --boot-gap: 0px;
 }
 
 /* ─── Sortie : couture lumineuse sur l'axe du logotype, puis écartement vertical ─── */
 .boot.leaving {
-  --cut-a: calc(var(--axis, 50%) - var(--gap));
-  --cut-b: calc(var(--axis, 50%) + var(--gap));
-  -webkit-mask-image: linear-gradient(to bottom, #000 var(--cut-a), transparent var(--cut-a), transparent var(--cut-b), #000 var(--cut-b));
-  mask-image: linear-gradient(to bottom, #000 var(--cut-a), transparent var(--cut-a), transparent var(--cut-b), #000 var(--cut-b));
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--axis, 50%) - var(--boot-gap)), transparent calc(var(--axis, 50%) - var(--boot-gap)), transparent calc(var(--axis, 50%) + var(--boot-gap)), #000 calc(var(--axis, 50%) + var(--boot-gap)));
+  mask-image: linear-gradient(to bottom, #000 calc(var(--axis, 50%) - var(--boot-gap)), transparent calc(var(--axis, 50%) - var(--boot-gap)), transparent calc(var(--axis, 50%) + var(--boot-gap)), #000 calc(var(--axis, 50%) + var(--boot-gap)));
   animation: split 0.58s cubic-bezier(0.7, 0, 0.2, 1) 0.18s both;
 }
 @keyframes split {
   from {
-    --gap: 0px;
+    --boot-gap: 0px;
   }
   to {
-    --gap: 100vh;
+    --boot-gap: 100vh;
   }
 }
 .boot.leaving .center,
@@ -82,13 +82,15 @@
 }
 .boot.leaving .seam i {
   opacity: 1;
-  animation: seam-draw 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation:
+    seam-draw 0.2s cubic-bezier(0.16, 1, 0.3, 1) both,
+    split 0.58s cubic-bezier(0.7, 0, 0.2, 1) 0.18s both;
 }
 .boot.leaving .seam i:first-child {
-  translate: 0 calc(-1 * var(--gap));
+  translate: 0 calc(-1 * var(--boot-gap));
 }
 .boot.leaving .seam i:last-child {
-  translate: 0 var(--gap);
+  translate: 0 var(--boot-gap);
 }
 @keyframes seam-draw {
   from {
