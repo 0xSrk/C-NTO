@@ -62,6 +62,29 @@ describe('POL3 la fiche, troisième colonne : le mouvement et la lumière', () =
     expect(fiche.filter((rule) => /\.(?:egoHypo|etat)\b/.test(rule.selector)).some((rule) => /transition|animation|box-shadow|filter/.test(rule.body))).toBe(false);
     expect(readFileSync('src/design/etat.module.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/transition|animation/);
   });
+
+  it('POL3.3 les sommaires de la fiche s’allument au passage du pointeur, comme ses liens en code', () => {
+    const fiche = sheet(FICHE);
+    /** La règle d'un sélecteur sous `@media (hover: hover)`, l'une des parties de sa liste. */
+    const hover = (selector: string) =>
+      fiche.find((rule) => rule.at.some((head) => /^@media\s*\(hover:\s*hover\)/.test(head)) && rule.selector.split(',').map((part) => part.trim()).includes(selector))?.body ?? '';
+    // La lumière la plus proche dans la feuille : celle de ses liens en code (« Ouvrir le plan », « Toute l'activité »),
+    // l'encre qui monte vers --text-0 en 200 ms linéaires.
+    for (const link of ['.planOpen', '.activityAll']) {
+      expect(top(fiche, link), link).toMatch(/transition: color 200ms linear;/);
+      expect(hover(`${link}:hover`), link).toMatch(/color: var\(--text-0\);/);
+    }
+    // « Les 12 issues, dans l'ordre de la garde » (fiche Compte) et « n liens rejetés · masqués » (C.042) : au repos, rien
+    // ne change ; au passage du pointeur, l'encre monte, et le glyphe du refus avec elle.
+    for (const summary of ['.gates summary', '.rejected summary']) {
+      expect(top(fiche, summary), summary).toMatch(/color: var\(--text-2\);/);
+      expect(top(fiche, summary), summary).toMatch(/transition: color 200ms linear;/);
+      expect(hover(`${summary}:hover`), summary).toMatch(/color: var\(--text-0\);/);
+    }
+    expect(top(fiche, '.rejectedGlyph')).toMatch(/--k: var\(--text-2\);/);
+    expect(hover('.rejected summary:hover .rejectedGlyph')).toMatch(/--k: var\(--text-0\);/);
+    // De la lumière seulement, sous @media (hover: hover) (garde OROS4.1).
+    expect(hoverOffenses(readFileSync(FICHE, 'utf8')).offenders).toEqual([]);
+  });
 });
 
-void hoverOffenses;
