@@ -341,7 +341,8 @@ button.activityRow:focus-visible {
   text-align: left;
   color: var(--text-0);
   --k: var(--text-1);
-  transition: background-color 220ms var(--ease-out);
+  /* L'opacité est celle de la sélection (.out) : la ligne y entre et en sort au même pas. */
+  transition: background-color 220ms var(--ease-out), opacity 220ms linear;
 }
 .rowGlyph {
   width: 16px;
@@ -1551,10 +1552,10 @@ button.activityRow:focus-visible {
   color: var(--text-1);
   white-space: nowrap;
 }
-/* Hors de la sélection : à sa place, atténué à 35 % ; rien ne disparaît. */
+/* Hors de la sélection : à sa place, atténué à 35 % ; rien ne disparaît. La transition est celle de la ligne (.row), dans
+   les deux sens : ici, elle remplaçait la sienne, et la ligne remise dans la sélection revenait en une image. */
 .out {
   opacity: 0.35;
-  transition: opacity 220ms linear;
 }
 /* La tête d'un ensemble ou d'une lecture : les puces de son périmètre, puis n / N au bout, à droite même à la ligne. */
 .selectionHead {
