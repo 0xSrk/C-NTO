@@ -39,6 +39,18 @@ export function MonteCarloView({ scope }: { scope: TabScope }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+  // Le calcul ne se montre qu'au-delà de --t-fast (120 ms) : un tirage plus court, à chaque frappe d'un paramètre, ne fait
+  // rien clignoter. Il part avec la fin du calcul, dans le même rendu.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!busy) {
+      setSlow(false);
+      return;
+    }
+    const id = window.setTimeout(() => setSlow(true), 120);
+    return () => window.clearTimeout(id);
+  }, [busy]);
+  const shown = busy && slow;
 
   const sample = useMemo(() => monteCarloSample({ sessions, trades }, level), [level, sessions, trades]);
   const params = useDeferredValue(useMemo(() => ({ runs, horizon, seed, ruin, target }), [runs, horizon, seed, ruin, target]));
@@ -99,10 +111,11 @@ export function MonteCarloView({ scope }: { scope: TabScope }) {
         className={s.c4}
         title={tr('Paramètres', 'Parameters', 'Parámetros')}
         actions={
-          busy ? (
+          shown ? (
             <Button
               size="sm"
               variant="ghost"
+              className={s.mcCancel}
               onClick={() => {
                 abortRef.current?.abort();
                 setBusy(false);
@@ -113,8 +126,13 @@ export function MonteCarloView({ scope }: { scope: TabScope }) {
           ) : undefined
         }
       >
+        {/* Le tirage en cours court sur le filet de l'en-tête, hors du flux : le champ qu'on saisit ne bouge pas. */}
+        {shown && (
+          <div className={s.mcBusy}>
+            <Progress value={progress} tone="gold" />
+          </div>
+        )}
         <div className={s.rows}>
-          {busy && <Progress value={progress} tone="gold" />}
           <Segmented
             value={level}
             onChange={setLevel}

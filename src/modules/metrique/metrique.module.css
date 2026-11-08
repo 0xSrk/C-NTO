@@ -327,6 +327,19 @@
 .rows > * {
   flex: none;
 }
+/* E · Monte-Carlo : le tirage en cours court sur le filet bas de l'en-tête des paramètres, hors du flux ; rien ne bouge.
+   `.panel` (relatif) le contient ; sa place statique est le haut du contenu de `.panelBody` (20 px de marge intérieure),
+   et −21 px pose la barre de 2 px sur le filet. */
+.mcBusy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin-top: -21px;
+}
+/* « Annuler » garde la hauteur de l'en-tête : son bouton de 28 px n'y occupe que 18 px, la place du titre. */
+.mcCancel {
+  margin-block: -5px;
+}
 
 /* ─── Séances : multi-sélection ─── */
 .checkCol {
