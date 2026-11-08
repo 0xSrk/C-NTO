@@ -6,6 +6,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Boot, type BootStep } from '@/app/Boot';
 import { cssRules } from './helpers/cssRules';
 
 // La phrase du verrou : une doublure, seule « la phrase » ouvre (tests/gate-lock.test.ts).
@@ -120,5 +121,35 @@ describe('POL5 cérémonies : démarrage, verrou et ouverture, geste du siège, 
     const leaving = cssRules(readFileSync('src/app/boot.module.css', 'utf8')).filter((rule) => rule.selector.split(/,\s*/).some((sel) => /\.leaving\b/.test(sel) && !/\s/.test(sel.trim())));
     expect(leaving.map((rule) => rule.selector)).toContain('.boot.leaving');
     for (const rule of leaving) expect(rule.body, rule.selector).not.toMatch(/pointer-events:\s*none/);
+  });
+
+  it('POL5.2 la console du démarrage garde sa hauteur finale dès le premier pas : le logotype ne saute plus pendant qu’il se trace', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Date'] });
+    const steps: BootStep[] = ['core', 'vault', 'engine', 'calendar', 'notes', 'agent', 'bridge'].map((id) => ({ id, label: `étape ${id}`, status: 'ok', detail: 'détail' }));
+    const el = render(createElement(Boot, { steps, ready: false, onFinished: () => undefined }));
+    const log = el.querySelector<HTMLElement>('[class*="_log_"]')!;
+    expect(log).not.toBeNull();
+    for (let shown = 0; shown <= steps.length; shown++) {
+      // autant de lignes que d'étapes, dès le premier pas : celles à venir gardent leur place, invisibles et muettes
+      expect(log.children, `pas ${shown}`).toHaveLength(steps.length);
+      const lines = [...log.children] as HTMLElement[];
+      const waiting = lines.filter((line) => line.getAttribute('aria-hidden') === 'true');
+      const visible = lines.filter((line) => line.getAttribute('aria-hidden') !== 'true');
+      expect(waiting.every((line) => /_slot_/.test(line.className))).toBe(true);
+      expect(visible.some((line) => /_slot_/.test(line.className))).toBe(false);
+      // les lignes parues, dans l'ordre, sous celles à venir ; leur numéro reste celui de l'étape
+      expect(visible.map((line) => line.textContent)).toEqual(steps.slice(0, shown).map((st, i) => `${String(i + 1).padStart(2, '0')}étape ${st.id}OK · détail`));
+      expect(lines.slice(steps.length - shown)).toEqual(visible);
+      act(() => vi.advanceTimersByTime(120));
+    }
+    // à la fin, le même DOM qu'avant : sept lignes parues, plus aucune réserve
+    expect(log.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
+    const css = cssRules(readFileSync('src/app/boot.module.css', 'utf8'));
+    const slot = css.find((rule) => rule.selector === '.slot');
+    expect(slot?.body).toMatch(/visibility: hidden;/);
+    expect(slot?.body).toMatch(/animation: none;/);
+    // la réserve ne change ni taille ni marge : la console garde sa hauteur minimale d'avant
+    expect(css.find((rule) => rule.selector === '.log')?.body).toMatch(/min-height: 136px;/);
+    expect(css.findIndex((rule) => rule.selector === '.slot')).toBeGreaterThan(css.findIndex((rule) => rule.selector === '.line'));
   });
 });

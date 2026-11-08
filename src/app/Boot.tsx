@@ -39,6 +39,22 @@ function prefersReducedMotion(): boolean {
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/** Une ligne de la console ; en réserve (`slot`), elle garde sa place sans paraître ni se dire. */
+function BootLine({ step: st, index, slot = false }: { step: BootStep; index: number; slot?: boolean }) {
+  return (
+    <div className={[s.line, s[st.status], slot && s.slot].filter(Boolean).join(' ')} aria-hidden={slot || undefined}>
+      <span className={s.lineIndex}>{String(index + 1).padStart(2, '0')}</span>
+      <span className={s.lineLabel}>{st.label}</span>
+      <span className={s.lineDots} />
+      <span className={s.lineStatus}>
+        <i className={s.lineMark} />
+        {st.status === 'pending' ? '…' : st.status === 'ok' ? 'OK' : st.status === 'warn' ? tr('ATTENTION', 'WARNING', 'ATENCIÓN') : tr('VEILLE', 'IDLE', 'ESPERA')}
+        {st.detail ? ` · ${st.detail}` : ''}
+      </span>
+    </div>
+  );
+}
+
 export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]; ready: boolean; onReveal?: () => void; onFinished: () => void }) {
   useI18n((s) => s.locale);
   const [startedAt] = useState(() => Date.now());
@@ -133,18 +149,12 @@ export function Boot({ steps, ready, onReveal, onFinished }: { steps: BootStep[]
       </div>
 
       <div className={s.console}>
+        {/* Les étapes à venir gardent leur place, invisibles, au-dessus des lignes parues : la console a sa hauteur finale
+            dès le premier pas, et le logotype ne bouge plus pendant qu'il se trace. */}
         <div className={s.log}>
+          {steps.map((st, i) => (i < visibleCount ? null : <BootLine key={`slot-${st.id}`} step={st} index={i} slot />))}
           {steps.slice(0, visibleCount).map((st, i) => (
-            <div key={st.id} className={[s.line, s[st.status]].filter(Boolean).join(' ')}>
-              <span className={s.lineIndex}>{String(i + 1).padStart(2, '0')}</span>
-              <span className={s.lineLabel}>{st.label}</span>
-              <span className={s.lineDots} />
-              <span className={s.lineStatus}>
-                <i className={s.lineMark} />
-                {st.status === 'pending' ? '…' : st.status === 'ok' ? 'OK' : st.status === 'warn' ? tr('ATTENTION', 'WARNING', 'ATENCIÓN') : tr('VEILLE', 'IDLE', 'ESPERA')}
-                {st.detail ? ` · ${st.detail}` : ''}
-              </span>
-            </div>
+            <BootLine key={st.id} step={st} index={i} />
           ))}
         </div>
         <div className={`${s.bar} ${ready ? s.barDone : ''}`} style={{ '--steps': steps.length } as CSSProperties}>

@@ -263,6 +263,11 @@
     color: var(--text-0);
   }
 }
+/* Une étape à venir : sa ligne garde la place, sans paraître ; elle entrera quand son tour viendra. */
+.slot {
+  visibility: hidden;
+  animation: none;
+}
 .lineIndex {
   width: 20px;
   color: var(--text-4);
