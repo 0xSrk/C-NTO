@@ -88,9 +88,10 @@
   background: none;
   border: 1px solid var(--line-1);
   cursor: pointer;
+  /* La lumière d'un bouton de la maison : l'encre en 200 ms, le contour en 260 ms (primitives, `.btn`) (POL2.5). */
   transition:
     color 200ms linear,
-    border-color 200ms linear;
+    border-color 260ms var(--ease-out);
 }
 .kind b {
   font-weight: 500;
@@ -124,6 +125,9 @@
   background: none;
   border: 1px solid var(--line-1);
   cursor: pointer;
+  transition:
+    color 200ms linear,
+    border-color 260ms var(--ease-out);
 }
 .close path {
   stroke: currentColor;
@@ -162,6 +166,11 @@
   min-height: 20px;
   padding: 3px 16px;
   border-bottom: 1px solid var(--line-1);
+  /* La lumière du survol et du choix monte au pas des lignes de l'omnibar (POL2.5). */
+  transition:
+    color 160ms linear,
+    background-color 160ms linear,
+    box-shadow 160ms linear;
 }
 .rowGo {
   cursor: pointer;

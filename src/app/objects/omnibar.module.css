@@ -121,7 +121,10 @@
   padding: 4px 16px 4px 12px;
   cursor: pointer;
   --k: var(--text-1);
-  transition: background-color 160ms linear;
+  /* Le fond, le filet d'ivoire et l'encre de la ligne choisie montent ensemble, au même pas (POL2.5). */
+  transition:
+    background-color 160ms linear,
+    box-shadow 160ms linear;
 }
 .item b {
   min-width: 0;
@@ -129,6 +132,7 @@
   font-size: 13px;
   font-weight: 400;
   color: var(--text-1);
+  transition: color 160ms linear;
 }
 .item b mark {
   background: none;
