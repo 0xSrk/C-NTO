@@ -556,9 +556,11 @@
 }
 /* A.04 (OROS5.26) : chaque ligne est une séance, C.094 en tête, qui ouvre sa fiche ; l'objet ouvert garde son glyphe à l'or
    et le filet de 2 px à gauche (décision 1 : l'or dit ce que tient l'opérateur). */
+/* L'atténuation hors sélection (`.out`) se défait comme elle se fait : la transition vit sur la ligne, pas sur l'état. */
 .objRow {
   cursor: pointer;
   --k: var(--text-1);
+  transition: opacity 220ms linear;
 }
 .objRow td {
   transition: background-color 200ms linear;

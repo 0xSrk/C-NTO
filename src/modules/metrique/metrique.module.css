@@ -362,6 +362,10 @@
   opacity: 0.35;
   transition: opacity 220ms linear;
 }
+/* Elle se défait comme elle se fait : la transition vit sur la cellule, pas sur l'état (après `.rowOut td`, qu'elle couvre). */
+.grilleTable td {
+  transition: opacity 220ms linear;
+}
 .selCount {
   font-family: var(--font-mono);
   font-size: 11px;
