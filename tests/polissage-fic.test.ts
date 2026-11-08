@@ -42,6 +42,26 @@ describe('POL3 la fiche, troisième colonne : le mouvement et la lumière', () =
     expect(uses.length).toBeGreaterThan(0);
     for (const { name, line } of uses) expect(line, name).toMatch(/className=\{cx\(s\.row,.*\bs\.out\b.*\)\}/);
   });
+
+  it('POL3.2 la lecture liée s’allume d’une seule lumière : la ligne, le rayon et l’anneau du nœud, au même pas', () => {
+    const fiche = sheet(FICHE);
+    // Décision 2 (OROS5.26) : le nœud et sa ligne s'allument ensemble. La ligne montait en 220 ms, le rayon en 160 ms
+    // linéaires, l'anneau en 260 ms ; et l'encre de l'anneau (--k, non enregistrée) sautait d'une image.
+    expect(top(fiche, '.row')).toMatch(/transition:[^;]*\bbackground-color var\(--t-med\) var\(--ease-out\)/);
+    expect(top(fiche, '.ray')).toMatch(/transition: opacity var\(--t-med\) var\(--ease-out\);/);
+    expect(top(fiche, '.egoRing')).toMatch(/transition:[^;]*\bopacity var\(--t-med\) var\(--ease-out\)/);
+    // l'anneau est un tracé plein de la table d'états : son trait (stroke: var(--k)) suit la lumière, au même pas
+    expect(top(fiche, '.egoRing')).toMatch(/transition:[^;]*\bstroke var\(--t-med\) var\(--ease-out\)/);
+    // Le repos et l'allumage ne changent pas : rayon 0,72 puis 1, anneau 0,35 puis 0,9 (ou 1 au focus).
+    expect(top(fiche, '.ray')).toMatch(/opacity: 0\.72;/);
+    expect(top(fiche, '.egoRing')).toMatch(/opacity: 0\.35;/);
+    const lit = fiche.filter((rule) => /\[data-lit\]/.test(rule.selector));
+    expect(lit.find((rule) => rule.selector === '.ray[data-lit]')?.body).toMatch(/opacity: 1;/);
+    expect(lit.find((rule) => rule.selector === '.egoNode[data-lit] .egoRing')?.body).toMatch(/opacity: 0\.9;[\s\S]*--k: var\(--text-0\);/);
+    // Le halo de l'hypothèse (le second contour tireté) n'est pas une lumière : ni transition, ni animation, ni ombre.
+    expect(fiche.filter((rule) => /\.(?:egoHypo|etat)\b/.test(rule.selector)).some((rule) => /transition|animation|box-shadow|filter/.test(rule.body))).toBe(false);
+    expect(readFileSync('src/design/etat.module.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/transition|animation/);
+  });
 });
 
 void hoverOffenses;
