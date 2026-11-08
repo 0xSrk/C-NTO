@@ -196,4 +196,17 @@ describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
     // Le lien wiki garde son trait : le survol ne réécrit ni son motif ni sa couleur de filet.
     for (const r of hovers.filter((h) => h.selector.includes('wikilink'))) expect(r.body).not.toMatch(/dotted|dashed|border/);
   });
+
+  it('POL7.5 une fiche du dossier des rapports s’éclaire au passage, et la fiche ouverte arrive d’un pas : son filet d’or avec son fond', () => {
+    const REPORTS = 'src/modules/agent/reports.module.css';
+    expectLit(REPORTS, '.fiche', 'button.fiche:not(.on):hover');
+    const fiche = base(REPORTS, '.fiche')!.body;
+    expect(timing(fiche, 'box-shadow')).toBe(timing(fiche, 'background-color'));
+    // La fiche est une plaque (`--bg-2`) : sa lumière se lève sur la plaque, elle ne laisse pas voir le dossier dessous.
+    const hover = sheet(REPORTS).find((r) => r.selector === 'button.fiche:not(.on):hover')!;
+    expect(hover.body).toMatch(/background-color: color-mix\(in srgb, var\(--ivory\) 3%, var\(--bg-2\)\)/);
+    // La fiche prévue (un <li>) ne s'ouvre pas : elle ne s'éclaire pas. L'en-tête de la feuille ne dit plus « jamais de survol ».
+    expect(sheet(REPORTS).filter((r) => /:hover\b/.test(r.selector)).every((r) => r.selector.startsWith('button.fiche'))).toBe(true);
+    expect(readFileSync(REPORTS, 'utf8')).not.toMatch(/jamais de survol/);
+  });
 });
