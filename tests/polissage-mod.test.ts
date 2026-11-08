@@ -7,7 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Graph } from '@/modules/note/Graph';
 import type { Note } from '@/store/db';
-import { cssRules } from './helpers/cssRules';
+import { cssRules, HOVER_LIGHT, hoverOffenses } from './helpers/cssRules';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -83,6 +83,36 @@ const sheet = (path: string) => cssRules(readFileSync(path, 'utf8'));
 /** La règle de `selector` hors de tout bloc @ (la règle de base d'une pièce). */
 const base = (path: string, selector: string) => sheet(path).find((r) => r.selector === selector && r.at.length === 0);
 
+/** La durée et la courbe que la transition d'une règle donne à `prop` (« 220ms var(--ease-out) »), ou rien. */
+function timing(body: string | undefined, prop: string): string | undefined {
+  const list = /transition:([^;]*)/.exec(body ?? '')?.[1] ?? '';
+  return list
+    .split(',')
+    .map((part) => part.trim().split(/\s+/))
+    .find(([name]) => name === prop)
+    ?.slice(1)
+    .join(' ');
+}
+
+/**
+ * La lumière du survol d'une pièce : sa règle vit sous `@media (hover: hover)`, ne change que la lumière, sans or, et la
+ * transition de la règle qui porte chaque propriété changée la nomme (l'entrée et la sortie ont la même douceur).
+ * `carriers` dit, pour une propriété, la règle de base qui la transitionne quand ce n'est pas `baseSel` (un enfant).
+ */
+function expectLit(path: string, baseSel: string, hoverSel: string, carriers: Record<string, string> = {}): void {
+  const rules = sheet(path);
+  const hover = rules.find((r) => r.selector.split(',').map((part) => part.trim()).includes(hoverSel));
+  expect(hover, `${path} › ${hoverSel}`).toBeDefined();
+  expect(hover!.at.some((head) => /^@media\s*\(hover:\s*hover\)/.test(head)), hoverSel).toBe(true);
+  expect(hover!.props.filter((p) => !HOVER_LIGHT.has(p)), hoverSel).toEqual([]);
+  expect(hover!.body, hoverSel).not.toMatch(/--gold/);
+  for (const prop of hover!.props.filter((p) => p !== '--k')) {
+    const carrier = carriers[prop] ?? baseSel;
+    expect(timing(base(path, carrier)?.body, prop), `${carrier} : transition de ${prop}`).toMatch(/^(?:\d+ms|var\(--t-(?:fast|med|slow)\))\s+(?:linear|var\(--ease(?:-out|-in-out)?\))$/);
+  }
+  expect(hoverOffenses(readFileSync(path, 'utf8')).offenders).toEqual([]);
+}
+
 describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
   it('POL7.1 sous mouvement réduit, le graphe des notes paraît posé : une seule peinture, au repos du mouvement normal, par tranches qui ne figent pas le desk', () => {
     // Mouvement normal : la mise en page se déroule sous les yeux, puis se pose.
@@ -135,5 +165,17 @@ describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
     // Il arrive et repart comme le contour d'un champ au focus (tokens.css : `border-color var(--t-fast) linear`).
     expect(base(NOTE, '.titleInput')!.body).toMatch(/transition:\s*box-shadow var\(--t-fast\) linear/);
     expect(readFileSync('src/design/tokens.css', 'utf8')).toMatch(/transition: border-color var\(--t-fast\) linear;/);
+  });
+
+  it('POL7.3 la case du jour du Calendrier s’éclaire sur son contour, et son filet d’or arrive avec son fond', () => {
+    const CAL = 'src/modules/calendrier/calendrier.module.css';
+    expectLit(CAL, '.day', '.day:not(.selected):hover');
+    // Le jour choisi : le filet d'or et le fond arrivent ensemble, au pas de la ligne du Jour (`.dayRow`, 220 ms).
+    const day = base(CAL, '.day')!.body;
+    expect(timing(day, 'border-color')).toBe('var(--t-med) var(--ease-out)');
+    expect(timing(day, 'background-color')).toBe(timing(day, 'border-color'));
+    expect(timing(base(CAL, '.dayRow')!.body, 'background-color')).toBe('220ms var(--ease-out)');
+    // La case choisie garde son or au passage du pointeur : la lumière ne vise que les autres.
+    expect(base(CAL, '.day.selected')!.body).toMatch(/border-color: var\(--gold-line\)/);
   });
 });

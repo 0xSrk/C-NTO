@@ -118,12 +118,20 @@
   min-width: 0;
   cursor: pointer;
   position: relative;
-  transition: background var(--t-fast) var(--ease);
+  /* Le filet et le fond du jour choisi arrivent ensemble, au pas de la ligne du Jour (`.dayRow`). */
+  transition: background-color var(--t-med) var(--ease-out), border-color var(--t-med) var(--ease-out);
   border: 1px solid transparent;
 }
 .day.selected {
   border-color: var(--gold-line);
   background: var(--bg-3);
+}
+/* Au passage du pointeur, la case s'éclaire sur son contour, déjà là et transparent : rien ne bouge, et le fond d'un jour
+   férié, une hachure, reste lisible. La case choisie garde son filet d'or. */
+@media (hover: hover) {
+  .day:not(.selected):hover {
+    border-color: var(--line-2);
+  }
 }
 .day.weekend {
   background: var(--bg-0);
