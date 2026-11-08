@@ -797,7 +797,8 @@
 
 /* Mouvement réduit : l'état de repos d'emblée. tokens.css ramène les durées à 1 ms et ne change pas (décision 4) ; les
    délais tombent ici, aussi largement : sans eux, une cascade (l'écart des options d'un menu, les lignes d'un classement)
-   paraîtrait encore marche par marche. Un fondu qui doit garder sa durée la pose par une règle plus précise, à !important. */
+   paraîtrait encore marche par marche. Aucun fondu ne garde sa durée : la règle des durées de tokens.css est à !important,
+   et les fondus de 0,24 s du démarrage et du verrou en mouvement réduit durent donc 1 ms (antérieur à la vague). */
 @media (prefers-reduced-motion: reduce) {
   :global(*),
   :global(*::before),

@@ -1,5 +1,5 @@
-/* Dossier des rapports de l'agent cloud — le trait dit l'état, l'or l'objet ouvert ; le passage du pointeur est une
-   lumière (Système 4.1). */
+/* Dossier des rapports de l'agent cloud — le trait dit l'état, l'or l'objet ouvert et la LED d'un rapport non lu ; le
+   passage du pointeur est une lumière (Système 4.1). */
 
 .layout {
   display: grid;
