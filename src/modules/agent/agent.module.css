@@ -482,6 +482,12 @@
   font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--text-2);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .traceResult summary:hover {
+    color: var(--text-0);
+  }
 }
 .traceResult pre {
   margin: 4px 0 0;
@@ -582,6 +588,14 @@
   border: 1px solid var(--line-1);
   padding: 4px 8px;
   border-radius: var(--radius);
+  transition: border-color 200ms linear, color 200ms linear;
+}
+/* Une suggestion s'éclaire comme un objet du contexte lu : le filet d'un ton plus haut, l'encre à l'ivoire. */
+@media (hover: hover) {
+  .suggestion:hover {
+    border-color: var(--line-2);
+    color: var(--text-0);
+  }
 }
 .error {
   font-size: 12px;
@@ -735,6 +749,7 @@ pre.proto {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
+  transition: color 200ms linear;
 }
 .deskTools:focus-visible {
   outline: 1px solid var(--gold-line);
@@ -751,6 +766,16 @@ pre.proto {
 }
 .deskTools[aria-checked='true'] .toggleGlyph {
   --k: var(--text-0);
+}
+/* Éteint, il s'éclaire d'un ton au passage du pointeur, comme la bascule des primitives : le libellé et le composant.
+   Allumé, il est déjà à l'ivoire ; la règle ne vise que l'éteint, pour ne jamais le faire redescendre. */
+@media (hover: hover) {
+  .deskTools[aria-checked='false']:hover {
+    color: var(--text-0);
+  }
+  .deskTools[aria-checked='false']:hover .toggleGlyph {
+    --k: var(--text-1);
+  }
 }
 
 /* Flèche de la planche au bout d'un bouton. */

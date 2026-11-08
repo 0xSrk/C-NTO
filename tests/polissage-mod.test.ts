@@ -232,4 +232,19 @@ describe('POL7 autres modules : la dynamique polie, le repos inchangé', () => {
     // Le filtre allumé garde sa lecture : son libellé reste le seul à l'ivoire.
     expect(rules.find((r) => r.selector === '.filterChip:not(.on) .filterBtn:hover')!.body).toMatch(/color: var\(--text-1\)/);
   });
+
+  it('POL7.7 les suggestions de l’Agent IA, l’interrupteur des outils du desk et le résultat d’un outil s’éclairent au passage', () => {
+    const AGENT = 'src/modules/agent/agent.module.css';
+    expectLit(AGENT, '.suggestion', '.suggestion:hover');
+    expectLit(AGENT, '.deskTools', ".deskTools[aria-checked='false']:hover");
+    expectLit(AGENT, '.deskTools', ".deskTools[aria-checked='false']:hover .toggleGlyph");
+    expectLit(AGENT, '.traceResult summary', '.traceResult summary:hover');
+    // Le même pas que les objets du contexte lu, dans la même feuille.
+    expect(timing(base(AGENT, '.suggestion')!.body, 'color')).toBe(timing(base(AGENT, '.contextItem')!.body, 'color'));
+    expect(timing(base(AGENT, '.suggestion')!.body, 'border-color')).toBe(timing(base(AGENT, '.contextItem')!.body, 'border-color'));
+    // L'interrupteur allumé reste à l'ivoire (OROS5.44) : aucune lumière ne le vise, son composant garde son encre.
+    const rules = sheet(AGENT);
+    expect(rules.filter((r) => /:hover\b/.test(r.selector) && r.selector.includes("aria-checked='true'"))).toEqual([]);
+    expect(base(AGENT, ".deskTools[aria-checked='true'] .toggleGlyph")!.body).toMatch(/--k: var\(--text-0\)/);
+  });
 });
