@@ -6,6 +6,9 @@ const sheet = (path: string) => cssRules(readFileSync(path, 'utf8').replace(/\r\
 /** La règle dont l'un des sélecteurs est `sel`, hors de tout bloc @ (ou dans le bloc dont l'en-tête répond à `at`). */
 const find = (rules: CssRule[], sel: string, at?: RegExp) =>
   rules.find((r) => r.selector.split(',').map((p) => p.replace(/\s+/g, ' ').trim()).includes(sel) && (at ? r.at.some((h) => at.test(h)) : r.at.length === 0));
+/** La règle dont les sélecteurs sont exactement `sels`, hors de tout bloc @. */
+const exact = (rules: CssRule[], ...sels: string[]) =>
+  rules.find((r) => r.at.length === 0 && r.selector.split(',').map((p) => p.replace(/\s+/g, ' ').trim()).join(' | ') === sels.join(' | '));
 const REDUCED = /prefers-reduced-motion:\s*reduce/;
 const UNIVERSAL = (selector: string) => selector.replace(/\s+/g, '').replace(/:global\(([^)]*)\)/g, '$1') === '*,*::before,*::after';
 
@@ -27,5 +30,23 @@ describe('POL4 primitives et jetons : mouvement réduit, encre des micrographies
     expect(find(menu, ".menu[data-open='true'] .row")?.body).toMatch(/transition-delay:\s*calc\(var\(--i, 0\) \* 24ms\)/);
     expect(find(menu, ".menu[data-open='true']")?.body).toMatch(/transform 300ms var\(--ease-out\)/);
     expect(find(sheet('src/modules/metrique/metrique.module.css'), '.inkRow')?.body).toMatch(/animation-delay:\s*calc\(var\(--i, 0\) \* 28ms\)/);
+  });
+
+  it('POL4.2 l’encre d’une micro suit la lumière de son hôte : son trait et son aplat s’interpolent, sauf la LED du menu Options', async () => {
+    // --k n'est pas enregistrée : elle change d'un coup. Le trait et l'aplat qu'elle teint s'interpolent, au pas de la
+    // couleur du desk (.btn : color 200ms linear), et rien d'autre ne s'anime — ni la place, ni la forme.
+    const micro = sheet('src/design/micro.module.css');
+    const ink = exact(micro, '.glyph > svg', '.glyph > svg *');
+    expect(ink?.props).toEqual(['transition']);
+    expect(ink?.body).toMatch(/transition:\s*fill 200ms linear,\s*stroke 200ms linear\s*;?\s*$/);
+    // Chaque composant de la bibliothèque est un <svg> racine : la règle atteint l'emblème du rail, les glyphes de la
+    // fiche et C.094 de A.04 et de B · Séances, comme tous les autres.
+    const { COMPONENTS } = await import('@/design/micro/assets');
+    const { DRAWN } = await import('@/design/micro/drawn');
+    for (const [n, svg] of Object.entries({ ...COMPONENTS, ...DRAWN })) expect(svg.trimStart().startsWith('<svg'), `C.${n}`).toBe(true);
+    // Le composant d'une option du menu porte la LED de l'état qui vit (cliquet OR) : son encre ne s'anime jamais.
+    const menu = sheet('src/design/optionsMenu.module.css');
+    const led = exact(menu, '.item .glyph > svg', '.item .glyph > svg *');
+    expect(led?.body).toMatch(/transition:\s*none/);
   });
 });
