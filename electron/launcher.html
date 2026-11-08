@@ -1252,6 +1252,17 @@
         .btn.update {
           animation: none;
         }
+        /* Le départ aussi se tait : rien ne balaie ni ne glisse, les commandes s'effacent. */
+        .frame.leaving .word .glint path {
+          animation: none;
+        }
+        .frame.leaving .title,
+        .frame.leaving .lab,
+        .frame.leaving .panel,
+        .frame.leaving .status,
+        .frame.leaving .notes {
+          transform: none;
+        }
       }
     </style>
   </head>
