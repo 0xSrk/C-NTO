@@ -111,9 +111,10 @@ function GuardCells({ cells }: { cells: readonly CellState[] }) {
 }
 
 /**
- * La barre du dialogue (OROS5.40) : du dialogue ouvert au refus par défaut, elle se vide d'elle-même, sans minuterie ni
- * relecture (une animation CSS, partie de l'instant d'ouverture que publie le process principal). La seule pièce à l'or :
- * la décision qui attend l'opérateur (décision 1). En mouvement réduit, elle reste pleine et l'heure dit le reste.
+ * La barre du dialogue (OROS5.40) : du dialogue ouvert au refus par défaut, elle se vide d'elle-même par une animation CSS,
+ * partie de l'instant d'ouverture que publie le process principal ; seul le reste dit en secondes (aria-valuenow) se relit
+ * chaque seconde (POL9.1). La seule pièce à l'or : la décision qui attend l'opérateur (décision 1). En mouvement réduit,
+ * elle reste pleine et l'heure dit le reste.
  */
 function DeadlineBar({ window }: { window: { opened: number; deadline: number } }) {
   // Le reste dit en secondes (aria-valuenow) se relit chaque seconde, la barre montée ; la barre elle-même se vide par son

@@ -99,7 +99,8 @@
   color: var(--gold);
   border-color: var(--gold-line);
 }
-/* Au passage du pointeur, la note s'éclaire comme une ligne de l'omnibar (le fond levé de 3 %, l'encre à l'ivoire) et
+/* Au passage du pointeur, la note s'éclaire à la manière d'une ligne de l'omnibar (le fond levé de 3 %, l'encre à
+   l'ivoire), au pas des boutons du desk, et
    l'étiquette comme une puce du desk (l'encre à l'ivoire, le filet d'un ton plus haut) ; ce qui est choisi garde son or. */
 @media (hover: hover) {
   .item:not(.on):hover {
