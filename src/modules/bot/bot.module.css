@@ -21,11 +21,19 @@
   flex-direction: column;
   gap: 4px;
   color: var(--text-2);
+  /* L'automate ouvert arrive et repart d'un pas : son filet, son fond et son encre ensemble (primitives, `.btn`). */
+  transition: color 200ms linear, border-color 260ms var(--ease-out), background-color 260ms var(--ease-out);
 }
 .botItem.on {
   border-color: var(--gold-line);
   background: var(--gold-soft);
   color: var(--text-0);
+}
+@media (hover: hover) {
+  .botItem:not(.on):hover {
+    color: var(--text-0);
+    border-color: var(--line-2);
+  }
 }
 .botItem b {
   font-size: 13px;
@@ -53,11 +61,14 @@
   text-align: left;
   color: var(--text-3);
   position: relative;
+  transition: border-color 260ms var(--ease-out), background-color 260ms var(--ease-out);
 }
 .stage b {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
+  /* Le libellé or ou menthe de l'étape arrive avec son filet et son fond. */
+  transition: color 200ms linear;
 }
 .stage small {
   font-size: var(--fs-small);
@@ -85,6 +96,12 @@
 .stage.locked small {
   color: var(--text-4);
 }
+/* Au passage du pointeur, l'étape qu'on peut choisir s'éclaire par son fond : son filet dit l'état (fait, en cours, fermé). */
+@media (hover: hover) {
+  .stage:not(.current):not(.locked):hover {
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+  }
+}
 .rules {
   display: flex;
   flex-direction: column;
@@ -103,6 +120,12 @@
 }
 .rule button {
   color: var(--text-3);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .rule button:hover {
+    color: var(--text-0);
+  }
 }
 .ruleForm {
   display: grid;
@@ -172,6 +195,14 @@
   border: 1px dashed var(--line-1);
   border-radius: var(--radius);
   color: var(--text-2);
+  transition: color 200ms linear, background-color 260ms var(--ease-out);
+}
+/* Le modèle s'éclaire par son fond et son encre : son tireté dit qu'il est proposé (la table d'états) et ne bouge pas. */
+@media (hover: hover) {
+  .template:hover {
+    color: var(--text-0);
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+  }
 }
 .template b {
   display: block;

@@ -41,9 +41,18 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-2);
   text-align: left;
+  transition: color 200ms linear, background-color 260ms var(--ease-out);
 }
 .marketRow.active {
   color: var(--text-0);
+}
+/* Au passage du pointeur, un marché qu'on peut afficher s'éclaire : le fond levé de 3 %, l'encre d'un ton, sous l'ivoire du
+   marché affiché. Le voyant ne bouge pas. */
+@media (hover: hover) {
+  .marketRow:not(.active):hover {
+    color: var(--text-1);
+    background-color: color-mix(in srgb, var(--ivory) 3%, transparent);
+  }
 }
 .marketHead {
   display: inline-flex;
@@ -155,6 +164,12 @@
   padding: 0 4px;
   font-size: 11px;
   color: var(--text-3);
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .alertRemove:hover {
+    color: var(--text-0);
+  }
 }
 
 /* Le refus de la fenêtre d'alerte, en clair. */

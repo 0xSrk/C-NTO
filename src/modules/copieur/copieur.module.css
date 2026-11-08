@@ -58,6 +58,15 @@
 .accHead button {
   color: var(--text-3);
 }
+/* La corbeille, seule : la bascule désactivée qui ouvre la ligne garde ses propres règles. */
+.accHead > button:last-child {
+  transition: color 200ms linear;
+}
+@media (hover: hover) {
+  .accHead > button:last-child:hover {
+    color: var(--text-0);
+  }
+}
 .accGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
