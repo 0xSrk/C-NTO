@@ -1,4 +1,5 @@
-/* Dossier des rapports de l'agent cloud — Système 4.0 : le trait dit l'état, l'or ce qui vit, jamais de survol. */
+/* Dossier des rapports de l'agent cloud — le trait dit l'état, l'or l'objet ouvert ; le passage du pointeur est une
+   lumière (Système 4.1). */
 
 .layout {
   display: grid;
@@ -112,10 +113,20 @@
   background: var(--bg-2);
   border: 1px solid var(--line-2);
   cursor: pointer;
+  /* La fiche ouverte arrive et repart d'un pas : son filet d'or avec son fond. */
+  transition: border-color 260ms var(--ease-out), background-color 260ms var(--ease-out), box-shadow 260ms var(--ease-out);
 }
 .fiche.on {
   background: var(--bg-3);
   box-shadow: inset var(--active-line) 0 0 var(--gold);
+}
+/* Au passage du pointeur, la fiche qu'on peut ouvrir s'éclaire : son filet monte vers l'ivoire, la plaque se lève de 3 %.
+   La fiche prévue, un <li>, ne s'ouvre pas et reste éteinte ; la fiche ouverte garde son or. */
+@media (hover: hover) {
+  button.fiche:not(.on):hover {
+    border-color: color-mix(in srgb, var(--ivory) 24%, transparent);
+    background-color: color-mix(in srgb, var(--ivory) 3%, var(--bg-2));
+  }
 }
 .fiche.planned {
   background: transparent;
