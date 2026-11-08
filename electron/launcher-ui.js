@@ -119,6 +119,8 @@
   let status = null;
   let notesDoc = null;
   let notesOpen = false;
+  /** Le fondu de la fiche des nouveautés en cours (entrée ou retrait), ou null. */
+  let notesFade = null;
   let applying = false;
   /** Modifications locales détectées : le prochain clic confirme le stash. */
   let stashArmed = false;
@@ -270,7 +272,8 @@
     btnNotes.hidden = false;
     btnNotes.textContent = L().notes(status.latest);
     btnNotes.setAttribute('aria-expanded', notesOpen ? 'true' : 'false');
-    notesPanel.hidden = !notesOpen;
+    // Un repeint pendant le retrait (langue, départ) laisse la fiche dans la page : la fin du fondu la cache.
+    notesPanel.hidden = !notesOpen && !notesFade;
     notesPanel.classList.toggle('open', notesOpen);
     notesPanel.replaceChildren();
     // En-tête de fiche : le document, et l'écart qu'il couvre.
@@ -562,10 +565,32 @@
 
   btnLaunch.addEventListener('click', () => void launch());
   if (btnNotes) {
+    /** La fiche entre par l'opacité (notes-in, quand elle quitte [hidden]) et se retire de même. Rouverte ou
+        refermée en chemin, elle repart de l'opacité qu'elle a, jamais d'un bond. */
     btnNotes.addEventListener('click', () => {
       if (btnNotes.hidden) return;
       notesOpen = !notesOpen;
-      paintNotes();
+      const shown = !notesPanel.hidden;
+      const now = parseFloat(getComputedStyle(notesPanel).opacity);
+      const from = Number.isFinite(now) ? now : 1;
+      notesFade?.cancel();
+      notesFade = null;
+      if (reducedMotion || typeof notesPanel.animate !== 'function' || (notesOpen && !shown)) {
+        paintNotes();
+        return;
+      }
+      const to = notesOpen ? 1 : 0;
+      if (notesOpen) paintNotes();
+      else btnNotes.setAttribute('aria-expanded', 'false');
+      const fade = (notesFade = notesPanel.animate([{ opacity: from }, { opacity: to }], { duration: Math.round(220 * Math.abs(to - from)), easing: 'linear' }));
+      fade.finished.then(
+        () => {
+          if (notesFade !== fade) return;
+          notesFade = null;
+          if (!notesOpen) paintNotes();
+        },
+        () => undefined,
+      );
     });
   }
   window.addEventListener('keydown', (event) => {

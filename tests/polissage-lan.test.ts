@@ -314,4 +314,108 @@ describe('POL8 lanceur AUBE — la dynamique polie, le repos inchangé', () => {
     expect(color).toBe('color 200ms linear');
     for (const sel of ['.close', '.notes-toggle']) expect(decl(rulesOf(sel)[0]?.body ?? '', 'transition'), sel).toBe(color);
   });
+
+  it('POL8.7 la fiche des nouveautés entre et se retire par l’opacité, et repart de celle qu’elle a si l’on se ravise', async () => {
+    // La feuille : l'entrée de la fiche d'objet du desk (opacité seule, --t-med, linéaire), sans rien tenir après sa fin ;
+    // le mouvement réduit la tait.
+    expect(readFileSync('src/design/tokens.css', 'utf8')).toMatch(/--t-med:\s*220ms/);
+    expect(decl(rulesOf('.notes')[0]?.body ?? '', 'animation')).toBe('notes-in 220ms linear');
+    const frames = RULES.filter((r) => r.at.includes('@keyframes notes-in'));
+    expect(frames.map((r) => [r.selector, r.props])).toEqual([['from', ['opacity']]]);
+    expect(decl(frames[0]?.body ?? '', 'opacity')).toBe('0');
+    expect(rulesOf('.notes', true).some((r) => decl(r.body, 'animation') === 'none')).toBe(true);
+
+    type Fade = { keyframes: Keyframe[]; options: KeyframeAnimationOptions; done: () => void; cancel: ReturnType<typeof vi.fn> };
+    const fades: Fade[] = [];
+    const stub = (panel: HTMLElement) => {
+      (panel as unknown as { animate: unknown }).animate = vi.fn((keyframes: Keyframe[], options: KeyframeAnimationOptions) => {
+        let done = () => undefined as void;
+        const finished = new Promise<void>((r) => (done = r));
+        const fade = { keyframes, options, done: () => done(), cancel: vi.fn(), finished };
+        fades.push(fade);
+        return fade;
+      });
+    };
+    const ready = async () => {
+      await vi.waitFor(() => expect(byId('notes-toggle').hidden).toBe(false));
+      return { toggle: byId<HTMLButtonElement>('notes-toggle'), panel: byId('notes-panel') };
+    };
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+
+    // Ouverte, elle quitte [hidden] : l'entrée de la feuille la monte ; refermée, elle se retire de 1 à 0 en 220 ms,
+    // reste dans la page le temps du fondu, puis la quitte.
+    boot({ available: true });
+    let { toggle, panel } = await ready();
+    stub(panel);
+    toggle.click();
+    expect([panel.hidden, toggle.getAttribute('aria-expanded')]).toEqual([false, 'true']);
+    expect(fades).toHaveLength(0);
+    toggle.click();
+    expect(fades[0]?.keyframes).toEqual([{ opacity: 1 }, { opacity: 0 }]);
+    expect(fades[0]?.options).toEqual(expect.objectContaining({ duration: 220, easing: 'linear' }));
+    expect([panel.hidden, toggle.getAttribute('aria-expanded')]).toEqual([false, 'false']);
+    fades[0]!.done();
+    await tick();
+    expect(panel.hidden).toBe(true);
+
+    // Rouverte pendant son retrait, elle repart de l'opacité qu'elle a, vers 1, au même pas ; le retrait annulé ne la
+    // cache plus en finissant.
+    reset();
+    fades.length = 0;
+    boot({ available: true });
+    ({ toggle, panel } = await ready());
+    stub(panel);
+    toggle.click();
+    toggle.click();
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => (el === panel ? ({ opacity: '0.4' } as CSSStyleDeclaration) : real(el, pseudo)));
+    toggle.click();
+    expect(fades[0]?.cancel).toHaveBeenCalledTimes(1);
+    expect(fades[1]?.keyframes).toEqual([{ opacity: 0.4 }, { opacity: 1 }]);
+    expect(fades[1]?.options).toEqual(expect.objectContaining({ duration: 132 }));
+    expect([panel.hidden, toggle.getAttribute('aria-expanded')]).toEqual([false, 'true']);
+    fades[0]!.done();
+    fades[1]!.done();
+    await tick();
+    expect(panel.hidden).toBe(false);
+    // Refermée pendant ce retour, elle repart encore de là où elle est.
+    toggle.click();
+    expect(fades[2]?.keyframes).toEqual([{ opacity: 0.4 }, { opacity: 0 }]);
+    expect(fades[2]?.options).toEqual(expect.objectContaining({ duration: 88 }));
+
+    // Un repeint pendant le retrait (changer de langue, lancer le desk) ne le coupe pas : la fiche reste dans la page
+    // jusqu'à la fin du fondu, puis la quitte.
+    reset();
+    fades.length = 0;
+    vi.useFakeTimers({ toFake: [...FAKE] });
+    boot({ available: true });
+    await vi.advanceTimersByTimeAsync(50);
+    toggle = byId<HTMLButtonElement>('notes-toggle');
+    panel = byId('notes-panel');
+    expect(toggle.hidden).toBe(false);
+    stub(panel);
+    toggle.click();
+    toggle.click();
+    (byId('lang-row').querySelector("button[data-locale='en']") as HTMLButtonElement).click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect([panel.hidden, toggle.getAttribute('aria-expanded'), document.documentElement.lang]).toEqual([false, 'false', 'en']);
+    byId<HTMLButtonElement>('btn-launch').click();
+    expect(panel.hidden).toBe(false);
+    fades[0]!.done();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(panel.hidden).toBe(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(startDesk).toHaveBeenCalledTimes(1);
+
+    // Mouvement réduit : ni entrée ni retrait, la fiche paraît et s'en va.
+    reset();
+    fades.length = 0;
+    boot({ available: true, reduced: true });
+    ({ toggle, panel } = await ready());
+    stub(panel);
+    toggle.click();
+    toggle.click();
+    expect(fades).toHaveLength(0);
+    expect(panel.hidden).toBe(true);
+  });
 });
