@@ -24,6 +24,8 @@ import { Modal } from '@/design/Modal';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import type { Session } from '@/engine/types';
 import { useI18n } from '@/i18n';
+import { spaced } from '@/lib/frise';
+import { ET_ZONE, zonedToUtc } from '@/lib/time';
 import { useBridge } from '@/store/bridge';
 import { useCalendar } from '@/store/calendar';
 import { useJournal } from '@/store/journal';
@@ -337,5 +339,36 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     // Ce que le survol et le choix allument : rien d'autre, et rien de neuf.
     expect(bodyOf(registre, '.rowOn')).toMatch(/color: var\(--text-0\);\s*box-shadow: inset var\(--active-line\) 0 0 var\(--text-0\);\s*background-color: var\(--bg-2\);/);
     expect(bodyOf(omnibarCss, '.item.active')).toMatch(/background-color: var\(--bg-3\);\s*box-shadow: inset var\(--active-line\) 0 0 var\(--text-0\);/);
+  });
+  it('POL2.6 le curseur passe sur les heures de la frise sans les faire clignoter : celles que la tête recouvre restent montées et s’effacent à l’opacité ; l’axe lisible ne change pas', () => {
+    vi.setSystemTime(zonedToUtc('2026-10-14', '09:40', ET_ZONE));
+    mount();
+    act(() => host!.querySelector<HTMLButtonElement>('[data-status="answer"]')!.click());
+    const drawer = host!.querySelector<HTMLElement>('[data-frise]')!;
+    const slider = drawer.querySelector<HTMLElement>('[role="slider"]')!;
+    const hours = () => [...drawer.querySelectorAll<HTMLElement>('[data-axis-hour]')];
+    const hour = (h: string) => hours().find((el) => el.textContent === h);
+    // L'axe lisible est celui d'avant : les heures à 30 px au moins de la tête, puis espacées (`spaced`).
+    const readable = () => {
+      const head = parseFloat(drawer.querySelector<HTMLElement>('[class*="head"]:not([data-axis-hour])')!.style.left);
+      const left = (el: HTMLElement) => parseFloat(el.style.left);
+      const kept = spaced(hours().map((el) => ({ el, hour: Number(el.textContent) })).filter(({ el }) => Math.abs(left(el) - head) >= 30), ({ el }) => left(el));
+      return kept.map(({ el }) => el.textContent);
+    };
+    const shown = () => hours().filter((el) => !el.hasAttribute('data-off')).map((el) => el.textContent);
+    // 09:40 : « 10 », à 21 px de la tête, s'efface sous elle.
+    const ten = hour('10');
+    expect(ten).toBeDefined();
+    expect(ten!.hasAttribute('data-off')).toBe(true);
+    expect(shown()).toEqual(readable());
+    // 10:40 : « 10 » revient, le même nœud, jamais démonté ; « 11 » passe sous la tête.
+    press('ArrowRight', { shiftKey: true }, slider);
+    expect(hour('10')).toBe(ten);
+    expect(ten!.hasAttribute('data-off')).toBe(false);
+    expect(hour('11')!.hasAttribute('data-off')).toBe(true);
+    expect(shown()).toEqual(readable());
+    const css = 'src/app/frise.module.css';
+    expect(bodyOf(css, '.hour')).toMatch(/transition: opacity var\(--t-fast\) linear;/);
+    expect(bodyOf(css, '.hour[data-off]')).toMatch(/^\s*opacity: 0;\s*$/);
   });
 });
