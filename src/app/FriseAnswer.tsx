@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Glyph, Signal } from '@/design/Micro';
 import { dayClosesFor } from '@/engine/agent/dayClose';
 import { calendarSourcesState, type CalendarSources } from '@/engine/bornes';
@@ -21,7 +21,8 @@ import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
 import { useKillSwitch } from './killState';
 import { etClock, shortDay } from './objects/index';
-import { BORNES_TICK_MS, useDayBornes } from './useDayBornes';
+import { useDayBornes } from './useDayBornes';
+import { useWallClock } from './useWallClock';
 import s from './shell.module.css';
 
 /**
@@ -218,13 +219,12 @@ export function useFriseEvents(at: number): CalEvent[] {
   return useMemo(() => catalystSource(official, [first, year, year + 1]), [official, first, year]);
 }
 
-/** L'horloge de la réponse : elle parle en minutes, un tic toutes les 15 s suffit. */
+/**
+ * L'horloge de la réponse : elle parle en minutes arrondies, elle tourne donc à chaque demi-minute de l'horloge murale, à
+ * sa frontière (:00, :30), plus d'un tic de 15 s parti du montage (POL9.1).
+ */
 function useTick(): number {
-  const [tick, setTick] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setTick(Date.now()), BORNES_TICK_MS);
-    return () => clearInterval(id);
-  }, []);
+  const tick = useWallClock(30_000);
   return Math.max(tick, Date.now());
 }
 

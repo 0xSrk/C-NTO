@@ -7,6 +7,7 @@ import { tr, useI18n } from '@/i18n';
 import { fmtInt, plural } from '@/lib/format';
 import { useObjects, type ObjectRef, type ProposalRef } from '@/store/objects';
 import { instrumentKey } from '../registre';
+import { useSecondWhile } from '../useWallClock';
 import { ActivitySection, copyAction, FicheHead, FicheSection, ObjectLink, Provenance, type FicheAction } from './Fiche';
 import { objectLabel, type IndexSources } from './index';
 import {
@@ -115,6 +116,9 @@ function GuardCells({ cells }: { cells: readonly CellState[] }) {
  * la décision qui attend l'opérateur (décision 1). En mouvement réduit, elle reste pleine et l'heure dit le reste.
  */
 function DeadlineBar({ window }: { window: { opened: number; deadline: number } }) {
+  // Le reste dit en secondes (aria-valuenow) se relit chaque seconde, la barre montée ; la barre elle-même se vide par son
+  // animation, dont le délai reste pris une fois (OROS5.40a). Le châssis ne bat plus la seconde pour elle (POL9.1).
+  useSecondWhile(true);
   const total = Math.max(1, window.deadline - window.opened);
   const elapsed = Math.min(total, Math.max(0, Date.now() - window.opened));
   // Le délai se prend une fois, au montage : l'animation en cours compte déjà le temps écoulé, et un délai réécrit à un

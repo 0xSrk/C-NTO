@@ -38,17 +38,9 @@ import { RegistreDrawer } from './RegistreDrawer';
 import { matchShortcut } from './shortcuts';
 import { ShortcutHelp, useShortcutHelp } from './ShortcutHelp';
 import { StatusBornes } from './StatusBornes';
+import { useWallClock } from './useWallClock';
 import { tabCopy, TABS } from './tabs';
 import s from './shell.module.css';
-
-function useClock(everyMs = 1000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), everyMs);
-    return () => clearInterval(t);
-  }, [everyMs]);
-  return now;
-}
 
 /** Les zones du châssis que F6 parcourt, dans l'ordre : le rail, la zone de travail, la fiche, la barre d'état. */
 const ZONES = ['[data-chassis="rail"]', 'main', 'aside[data-drawer]', '[data-chassis="status"]'] as const;
@@ -105,7 +97,9 @@ export function Shell({ children, revealed = true, inert = false }: { children: 
   const orchestrator = useAgent((a) => a.orchestrator);
   const reportsUnread = useAgentCloud((c) => c.status?.unread ?? null);
   const kill = useKillSwitch();
-  const now = useClock();
+  // La barre d'état dit la minute : le châssis ne se rend qu'à sa frontière (POL9.1). Ce qui compte les secondes bat
+  // de lui-même : l'âge du pont dans StatusBornes, la barre du dialogue dans sa fiche.
+  const now = useWallClock(60_000);
   const noteCount = useNotes((n) => n.notes.length);
   const linkCount = useLinks((l) => l.links.length);
   const calendarEntries = useCalendar((c) => c.entries);
