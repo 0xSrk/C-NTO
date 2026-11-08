@@ -290,4 +290,28 @@ describe('POL8 lanceur AUBE — la dynamique polie, le repos inchangé', () => {
     expect(decl(rulesOf('.word .glint path')[0]?.body ?? '', 'opacity')).toBe('0');
     expect(keyframes('aube-rise').map((r) => r.selector)).toEqual(['from']);
   });
+
+  it('POL8.6 chaque lumière du survol monte à son pas : Fermer et les nouveautés ne s’éclairent plus d’un coup', () => {
+    const plain = RULES.filter((r) => !REDUCED(r) && !r.at.some((h) => h.startsWith('@keyframes')) && !/:hover\b/.test(r.selector));
+    /** La transition d'un sélecteur, ou de sa première classe (.btn.primary → .btn), qui nomme la propriété avec une durée. */
+    const timed = (base: string, prop: string) => {
+      const bases = [base, /^\.[\w-]+(?=\.)/.exec(base)?.[0]].filter(Boolean) as string[];
+      return plain.some((r) => selectors(r).some((s) => bases.includes(s)) && new RegExp(`(?:^|,)\\s*${prop}\\s+\\d`).test(decl(r.body, 'transition') ?? ''));
+    };
+    const missing: string[] = [];
+    let hovers = 0;
+    for (const rule of RULES.filter((r) => /:hover\b/.test(r.selector))) {
+      for (const sel of selectors(rule)) {
+        const base = sel.replace(/:not\([^)]*\)/g, '').replace(/:hover\b/g, '').trim();
+        for (const prop of rule.props) if (!timed(base, prop)) missing.push(`${base} › ${prop}`);
+        hovers++;
+      }
+    }
+    expect(hovers).toBeGreaterThanOrEqual(6);
+    expect(missing).toEqual([]);
+    // Le pas de la couleur du lanceur, celui de ses boutons (et du bouton Fermer des fenêtres du desk).
+    const color = splitOutside(decl(rulesOf('.btn')[0]?.body ?? '', 'transition') ?? '', ',').find((p) => p.startsWith('color '));
+    expect(color).toBe('color 200ms linear');
+    for (const sel of ['.close', '.notes-toggle']) expect(decl(rulesOf(sel)[0]?.body ?? '', 'transition'), sel).toBe(color);
+  });
 });
