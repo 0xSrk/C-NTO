@@ -1,11 +1,5 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
-
-/** L'opacité où en est une surcouche, si elle est en chemin (ni 0 ni 1) ; sinon rien. */
-export function opacityInFlight(el: Element | null): number | null {
-  if (!el || typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') return null;
-  const value = Number.parseFloat(window.getComputedStyle(el).opacity);
-  return Number.isFinite(value) && value > 0 && value < 1 ? Math.round(value * 1000) / 1000 : null;
-}
+import { opacityInFlight } from '@/design/leaveInPlace';
 
 /**
  * Une surcouche sort comme elle est entrée (POL2.2) : fermée, elle reste montée le temps de l'animation que sa feuille pose
