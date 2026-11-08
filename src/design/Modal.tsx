@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { IconClose } from '@/app/icons';
 import { tr, useI18n } from '@/i18n';
+import { leaveInPlace } from './leaveInPlace';
 import s from './modal.module.css';
 
 function focusable(root: HTMLElement): HTMLElement[] {
@@ -29,6 +30,7 @@ export function Modal({
   dismissable?: boolean;
 }) {
   useI18n((st) => st.locale);
+  const backdrop = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const restored = useRef<HTMLElement | null>(null);
   const titleId = useId();
@@ -50,6 +52,12 @@ export function Modal({
     return () => {
       restored.current?.focus();
     };
+  }, []);
+
+  // Démontée par son appelant, la fenêtre sort comme elle est entrée : sa dernière image s'efface (POL2.3).
+  useLayoutEffect(() => {
+    const node = backdrop.current;
+    return () => leaveInPlace(node);
   }, []);
 
   useEffect(() => {
@@ -83,7 +91,7 @@ export function Modal({
   }, []);
 
   return createPortal(
-    <div className={s.backdrop} onMouseDown={(e) => e.target === e.currentTarget && dismissable && onClose()}>
+    <div ref={backdrop} className={s.backdrop} onMouseDown={(e) => e.target === e.currentTarget && dismissable && onClose()}>
       <div ref={panel} className={s.modal} style={{ width }} role="dialog" aria-modal aria-labelledby={titleId}>
         <header className={s.head}>
           <div>

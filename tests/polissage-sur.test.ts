@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { readFileSync } from 'node:fs';
-import { act, createElement } from 'react';
+import { act, createElement, StrictMode, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cssRules } from './helpers/cssRules';
@@ -19,6 +19,8 @@ vi.mock('@/store/db', async (importOriginal) => ({
 import { useKillLatch } from '@/app/killState';
 import { closeRegistre, openRegistre, useRegistre } from '@/app/registre';
 import { Shell } from '@/app/Shell';
+import { ShortcutHelp, useShortcutHelp } from '@/app/ShortcutHelp';
+import { Modal } from '@/design/Modal';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import type { Session } from '@/engine/types';
 import { useI18n } from '@/i18n';
@@ -130,6 +132,7 @@ beforeEach(() => {
   useMacro.setState({ events: [], sources: [], syncing: false, lastError: undefined, load: async () => undefined, sync: async () => undefined });
   useBridge.setState({ nt: null });
   useKillLatch.setState({ engaged: false });
+  useShortcutHelp.setState({ open: false });
 });
 
 afterEach(() => {
@@ -140,6 +143,7 @@ afterEach(() => {
   vi.useRealTimers();
   useUi.setState({ timeCursor: null, friseOpen: false, toasts: [] });
   useRegistre.setState({ open: false, kinds: [], origin: null });
+  useShortcutHelp.setState({ open: false });
 });
 
 describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenêtres et les messages', () => {
@@ -227,5 +231,69 @@ describe('POL2 · les surcouches : la frise, le registre, l’omnibar, les fenê
     expectLeave('src/app/frise.module.css', '.drawer[data-leaving]');
     expectLeave('src/app/registre.module.css', '.drawer[data-leaving]');
     expectLeave('src/app/objects/omnibar.module.css', '.veil[data-leaving]');
+  });
+  it('POL2.3 la fenêtre entre par l’opacité, son voile avec elle, et sort de même : sa dernière image, inerte et muette, s’efface ; la répétition de StrictMode n’en laisse aucune', async () => {
+    const animations = stubAnimations();
+    try {
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      await act(async () => root!.render(createElement(StrictMode, null, createElement(ShortcutHelp))));
+      const opener = document.getElementById('ligne') ?? host.appendChild(Object.assign(document.createElement('button'), { id: 'ligne' }));
+      opener.focus();
+      await act(async () => useShortcutHelp.setState({ open: true }));
+      // Ouverte, rien d'autre qu'elle : les effets rejoués par StrictMode ne laissent aucune image.
+      expect(document.querySelectorAll('[data-help]')).toHaveLength(1);
+      expect(document.querySelector('[data-leaving]')).toBeNull();
+      expect(document.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
+      // Fermée : le focus revient à l'opener, le châssis n'y voit plus de dialogue ; sa dernière image s'efface.
+      await act(async () => useShortcutHelp.setState({ open: false }));
+      expect(document.activeElement).toBe(opener);
+      expect(document.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
+      const ghost = document.querySelector<HTMLElement>('[data-leaving]')!;
+      expect(ghost).not.toBeNull();
+      expect(ghost.parentElement).toBe(document.body);
+      expect(ghost.querySelector('[data-help]')).not.toBeNull();
+      expect(ghost.hasAttribute('inert')).toBe(true);
+      expect(ghost.getAttribute('aria-hidden')).toBe('true');
+      expect(ghost.querySelector('[role="dialog"], [aria-modal], [id]')).toBeNull();
+      animations.finish();
+      await settle();
+      expect(document.querySelector('[data-leaving]')).toBeNull();
+      expect(document.querySelector('[data-help]')).toBeNull();
+      // Une liste déroulante garde son choix, un champ ne garde ni son nom ni son identifiant dans l'image.
+      let close!: () => void;
+      function Pick() {
+        const [shown, setShown] = useState(true);
+        close = () => setShown(false);
+        return shown
+          ? createElement(Modal, {
+              title: 'Choix',
+              onClose: () => setShown(false),
+              children: createElement('select', { value: 'b', onChange: () => undefined, name: 'choix', id: 'choix' }, createElement('option', { value: 'a' }, 'A'), createElement('option', { value: 'b' }, 'B')),
+            })
+          : null;
+      }
+      await act(async () => root!.render(createElement(Pick)));
+      await act(async () => close());
+      const image = document.querySelector<HTMLElement>('[data-leaving]')!;
+      expect(image.querySelector('select')!.selectedIndex).toBe(1);
+      expect(image.querySelector('[name], [id]')).toBeNull();
+      animations.finish();
+      await settle();
+      expect(document.querySelector('[data-leaving]')).toBeNull();
+    } finally {
+      animations.restore();
+    }
+    const css = 'src/design/modal.module.css';
+    const backdrop = bodyOf(css, '.backdrop');
+    const name = /animation: ([\w-]+) var\(--t-med\) linear both/.exec(backdrop)?.[1];
+    expect(name).toBeDefined();
+    expect(sheet(css).filter((rule) => rule.at.includes(`@keyframes ${name}`)).map((rule) => `${rule.selector} { ${rule.body.trim()} }`)).toEqual(['from { opacity: 0; }', 'to { opacity: 1; }']);
+    // Rien sur la plaque : ni glissement, ni ombre ; la couleur du voile ne change pas.
+    expect(bodyOf(css, '.modal')).not.toMatch(/animation|transform/);
+    expect(backdrop).toMatch(/background: rgba\(0, 0, 0, 0\.72\)/);
+    expectLeave(css, '.backdrop[data-leaving]');
+    expect(sheet(css).some((rule) => rule.selector.split(',').map((part) => part.trim()).includes('.backdrop') && rule.at.some((head) => /prefers-reduced-motion: reduce/.test(head)) && /animation: none/.test(rule.body))).toBe(true);
   });
 });
