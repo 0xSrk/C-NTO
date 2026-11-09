@@ -81,7 +81,7 @@ describe('R3.10.1b · la seconde vague et la publication de la 3.10.1 se consign
     expect(measures).toContain('3 289 tests sur 356 fichiers');
     expect(measures).toMatch(/`npm audit` : 8 avis modérés → 6/);
     const choices = wave.text.slice(wave.text.indexOf("**Choix que l'ADMIN peut renverser.**"), wave.text.indexOf('**Encore ouvert, par ordre de risque.**'));
-    for (const id of ['SEC2.1', 'SEC2.2', 'SEC2.4', 'SEC2.5', 'SEC2.6', 'SEC2.8']) expect(choices, id).toContain(`**${id}, `);
+    for (const id of ['SEC2.1', 'SEC2.2', 'SEC2.3', 'SEC2.4', 'SEC2.5', 'SEC2.6', 'SEC2.8']) expect(choices, id).toContain(`**${id}, `);
     const open = wave.text.slice(wave.text.indexOf('**Encore ouvert, par ordre de risque.**'));
     // L'AddOn n'est pas borné par cette version ; sa borne attend la compilation de l'ADMIN.
     expect(open).toContain('`addon/borne-historique`');
@@ -108,7 +108,7 @@ describe('R3.10.1b · la seconde vague et la publication de la 3.10.1 se consign
   });
 
   it('la publication : une ligne par ticket, chacune avec ses tests, qui existent ; ce qui ne change pas se vérifie', () => {
-    for (const id of ['R3.10.1a', 'R3.10.1b']) {
+    for (const id of ['R3.10.1a', 'R3.10.1b', 'R3.10.1c']) {
       const lines = row(publication.text, id);
       expect(lines, id).toHaveLength(1);
       const tests = testsOf(lines[0]!);

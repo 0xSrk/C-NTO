@@ -142,6 +142,13 @@ describe('README', () => {
     expect(history.match(/^- \*\*3\.10\.1\*\* — /gm)).toHaveLength(1);
     expect(history.indexOf('- **3.10.1** — ')).toBeLessThan(history.indexOf('<a id="whats-new-in-3100"></a>**3.10.0**'));
     expect(history).toContain('(2026-11-09)');
+    // R3.10.1c la table de sécurité ne dit pas plus que le code : hors d'un dialogue d'enregistrement, un seul fichier ;
+    // le dossier du pont est accordé pour la surveillance, pas pour l'écriture.
+    const data = readme.split('\n').find((line) => line.startsWith('| **Data** |')) ?? '';
+    expect(data).toContain('Outside a save dialog, the interface writes one file only, the dated vault copy');
+    expect(data).toContain('is granted for watching, not for writing');
+    expect(data).not.toMatch(/never written by the interface/);
+    expect(readFileSync('electron/main.ts', 'utf8')).toMatch(/ipcMain\.handle\('files:save-text'[\s\S]{0,300}showSaveDialog/);
     // Plus aucun lien ni nom d'installeur de la version précédente.
     expect(readme).not.toMatch(/releases\/(?:tag|download)\/v3\.10\.0/);
   });

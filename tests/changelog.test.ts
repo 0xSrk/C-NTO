@@ -154,6 +154,11 @@ describe('journal des versions', () => {
     expect(entryFor('3.10.1')?.highlights.en.join(' ')).toMatch(/bounded to 2,000 bars/);
     expect(entryFor('3.10.1')?.highlights.en.join(' ')).toMatch(/January to March 2027, published by the BLS/);
     expect(entryFor('3.10.1')?.highlights.en.join(' ')).toMatch(/shows its real host before it opens/);
+    // R3.10.1c l'écriture bornée se dit « sans dialogue » : un export s'enregistre là où un dialogue d'enregistrement le pose.
+    expect(entryFor('3.10.1')?.highlights.fr.join(' ')).toMatch(/sans dialogue, l’interface n’écrit que la copie datée du coffre/);
+    expect(entryFor('3.10.1')?.highlights.en.join(' ')).toMatch(/without a dialog, the interface writes only the dated vault copy/);
+    expect(entryFor('3.10.1')?.highlights.es.join(' ')).toMatch(/sin diálogo, la interfaz solo escribe la copia fechada de la caja/);
+    for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.10.1')?.highlights[lang].join(' ')).not.toMatch(/; (?:l’interface n’écrit que|the interface writes only|la interfaz solo escribe)/);
     // Le journal ne promet pas ce que le code ne fait pas : l'AddOn n'est pas borné par cette version, ni les installeurs signés par un éditeur.
     for (const lang of ['fr', 'en', 'es'] as const) expect(entryFor('3.10.1')?.highlights[lang].join(' ')).not.toMatch(/AddOn 2\.[3-9]|Authenticode|notari[sz]/i);
     expect(entryFor('3.0.1')).toBeNull();
