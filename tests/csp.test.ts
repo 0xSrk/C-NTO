@@ -61,4 +61,13 @@ describe('SEC1.6 CSP du renderer', () => {
     expect(await names('serve')).toContain('canto:dev-connect-src');
     expect(await names('build')).not.toContain('canto:dev-connect-src');
   });
+
+  it('SEC1.6a le README dit la CSP livrée : l’application seule, sans la boucle locale', () => {
+    const readme = readFileSync('README.md', 'utf8').replace(/\r\n/g, '\n');
+    const row = readme.split('\n').find((line) => line.startsWith('| **Network** |')) ?? '';
+    expect(row).toContain('Content Security Policy — connections to the app itself only —');
+    expect(row).not.toMatch(/to the loopback/);
+    // La passerelle MCP et l'orchestrateur écoutent bien sur la boucle locale : c'est le process principal, pas la page.
+    expect(row).toContain('listen on `127.0.0.1` only');
+  });
 });
