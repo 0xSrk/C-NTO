@@ -1,9 +1,22 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
+/**
+ * La CSP livrée (`index.html`, que le build copie telle quelle) ne laisse au renderer que son origine :
+ * `connect-src 'self'` (`CLAUDE.md` § 5). Le serveur de développement recharge la page par un WebSocket local : ce plugin
+ * le rend à `connect-src`, et ne s'applique qu'à ce serveur (`apply: 'serve'`), jamais au build.
+ */
+export function devConnectSrc(): Plugin & { transformIndexHtml: (html: string) => string } {
+  return {
+    name: 'canto:dev-connect-src',
+    apply: 'serve',
+    transformIndexHtml: (html: string) => html.replace("connect-src 'self';", "connect-src 'self' ws://127.0.0.1:* ws://localhost:*;"),
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), devConnectSrc()],
   base: './',
   resolve: {
     alias: {
