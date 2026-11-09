@@ -87,10 +87,25 @@ interface BridgeState {
 let unsubscribeFile: (() => void) | null = null;
 let unsubscribeNt: (() => void) | null = null;
 
+/** Le journal a dépassé sa capacité : dit une fois par ouverture du desk, pas à chaque exécution. */
+let capacityWarned = false;
+
 /** Une exécution WebSocket : `importCsv` reprend les lots ouverts du compte et ignore une empreinte déjà connue. */
 async function importExecutionCsv(csv: string, fileName: string): Promise<void> {
   const { settings } = useSettings.getState();
   const r = await useJournal.getState().importCsv(csv, { boundaryHour: settings.boundaryHour, riskPerContract: settings.riskPerContract || undefined, source: 'ninjatrader' });
+  // Au-delà de sa capacité, le journal écrit toujours l'exécution (SEC1.10) ; le trader l'apprend ici, où il regarde.
+  if (r.overCapacity && !capacityWarned) {
+    capacityWarned = true;
+    useUi.getState().toast(
+      tr(
+        'Journal au-delà de sa capacité : les exécutions restent enregistrées. Exportez le coffre (Métrique › Sauvegarde), puis retirez les séances anciennes.',
+        'Journal beyond its capacity: executions are still recorded. Export the vault (Metrics › Backup), then remove old sessions.',
+        'Diario por encima de su capacidad: las ejecuciones se siguen registrando. Exporte la caja (Métrica › Copia) y retire después las sesiones antiguas.',
+      ),
+      'warn',
+    );
+  }
   if (r.newTrades > 0) {
     useUi.getState().toast(
       tr(
