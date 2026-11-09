@@ -315,7 +315,20 @@ export async function applyUpdate(
 /** Relance : si le parent est `launch.mjs`, exit 42 ; sinon spawn détaché de `npm run launch`. */
 export function relaunchDesk(): void {
   // Application installée : l'installeur (Windows) ou la relance (AppImage) prend la main.
-  if (performPendingRestart()) return;
+  let handled: boolean;
+  try {
+    handled = performPendingRestart();
+  } catch {
+    // L'installeur n'est plus celui qui a été vérifié (SEC1.5) : rien n'est lancé, le desk reste ouvert, l'appelant le dit.
+    throw new Error(
+      ui(
+        'Installeur modifié depuis sa vérification : rien n’a été lancé. Relancez la mise à jour.',
+        'Installer changed since it was verified: nothing was run. Start the update again.',
+        'Instalador modificado desde su verificación: no se ha ejecutado nada. Vuelva a lanzar la actualización.',
+      ),
+    );
+  }
+  if (handled) return;
   if (process.env.CANTO_LAUNCHER_PARENT === '1') {
     app.releaseSingleInstanceLock();
     app.exit(RELAUNCH_EXIT_CODE);

@@ -1,7 +1,7 @@
 import { app, net, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, createWriteStream, promises as fs, renameSync } from 'node:fs';
+import { chmodSync, closeSync, createWriteStream, openSync, promises as fs, readSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -18,6 +18,9 @@ import { compareSemver } from './semver';
  * par une clé du Lab, voir `release-signature.ts`), puis
  * installé. Windows : installeur NSIS silencieux qui relance CΛNTO ; Linux AppImage : fichier
  * remplacé puis relance ; macOS DMG et Linux deb : l'installeur est ouvert pour l'utilisateur.
+ * L'installeur vérifié est celui qui s'exécute (SEC1.5) : il est écrit dans un dossier neuf et privé (`mkdtemp`, 0700),
+ * jamais dans un dossier au nom fixe du dossier temporaire, qu'un autre compte du poste pouvait préparer ; son empreinte
+ * est refaite sur ce qui part, la copie de l'AppImage et l'installeur Windows juste avant son lancement.
  * Réseau via `net.fetch` (pile Chromium) : le proxy système du poste est respecté. Chaque appel part sans cookie
  * (`credentials: 'omit'`) : sinon, `net.fetch` garde ceux d'une réponse dans la session par défaut et les renvoie (UPD1).
  */
@@ -37,8 +40,64 @@ export interface DownloadProgress {
   total: number;
 }
 
-type PendingRestart = { kind: 'installer'; file: string } | { kind: 'appimage'; file: string };
+type PendingRestart = { kind: 'installer'; file: string; sha256: string } | { kind: 'appimage'; file: string };
 let pending: PendingRestart | null = null;
+
+/** Nom d'installeur admis : un seul segment, sans séparateur ni `..` ; ceux d'electron-builder (`package.json`) le sont. */
+const INSTALLER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/** Dossiers de téléchargement de ce module : l'ancien, au nom fixe, et ceux de `mkdtemp` (six signes tirés au sort). */
+const DOWNLOAD_DIR = /^canto-update(?:-[A-Za-z0-9]{6})?$/;
+
+/**
+ * Retire les téléchargements des mises à jour précédentes : un installeur pèse ≈ 100 Mo et rien d'autre ne les enlève.
+ * Seulement de vrais dossiers (jamais un lien, que `lstat` ne suit pas) et, hors Windows, ceux de ce compte. Sans effet
+ * sur la mise à jour : un dossier qui résiste reste où il est.
+ */
+async function sweepDownloads(temp: string): Promise<void> {
+  const uid = process.getuid?.();
+  let names: string[];
+  try {
+    names = await fs.readdir(temp);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!DOWNLOAD_DIR.test(name)) continue;
+    const dir = path.join(temp, name);
+    try {
+      const st = await fs.lstat(dir);
+      if (!st.isDirectory() || (uid !== undefined && st.uid !== uid)) continue;
+      await fs.rm(dir, { recursive: true, force: true });
+    } catch {
+      /* dossier d'un autre compte, ou déjà parti */
+    }
+  }
+}
+
+/** Empreinte SHA-256 d'un fichier relu du disque, par blocs ; `null` s'il ne se lit plus. */
+function fileSha256(file: string): string | null {
+  let fd: number;
+  try {
+    fd = openSync(file, 'r');
+  } catch {
+    return null;
+  }
+  try {
+    const hash = createHash('sha256');
+    const chunk = Buffer.allocUnsafe(1024 * 1024);
+    for (;;) {
+      const read = readSync(fd, chunk, 0, chunk.length, null);
+      if (read <= 0) break;
+      hash.update(chunk.subarray(0, read));
+    }
+    return hash.digest('hex');
+  } catch {
+    return null;
+  } finally {
+    closeSync(fd);
+  }
+}
 
 export async function fetchLatestReleaseInfo(repo: string): Promise<ReleaseInfo | null> {
   try {
@@ -70,7 +129,8 @@ async function download(url: string, dest: string, onProgress?: (p: DownloadProg
       done(null, chunk);
     },
   });
-  await pipeline(Readable.fromWeb(res.body as WebReadableStream<Uint8Array>), meter, createWriteStream(dest));
+  // `wx` : le fichier est créé ici, dans un dossier neuf ; un fichier ou un lien déjà là fait échouer l'écriture.
+  await pipeline(Readable.fromWeb(res.body as WebReadableStream<Uint8Array>), meter, createWriteStream(dest, { flags: 'wx' }));
   onProgress?.({ received, total: total || received });
   return hash.digest('hex');
 }
@@ -85,6 +145,8 @@ export async function applyInstallerUpdate(opts: {
   if (compareSemver(release.version, opts.current) <= 0) throw new Error('already_latest');
   const pick = pickInstallerAsset(release.assets, { platform: process.platform, arch: process.arch, appImage: !!process.env.APPIMAGE });
   if (!pick) throw new Error('no_installer');
+  // Le nom vient de la Release : un seul segment, sinon il désignerait un fichier hors du dossier de téléchargement.
+  if (!INSTALLER_NAME.test(pick.asset.name) || path.basename(pick.asset.name) !== pick.asset.name) throw new Error('no_installer');
   const sumsAsset = release.assets.find((a) => a.name === 'SHA256SUMS.txt');
   if (!sumsAsset) throw new Error('no_checksums');
   const sumsRes = await net.fetch(sumsAsset.url, { headers: { 'User-Agent': 'CANTO-Desk' }, redirect: 'follow', credentials: 'omit', signal: AbortSignal.timeout(30_000) });
@@ -106,13 +168,22 @@ export async function applyInstallerUpdate(opts: {
   else mainLog('warn', `aucune clé de publication embarquée : SHA256SUMS.txt de v${release.version} non vérifié par signature`);
   const expected = trust.sha256;
 
-  const dir = path.join(app.getPath('temp'), 'canto-update');
-  await fs.mkdir(dir, { recursive: true });
+  // Un dossier neuf par téléchargement, créé en 0700 sous un nom que personne ne devine : ni dossier ni lien posé d'avance.
+  const temp = app.getPath('temp');
+  await sweepDownloads(temp);
+  const dir = await fs.mkdtemp(path.join(temp, 'canto-update-'));
   const dest = path.join(dir, pick.asset.name);
+  const discard = () => fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   mainLog('info', `mise à jour v${opts.current} → v${release.version} : téléchargement de ${pick.asset.name}`);
-  const actual = await download(pick.asset.url, dest, opts.onProgress);
+  let actual: string;
+  try {
+    actual = await download(pick.asset.url, dest, opts.onProgress);
+  } catch (err) {
+    await discard();
+    throw err;
+  }
   if (actual !== expected) {
-    await fs.rm(dest, { force: true });
+    await discard();
     mainLog('error', `empreinte SHA-256 invalide pour ${pick.asset.name} (attendu ${expected}, obtenu ${actual})`);
     throw new Error('checksum_mismatch');
   }
@@ -120,13 +191,24 @@ export async function applyInstallerUpdate(opts: {
 
   switch (pick.kind) {
     case 'nsis':
-      pending = { kind: 'installer', file: dest };
+      // L'empreinte vérifiée suit l'installeur jusqu'à son lancement, qui la refait (`performPendingRestart`).
+      pending = { kind: 'installer', file: dest, sha256: expected };
       return { version: release.version, kind: pick.kind, restart: true, file: dest };
     case 'appimage': {
       const target = process.env.APPIMAGE;
-      if (!target) throw new Error('no_installer');
+      if (!target) {
+        await discard();
+        throw new Error('no_installer');
+      }
       const staged = `${target}.update`;
       await fs.copyFile(dest, staged);
+      await discard();
+      // L'empreinte est refaite sur la copie : c'est elle qui prend la place de l'AppImage et qui sera lancée.
+      if (fileSha256(staged) !== expected) {
+        await fs.rm(staged, { force: true });
+        mainLog('error', `${pick.asset.name} modifié entre sa vérification et sa mise en place : non installé`);
+        throw new Error('checksum_mismatch');
+      }
       chmodSync(staged, 0o755);
       renameSync(staged, target);
       pending = { kind: 'appimage', file: target };
@@ -140,11 +222,24 @@ export async function applyInstallerUpdate(opts: {
   }
 }
 
-/** Termine une mise à jour native : true si une relance est prise en charge ici. */
+/**
+ * Termine une mise à jour native : true si une relance est prise en charge ici. L'installeur Windows n'est lancé que si
+ * son empreinte, refaite à l'instant, est celle qui a été vérifiée ; sinon il est retiré, rien n'est lancé, le desk reste
+ * ouvert et l'erreur `installer_changed` remonte à l'appelant.
+ */
 export function performPendingRestart(): boolean {
   if (!pending) return false;
   const next = pending;
   pending = null;
+  if (next.kind === 'installer' && fileSha256(next.file) !== next.sha256) {
+    mainLog('error', `installeur ${path.basename(next.file)} modifié depuis sa vérification : non lancé`);
+    try {
+      rmSync(path.dirname(next.file), { recursive: true, force: true });
+    } catch {
+      /* déjà retiré */
+    }
+    throw new Error('installer_changed');
+  }
   app.releaseSingleInstanceLock();
   if (next.kind === 'installer') {
     // Installeur NSIS d'electron-builder : /S silencieux (même dossier), --updated, puis
