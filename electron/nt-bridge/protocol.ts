@@ -8,6 +8,12 @@ export const MAX_FRAME_BYTES = 256 * 1024;
 export const HEARTBEAT_STALE_MS = 4_000;
 export const HEARTBEAT_LOST_MS = 6_000;
 export const HISTORY_BAR_CAP = 50_000;
+/**
+ * Barres au plus par demande d'historique. La réponse de l'AddOn tient dans une seule trame : au-delà de
+ * `MAX_FRAME_BYTES`, `ws` ferme le lien (1009), les ordres en vol échouent et le kill switch n'a plus de destinataire
+ * jusqu'à la reconnexion. 2 000 barres font ≈ 190 Ko ; à 128 octets la barre, la trame reste sous le plafond.
+ */
+export const HISTORY_MAX_BARS = 2_000;
 export const PROTOCOL_VERSION = 1;
 
 export const CLOSE = {
@@ -479,6 +485,15 @@ export function validateSubscribe(p: Record<string, unknown>): { ok: true; req: 
     req.timeframe = timeframe;
   }
   return { ok: true, req };
+}
+
+/**
+ * Ramène une fenêtre d'historique à `HISTORY_MAX_BARS` barres au plus : `to` ne bouge pas, `from` avance, les barres les
+ * plus récentes restent. Une barre par unité, bornes comprises. Une fenêtre qui tient est rendue telle quelle.
+ */
+export function clampHistoryWindow(req: HistoryParams): HistoryParams {
+  const span = (HISTORY_MAX_BARS - 1) * req.timeframe * 60;
+  return req.to - req.from > span ? { ...req, from: req.to - span } : req;
 }
 
 /** Fenêtre d'historique : entiers en secondes, `0 ≤ from ≤ to ≤ HISTORY_MAX_SECONDS`. Des millisecondes sortent de la borne. */

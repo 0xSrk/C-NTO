@@ -10,7 +10,7 @@ import { resolveSymbol } from '@/engine/instruments';
 import { createPort, type MarketDataPort, type Nt8Transport } from '@/engine/marketdata';
 import { tr, useI18n } from '@/i18n';
 import { isNtContract, normalizeContract, ntContract, quarterlyMonth } from './ntContract';
-import { followNt, HISTORY_DAYS, mergeLiveBar, type NtFollow } from './ntFollow';
+import { followNt, HISTORY_DAYS, HISTORY_MAX_BARS, mergeLiveBar, type NtFollow } from './ntFollow';
 import s from './visual.module.css';
 
 export type FollowPhase = 'idle' | 'loading' | 'live' | 'failed';
@@ -56,6 +56,9 @@ export function followFailureText(failure: FollowFailure): string {
   const why = detail.trim() || '—';
   return tr(`Le pont NinjaTrader a refusé « ${contract} » : ${why}`, `The NinjaTrader bridge refused “${contract}”: ${why}`, `El puente NinjaTrader rechazó « ${contract} »: ${why}`);
 }
+
+/** La borne de l'historique, telle que chaque langue l'écrit : la fenêtre annoncée est celle qui est demandée. */
+const HISTORY_BARS = { fr: HISTORY_MAX_BARS.toLocaleString('fr-FR'), en: HISTORY_MAX_BARS.toLocaleString('en-US'), es: HISTORY_MAX_BARS.toLocaleString('es-ES') } as const;
 
 /** Source des barres à l'écran : le pont dès que Visual le suit, sinon celle de la série choisie. */
 export function shownSource(source: string, following: boolean): 'nt8' | 'demo' | 'csv' {
@@ -226,11 +229,15 @@ export function NtFollowPanel({ follow, disabled }: { follow: NtFollowState; dis
       ) : (
         <div className={s.desc}>
           {empty
-            ? tr(`NinjaTrader n’a rendu aucune barre sur ${HISTORY_DAYS} jours : le direct s’affichera ici.`, `NinjaTrader returned no bar over ${HISTORY_DAYS} days: live bars will show here.`, `NinjaTrader no devolvió ninguna barra en ${HISTORY_DAYS} días: el directo se mostrará aquí.`)
+            ? tr(
+                `NinjaTrader n’a rendu aucune barre sur la fenêtre demandée (${HISTORY_DAYS} jours, ${HISTORY_BARS.fr} barres au plus) : le direct s’affichera ici.`,
+                `NinjaTrader returned no bar over the requested window (${HISTORY_DAYS} days, ${HISTORY_BARS.en} bars at most): live bars will show here.`,
+                `NinjaTrader no devolvió ninguna barra en la ventana pedida (${HISTORY_DAYS} días, ${HISTORY_BARS.es} barras como máximo): el directo se mostrará aquí.`,
+              )
             : tr(
-                `Contrat complet, tel que NinjaTrader l’écrit (racine et échéance). ${HISTORY_DAYS} jours d’historique, puis le direct. Lecture seule.`,
-                `Full contract, as NinjaTrader writes it (root and expiry). ${HISTORY_DAYS} days of history, then live. Read only.`,
-                `Contrato completo, tal como lo escribe NinjaTrader (raíz y vencimiento). ${HISTORY_DAYS} días de histórico, luego el directo. Solo lectura.`,
+                `Contrat complet, tel que NinjaTrader l’écrit (racine et échéance). Jusqu’à ${HISTORY_DAYS} jours d’historique, ${HISTORY_BARS.fr} barres au plus, puis le direct. Lecture seule.`,
+                `Full contract, as NinjaTrader writes it (root and expiry). Up to ${HISTORY_DAYS} days of history, ${HISTORY_BARS.en} bars at most, then live. Read only.`,
+                `Contrato completo, tal como lo escribe NinjaTrader (raíz y vencimiento). Hasta ${HISTORY_DAYS} días de histórico, ${HISTORY_BARS.es} barras como máximo, luego el directo. Solo lectura.`,
               )}
         </div>
       )}

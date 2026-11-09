@@ -15,6 +15,7 @@ import {
   HISTORY_BAR_CAP,
   HISTORY_TIMEOUT_MS,
   MAX_FRAME_BYTES,
+  clampHistoryWindow,
   parseFrame,
   rpcError,
   rpcNotify,
@@ -387,13 +388,17 @@ export class NtBridgeServer {
     return results.filter((r) => r.ok).length;
   }
 
-  /** Fenêtre validée avant tout envoi : l'AddOn ne reçoit qu'une borne qu'il sait convertir. */
+  /**
+   * Fenêtre validée puis bornée avant tout envoi : l'AddOn ne reçoit qu'une borne qu'il sait convertir, et une fenêtre
+   * dont la réponse tient dans une trame (`clampHistoryWindow`), quelle que soit la source de la demande. Une réponse
+   * trop lourde fermait le lien, ordres en vol et kill switch compris.
+   */
   async history(raw: Record<string, unknown>): Promise<{ ok: true; bars: unknown[] } | { ok: false; detail: string }> {
     const parsed = validateHistory(raw);
     if (!parsed.ok) return { ok: false, detail: parsed.message };
     if (this.link !== 'live') return { ok: false, detail: 'aucune source live' };
     try {
-      const result = asRecord(await this.rpc('marketdata.history', parsed.req, HISTORY_TIMEOUT_MS));
+      const result = asRecord(await this.rpc('marketdata.history', clampHistoryWindow(parsed.req), HISTORY_TIMEOUT_MS));
       const bars = result && Array.isArray(result.bars) ? result.bars.slice(0, HISTORY_BAR_CAP) : [];
       return { ok: true, bars };
     } catch (err) {
@@ -490,9 +495,11 @@ export class NtBridgeServer {
       if (this.socket !== socket) return;
       if (this.link === 'live' || this.link === 'stale' || this.link === 'connecting') this.enterLost('socket fermé');
     });
-    socket.on('error', () => {
+    socket.on('error', (err) => {
       if (this.socket !== socket) return;
-      this.enterLost('erreur socket');
+      // Une trame au-delà de `MAX_FRAME_BYTES` : `ws` ferme en 1009. Le journal dit cette cause, pas « erreur socket ».
+      const tooBig = (err as { code?: unknown }).code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH';
+      this.enterLost(tooBig ? `trame trop grande, plus de ${MAX_FRAME_BYTES / 1024} Ko` : 'erreur socket');
     });
   }
 
