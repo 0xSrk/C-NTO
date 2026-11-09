@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Avis de sécurité du runtime livré (SEC1.8).
  *
