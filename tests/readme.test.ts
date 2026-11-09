@@ -112,19 +112,37 @@ describe('README', () => {
     expect(script).toContain("await shot(page, out, 'fiche.png');");
   });
 
-  it("R3.10a le README suit la 3.10.0 : la note sur main tombe, « What's new » et l'historique passent à la 3.10.0, la frise se dit timeline en anglais", () => {
-    expect(version).toBe('3.10.0');
+  it("R3.10a le README suit la 3.10.0 : la note sur main tombe, l'historique porte la 3.10.0, la frise se dit timeline en anglais", () => {
+    // R3.10.1a « What's new » suit la dernière version (test R3.10.1a) ; la 3.10.0 garde son ancre dans l'historique.
     // Les installeurs portent désormais ce que la section décrit : la note qui l'annonçait pour la prochaine version tombe.
     expect(readme).not.toContain('show the desk on `main`');
-    // « What's new » à la 3.10.0, son ancre ; la 3.9.0 garde la sienne dans l'historique, sous la ligne 3.10.0.
-    expect(readme).toContain('<a id="whats-new-in-3100"></a>');
-    expect(readme).toContain("## What's new in 3.10.0");
+    // La 3.10.0 et son ancre dans l'historique ; la 3.9.0 garde la sienne, sous la ligne 3.10.0.
+    expect(readme).toContain('<a id="whats-new-in-3100"></a>**3.10.0**');
     const history = readme.slice(readme.indexOf('<a id="versions"></a>'), readme.indexOf('<a id="disclaimer"></a>'));
-    expect(history.indexOf('- **3.10.0** — ')).toBeGreaterThan(-1);
-    expect(history.indexOf('- **3.10.0** — ')).toBeLessThan(history.indexOf('<a id="whats-new-in-390"></a>**3.9.0**'));
+    expect(history.indexOf('**3.10.0** — ')).toBeGreaterThan(-1);
+    expect(history.indexOf('**3.10.0** — ')).toBeLessThan(history.indexOf('<a id="whats-new-in-390"></a>**3.9.0**'));
     expect(history).toContain('(2026-11-07)');
     // En anglais, la frise est la timeline, comme dans l'interface (« CME day timeline ») ; « Fiche et Frise » reste un nom.
     expect(readme).not.toMatch(/\bfrise\b/);
     expect(readme).toContain('**The timeline and the log.**');
+  });
+
+  it("R3.10.1a le README suit la 3.10.1 : « What's new » et l'historique passent au correctif, la 3.10.0 garde son ancre, l'AddOn ne change pas", () => {
+    expect(version).toBe('3.10.1');
+    expect(readme).toContain('<a id="whats-new-in-3101"></a>');
+    expect(readme).toContain("## What's new in 3.10.1");
+    expect(readme).not.toContain("## What's new in 3.10.0");
+    const news = readme.slice(readme.indexOf("## What's new in 3.10.1"), readme.indexOf('<a id="install"></a>'));
+    expect(news).toContain('**v3.10.1 · 2026-11-09.**');
+    // Un correctif : cinq points, chacun sous son titre, et l'AddOn tel qu'il était.
+    expect([...news.matchAll(/^- \*\*[^*]+\.\*\* /gm)]).toHaveLength(5);
+    expect(news).toContain('NinjaTrader AddOn **2.2.0** is unchanged.');
+    // L'historique : la 3.10.1 en tête, au-dessus de la 3.10.0, chacune une fois.
+    const history = readme.slice(readme.indexOf('<a id="versions"></a>'), readme.indexOf('<a id="disclaimer"></a>'));
+    expect(history.match(/^- \*\*3\.10\.1\*\* — /gm)).toHaveLength(1);
+    expect(history.indexOf('- **3.10.1** — ')).toBeLessThan(history.indexOf('<a id="whats-new-in-3100"></a>**3.10.0**'));
+    expect(history).toContain('(2026-11-09)');
+    // Plus aucun lien ni nom d'installeur de la version précédente.
+    expect(readme).not.toMatch(/releases\/(?:tag|download)\/v3\.10\.0/);
   });
 });

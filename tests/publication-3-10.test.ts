@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { compareSemver } from '../electron/semver';
 
 /**
  * R3.10b — la publication de la 3.10.0 se consigne dans `docs/AUDIT.md`, après les derniers réglages de l'ADMIN : ce
@@ -19,8 +20,9 @@ const reglages = sectionOf('\n## Système 5 — derniers réglages de l’ADMIN 
 const row = (id: string) => publication.text.split('\n').filter((line) => line.startsWith(`| ${id} |`));
 
 describe('R3.10b · la publication de la 3.10.0 se consigne', () => {
-  it('la section suit les derniers réglages de l’ADMIN, à la version de package.json, et dit ce que main a reçu', () => {
-    expect(version).toBe('3.10.0');
+  it('la section suit les derniers réglages de l’ADMIN, et dit ce que main a reçu', () => {
+    // R3.10.1a la version de package.json a suivi : cette section reste celle de la 3.10.0, que le desk ne redescend pas.
+    expect(compareSemver(version, '3.10.0')).toBeGreaterThanOrEqual(0);
     expect(reglages.start).toBeGreaterThan(-1);
     expect(publication.start).toBeGreaterThan(reglages.start);
     for (const pr of ['#139', '#143', '#144', '#145']) expect(publication.text, pr).toContain(pr);

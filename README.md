@@ -2,7 +2,7 @@
 
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.10.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.10.1 · DESK OUTPUT`**
 
 # CΛNTO
 
@@ -19,7 +19,7 @@ One window on your machine. Your data stays there, unless you send it to a cloud
 
 <br/><br/>
 
-[![Version](https://img.shields.io/badge/version-3.10.0-CCB066?style=flat-square)](#versions)
+[![Version](https://img.shields.io/badge/version-3.10.1-CCB066?style=flat-square)](#versions)
 [![Tests](https://img.shields.io/badge/tests-3167%20passed-000000?style=flat-square)](tests)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-000000?style=flat-square)](LICENSE)
 [![NinjaTrader](https://img.shields.io/badge/NinjaTrader-8-000000?style=flat-square)](docs/PONT-NINJATRADER.md)
@@ -89,20 +89,20 @@ It reads the whole desk and your rules, prepares the brief and the debrief, and 
 ---
 
 <a id="whats-new"></a>
-<a id="whats-new-in-3100"></a>
+<a id="whats-new-in-3101"></a>
 
-## What's new in 3.10.0
+## What's new in 3.10.1
 
 > [!NOTE]
-> **v3.10.0 · 2026-11-07.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish). The chassis changes more than in any release since 3.8.0: [The desk](#the-desk) and its plates show it.
+> **v3.10.1 · 2026-11-09.** The same five points open the Release notes (French and English) and the version journal inside the desk (French, English and Spanish). A corrective release: the desk at rest looks the same; what changes is how it moves, and what it refuses.
 
-- **Every object has its record.** Records and the timeline: every object of the desk — session, trade, catalyst, account, instrument, note, strategy, agent proposal — opens its record in a third column, covering nothing: its properties, its links and their author, its provenance, its activity, “Around…”. Ctrl+J opens the omnibar, Backspace undoes the last jump, F6 moves from one zone to the next, “?” shows every shortcut.
-- **The day’s line and the timeline.** The status bar becomes the day’s line: the version first, then the bridge, the age of its reading and its latency, the day’s bounds — the loss on its limit, trades on their maximum, the dated margin — and the answer of time, which unfolds the timeline: session, catalysts, windows and desk across the CME day, with a keyboard cursor. New York stays; Tokyo and Paris give way.
-- **A closed day stays closed.** Closed day: once the day loss is reached, the CME day stays closed to the openings the agent proposes until the next one, even if a gain brings it back under the limit. The main process holds its own lock; the bar, the timeline and the agent’s refusal say “day closed since hh:mm ET”. A risk reduction always goes through.
-- **The rail: gates and connected accounts.** The rail: under the cartouches, the four gates the main process guards, read-only, then the launch log; at the foot, the accounts connected to the bridge, a micrograph with a green lamp and their name, stacked, nothing without an account. Each line opens the account record: its ΟΡΟΣ bounds, the agent’s guard as a mirror, the tracked plan.
-- **Proposal cards, tool traces, and gold for what you hold.** AI Agent: each proposal has its card — the order as the dialog shows it, the guard’s twelve outcomes, the 45 s bar — and each answer the trace of its tools. Gold now says only what you hold: now, the open object, the decision waiting, the LED.
+- **Polished, not redrawn.** Motion and light: the desk at rest does not change; the way it gets there, and leaves, is polished. Windows fade in and out; the timeline, the log and the omnibar leave the way they came; whatever can be clicked lights up on hover, everywhere, in one step, with no jump; the chassis no longer redraws every second — only the bridge’s age and the dialog’s bar tick.
+- **The bridge keeps its link.** NinjaTrader bridge: a page open in any browser on the machine can no longer take the bridge’s authentication slots and keep the AddOn out, kill switch included; a history request is bounded to 2,000 bars — five days of 1-minute bars closed the link, orders in flight included; the interface’s direct order channel, which nothing used, is removed.
+- **The Copier arms on a known state.** Copier: replication no longer arms without an account state from the bridge less than ten seconds old, covering the master and every follower; otherwise the desk says what is missing. Armed without it, the exit of a master already in position became an opening on the follower.
+- **A calendar that says where it ends.** Calendar: the NFP and CPI dates of January to March 2027, published by the BLS, are embedded. Past the last known date, the Calendar says it no longer covers and estimates NFP and CPI by rule, marked ≈; the Copier blackout and the agent’s catalyst guard read these dates.
+- **A verified installer, a backup that restores.** Updates, backups, hardening: the installer that runs is the one that was verified, its hash redone right before the desk launches it; an encrypted backup restores on the machine that wrote it; the journal always writes an execution from the bridge, even past 1,000 sessions; Electron 43.8.7; a link out of the desk shows its real host before it opens; an AI provider silent for 60 s is cut; the interface writes only the dated vault copy, in the folder chosen for it.
 
-NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.10.0](https://github.com/0xSrk/C-NTO/releases/tag/v3.10.0).
+NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.10.1](https://github.com/0xSrk/C-NTO/releases/tag/v3.10.1).
 
 ---
 
@@ -114,9 +114,9 @@ NinjaTrader AddOn **2.2.0** is unchanged. Full notes: [Release v3.10.0](https://
 
 | Platform | Download | Runs on |
 |---|---|---|
-| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
-| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-win-arm64-portable.exe) | Windows 10 and 11 |
-| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.0/CANTO-3.10.0-linux-arm64.deb) | x64 and ARM64 |
+| **macOS** | [**Universal DMG**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-mac-universal.dmg) · [zip](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-mac-universal.zip) | macOS 12 or later, Apple silicon and Intel |
+| **Windows** | [**x64 setup**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-win-x64-setup.exe) · [ARM64 setup](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-win-arm64-setup.exe) · [x64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-win-x64-portable.exe) · [ARM64 portable](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-win-arm64-portable.exe) | Windows 10 and 11 |
+| **Linux** | [**AppImage x64**](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-linux-x86_64.AppImage) · [deb amd64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-linux-amd64.deb) · [AppImage ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-linux-arm64.AppImage) · [deb ARM64](https://github.com/0xSrk/C-NTO/releases/download/v3.10.1/CANTO-3.10.1-linux-arm64.deb) | x64 and ARM64 |
 
 The installers need neither Node.js nor a clone of the repository. Each Release lists every file in `SHA256SUMS.txt`, signed with the Lab's Ed25519 key: the desk's built-in update refuses an installer whose signature is missing, foreign, or bound to another version ([docs/PUBLICATION.md](docs/PUBLICATION.md)).
 
@@ -141,7 +141,7 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-1. Run `CANTO-3.10.0-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.10.0-win-x64-portable.exe`.
+1. Run `CANTO-3.10.1-win-x64-setup.exe` (`arm64` on Windows on ARM), choose the folder, then open **CΛNTO** from the Start menu. No-install variant: `CANTO-3.10.1-win-x64-portable.exe`.
 2. NinjaTrader 8 — real time, AddOn, CSV folder: [the bridge](#ninjatrader-8-bridge).
 
 **Nothing opens after a click?** CΛNTO runs a single instance: a second click brings the open window to the front. Every start is logged to `%APPDATA%\CΛNTO\logs\main.log`, and a start-up error is shown in a dialog rather than closing silently. If that log is not even created, Windows stopped the executable before it ran: the installer is not code-signed, so **Smart App Control** or an antivirus can block it. Check *Windows Security › App & browser control*, or use the source install below.
@@ -153,8 +153,8 @@ NinjaTrader 8 runs on Windows. The AddOn writes its CSV files there; the macOS d
 
 <br/>
 
-- **AppImage** (no system install): `chmod +x CANTO-3.10.0-linux-x86_64.AppImage && ./CANTO-3.10.0-linux-x86_64.AppImage`
-- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.10.0-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
+- **AppImage** (no system install): `chmod +x CANTO-3.10.1-linux-x86_64.AppImage && ./CANTO-3.10.1-linux-x86_64.AppImage`
+- **Debian / Ubuntu**: `sudo apt install ./CANTO-3.10.1-linux-amd64.deb`, then launch `canto` or **CΛNTO** from the menu.
 - **NinjaTrader**: as on macOS, the Linux desk imports the CSV files the AddOn writes on Windows ([the bridge](#ninjatrader-8-bridge)); real time, orders and the Copier need the desk on the NinjaTrader machine.
 
 Without a GPU (remote session, no `/dev/dri`), Chromium can leave the window black and quit. The desk then switches to software rendering on its own, including at the next launch. Force it with `CANTO_DISABLE_GPU=1`.
@@ -793,7 +793,8 @@ Installers land in `release/`, each built on its own OS.
 
 The journal inside the desk, opened from the version at the bottom left of the status bar, lists every release in French, English and Spanish.
 
-- **3.10.0** — System 5 « Fiche et Frise »: every object opens its record in a third column; the status bar becomes the day’s line, the version first, and unfolds the timeline; a CME day closed to the agent’s openings once the day loss is reached, held by the main process; the rail’s gates and its connected accounts, lamp lit green; proposal cards and tool traces in AI Agent. (2026-11-07)
+- **3.10.1** — Corrective release. Motion and light polished, the desk at rest unchanged. The NinjaTrader bridge refuses web pages and bounds a history request to 2,000 bars; the Copier arms only on a fresh account state from the bridge; the BLS dates for January to March 2027 are embedded, and past the last known date NFP and CPI are estimated by rule and read by the guards; the verified installer is the one that runs, an encrypted backup restores, a link out of the desk shows its real host, Electron 43.8.7. (2026-11-09)
+- <a id="whats-new-in-3100"></a>**3.10.0** — System 5 « Fiche et Frise »: every object opens its record in a third column; the status bar becomes the day’s line, the version first, and unfolds the timeline; a CME day closed to the agent’s openings once the day loss is reached, held by the main process; the rail’s gates and its connected accounts, lamp lit green; proposal cards and tool traces in AI Agent. (2026-11-07)
 - <a id="whats-new-in-390"></a>**3.9.0** — Quant training on the Lab’s desk: the cloud agent follows the quantmemo.com courses and writes a quant knowledge base, in a memory store, one capped session at a time; the daily analyst reads it read-only; report sources stay on the domains the agent can read. The agent’s order guard reads the bridge’s open P&L the way the main process does. (2026-11-04)
 - <a id="whats-new-in-380"></a>**3.8.0** — Visual system 4.1: a lighter desk, the rail and the account in cartouches, the secondary tools in an Options menu, hover as a dim light; the lock opens by a circuit; AI Agent opens on the Lab’s reports; English and Spanish labels and decimals; updates without cookies. (2026-11-01)
 - <a id="whats-new-in-370"></a>**3.7.0** — Not published on its own: shipped in 3.8.0. Visual system 4.0 « ΟΡΟΣ »: the Lab's night, ivory and gold; HUD plates bound to the desk's real state, cartouches and Ligne V2 components; the Horizon seal at start-up and on the lock; the status bar in the chassis black, signed with an eleven-bar code between braces; the AUBE launcher rebuilt around the dawn on the horizon. The kill-switch band shows even when the AddOn is not connected; DOMPurify 3.4.17. (2026-10-26)
@@ -870,6 +871,6 @@ A model reached through an API and run as a service, a desk fitted to one trader
 <div align="center">
 <br/>
 
-**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.10.0 · DESK OUTPUT`**
+**`SIΞRRΛSKΛ—LAB · CΛNTO · ARTEFACT 002 · v3.10.1 · DESK OUTPUT`**
 
 </div>
