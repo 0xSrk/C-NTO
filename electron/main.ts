@@ -208,8 +208,11 @@ let cryptoRuntime: CryptoRuntime | null = null;
 /** Agent cloud (onglet 06 · AGT, Managed Agents) : relève des rapports, créé dans `app.whenReady`. */
 let agentCloud: AgentCloudHost | null = null;
 let updateBusy = false;
-/** Dossiers accordés par un dialogue système : seuls ceux-là sont accessibles en écriture / surveillance. */
-const grants = new FolderGrants(gpuDir);
+/**
+ * Dossiers accordés : en écriture par un dialogue système, en surveillance par un dialogue ou par le dossier par défaut
+ * du pont. Deux listes (SEC2.5) : le dossier du pont, où vit `bridge.json`, se surveille et ne s'écrit pas.
+ */
+const grants = new FolderGrants(gpuDir, { legacyWatchOnly: () => [defaultNinjaExportFolder(app.getPath('documents'))] });
 
 const isString = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
 
@@ -875,18 +878,18 @@ ipcMain.handle('files:pick-folder', async (e) => {
   if (!trusted(e) || !win) return null;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: ui('Dossier de sauvegarde du coffre', 'Vault backup folder', 'Carpeta de copia de la caja') });
   const picked = canceled || filePaths.length === 0 ? null : filePaths[0];
-  return picked ? grants.grant(picked) : null;
+  return picked ? grants.grant(picked, 'write') : null;
 });
 
 /**
- * Écriture bornée : uniquement dans un dossier accordé (persisté dans userData) et sous le seul nom
- * `canto-vault-AAAA-MM-JJ.json` (`isSafeBackupName`). Un renderer compromis ne peut donc écrire ni un
- * fichier arbitraire (profil shell, dossier de démarrage…), ni le `bridge.json` de l'AddOn dans le
- * dossier du pont, que `bridge:default-folder` accorde sans dialogue.
+ * Écriture bornée : uniquement dans un dossier accordé en écriture, par le dialogue de `files:pick-folder` (persisté
+ * dans userData), et sous le seul nom `canto-vault-AAAA-MM-JJ.json` (`isSafeBackupName`). Un renderer compromis ne peut
+ * donc écrire ni un fichier arbitraire (profil shell, dossier de démarrage…), ni quoi que ce soit dans le dossier du
+ * pont, que `bridge:default-folder` accorde sans dialogue, pour la surveillance seule : `bridge.json` y vit.
  */
 ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown, text: unknown, encrypt: unknown) => {
   if (!trusted(e) || !isString(folder, 1024) || !isSafeBackupName(name) || !isString(text, MAX_TEXT)) return { ok: false, encrypted: false, reason: 'invalid' };
-  if (!grants.has(folder)) return { ok: false, encrypted: false, reason: 'not_granted' };
+  if (!grants.has(folder, 'write')) return { ok: false, encrypted: false, reason: 'not_granted' };
   // Scellée par le trousseau du système quand il est là ; sinon écrite en clair, et le renderer le dit au trader.
   const sealed = encrypt === true ? sealVault(text, vaultKeychain) : null;
   const body = sealed ?? text;
@@ -1210,7 +1213,7 @@ ipcMain.handle('bridge:configure', (e, cfg: unknown) => {
   const c = cfg as { folder?: unknown; enabled?: unknown };
   // Le dossier surveillé ne peut venir que d'un dialogue (`bridge:pick-folder`) ou du dossier
   // par défaut : le renderer ne pointe pas le lecteur de CSV vers un chemin de son choix.
-  const folder = c.folder === null ? null : isString(c.folder, 1024) && grants.has(c.folder) ? c.folder : undefined;
+  const folder = c.folder === null ? null : isString(c.folder, 1024) && grants.has(c.folder, 'watch') ? c.folder : undefined;
   return bridge.configure({
     folder,
     enabled: typeof c.enabled === 'boolean' ? c.enabled : undefined,
@@ -1220,13 +1223,14 @@ ipcMain.handle('bridge:pick-folder', async (e) => {
   if (!trusted(e) || !win) return null;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: ui('Dossier surveillé par le pont NinjaTrader', 'Folder watched by the NinjaTrader bridge', 'Carpeta vigilada por el puente NinjaTrader') });
   const picked = canceled || filePaths.length === 0 ? null : filePaths[0];
-  return picked ? grants.grant(picked) : null;
+  return picked ? grants.grant(picked, 'watch') : null;
 });
 ipcMain.handle('bridge:default-folder', async (e) => {
   if (!trusted(e)) return null;
   const folder = defaultNinjaExportFolder(app.getPath('documents'));
   await fs.mkdir(folder, { recursive: true });
-  return grants.grant(folder);
+  // Surveillance seule : ce dossier entre sans dialogue, et la garde propre de l'AddOn y vit.
+  return grants.grant(folder, 'watch');
 });
 ipcMain.handle('bridge:rescan', (e) => (trusted(e) && bridge ? bridge.rescan() : bridge?.status() ?? null));
 ipcMain.on('bridge:result', (e, fileId: unknown, result: unknown) => {

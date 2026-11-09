@@ -1,7 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { defaultNinjaExportFolder } from '../electron/bridge-folder';
 import { FolderGrants, GRANTS_FILE, isSafeBackupName } from '../electron/folder-grants';
 
 const tmp: string[] = [];
@@ -18,38 +19,46 @@ describe('dossiers autorisés (écriture coffre, pont)', () => {
   it('refuse tout dossier tant qu’un dialogue ne l’a pas accordé', () => {
     const g = new FolderGrants(null);
     const target = path.resolve(os.homedir(), 'Documents');
-    expect(g.has(target)).toBe(false);
-    expect(g.has(42)).toBe(false);
-    g.grant(target);
-    expect(g.has(target)).toBe(true);
+    expect(g.has(target, 'write')).toBe(false);
+    expect(g.has(target, 'watch')).toBe(false);
+    expect(g.has(42, 'write')).toBe(false);
+    g.grant(target, 'write');
+    expect(g.has(target, 'write')).toBe(true);
   });
 
   it('refuse un chemin relatif et normalise les `..`', () => {
     const g = new FolderGrants(null);
-    expect(g.grant('relative/path')).toBeNull();
+    expect(g.grant('relative/path', 'write')).toBeNull();
     const base = path.resolve(os.homedir(), 'a', 'b');
-    g.grant(base);
-    expect(g.has(path.join(base, 'c', '..'))).toBe(true);
-    expect(g.has(path.join(base, '..'))).toBe(false);
+    g.grant(base, 'write');
+    expect(g.has(path.join(base, 'c', '..'), 'write')).toBe(true);
+    expect(g.has(path.join(base, '..'), 'write')).toBe(false);
   });
 
   it('persiste les octrois dans userData et les relit', () => {
     const dir = scratch();
     const g = new FolderGrants(dir);
     const target = path.resolve(dir, 'backup');
-    g.grant(target);
-    const raw = JSON.parse(readFileSync(path.join(dir, GRANTS_FILE), 'utf8')) as { folders: string[] };
-    expect(raw.folders).toEqual([target]);
+    const watched = path.resolve(dir, 'pont');
+    g.grant(target, 'write');
+    g.grant(watched, 'watch');
+    const raw = JSON.parse(readFileSync(path.join(dir, GRANTS_FILE), 'utf8')) as Record<string, unknown>;
+    expect(raw).toEqual({ write: [target], watch: [watched] });
     const again = new FolderGrants(dir);
-    expect(again.has(target)).toBe(true);
+    expect(again.has(target, 'write')).toBe(true);
+    expect(again.has(target, 'watch')).toBe(false);
+    expect(again.has(watched, 'watch')).toBe(true);
+    expect(again.has(watched, 'write')).toBe(false);
   });
 
-  it('borne la liste à 16 entrées (les plus anciennes sortent)', () => {
+  it('borne chaque liste à 16 entrées (les plus anciennes sortent)', () => {
     const g = new FolderGrants(null);
-    for (let i = 0; i < 20; i++) g.grant(path.resolve(os.homedir(), `f${i}`));
-    expect(g.list()).toHaveLength(16);
-    expect(g.has(path.resolve(os.homedir(), 'f0'))).toBe(false);
-    expect(g.has(path.resolve(os.homedir(), 'f19'))).toBe(true);
+    for (let i = 0; i < 20; i++) g.grant(path.resolve(os.homedir(), `f${i}`), 'write');
+    g.grant(path.resolve(os.homedir(), 'pont'), 'watch');
+    expect(g.list('write')).toHaveLength(16);
+    expect(g.list('watch')).toEqual([path.resolve(os.homedir(), 'pont')]);
+    expect(g.has(path.resolve(os.homedir(), 'f0'), 'write')).toBe(false);
+    expect(g.has(path.resolve(os.homedir(), 'f19'), 'write')).toBe(true);
   });
 
   it('n’accepte qu’un nom de sauvegarde sûr', () => {
@@ -87,5 +96,96 @@ describe('dossiers autorisés (écriture coffre, pont)', () => {
     // Le process principal borne l'écriture par ce contrôle, avant l'octroi du dossier.
     const main = read('electron/main.ts');
     expect(main).toMatch(/ipcMain\.handle\('files:write-in-folder'[\s\S]{0,200}!isSafeBackupName\(name\)/);
+  });
+});
+
+/**
+ * SEC2.5 — écrire et surveiller sont deux octrois. Une seule liste servait aux deux : le dossier du pont, accordé sans
+ * dialogue par `bridge:default-folder` et où vit `bridge.json`, la garde propre de l'AddOn, était du même coup
+ * inscriptible par `files:write-in-folder`. SEC1.3 y fermait l'écriture de `bridge.json` par le nom ; le dossier
+ * lui-même n'est plus inscriptible.
+ */
+describe('SEC2.5 écrire et surveiller sont deux octrois', () => {
+  const documents = path.resolve(os.homedir(), 'Documents');
+  const bridgeFolder = defaultNinjaExportFolder(documents);
+
+  it('le dossier surveillé n’est pas inscriptible, le dossier de sauvegarde n’est pas surveillable', () => {
+    const g = new FolderGrants(null);
+    const backup = path.resolve(os.homedir(), 'Sauvegardes');
+    g.grant(bridgeFolder, 'watch');
+    g.grant(backup, 'write');
+    expect(g.has(bridgeFolder, 'watch')).toBe(true);
+    expect(g.has(bridgeFolder, 'write')).toBe(false);
+    expect(g.has(backup, 'write')).toBe(true);
+    expect(g.has(backup, 'watch')).toBe(false);
+    // Le même dossier choisi dans les deux dialogues porte les deux droits : c'est le trader qui l'a voulu.
+    g.grant(backup, 'watch');
+    expect(g.has(backup, 'write')).toBe(true);
+    expect(g.has(backup, 'watch')).toBe(true);
+  });
+
+  it('un fichier d’avant la séparation : le dossier par défaut du pont n’est plus que surveillé, les autres gardent leurs deux droits', () => {
+    const dir = scratch();
+    const backup = path.resolve(dir, 'backup');
+    const picked = path.resolve(dir, 'pont-choisi');
+    writeFileSync(path.join(dir, GRANTS_FILE), `${JSON.stringify({ folders: [backup, bridgeFolder, picked] })}\n`, 'utf8');
+    const g = new FolderGrants(dir, { legacyWatchOnly: () => [bridgeFolder] });
+    expect(g.has(bridgeFolder, 'watch')).toBe(true);
+    expect(g.has(bridgeFolder, 'write')).toBe(false);
+    // Rien ne dit par quel dialogue ces deux-là étaient entrés : la sauvegarde quotidienne ne casse pas.
+    for (const folder of [backup, picked]) {
+      expect(g.has(folder, 'write'), folder).toBe(true);
+      expect(g.has(folder, 'watch'), folder).toBe(true);
+    }
+    // Rangé une fois, écrit au nouveau format : la lecture suivante n'a plus besoin de la règle.
+    const raw = JSON.parse(readFileSync(path.join(dir, GRANTS_FILE), 'utf8')) as Record<string, unknown>;
+    expect(raw).toEqual({ write: [backup, picked], watch: [backup, bridgeFolder, picked] });
+    const again = new FolderGrants(dir);
+    expect(again.has(bridgeFolder, 'write')).toBe(false);
+    expect(again.has(backup, 'write')).toBe(true);
+  });
+
+  it('un fichier d’avant la séparation, sans dossier par défaut connu : rien n’est perdu, rien ne lève', () => {
+    const dir = scratch();
+    const backup = path.resolve(dir, 'backup');
+    writeFileSync(path.join(dir, GRANTS_FILE), `${JSON.stringify({ folders: [backup, 'relatif', 42] })}\n`, 'utf8');
+    const g = new FolderGrants(dir, {
+      legacyWatchOnly: () => {
+        throw new Error('documents introuvable');
+      },
+    });
+    expect(g.has(backup, 'write')).toBe(true);
+    expect(g.list('watch')).toEqual([backup]);
+  });
+
+  it('un fichier illisible ou d’une autre forme n’accorde rien', () => {
+    const dir = scratch();
+    for (const body of ['{', '[]', '{"write":"/tmp","watch":7}', '{"folders":"/tmp"}']) {
+      writeFileSync(path.join(dir, GRANTS_FILE), body, 'utf8');
+      const g = new FolderGrants(dir);
+      expect(g.list('write'), body).toEqual([]);
+      expect(g.list('watch'), body).toEqual([]);
+    }
+  });
+
+  it('le process principal : l’écriture demande un octroi d’écriture, le pont un octroi de surveillance', () => {
+    const main = readFileSync('electron/main.ts', 'utf8').replace(/\r\n/g, '\n');
+    const handler = (channel: string) => {
+      const start = main.indexOf(`ipcMain.handle('${channel}'`);
+      expect(start, channel).toBeGreaterThan(-1);
+      return main.slice(start, main.indexOf('\n});', start));
+    };
+    expect(handler('files:pick-folder')).toContain("grants.grant(picked, 'write')");
+    expect(handler('files:write-in-folder')).toContain("if (!grants.has(folder, 'write')) return { ok: false, encrypted: false, reason: 'not_granted' };");
+    expect(handler('bridge:pick-folder')).toContain("grants.grant(picked, 'watch')");
+    expect(handler('bridge:default-folder')).toContain("grants.grant(folder, 'watch')");
+    expect(handler('bridge:configure')).toContain("grants.has(c.folder, 'watch')");
+    // Aucun octroi ni contrôle sans son usage, et un seul point d'entrée en écriture : le dialogue de sauvegarde.
+    const calls = [...main.matchAll(/grants\.(?:grant|has)\(([^)]*)\)/g)].map((m) => m[1]);
+    expect(calls).toHaveLength(5);
+    for (const args of calls) expect(args).toMatch(/, '(?:write|watch)'$/);
+    expect([...main.matchAll(/grants\.grant\([^)]*'write'\)/g)]).toHaveLength(1);
+    // Le dossier par défaut du pont, seul octroi sans dialogue, est celui qu'un ancien fichier ne rend que surveillable.
+    expect(main).toContain("new FolderGrants(gpuDir, { legacyWatchOnly: () => [defaultNinjaExportFolder(app.getPath('documents'))] })");
   });
 });
