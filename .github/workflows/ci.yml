@@ -43,6 +43,10 @@ jobs:
             exit "$code"
           done
           exit 1
+      - name: Avis de sécurité (runtime livré)
+        # Electron est rangé parmi les devDependencies, qu'electron-builder exige : `--omit=dev` ne le voit pas, alors que
+        # c'est lui, Chromium et Node, qui part dans chaque installeur. Un avis haut ou critique arrête la CI.
+        run: node scripts/audit-runtime.mjs
       - run: npm run typecheck
       - run: npm test
         # Un fichier de test qui ne se charge jamais laissait le job tourner jusqu'aux six heures de GitHub, puis
