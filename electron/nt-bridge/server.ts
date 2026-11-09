@@ -81,6 +81,8 @@ export class ManualClock implements BridgeClock {
 export const AUTH_TIMEOUT_MS = 5_000;
 /** Connexions en attente de preuve : au-delà, refusées (un client local ne peut pas saturer le pont). */
 export const MAX_PENDING_AUTH = 4;
+/** Écart minimal entre deux lignes de journal sur les connexions de navigateur refusées. */
+export const BROWSER_REFUSAL_LOG_MS = 60_000;
 const HEX64 = /^[0-9a-f]{64}$/;
 
 /**
@@ -177,6 +179,9 @@ export class NtBridgeServer {
   private cancelStale: (() => void) | null = null;
   private cancelLost: (() => void) | null = null;
   private beatSamples: number[] = [];
+  /** Connexions de navigateur (en-tête `Origin`) refusées depuis le démarrage, et l'instant de la dernière ligne écrite. */
+  private browserRefused = 0;
+  private browserRefusedLoggedAt: number | null = null;
   private boundPort = 0;
   private readonly requestedPort: number;
   private readonly onExecution?: (payload: ExecutionPayload) => void;
@@ -202,7 +207,19 @@ export class NtBridgeServer {
 
   async start(): Promise<number> {
     if (this.wss) return this.boundPort;
-    const wss = new WebSocketServer({ host: '127.0.0.1', port: this.requestedPort, maxPayload: MAX_FRAME_BYTES });
+    const wss = new WebSocketServer({
+      host: '127.0.0.1',
+      port: this.requestedPort,
+      maxPayload: MAX_FRAME_BYTES,
+      // Un navigateur envoie toujours `Origin` sur une poignée de main WebSocket ; l'AddOn (`ClientWebSocket`) n'en envoie
+      // pas. Sans ce refus, une page ouverte dans n'importe quel navigateur du poste occupait les places d'authentification
+      // et tenait l'AddOn dehors, kill switch compris. Refusée avant toute place prise, quel que soit le jeton présenté.
+      verifyClient: ({ req }: { req: IncomingMessage }, done: (ok: boolean, code?: number, message?: string) => void) => {
+        if (!req.headers.origin) return done(true);
+        this.noteBrowserRefused();
+        done(false, 403, 'Forbidden');
+      },
+    });
     this.wss = wss;
     await new Promise<void>((resolve, reject) => {
       wss.once('listening', () => resolve());
@@ -382,6 +399,18 @@ export class NtBridgeServer {
     } catch (err) {
       return { ok: false, detail: err instanceof Error ? err.message : 'historique impossible' };
     }
+  }
+
+  /**
+   * Une connexion de navigateur refusée : une ligne au journal, puis au plus une par minute avec le compte. L'origine
+   * présentée n'y entre pas (la page la choisit) : une page qui insiste ne remplit ni n'écrit le journal.
+   */
+  private noteBrowserRefused(): void {
+    this.browserRefused += 1;
+    const now = this.clock.now();
+    if (this.browserRefusedLoggedAt !== null && now - this.browserRefusedLoggedAt < BROWSER_REFUSAL_LOG_MS) return;
+    this.browserRefusedLoggedAt = now;
+    this.log(`connexion refusée : en-tête Origin (navigateur) · ${this.browserRefused} depuis le démarrage`);
   }
 
   private onConnection(socket: WebSocket, req: IncomingMessage): void {
