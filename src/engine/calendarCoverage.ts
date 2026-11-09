@@ -1,9 +1,10 @@
 /**
  * Couverture du calendrier officiel (SEC2.2).
  *
- * Le rapport emploi (NFP) et l'inflation (CPI) viennent du BLS. Sa page refuse le desk (HTTP 403) : le desk ne connaît
- * que les dates de l'instantané embarqué, publiées jusqu'à la fin de l'année de sa génération. Passé la dernière, ni le
- * blackout du Copieur ni la garde « catalyseur » de l'agent ne voyaient plus ces publications, sans que rien ne le dise.
+ * Le rapport emploi (NFP) et l'inflation (CPI) viennent du BLS. Quand sa page refuse le desk (HTTP 403), le desk ne
+ * connaît que les dates de l'instantané embarqué : ce que le BLS avait publié à sa génération, dans sa couverture. Passé
+ * la dernière, ni le blackout du Copieur ni la garde « catalyseur » de l'agent ne voyaient plus ces publications, sans
+ * que rien ne le dise.
  *
  * Ce module dit quand le calendrier ne couvre plus (`coverageGaps`), et estime alors les dates par règle
  * (`coverageEstimates`) : des repères marqués `estimated`, lus par les gardes comme par le Calendrier. Le FOMC n'a pas
@@ -22,8 +23,8 @@ export const FOMC_MAX_GAP_DAYS = 60;
 /** Jusqu'où les estimations vont : l'horizon de la synchro du calendrier (120 jours). */
 export const ESTIMATE_HORIZON_DAYS = 120;
 /**
- * Jours du mois où tombe le CPI. Les douze publications de 2026 de l'instantané embarqué vont du 10 au 14
- * (10, 10, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14) : un jour de marge après.
+ * Jours du mois où tombe le CPI. Les douze publications de 2026 vont du 10 au 14 (10, 10, 10, 10, 11, 11, 12, 12, 13,
+ * 13, 14, 14), les douze que le BLS annonce pour 2027 aussi : un jour de marge après.
  */
 export const CPI_DAY_RANGE = { from: 10, to: 15 } as const;
 /** Deux publications d'une même famille sont à trois semaines au moins : une estimation plus proche de la dernière connue la doublerait. */
@@ -82,7 +83,7 @@ export function usFederalHoliday(date: string): boolean {
 /**
  * Dates estimées du rapport emploi d'un mois de référence. Règle publiée par le BLS : le troisième vendredi après la fin
  * de la semaine de référence, celle qui contient le 12 du mois (du dimanche au samedi). Elle retrouve neuf des douze NFP
- * de 2026 de l'instantané embarqué. Deux écarts connus donnent deux dates au lieu d'une :
+ * de 2026, et onze des douze que le BLS annonce pour 2027. Deux écarts connus donnent deux dates au lieu d'une :
  * - un vendredi férié : le jeudi qui précède et le vendredi qui suit, le BLS a pratiqué les deux (règle au 3 juillet 2026,
  *   férié observé : publié le jeudi 2) ;
  * - un 2 ou un 3 janvier, au lendemain du Nouvel An : ce vendredi et le suivant (règle au 2 janvier 2026 : publié le 9).

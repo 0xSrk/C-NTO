@@ -16,9 +16,10 @@ function read(name: string): string {
 }
 
 describe('parseurs calendrier officiels', () => {
-  it('BLS emploi : 13 lignes, 11 février 2026 à 08:30, non estimé', () => {
+  it('BLS emploi : 25 lignes, de novembre 2025 à novembre 2027 ; 11 février 2026 à 08:30, non estimé', () => {
     const rows = parseBlsSchedule(read('bls-empsit.html'), 'empsit');
-    expect(rows).toHaveLength(13);
+    // 13 lignes transcrites le 26 septembre 2026, 12 de plus le 9 novembre : le calendrier 2027 du BLS (SEC2.8).
+    expect(rows).toHaveLength(25);
     const feb = rows.find((r) => r.date === '2026-02-11');
     expect(feb?.timeET).toBe('08:30');
     expect(feb?.estimated).toBe(false);

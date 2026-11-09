@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORCH_READ_METHODS, ORCH_WRITE_METHODS } from '@/engine/agent/catalog';
 import { executeDeskTool } from '@/engine/agent/runner';
-import { materializeBundle } from '@/engine/calendar-bundle';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import type { DeskBridgeView, DeskNote } from '@/engine/agent/ports';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
 import type { Session, Trade } from '@/engine/types';
+import { sept2026Rows } from './helpers/calendarSept2026';
 import { fakePorts } from './helpers/deskPorts';
 
 const ET = (hhmm: string, date = '2026-10-14') => Date.parse(`${date}T${hhmm}:00-04:00`);
@@ -83,10 +83,11 @@ describe('outils de discipline et de mémoire', () => {
   });
 
   it('SEC2.2 discipline_status lit le NFP estimé quand le calendrier officiel ne couvre plus, comme la garde, et le dit estimé', async () => {
-    // Le 31 décembre 2026 à 8 h 10 (heure d'hiver, UTC−5) : le dernier NFP officiel de l'instantané date du 4 décembre.
+    // Le 31 décembre 2026 à 8 h 10 (heure d'hiver, UTC−5), sur l'état de septembre 2026, figé : le dernier NFP officiel
+    // connu du desk date du 4 décembre (SEC2.8 a depuis ajouté le premier trimestre 2027 du BLS à l'instantané).
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse('2026-12-31T08:10:00-05:00'));
-    const official = materializeBundle({ from: '2026-01-01', to: '2027-12-31' }, 1);
+    const official = sept2026Rows();
     const ports = fakePorts({ officialEvents: () => official, traderRules: () => ({ ...DEFAULT_TRADER_RULES, catalystBlackoutMin: 30 }), bridge: async () => live(0) });
     const r = (await executeDeskTool(ports, 'discipline_status', {}, { source: 'llm' })) as Record<string, any>;
     expect(r.nextCatalyst).toMatchObject({ title: 'Rapport emploi US (NFP)', date: '2026-12-31', timeET: '08:30', estimated: true, minutesUntil: 20, window: { minutes: 30, active: true } });
