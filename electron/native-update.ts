@@ -49,10 +49,14 @@ const INSTALLER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 /** Dossiers de téléchargement de ce module : l'ancien, au nom fixe, et ceux de `mkdtemp` (six signes tirés au sort). */
 const DOWNLOAD_DIR = /^canto-update(?:-[A-Za-z0-9]{6})?$/;
 
+/** Dossiers créés depuis l'ouverture du desk : leur installeur peut être en cours d'installation (DMG, deb ouverts au trader). */
+const sessionDownloads = new Set<string>();
+
 /**
- * Retire les téléchargements des mises à jour précédentes : un installeur pèse ≈ 100 Mo et rien d'autre ne les enlève.
- * Seulement de vrais dossiers (jamais un lien, que `lstat` ne suit pas) et, hors Windows, ceux de ce compte. Sans effet
- * sur la mise à jour : un dossier qui résiste reste où il est.
+ * Retire les téléchargements des ouvertures précédentes du desk : un installeur pèse ≈ 100 Mo et rien d'autre ne les
+ * enlève. Seulement de vrais dossiers (jamais un lien, que `lstat` ne suit pas) et, hors Windows, ceux de ce compte ;
+ * jamais ceux de cette ouverture, dont l'installeur sert peut-être encore. Sans effet sur la mise à jour : un dossier
+ * qui résiste reste où il est.
  */
 async function sweepDownloads(temp: string): Promise<void> {
   const uid = process.getuid?.();
@@ -63,7 +67,7 @@ async function sweepDownloads(temp: string): Promise<void> {
     return;
   }
   for (const name of names) {
-    if (!DOWNLOAD_DIR.test(name)) continue;
+    if (!DOWNLOAD_DIR.test(name) || sessionDownloads.has(name)) continue;
     const dir = path.join(temp, name);
     try {
       const st = await fs.lstat(dir);
@@ -172,6 +176,7 @@ export async function applyInstallerUpdate(opts: {
   const temp = app.getPath('temp');
   await sweepDownloads(temp);
   const dir = await fs.mkdtemp(path.join(temp, 'canto-update-'));
+  sessionDownloads.add(path.basename(dir));
   const dest = path.join(dir, pick.asset.name);
   const discard = () => fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   mainLog('info', `mise à jour v${opts.current} → v${release.version} : téléchargement de ${pick.asset.name}`);

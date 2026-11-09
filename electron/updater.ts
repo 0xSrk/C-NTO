@@ -318,7 +318,9 @@ export function relaunchDesk(): void {
   let handled: boolean;
   try {
     handled = performPendingRestart();
-  } catch {
+  } catch (err) {
+    // Toute autre erreur (lancement impossible) remonte telle quelle : elle ne passe pas pour un installeur modifié.
+    if (!(err instanceof Error) || err.message !== 'installer_changed') throw err;
     // L'installeur n'est plus celui qui a été vérifié (SEC1.5) : rien n'est lancé, le desk reste ouvert, l'appelant le dit.
     throw new Error(
       ui(
