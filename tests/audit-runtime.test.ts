@@ -61,6 +61,13 @@ describe('SEC1.8 la CI voit les avis du runtime livré', () => {
     }
   });
 
+  it('le script ne porte pas de shebang : sous Windows, ce fichier de test ne se chargeait pas', () => {
+    // SEC1.8a — la copie de travail Windows porte des fins de ligne \r\n, et Vite ne reconnaît un shebang que suivi de
+    // \n : la ligne restait dans le module, « SyntaxError: Invalid or unexpected token », et aucun test d'ici ne tournait.
+    // Le script se lance par `node scripts/audit-runtime.mjs` ; les scripts que les tests importent n'en portent pas.
+    expect(readFileSync('scripts/audit-runtime.mjs', 'utf8').startsWith('#!')).toBe(false);
+  });
+
   it('le job check de la CI lance ce contrôle, après npm ci', () => {
     const ci = readFileSync('.github/workflows/ci.yml', 'utf8').replace(/\r\n/g, '\n');
     const check = ci.slice(ci.indexOf('\n  check:'), ci.indexOf('\n  dist:'));
