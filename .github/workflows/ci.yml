@@ -4,6 +4,9 @@ on:
   pull_request:
   # « Run workflow » : la même vérification, et les installeurs gardés un jour pour les essayer.
   workflow_dispatch:
+# Lecture seule : la vérification n'écrit rien dans le dépôt.
+permissions:
+  contents: read
 jobs:
   check:
     strategy:
@@ -12,8 +15,12 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Actions épinglées par empreinte, la version en commentaire : un tag se déplace, une empreinte non.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Le jeton du run ne reste pas dans le dépôt cloné : `npm ci` exécute les scripts d'installation des dépendances.
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
       - run: npm ci
@@ -73,8 +80,12 @@ jobs:
             artifact: canto-macos
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Actions épinglées par empreinte, la version en commentaire : un tag se déplace, une empreinte non.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Le jeton du run ne reste pas dans le dépôt cloné : `npm ci` exécute les scripts d'installation des dépendances.
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
       - run: npm ci
@@ -107,7 +118,7 @@ jobs:
           exit 1
       # Un push prouve que l'installeur se construit ; il ne le garde pas. Gardés 90 jours à chaque push,
       # les installeurs ont rempli le quota de stockage des artefacts du compte (2026-10-13).
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: github.event_name == 'workflow_dispatch'
         with:
           name: ${{ matrix.artifact }}

@@ -10,8 +10,9 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+# Lecture seule par défaut : chaque job qui écrit dans le brouillon de la Release le déclare.
 permissions:
-  contents: write
+  contents: read
 # Une Release à la fois : un run lancé pendant un autre attend la fin du premier.
 concurrency:
   group: release
@@ -19,12 +20,17 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    # Crée le brouillon de la Release.
+    permissions:
+      contents: write
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       skip: ${{ steps.state.outputs.skip }}
       release_id: ${{ steps.draft.outputs.release_id }}
     steps:
-      - uses: actions/checkout@v4
+      # Actions épinglées par empreinte, la version en commentaire : un tag se déplace, une empreinte non.
+      # Ce job n'installe aucune dépendance et ne lance que les scripts du dépôt ; son jeton sert à `git ls-remote`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Tag de la release
         id: tag
         run: |
@@ -109,6 +115,9 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.skip != 'true'
     name: ${{ matrix.artifact }}
+    # Téléverse ses installeurs dans le brouillon.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -124,8 +133,12 @@ jobs:
             artifact: macos
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Ce job peut écrire dans le dépôt : son jeton ne reste pas dans le dépôt cloné pendant `npm ci`, qui exécute
+          # les scripts d'installation des dépendances. Le téléversement le reçoit par son environnement, pour `gh` seul.
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
       - run: npm ci
@@ -184,6 +197,9 @@ jobs:
     needs: [prepare, build]
     if: needs.prepare.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    # Téléverse les empreintes dans le brouillon.
+    permissions:
+      contents: write
     steps:
       - name: Installeurs du brouillon
         env:

@@ -122,7 +122,7 @@ describe('outils de signature de l’ADMIN', () => {
   it('la CI ne garde ses installeurs que sur demande, un jour', () => {
     const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
     expect(ci).toMatch(/^ {2}workflow_dispatch:/m);
-    const upload = /- uses: actions\/upload-artifact@v4[\s\S]*?(?=\n {6}- |\n*$)/.exec(ci.replace(/\r\n/g, '\n'))?.[0] ?? '';
+    const upload = /- uses: actions\/upload-artifact@[0-9a-f]{40} # v4[\s\S]*?(?=\n {6}- |\n*$)/.exec(ci.replace(/\r\n/g, '\n'))?.[0] ?? '';
     expect(upload).toMatch(/if: github\.event_name == 'workflow_dispatch'/);
     expect(upload).toMatch(/retention-days: 1\b/);
   });
