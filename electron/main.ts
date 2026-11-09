@@ -22,6 +22,7 @@ import { computeAutoZoom, resolveZoom, snapZoom, stepZoom, suggestWindowSize, ty
 import { defaultNinjaExportFolder } from './bridge-folder';
 import { hardwareAccelerationEnabled, hasDrmRenderNode } from './gpu-fallback';
 import { parseLocale, readLocaleFile, uiText, writeLocaleFile, type AppLocale } from './locale';
+import { ExternalLinks } from './external-links';
 import { FolderGrants, isSafeBackupName } from './folder-grants';
 import { openSealedVault, sealVault, type VaultKeychain } from './vault-seal';
 import { planUserData } from './user-data';
@@ -212,20 +213,16 @@ const grants = new FolderGrants(gpuDir);
 
 const isString = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max;
 
-function openExternalSafe(url: string): void {
-  try {
-    const u = new URL(url);
-    if (u.protocol === 'https:') {
-      void shell.openExternal(url);
-      return;
-    }
-    if (u.protocol === 'http:' && u.hostname === '127.0.0.1') {
-      void shell.openExternal(url);
-    }
-  } catch {
-    /* URL invalide */
-  }
-}
+/**
+ * Liens sortants (SEC2.4) : `https`, ou `http` vers 127.0.0.1, et jamais sans le dialogue du process principal qui montre
+ * l'hôte réel (Annuler par défaut). Le texte d'un lien, dans une note ou un rapport, peut nommer un autre hôte.
+ */
+const externalLinks = new ExternalLinks<BrowserWindow>({
+  locale: () => readLocaleFile(app.getPath('userData')),
+  showMessageBox: (target, options) => (target && !target.isDestroyed() ? dialog.showMessageBox(target, options) : dialog.showMessageBox(options)),
+  open: (url) => shell.openExternal(url),
+  log: (line) => mainLog('info', line),
+});
 const isDateKey = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const isPort = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1024 && v <= 65535;
 const trusted = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean => {
@@ -477,12 +474,12 @@ app.on('child-process-gone', (_event, details) => {
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 /**
  * Durcissement commun à toutes les vues (desk, lanceur, et toute vue future) :
- * aucune fenêtre enfant (les liens https partent vers le navigateur), aucun <webview>,
+ * aucune fenêtre enfant (un lien https part vers le navigateur après le dialogue qui montre son hôte, SEC2.4), aucun <webview>,
  * aucune navigation hors du document chargé.
  */
 app.on('web-contents-created', (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    openExternalSafe(url);
+    void externalLinks.request(BrowserWindow.fromWebContents(contents), url);
     return { action: 'deny' };
   });
   contents.on('will-attach-webview', (event) => event.preventDefault());
