@@ -306,7 +306,6 @@ export interface NtBridgeApi {
   writeConfig: () => Promise<{ ok: boolean; path?: string; error?: string; aclRestricted?: boolean }>;
   allowAccount: (name: string) => Promise<NtBridgeStatus | null>;
   setMaxContracts: (n: number) => Promise<NtBridgeStatus | null>;
-  order: (payload: { op: 'submit' | 'cancel' | 'flatten'; [key: string]: unknown }) => Promise<{ ok: boolean; code?: number; message?: string; orderId?: string; latencyMs?: number; closed?: number }>;
   killSwitch: () => Promise<KillSwitchReport>;
   /**
    * Dernier rapport de coupure du kill switch, gardé par le process principal (lecture seule) ; `null` avant toute coupure.
