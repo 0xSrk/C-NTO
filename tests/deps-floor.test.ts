@@ -54,3 +54,32 @@ describe('SEC1.7 planchers de version du runtime du desk', () => {
     expect(lock.packages['node_modules/electron']?.version).toMatch(/^43\./);
   });
 });
+
+/**
+ * SEC2.7 — plancher de Vitest, l'outil qui lance cette suite sur le poste de chaque contributeur et dans la CI. Avis de
+ * `@vitest/mocker` connus au 2026-11-09, corrigés tous deux en 4.1.12 : GHSA-qxg6-89mg-rqv8 (injection de code par un
+ * enregistrement de mock sans authentification) et GHSA-xp26-3454-mjgp (sous Windows, un chemin en barres obliques
+ * inverses contourne le correctif de la liste des redirections). Toute la famille `@vitest/*` suit la même version.
+ */
+const VITEST_FLOOR = '4.1.12';
+
+describe('SEC2.7 plancher de version de Vitest', () => {
+  it(`vitest et sa famille : la version verrouillée est au moins ${VITEST_FLOOR}, la même pour tous`, () => {
+    const family = Object.entries(lock.packages).filter(([key]) => key === 'node_modules/vitest' || key.startsWith('node_modules/@vitest/'));
+    expect(family.map(([key]) => key)).toEqual(expect.arrayContaining(['node_modules/vitest', 'node_modules/@vitest/mocker']));
+    for (const [key, entry] of family) {
+      expect(entry.version, key).toBeTruthy();
+      expect(compareSemver(entry.version!, VITEST_FLOOR), `${key} ${entry.version} < ${VITEST_FLOOR}`).toBeGreaterThanOrEqual(0);
+      expect(entry.dev, `${key} doit rester un outil de développement`).toBe(true);
+    }
+    expect(new Set(family.map(([, entry]) => entry.version)).size).toBe(1);
+  });
+
+  it(`package.json n’admet aucune version sous ${VITEST_FLOOR}`, () => {
+    const range = manifest.devDependencies.vitest;
+    expect(range, 'vitest absent de package.json').toBeTruthy();
+    expect(compareSemver(rangeFloor(range!), VITEST_FLOOR), `vitest ${range} admet moins que ${VITEST_FLOOR}`).toBeGreaterThanOrEqual(0);
+    expect(lock.packages['']?.devDependencies?.vitest).toBe(range);
+    expect(manifest.dependencies.vitest).toBeUndefined();
+  });
+});
