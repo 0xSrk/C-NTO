@@ -24,7 +24,7 @@ interface JournalState {
   sessions: Session[];
   trades: Trade[];
   load: () => Promise<void>;
-  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number; source?: SessionSource; signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<ImportResult & { added: number; merged: number; newTrades: number; freshExecutionKeys?: string[] }>;
+  importCsv: (text: string, opts?: { boundaryHour?: number; riskPerContract?: number; source?: SessionSource; signal?: AbortSignal; onProgress?: (done: number, total: number) => void }) => Promise<ImportResult & { added: number; merged: number; newTrades: number; freshExecutionKeys?: string[]; overCapacity?: boolean }>;
   loadDemo: () => Promise<number>;
   addManualSession: (input: { date: string; account?: string; pnl: number; tradeCount: number; note?: string; tags?: string[]; rating?: number }) => Promise<Session>;
   updateSession: (id: string, patch: Partial<Pick<Session, 'note' | 'tags' | 'rating' | 'account'>>) => Promise<void>;
@@ -242,8 +242,13 @@ export const useJournal = create<JournalState>((set, get) => ({
   },
 }));
 
-/** Fusion d'un résultat d'import dans le journal (appelé sous `withJournalLock`). */
-async function mergeImport(result: ImportResult): Promise<ImportResult & { added: number; merged: number; newTrades: number }> {
+/**
+ * Fusion d'un résultat d'import dans le journal (appelé sous `withJournalLock`).
+ * Une exécution n'est jamais refusée (SEC1.10) : au-delà de `SESSION_CAPACITY`, sa séance est ajoutée quand même et le
+ * dépassement est rendu (`overCapacity`, avec un avertissement). La refuser perdait le trade sans le dire, alors que ses
+ * lots d'entrée étaient déjà consommés. Les autres formats (export « Trades » importé à la main) restent bornés.
+ */
+async function mergeImport(result: ImportResult): Promise<ImportResult & { added: number; merged: number; newTrades: number; overCapacity?: boolean }> {
   const { sessions: existing, trades: existingTrades } = useJournal.getState();
   // Fusion : une séance existante (même date + même compte) absorbe les nouveaux trades.
   // Exécutions : clé account+ID (ou hash de repli). Autres formats : empreinte prix/heures.
@@ -286,6 +291,8 @@ async function mergeImport(result: ImportResult): Promise<ImportResult & { added
   const toAddTrades: Trade[] = [];
   let merged = 0;
   let added = 0;
+  let overCapacity = false;
+  const executions = result.format === 'ninjatrader-executions';
   for (const s of result.sessions) {
     const sTrades = incomingBySession.get(s.id);
     if (!sTrades || sTrades.length === 0) continue;
@@ -297,13 +304,22 @@ async function mergeImport(result: ImportResult): Promise<ImportResult & { added
       toPutSessions.push({ ...target, ...summarizeTrades(all), updatedAt: Date.now() });
       merged++;
     } else {
-      if (existing.length + toAddSessions.length >= SESSION_CAPACITY) {
+      const full = existing.length + toAddSessions.length >= SESSION_CAPACITY;
+      if (full && !executions) {
         result.warnings.push(tr(
           `Capacité atteinte (${SESSION_CAPACITY} séances) : certaines séances n'ont pas été ajoutées. Exportez le coffre (Métrique › Sauvegarde) avant d'importer davantage.`,
           `Capacity reached (${SESSION_CAPACITY} sessions): some sessions were not added. Export the vault (Metrics › Backup) before importing more.`,
           `Capacidad alcanzada (${SESSION_CAPACITY} sesiones): algunas sesiones no se añadieron. Exporte la caja (Métrica › Copia) antes de importar más.`,
         ));
         break;
+      }
+      if (full && !overCapacity) {
+        overCapacity = true;
+        result.warnings.push(tr(
+          `Journal au-delà de ${SESSION_CAPACITY} séances : les exécutions restent enregistrées. Exportez le coffre (Métrique › Sauvegarde), puis retirez les séances anciennes.`,
+          `Journal beyond ${SESSION_CAPACITY} sessions: executions are still recorded. Export the vault (Metrics › Backup), then remove old sessions.`,
+          `Diario por encima de ${SESSION_CAPACITY} sesiones: las ejecuciones se siguen registrando. Exporte la caja (Métrica › Copia) y retire después las sesiones antiguas.`,
+        ));
       }
       toAddSessions.push(s);
       byKey.set(`${s.date}|${s.account ?? ''}`, s);
@@ -332,7 +348,7 @@ async function mergeImport(result: ImportResult): Promise<ImportResult & { added
     await useJournal.getState().load();
     scheduleOntologyRecompute();
   }
-  return { ...result, added, merged, newTrades: toAddTrades.length };
+  return { ...result, added, merged, newTrades: toAddTrades.length, ...(overCapacity ? { overCapacity } : {}) };
 }
 
 function storedToOpenLot(row: StoredOpenLot): OpenLot {
@@ -380,7 +396,7 @@ function openLotToStored(lot: OpenLot, seen: Set<string>): StoredOpenLot {
  * Import Executions (fichier, CSV de secours, message WebSocket) : les lots ouverts du compte
  * sont repris, les exécutions déjà dans `importedExecutions` ne sont pas réappariées.
  */
-async function commitExecutionImport(text: string, importOpts: ImportOptions): Promise<ImportResult & { added: number; merged: number; newTrades: number; freshExecutionKeys: string[] }> {
+async function commitExecutionImport(text: string, importOpts: ImportOptions): Promise<ImportResult & { added: number; merged: number; newTrades: number; freshExecutionKeys: string[]; overCapacity?: boolean }> {
   const [knownRows, lotRows] = await Promise.all([db.importedExecutions.toArray(), db.openLots.toArray()]);
   const result = importExecutionsCsv(text, {
     ...importOpts,
