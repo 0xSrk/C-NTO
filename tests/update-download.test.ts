@@ -86,25 +86,30 @@ describe('SEC1.5 mise à jour : l’installeur vérifié est celui qui s’exéc
     expect(electron.openPath).toHaveBeenCalledTimes(2);
   });
 
-  it('retire les téléchargements précédents, sans suivre un lien ni toucher un autre dossier', async () => {
+  it('retire les téléchargements des ouvertures précédentes, sans suivre un lien ni toucher un autre dossier', async () => {
     setPlatform('linux');
     electron.fetch.mockImplementation(async (url: string) => release(['CANTO-9.9.0-linux-amd64.deb', 'CANTO-9.9.0-linux-arm64.deb'])(url));
-    const first = await applyInstallerUpdate({ repo: REPO, current: '3.10.0' });
-    // L'ancien dossier au nom fixe, un dossier voisin au nom proche, et un lien qui porte un nom de téléchargement.
+    // Ce qu'ont laissé les ouvertures précédentes : l'ancien dossier au nom fixe et un dossier de `mkdtemp`.
     mkdirSync(path.join(scratch, 'canto-update'));
     writeFileSync(path.join(scratch, 'canto-update', 'CANTO-3.9.0-linux-amd64.deb'), 'ancien');
+    mkdirSync(path.join(scratch, 'canto-update-Qw12Er'));
+    writeFileSync(path.join(scratch, 'canto-update-Qw12Er', 'CANTO-3.10.0-linux-amd64.deb'), 'ancien');
+    // Un dossier voisin au nom proche, et un lien qui porte un nom de téléchargement : ni l'un ni l'autre n'est touché.
     mkdirSync(path.join(scratch, 'canto-update-du-trader'));
     writeFileSync(path.join(scratch, 'canto-update-du-trader', 'notes.txt'), 'à garder');
     const elsewhere = path.join(scratch, 'ailleurs');
     mkdirSync(elsewhere);
     writeFileSync(path.join(elsewhere, 'garde.txt'), 'à garder');
     if (posix) symlinkSync(elsewhere, path.join(scratch, 'canto-update-AbCd12'));
-    const second = await applyInstallerUpdate({ repo: REPO, current: '3.10.0' });
-    expect(existsSync(path.dirname(first.file))).toBe(false);
+    const first = await applyInstallerUpdate({ repo: REPO, current: '3.10.0' });
     expect(existsSync(path.join(scratch, 'canto-update'))).toBe(false);
-    expect(readFileSync(second.file, 'utf8')).toBe(BODY);
+    expect(existsSync(path.join(scratch, 'canto-update-Qw12Er'))).toBe(false);
     expect(readFileSync(path.join(scratch, 'canto-update-du-trader', 'notes.txt'), 'utf8')).toBe('à garder');
     expect(readFileSync(path.join(elsewhere, 'garde.txt'), 'utf8')).toBe('à garder');
+    // L'installeur ouvert au trader pendant cette ouverture du desk reste en place quand une autre mise à jour passe.
+    const second = await applyInstallerUpdate({ repo: REPO, current: '3.10.0' });
+    expect(readFileSync(first.file, 'utf8')).toBe(BODY);
+    expect(readFileSync(second.file, 'utf8')).toBe(BODY);
   });
 
   it.runIf(posix)('un lien posé d’avance dans l’ancien dossier fixe n’est plus suivi', async () => {
@@ -163,6 +168,16 @@ describe('SEC1.5 mise à jour : l’installeur vérifié est celui qui s’exéc
     expect(electron.quit).not.toHaveBeenCalled();
     expect(electron.exit).not.toHaveBeenCalled();
     expect(electron.release).not.toHaveBeenCalled();
+  });
+
+  it('Windows : une autre erreur de lancement ne passe pas pour un installeur modifié', async () => {
+    setPlatform('win32');
+    electron.fetch.mockImplementation(async (url: string) => release(['CANTO-9.9.0-win-x64-setup.exe', 'CANTO-9.9.0-win-arm64-setup.exe'])(url));
+    await applyInstallerUpdate({ repo: REPO, current: '3.10.0' });
+    child.spawn.mockImplementationOnce(() => {
+      throw new Error('spawn EACCES');
+    });
+    expect(() => relaunchDesk()).toThrow('spawn EACCES');
   });
 
   it('Windows : un installeur disparu avant la relance n’est pas « lancé » non plus', async () => {
