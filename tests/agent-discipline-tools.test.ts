@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORCH_READ_METHODS, ORCH_WRITE_METHODS } from '@/engine/agent/catalog';
 import { executeDeskTool } from '@/engine/agent/runner';
+import { materializeBundle } from '@/engine/calendar-bundle';
 import { toolKind, toolSchemas } from '@/engine/agent/tools';
 import type { DeskBridgeView, DeskNote } from '@/engine/agent/ports';
 import { DEFAULT_TRADER_RULES } from '@/engine/discipline';
@@ -70,6 +71,8 @@ describe('outils de discipline et de mémoire', () => {
     expect(r.findings.map((f: { id: string }) => f.id)).toEqual(['over_max_trades:t2', 'revenge_entry:t2', 'size_up_after_loss:t2']);
     // CPI estimé du 14 octobre 2026 à 08:30 New York, fenêtre de 10 minutes.
     expect(r.nextCatalyst).toMatchObject({ title: 'Inflation CPI', date: '2026-10-14', timeET: '08:30', minutesUntil: 20, window: { minutes: 10, active: false } });
+    // SEC2.2 : une date déduite d'une règle le dit, l'agent ne la présente pas comme publiée.
+    expect(r.nextCatalyst.estimated).toBe(true);
 
     // Sans règle ni limite de plan : rien n'est signalé, la limite est absente.
     const bare = fakePorts({ sessions: ports.sessions, trades: ports.trades, planId: () => 'apex-50', planAccount: () => 'PA-1', bridge: async () => live(300) });
@@ -77,5 +80,20 @@ describe('outils de discipline et de mémoire', () => {
     expect(b.dailyLoss).toMatchObject({ unrealized: 0, loss: 400, limit: null, source: null, consumed: null, breached: false });
     expect(b.findings.map((f: { kind: string }) => f.kind)).toEqual(['revenge_entry', 'size_up_after_loss']);
     expect(b.nextCatalyst.window).toBeNull();
+  });
+
+  it('SEC2.2 discipline_status lit le NFP estimé quand le calendrier officiel ne couvre plus, comme la garde, et le dit estimé', async () => {
+    // Le 31 décembre 2026 à 8 h 10 (heure d'hiver, UTC−5) : le dernier NFP officiel de l'instantané date du 4 décembre.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse('2026-12-31T08:10:00-05:00'));
+    const official = materializeBundle({ from: '2026-01-01', to: '2027-12-31' }, 1);
+    const ports = fakePorts({ officialEvents: () => official, traderRules: () => ({ ...DEFAULT_TRADER_RULES, catalystBlackoutMin: 30 }), bridge: async () => live(0) });
+    const r = (await executeDeskTool(ports, 'discipline_status', {}, { source: 'llm' })) as Record<string, any>;
+    expect(r.nextCatalyst).toMatchObject({ title: 'Rapport emploi US (NFP)', date: '2026-12-31', timeET: '08:30', estimated: true, minutesUntil: 20, window: { minutes: 30, active: true } });
+    // Tant que le calendrier couvre, la date officielle, sans la marque.
+    vi.setSystemTime(Date.parse('2026-12-04T08:10:00-05:00'));
+    const covered = (await executeDeskTool(ports, 'discipline_status', {}, { source: 'llm' })) as Record<string, any>;
+    expect(covered.nextCatalyst).toMatchObject({ title: 'Rapport emploi US (NFP)', date: '2026-12-04', timeET: '08:30' });
+    expect(covered.nextCatalyst.estimated).toBeUndefined();
   });
 });

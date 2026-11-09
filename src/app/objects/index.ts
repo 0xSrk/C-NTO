@@ -508,7 +508,8 @@ export function useCatalysts(now: number): CalEvent[] {
     }
     return yearsSpanned(dates).join(',');
   }, [today, sessions, notes]);
-  return useMemo(() => catalystSource(rows, years.split(',').map(Number)), [rows, years]);
+  // Avec la journée : les NFP et CPI estimés par règle quand le calendrier officiel ne couvre plus (SEC2.2).
+  return useMemo(() => catalystSource(rows, years.split(',').map(Number), today), [rows, years, today]);
 }
 
 /** Ce que l'index lit dans les stores : leurs données seules. */

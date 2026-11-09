@@ -1,16 +1,30 @@
+import type { CalEvent } from '@/engine/calendar';
+import { coverageEstimates } from '@/engine/calendarCoverage';
 import type { CalendarEventRow } from '@/engine/calendarEvents';
 import { packCopierSync } from '@/engine/copier/sync';
 import { findPlan } from '@/engine/propfirm';
 import { desk } from '@/lib/desk';
-import { ET_ZONE, zonedToUtc } from '@/lib/time';
+import { ET_ZONE, etDateKey, zonedToUtc } from '@/lib/time';
 import { useBridge } from './bridge';
 import { useCopier } from './copier';
 import { useJournal } from './journal';
 import { useMacro } from './macro';
 
-/** Catalyseurs majeurs (impact 3, heure connue), en epoch ms : le blackout du Copieur. */
-export function copierCatalysts(events: readonly CalendarEventRow[]): { at: number }[] {
-  return events.filter((event) => event.impact === 3 && event.timeET).map((event) => ({ at: zonedToUtc(event.date, event.timeET ?? '00:00', ET_ZONE) }));
+/** Un catalyseur passé depuis plus longtemps ne ferme plus rien : le blackout tient quinze minutes, un fill en retard une minute au plus. */
+const CATALYST_KEEP_MS = 60 * 60 * 1000;
+
+/**
+ * Catalyseurs majeurs (impact 3, heure connue), en epoch ms : le blackout du Copieur. Les lignes officielles, plus les
+ * NFP et CPI estimés par règle quand le calendrier officiel ne couvre plus (`estimates`, SEC2.2). Les plus proches
+ * d'abord, sans doublon ni catalyseur passé depuis plus d'une heure : le process principal n'en garde que 64
+ * (`coerceCopierSync`), et ce sont ceux-là qui comptent.
+ */
+export function copierCatalysts(events: readonly CalendarEventRow[], estimates: readonly CalEvent[] = [], now = Date.now()): { at: number }[] {
+  const instants = [...events, ...estimates].filter((event) => event.impact === 3 && event.timeET).map((event) => zonedToUtc(event.date, event.timeET ?? '00:00', ET_ZONE));
+  return [...new Set(instants)]
+    .filter((at) => Number.isFinite(at) && at >= now - CATALYST_KEEP_MS)
+    .sort((a, b) => a - b)
+    .map((at) => ({ at }));
 }
 
 let stop: (() => void) | null = null;
@@ -38,7 +52,7 @@ export function startCopierSync(): () => void {
       sessions,
       trades,
       planById: findPlan,
-      catalysts: copierCatalysts(useMacro.getState().events),
+      catalysts: copierCatalysts(useMacro.getState().events, coverageEstimates(useMacro.getState().events, etDateKey(Date.now()))),
       maxContractsPerOrder: useBridge.getState().nt?.maxContractsPerOrder ?? 20,
     });
     void api.configure(payload).catch(() => false);

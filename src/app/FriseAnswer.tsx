@@ -216,7 +216,8 @@ export function useFriseEvents(at: number): CalEvent[] {
   const official = useMacro((m) => m.events);
   const year = Number(etDateKey(at).slice(0, 4));
   const first = Number(etDateKey(at - 86_400_000).slice(0, 4));
-  return useMemo(() => catalystSource(official, [first, year, year + 1]), [official, first, year]);
+  const today = etDateKey(at);
+  return useMemo(() => catalystSource(official, [first, year, year + 1], today), [official, first, year, today]);
 }
 
 /**

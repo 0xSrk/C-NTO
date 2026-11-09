@@ -68,9 +68,11 @@ export function useDayBornes(): DayBornes {
   const tick = useWallClock(BORNES_TICK_MS);
   // Chaque statut du pont relit aussi l'heure : l'âge d'une valeur vive est juste entre deux tics.
   const now = Math.max(tick, Date.now());
-  const year = Number(etDateKey(now).slice(0, 4));
-  // La source unique du catalyseur (OROS5.13) : celle du Calendrier et de l'ontologie, estimés marqués.
-  const catalysts = useMemo(() => majorCatalysts(catalystSource(official, [year, year + 1])), [year, official]);
+  const today = etDateKey(now);
+  const year = Number(today.slice(0, 4));
+  // La source unique du catalyseur (OROS5.13) : celle du Calendrier et de l'ontologie, estimés marqués, NFP et CPI
+  // estimés par règle compris quand le calendrier officiel ne couvre plus (SEC2.2).
+  const catalysts = useMemo(() => majorCatalysts(catalystSource(official, [year, year + 1], today)), [year, official, today]);
   const calendarSources = calendarSourcesState(sources, lastError, official.length);
   return useMemo(
     () =>

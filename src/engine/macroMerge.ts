@@ -1,4 +1,5 @@
 import { generateNasdaqEvents, type CalEvent, type EventCategory } from '@/engine/calendar';
+import { coverageEstimates } from '@/engine/calendarCoverage';
 import type { CalendarEventRow, CalendarSourceId } from '@/engine/calendarEvents';
 
 /** Famille stable : deux sources qui parlent du même chiffre le même jour. */
@@ -188,14 +189,31 @@ export function yearsSpanned(dates: Iterable<string>): number[] {
 }
 
 /**
+ * Ajoute à des catalyseurs déjà fusionnés les NFP et CPI estimés par règle (`coverageEstimates`, SEC2.2), sauf là où un
+ * repère de la même famille occupe déjà le jour (le CPI estimé du générateur local, par exemple). Triés comme la fusion.
+ */
+export function withCoverageEstimates(events: readonly CalEvent[], estimates: readonly CalEvent[]): CalEvent[] {
+  if (estimates.length === 0) return [...events];
+  const taken = new Set(events.map((event) => `${event.date}:${familyKey(event.title)}`));
+  const added = estimates.filter((event) => !taken.has(`${event.date}:${familyKey(event.title)}`));
+  return [...events, ...added].sort((a, b) => a.date.localeCompare(b.date) || (a.timeET ?? '').localeCompare(b.timeET ?? ''));
+}
+
+/**
  * La source unique du catalyseur : les repères locaux des années données, fusionnés aux lignes officielles par
  * `mergeCalendarEvents`, comme le Calendrier. Une ligne officielle remplace l'estimé local du même jour et de la même
  * famille, et les sources officielles d'un même chiffre n'en font qu'une (`mergeOfficialRows`) : un catalyseur est un
  * seul objet. Un repère local le dit (`source: 'local'`), et un estimé le reste (`estimated`).
+ *
+ * Avec `today` (la journée de New York), s'y ajoutent les NFP et CPI estimés par règle quand le calendrier officiel ne
+ * couvre plus (SEC2.2), dans les années données : ce que lisent les gardes, le desk le montre.
  */
-export function catalystSource(rows: readonly CalendarEventRow[], years: Iterable<number>): CalEvent[] {
-  const local = [...new Set(years)].sort((a, b) => a - b).flatMap((year) => localCalendar(year));
-  return mergeCalendarEvents(local, [...rows]).map((event) => (event.source ? event : { ...event, source: 'local' as const }));
+export function catalystSource(rows: readonly CalendarEventRow[], years: Iterable<number>, today?: string): CalEvent[] {
+  const wanted = [...new Set(years)].sort((a, b) => a - b);
+  const local = wanted.flatMap((year) => localCalendar(year));
+  const merged = mergeCalendarEvents(local, [...rows]).map((event) => (event.source ? event : { ...event, source: 'local' as const }));
+  if (!today) return merged;
+  return withCoverageEstimates(merged, coverageEstimates(rows, today).filter((event) => wanted.includes(Number(event.date.slice(0, 4)))));
 }
 
 /** « ≈ » devant une date estimée (C.054) : déduite d'une récurrence, pas encore publiée ; rien pour une date publiée. */

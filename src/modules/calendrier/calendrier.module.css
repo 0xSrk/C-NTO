@@ -504,6 +504,10 @@
   color: var(--text-3);
   margin-left: 4px;
 }
+/* SEC2.2 : le calendrier officiel ne couvre plus le NFP, le CPI ou le FOMC — une attention, à la braise, jamais le rouge */
+.feedStatus.gap {
+  color: var(--ember);
+}
 .history {
   display: flex;
   flex-direction: column;

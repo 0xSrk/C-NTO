@@ -7,7 +7,8 @@ import { dayCloseFor } from '@/engine/agent/dayClose';
 import { AGENT_TRADER_RULES, type AgentTraderRuleBlock } from '@/engine/agent/orders';
 import { dailyLimit, dayLoss, detectDrifts, detectRuleBreaches, limitReachedAt, lossOfDay, majorCatalysts, tradingDayNow, type DailyLimit, type DisciplineEntry, type DisciplineFinding } from '@/engine/discipline';
 import { generateNasdaqEvents, type CalEvent } from '@/engine/calendar';
-import { mergeCalendarEvents } from '@/engine/macroMerge';
+import { coverageEstimates } from '@/engine/calendarCoverage';
+import { mergeCalendarEvents, withCoverageEstimates } from '@/engine/macroMerge';
 import { evaluatePlan, findPlan, planMargin } from '@/engine/propfirm';
 import { tr } from '@/i18n';
 import { desk, type NtBridgeStatus } from '@/lib/desk';
@@ -246,14 +247,23 @@ function dailyLossWatcher(): { check: () => void; dispose: () => void } {
   };
 }
 
+/**
+ * Repères locaux et lignes officielles de ces journées, fusionnés, plus les NFP et CPI estimés par règle quand le
+ * calendrier officiel ne couvre plus à la journée `today` (SEC2.2) : la garde et le préavis lisent ce que le desk montre.
+ */
+function calendarOfDays(days: ReadonlySet<string>, today: string): CalEvent[] {
+  const years = new Set([...days].map((d) => Number(d.slice(0, 4))));
+  const local = [...years].flatMap((y) => localEvents(y)).filter((e) => days.has(e.date));
+  const rows = useMacro.getState().events;
+  const official = rows.filter((r) => days.has(r.date));
+  const estimated = coverageEstimates(rows, today).filter((e) => days.has(e.date));
+  return withCoverageEstimates(mergeCalendarEvents(local, official), estimated);
+}
+
 /** Catalyseurs majeurs autour d'un instant (veille, jour et lendemain à New York). */
 function catalystsAround(at: number) {
   const today = etDateKey(at);
-  const days = new Set([addDays(today, -1), today, addDays(today, 1)]);
-  const years = new Set([...days].map((d) => Number(d.slice(0, 4))));
-  const local = [...years].flatMap((y) => localEvents(y)).filter((e) => days.has(e.date));
-  const official = useMacro.getState().events.filter((r) => days.has(r.date));
-  return majorCatalysts(mergeCalendarEvents(local, official));
+  return majorCatalysts(calendarOfDays(new Set([addDays(today, -1), today, addDays(today, 1)]), today));
 }
 
 /**
@@ -423,11 +433,7 @@ function localEvents(year: number): CalEvent[] {
 function checkCatalysts(seen: Set<string>, now = Date.now()): void {
   // Préavis de 15 minutes : le jour et le lendemain (New York) suffisent, inutile de fusionner l'année.
   const today = etDateKey(now);
-  const days = new Set([today, addDays(today, 1)]);
-  const years = new Set([...days].map((d) => Number(d.slice(0, 4))));
-  const local = [...years].flatMap((y) => localEvents(y)).filter((e) => days.has(e.date));
-  const official = useMacro.getState().events.filter((r) => days.has(r.date));
-  const merged = mergeCalendarEvents(local, official);
+  const merged = calendarOfDays(new Set([today, addDays(today, 1)]), today);
   for (const due of dueCatalysts(merged, now, seen)) {
     seen.add(due.id);
     recordDeskEvent('catalyst', due.data);

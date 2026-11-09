@@ -9,6 +9,7 @@ import { Button, Montant, Segmented, Tag, cx } from '@/design/primitives';
 import { CATEGORY_HELP, SESSION_MARKERS, type CalEvent, type EventCategory } from '@/engine/calendar';
 import { noteTradingDay, type EntityRef } from '@/engine/ontology';
 import { TYPE_GLYPH } from '@/design/micro/meaning';
+import { coverageGaps } from '@/engine/calendarCoverage';
 import { catalystSource, eventProvenance, surpriseTone } from '@/engine/macroMerge';
 import { intlTag, tr, useI18n } from '@/i18n';
 import { impactBars, strokeOf, STROKES, type Stroke } from '@/lib/calendarMarks';
@@ -22,7 +23,7 @@ import { useNotes } from '@/store/notes';
 import { useObjects } from '@/store/objects';
 import { useSettings } from '@/store/settings';
 import { useUi } from '@/store/ui';
-import { horizonDay, LENS_PATH, nowIndex } from './calState';
+import { coverageNotice, horizonDay, LENS_PATH, nowIndex } from './calState';
 import s from './calendrier.module.css';
 
 /**
@@ -293,7 +294,13 @@ export default function Calendrier() {
   const year = yearRaw ?? new Date().getFullYear();
   const month = monthRaw ?? 1;
   // La source unique du catalyseur (OROS5.13), appelée ici directement : les mêmes objets que la fiche et l'ontologie.
-  const events = useMemo(() => catalystSource(eventsMacro, [year - 1, year, year + 1]), [year, eventsMacro]);
+  // Avec le jour de « maintenant » (date de New York, celle des publications) : les NFP et CPI estimés par règle quand
+  // le calendrier officiel ne couvre plus (SEC2.2).
+  const etToday = etDateKey(nowAt);
+  const events = useMemo(() => catalystSource(eventsMacro, [year - 1, year, year + 1], etToday), [year, eventsMacro, etToday]);
+  // Ce que le calendrier officiel ne couvre plus se dit dans la barre, une fois le calendrier chargé.
+  const macroReady = useMacro((m) => m.ready);
+  const coverage = useMemo(() => (macroReady ? coverageNotice(coverageGaps(eventsMacro, etToday)) : null), [macroReady, eventsMacro, etToday]);
 
   const visible = useMemo(() => events.filter((e) => !hidden.has(e.category) && (showEstimated || !e.estimated) && e.impact >= minImpact), [events, hidden, showEstimated, minImpact]);
 
@@ -356,8 +363,7 @@ export default function Calendrier() {
     }
     return days;
   }, [cursor, today, view, year, month]);
-  // Le jour de « maintenant » (date de New York, celle des publications) et le premier jour au-delà de l'horizon.
-  const etToday = etDateKey(nowAt);
+  // Le premier jour au-delà de l'horizon (le jour de « maintenant », date de New York, est lu plus haut : `etToday`).
   const hzDay = horizonDay(view === 'grille' ? gridDays : fluxDays, nowAt);
 
   const monthLabel = parseDateKey(`${cursor}-01`).toLocaleDateString(intlTag(), { month: 'long', year: 'numeric' });
@@ -413,9 +419,9 @@ export default function Calendrier() {
             disabled: syncing,
             // La synchro dit son état sur le bouton : or pendant qu'elle court, braise si une source a manqué. Pendant
             // qu'elle court, « Synchronisation… » le dit déjà : le nom du bouton ne répète pas « en cours ».
-            state: syncing ? tr('en cours', 'running', 'en curso') : lastError ? tr('partiel', 'partial', 'parcial') : sources.length ? tr('à jour', 'up to date', 'al día') : tr('hors ligne', 'offline', 'sin conexión'),
+            state: syncing ? tr('en cours', 'running', 'en curso') : lastError ? tr('partiel', 'partial', 'parcial') : coverage ? tr('couverture incomplète', 'coverage incomplete', 'cobertura incompleta') : sources.length ? tr('à jour', 'up to date', 'al día') : tr('hors ligne', 'offline', 'sin conexión'),
             stateInLabel: syncing,
-            tone: syncing ? 'gold' : lastError ? 'ember' : undefined,
+            tone: syncing ? 'gold' : lastError || coverage ? 'ember' : undefined,
             onSelect: () => void sync(),
           },
         ]}
@@ -445,6 +451,11 @@ export default function Calendrier() {
                 {tr('Sources', 'Sources', 'Fuentes')} {sourceLabel}
                 {lastError ? tr(' · partiel', ' · partial', ' · parcial') : ''}
               </span>
+              {coverage && (
+                <span className={cx(s.feedStatus, s.gap)} role="status" title={coverage.detail}>
+                  {coverage.text}
+                </span>
+              )}
               <div className={s.filters}>
                 {CATS.filter((c) => c !== 'perso').map((c) => (
                   <span key={c} className={cx(s.filterChip, !hidden.has(c) && s.on)}>

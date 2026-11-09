@@ -1,3 +1,4 @@
+import { COVERAGE_ESTIMATE_NOTE } from '@/engine/calendarCoverage';
 import { tr } from '@/i18n';
 
 /**
@@ -82,6 +83,10 @@ export function trEventTitle(title: string): string {
 
 /** Notes du calendrier moteur, en anglais et en espagnol ; le français est la clé. */
 const EVENT_DESC: Record<string, [string, string]> = {
+  [COVERAGE_ESTIMATE_NOTE]: [
+    'Date estimated by rule: the desk does not know the official BLS calendar for this release. It may fall on another day; check bls.gov.',
+    'Fecha estimada por regla: el desk no conoce el calendario oficial del BLS para esta publicación. Puede caer otro día; compruebe bls.gov.',
+  ],
   'Communiqué du comité de politique monétaire puis conférence de presse du président de la Fed à 14:30 ET. Projections économiques (dot plot) en mars, juin, septembre et décembre.': ['Policy statement, then the Fed chair press conference at 14:30 ET. Economic projections (dot plot) in March, June, September, and December.', 'Comunicado del comité de política monetaria y luego rueda de prensa del presidente de la Fed a las 14:30 ET. Proyecciones económicas (dot plot) en marzo, junio, septiembre y diciembre.'],
   'Compte rendu détaillé de la réunion précédente, publié trois semaines après. Peut réévaluer la trajectoire des taux.': ['Detailed account of the previous meeting, released three weeks later. Can reprice the rate path.', 'Acta detallada de la reunión anterior, publicada tres semanas después. Puede reevaluar la trayectoria de tipos.'],
   'Réunion FOMC estimée par récurrence : vérifier le calendrier officiel de la Réserve fédérale.': ['FOMC meeting estimated by recurrence: check the Federal Reserve’s official calendar.', 'Reunión FOMC estimada por recurrencia: compruebe el calendario oficial de la Reserva Federal.'],

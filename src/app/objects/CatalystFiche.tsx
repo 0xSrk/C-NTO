@@ -77,21 +77,25 @@ export function localOf(event: Pick<CalEvent, 'date' | 'timeET'>): string | null
   return event.timeET ? formatTimeLocal(zonedToUtc(event.date, event.timeET, ET_ZONE)) : null;
 }
 
-/** Le catalyseur d'un identifiant : la source unique du desk, et, au-delà de ses années, l'année que l'identifiant date. */
-export function useCatalyst(id: string, ctx: IndexSources): CalEvent | null {
+/**
+ * Le catalyseur d'un identifiant : la source unique du desk, et, au-delà de ses années, l'année que l'identifiant date.
+ * Avec `now`, un NFP ou un CPI estimé par règle (SEC2.2) se retrouve aussi au-delà de la fenêtre de l'index.
+ */
+export function useCatalyst(id: string, ctx: IndexSources, now?: number): CalEvent | null {
   const rows = useMacro((m) => m.events);
+  const today = now === undefined ? undefined : etDateKey(now);
   return useMemo(() => {
     const own = ctx.catalysts.find((x) => x.id === id);
     if (own) return own;
     const year = Number(/(\d{4})-\d{2}-\d{2}/.exec(id)?.[1] ?? NaN);
     if (!Number.isInteger(year)) return null;
-    return catalystSource(rows, [year]).find((x) => x.id === id) ?? null;
-  }, [ctx.catalysts, id, rows]);
+    return catalystSource(rows, [year], today).find((x) => x.id === id) ?? null;
+  }, [ctx.catalysts, id, rows, today]);
 }
 
 export function CatalystFiche({ target, ctx, now }: { target: EntityRef; ctx: IndexSources; now: number }) {
   useI18n((st) => st.locale);
-  const event = useCatalyst(target.id, ctx);
+  const event = useCatalyst(target.id, ctx, now);
   const openObject = useObjects((o) => o.openObject);
   // Les occurrences de la famille, sur la fenêtre de la fiche : du début du journal à deux mois au-delà d'aujourd'hui.
   const family = useMemo(() => {

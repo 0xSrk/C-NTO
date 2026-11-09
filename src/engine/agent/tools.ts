@@ -1,7 +1,8 @@
 import { generateNasdaqEvents } from '@/engine/calendar';
 import { defaultParams, indicatorById } from '@/engine/indicators';
 import { resolveSymbol } from '@/engine/instruments';
-import { mergeCalendarEvents } from '@/engine/macroMerge';
+import { coverageEstimates } from '@/engine/calendarCoverage';
+import { mergeCalendarEvents, withCoverageEstimates } from '@/engine/macroMerge';
 import { PREDICATES, linkId, type Predicate } from '@/engine/ontology/schema';
 import { tr } from '@/i18n';
 import { aggregateByDate, computeDailyStats, computeTradeStats, sessionDates, type Bucket } from '@/engine/metrics';
@@ -1068,7 +1069,10 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
         const local: ReturnType<typeof generateNasdaqEvents> = [];
         for (let y = Number(first.slice(0, 4)); y <= Number(last.slice(0, 4)); y++) local.push(...generateNasdaqEvents(y));
         const window = rules.catalystBlackoutMin * 60_000;
-        const catalysts = majorCatalysts(mergeCalendarEvents(local, ports.officialEvents()).filter((e) => e.date >= first && e.date <= last));
+        // La même lecture que la garde : avec les NFP et CPI estimés par règle quand le calendrier officiel ne couvre plus
+        // (SEC2.2). `calendar_events`, lui, lit les sources et n'invente ni NFP ni FOMC.
+        const official = ports.officialEvents();
+        const catalysts = majorCatalysts(withCoverageEstimates(mergeCalendarEvents(local, official), coverageEstimates(official, today)).filter((e) => e.date >= first && e.date <= last));
         const next = catalysts.find((c) => c.at + window >= now);
 
         const entries = trades.filter((t) => tradingDayNow(t.entryTime) === day).map(entryOfTrade);
@@ -1108,6 +1112,8 @@ function createDeskTools(ports: DeskPorts): DeskTool[] {
                 at: new Date(next.at).toISOString(),
                 date: next.date,
                 timeET: next.timeET,
+                // Une date déduite d'une règle le dit : l'agent ne la présente pas comme publiée (SEC2.2).
+                ...(next.estimated ? { estimated: true as const } : {}),
                 minutesUntil: Math.round((next.at - now) / 60_000),
                 window: rules.catalystBlackoutMin > 0 ? { minutes: rules.catalystBlackoutMin, from: new Date(next.at - window).toISOString(), to: new Date(next.at + window).toISOString(), active: Math.abs(now - next.at) <= window } : null,
               }
