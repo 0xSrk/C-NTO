@@ -187,3 +187,66 @@ export function anthropicRequestBody({ model, temperature, messages, tools, tool
   }
   return body;
 }
+
+/* ─── Lecture du flux (SSE), bornée ─── */
+
+/** Pourquoi le flux d'un fournisseur a été coupé : `idle`, plus un octet depuis le délai ; `overflow`, une ligne sans fin. */
+export class LlmStreamError extends Error {
+  constructor(readonly code: 'idle' | 'overflow') {
+    super(code === 'idle' ? 'flux du fournisseur muet' : 'flux du fournisseur sans fin de ligne');
+    this.name = 'LlmStreamError';
+  }
+}
+
+export interface SseLimits {
+  /** Silence toléré entre deux octets. */
+  idleMs: number;
+  /** Texte gardé en attente d'une fin de ligne. */
+  maxBuffer: number;
+}
+
+/** Soixante secondes sans octet, un mégaoctet sans fin de ligne (SEC2.3). */
+export const SSE_LIMITS: SseLimits = { idleMs: 60_000, maxBuffer: 1024 * 1024 };
+
+/**
+ * Lit le flux d'un fournisseur et rend chaque ligne `data:`. Le process principal tient aussi le pont et les gardes : un
+ * fournisseur qui se tait ne le laisse pas attendre sans fin, et une ligne sans fin ne remplit pas sa mémoire. Dans les
+ * deux cas le lecteur est coupé et `LlmStreamError` levée. Une conversation annulée s'arrête sans erreur.
+ */
+export async function sseData(res: { body: ReadableStream<Uint8Array> | null }, signal: AbortSignal, onData: (data: string) => void, limits: SseLimits = SSE_LIMITS): Promise<void> {
+  const reader = res.body?.getReader();
+  if (!reader) return;
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const cut = async (code: 'idle' | 'overflow'): Promise<never> => {
+    await reader.cancel().catch(() => undefined);
+    throw new LlmStreamError(code);
+  };
+  while (true) {
+    if (signal.aborted) {
+      await reader.cancel();
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const silence = new Promise<'idle'>((resolve) => {
+      timer = setTimeout(() => resolve('idle'), limits.idleMs);
+    });
+    let step: 'idle' | Awaited<ReturnType<typeof reader.read>>;
+    try {
+      step = await Promise.race([reader.read(), silence]);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (step === 'idle') return cut('idle');
+    const { value, done } = step;
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.slice(0, idx).replace(/\r$/, '');
+      buffer = buffer.slice(idx + 1);
+      if (line.startsWith('data:')) onData(line.slice(5).trim());
+    }
+    if (buffer.length > limits.maxBuffer) return cut('overflow');
+  }
+}

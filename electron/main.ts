@@ -8,7 +8,7 @@ import { AgentOrderHost } from './agent-orders';
 import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from './llm-host';
 import { LlmKeySeals } from './llm-key-seals';
-import { AnthropicStreamParser, anthropicRequestBody, OpenAiStreamParser, openAiRequestBody, type ToolChoice } from './llm-stream';
+import { AnthropicStreamParser, anthropicRequestBody, LlmStreamError, OpenAiStreamParser, openAiRequestBody, sseData, type ToolChoice } from './llm-stream';
 import { ORCH_RESPONSE_ID_MAX, Orchestrator } from './orchestrator';
 import { deskUrlAllowed, onPageLeft } from './page-left';
 import { createPasteGate, isAutoRepeat, reopenOnNewDocument } from './paste-gate';
@@ -1054,26 +1054,19 @@ async function readLlmError(res: Response): Promise<string> {
   }
 }
 
-async function sseData(res: Response, signal: AbortSignal, onData: (data: string) => void): Promise<void> {
-  const reader = res.body?.getReader();
-  if (!reader) return;
-  const decoder = new TextDecoder();
-  let buffer = '';
-  while (true) {
-    if (signal.aborted) {
-      await reader.cancel();
-      return;
-    }
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf('\n')) !== -1) {
-      const line = buffer.slice(0, idx).replace(/\r$/, '');
-      buffer = buffer.slice(idx + 1);
-      if (line.startsWith('data:')) onData(line.slice(5).trim());
-    }
-  }
+/** Le flux du fournisseur est borné (`sseData`, SEC2.3) : coupé, le desk dit pourquoi. */
+function llmStreamCut(err: LlmStreamError): string {
+  return err.code === 'idle'
+    ? ui(
+        'Fournisseur muet depuis 60 secondes : la réponse est interrompue. Relancez la demande.',
+        'Provider silent for 60 seconds: the answer was cut. Send the request again.',
+        'Proveedor en silencio desde hace 60 segundos: la respuesta se interrumpió. Repita la solicitud.',
+      )
+    : ui(
+        'Réponse du fournisseur illisible (plus de 1 Mo sans fin de ligne) : elle est interrompue.',
+        'Unreadable provider answer (more than 1 MB without a line end): it was cut.',
+        'Respuesta del proveedor ilegible (más de 1 MB sin fin de línea): se interrumpió.',
+      );
 }
 
 ipcMain.handle('llm:probe', async (e, config: unknown) => {
@@ -1148,7 +1141,7 @@ ipcMain.handle('llm:start', async (e, payload: unknown) => {
       await streamOpenAiMain(sender, requestId, p.config.baseUrl, model, temperature, key, messages, tools, toolChoice, ac.signal);
     }
   } catch (err) {
-    if (!ac.signal.aborted) sender.send('llm:error', { requestId, error: err instanceof Error ? err.message : String(err) });
+    if (!ac.signal.aborted) sender.send('llm:error', { requestId, error: err instanceof LlmStreamError ? llmStreamCut(err) : err instanceof Error ? err.message : String(err) });
   } finally {
     llmAbort.delete(requestId);
   }
