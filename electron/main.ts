@@ -806,7 +806,8 @@ ipcMain.handle('ntbridge:max-contracts', async (e, n: unknown) => {
   });
   return applied ?? host.publicStatus();
 });
-ipcMain.handle('ntbridge:order', (e, payload: unknown) => (trusted(e) && ntBridge ? ntBridge.order(payload) : { ok: false, code: -32011, message: 'pont indisponible' }));
+// Aucun envoi d'ordre direct depuis le renderer (SEC1.2) : un ordre naît d'une proposition de l'agent confirmée par dialogue
+// (`agent-orders:propose`), du copieur armé par dialogue, ou du kill switch. Ajouter ici un canal d'ordre se décide.
 ipcMain.handle('ntbridge:killswitch', (e) => (trusted(e) && ntBridge ? ntBridge.killSwitchReport() : { accounts: [], sent: false, results: [] }));
 // Le dernier rapport de coupure, redemandé par le renderer (chargement, rechargement) : lecture seule, sans argument.
 ipcMain.handle('ntbridge:last-kill', (e) => (trusted(e) ? ntBridge?.lastKillReport() ?? null : null));

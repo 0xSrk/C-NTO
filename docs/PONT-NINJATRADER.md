@@ -60,7 +60,7 @@ Control Center › **Trade Performance › Trades** (ou onglet **Executions**) �
 
 Le pont a **son propre** serveur WebSocket, dans `electron/nt-bridge/`. Il ne réutilise pas l'orchestrateur IA (`electron/orchestrator.ts` reste un prototype, autre cycle de vie, autre niveau de confiance).
 
-Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par les canaux IPC `marketdata:*` et alimentent `MarketDataPort` (`sourceId: 'nt8-bridge'`). Les ordres passent par `ntbridge:order`, après `guards.ts`. La réplication du copieur passe par ce transport : voir la section « Réplication ».
+Le renderer ne voit jamais le socket. Les barres, ticks et quotes arrivent par les canaux IPC `marketdata:*` et alimentent `MarketDataPort` (`sourceId: 'nt8-bridge'`). Le renderer n'a aucun envoi d'ordre à lui : un ordre part du process principal (`NtBridgeHost.order`, après `guards.ts`), pour une proposition de l'agent confirmée par dialogue, pour le copieur armé, ou pour le kill switch. La réplication du copieur passe par ce transport : voir la section « Réplication ».
 
 ### Installation de l'AddOn
 
