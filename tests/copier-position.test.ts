@@ -138,11 +138,18 @@ describe('hôte de réplication · position', () => {
     const host = new CopierHost(m.port, mkdtempSync(path.join(tmpdir(), 'canto-pos-')), () => {});
     host.open();
     host.configure(config);
-    host.arm();
+    // L'armement exige l'état frais du maître et du suiveur (SEC2.1).
+    m.accounts([{ name: 'Sim101', positions: [] }, { name: 'Sim103', positions: [] }]);
+    expect(host.arm()).toBeNull();
     m.fill('buy', 1);
     m.fill('buy', 1);
     m.fill('buy', 1);
     await settle();
+    // NinjaTrader rend les positions après les entrées : la sortie du suiveur se borne à ce qu'il détient.
+    m.accounts([
+      { name: 'Sim101', positions: [{ instrument: 'NQ 12-26', qty: 3, avgPrice: 21_000 }] },
+      { name: 'Sim103', positions: [{ instrument: 'NQ 12-26', qty: 2, avgPrice: 21_000 }] },
+    ]);
     m.fill('sell', 3);
     await settle();
     expect(brief(m.submitted)).toEqual(['Sim103 buy 2 NQ 12-26', 'Sim103 sell 2 NQ 12-26']);
@@ -154,7 +161,8 @@ describe('hôte de réplication · position', () => {
     const host = new CopierHost(m.port, mkdtempSync(path.join(tmpdir(), 'canto-pos-')), () => {});
     host.open();
     host.configure({ ...config, followers: [ratio(1)] });
-    host.arm();
+    m.accounts([{ name: 'Sim101', positions: [] }, { name: 'Sim102', positions: [] }]);
+    expect(host.arm()).toBeNull();
     m.hold(true);
     m.fill('buy', 1);
     m.fill('buy', 1);
@@ -175,7 +183,7 @@ describe('hôte de réplication · position', () => {
       { name: 'Sim101', positions: [{ instrument: 'NQ 12-26', qty: 2, avgPrice: 21_000 }] },
       { name: 'Sim102', positions: [] },
     ]);
-    host.arm();
+    expect(host.arm()).toBeNull();
     m.fill('sell', 2);
     await settle();
     expect(m.submitted).toEqual([]);

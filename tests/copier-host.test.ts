@@ -1,15 +1,19 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import type { ExecutionEvent, ExecutionPort } from '@/engine/execution/port';
-import { confirmCopierArm, CopierHost, copierArmDialog } from '../electron/nt-bridge/copier-host';
+import { CopierHost, copierArmDialog, requestCopierArm } from '../electron/nt-bridge/copier-host';
 import { Nt8ExecutionPort } from '../electron/nt-bridge/execution-port';
 import { NtBridgeHost } from '../electron/nt-bridge/index';
 import { NtBridgeServer } from '../electron/nt-bridge/server';
 
 const TOKEN = 'jeton-copieur';
+
+/** L'état des comptes que l'AddOn rend : sans lui, la réplication ne s'arme pas (SEC2.1). */
+const FLAT_ACCOUNTS = ['Sim101', 'Sim102', 'Sim103'].map((name) => ({ name, cashValue: 50_000, realizedPnl: 0, unrealizedPnl: 0, positions: [] }));
+const FLAT_VIEWS = FLAT_ACCOUNTS.map((account) => ({ name: account.name, positions: [], unrealizedPnl: 0 }));
 
 function sync(extra: Record<string, unknown> = {}) {
   return {
@@ -48,21 +52,31 @@ describe('hôte de réplication', () => {
     expect(copierArmDialog('en').buttons[0]).toBe('Arm replication');
     expect(copierArmDialog('es').buttons[0]).toBe('Armar la réplica');
     const logs: string[] = [];
-    const refused = await confirmCopierArm({
+    let armed = 0;
+    const arm = () => {
+      armed += 1;
+      return null;
+    };
+    const refused = await requestCopierArm({
       win: { isDestroyed: () => false },
       locale: 'fr',
       showMessageBox: async () => ({ response: 1 }),
       log: (line) => logs.push(line),
+      refusal: () => null,
+      arm,
     });
     expect(refused).toBe(false);
     expect(logs).toEqual([]);
-    const absent = await confirmCopierArm({
+    const absent = await requestCopierArm({
       win: null,
       locale: 'fr',
       showMessageBox: async () => ({ response: 0 }),
       log: () => {},
+      refusal: () => null,
+      arm,
     });
     expect(absent).toBe(false);
+    expect(armed).toBe(0);
   });
 
   it('fill Sim101 → Sim102 et Sim103, rejeu nul, blackout, Couper < 200 ms, redémarrage désarmé', async () => {
@@ -86,7 +100,8 @@ describe('hôte de réplication', () => {
     host.open();
     expect(host.status().armed).toBe(false);
     expect(host.configure(sync())).toBe(true);
-    host.arm();
+    // Avant le lien et l'état des comptes, rien ne s'arme (SEC2.1).
+    expect(host.arm()).toEqual({ reason: 'link', missing: [] });
 
     const submits: { account?: string; quantity?: number; instrument?: string; tag?: string }[] = [];
     const cancels: { account?: string; orderId?: string }[] = [];
@@ -108,8 +123,12 @@ describe('hôte de réplication', () => {
     });
     await new Promise((resolve) => ws.once('open', resolve));
     ws.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'bridge.hello', params: { kind: 'ninjatrader', ntVersion: '8.1', addonVersion: 'fake', accounts: ['Sim101', 'Sim102', 'Sim103'], protocol: 1 } }));
+    const sendAccounts = () => ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'bridge.accounts', params: { accounts: FLAT_ACCOUNTS } }));
+    sendAccounts();
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(server.status().link).toBe('live');
+    expect(host.arm()).toBeNull();
+    expect(host.status().armed).toBe(true);
 
     const sendFill = (id: string) => {
       ws.send(JSON.stringify({
@@ -147,7 +166,9 @@ describe('hôte de réplication', () => {
     restarted.open();
     expect(restarted.status().armed).toBe(false);
     restarted.configure(sync());
-    restarted.arm();
+    sendAccounts();
+    await waitFor(() => restarted.armRefusal() === null);
+    expect(restarted.arm()).toBeNull();
     const before = submits.length;
     sendFill('ex-1');
     await new Promise((resolve) => setTimeout(resolve, 40));
@@ -193,7 +214,8 @@ describe('idempotence après accusé', () => {
     const host = new CopierHost(port, dir, () => {});
     host.open();
     host.configure(one);
-    host.arm();
+    gate.listener?.({ kind: 'accounts', accounts: FLAT_VIEWS });
+    expect(host.arm()).toBeNull();
     const send = () => gate.listener?.({ kind: 'fill', fill });
     send();
     await waitFor(() => calls === 1);
@@ -210,7 +232,8 @@ describe('idempotence après accusé', () => {
     const restarted = new CopierHost(port, dir, () => {});
     restarted.open();
     restarted.configure(one);
-    restarted.arm();
+    gate.listener?.({ kind: 'accounts', accounts: FLAT_VIEWS });
+    expect(restarted.arm()).toBeNull();
     send();
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect(calls).toBe(2);
@@ -252,7 +275,8 @@ describe('Couper pendant un submit', () => {
     const host = new CopierHost(port, dir, () => {});
     host.open();
     host.configure(sync());
-    host.arm();
+    gate.listener?.({ kind: 'accounts', accounts: FLAT_VIEWS });
+    expect(host.arm()).toBeNull();
     gate.listener?.({
       kind: 'fill',
       fill: { account: 'Sim101', instrument: 'NQ', side: 'buy', qty: 1, price: 1, time: Date.now(), executionId: 'ex-race' },
@@ -270,17 +294,30 @@ describe('Couper pendant un submit', () => {
 
 describe('kill switch du pont', () => {
   const hosts: NtBridgeHost[] = [];
+  const sockets: WebSocket[] = [];
   afterEach(async () => {
+    for (const socket of sockets.splice(0)) socket.close();
     await Promise.all(hosts.splice(0).map((host) => host.dispose()));
   });
 
   it('désarme le routeur', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'canto-host-'));
+    // Port 0 : le système en choisit un libre ; le jeton est celui de l'AddOn factice.
+    writeFileSync(path.join(dir, 'nt-bridge.json'), JSON.stringify({ port: 0, token: TOKEN, extraAccounts: [], maxContractsPerOrder: 20 }));
     const host = new NtBridgeHost(dir, () => dir);
     hosts.push(host);
     await host.start();
     host.configureCopier(sync());
-    host.armCopier();
+    // Sans AddOn, donc sans état des comptes, la réplication ne s'arme pas (SEC2.1).
+    expect(host.armCopier()).toEqual({ reason: 'link', missing: [] });
+    expect(host.copierStatus().armed).toBe(false);
+    const ws = new WebSocket(`ws://127.0.0.1:${host.publicStatus()!.port}/?token=${TOKEN}`);
+    sockets.push(ws);
+    await new Promise((resolve) => ws.once('open', resolve));
+    ws.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'bridge.hello', params: { kind: 'ninjatrader', ntVersion: '8.1', addonVersion: 'fake', accounts: ['Sim101', 'Sim102', 'Sim103'], protocol: 1 } }));
+    ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'bridge.accounts', params: { accounts: FLAT_ACCOUNTS } }));
+    await waitFor(() => host.copierArmRefusal() === null);
+    expect(host.armCopier()).toBeNull();
     expect(host.copierStatus().armed).toBe(true);
     host.killSwitch();
     expect(host.copierStatus().armed).toBe(false);

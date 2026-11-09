@@ -44,8 +44,10 @@ function harness(flattenOnCut = false) {
     catalysts: [],
     followers: [{ account: 'Sim102', sizing: { mode: 'ratio', value: 2, maxContracts: 20 }, symbolMap: { mode: 'identique' } }],
   });
-  host.arm();
   const emit = (event: ExecutionEvent) => listeners.forEach((cb) => cb(event));
+  // L'armement exige l'état frais du maître et du suiveur (SEC2.1).
+  emit({ kind: 'accounts', accounts: [{ name: 'Sim101', positions: [] }, { name: 'Sim102', positions: [] }] });
+  if (host.arm() !== null) throw new Error('la réplication ne s’est pas armée');
   return {
     host,
     flattened,
@@ -60,10 +62,24 @@ describe('Couper dit ce qui reste ouvert', () => {
     const h = harness();
     h.buy();
     await settle();
+    // NinjaTrader rend la position du suiveur une fois son entrée exécutée.
+    h.accounts([
+      { name: 'Sim101', positions: [{ instrument: 'NQ 12-26', qty: 1, avgPrice: 1 }] },
+      { name: 'Sim102', positions: [{ instrument: 'NQ 12-26', qty: 2, avgPrice: 1 }] },
+    ]);
     const report = h.host.cut();
     expect(report.open).toEqual([{ account: 'Sim102', instrument: 'NQ 12-26', qty: 2 }]);
     expect(report.flattened).toEqual([]);
     expect(h.flattened).toEqual([]);
+    h.host.dispose();
+  });
+
+  it('un suiveur que le pont ne rend plus : Couper annonce la position commandée', async () => {
+    const h = harness();
+    h.buy();
+    await settle();
+    h.accounts([{ name: 'Sim101', positions: [] }]);
+    expect(h.host.cut().open).toEqual([{ account: 'Sim102', instrument: 'NQ 12-26', qty: 2 }]);
     h.host.dispose();
   });
 

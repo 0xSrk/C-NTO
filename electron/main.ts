@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, promises as fs, renameSync, unlinkSync, writeFil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NinjaBridge } from './bridge';
-import { confirmCopierArm } from './nt-bridge/copier-host';
+import { requestCopierArm } from './nt-bridge/copier-host';
 import { AgentOrderHost } from './agent-orders';
 import { authorizeLiveAccount, changeMaxContracts, KILL_SWITCH_SHORTCUT, NtBridgeHost } from './nt-bridge';
 import { keyFor, llmFetch, llmHostOk, llmKeyHost, llmLoopback } from './llm-host';
@@ -820,13 +820,15 @@ ipcMain.handle('copier:arm', async (e) => {
   if (!trusted(e) || !ntBridge) return null;
   const host = ntBridge;
   const attached = win && !win.isDestroyed() ? win : null;
-  const ok = await confirmCopierArm({
+  // Sans état frais des comptes, le dialogue dit ce qui manque et rien ne s'arme (SEC2.1).
+  await requestCopierArm({
     win: attached,
     locale: readLocaleFile(app.getPath('userData')),
     showMessageBox: (target, options) => dialog.showMessageBox(target as BrowserWindow, options),
     log: (line) => mainLog('info', line),
+    refusal: () => host.copierArmRefusal(),
+    arm: () => host.armCopier(),
   });
-  if (ok) host.armCopier();
   return host.copierStatus();
 });
 

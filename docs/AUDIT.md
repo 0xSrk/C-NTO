@@ -1929,3 +1929,11 @@ Demande de l'ADMIN : « un checking complet du desk », avec la correction de ce
 - **Vitest 4.1.12** (avis modérés de `@vitest/mocker`) : montée non faite ; npm 10.9 lève « Cannot read properties of null (reading 'edgesOut') » en résolvant ses pairs, sauf avec `--legacy-peer-deps`, qui retire treize paquets du verrou.
 - **Agent.** Flux du fournisseur sans délai d'inactivité ni tampon borné (`electron/main.ts:1055`) ; liens `https` ouverts dans le navigateur sans dialogue qui montre l'hôte (`electron/main.ts:215`).
 - **Octrois de dossiers.** Écriture et surveillance partagent encore la même liste (`electron/folder-grants.ts:15`) ; SEC1.3 ferme l'écriture de `bridge.json` par le nom.
+
+## Points ouverts de l'audit du 9 novembre — seconde vague (2026-11-09)
+
+Demande de l'ADMIN, après la fusion de #150 : « Occupes toi de tout et appliques les propositions que tu as énoncé ». Elle porte sur la liste « Encore ouvert » de la section précédente et sur la publication qui suit. Issue de `main` (`1e9e6ed`) ; menée depuis une session dans le cloud, sans le centre de contrôle (`CLAUDE.md` § 6).
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| SEC2.1 | La réplication ne s'arme plus sans un état frais des comptes. `arm()` armait même sans instantané du maître : le livre partait de zéro, et la sortie d'un maître déjà long 2 devenait une vente de 2 chez un suiveur à plat, que le routeur traitait comme une ouverture (rejoué par une sonde sur `1e9e6ed`). L'armement exige le pont en ligne et un `bridge.accounts` de moins de dix secondes qui couvre le maître et chaque suiveur ; sinon un dialogue du process principal dit ce qui manque, dans les trois langues, et rien ne s'arme. L'état est relu après le dialogue d'armement. `electron/nt-bridge/copier-host.ts:65`, `:104`, `:145`, `:250`, `:268`, `electron/nt-bridge/index.ts:421`, `electron/main.ts:824`. | `tests/copier-arm-state.test.ts` |

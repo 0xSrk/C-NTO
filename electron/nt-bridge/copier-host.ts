@@ -1,11 +1,12 @@
 /**
  * Hôte de réplication. Tourne dans le process principal.
  * Désarmé à chaque démarrage. Les suiveurs ne sont soumis que si `armed` et lien `live`.
+ * L'armement exige un état frais des comptes : le livre du maître se recale alors sur sa position réelle (SEC2.1).
  * L'idempotence vit dans `userData/copier-seen.txt`, jamais dans le coffre.
  */
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AccountView, ExecutionPort, Fill } from '../execution/port';
+import type { AccountView, ExecutionPort, Fill, LinkState } from '../execution/port';
 import { applyMasterFill, FLAT, positionKey, rebaseExposure, type MasterExposure } from '../copier/position';
 import type { CopierSync } from '../copier/sync';
 import { coerceCopierSync, followerExclusion } from '../copier/sync';
@@ -39,7 +40,44 @@ export interface CopierArmDialog {
   message: string;
 }
 
+/** Le dialogue qui dit pourquoi la réplication ne s'arme pas : un constat, un seul bouton. */
+export interface CopierArmRefusalDialog {
+  type: 'warning';
+  buttons: [string];
+  defaultId: 0;
+  cancelId: 0;
+  noLink: true;
+  title: string;
+  message: string;
+  detail: string;
+}
+
+/**
+ * Pourquoi la réplication ne s'arme pas. `master` : aucun compte maître ; `link` : pont hors ligne ; `stale` : aucun
+ * état des comptes depuis `ARM_STATE_MAX_AGE_MS` ; `accounts` : le maître ou des suiveurs absents de cet état (`missing`).
+ */
+export interface CopierArmRefusal {
+  reason: 'master' | 'link' | 'stale' | 'accounts';
+  missing: string[];
+}
+
+/** Âge au-delà duquel un état des comptes ne permet plus d'armer. L'AddOn le renvoie toutes les 5 s et à chaque changement de position. */
+export const ARM_STATE_MAX_AGE_MS = 10_000;
+
 const SEEN_FILE = 'copier-seen.txt';
+
+/** Contrôles, formats (dont les inversions bidirectionnelles), surrogats isolés, séparateurs de ligne : jamais dans un dialogue. */
+const DIALOG_FORBIDDEN = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/gu;
+const DIALOG_NAME_MAX = 40;
+const DIALOG_NAMES_MAX = 4;
+
+function dialogNames(names: readonly string[]): string {
+  const shown = names.slice(0, DIALOG_NAMES_MAX).map((name) => {
+    const clean = name.replace(DIALOG_FORBIDDEN, '');
+    return clean.length > DIALOG_NAME_MAX ? `${clean.slice(0, DIALOG_NAME_MAX)}…` : clean;
+  });
+  return names.length > DIALOG_NAMES_MAX ? `${shown.join(', ')}, …` : shown.join(', ');
+}
 
 function localMinutes(ms: number): number {
   const parts = new Intl.DateTimeFormat('en-US', { hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(ms));
@@ -62,15 +100,70 @@ export function copierArmDialog(locale: AppLocale): CopierArmDialog {
   return { type: 'warning', title: 'CΛNTO', message, buttons: [allow, cancel], defaultId: 1, cancelId: 1, noLink: true };
 }
 
-export async function confirmCopierArm(args: {
+/** Ce qui manque pour armer, en mots. Rien ne s'arme : le trader lit, corrige, puis arme à nouveau. */
+export function copierArmRefusalDialog(locale: AppLocale, refusal: CopierArmRefusal): CopierArmRefusalDialog {
+  const names = dialogNames(refusal.missing);
+  const detail =
+    refusal.reason === 'master'
+      ? uiText(locale, 'Aucun compte maître actif. Choisissez le compte maître dans le Copieur.', 'No active master account. Choose the master account in the Copier.', 'Ninguna cuenta maestra activa. Elija la cuenta maestra en el Copiador.')
+      : refusal.reason === 'link'
+        ? uiText(
+            locale,
+            'Le pont NinjaTrader n’est pas en ligne : la position du compte maître n’est pas connue. Ouvrez NinjaTrader, attendez le lien, puis armez à nouveau.',
+            'The NinjaTrader bridge is not live: the master account position is not known. Open NinjaTrader, wait for the link, then arm again.',
+            'El puente NinjaTrader no está en línea: no se conoce la posición de la cuenta maestra. Abra NinjaTrader, espere el enlace y arme de nuevo.',
+          )
+        : refusal.reason === 'stale'
+          ? uiText(
+              locale,
+              'Le pont n’a pas rendu l’état des comptes depuis dix secondes : la position du compte maître n’est pas connue. Attendez le prochain état, puis armez à nouveau.',
+              'The bridge has not returned the account state for ten seconds: the master account position is not known. Wait for the next state, then arm again.',
+              'El puente no ha devuelto el estado de las cuentas desde hace diez segundos: no se conoce la posición de la cuenta maestra. Espere el próximo estado y arme de nuevo.',
+            )
+          : uiText(
+              locale,
+              `NinjaTrader ne rend pas l’état de ces comptes : ${names}. Vérifiez leur nom et leur connexion, puis armez à nouveau.`,
+              `NinjaTrader does not return the state of these accounts: ${names}. Check their name and connection, then arm again.`,
+              `NinjaTrader no devuelve el estado de estas cuentas: ${names}. Compruebe su nombre y su conexión, y arme de nuevo.`,
+            );
+  return {
+    type: 'warning',
+    title: 'CΛNTO',
+    message: uiText(locale, 'Réplication non armée', 'Replication not armed', 'Réplica no armada'),
+    detail,
+    buttons: [uiText(locale, 'Fermer', 'Close', 'Cerrar')],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  };
+}
+
+/**
+ * Armer, du clic à l'armement (SEC2.1). Sans état frais des comptes, un dialogue dit ce qui manque et rien ne s'arme ;
+ * sinon le dialogue d'armement (Annuler par défaut), puis l'armement, qui relit l'état : il a pu se perdre entre-temps.
+ */
+export async function requestCopierArm(args: {
   win: { isDestroyed(): boolean } | null;
   locale: AppLocale;
-  showMessageBox: (win: { isDestroyed(): boolean }, options: CopierArmDialog) => Promise<{ response: number }>;
+  showMessageBox: (win: { isDestroyed(): boolean }, options: CopierArmDialog | CopierArmRefusalDialog) => Promise<{ response: number }>;
   log: (line: string) => void;
+  refusal: () => CopierArmRefusal | null;
+  arm: () => CopierArmRefusal | null;
 }): Promise<boolean> {
-  if (!args.win || args.win.isDestroyed()) return false;
-  const choice = await args.showMessageBox(args.win, copierArmDialog(args.locale));
+  const win = args.win;
+  if (!win || win.isDestroyed()) return false;
+  const before = args.refusal();
+  if (before) {
+    await args.showMessageBox(win, copierArmRefusalDialog(args.locale, before));
+    return false;
+  }
+  const choice = await args.showMessageBox(win, copierArmDialog(args.locale));
   if (choice.response !== 0) return false;
+  const after = args.arm();
+  if (after) {
+    if (!win.isDestroyed()) await args.showMessageBox(win, copierArmRefusalDialog(args.locale, after));
+    return false;
+  }
   args.log('copieur armé');
   return true;
 }
@@ -89,6 +182,8 @@ export class CopierHost {
   private readonly commanded = new Map<string, number>();
   /** Dernier état des comptes vu par le pont : positions réelles et P&L latent. */
   private accounts: AccountView[] | null = null;
+  /** Quand cet état est arrivé (horloge de l'hôte) : l'armement en exige un frais. */
+  private accountsAt: number | null = null;
   private readonly seenPath: string;
   private readonly unsubscribe: () => void;
 
@@ -102,7 +197,10 @@ export class CopierHost {
     this.seenPath = path.join(userDataDir, SEEN_FILE);
     this.unsubscribe = port.subscribe((event) => {
       if (event.kind === 'fill') void this.onFill(event.fill);
-      else if (event.kind === 'accounts') this.accounts = event.accounts;
+      else if (event.kind === 'accounts') {
+        this.accounts = event.accounts;
+        this.accountsAt = this.now();
+      }
       else if (event.kind === 'status') this.onStatus();
     });
   }
@@ -145,21 +243,45 @@ export class CopierHost {
   }
 
   /**
-   * Arme la réplication. L'exposition du maître est recalée sur sa position réelle d'après le pont :
-   * une position déjà ouverte n'est pas copiée, seules les positions ouvertes ensuite le sont.
+   * Ce qui empêche d'armer, ou `null` (SEC2.1). Il faut un maître, le pont en ligne, et un état des comptes de moins de
+   * `ARM_STATE_MAX_AGE_MS` qui couvre le maître et chaque suiveur : le livre se recale sur la position réelle du maître,
+   * le plancher d'un suiveur lit son latent, et sa réduction se borne à sa position réelle.
    */
-  arm(): void {
+  armRefusal(): CopierArmRefusal | null {
+    const sync = this.sync;
+    const master = sync?.topology.masterAccount;
+    if (!sync || !master) return { reason: 'master', missing: [] };
+    const link: LinkState = this.port.status().state;
+    if (link !== 'live') return { reason: 'link', missing: [] };
+    const age = this.accountsAt === null ? null : this.now() - this.accountsAt;
+    if (!this.accounts || age === null || !(age >= 0 && age < ARM_STATE_MAX_AGE_MS)) return { reason: 'stale', missing: [] };
+    const known = new Set(this.accounts.map((account) => account.name));
+    const missing = [master, ...sync.topology.followers.map((follower) => follower.account)].filter((name) => !known.has(name));
+    return missing.length > 0 ? { reason: 'accounts', missing } : null;
+  }
+
+  /**
+   * Arme la réplication, ou rend ce qui l'empêche. L'exposition du maître est recalée sur sa position réelle d'après le
+   * pont : une position déjà ouverte n'est pas copiée, seules les positions ouvertes ensuite le sont. Sans cette
+   * position, le livre partirait de zéro et la sortie du maître deviendrait une ouverture chez le suiveur : refusé.
+   */
+  arm(): CopierArmRefusal | null {
+    const refusal = this.armRefusal();
     const master = this.sync?.topology.masterAccount;
     const view = master ? this.accounts?.find((account) => account.name === master) : undefined;
-    if (view) {
-      const instruments = new Set([...this.exposure.keys(), ...view.positions.map((p) => p.instrument)]);
-      for (const instrument of instruments) {
-        const actual = view.positions.find((p) => p.instrument === instrument)?.qty ?? 0;
-        this.exposure.set(instrument, rebaseExposure(this.exposure.get(instrument) ?? FLAT, actual));
-      }
+    if (refusal || !view) {
+      const why = refusal ?? { reason: 'accounts' as const, missing: master ? [master] : [] };
+      this.log(`copieur armement refusé motif=${why.reason}${why.missing.length > 0 ? ` comptes=${dialogNames(why.missing)}` : ''}`);
+      return why;
+    }
+    const instruments = new Set([...this.exposure.keys(), ...view.positions.map((p) => p.instrument)]);
+    for (const instrument of instruments) {
+      const actual = view.positions.find((p) => p.instrument === instrument)?.qty ?? 0;
+      this.exposure.set(instrument, rebaseExposure(this.exposure.get(instrument) ?? FLAT, actual));
     }
     this.armed = true;
     this.onStatus();
+    return null;
   }
 
   disarm(): void {

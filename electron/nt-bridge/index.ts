@@ -11,7 +11,7 @@ import type { BrowserWindow } from 'electron';
 import type { NinjaBridge } from '../bridge';
 import { mainLog } from '../main-log';
 import { uiText, type AppLocale } from '../locale';
-import { CopierHost, type CopierCutReport, type CopierHostStatus } from './copier-host';
+import { CopierHost, type CopierArmRefusal, type CopierCutReport, type CopierHostStatus } from './copier-host';
 import type { OrderBookView } from '../execution/orderBook';
 import { executionFill, executionPayloadToCsv } from './execution-csv';
 import { Nt8ExecutionPort } from './execution-port';
@@ -417,8 +417,14 @@ export class NtBridgeHost {
     return this.copier?.configure(raw) ?? false;
   }
 
-  armCopier(): void {
-    this.copier?.arm();
+  /** Ce qui empêche d'armer la réplication, ou `null` ; sans hôte de réplication, le pont n'est pas là. */
+  copierArmRefusal(): CopierArmRefusal | null {
+    return this.copier ? this.copier.armRefusal() : { reason: 'link', missing: [] };
+  }
+
+  /** Arme la réplication, ou rend ce qui l'empêche (SEC2.1). */
+  armCopier(): CopierArmRefusal | null {
+    return this.copier ? this.copier.arm() : { reason: 'link', missing: [] };
   }
 
   cutCopier(): CopierCutReport {

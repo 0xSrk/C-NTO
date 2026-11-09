@@ -168,7 +168,7 @@ describe('A17.4 l’hôte passe au routeur le latent des suiveurs lu sur le pont
       { name: 'Sim101', positions: [] },
       { name: 'SimA', positions: [], unrealizedPnl: -2_000 },
     ]);
-    host.arm();
+    expect(host.arm()).toBeNull();
     m.fill('buy', 1);
     await settle();
     expect(m.submitted).toEqual([]);
