@@ -1,7 +1,8 @@
 /**
  * Visual suit un contrat sur le pont : historique borné, puis direct.
  * L'AddOn 2.2.0 lit `from` et `to` en secondes epoch (`FromUnixSeconds`, soit `DateTime.AddSeconds`) :
- * une borne hors de `DateTime` fait échouer la requête. La fenêtre est donc finie : cinq jours jusqu'à maintenant.
+ * une borne hors de `DateTime` fait échouer la requête. La fenêtre est donc finie : cinq jours jusqu'à maintenant,
+ * et 2 000 barres au plus, car la réponse de l'AddOn doit tenir dans une trame du pont (`historyWindow`).
  * Le changement d'instrument ou d'unité lâche l'abonnement précédent et le dit (`retarget` rend vrai) :
  * l'appelant retire alors les barres de l'ancienne cible. L'arrêt lâche aussi l'abonnement.
  * Un échec (historique ou abonnement) est rendu à l'appelant, jamais avalé. L'agent n'appelle pas ce module.
@@ -10,13 +11,23 @@
 import type { Bar } from '@/engine/bars';
 import type { FeedEvent, SubscribeRequest } from '@/engine/marketdata';
 
-/** Profondeur de l'historique demandé au pont, en jours. */
+/** Profondeur de l'historique demandé au pont, en jours, quand l'unité le permet. */
 export const HISTORY_DAYS = 5;
 
-/** Fenêtre d'historique en secondes epoch, l'unité de `Bar.time` et de l'AddOn : `days` jours jusqu'à `now` (ms). */
-export function historyWindow(now: number, days = HISTORY_DAYS): { from: number; to: number } {
+/**
+ * Barres au plus par demande : la borne du process principal (`HISTORY_MAX_BARS`, `electron/nt-bridge/protocol.ts`), qui
+ * ramène de toute façon la fenêtre à elle. Cinq jours en 1 minute font ≈ 6 900 barres et ≈ 650 Ko : plus que la trame du
+ * pont, qui se fermait, ordres en vol et kill switch compris.
+ */
+export const HISTORY_MAX_BARS = 2_000;
+
+/**
+ * Fenêtre d'historique en secondes epoch, l'unité de `Bar.time` et de l'AddOn : jusqu'à `now` (ms), la plus courte de
+ * `days` jours et de `HISTORY_MAX_BARS` barres de `timeframe` minutes.
+ */
+export function historyWindow(now: number, timeframe: number, days = HISTORY_DAYS): { from: number; to: number } {
   const to = Math.floor(now / 1000);
-  return { from: to - days * 86_400, to };
+  return { from: to - Math.min(days * 86_400, (HISTORY_MAX_BARS - 1) * timeframe * 60), to };
 }
 
 /** Range une barre en direct : une barre de même heure est remplacée, l'ordre reste chronologique. */
@@ -67,7 +78,7 @@ export function followNt(
     void (async () => {
       let bars: Bar[] = [];
       try {
-        bars = port.history ? await port.history({ instrument: nextInstrument, timeframe: nextTimeframe, ...historyWindow(Date.now()) }) : [];
+        bars = port.history ? await port.history({ instrument: nextInstrument, timeframe: nextTimeframe, ...historyWindow(Date.now(), nextTimeframe) }) : [];
       } catch (err) {
         if (gen === generation) onError?.(failure(err));
         return;

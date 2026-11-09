@@ -88,6 +88,7 @@ La compilation de l'AddOn exige Windows et NinjaTrader 8. L'AddOn C# n'a pas ét
 - Une seule connexion AddOn. Une seconde connexion authentifiée ferme la première en **4409**.
 - Premier message obligatoirement `bridge.hello` (`kind: "ninjatrader"`, `protocol: 1`), sinon fermeture **4400**.
 - Trame plafonnée à **256 Ko**, sinon fermeture **1009**.
+- **Historique borné à 2 000 barres.** L'AddOn 2.2.0 rend toutes les barres de la fenêtre dans une seule trame : cinq jours en 1 minute (≈ 6 900 barres, ≈ 650 Ko) fermaient le lien en 1009, ordres en vol et kill switch compris. Le process principal ramène toute fenêtre aux 2 000 barres les plus récentes avant de l'envoyer (`clampHistoryWindow`, `protocol.ts`), quelle que soit la source ; Visual demande la même fenêtre (`historyWindow`). Une trame trop lourde coupe toujours le lien, et le journal en dit la cause (« trame trop grande »). La garantie complète (borne et pagination dans l'AddOn) reste à faire côté C#.
 - Battement toutes les **2 s**. À 4 s le lien passe `stale` (flux marché périmés). À **6 s** le lien passe `lost`, notification `bridge.lost`, abonnements `stale`, canal d'ordres fermé jusqu'au retour d'un battement. Un ordre en vol n'est pas réémis.
 
 ## 2. Enveloppe
@@ -129,7 +130,7 @@ Les barres sont en epoch **secondes** UTC. Les ticks, quotes et exécutions sont
 | `bridge.snapshot` | `{}` | charge de `bridge.accounts` |
 | `marketdata.subscribe` | `{ instrument, kind: "bars" \| "tick" \| "quote", timeframe? }` | `{ subscriptionId }` |
 | `marketdata.unsubscribe` | `{ subscriptionId }` | `{ ok }` |
-| `marketdata.history` | `{ instrument, timeframe, from, to }` (`from`, `to` en secondes) | `{ bars }` (plafond 50 000) |
+| `marketdata.history` | `{ instrument, timeframe, from, to }` (`from`, `to` en secondes ; fenêtre bornée par le desk à 2 000 barres) | `{ bars }` (plafond 50 000) |
 | `order.submit` | `{ account, instrument, action, quantity, type, limitPrice?, stopPrice?, oco?, tag }` | `{ orderId, latencyMs }` |
 | `order.cancel` | `{ account, orderId }` | `{ ok }` |
 | `order.flatten` | `{ account }` | `{ closed, cancelled }` (AddOn 2.1.1 ; `closed` seul avant) |
