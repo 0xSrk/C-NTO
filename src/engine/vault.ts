@@ -1,4 +1,15 @@
 export const VAULT_FORMAT = 'canto-vault-v2' as const;
+/**
+ * Copie du coffre scellée par le trousseau du système (`electron/vault-seal.ts`, qui porte le même nom de format) : le
+ * process principal l'ouvre à la lecture du fichier. Une enveloppe qui arrive encore fermée à la restauration vient d'un
+ * autre poste ou d'un autre compte.
+ */
+export const SEALED_VAULT_FORMAT = 'canto-vault-v2-enc' as const;
+
+/** Vrai si ce texte est l'enveloppe d'un coffre scellé, restée fermée. Lecture bon marché : le début du texte suffit. */
+export function isSealedVaultJson(json: string): boolean {
+  return json.startsWith('{') && json.slice(0, 64).includes(`"${SEALED_VAULT_FORMAT}"`);
+}
 
 export interface VaultV2 {
   format: typeof VAULT_FORMAT;

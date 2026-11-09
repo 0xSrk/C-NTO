@@ -12,7 +12,7 @@ import { coerceDayCloses, mergeDayCloses } from '@/engine/agent/dayClose';
 import { coerceRoutineSeen } from '@/engine/agent/routineDue';
 import { sanitizeAlerts } from '@/engine/crypto/alerts';
 import { sanitizeCryptoChart, sanitizeDrawings, sanitizeWatchlist } from '@/engine/crypto/persist';
-import { buildVaultV2, parseVaultJson, stripSecrets } from '@/engine/vault';
+import { buildVaultV2, isSealedVaultJson, parseVaultJson, stripSecrets } from '@/engine/vault';
 import { tr } from '@/i18n';
 import { desk } from '@/lib/desk';
 import { withJournalLock } from './lock';
@@ -726,6 +726,17 @@ function withoutInvalidAdoption(input: unknown): unknown {
 /** Analyse et valide un coffre JSON sans toucher la base : chaque table est filtrée, les réglages passés à l'allowlist. */
 export function prepareVaultRestore(json: string): PreparedVault {
   if (json.length > 400 * 1024 * 1024) throw new Error(tr('Sauvegarde trop volumineuse.', 'Backup too large.', 'Copia demasiado grande.'));
+  // Le process principal ouvre une copie scellée à la lecture du fichier (SEC1.9) : une enveloppe encore fermée ici ne
+  // vient pas de ce poste, ou pas de ce compte. Rien n'est effacé ; le message dit où elle s'ouvre.
+  if (isSealedVaultJson(json)) {
+    throw new Error(
+      tr(
+        'Sauvegarde chiffrée par le trousseau du système : elle ne s’ouvre que sur le poste et le compte qui l’ont écrite. Rien n’a été modifié.',
+        'Backup encrypted by the system keychain: it only opens on the computer and account that wrote it. Nothing was changed.',
+        'Copia cifrada por el llavero del sistema: solo se abre en el equipo y la cuenta que la escribieron. No se ha modificado nada.',
+      ),
+    );
+  }
   const parsed = parseVaultJson(json);
   assertNoCryptoPockets(parsed.pockets);
   const skipped: SkippedRows = {};

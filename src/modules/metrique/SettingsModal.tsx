@@ -207,7 +207,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
         </Field>
-        <Field label={tr('Chiffrer la sauvegarde', 'Encrypt backup', 'Cifrar la copia')} className={s.full}>
+        <Field
+          label={tr('Chiffrer la sauvegarde', 'Encrypt backup', 'Cifrar la copia')}
+          className={s.full}
+          hint={tr('ne se restaure que sur ce poste et ce compte', 'restores only on this computer and account', 'solo se restaura en este equipo y esta cuenta')}
+        >
           <Toggle on={settings.backupEncrypted} onChange={(v) => update({ backupEncrypted: v })} label={tr('trousseau système si disponible', 'system keychain if available', 'llavero del sistema si está disponible')} />
         </Field>
         <Field label={tr('Sauvegarde quotidienne', 'Daily backup', 'Copia diaria')} className={s.full} hint={tr('si un dossier est choisi, au boot Electron', 'if a folder is chosen, on Electron boot', 'si se elige una carpeta, al arrancar Electron')}>
