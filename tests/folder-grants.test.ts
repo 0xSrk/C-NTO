@@ -61,4 +61,28 @@ describe('dossiers autorisés (écriture coffre, pont)', () => {
     expect(isSafeBackupName('notes.txt')).toBe(false);
     expect(isSafeBackupName(undefined)).toBe(false);
   });
+
+  it('SEC1.3 n’accepte que le nom que le desk écrit, `canto-vault-AAAA-MM-JJ.json` : ni `bridge.json`, ni un autre fichier du dossier', () => {
+    // Le dossier du pont est accordé sans dialogue (`bridge:default-folder`) : la garde de l'AddOn y vit, dans `bridge.json`.
+    for (const name of ['bridge.json', 'folder-grants.json', 'nt-bridge.json', 'package.json', 'settings.json', 'a.json']) {
+      expect(isSafeBackupName(name), name).toBe(false);
+    }
+    for (const name of ['canto-vault.json', 'canto-vault-latest.json', 'canto-vault-2026-11-09.json.tmp', 'canto-vault-2026-11-09.json.json', 'canto-vault-2026-11-9.json', 'canto-vault-20261109.json', 'Canto-Vault-2026-11-09.json', 'x-canto-vault-2026-11-09.json', ' canto-vault-2026-11-09.json', 'canto-vault-2026-11-09.JSON']) {
+      expect(isSafeBackupName(name), name).toBe(false);
+    }
+    expect(isSafeBackupName('canto-vault-2026-11-09.json')).toBe(true);
+    expect(isSafeBackupName('canto-vault-2027-01-01.json')).toBe(true);
+  });
+
+  it('SEC1.3 le nom que le renderer donne à sa sauvegarde est celui que le process principal accepte', () => {
+    const settings = readFileSync('src/store/settings.ts', 'utf8');
+    // Deux écritures, le même nom : la copie quotidienne et l'export à la demande.
+    const names = [...settings.matchAll(/`canto-vault-\$\{todayUtc\(\)\}\.json`/g)];
+    expect(names.length).toBeGreaterThanOrEqual(2);
+    expect(settings).toMatch(/function todayUtc\(ms = Date\.now\(\)\): string \{\n  return new Date\(ms\)\.toISOString\(\)\.slice\(0, 10\);/);
+    expect(isSafeBackupName(`canto-vault-${new Date().toISOString().slice(0, 10)}.json`)).toBe(true);
+    // Le process principal borne l'écriture par ce contrôle, avant l'octroi du dossier.
+    const main = readFileSync('electron/main.ts', 'utf8');
+    expect(main).toMatch(/ipcMain\.handle\('files:write-in-folder'[\s\S]{0,200}!isSafeBackupName\(name\)/);
+  });
 });

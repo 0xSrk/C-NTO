@@ -869,9 +869,10 @@ ipcMain.handle('files:pick-folder', async (e) => {
 });
 
 /**
- * Écriture bornée : uniquement dans un dossier accordé par `files:pick-folder` (persisté dans
- * userData) et sous un nom `canto-vault-….json`. Un renderer compromis ne peut donc pas écrire
- * un fichier arbitraire (profil shell, dossier de démarrage…).
+ * Écriture bornée : uniquement dans un dossier accordé (persisté dans userData) et sous le seul nom
+ * `canto-vault-AAAA-MM-JJ.json` (`isSafeBackupName`). Un renderer compromis ne peut donc écrire ni un
+ * fichier arbitraire (profil shell, dossier de démarrage…), ni le `bridge.json` de l'AddOn dans le
+ * dossier du pont, que `bridge:default-folder` accorde sans dialogue.
  */
 ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown, text: unknown, encrypt: unknown) => {
   if (!trusted(e) || !isString(folder, 1024) || !isSafeBackupName(name) || !isString(text, MAX_TEXT)) return { ok: false, encrypted: false, reason: 'invalid' };
