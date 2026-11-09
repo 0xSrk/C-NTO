@@ -334,7 +334,7 @@ Five views — **A Dashboard · B Sessions · C Analysis · D Prop firm · E Mon
 <img src="docs/media/visual.png" alt="CΛNTO — Visual: NQ 5-minute candles, session VWAP with bands, EMA 21, opening range, volume" width="920"/>
 
 - Candles for the instrument registry — NQ, ES, RTY, YM, CL, GC, 6E and their micros — with volume, crosshair and trade markers.
-- **Follow the bridge.** With the NinjaTrader WebSocket live, Visual asks for five days of history on the full contract (`NQ 12-26`), then subscribes to its live bars — only on your gesture. A silent feed is marked stale; **Stop following** unsubscribes. Nothing else subscribes, the agent included.
+- **Follow the bridge.** With the NinjaTrader WebSocket live, Visual asks for up to five days of history on the full contract (`NQ 12-26`) — 2,000 bars at most, so one minute bars cover about a day and a half — then subscribes to its live bars — only on your gesture. A silent feed is marked stale; **Stop following** unsubscribes. Nothing else subscribes, the agent included.
 - An indicator **catalog**, not a frozen menu: EMA / SMA, session VWAP with ±σ bands, RTH opening range, previous-session levels, ATR, relative volume.
 - From Metrics › Sessions › **View in Visual**, one day's trades are projected onto the chart. NinjaTrader *Historical Data* CSV files import directly.
 - Live bars never move a view you have zoomed or scrolled, and the last price is lit in gold.
