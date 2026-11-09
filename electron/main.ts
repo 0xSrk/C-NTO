@@ -23,6 +23,7 @@ import { defaultNinjaExportFolder } from './bridge-folder';
 import { hardwareAccelerationEnabled, hasDrmRenderNode } from './gpu-fallback';
 import { parseLocale, readLocaleFile, uiText, writeLocaleFile, type AppLocale } from './locale';
 import { FolderGrants, isSafeBackupName } from './folder-grants';
+import { openSealedVault, sealVault, type VaultKeychain } from './vault-seal';
 import { planUserData } from './user-data';
 import { initMainLog, mainLog } from './main-log';
 import { SeatHost } from './seat';
@@ -841,6 +842,12 @@ ipcMain.handle('calendar:macro', async (e, fromDate: unknown, toDate: unknown) =
 });
 
 /* ─── Fichiers (toujours derrière un dialogue système) ─── */
+/** Le trousseau du système, tel que `./vault-seal` le lit pour sceller et ouvrir une copie du coffre. */
+const vaultKeychain: VaultKeychain = {
+  available: () => safeStorage.isEncryptionAvailable(),
+  encrypt: (text) => safeStorage.encryptString(text),
+  decrypt: (blob) => safeStorage.decryptString(blob),
+};
 ipcMain.handle('files:save-text', async (e, defaultName: unknown, text: unknown) => {
   if (!trusted(e) || !win || !isString(defaultName, 255) || !isString(text, MAX_TEXT)) return false;
   const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: path.basename(defaultName) });
@@ -858,7 +865,11 @@ ipcMain.handle('files:open-text', async (e, filters: unknown) => {
   const st = await fs.stat(filePath);
   if (st.size > MAX_TEXT) throw new Error(ui('Fichier trop volumineux (limite 50 Mo)', 'File too large (50 MB limit)', 'Archivo demasiado grande (límite 50 MB)'));
   const text = await fs.readFile(filePath, 'utf8');
-  return { name: path.basename(filePath), text };
+  // Une copie du coffre scellée par le trousseau (SEC1.9) s'ouvre ici, sur le poste et le compte qui l'ont écrite : la
+  // restauration reçoit le coffre en clair. Restée fermée, elle part telle quelle, et la restauration dit pourquoi.
+  const opened = openSealedVault(text, vaultKeychain);
+  if (opened.sealed && !opened.ok) mainLog('warn', `sauvegarde scellée non ouverte (${opened.reason === 'keychain' ? 'trousseau de ce poste' : 'contenu qui n’est pas un coffre'})`);
+  return { name: path.basename(filePath), text: opened.sealed && opened.ok ? opened.json : text };
 });
 
 ipcMain.handle('files:pick-folder', async (e) => {
@@ -877,14 +888,10 @@ ipcMain.handle('files:pick-folder', async (e) => {
 ipcMain.handle('files:write-in-folder', async (e, folder: unknown, name: unknown, text: unknown, encrypt: unknown) => {
   if (!trusted(e) || !isString(folder, 1024) || !isSafeBackupName(name) || !isString(text, MAX_TEXT)) return { ok: false, encrypted: false, reason: 'invalid' };
   if (!grants.has(folder)) return { ok: false, encrypted: false, reason: 'not_granted' };
-  let body = text;
-  let encrypted = false;
-  if (encrypt === true) {
-    if (safeStorage.isEncryptionAvailable()) {
-      body = JSON.stringify({ format: 'canto-vault-v2-enc', payload: safeStorage.encryptString(text).toString('base64') });
-      encrypted = true;
-    }
-  }
+  // Scellée par le trousseau du système quand il est là ; sinon écrite en clair, et le renderer le dit au trader.
+  const sealed = encrypt === true ? sealVault(text, vaultKeychain) : null;
+  const body = sealed ?? text;
+  const encrypted = sealed !== null;
   await fs.mkdir(folder, { recursive: true });
   const dest = path.join(folder, name);
   // Écriture atomique : le fichier précédent reste intact si l'écriture échoue à mi-chemin.
