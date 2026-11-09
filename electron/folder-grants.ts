@@ -78,7 +78,11 @@ export class FolderGrants {
   }
 }
 
-/** Nom de fichier de sauvegarde accepté : un seul segment, charset sûr, extension `.json`. */
+/**
+ * Nom de fichier de sauvegarde accepté : celui que le desk écrit, `canto-vault-AAAA-MM-JJ.json`, et lui seul.
+ * Tout `*.json` passait : dans le dossier du pont, accordé sans dialogue (`bridge:default-folder`), un renderer compromis
+ * réécrivait `bridge.json`, donc la garde propre de l'AddOn (comptes, plafond) et le jeton qu'il attend du desk.
+ */
 export function isSafeBackupName(name: unknown): name is string {
-  return typeof name === 'string' && name.length <= 255 && /^[A-Za-z0-9][A-Za-z0-9._-]*\.json$/.test(name) && !name.includes('..');
+  return typeof name === 'string' && /^canto-vault-\d{4}-\d{2}-\d{2}\.json$/.test(name);
 }
