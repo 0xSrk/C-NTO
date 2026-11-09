@@ -88,7 +88,13 @@ La compilation de l'AddOn exige Windows et NinjaTrader 8. L'AddOn C# n'a pas ét
 - Une seule connexion AddOn. Une seconde connexion authentifiée ferme la première en **4409**.
 - Premier message obligatoirement `bridge.hello` (`kind: "ninjatrader"`, `protocol: 1`), sinon fermeture **4400**.
 - Trame plafonnée à **256 Ko**, sinon fermeture **1009**.
-- **Historique borné à 2 000 barres.** L'AddOn 2.2.0 rend toutes les barres de la fenêtre dans une seule trame : cinq jours en 1 minute (≈ 6 900 barres, ≈ 650 Ko) fermaient le lien en 1009, ordres en vol et kill switch compris. Le process principal ramène toute fenêtre aux 2 000 barres les plus récentes avant de l'envoyer (`clampHistoryWindow`, `protocol.ts`), quelle que soit la source ; Visual demande la même fenêtre (`historyWindow`). Une trame trop lourde coupe toujours le lien, et le journal en dit la cause (« trame trop grande »). La garantie complète (borne et pagination dans l'AddOn) reste à faire côté C#.
+- **Historique borné à 2 000 barres.** L'AddOn 2.2.0 rend toutes les barres de la fenêtre dans une seule trame : cinq jours en 1 minute (≈ 6 900 barres, ≈ 650 Ko) fermaient le lien en 1009, ordres en vol et kill switch compris. Le process principal ramène toute fenêtre aux 2 000 barres les plus récentes avant de l'envoyer (`clampHistoryWindow`, `protocol.ts`), quelle que soit la source ; Visual demande la même fenêtre (`historyWindow`). Une trame trop lourde coupe toujours le lien, et le journal en dit la cause (« trame trop grande »). L'AddOn 2.2.1 porte la même borne (`HistoryMaxBars`, `ninjatrader/CantoBridge.cs`) : il ne rend que les 2 000 barres les plus récentes, quoi que NinjaTrader lui ait donné pour la fenêtre. La pagination reste à faire.
+- **AddOn 2.2.1, à compiler et à essayer avant toute Release.** Ce C# n'a pas été compilé par ce dépôt ; sa syntaxe seule est analysée (`mcs --parse`). Vérification par l'ADMIN, sur Windows et un compte Sim :
+  1. copier `ninjatrader/CantoBridge.cs` dans `Documents\NinjaTrader 8\bin\Custom\AddOns\`, NinjaScript Editor, F5 : la compilation passe sans erreur ;
+  2. redémarrer NinjaTrader, ouvrir le desk : Métrique › Options › Pont NinjaTrader dit « AddOn 2.2.1 », lien `live` ;
+  3. Visual, suivre le contrat en cours en 1 minute : le graphique se charge, il porte 2 000 barres au plus, les plus récentes, et le lien reste `live` ;
+  4. passer en 5 minutes puis revenir en 1 minute, deux fois : `logs/main.log` ne porte aucune ligne « trame trop grande » ;
+  5. pendant un chargement, le kill switch (Ctrl+Maj+K) répond et rend son compte rendu.
 - Battement toutes les **2 s**. À 4 s le lien passe `stale` (flux marché périmés). À **6 s** le lien passe `lost`, notification `bridge.lost`, abonnements `stale`, canal d'ordres fermé jusqu'au retour d'un battement. Un ordre en vol n'est pas réémis.
 
 ## 2. Enveloppe

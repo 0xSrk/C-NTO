@@ -1991,3 +1991,17 @@ Le compte rendu de l'audit du 9 novembre proposait une Release 3.10.1 ; l'ADMIN 
 - Contrôle croisé par un second agent : `SHA256SUMS.txt.sig` valide pour 3.10.1 et refusé sous une autre version (`verifyReleaseSignature`, `electron/release-signature.ts:22`), les empreintes publiées identiques au journal du job `publish`.
 - Avant de signer, sur le poste de trading et un compte Sim : Visual en 1 minute sur un contrat suivi, le lien du pont reste `live` ; le Copieur refuse de s'armer pont coupé, s'arme avec l'état des comptes, et la sortie d'un maître déjà en position ne donne aucun ordre chez un suiveur à plat.
 - Les plates du README, si l'ADMIN les veut au pied v3.10.1 : `scripts/capture-readme.mjs`.
+
+## AddOn 2.2.1 — borne d'historique, à compiler (2026-11-09)
+
+Branche à part, `addon/borne-historique`, issue de la montée en 3.10.1 : elle n'entre dans `main`, et dans aucune Release, qu'après la compilation de l'AddOn dans NinjaTrader 8 et son essai sur Sim par l'ADMIN (`CLAUDE.md` § 3). La 3.10.1 se publie sans elle, avec l'AddOn 2.2.0.
+
+| Ticket | Ce qui change | Test |
+|---|---|---|
+| SEC2.9 | La borne d'historique vit aussi dans l'AddOn. SEC1.4 borne ce que le desk demande ; l'AddOn 2.2.0 rendait tout ce que NinjaTrader lui donnait pour la fenêtre, jusqu'à 50 000 barres dans une trame, et rien ne garantit d'ici que NinjaTrader s'en tienne à la fenêtre demandée : au-delà de 256 Ko, le lien se ferme, ordres en vol et kill switch compris. L'AddOn 2.2.1 ne rend que les 2 000 barres les plus récentes (`HistoryMaxBars`, la borne du desk), et annonce sa version. Trois lignes de C# : une constante, son usage à la place du plafond écrit en dur, la version. `ninjatrader/CantoBridge.cs:58`, `:497`, `:715`. | `tests/addon-history-bound.test.ts` |
+
+**Ce qui est prouvé, et ce qui ne l'est pas.** La forme du correctif est tenue par son test, et la syntaxe du fichier est analysée par le compilateur C# de Mono (`mcs --parse`, sans erreur, comme le fichier d'origine ; une faute témoin y est vue). Ce C# n'est pas compilé contre NinjaTrader : ni ses types ni son comportement ne sont vérifiés ici.
+
+**Vérification par l'ADMIN, sur Windows et un compte Sim.** La procédure est dans `docs/PONT-NINJATRADER.md` (« AddOn 2.2.1, à compiler et à essayer avant toute Release ») : compilation F5 sans erreur ; le panneau du pont dit « AddOn 2.2.1 » ; Visual en 1 minute sur le contrat en cours, 2 000 barres au plus et le lien reste `live` ; aucun « trame trop grande » au journal ; le kill switch répond pendant un chargement.
+
+**Reste.** La pagination de l'historique (au-delà de 2 000 barres) ; la lecture du tableau de barres hors du délai de 15 s, qu'une réponse tardive de NinjaTrader peut encore écrire pendant que la trame part.

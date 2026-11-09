@@ -52,6 +52,10 @@ namespace NinjaTrader.NinjaScript.AddOns
         private readonly object policyLock = new object();
         private readonly List<string> extraAccounts = new List<string>();
         private int maxContracts = DefaultMaxContracts;
+        // Borne d'historique (2.2.1) : jamais plus de barres dans une trame que le desk n'en demande (HISTORY_MAX_BARS,
+        // electron/nt-bridge/protocol.ts). NinjaTrader peut rendre plus que la fenêtre demandée ; une trame trop lourde
+        // fermait le lien, ordres en vol et kill switch compris.
+        private const int HistoryMaxBars = 2000;
         // Défi-réponse (protocole 2) : le jeton ne circule pas ; rien n'est envoyé ni exécuté avant la preuve du desk.
         private volatile bool deskVerified;
         private int connectionGen;
@@ -490,7 +494,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             {
                 ["kind"] = "ninjatrader",
                 ["ntVersion"] = "8",
-                ["addonVersion"] = "2.2.0",
+                ["addonVersion"] = "2.2.1",
                 ["accounts"] = accounts,
                 ["protocol"] = 1
             };
@@ -707,7 +711,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                 {
                     if (errorCode == ErrorCode.NoError && request.Bars != null)
                     {
-                        int count = Math.Min(request.Bars.Count, 50000);
+                        // Les plus récentes, HistoryMaxBars au plus, quoi que NinjaTrader ait rendu.
+                        int count = Math.Min(request.Bars.Count, HistoryMaxBars);
                         int start = Math.Max(0, request.Bars.Count - count);
                         for (int i = start; i < request.Bars.Count; i++)
                         {

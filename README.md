@@ -779,6 +779,7 @@ Installers land in `release/`, each built on its own OS.
 
 - The agent remains a prototype: it proposes, it never submits. Bot remains design: it sends no order.
 - The Copier does not follow a real account in this version.
+- NinjaTrader AddOn 2.2.1 (a history answer bounded to 2,000 bars inside the AddOn itself) is in the repository; it ships with the release that follows its compilation and its trial on Sim.
 - NinjaTrader AddOn 2.3.0 (order fills and average price, a full bridge snapshot) ships only once it has been compiled and tried on Sim.
 - The Lab's model joins the agent presets when its host opens.
 - Crypto markets are added to the crypto tab one by one, release after release; the tab grows with them.
