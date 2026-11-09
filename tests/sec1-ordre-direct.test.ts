@@ -9,7 +9,9 @@ import { describe, expect, it } from 'vitest';
  * le copieur (armé par dialogue), le kill switch.
  */
 
-const read = (file: string) => readFileSync(file, 'utf8');
+// Sous Windows, la copie de travail porte des fins de ligne \r\n : les sources se lisent sans elles (le bloc de
+// `NtBridgeApi` se découpe sur « \n}\n »).
+const read = (file: string) => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 const preload = read('electron/preload.ts');
 const main = read('electron/main.ts');
 const deskTypes = read('src/lib/desk.ts');

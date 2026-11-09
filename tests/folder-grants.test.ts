@@ -75,14 +75,17 @@ describe('dossiers autorisés (écriture coffre, pont)', () => {
   });
 
   it('SEC1.3 le nom que le renderer donne à sa sauvegarde est celui que le process principal accepte', () => {
-    const settings = readFileSync('src/store/settings.ts', 'utf8');
+    // Sous Windows, la copie de travail porte des fins de ligne \r\n : les sources se lisent sans elles (les deux
+    // expressions qui suivent traversent des lignes).
+    const read = (file: string) => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    const settings = read('src/store/settings.ts');
     // Deux écritures, le même nom : la copie quotidienne et l'export à la demande.
     const names = [...settings.matchAll(/`canto-vault-\$\{todayUtc\(\)\}\.json`/g)];
     expect(names.length).toBeGreaterThanOrEqual(2);
     expect(settings).toMatch(/function todayUtc\(ms = Date\.now\(\)\): string \{\n  return new Date\(ms\)\.toISOString\(\)\.slice\(0, 10\);/);
     expect(isSafeBackupName(`canto-vault-${new Date().toISOString().slice(0, 10)}.json`)).toBe(true);
     // Le process principal borne l'écriture par ce contrôle, avant l'octroi du dossier.
-    const main = readFileSync('electron/main.ts', 'utf8');
+    const main = read('electron/main.ts');
     expect(main).toMatch(/ipcMain\.handle\('files:write-in-folder'[\s\S]{0,200}!isSafeBackupName\(name\)/);
   });
 });
